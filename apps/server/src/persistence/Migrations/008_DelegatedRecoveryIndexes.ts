@@ -4,7 +4,6 @@ import * as SqlClient from "effect/sql/SqlClient";
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
-  // Include the parent ID so transfer checks do not reread each child payload.
   yield* sql`
     CREATE INDEX orchestration_v2_projection_threads_subagent_result_idx
     ON orchestration_v2_projection_threads(

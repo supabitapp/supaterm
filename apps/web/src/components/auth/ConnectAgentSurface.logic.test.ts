@@ -11,7 +11,6 @@ it("checks a typed code even in a signed-in browser, and a level-bound code send
   };
   const details = { ...signedOut, csrfToken: "csrf", oneClickAccess: AuthMcpClientAccess.literals };
 
-  // An expired code must fail rather than fall back to this browser's session.
   expect(resolveApprovalDecision({ code: " 7K2P9QXR4MZT ", access: "read-only", details })).toEqual(
     { _tag: "pairing-code", access: "read-only", code: "7K2P9QXR4MZT" },
   );

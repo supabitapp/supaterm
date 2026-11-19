@@ -370,7 +370,6 @@ export interface ThreadTitleForkSource {
   history: string;
 }
 
-// The UI shows the project beside the title; naming it lets small models actually omit it.
 function avoidRule(projectTitle: string | undefined, others: string): string {
   const name = projectTitle?.trim();
   return name
@@ -384,7 +383,6 @@ function lengthRule(hasInstructions: boolean): string {
     : "- 3-8 words, fewer than 40 characters.";
 }
 
-// Keep shared editorial rules in these two prompts in sync.
 function initialThreadTitlePrompt(
   projectTitle: string | undefined,
   hasInstructions: boolean,

@@ -43,13 +43,11 @@ const AzureDevOpsPullRequestSchema = Schema.Struct({
   ),
   sourceRefName: TrimmedNonEmptyString,
   targetRefName: TrimmedNonEmptyString,
-  /** The source branch's tip as of Azure's last merge evaluation: the pull request's head. */
   lastMergeSourceCommit: Schema.optional(
     Schema.NullOr(Schema.Struct({ commitId: Schema.optional(Schema.NullOr(Schema.String)) })),
   ),
   status: Schema.String,
   isDraft: Schema.optional(Schema.Boolean),
-  /** `az` prints `null` for a pull request from the same repo. */
   forkSource: Schema.optional(Schema.Unknown),
   creationDate: Schema.optional(Schema.OptionFromNullOr(Schema.DateTimeUtcFromString)),
   closedDate: Schema.optional(Schema.OptionFromNullOr(Schema.DateTimeUtcFromString)),

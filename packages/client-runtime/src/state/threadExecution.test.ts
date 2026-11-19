@@ -321,7 +321,6 @@ describe("thread execution presentation", () => {
     });
   });
 
-  // The server marks a run running before the provider opens, which can take minutes.
   it("labels an open run whose provider has not started a turn", () => {
     const attemptId = RunAttemptId.make("attempt-starting");
     const openRun = { ...run("run-starting", 1, "running"), activeAttemptId: attemptId };
@@ -332,7 +331,6 @@ describe("thread execution presentation", () => {
       status: "starting" as const,
       cwd: "/repo",
       model: null,
-      // The label reads only the driver.
       capabilities: {} as never,
       createdAt: now,
       updatedAt: now,

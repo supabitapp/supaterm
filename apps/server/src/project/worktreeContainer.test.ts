@@ -62,11 +62,9 @@ it.layer(ProcessRunner.layer.pipe(Layer.provideMerge(NodeServices.layer)))(
         yield* fileSystem.symlink(container, linked);
         assert.isTrue(yield* isWorktreeContainer(linked), "container through a symlink");
 
-        // The issue's steps leave core.bare set; Initialize Git would clear it later.
         const bare = yield* makeContainer("bare", true);
         assert.isTrue(yield* isWorktreeContainer(bare), "core.bare container");
 
-        // Git allows an orphan worktree before the first commit: no index, yet a valid checkout.
         const fresh = yield* makeSeparateGitDirCheckout("fresh");
         yield* git(fresh, "worktree", "add", "--orphan", "-b", "feature", "../fresh-feature");
         assert.isFalse(yield* isWorktreeContainer(fresh), "fresh checkout with an orphan worktree");

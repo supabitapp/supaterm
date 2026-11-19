@@ -24,7 +24,6 @@ export function DeviceAndroidFoldControls(props: {
   const viewAtom = androidFoldViewAtom(deviceKey);
   const { fold } = useAtomValue(viewAtom);
   const setView = useAtomSet(viewAtom);
-  // A change in flight owns the posture; reading meanwhile could show the old one.
   useAtomMount(
     visible && enabled && !pending && screenWidth && screenHeight
       ? androidFoldReadAtom({ deviceKey, access, deviceId, screenWidth, screenHeight })

@@ -20,7 +20,6 @@ function runAssistantTexts(
   );
 }
 
-// Only root-session subagent_finished ends background subagents; spawn results only acknowledge launch.
 export function assertGrokBackgroundSubagentOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,

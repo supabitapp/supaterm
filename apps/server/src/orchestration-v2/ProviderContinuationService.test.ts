@@ -352,7 +352,6 @@ describe("ProviderContinuationService", () => {
           ),
         );
 
-        // ACP clears its sticky continuation flag on raw dispatch failure; pre-recovery would prevent that cleanup.
         const dispatchIfCurrent = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
           Effect.gen(function* () {
             const exit = yield* Effect.exit(effect);
@@ -401,7 +400,6 @@ describe("ProviderContinuationService", () => {
           ),
         );
 
-        // Muse forwards dispatch failures unchanged; clearIfCurrent must release its sticky wake flag.
         const dispatchIfCurrent = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
           Effect.asSome(effect);
 
@@ -645,7 +643,6 @@ describe("ProviderContinuationService", () => {
             layerTest({
               dispatched,
               getThreadRecords: () => Effect.succeed(projection),
-              // Models the child's message intake waiting on its coordinator's dispatch lock.
               beforeDispatch: (dispatchThreadId) =>
                 (dispatchThreadId === blockedChildId
                   ? Effect.sleep("10 minutes")

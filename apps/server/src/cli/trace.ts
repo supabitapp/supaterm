@@ -22,7 +22,6 @@ const decodeTraceSpanLine = Schema.decodeUnknownOption(
       durationMs: Schema.Finite,
       endTimeUnixNano: Schema.FiniteFromString,
       exit: Schema.optional(Schema.Struct({ _tag: Schema.String })),
-      // OTLP errors use code 2; interrupts carry effect.fiber.interrupted, or code 1 with Interrupted before Effect 4.0.2.
       status: Schema.optional(
         Schema.Struct({
           code: Schema.optional(Schema.String),
@@ -51,7 +50,6 @@ export function makeTraceSpanSummary(sinceMs = -Infinity) {
       return;
     }
     const endMs = span.endTimeUnixNano / 1_000_000;
-    // The report prints end times as dates, so skip ones outside the Date range.
     if (Option.isNone(DateTime.make(endMs))) {
       skippedLineCount += 1;
       return;

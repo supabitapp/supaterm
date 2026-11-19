@@ -278,7 +278,6 @@ export function syncAutoMarkDoneDaysField(
   field: AutoMarkDoneDaysField,
   saved: number,
 ): AutoMarkDoneDaysField {
-  // An earlier save can be confirmed while a later one is still in flight.
   const pending = field.pending === saved ? null : field.pending;
   if (field.saved === saved && pending === field.pending) return field;
   return {
@@ -314,8 +313,6 @@ export function commitAutoMarkDoneDaysField(field: AutoMarkDoneDaysField): {
     return { field: { ...field, draft: String(current), dirty: false }, submit: null };
   }
   const settled = { ...field, draft: String(days), dirty: false };
-  // An edit ending on the saved value is sent again: a save can land on the shown environment
-  // and fail on another, and retyping the number is how it is retried.
   if (!field.dirty || days === field.pending) return { field: settled, submit: null };
   return { field: { ...settled, pending: days, revision: field.revision + 1 }, submit: days };
 }

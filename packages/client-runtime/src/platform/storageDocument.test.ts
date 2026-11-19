@@ -439,7 +439,6 @@ describe("ConnectionCatalogDocument", () => {
     expect(document.credentials).toEqual([
       { connectionId: target.connectionId, credential: BEARER_CREDENTIAL },
     ]);
-    // Removing the route forgets its token too.
     expect(removeConnectionFromCatalog(document, ENVIRONMENT_ID).credentials).toEqual([]);
   });
 });

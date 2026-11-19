@@ -25,9 +25,6 @@ export function nextThreadActivitySnapshot(
   const { approvalRequestId, userInputRequestId, shellRequestId } = input;
   const cardRequestId = approvalRequestId ?? userInputRequestId;
   const seen = previous?.cardRequestIds ?? new Set<string>();
-  // A card leaves as soon as it is answered, before the shell; a shell request the card
-  // already showed is that answered one, so the request stays the one last announced.
-  // Secret and link requests never show as a card and come from the shell alone.
   const requestId =
     cardRequestId ??
     (shellRequestId !== null && seen.has(shellRequestId)

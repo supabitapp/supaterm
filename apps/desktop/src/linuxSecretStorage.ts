@@ -8,7 +8,6 @@ export type LinuxPasswordStoreSwitch = Exclude<LinuxPasswordStorePreference, "au
 
 export const DEFAULT_LINUX_PASSWORD_STORE: LinuxPasswordStorePreference = "auto";
 
-// Chromium matches desktop names case-sensitively and stops at the first recognized value.
 const ELECTRON_LIBSECRET_DESKTOPS = new Set([
   "Deepin",
   "GNOME",
@@ -18,9 +17,7 @@ const ELECTRON_LIBSECRET_DESKTOPS = new Set([
   "X-Cinnamon",
   "XFCE",
 ]);
-// Chromium selects a KWallet generation for KDE from KDE_SESSION_VERSION, so it needs no help.
 const ELECTRON_KDE_DESKTOP = "KDE";
-// Chromium recognizes LXQt and still selects basic text for it, so it does need a forced backend.
 const ELECTRON_UNPROTECTED_DESKTOPS = new Set(["LXQt"]);
 
 export function normalizeLinuxPasswordStorePreference(
@@ -44,8 +41,6 @@ export function resolveLinuxPasswordStoreSwitch(input: {
 
   return electronSelectsProtectedBackend(input.env) ? null : "gnome-libsecret";
 }
-
-// DESKTOP_SESSION and legacy KDE markers can be stale, so only trust exact XDG_CURRENT_DESKTOP values.
 
 function electronSelectsProtectedBackend(env: NodeJS.ProcessEnv): boolean {
   for (const name of splitDesktopNameList(env.XDG_CURRENT_DESKTOP)) {

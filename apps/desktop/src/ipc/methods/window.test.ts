@@ -240,7 +240,6 @@ describe("readMedia", () => {
         if (url.endsWith("/missing.png")) return new Response("Not Found", { status: 404 });
         if (url.endsWith("/small.png")) return new Response(new Uint8Array([1, 2]));
         let sent = 0;
-        // 257 MiB from one reused chunk: over the cap without allocating it.
         const huge = new ReadableStream<Uint8Array>({
           pull: (controller) => (sent++ < 257 ? controller.enqueue(mib) : controller.close()),
         });
@@ -362,7 +361,6 @@ describe("syncHtmlFullscreen", () => {
       current = false;
       for (const listener of leaveListeners) listener();
     };
-    // Like macOS, an animated exit keeps reporting fullscreen and queues requests until it ends.
     const setFullScreen = vi.fn((next: boolean) => {
       if (exiting) queued.push(next);
       else if (next) current = true;
@@ -540,7 +538,6 @@ describe("probeRemoteEditors PATH scan", () => {
     const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-probe-path-" });
     const dirs = ["a", "b", "c", "d"].map((name) => path.join(root, name));
     for (const dir of dirs) yield* fs.makeDirectory(dir, { recursive: true });
-    // Launchers in different PATH directories, deliberately not in REMOTE_CAPABLE_EDITOR_IDS order.
     for (const [dir, command] of [
       [dirs[2]!, "webstorm"],
       [dirs[0]!, "cursor"],
@@ -611,7 +608,6 @@ describe("probeRemoteEditors PATH scan", () => {
           Effect.provideService(HostProcess.Platform, platform),
           Effect.provide(countingFileSystem(cachedCounter)),
         );
-      // The host can add editors from app folders the fixture can't redirect (e.g. /Applications).
       const fixtureEditors = ["cursor", "vscode", "zed", "webstorm"];
       assert.deepStrictEqual(
         uncached.filter((id) => fixtureEditors.includes(id)),
@@ -619,15 +615,11 @@ describe("probeRemoteEditors PATH scan", () => {
       );
       assert.deepStrictEqual(cached, uncached);
       assert.isAbove(uncachedCounter.stat, 0);
-      // On every platform the probe lists each PATH directory at most once. Only PATH entries count:
-      // resolveEditorCommand also reads app folders such as /Applications on macOS.
       const pathReads = cachedEnv.PATH.split(delimiter)
         .filter((entry) => entry.length > 0)
         .map((entry) => cachedCounter.reads.get(entry) ?? 0);
       assert.isAbove(Math.max(...pathReads), 0);
       assert.isAtMost(Math.max(...pathReads), 1);
-      // Without the listings, Windows stats every PATH entry x PATHEXT candidate for each editor;
-      // elsewhere there is no PATHEXT, so the stat count is about the same either way.
       if (platform === "win32") {
         assert.isBelow(cachedCounter.stat, uncachedCounter.stat / 2);
       }

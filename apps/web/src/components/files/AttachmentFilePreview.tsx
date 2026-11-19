@@ -90,8 +90,6 @@ function readObjectUrl(blob: Blob | null | undefined): string | null {
   return blob ? (objectUrlLeases.get(blob)?.url ?? null) : null;
 }
 
-// useSyncExternalStore resubscribes whenever the subscribe identity changes, and a
-// resubscribe revokes the lease, so each Blob keeps one subscribe function.
 const objectUrlSubscribers = new WeakMap<Blob, (onChange: () => void) => () => void>();
 
 function subscribeToObjectUrl(blob: Blob | null | undefined) {
@@ -170,7 +168,6 @@ export function AttachmentFilePreview(props: {
   const attachmentId =
     props.asset && "attachmentId" in props.asset ? props.asset.attachmentId : undefined;
   const { copyToClipboard, isCopied } = useCopyToClipboard({ target: props.name });
-  // useAssetUrlRefresh keys its callback on these objects, so they must stay cached.
   const resource =
     props.asset && "resource" in props.asset
       ? props.asset.resource
@@ -333,10 +330,7 @@ export function AttachmentFilePreview(props: {
         if (!response.ok) throw new Error("The file could not be loaded. Try again.");
         file = await response.blob();
       }
-      // A Blob keeps cross-origin downloads inside the desktop client instead of
-      // navigating its custom app scheme to an external browser.
       const downloadUrl = URL.createObjectURL(file);
-      // Scheduled before the click so the URL is revoked even if the click throws.
       setTimeout(() => URL.revokeObjectURL(downloadUrl), 30_000);
       const anchor = document.createElement("a");
       anchor.href = downloadUrl;
@@ -424,8 +418,6 @@ export function AttachmentFilePreview(props: {
       pdf={kind === "pdf"}
       htmlRender={props.htmlRender === true}
       threadRef={props.threadRef}
-      // Each mount signs or creates a new URL, so the URL cannot identify the file across visits.
-      // A draft keeps its Blob key after upload, so finishing the upload does not reload the PDF.
       documentKey={
         kind !== "pdf"
           ? undefined

@@ -45,7 +45,6 @@ const mocks = await vi.hoisted(async () => {
     editQueuedRun: vi.fn<(value: unknown) => Promise<{ readonly _tag: "Success" | "Failure" }>>(),
     promoteQueuedRun: vi.fn<(value: unknown) => Promise<{ readonly _tag: "Success" }>>(),
     promoteCommand: {},
-    // The projection's runs per thread, written by each test to stand in for the server.
     threadRuns: Atom.family((_key: string) =>
       Atom.make<ReadonlyArray<RunStatus> | null>(null).pipe(Atom.keepAlive),
     ),
@@ -78,7 +77,6 @@ vi.mock("../../state/threads", async () => {
         Atom.make((get) => {
           const runs = get(mocks.threadRuns(key(ref)));
           if (runs === null) return null;
-          // A Claude-like session whose running turn takes steering.
           return {
             projection: {
               thread: { id: ref.threadId, activeProviderThreadId: null },
@@ -282,11 +280,8 @@ describe("useQueuedRunEdit", () => {
   );
 
   it.each([
-    // Cmd+Enter or Cmd-click with Queue as the default: save, then steer.
     { dispatchMode: "steer", submissionIntent: "alternate", steers: true },
-    // Enter or the Update button with Steer as the default: save in place only.
     { dispatchMode: "steer", submissionIntent: "foreground", steers: false },
-    // Cmd+Enter with Steer as the default queues, so the message stays queued.
     { dispatchMode: "queue", submissionIntent: "alternate", steers: false },
   ] as const)(
     "a saved edit sent as $submissionIntent/$dispatchMode steers: $steers",
@@ -472,11 +467,8 @@ describe("useQueuedRunEdit", () => {
     await using screen = await render(view(THREAD_A, "queued", hook));
     await beginChangedEdit(hook);
 
-    // Not inside act(): act would hold the projection update until the save settles.
     const saved = requireHook(hook).saveEdit(savedContent("changed"), () => {});
     await vi.waitFor(() => expect(mocks.editQueuedRun).toHaveBeenCalledOnce());
-    // The server applied the edit and then started the run; the projection
-    // reports the start before the edit's acknowledgement arrives.
     await act(() => setRuns(THREAD_A, "running"));
     await screen.rerender(view(THREAD_A, "running", hook));
     finishSave({ _tag: "Success" });
@@ -568,11 +560,9 @@ describe("useQueuedRunEdit", () => {
     );
     await using screen = await render(view(THREAD_A, "queued", hook));
     await beginChangedEdit(hook);
-    // Not inside act(): act would hold the rerenders until the save settles.
     const saved = requireHook(hook).saveEdit(savedContent("changed"), () => {});
     await vi.waitFor(() => expect(mocks.editQueuedRun).toHaveBeenCalledOnce());
 
-    // Leaving the thread unmounts the chat view; coming back mounts a new one.
     await screen.rerender(<AppAtomRegistryProvider>{null}</AppAtomRegistryProvider>);
     await screen.rerender(view(THREAD_A, "queued", hook));
     expect(requireHook(hook).isSaving).toBe(true);

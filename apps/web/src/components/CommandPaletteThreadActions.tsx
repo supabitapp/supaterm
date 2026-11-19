@@ -30,7 +30,6 @@ import type { ThreadActionMenuId } from "./threadActionMenu.logic";
 interface ThreadPaletteCommand {
   readonly icon: IconComponent;
   readonly searchTerms: ReadonlyArray<string>;
-  /** Replaces a menu label that only reads right inside the thread's own menu. */
   readonly title?: string;
   readonly shortcutCommand?: KeybindingCommand;
 }
@@ -40,10 +39,6 @@ type SnoozePresetAction = Extract<ThreadActionMenuId, `snooze:${string}`>;
 const isSnoozePresetAction = (id: ThreadActionMenuId): id is SnoozePresetAction =>
   id.startsWith("snooze:");
 
-// Keyed by every thread menu action so a new one cannot skip the palette by
-// accident. null leaves an action out: the palette already offers it in its own
-// form, it has no meaning for the thread being viewed, or it only groups
-// choices that are listed on their own.
 const THREAD_PALETTE_COMMANDS: Record<
   Exclude<ThreadActionMenuId, SnoozePresetAction>,
   ThreadPaletteCommand | null
@@ -136,7 +131,6 @@ export function buildThreadPaletteItems(
   run: (action: ThreadActionMenuId) => Promise<void>,
 ): Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> {
   return items.flatMap((item): Array<CommandPaletteActionItem | CommandPaletteSubmenuItem> => {
-    // A checked choice is the current setting; only the way to change it is a command.
     if (item.checked) return [];
     const command = isSnoozePresetAction(item.id) ? null : THREAD_PALETTE_COMMANDS[item.id];
     if (command === null) return item.children ? buildThreadPaletteItems(item.children, run) : [];

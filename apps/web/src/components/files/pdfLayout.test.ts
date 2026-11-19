@@ -38,7 +38,6 @@ describe("stepPdfZoom", () => {
 });
 
 describe("mixed-height page layout", () => {
-  // A short banner page, a letter page, then a page half as tall as it is wide.
   const ratios = [140 / 612, 792 / 612, 306 / 612];
   const width = 612;
   const offsets = pdfPageOffsets(ratios, width);
@@ -67,7 +66,6 @@ describe("mixed-height page layout", () => {
     expect(indexes(0, 100)).toEqual([0, 1]);
     expect(indexes(1100, 100)).toEqual([2]);
     expect(indexes(1100, 900)).toEqual([1, 2]);
-    // Page 2 starts 180px (1.8 viewports) below the visible bottom of 800.
     expect(indexes(700, 100)).toEqual([1, 2]);
     expect(visiblePdfPages(ratios, offsets, 0, 100)[0]).toEqual({ index: 0, ratio: ratios[0] });
   });
@@ -79,7 +77,6 @@ describe("mixed-height page layout", () => {
   it("restores a saved spot scaled to the new width and kept inside pages that remain", () => {
     expect(pdfRestoredScrollTop(ratios, width, { page: 1, offset: 100 })).toBe(256);
     expect(pdfRestoredScrollTop(ratios, width * 2, { page: 1, offset: 100 }, width)).toBe(496);
-    // A page that shrank keeps the reader on its last pixel; a removed page falls back to the last.
     expect(pdfRestoredScrollTop(ratios, width, { page: 2, offset: 600 })).toBe(964 + 305);
     expect(pdfRestoredScrollTop(ratios.slice(0, 2), width, { page: 2, offset: 0 })).toBe(156);
   });

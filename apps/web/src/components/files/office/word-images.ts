@@ -1,22 +1,17 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import type { ImageResolver } from "@betteroffice/docx/layout/render";
 import type { YrsMediaSource } from "@betteroffice/docx/yrs";
 import { officeImageBitmap } from "./image-bitmap";
 import type { VectorBitmap, VectorRequest } from "./vector-pictures";
 
-/** An embedded image's source, which names a part of the package the session reads. */
 const mediaToken = /^media:(0|[1-9]\d*)$/u;
 
-/** How many bytes of decoded images stay for repaints; the least recently drawn go first past it. */
 const budget = 256 * 1024 * 1024;
 
 type Size = { readonly width: number; readonly height: number };
 
 type Decoded = {
   image: Promise<CanvasImageSource | null>;
-  /** The decoded image once it is one; the shared placeholder is never closed. */
   bitmap: ImageBitmap | undefined;
-  /** An SVG picture, which the window rasterizes into `bitmap`; `failed` once it could not. */
   vector: { readonly blob: Blob; failed: boolean } | undefined;
 };
 
@@ -28,7 +23,6 @@ type Decoded = {
 export function createBitmapImageResolver(media: (token: string) => YrsMediaSource | null) {
   const cache = new Map<string, Decoded>();
   const placeholder = greyBox();
-  // The SVG pictures the paint since the last `vectors` drew.
   const drawn = new Set<string>();
 
   const decode = (source: string, entry: Decoded): Promise<CanvasImageSource | null> => {
@@ -62,7 +56,6 @@ export function createBitmapImageResolver(media: (token: string) => YrsMediaSour
     const cached = cache.get(source);
 
     if (cached) {
-      // Map order is drawing order: the least recently drawn come first.
       cache.delete(source);
       cache.set(source, cached);
 
@@ -89,10 +82,6 @@ export function createBitmapImageResolver(media: (token: string) => YrsMediaSour
 
   return {
     resolve,
-    /**
-     * The SVG pictures the paints since the last call drew without a bitmap, or with one smaller than `sizes` asks, at
-     * the size to rasterize them; a picture absent from `sizes` rasterizes at its own size.
-     */
     vectors(sizes: ReadonlyMap<string, Size>): VectorRequest[] {
       const requests = [...drawn].flatMap((source) => {
         const entry = cache.get(source);
@@ -109,7 +98,6 @@ export function createBitmapImageResolver(media: (token: string) => YrsMediaSour
 
       return requests;
     },
-    /** Keeps the window's rasterized SVG pictures in place of coarser ones. */
     provide(bitmaps: readonly VectorBitmap[]) {
       for (const { asset, bitmap } of bitmaps) {
         const entry = cache.get(asset);
@@ -128,7 +116,6 @@ export function createBitmapImageResolver(media: (token: string) => YrsMediaSour
         entry.bitmap = bitmap;
       }
     },
-    /** Closes the least recently drawn images past the budget. Call it between paints, never during one. */
     trim() {
       const size = (entry: Decoded) =>
         entry.bitmap ? entry.bitmap.width * entry.bitmap.height * 4 : 0;
@@ -154,7 +141,6 @@ function covers(bitmap: Size, size: Size) {
   return bitmap.width >= size.width && bitmap.height >= size.height;
 }
 
-/** The grey box a missing image paints: one pixel the painter stretches over the image's place. */
 function greyBox() {
   const canvas = new OffscreenCanvas(1, 1);
   const context = canvas.getContext("2d");

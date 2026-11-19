@@ -71,7 +71,6 @@ const PreviewStatusTool = Tool.make("preview_status", {
   .annotate(Tool.Idempotent, true)
   .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
 
-// `url` already covers websites, so open only adds the dev-server target.
 const EnvironmentPortTarget = BrowserNavigationTarget.members[1];
 
 const PreviewOpenTool = browserTool(

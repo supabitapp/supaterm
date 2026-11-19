@@ -87,7 +87,6 @@ export function createEnvironmentPresentationAtoms<E>(input: {
         () => AVAILABLE_CONNECTION_STATE,
       );
       const previous = Option.getOrNull(get.self<EnvironmentPresentation | null>());
-      // The supervisor never publishes this placeholder; an enabled one starts out connecting.
       const connection: EnvironmentConnectionPresentation =
         entry.unsupportedReason !== undefined
           ? { phase: "unsupported", error: entry.unsupportedReason, traceId: null }
@@ -135,8 +134,6 @@ export function createEnvironmentPresentationAtoms<E>(input: {
     return previous;
   }).pipe(Atom.withLabel("environment-presentations"));
 
-  // Enabled environments only, like the full server-configs map, but without providers, so
-  // capability checks on every sidebar row and markdown link skip provider status pushes.
   const serverConfigsAtom = Atom.make((get) => {
     const next = new Map<EnvironmentId, EnvironmentServerConfig>();
     for (const environmentId of enabledEnvironmentIds(get(input.catalogValueAtom))) {
@@ -165,9 +162,6 @@ export function createEnvironmentPresentationAtoms<E>(input: {
     return previous !== null && mapsEqual(previous, next) ? previous : next;
   }).pipe(Atom.withLabel("environment-providers"));
 
-  // Enabled environments only, like serverConfigsAtom: a disabled connection keeps its cached
-  // config, and its accounts would otherwise count in usage limits. Usage limits ride on provider
-  // statuses, so these surfaces rebuild on every push by design.
   const presentationsWithProvidersAtom = Atom.make((get) => {
     const previous = Option.getOrNull(
       get.self<ReadonlyMap<EnvironmentId, EnvironmentPresentationWithProviders>>(),
@@ -337,7 +331,6 @@ export function createEnvironmentSummaryAtoms(input: {
       const now = Date.now();
       const disconnectedSince =
         Option.getOrNull(get.self<OfflineEnvironmentTracking | null>())?.disconnectedSince ?? now;
-      // Retrying cannot fix a blocked connection, so it skips the grace period.
       const remainingMs =
         connectionState === "error" || connectionState === "unsupported"
           ? 0
@@ -350,7 +343,6 @@ export function createEnvironmentSummaryAtoms(input: {
       return { disconnectedSince, offline: remainingMs <= 0 };
     }),
   );
-  // Kept mounted and eager, so the grace period runs and reconnects reset it while no list is open.
   const offlineEnvironmentIdsAtom = Atom.make((get): ReadonlySet<EnvironmentId> => {
     const next = get(environmentIdsAtom).filter((id) => get(offlineEnvironmentAtom(id))?.offline);
     const previous = Option.getOrNull(get.self<ReadonlySet<EnvironmentId>>());

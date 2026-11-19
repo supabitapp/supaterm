@@ -190,8 +190,6 @@ describe("highlightNativeReviewDiffVisibleRows", () => {
       firstRowIndex: 0,
       lastRowIndex: rows.length - 1,
     };
-    // A collapsed header and the next expanded header can share an iOS viewport,
-    // with 100,000 zero-height code rows between their canonical indices.
     const viewport = await highlightNativeReviewDiffVisibleRows({
       ...input,
       collapsedFileIds: new Set(["collapsed"]),
@@ -403,7 +401,6 @@ describe("highlightNativeReviewDiffVisibleRows", () => {
   });
 });
 
-// These complete sources are independent of the diff row selection below.
 const OLD_SOURCE = [
   "export function render(name: string) {",
   "  const heading = `Hello ${name}",

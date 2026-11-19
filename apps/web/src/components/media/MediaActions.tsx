@@ -102,7 +102,6 @@ export function useMediaActions(source: MediaActionSource) {
         "Image copying is unavailable. Use a secure browser connection or save the image.",
       );
     }
-    // Start the clipboard write in the user gesture; fetching/decoding may finish later.
     await navigator.clipboard.write([
       new ClipboardItem({ "image/png": actionUrl().then(readMediaPng) }),
     ]);

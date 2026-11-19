@@ -39,8 +39,6 @@ function normalizePullRequestCommentAnchor(anchor: string): string {
   );
 }
 
-// GitHub pull request tabs and their GitLab merge request equivalents. Forgejo and Gitea spell the
-// path `/pulls/`.
 function pullRequestPathTab(pathname: string): PullRequestAnchor | null {
   const tab = /\/(?:pulls?|-\/merge_requests)\/\d+\/([a-z]+)(?:\/(.*))?$/i.exec(pathname);
   const rest = tab?.[2] ?? "";
@@ -71,8 +69,6 @@ function gitLabLine(
   return { start, side, end: start, endSide: side, ...(isLine(oldLine) ? { oldLine } : {}) };
 }
 
-// GitLab names a file by its path's SHA-1 and a line by `<sha1>_<old>_<new>`, which carries both
-// sides' counters. Rapid Diffs writes `line_<sha1 prefix>_<old>` or `_A<new>`.
 function gitLabDiffAnchor(anchor: string, file: string | null): PullRequestAnchor | null {
   const rapid = /^line_([a-f0-9]{9})_(A?)(\d+)$/i.exec(anchor);
   if (rapid) {
@@ -84,12 +80,10 @@ function gitLabDiffAnchor(anchor: string, file: string | null): PullRequestAncho
     };
   }
   const code = /^(?:diff-content-)?([a-f0-9]{40})(?:_(\d+)_(\d+))?$/i.exec(anchor);
-  // A comment anchor beside `?file=` names the comment.
   const digest =
     code?.[1] ?? (!anchor && file !== null && /^[a-f0-9]{40}$/i.test(file) ? file : null);
   if (digest === null) return null;
   const [oldLine, newLine] = [Number(code?.[2]), Number(code?.[3])];
-  // A deleted file has no new side, so its new counter is 0.
   const range =
     code?.[2] === undefined
       ? null
@@ -126,7 +120,6 @@ export function parsePullRequestAnchor(url: string | null | undefined): PullRequ
   );
   if (gitLab) return gitLab;
   if (!anchor) return fallback;
-  // GitHub line ranges may cross diff sides; file digests were MD5 before SHA-256.
   const diff = /^diff-([a-f0-9]+)(?:([LR])(\d+)(?:-([LR])(\d+))?)?$/i.exec(anchor);
   if (diff) {
     const start = Number(diff[3]);
@@ -183,7 +176,6 @@ export function resolvePullRequestReviewAnchor(
 ): string {
   if (!/^pullrequestreview-\d+$/i.test(anchor)) return anchor;
   if (comments.some((comment) => pullRequestAnchorMatchesUrl(anchor, comment.url))) return anchor;
-  // The earliest comment the review posted; `toSorted` is missing from Hermes.
   let posted: AnchoredComment | undefined;
   for (const comment of reviewThreads.flatMap((thread) => thread.comments)) {
     if (comment.url === null || !pullRequestAnchorMatchesUrl(anchor, comment.reviewUrl)) continue;
@@ -195,7 +187,6 @@ export function resolvePullRequestReviewAnchor(
 
 export function pullRequestDiffPathMatches(digest: string, path: string): boolean {
   const bytes = utf8ToBytes(path);
-  // GitLab uses SHA-1, abbreviated to 9 characters in Rapid Diffs line anchors.
   if (digest.length === 40 || digest.length === 9)
     return bytesToHex(sha1(bytes)).startsWith(digest);
   return digest === bytesToHex(digest.length === 32 ? md5(bytes) : sha256(bytes));

@@ -57,7 +57,6 @@ export const ComposerContextKind = TrimmedNonEmptyString.check(
 );
 export type ComposerContextKind = typeof ComposerContextKind.Type;
 
-// Duplicates the private ChatAttachmentId rules to avoid an orchestration.ts import cycle.
 const ContextAttachmentId = TrimmedNonEmptyString.check(
   Schema.isMaxLength(CONTEXT_ID_MAX_CHARS),
   Schema.isPattern(CONTEXT_ID_PATTERN),
@@ -144,7 +143,6 @@ export const ElementContextRecord = Schema.Struct({
 });
 export type ElementContextRecord = typeof ElementContextRecord.Type;
 
-// `optionalKey` rejects explicit undefined within one record, so only that record is dropped.
 export const PreviewAnnotationContextRecord = Schema.Struct({
   ...recordBase,
   kind: Schema.Literal("preview-annotation"),

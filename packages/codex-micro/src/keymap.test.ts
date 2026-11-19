@@ -9,7 +9,6 @@ interface Request {
   readonly params: unknown;
 }
 
-// Serves keymap.json the way the firmware does, never more than `chunkBytes` per read.
 function fakeKeyboard(keymap: string, options: { readonly chunkBytes?: number } = {}) {
   const bytes = new TextEncoder().encode(keymap);
   const requests: Array<Request> = [];

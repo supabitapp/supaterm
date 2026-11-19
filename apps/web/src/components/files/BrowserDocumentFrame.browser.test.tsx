@@ -33,7 +33,6 @@ describe("HtmlRenderDocument", () => {
 
     await vi.waitFor(() => expect(onContentHeight).toHaveBeenCalledWith(321));
 
-    // Listeners run in registration order, so once this one sees the message the frame's has too.
     const delivered = new Promise<void>((resolve) =>
       window.addEventListener("message", () => resolve(), { once: true }),
     );
@@ -73,7 +72,6 @@ describe("HtmlRenderDocument", () => {
     await vi.waitFor(() => expect(onContentHeight).toHaveBeenCalled());
     const frame = screen.getByTitle("Quote").element() as HTMLIFrameElement;
 
-    // A page can post any selection it likes. Without focus it is not the reader's.
     const forgedDelivered = new Promise<void>((resolve) =>
       window.addEventListener(
         "message",
@@ -108,7 +106,6 @@ describe("HtmlRenderDocument", () => {
       expect(reported.bottom).toBeLessThanOrEqual(frame.clientHeight);
     }
 
-    // Tab is the page's own until the host offers an action for the selection.
     frame.contentWindow?.postMessage(htmlRenderSelectionActionMessage(true), "*");
     await userEvent.keyboard("{Tab}");
     await vi.waitFor(() =>
@@ -116,7 +113,6 @@ describe("HtmlRenderDocument", () => {
     );
     expect(document.activeElement).toBe(frame);
 
-    // The host clears the page's selection once it is quoted, and the page reports that.
     frame.contentWindow?.postMessage(htmlRenderClearSelectionMessage(), "*");
     await vi.waitFor(() =>
       expect(onSelection).toHaveBeenLastCalledWith(frame, { _tag: "cleared" }),
@@ -337,7 +333,6 @@ describe("BrowserDocumentFrame", () => {
     };
     await vi.waitFor(() => expect(onScreen()).toBe(first));
 
-    // The incoming frame cannot have loaded when it is inserted, so the current page must cover it.
     const atInsertion = new Promise<string | null>((resolve) => {
       const observer = new MutationObserver(() => {
         if (!srcs().includes(second)) return;
@@ -359,7 +354,6 @@ describe("BrowserDocumentFrame", () => {
   });
 
   it("opens the next revision where the reader left the page", async () => {
-    // The first page scrolls itself, as a reader would; the second is served without scrolling.
     const tall = '<div style="height:5000px">report</div>';
     using pages = (() => {
       const urls = [

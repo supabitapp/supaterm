@@ -30,7 +30,6 @@ function text(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
-// OpenCode provider IDs whose bare model IDs LiteLLM prices under its own prefix.
 const LITELLM_PREFIXES = new Map([["opencode-go", "opencode_go"]]);
 const OPENCODE_GATEWAYS = new Set(["opencode", "opencode-go"]);
 
@@ -77,8 +76,6 @@ function parseOpenCodeMessage(
     ...(prefix !== undefined && !model.includes("/") ? { rateModel: `${prefix}/${model}` } : {}),
     sessionId: fallback.sessionId || text(message.sessionID),
     totals,
-    // OpenCode records zero for unknown rates and paid subscriptions alike, so only its own
-    // gateways' free models report zero; shared pricing estimates every other zero.
     reportedCostUsd:
       typeof cost === "number" && Number.isFinite(cost) && (cost > 0 || (free && cost === 0))
         ? cost
@@ -101,9 +98,7 @@ interface CachedRow {
   readonly record: UsageRecord | null;
 }
 
-// Parsed rows by `${databasePath}\0${table}`, then rowid, so unchanged rows are not read again.
 const rowCache = new Map<string, { version: string; rows: Map<number, CachedRow> }>();
-// Concurrent scans of the same database would each read every uncached row.
 const scanLock = Semaphore.makeUnsafe(1);
 
 const isNotFound = (cause: PlatformError.PlatformError) => cause.reason._tag === "NotFound";
@@ -123,7 +118,6 @@ const entryInfo = Effect.fn("entryInfo")(function* (path: string) {
 
 const LEGACY_STAT_CONCURRENCY = 4;
 
-// Batch stats so huge directories do not stay in memory.
 const LEGACY_STAT_BATCH = 256;
 
 export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
@@ -178,7 +172,6 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
     found = true;
     const file = { path: path.join(root, name), records: [] as UsageRecord[] };
     files.push(file);
-    // Taken before the snapshot opens, so a write that races the scan invalidates its rows.
     const [main, wal] = yield* Effect.forEach([file.path, `${file.path}-wal`], (target) =>
       Effect.option(fileSystem.stat(target)),
     );
@@ -187,8 +180,6 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
         onNone: () => "none",
         onSome: (stat) => `${stat.size}:${Option.getOrNull(stat.mtime)?.getTime()}`,
       });
-    // A replaced or restored database can repeat rowids and change markers, so every key includes
-    // the main file; WAL commits leave it alone until a checkpoint.
     const identity = Option.match(main!, {
       onNone: () => "none",
       onSome: (stat) =>
@@ -196,7 +187,6 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
     });
     yield* Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      // Fail promptly on live-writer locks instead of stalling the server.
       yield* sql.unsafe("PRAGMA busy_timeout = 100");
       const tables = new Set(
         (yield* sql.unsafe<{ readonly name: unknown }>(
@@ -208,9 +198,6 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
         sql
           .unsafe<{ readonly name: unknown }>(`PRAGMA table_info(${table})`)
           .pipe(Effect.map((rows) => new Set(rows.map((row) => row.name))));
-      // A fork copies its parent's messages through the boundary under new ids, keeping
-      // seq, creation time and data. Resolve each fork to its last copied seq so a copy
-      // names its original as (session, seq). A fork whose boundary is gone keeps its usage.
       const forks = new Map<
         string,
         { readonly parent: string; readonly lastCopiedSeq: number; readonly created: number }
@@ -273,14 +260,10 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
         const updated = columns.has("time_updated") ? "time_updated" : "NULL";
         const lineage =
           table === "session_message" && forks.size > 0 && columns.has("seq") ? "seq" : "NULL";
-        // Without time_updated an in-place edit can keep the length, so any database write counts.
         const version = updated === "NULL" ? `${identity}/${stamp(wal!)}` : identity;
-        // OpenCode 2 records a compaction request's spend on its compaction message.
         const predicates =
           table === "session_message" ? ["type IN ('assistant', 'compaction')"] : [];
         if (timestamp !== "NULL") predicates.push("time_created >= ?");
-        // List rowids and change markers so SQLite can use time indexes without reading message
-        // bodies; octet_length comes from the record header.
         const listed = (yield* sql.unsafe<{
           readonly row_id: number;
           readonly updated: unknown;
@@ -306,10 +289,8 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
             cached.set(row.row_id, hit);
           else misses.push(row);
         }
-        // Filter and project in SQLite: user diffs and assistant bodies can be hundreds of MB.
         const validAssistant = `CASE WHEN typeof(data) = 'text' AND json_valid(data)
           THEN json_type(data, '$.role') IS NULL OR data ->> '$.role' = 'assistant' END`;
-        // Omit per-page spans; the enclosing scan records row and page counts.
         for (let start = 0; start < misses.length; start += MESSAGE_PAGE_SIZE) {
           const page = misses.slice(start, start + MESSAGE_PAGE_SIZE);
           databasePages++;
@@ -344,7 +325,6 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
               }),
             );
           }
-          // Rows the SQL filter dropped are cached as empty so they are not read again either.
           for (const row of page) {
             cached.set(row.row_id, {
               updated: row.updated,
@@ -364,7 +344,6 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
           }
           append(file.records, record);
         }
-        // Rows before this window were not listed; keep them for a wider window until retention.
         for (const [rowId, entry] of reusable ?? []) {
           const created = entry.created;
           if (typeof created === "number" && created < sinceMs && created >= retentionCutoffMs)
@@ -374,7 +353,6 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
       }
     }).pipe(
       (read) => Effect.flatMap(SqlClient.SqlClient, (sql) => sql.withTransaction(read)),
-      // Run the scan on a reader worker so large databases do not block the server's event loop.
       NodeSqliteClient.readOnly,
       Effect.provide(
         NodeSqliteClient.layer({ filename: file.path, readonly: true, readerWorker: true }),
@@ -396,7 +374,6 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
       for (let start = 0; start < names.length; start += LEGACY_STAT_BATCH) {
         const batch = names.slice(start, start + LEGACY_STAT_BATCH);
         const entries = batch.map((name) => path.join(directory, name));
-        // stat follows symlinks; avoid expensive readLink failures unless link identity matters.
         const infos = yield* Effect.forEach(
           entries,
           (entry) =>
@@ -422,7 +399,6 @@ export const readOpenCodeUsage = Effect.fn("readOpenCodeUsage")(function* (
             if (!(yield* isSymbolicLink(entry))) directories.push(entry);
           } else if (info?.type === "File" && name.endsWith(".json")) {
             const id = name.slice(0, -5);
-            // Messages cannot postdate file mtime; older files hold no in-window usage.
             const skip =
               seen.has(`opencode:${id}`) ||
               Option.exists(info.mtime, (mtime) => mtime.getTime() < sinceMs);

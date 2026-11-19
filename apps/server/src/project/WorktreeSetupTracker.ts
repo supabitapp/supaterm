@@ -100,7 +100,6 @@ export const make = Effect.gen(function* () {
     readonly snapshot: WorktreeSetupSnapshot | null;
   }>();
   const retentionFibers = new Map<ThreadId, Fiber.Fiber<void, never>>();
-  // Keep sequences increasing across setups so existing subscribers accept the next setup's first snapshot.
   const lastSequenceByThread = new Map<ThreadId, number>();
 
   const publish = (threadId: ThreadId, snapshot: WorktreeSetupSnapshot | null) =>
@@ -138,7 +137,6 @@ export const make = Effect.gen(function* () {
       return next;
     }).pipe(
       Effect.andThen(publish(threadId, null)),
-      // After retention, subscribers see null and accept any sequence; the counter can reset.
       Effect.tap(() => Effect.sync(() => lastSequenceByThread.delete(threadId))),
     );
 
@@ -295,14 +293,12 @@ export const make = Effect.gen(function* () {
   const get: WorktreeSetupTracker["Service"]["get"] = (threadId) =>
     Ref.get(setups).pipe(Effect.map((current) => current.get(threadId)?.snapshot ?? null));
 
-  // One-slot sliding mailboxes bound slow WebSockets to the newest setup snapshot.
   const stream: WorktreeSetupTracker["Service"]["stream"] = (threadId) =>
     Stream.callback<WorktreeSetupSnapshot | null>(
       (mailbox) =>
         Effect.gen(function* () {
           const subscription = yield* PubSub.subscribe(changes);
           const initial = yield* get(threadId);
-          // The initial snapshot already includes queued changes; drop them to avoid stale replay.
           let lastSequence = initial?.sequence ?? -1;
           Queue.offerUnsafe(mailbox, initial);
           yield* Stream.fromSubscription(subscription).pipe(

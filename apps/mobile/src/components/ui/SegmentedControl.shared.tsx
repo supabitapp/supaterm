@@ -21,7 +21,6 @@ export function SegmentedControl<Value extends string | number>(
   const selectedIndex = props.options.findIndex((option) => option.value === props.selected);
   const segmentWidth = props.options.length ? Math.max(0, width - 6) / props.options.length : 0;
   const direction = I18nManager.isRTL ? -1 : 1;
-  // The index animates, not the offset, so a resize moves the selection without sliding it.
   const selectedPosition = useDerivedValue(() =>
     withTiming(selectedIndex, { duration: 160, reduceMotion }),
   );

@@ -41,8 +41,6 @@ vi.mock("../../../components/ui/AppSymbol", () => ({ SymbolView: () => null }));
 import { SettingsDragHandle } from "./SettingsDragHandle";
 
 describe("SettingsDragHandle", () => {
-  // The worklets Babel plugin copies values a gesture callback closes over when the gesture is
-  // built, so a drop must not read a translation tracked in a local variable.
   it("reports the released translation when the pan ends", () => {
     pans.length = 0;
     const onEnd = vi.fn();

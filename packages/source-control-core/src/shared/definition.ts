@@ -410,7 +410,6 @@ export function parseChangeRequestPath(url: URL, route: RegExp): ParsedChangeReq
 export function repositoryUrlFromPagePath(url: URL, route: RegExp): string | null {
   const repository = route.exec(url.pathname)?.[1];
   if (!repository) return null;
-  // Keeps the credentials and port a private clone relies on.
   const repositoryUrl = new URL(url);
   repositoryUrl.pathname = `/${repository}`;
   repositoryUrl.search = "";
@@ -433,9 +432,7 @@ export function remoteWebOrigin(host: string, remoteUrl: string | undefined): st
     ) {
       return remote.origin;
     }
-  } catch {
-    // SSH remotes do not specify the server's web origin.
-  }
+  } catch {}
   return `https://${host}`;
 }
 
@@ -455,9 +452,7 @@ export function isChangeRequestAuthorityOfProject(
     if (remote.protocol === "http:" || remote.protocol === "https:") {
       return remote.host.toLowerCase() === link.authority;
     }
-  } catch {
-    // SSH remotes do not specify the server's HTTP port.
-  }
+  } catch {}
   return true;
 }
 
@@ -686,7 +681,6 @@ export function makeSourceControlDefinitionRegistry(
   }
   const claimOrder = inOrder(definitions, options?.claimChangeRequestUrlsFirst);
   const recognitionOrder = inOrder(definitions, options?.recognizeRemotesIn);
-  // Keys persisted before paths had one spelling still compare equal.
   const canonicalKeyPath = (key: string) => {
     const slash = key.indexOf("/");
     return slash < 0
@@ -767,14 +761,10 @@ export function makeSourceControlDefinitionRegistry(
     repositoryUrlFromPage: (value) => {
       const url = httpUrl(value);
       if (url === null) return null;
-      // A recognized host's paths are its own, so another host's any-host route never rewrites them.
       const remote = parseGitRemoteHost(value);
       const owner = remote === null ? undefined : remoteOwner(remote);
       if (owner) return owner.repositoryUrlFromPage?.(url, true) ?? null;
-      // Elsewhere a path ending in `.git` is already a clone URL, whatever routes it contains.
       if (url.pathname.replace(/\/$/u, "").endsWith(".git")) return null;
-      // On an unrecognized host, only rewrite when every route that matches agrees. A route that
-      // answers with the page itself says it may already be the clone URL.
       const [repositoryUrl, ...others] = new Set(
         claimOrder.flatMap((definition) => definition.repositoryUrlFromPage?.(url, false) ?? []),
       );

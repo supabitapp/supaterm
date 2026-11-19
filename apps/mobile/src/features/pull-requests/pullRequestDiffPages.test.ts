@@ -192,7 +192,6 @@ describe("paged mobile pull request diffs", () => {
     expect(loaded).toMatchObject({ id: placeholder?.id, path: "large.ts" });
     expect(loaded?.notice).toBeUndefined();
     expect(loaded?.rows.length).toBeGreaterThan(0);
-    // The totals follow the loaded file, which may have changed since the page was read.
     expect(merged).toMatchObject({ additions: 1, deletions: 1 });
   });
 });

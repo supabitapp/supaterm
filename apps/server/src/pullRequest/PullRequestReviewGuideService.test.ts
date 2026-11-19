@@ -249,10 +249,6 @@ const makeLayer = (input: {
     Layer.provide(ServerConfig.layerTest(input.root, { prefix: "supaterm-review-guide-config-" })),
   );
 
-/**
- * Each run's end, by the head it was written for. A run's span ends once its guide is stored or
- * dropped and its state has settled, so a test waits for it rather than polling `get`.
- */
 const makeRunEnds = () => {
   const ends = new Map<string, Deferred.Deferred<void>>();
   const ended = (headSha: string) => {
@@ -275,7 +271,6 @@ const makeRunEnds = () => {
       return span;
     },
   });
-  /** The run's failure detail once a run for this head ends as failed; otherwise never. */
   const failureDetail = (
     service: PullRequestReviewGuideService.PullRequestReviewGuideService["Service"],
     headSha: string,
@@ -415,7 +410,6 @@ const startSingleBranchRun = (input: {
     };
   });
 
-// Runs drive real git, which the test clock does not advance, so waits use real time.
 it.layer(layerBase, { excludeTestServices: true })("PullRequestReviewGuideService", (it) => {
   it.effect.each([
     {
@@ -464,7 +458,6 @@ it.layer(layerBase, { excludeTestServices: true })("PullRequestReviewGuideServic
         Deferred.await(run.stored).pipe(Effect.andThen(Effect.die("a guide was written"))),
       );
       for (const part of expected) assert.include(detail, part);
-      // Only the host's own head ref is tried.
       assert.notInclude(detail, "refs/merge-requests/");
       assert.deepStrictEqual(run.observed, []);
       assert.isFalse(run.fetchedRefs.some((ref) => ref.startsWith("-")));
@@ -499,8 +492,6 @@ it.layer(layerBase, { excludeTestServices: true })("PullRequestReviewGuideServic
     const runs = makeRunEnds();
     return Effect.gen(function* () {
       const repositories = yield* makeRepositories;
-      // A checkout of a fork: `origin` is the user's stale fork, which has neither the change
-      // nor its base branch, and `upstream` is the repository the pull request is in.
       const fork = `${repositories.root}/fork`;
       yield* git(repositories.root, [
         "clone",

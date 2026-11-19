@@ -269,7 +269,6 @@ afterEach(() => {
   harness.audioExists = true;
 });
 
-/** True once a delivery step handled its message, false when it asks to retry. */
 const handled = (step: Effect.Effect<void, DeliveryRetry>) =>
   step.pipe(Effect.as(true), Effect.catchTags({ DeliveryRetry: () => Effect.succeed(false) }));
 

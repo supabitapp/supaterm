@@ -194,7 +194,6 @@ describe("writeFile metadata", () => {
       h.readResponse.wait = Effect.void;
       h.registry.refresh(query);
       const refreshed = yield* read();
-      // The production query shares equal file values across this failed confirmation.
       expect(refreshed).toBe(original);
       expect(h.registry.get(overlay)).toBeNull();
 

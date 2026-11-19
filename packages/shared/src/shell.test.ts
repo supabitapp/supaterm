@@ -71,7 +71,6 @@ const withWindowsEnvironmentMocks = <A, E, R>(
   );
 
 describe("readEnvironmentFromLoginShell", () => {
-  // Opt in with an explicit binary, like the provider live probes; CI need not install Nu.
   it.runIf(process.env.SUPATERM_TEST_NU_PATH !== undefined)(
     "captures Nushell PATH and multiline values without external tools",
     () => {
@@ -130,7 +129,6 @@ describe("readEnvironmentFromLoginShell", () => {
           encoding: "utf8",
           env: { PATH: process.env.PATH },
         }).trim();
-        // A copy of a macOS platform binary is killed on launch; a link runs the original.
         NodeFS.symlinkSync(printenv, NodePath.join(tools, "printenv"));
         vi.stubEnv("PATH", tools);
         const shellPath = NodePath.join(home, "bin");
@@ -139,7 +137,6 @@ describe("readEnvironmentFromLoginShell", () => {
           bashEnv,
           [
             `export PATH='${shellPath.replaceAll("'", "'\\''")}'`,
-            // Simulate a non-FHS host while retaining the real executable in its private prefix.
             "function /usr/bin/printenv { return 127; }",
             `trap 'echo -ne "\\033]0;\${BASH_COMMAND}\\007"' DEBUG`,
           ].join("\n"),
@@ -149,7 +146,6 @@ describe("readEnvironmentFromLoginShell", () => {
           readEnvironmentFromLoginShell(
             "/bin/bash",
             ["XDG_DATA_HOME", "PATH"],
-            // Non-interactive bash reads only BASH_ENV, not the host's /etc startup files that -il runs.
             (file, [, command = ""], options) =>
               NodeChildProcess.execFileSync(file, ["-c", command], {
                 ...options,
@@ -586,9 +582,6 @@ effectIt.layer(NodeServices.layer)("resolveCommandPath", (it) => {
         PATHEXT: ".COM;.EXE",
       });
 
-      // Windows 10+ can mark a directory case-sensitive, so the two spellings
-      // are not provably one directory and skipping the second could hide a
-      // command that is really there.
       expect(probed).toHaveLength(8);
     }),
   );
@@ -724,8 +717,6 @@ describe("preferGitForWindowsBinary", () => {
   });
 
   it("keeps the launcher when MSYSTEM is set", () => {
-    // The real git.exe only adds its own folders to PATH when MSYSTEM is unset;
-    // without them a `#!/bin/sh` hook cannot start.
     expect(
       preferGitForWindowsBinary(
         "C:\\Program Files\\Git\\cmd\\git.exe",
@@ -920,7 +911,6 @@ effectIt.layer(NodeServices.layer)("resolveSpawnCommand", (it) => {
         ),
       );
 
-      // No args alongside `shell: true`: Node prints DEP0190 for that pairing.
       expect(command).toEqual({
         command: [
           String.raw`^"C:\Program^ Files\npm^ ^&^ tools\vp.cmd^"`,
@@ -966,7 +956,6 @@ effectIt.layer(NodeServices.layer)("resolveSpawnCommand", (it) => {
   );
 
   describe("macOS git", () => {
-    // Files that exist, the git first on PATH, and what `xcrun --find git` prints.
     const setup = (options: {
       readonly platform?: NodeJS.Platform;
       readonly gitOnPath: string;
@@ -1251,8 +1240,6 @@ describe("desktop shell environment updates", () => {
 });
 
 describe("pathSetupCommand", () => {
-  // Undefined where a pasted line could break things: Windows (it would flatten %VAR% entries in
-  // the registry PATH), macOS bash (several startup files), other shells, and unsafe paths.
   it.each([
     [
       "/home/theo/.local/bin",
@@ -1277,7 +1264,6 @@ describe("pathSetupCommand", () => {
     ["C:\\Users\\theo\\.local\\bin", "pwsh", "win32", undefined],
     ["/Users/theo/it's here", "/bin/zsh", "darwin", undefined],
     ["/opt/a$PWD/bin", "/bin/zsh", "linux", undefined],
-    // Relative: PATH would follow the working directory into any checkout's `bin`.
     ["bin", "/bin/zsh", "linux", undefined],
   ] as const)("%s with %s on %s", (directory, shell, platform, expected) => {
     expect(pathSetupCommand({ directory, home: "/Users/theo", shell, platform })).toBe(expected);
@@ -1293,12 +1279,10 @@ describe("pathSetupCommand", () => {
       "/home/theo/cfg/fish/config.fish",
     );
     expect(pathSetup({ ...setup, platform: "linux" })?.file).toBe("~/.config/fish/config.fish");
-    // zsh reads .zshrc from ZDOTDIR when it is set.
     expect(
       pathSetup({ ...setup, shell: "/bin/zsh", platform: "darwin", zdotdir: "/Users/theo/.zsh" })
         ?.file,
     ).toBe("/Users/theo/.zsh/.zshrc");
-    // A set folder that cannot be written safely means no setup, never the unread default.
     expect(
       pathSetup({ ...setup, shell: "/bin/zsh", platform: "darwin", zdotdir: "/Users/theo/my zsh" }),
     ).toBeUndefined();

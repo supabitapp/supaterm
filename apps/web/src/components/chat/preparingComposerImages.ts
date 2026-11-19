@@ -11,11 +11,6 @@ export interface PreparingComposerImage {
 
 const NO_PREPARING_IMAGES: ReadonlyArray<PreparingComposerImage> = [];
 
-/**
- * Images accepted into a draft but still being compressed, keyed by attachment target. Large
- * screenshots take a noticeable moment to re-encode, so the strip shows these right away and
- * they hold their attachment slots until the real image joins the draft.
- */
 const usePreparingComposerImageStore = create<{
   readonly byTargetKey: Readonly<Record<string, ReadonlyArray<PreparingComposerImage>>>;
 }>(() => ({ byTargetKey: {} }));

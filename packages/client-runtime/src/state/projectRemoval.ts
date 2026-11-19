@@ -22,7 +22,6 @@ export function planProjectRemoval<
   const projectThreads = threads.filter((thread) =>
     memberKeys.has(`${thread.environmentId}:${thread.projectId}`),
   );
-  // Side chats and subagents go with their parent but never show in thread lists.
   const threadCount =
     projectThreads.filter((thread) => isListedThreadLineage(thread.lineage)).length +
     (options.unloadedThreadCount ?? 0);

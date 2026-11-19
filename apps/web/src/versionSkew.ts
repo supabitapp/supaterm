@@ -101,8 +101,6 @@ export function isServerUpdateChannelCompatible(
   selfUpdate: ServerSelfUpdateCapability | null,
 ): boolean {
   const serverChannel = cliReleaseChannelOf(serverVersion);
-  // A desktop app installs its own track's newest release. Nightly builds run ahead of Stable, so a
-  // Nightly host behind a Stable target has something newer; a Stable host may not.
   return (
     serverChannel === cliReleaseChannelOf(targetVersion) ||
     (selfUpdate === "desktop-managed" && serverChannel !== "stable")
@@ -130,7 +128,6 @@ export function manualServerUpdateCommand(
     return `npm install --global --prefix ${quote(installation.prefix)} supaterm@${targetVersion}`;
   }
   if (installation?.kind === "supaterm-launcher") {
-    // An inherited SUPATERM_HOME would otherwise send the update to a home the launcher is not in.
     return `${quote(installation.launcher)} update --base-dir ${quote(installation.baseDir)} ${targetVersion}`;
   }
   const runner =

@@ -50,7 +50,6 @@ describe("mutateProjectWithClone", () => {
       const projects = {
         create: () => Effect.die("unused"),
         update: () => Effect.die("unused"),
-        // The delete event is already durable while its post-commit cleanup runs.
         delete: () =>
           Deferred.succeed(committed, undefined).pipe(
             Effect.andThen(Deferred.await(finishDelete)),
@@ -67,7 +66,6 @@ describe("mutateProjectWithClone", () => {
         projectId,
       }).pipe(Effect.forkChild);
       yield* Deferred.await(committed);
-      // Delivered synchronously so it lands before the delete can finish.
       request.interruptUnsafe();
       yield* Deferred.succeed(finishDelete, undefined);
       yield* Fiber.await(request);

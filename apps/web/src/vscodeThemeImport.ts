@@ -100,7 +100,6 @@ function toHex(color: VsCodeRgb): string {
   return `#${channel(color.r)}${channel(color.g)}${channel(color.b)}`;
 }
 
-// Composite VS Code translucent overlays onto their surfaces; our roles are opaque.
 function flattenOver(color: VsCodeRgba, base: VsCodeRgb): string {
   if (color.a >= 1) return toHex(color);
   return toHex({
@@ -265,10 +264,6 @@ export function parseVsCodeThemeFile(value: unknown): ThemeDefinition {
     if (isReadableOn(fallback, surface)) return fallback;
     return relativeLuminance(surfaceRgb) < 0.179 ? "#ffffff" : "#000000";
   };
-  // Status colors also fill controls such as destructive buttons, which carry
-  // white text, so a dim one is lightened along its hue rather than replaced
-  // by readableOn's black or white. One hidden in the canvas has no hue to
-  // keep, so the derived color stands in.
   const readableStatusColor = (fallback: string, ...keys: ReadonlyArray<string>): string => {
     const specified = solidOver(canvas, ...keys);
     const base = specified && standsApart(specified, canvasHex) ? specified : fallback;
@@ -286,7 +281,6 @@ export function parseVsCodeThemeFile(value: unknown): ThemeDefinition {
   };
 
   const surfaceRaisedHex = raisedSurfaceCandidateHex ?? derived.surfaceRaised;
-  // Checked tracks use messageAction; resolve it before the unchecked input role.
   const buttonHex = solidOver(canvas, "button.background");
   const actionHex =
     buttonHex && standsApart(buttonHex, canvasHex) && standsApart(buttonHex, surfaceRaisedHex)
@@ -458,10 +452,6 @@ export function pairVsCodeThemes(
 
   const paired: Array<{ theme: ThemeDefinition; order: number }> = [];
   for (const [key, group] of groups) {
-    // Ambiguity (two darks for one light) is not guessed at, and a pair
-    // whose stripped name collides with a built-in id ("Nord Light" +
-    // "Nord Dark" -> the reserved "nord") stays two single themes rather
-    // than failing the whole batch.
     if (group.light.length === 1 && group.dark.length === 1) {
       try {
         paired.push({

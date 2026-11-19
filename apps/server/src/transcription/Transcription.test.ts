@@ -347,7 +347,6 @@ describe("Transcription", () => {
             audioAttachmentId: audio.attachmentId,
           }),
         );
-        // The prune runs every minute, and each run schedules the next.
         const advanceMinutes = (minutes: number) =>
           Effect.forEach(Array.from({ length: minutes }), () => TestClock.adjust("1 minute"), {
             discard: true,
@@ -355,8 +354,6 @@ describe("Transcription", () => {
         yield* advanceMinutes(9);
         expect(audio.exists()).toBe(true);
         yield* advanceMinutes(2);
-        // The prune deletes while holding the store lock; cancelling an unrelated
-        // upload waits for that lock, so it returns once the prune is done.
         yield* service.cancel({ audioAttachmentId: createPendingAttachmentId(".wav") });
         expect(audio.exists()).toBe(false);
       }).pipe(Effect.provide(harness.layer));

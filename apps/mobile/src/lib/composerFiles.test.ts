@@ -224,7 +224,6 @@ describe("composer file attachments", () => {
       header.writeUInt32BE(1668, 16);
       header.writeUInt32BE(2388, 20);
       native.size = { width: 1668, height: 2388 };
-      // Native PNG encoding of the 2000px resample is larger than the 7 MB original.
       native.encode = (size, format) => ({
         uri: `file:///cache/fitted-${size.width}x${size.height}.${format}`,
         base64: Buffer.alloc(size.width * size.height * 4).toString("base64"),

@@ -44,7 +44,6 @@ it.each([
     content: [{ type: "paragraph", content: [{ type: "text", text: `Before ${selected}` }] }],
   });
   try {
-    // Headless Tiptap has no mounted view, so its lifecycle getter reports destroyed.
     using _alive = vi.spyOn(editor, "isDestroyed", "get").mockReturnValue(false);
     editor.view.dispatch(
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 8, 8 + selected.length)),

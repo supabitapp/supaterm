@@ -95,7 +95,6 @@ export function useVoiceInputController(input: {
     }
     stopIntent.current = null;
     Keyboard.dismiss();
-    // Played before the microphone opens; iOS mutes haptics while recording.
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     void session.start({
       ...createVoiceInputTarget(

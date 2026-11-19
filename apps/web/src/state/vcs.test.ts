@@ -63,7 +63,6 @@ describe("chatGitStatusAtom", () => {
     registry.set(source, status({ ...linked, pr: pr() }));
     expect(notified).toHaveLength(3);
 
-    // A new object with the same data, as each remote status refresh sends.
     registry.set(source, status({ ...linked, pr: pr() }));
     expect(notified).toHaveLength(3);
     unsubscribe();

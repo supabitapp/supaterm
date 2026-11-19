@@ -122,9 +122,7 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
     readonly latestLocalTurnOrdinal?: number | null;
   };
   readonly httpSnapshot?: ThreadSnapshotLoadResult;
-  /** Answers per load call; the last one repeats. Overrides `httpSnapshot`. */
   readonly httpSnapshots?: readonly ThreadSnapshotLoadResult[];
-  /** The test sends the completion marker itself instead of the fake server sending it first. */
   readonly completionMarker?: boolean;
   readonly resumeCache?: NonNullable<Parameters<typeof makeEnvironmentThreadState>[1]>;
   readonly loadCached?: ReturnType<Persistence.EnvironmentCacheStore["Service"]["loadThread"]>;
@@ -172,7 +170,6 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
       readonly acceptCompactTurnItems?: true;
     }) =>
       Stream.unwrap(
-        // The count moves last, so a test that wakes on it sees this subscription's inputs.
         Ref.set(lastSubscribeAfterSequence, input.afterSequence).pipe(
           Effect.andThen(
             Ref.set(lastRequestCompletionMarker, input.requestCompletionMarker === true),
@@ -693,7 +690,6 @@ describe("EnvironmentThreads", () => {
       );
       yield* Scope.close(oldScope, Exit.void);
 
-      // Draft pruners would delete the answer the successor still waits on.
       expect(announced).toEqual([]);
       expect(resumeCache.snapshot?.sequence).toBe(10);
       expect(Option.getOrThrow(resumeCache.snapshot!.state.data).thread.title).toBe(
@@ -811,7 +807,6 @@ describe("EnvironmentThreads", () => {
   );
 
   it.effect.each([
-    // The HTTP retry decides, so a missing thread never flashes an error.
     {
       label: "a socket-only open asks HTTP",
       socketSnapshots: true,
@@ -820,7 +815,6 @@ describe("EnvironmentThreads", () => {
       status: "deleted",
       loads: [0, 1],
     },
-    // A defect never retries on its own, so the socket-only open resubscribes once.
     {
       label: "a socket-only open that hits a defect asks HTTP",
       socketSnapshots: true,
@@ -829,7 +823,6 @@ describe("EnvironmentThreads", () => {
       status: "deleted",
       loads: [0, 1],
     },
-    // Authorization failures are never retried, so the error must show at once.
     {
       label: "a socket-only open shows an authorization error",
       socketSnapshots: true,
@@ -841,7 +834,6 @@ describe("EnvironmentThreads", () => {
       status: "empty",
       loads: [0, 0],
     },
-    // HTTP already answered this attempt, so the error shows before the usual retry.
     {
       label: "an HTTP open shows the error",
       socketSnapshots: undefined,
@@ -881,7 +873,6 @@ describe("EnvironmentThreads", () => {
       let configReads = 0;
       const harness = yield* makeHarness({
         httpSnapshot: { _tag: "missing" },
-        // The retry's config read dies too, so a stale flag would resubscribe without backing off.
         initialConfig: Effect.suspend(() =>
           ++configReads === 1
             ? Effect.succeed({ threadSnapshotPagination: true })
@@ -912,7 +903,6 @@ describe("EnvironmentThreads", () => {
       );
       expect(yield* Ref.get(harness.loaderCalls)).toBe(0);
 
-      // A timed-out session never reaches onExpectedFailure.
       yield* harness.replaceSession;
       const done = yield* awaitThreadState(harness.observed, (value) => value.status === "deleted");
       expect(done.status).toBe("deleted");
@@ -933,7 +923,6 @@ describe("EnvironmentThreads", () => {
           value.data.value.thread.title === "Live title",
       );
 
-      // Readers compare this to a command's commit sequence; it moves with the data it describes.
       expect(live.sequence).toBe(CACHED_SNAPSHOT_SEQUENCE + 1);
       expect(yield* Ref.get(harness.lastSubscribeAfterSequence)).toBe(CACHED_SNAPSHOT_SEQUENCE);
       expect(yield* Ref.get(harness.loaderCalls)).toBe(0);
@@ -1290,7 +1279,6 @@ describe("EnvironmentThreads", () => {
       }),
     );
 
-    // A fork's parent row keeps its own source; the child's Stop must not touch it.
     const inheritedRow = {
       position: 0,
       visibility: "inherited" as const,
@@ -1303,7 +1291,6 @@ describe("EnvironmentThreads", () => {
       turnItems: items,
       visibleTurnItems: [inheritedRow, ...items.map((item, index) => localRow(item, index + 1))],
     });
-    // Loaded older history the bounded window would drop, next to the stale item.
     const cached: OrchestrationV2ThreadProjection = cachedProjection([
       command("older-command", "completed", 0),
       command("cached-command", "running"),
@@ -1536,7 +1523,6 @@ describe("EnvironmentThreads", () => {
       }),
     );
 
-    // The event is newer than any reply, so the saved copy follows it however the lookup ends.
     it.effect.each(["running", "missing", "timed out"] as const)(
       "saves a completion event that overtakes a %s lookup reply",
       (reply) =>
@@ -2581,7 +2567,6 @@ describe("EnvironmentThreads", () => {
         (value) => value.status === "synchronizing" && Option.isSome(value.data),
       );
 
-      // Answered on another device while this client was away.
       yield* Queue.offerAll(harness.inputs, [
         questionResolved(CACHED_SNAPSHOT_SEQUENCE + 1),
         synchronized(),

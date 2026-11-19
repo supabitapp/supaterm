@@ -23,7 +23,6 @@ import type { ProviderAuthController } from "@supaterm/provider-core/server/auth
 
 const AUTH_TIMEOUT_MS = 300_000;
 
-// The SDK has no code distinguishing these failures, so classify by its fixed message prefixes.
 const loginFailureDetail = (cause: unknown) => {
   if (isCursorSdkError(cause, "CursorSdkError")) {
     if (cause.message.startsWith("Login succeeded, but creating an SDK API key failed")) {
@@ -125,7 +124,6 @@ export const makeCursorAuth = Effect.fn("makeCursorAuth")(function* (options: Cu
     return apiKey;
   });
 
-  // Closing admission before draining these scopes prevents cached credentials surviving sign-out.
   const withAccess: CursorAuth["withAccess"] = (task) =>
     Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
@@ -172,7 +170,6 @@ export const makeCursorAuth = Effect.fn("makeCursorAuth")(function* (options: Cu
   const runLogin = Effect.fn("CursorAuth.runLogin")(
     function* (flow: AuthFlow, stopSessions: Effect.Effect<void, ProviderSetupError>) {
       yield* stopSessions.pipe(Effect.ensuring(stopSessionsWithCredentials));
-      // The SDK first writes into memory. Cancellation must not save a late login result.
       const { Cursor, InMemoryCredentialStore } = yield* Effect.try({
         try: loadCursorSdk,
         catch: (cause) =>
@@ -221,7 +218,6 @@ export const makeCursorAuth = Effect.fn("makeCursorAuth")(function* (options: Cu
             cause,
           }),
       });
-      // Commit and publish together; interrupting a store Promise cannot stop a late write.
       yield* lock.withPermits(1)(
         Effect.gen(function* () {
           if (active !== flow) return;

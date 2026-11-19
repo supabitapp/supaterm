@@ -14,6 +14,5 @@ export function playOutcomeHaptic(succeeded: boolean): void {
             ? Haptics.NotificationFeedbackType.Success
             : Haptics.NotificationFeedbackType.Error,
         );
-  // Best effort: devices without a haptics engine reject.
   played.catch(() => undefined);
 }

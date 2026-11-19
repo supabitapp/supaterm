@@ -103,8 +103,6 @@ export const CursorProviderCapabilitiesV2 = {
     emitsTurnCompleted: true,
     supportsInterrupt: true,
     supportsActiveSteering: true,
-    // A steer can move a foreground subagent to the background. Mailbox wakes
-    // stay queued so a notification does not cut into the live turn.
     activeSteeringInterruptsTools: true,
     activeSteeringAcceptsAttachments: false,
     supportsSteeringByInterruptRestart: true,
@@ -200,8 +198,6 @@ export function cursorRuntimeAgentPolicy(
       : runtimePolicy.approvalPolicy !== "never";
   return {
     autoReview,
-    // The Windows SDK has no filesystem sandbox; omit the default only when
-    // Auto-review still gates execution. Explicit policies remain authoritative.
     sandboxEnabled:
       runtimePolicy.sandboxPolicy === undefined
         ? runtimePolicy.runtimeMode !== "full-access" && !(platform === "win32" && autoReview)
@@ -306,11 +302,6 @@ function nativeThreadId(providerThread: OrchestrationV2ProviderThread): string {
   return id;
 }
 
-/**
- * Every Cursor settings layer the Cursor CLI loads: project and user rules,
- * skills, hooks, and MCP servers, team and MDM admin policy, and account
- * plugins. The SDK loads none of them when `settingSources` is omitted.
- */
 const CURSOR_AGENT_SETTING_SOURCES = [
   "project",
   "user",
@@ -395,7 +386,6 @@ function cursorToolFailed(toolCall: ToolCall): boolean {
   if (toolCall.result?.status === "error") {
     return true;
   }
-  // The SDK reports a shell command that exits non-zero as a success.
   if (toolCall.type === "shell" && toolCall.result?.status === "success") {
     return toolCall.result.value.exitCode !== 0;
   }
@@ -926,12 +916,7 @@ interface CursorProjectionTarget {
   readonly providerTurnId: OrchestrationV2ProviderTurn["id"] | null;
 }
 
-// Fallback final output when Cursor's result carries none. The persisted row only
-// ever shows a bounded tail, so keep a little more than that.
 const MAX_CURSOR_STREAMED_OUTPUT_CHARS = 256 * 1024;
-// After a turn ends, a retryable stream error can make Cursor's SDK resume from
-// an older checkpoint inside the same run. When those resumes save nothing, it
-// ends the run with this error even though the answer was already delivered.
 const CURSOR_RESUME_NO_PROGRESS_MESSAGE =
   "Agent turn stopped after repeated resume attempts made no progress";
 
@@ -954,7 +939,6 @@ interface ActiveCursorSubagent {
   readonly turnItemOrdinal: number;
   nextChildOrdinal: number;
   resultProjected: boolean;
-  // Nested tools and text Cursor streamed live; the completion transcript fills in only the rest.
   readonly liveToolCallIds: Set<string>;
   streamedAssistantText: string;
   readonly tools: Map<string, ActiveCursorToolCall>;
@@ -986,14 +970,11 @@ interface ActiveCursorTurn {
   readonly assistant: ActiveCursorTextStream;
   assistantReply: CursorTransportFailure;
   readonly reasoning: ActiveCursorTextStream;
-  /** The user text this run sent, before runtime instructions; absent for /compress. */
   readonly prompt: string | undefined;
   interrupted: boolean;
   finalized: boolean;
-  /** The agent's latest turn ended and no new work has started since. */
   turnEnded: boolean;
   readonly session: CursorAgentSdk.CursorAgentSdkSession;
-  /** What Cursor billed for this run, summed over its turn-ended updates. */
   usage: CursorTurnUsage | undefined;
 }
 
@@ -1065,13 +1046,11 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
         });
         const events = yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event>();
         const liveAgent = yield* Ref.make<CursorLiveAgent | null>(null);
-        // What the native conversation was told since it started or was last compacted.
         const told = yield* Ref.make<{
           readonly agent: string;
           readonly orchestration: boolean;
           readonly device: boolean;
         } | null>(null);
-        // Cursor drops a cancelled run from the conversation, so the next message carries its prompt.
         const interruptedPrompt = yield* Ref.make<{
           readonly agent: string;
           readonly text: string;
@@ -1956,7 +1935,6 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           if (input.completed && !subagent.resultProjected) {
             yield* completeSubagentReasoning(subagent);
             yield* completeSubagentAssistant(subagent);
-            // A tool with neither a live completion nor a saved step has an unknown outcome.
             const unfinishedStatus =
               status === "interrupted" || status === "failed" || status === "cancelled"
                 ? status
@@ -2240,8 +2218,6 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           }
           switch (update.type) {
             case "text-delta":
-              // Classify each assistant message on its own, so earlier
-              // commentary does not hide a later standalone transport dump.
               if (context.assistant.current === null) {
                 context.assistantReply = new CursorTransportFailure();
               }
@@ -2296,11 +2272,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
               }
               const chunk = shellOutputText(update.event);
               if (chunk.length === 0) return;
-              // The completed call persists the final output once. Re-emitting the
-              // whole accumulated output on every delta grew the event store
-              // quadratically; live output goes to the command output hub instead.
               shell.streamedOutput += chunk;
-              // Trimming on every chunk would flatten and copy the whole tail each time.
               if (shell.streamedOutput.length > 2 * MAX_CURSOR_STREAMED_OUTPUT_CHARS) {
                 shell.streamedOutput = shell.streamedOutput.slice(
                   -MAX_CURSOR_STREAMED_OUTPUT_CHARS,
@@ -2349,7 +2321,6 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                 turnTokenUsage: {
                   usageScope: "main_agent",
                   usageStatus: input.status === "completed" ? "complete" : "partial",
-                  // Cursor's inputTokens already include cache reads and writes.
                   inputTokens: input.context.usage.inputTokens,
                   cachedInputTokens: input.context.usage.cacheReadTokens,
                   cacheCreationTokens: input.context.usage.cacheWriteTokens,
@@ -2380,7 +2351,6 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
             yield* emitToolArtifacts({
               active: tool,
               completed: true,
-              // No completion event means the tool outcome is unknown.
               unfinishedStatus: input.status === "completed" ? "interrupted" : input.status,
             });
           }
@@ -2397,7 +2367,6 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
           }
           yield* completeReasoning(input.context);
           yield* completeAssistant(input.context);
-          // The turn's billed totals count every step; only the checkpoint knows the context fill.
           const contextUsage = yield* (
             input.context.session.readContextUsage ?? Effect.undefined
           ).pipe(
@@ -2518,7 +2487,6 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                 Effect.provideService(FileSystem.FileSystem, fileSystem),
                 Effect.provideService(Path.Path, path),
                 Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-                // Unreadable Cursor state leaves startup to the SDK rather than failing the turn.
                 Effect.catch((cause) =>
                   Effect.logWarning("orchestration-v2.cursor-workspace-mcp-unresolved", {
                     cwd: runtimePolicy.cwd,
@@ -2723,7 +2691,6 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
             const hasDeviceTools =
               mcpServers !== undefined && mcpSession?.capabilities?.has("device") === true;
             const known = yield* Ref.get(told);
-            // A conversation this process has not sent to was told on its first run.
             const delivered =
               known?.agent === agent.nativeThreadId
                 ? known
@@ -2739,8 +2706,6 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
             const compacted = prompt === undefined;
             const pendingUpdates: Array<InteractionUpdate> = [];
             let context: ActiveCursorTurn | null = null;
-            // A send-time set replaces the create-time set, so the workspace servers go only here and are
-            // read again each turn from mcp.json and mcp-disabled.json; both merge with settingSources.
             const turnMcpServers = {
               ...(yield* resolveWorkspaceMcpServers(turnInput.runtimePolicy)),
               ...mcpServers,
@@ -2838,9 +2803,7 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                   if (
                     context !== null &&
                     context.assistant.nextSegment === 0 &&
-                    // A summarize run's result is the summary, not an answer.
                     !compacted &&
-                    // Text from a resume that made no progress is not the turn's answer.
                     !isResumeFailureAfterTurnEnded(context, result) &&
                     result.result !== undefined &&
                     result.result.length > 0
@@ -3051,7 +3014,6 @@ export const makeCursorAdapterV2 = Effect.fn("makeCursorAdapterV2")(function* (
                   detail: `Cursor provider turn ${turnInput.providerTurnId} is not active.`,
                 });
               }
-              // The live run already has the runtime instructions from startTurn.
               const text = yield* providerMessageTextWithAttachmentPaths({
                 text: yield* resolveCursorSkillText(
                   turnInput.message.text,

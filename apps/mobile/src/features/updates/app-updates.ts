@@ -1,5 +1,4 @@
 import * as Updates from "expo-updates";
-// Metro namespace imports evaluate unrelated React Native getters, including unavailable native modules.
 import { AppState } from "react-native";
 
 import {
@@ -140,7 +139,6 @@ export async function runAppUpdateCheck(options: AppUpdateCheckOptions = {}): Pr
     promise: deferred.promise,
     stateListeners,
   };
-  // Publish the operation before any state listener can synchronously re-enter.
   appUpdateCheckInFlight = inFlight;
 
   const execution = performAppUpdateCheck(client, {
@@ -178,7 +176,6 @@ function createDeferred(): Deferred {
 }
 
 function notifyListeners<A>(listeners: ReadonlySet<(value: A) => void>, value: A): void {
-  // Snapshot listeners so reentrant subscribers receive only observeAppUpdateCheck's explicit replay.
   const snapshot = Array.from(listeners);
   for (const listener of snapshot) listener(value);
 }
@@ -227,7 +224,6 @@ async function performAppUpdateCheck(
     setState("idle");
     return;
   }
-  // Rollback directives report isAvailable: false and isRollBackToEmbedded: true; still drop the running OTA.
   if (!check.value.isAvailable && !check.value.isRollBackToEmbedded) {
     setState("current");
     return;
@@ -240,7 +236,6 @@ async function performAppUpdateCheck(
     setState("idle");
     return;
   }
-  // isNew is always false for a rollback, so it cannot be the sole gate.
   if (!fetched.value.isNew && !fetched.value.isRollBackToEmbedded) {
     setState("current");
     return;
@@ -267,7 +262,6 @@ async function performAppUpdateCheck(
 
 type AppUpdateInstallOutcome = "installed" | "flush-failed" | "restart-failed";
 
-/** Flush persistence and wait for backgrounding before restarting mounted native surfaces. */
 async function installAppUpdate(
   client: AppUpdateClient,
   environment: AppUpdateEnvironment,
@@ -330,7 +324,6 @@ async function promptDeferredAppUpdateInstall(
   if (!deferral.pendingInstall || deferral.installInProgress) return;
   const installNow = await settlePromise(() => environment.confirmInstallNow());
   if (installNow._tag !== "Success" || !installNow.value) return;
-  // Backgrounding may already have started deferred restart while the alert was open; ignore stale acceptance.
   if (!deferral.pendingInstall || deferral.installInProgress) return;
   await installPendingAppUpdate(client, environment, deferral, {});
 }
@@ -360,7 +353,6 @@ async function applyDeferredAppUpdateInstall(
       reportUpdateFailure(flushed, "Could not save pending state.", undefined);
     }
     deferral.installInProgress = false;
-    // Wait for a fresh background transition after failure to avoid same-session retry loops.
     scheduleDeferredAppUpdateInstall(client, environment, deferral, false);
     return;
   }
@@ -418,7 +410,6 @@ function defaultOnNextBackground(apply: () => void, includeCurrent: boolean): vo
 
 const DEFERRED_INSTALL_PROMPT_AFTER_MS = 30 * 60 * 1000;
 
-/** iOS inactive blips, including the app switcher, leave this timer running. */
 function defaultOnForegroundStay(apply: () => void): void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const arm = () => {

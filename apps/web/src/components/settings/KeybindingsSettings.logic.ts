@@ -18,7 +18,6 @@ import { shortcutKeyFromEvent } from "../../keybindings";
 import { isMacPlatform } from "../../lib/utils";
 import { METRIC_OPTIONS, WINDOW_OPTIONS } from "../usage/usageShortcuts";
 
-// Rank every usage command; mixing rank and alphabetical comparisons makes order input-dependent.
 const usageCommandOrder = new Map<KeybindingCommand, number>(
   [
     "usage.open" as const,
@@ -197,7 +196,6 @@ export function keybindingConflictLabels(
   if (input.key.trim().length === 0) return [];
   const shortcut = parseKeybindingShortcut(input.key);
   if (!shortcut) return [];
-  // Compare resolved chords so mod+k and ctrl+k collide where mod is Ctrl.
   const conflictKey = shortcutConflictKey(shortcut, platform);
   const conflicts: Array<string> = [];
   for (const candidate of rows) {

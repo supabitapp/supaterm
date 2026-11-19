@@ -104,7 +104,6 @@ const layerDeps = ServerConfig.layerTest(process.cwd(), {
 );
 const layerTest = ProviderHostLive.layer.pipe(Layer.provideMerge(layerDeps));
 
-// The `#!/bin/sh` stub below cannot be resolved as an executable on Windows.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
 
 const noSpawn = ChildProcessSpawner.make(() =>
@@ -352,8 +351,6 @@ it.layer(layerTest)("CodexDriver", (it) => {
         ),
       );
     }).pipe(Effect.scoped);
-  // regression: a sign-in that replaces the account mid-probe must not label the old
-  // account's catalog with the new identity.
   it.effect.each(["unchanged", "during-probe"] as const)(
     "managed catalog keeps its account label and token together: %s",
     checkManagedAccount,
@@ -405,9 +402,6 @@ it.layer(layerTest)("CodexDriver", (it) => {
         const tempDir = yield* fs
           .makeTempDirectoryScoped({ prefix: "supaterm-codex-driver-" })
           .pipe(Effect.flatMap((directory) => fs.realPath(directory)));
-        // One standalone install, linked onto PATH and used by two account homes.
-        // `İ` gets longer when lowercased, so the home must not be sliced from a
-        // lowercased copy of the path.
         const installHome = NodePath.join(tempDir, "codex-İnstall");
         const realBinaryPath = NodePath.join(
           installHome,
@@ -461,7 +455,6 @@ it.layer(layerTest)("CodexDriver", (it) => {
       const fixtures = [
         { binary: "codex", realPath: "/packages/standalone/bin/codex", home: "/" },
         { binary: "codex", realPath: "C:\\Packages\\Standalone\\bin\\codex.exe", home: "C:\\" },
-        // The standalone tree itself is a symlink, so only the resolved path names its home.
         {
           binary: NodePath.join("install", "packages", "standalone", "bin", "codex"),
           realPath: "/disk/codex/releases/0.163.0/bin/codex",
@@ -481,7 +474,6 @@ it.layer(layerTest)("CodexDriver", (it) => {
           environment: [],
           config: { ...CodexDriver.defaultConfig(), binaryPath, homePath: tempDir },
         }).pipe(
-          // Virtualize only the executable target: these trees do not belong to this test.
           Effect.provideService(FileSystem.FileSystem, {
             ...fs,
             realPath: (path) =>
@@ -495,7 +487,6 @@ it.layer(layerTest)("CodexDriver", (it) => {
     }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn)),
   );
 
-  // regression: #23937 `codex update` installs the native channel's release, which can lag npm.
   it.effect.skipIf(windowsHost)(
     "does not advertise npm's latest Codex to a standalone install",
     () =>
@@ -509,7 +500,6 @@ it.layer(layerTest)("CodexDriver", (it) => {
         yield* fs.makeDirectory(NodePath.dirname(binaryPath), { recursive: true });
         yield* fs.writeFileString(binaryPath, "#!/bin/sh\n");
         yield* fs.chmod(binaryPath, 0o755);
-        // npm's latest tag is ahead of the native channel, as during a staggered release.
         const npmView = ChildProcessSpawner.make((command) => {
           if (!ChildProcess.isStandardCommand(command) || command.args[0] !== "view") {
             return Effect.die("Version lookup must not run a provider or updater");
@@ -869,7 +859,6 @@ it.layer(layerTest)("CodexDriver", (it) => {
         environment: [],
         config: { ...CodexDriver.defaultConfig(), homePath: codexHome },
       }).pipe(
-        // OS watchers can miss events written right after they start, so the test supplies them.
         Effect.provideService(FileSystem.FileSystem, {
           ...fs,
           watch: (path) =>

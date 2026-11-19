@@ -83,7 +83,6 @@ async function sendFilesToPage(
       endHandoff();
     }
     for (const asset of result.canceled ? [] : result.assets) {
-      // React Native's FormData uploads a file part from its URI.
       files.push({
         uri: asset.uri,
         name: asset.name,
@@ -184,7 +183,6 @@ function AuthorizedPreviewStream({
 }: PreviewStreamConfiguration & NativeStreamBridge & { readonly environmentId: EnvironmentId }) {
   const [attempt, setAttempt] = useState(0);
   const [previousAccess, setPreviousAccess] = useState(props.access);
-  // Wait for refreshed access, including cookie credentials with unchanged JSON.
   if (props.access !== previousAccess) {
     setPreviousAccess(props.access);
     setAttempt((current) => current + 1);
@@ -452,7 +450,6 @@ function PreviewStreamDocumentView({
                 }
                 setStatus(message.status);
                 if (message.status === "connecting") {
-                  // Dialogs may have closed and reopened while this viewer was disconnected.
                   dialogRef.current = null;
                   setControl(null);
                   onControl?.(null);

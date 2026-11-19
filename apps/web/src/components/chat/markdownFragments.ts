@@ -55,8 +55,6 @@ export function handleMarkdownFragmentClick(
     return;
   }
 
-  // Never let the browser follow the fragment or write it to the URL: desktop keeps
-  // its route in the hash, so replacing the hash navigates away from the thread.
   event.preventDefault();
   findMarkdownFragmentTarget(event.currentTarget, href)?.scrollIntoView({ block: "start" });
 }

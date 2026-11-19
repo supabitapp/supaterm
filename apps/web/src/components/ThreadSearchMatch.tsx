@@ -5,7 +5,6 @@ import {
   type SearchRange,
 } from "@supaterm/shared/paletteSearch";
 
-/** `text` with each range in semibold foreground. */
 function HighlightedSearchText(props: { text: string; ranges: ReadonlyArray<SearchRange> }) {
   if (props.ranges.length === 0) return props.text;
   return splitSearchText(props.text, props.ranges).map((part) =>

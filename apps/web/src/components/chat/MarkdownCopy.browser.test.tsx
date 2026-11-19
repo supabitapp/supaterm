@@ -6,7 +6,6 @@ import { render } from "../../../test/render";
 import { MarkdownCodeBlock } from "./MarkdownCodeBlock";
 import { MarkdownTable } from "./MarkdownTable";
 
-// Insecure origins (a LAN or tailnet address over plain http) have no async clipboard.
 function withoutAsyncClipboard() {
   const original = Object.getOwnPropertyDescriptor(Navigator.prototype, "clipboard");
   Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
@@ -35,7 +34,6 @@ describe("markdown copy without the async clipboard", () => {
           <code>echo hi</code>
         </pre>
       </MarkdownCodeBlock>,
-      // The block renders no links and reads no route.
       { router: false },
     );
     using clipboard = withoutAsyncClipboard();
@@ -59,7 +57,6 @@ describe("markdown copy without the async clipboard", () => {
           </tr>
         </tbody>
       </MarkdownTable>,
-      // The table renders no links and reads no route.
       { router: false },
     );
     using clipboard = withoutAsyncClipboard();

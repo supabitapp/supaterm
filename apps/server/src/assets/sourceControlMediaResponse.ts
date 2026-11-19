@@ -19,8 +19,6 @@ const FORWARDED_RESPONSE_HEADERS = [
 ] as const;
 const MEDIA_CONTENT_TYPE_PATTERN = /^(?:image|video|audio)\/[\w!#$&^.+-]+$/i;
 const SVG_CONTENT_TYPE = "image/svg+xml";
-// An SVG is a document: same policy the asset route gives a workspace SVG, so one embedded in a
-// body cannot run script against this origin.
 const SVG_CONTENT_SECURITY_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
 
 export const sourceControlMediaResponse = Effect.fn(
@@ -52,7 +50,6 @@ export const sourceControlMediaResponse = Effect.fn(
     const value = requestHeaders[name];
     if (value !== undefined) forwarded[name] = value;
   }
-  // Clients that predate `repository` fall back to the repository checked out at `cwd`.
   let repository = asset.repository;
   if (repository === undefined) {
     const identities = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
@@ -67,8 +64,6 @@ export const sourceControlMediaResponse = Effect.fn(
     ...(repository === undefined ? {} : { repository }),
   });
   if (response === null) return HttpServerResponse.empty({ status: 502, headers });
-  // It carries none of the upstream entity headers: a `content-length` with no body behind it
-  // holds the connection open until the browser gives up on it.
   if (response.status >= 400) {
     return HttpServerResponse.empty({
       status: response.status >= 500 ? 502 : response.status,

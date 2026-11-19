@@ -251,7 +251,6 @@ export type AcknowledgedThreadMessage = QueuedThreadMessage & {
 
 export type VoiceDeliveryStep =
   | { readonly step: "delivered"; readonly transcript: string }
-  /** Waits for the user. `message` replaces the queued entry. */
   | { readonly step: "hold"; readonly message: QueuedThreadMessage }
   | { readonly step: "retry" };
 

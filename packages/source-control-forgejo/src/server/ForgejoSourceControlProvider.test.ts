@@ -87,7 +87,6 @@ it.effect("reads clone URLs on the given host rather than the checkout's", () =>
           run: (input) => {
             if (input.command === "git") {
               assert.deepStrictEqual(input.args, ["remote", "-v"]);
-              // The checkout is on another Forgejo server with a same-named repository.
               return Effect.succeed(
                 processOutput("origin\thttps://code.example/maria/project.git (fetch)"),
               );
@@ -744,7 +743,6 @@ it.effect.each([
         api: (input) => {
           paths.push(input.path);
           assert.strictEqual(input.path.split("?")[0], "repos/maria/project/assignees");
-          // Forgejo ignores paging here: every page is the full list, with no Link header.
           return encodeJsonEffect(users).pipe(Effect.orDie, Effect.map(processOutput));
         },
       }),
@@ -968,8 +966,6 @@ it.effect("loads Forgejo pull request references from files and commits views", 
   ),
 );
 
-// Gitea ignores `head=` on the pull request list, so each page holds every branch's pull requests.
-// The second lookup still asks for the front of the list: a pull request may have been opened.
 it.effect("reads a Gitea pull request list at most once for branches that have none", () => {
   const listPages: Array<string> = [];
   return Effect.gen(function* () {
@@ -1050,11 +1046,9 @@ it.effect("reads only the changed front of a Gitea pull request list it has read
     base: { ref: number === 5 ? "release" : "main", label: "main", sha: "base", repo },
     head: { ref: head, label: head, sha: "h", repo: number === 5 ? fork : repo },
   });
-  // Newest update first, as `sort=recentupdate` returns them. PR 5 sits on the last page.
   let pulls = Array.from({ length: 120 }, (_, index) =>
     pull(120 - index, 120 - index, 120 - index === 5 ? "feature" : `other-${120 - index}`),
   );
-  // List pages read; a match is also read once by number before it is returned.
   let requests = 0;
   return Effect.gen(function* () {
     const provider = yield* ForgejoSourceControlProvider.make;
@@ -1073,7 +1067,6 @@ it.effect("reads only the changed front of a Gitea pull request list it has read
     assert.deepStrictEqual(yield* find("alice:feature"), [[5, "closed"]]);
     assert.strictEqual(requests, 6);
 
-    // Deleting a pull request moves nothing in the list.
     pulls = pulls.filter((entry) => entry.number !== 121);
     assert.deepStrictEqual(yield* find("later"), []);
     assert.strictEqual(requests, 7);
@@ -1379,7 +1372,6 @@ it.effect("lists each Forgejo assignee once as a reviewer candidate", () => {
                 ...requiredChecksPullRequest,
                 requested_reviewers: [{ login: "ana" }],
               });
-            // Forgejo ignores paging here: every page is the full list, with no Link header.
             case "repos/acme/web/assignees":
               return respond([{ login: "maria" }, { login: "ana" }, { login: "noor" }]);
             default:
@@ -2327,7 +2319,6 @@ it.effect("does not call a valid fj login on an HTTP-only server unauthenticated
       FileSystem.FileSystem,
       FileSystem.makeNoop({
         exists: () => Effect.succeed(true),
-        // fj stores the host without the scheme the login used.
         readFileString: () =>
           Effect.succeed(
             encodeJson({
@@ -2353,7 +2344,6 @@ it.effect("does not call a valid fj login on an HTTP-only server unauthenticated
       TestSourceControlHost.layer({
         process: {
           run: (input) => {
-            // Settings has no project in scope, so there is no origin remote.
             if (input.command === "git")
               return Effect.succeed(
                 processOutput("", { exitCode: ChildProcessSpawner.ExitCode(2) }),

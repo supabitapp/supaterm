@@ -1,7 +1,6 @@
 import { forkSession, getSessionMessages } from "@anthropic-ai/claude-agent-sdk";
 import * as Schema from "effect/Schema";
 
-// Bundled import.meta.main is always true; imports must have no side effects.
 const decodeHistoryOptions = Schema.decodeSync(
   Schema.fromJsonString(
     Schema.Struct({

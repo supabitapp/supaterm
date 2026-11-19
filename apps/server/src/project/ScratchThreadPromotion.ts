@@ -74,7 +74,6 @@ const make = Effect.gen(function* () {
     const folder = thread.worktreePath ?? Option.getOrUndefined(project)?.workspaceRoot;
     const scratchRoot = Option.getOrUndefined(yield* managedFolders.scratchRoot);
     const isScratch = yield* managedFolders.isScratchProject(thread.projectId);
-    // A thread already rooted at its folder is a partial earlier promotion; finish it.
     const alreadyPromoted =
       Option.isSome(project) && project.value.workspaceRoot === folder && !isScratch;
     if (
@@ -134,7 +133,6 @@ const make = Effect.gen(function* () {
 
   const randomId = random.uuidV4();
 
-  // bootstrap returns the project that already owns the folder, so retries reuse it.
   const createProject = Effect.fn("ScratchThreadPromotion.createProject")(function* (
     title: string,
     workspaceRoot: string,
@@ -149,7 +147,6 @@ const make = Effect.gen(function* () {
       })
       .pipe(
         Effect.map(({ project }) => project.id),
-        // bootstrap reads before locking; racing creates return the winner in a conflict.
         Effect.catchTags({
           ProjectConflictError: (conflict) => Effect.succeed(conflict.conflictingProjectId),
         }),

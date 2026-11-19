@@ -147,8 +147,6 @@ export function emptyEditorChoice(): EditorChoice {
   return { key: newEditorKey(), id: "", label: "", isDefault: false };
 }
 
-/** Custom entries lack runtime profiles for prompt-injected choices, so do not store them as ordinary
- * options. */
 function descriptorToEditor(descriptor: ProviderOptionDescriptor): EditorDescriptor {
   const promptInjected = new Set(
     descriptor.type === "select" ? (descriptor.promptInjectedValues ?? []) : [],

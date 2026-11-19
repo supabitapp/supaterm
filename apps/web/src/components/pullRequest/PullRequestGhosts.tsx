@@ -52,7 +52,6 @@ const DEFAULT_DETAIL_TABS = [
 export function PullRequestListGhost({ rows = 7, caption }: { rows?: number; caption?: string }) {
   return (
     <div role="status" aria-label={caption ?? "Loading pull requests"} className="space-y-0.5">
-      {/* Outside the pulse so the explanation stays readable. */}
       {caption ? (
         <p className="px-3 pb-1 text-xs font-medium text-muted-foreground">{caption}</p>
       ) : null}
@@ -115,7 +114,6 @@ export function PullRequestDetailGhost({
         isDraft: seed.isDraft ?? false,
       })
     : null;
-  // Passing list rollups can omit workflows awaiting approval; wait for detail.
   const checksPresentation =
     seed?.checksState === "failing" || seed?.checksState === "pending"
       ? pullRequestChecksStatePresentation(seed.checksState)

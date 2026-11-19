@@ -9,7 +9,6 @@ import {
   STROKE_SEGMENTS_PER_PATH,
 } from "./AnnotationStroke.ts";
 
-// The Draw tool used to rebuild the whole path and rescan every point on each move.
 const fullPath = (points: ReadonlyArray<PreviewAnnotationPoint>): string => {
   let path = `M ${points[0]!.x} ${points[0]!.y}`;
   for (let index = 1; index < points.length - 1; index += 1) {
@@ -32,7 +31,6 @@ const fullBounds = (points: ReadonlyArray<PreviewAnnotationPoint>, width: number
   return { x: left, y: top, width: right - left, height: bottom - top };
 };
 
-// Each later path starts with a move to where the previous one ended.
 const joinPaths = (paths: ReadonlyArray<string>): string =>
   paths
     .map((path, index) => {

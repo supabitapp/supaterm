@@ -8,8 +8,6 @@ import type {
   AcpAdapterV2SubagentUpdate,
 } from "@supaterm/provider-acp/server/adapter";
 
-// The opt-in raw feed identifies each chunk by the preceding assistant.*_delta task call id.
-
 const COPILOT_META_KEY = "github.com/copilot";
 const COPILOT_SESSION_EVENT = "github.com/copilot/sessionEvent";
 
@@ -30,7 +28,6 @@ export const copilotClientCapabilitiesMeta = {
 
 const isAcpRequestError = Schema.is(AcpErrors.AcpRequestError);
 
-/** Copilot keeps failing every prompt with these until its process is replaced. */
 const COPILOT_LOST_SESSION_MARKERS = [
   "session event delivery failed: session not found: ",
   "session lock unavailable during is_session_generation_current: acquisition timed out",
@@ -40,7 +37,6 @@ export function isCopilotLostSessionError(error: unknown): boolean {
   if (!isAcpRequestError(error) || error.method !== "session/prompt" || error.code !== -32603) {
     return false;
   }
-  // Older Copilot reports the cause in data.details; its native ACP layer (1.0.105) in the message.
   return [error.errorMessage, record(error.data)?.details].some(
     (text) =>
       typeof text === "string" &&
@@ -113,7 +109,6 @@ export function makeCopilotSubagentRouting() {
             release(event.sessionId, current);
           }
           if (typeof data.toolCallId !== "string") return Effect.void;
-          // Background tasks end only here; their tool call settles at launch.
           return context.finishSubagent({
             sessionId: event.sessionId,
             childSessionId: childSessionId(data.toolCallId),
@@ -121,8 +116,6 @@ export function makeCopilotSubagentRouting() {
             result: typeof data.error === "string" ? data.error : null,
           });
         }
-        // Copilot sends no ACP compaction_update; agentId marks a subagent's own compaction.
-        // Older Copilot builds report a successful compaction without `outcome`.
         case "session.compaction_complete": {
           if (
             event.agentId !== undefined ||
@@ -133,7 +126,6 @@ export function makeCopilotSubagentRouting() {
           }
           return context.markSessionCompacted(event.sessionId);
         }
-        // Copilot holds session/prompt while an attached async shell runs (github/copilot-cli#5293).
         case "assistant.turn_start":
         case "assistant.idle": {
           if (event.agentId !== undefined || data.aborted === true) return Effect.void;

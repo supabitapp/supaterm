@@ -60,15 +60,8 @@ import {
 
 const noop = () => undefined;
 
-// A loopback server can receive the provider's callback itself, unless the
-// desktop shell offers to catch it on the client.
 const prefersClientCallback = (local: boolean) => !local || window.desktopBridge !== undefined;
 
-/**
- * How a sign-in started now reaches the provider. Read at use time, because a
- * sign-in can start minutes after the click that asked for it (once an install
- * finishes), and the primary environment may have connected in between.
- */
 function readSignInRouting(environmentId: EnvironmentId) {
   const local = isLocalProviderAuthConnection(readPreparedConnection(environmentId));
   const clientCallback = prefersClientCallback(local);
@@ -311,9 +304,6 @@ function ManagedCodexSetup({
   const [awaitingProvider, setAwaitingProvider] = useState<"sign-in" | "handoff" | null>(null);
   const pendingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  // The setup or sign-in this client started. Its follow-up steps (sign in
-  // once the install lands, open the page once the flow waits) belong to it
-  // alone, so Cancel, a new attempt, or unmounting abort them.
   const operation = useRef<AbortController | null>(null);
   const beginOperation = () => {
     operation.current?.abort();
@@ -322,7 +312,6 @@ function ManagedCodexSetup({
     return controller.signal;
   };
   const abortOperation = () => operation.current?.abort();
-  // Once the card unmounts, nothing may start a sign-in or open a page on its behalf.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- aborts the in-flight setup or sign-in AbortController on unmount
   useEffect(() => () => operation.current?.abort(), []);
   const [autoStartHandled, setAutoStartHandled] = useState(false);
@@ -344,8 +333,6 @@ function ManagedCodexSetup({
       setAwaitingProvider(null);
     }
   }
-  // The server does not refresh the provider snapshot when a sign-in flow
-  // succeeds, and the flow can finish elsewhere (callback, pasted redirect URL).
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- asks the server to refresh the provider snapshot once the sign-in flow succeeds
   useEffect(() => {
     if (awaitingProvider && auth?.phase === "succeeded") {
@@ -526,7 +513,6 @@ function ManagedCodexSetup({
       (started) => {
         setAwaitingProvider("sign-in");
         const startedFlowId = started.flowId;
-        // A remote browser cannot receive the callback, so the user opens the page from the card.
         if (remoteWeb || startedFlowId === null) return;
         const startedPage = settleAuthorizationPage(started, startedFlowId);
         void (

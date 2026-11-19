@@ -20,7 +20,6 @@ import * as CommandOutputHub from "./CommandOutputHub.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 
-/** Larger chunks reach the client as the bounded tail rather than raw text. */
 const MAX_APPEND_CHARS = 16 * 1024;
 
 export interface BackgroundTaskOutputShape {

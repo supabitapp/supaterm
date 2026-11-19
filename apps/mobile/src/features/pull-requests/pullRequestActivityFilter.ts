@@ -23,7 +23,6 @@ function isBot(actor: PullRequestActor | null) {
   return actor?.isBot === true;
 }
 
-// A bot's approval or change request is a verdict, not chatter.
 function isVerdict(reviewState: string | null) {
   const state = reviewState?.trim().toUpperCase().replaceAll("-", "_");
   return state === "APPROVED" || state === "CHANGES_REQUESTED";

@@ -82,7 +82,6 @@ describe("reduceCommandPaletteUiState", () => {
       kind: "search",
       query: "https://github.com/acme/web/pull/8",
     });
-    // The second intent starts a new session, so the open palette starts over from it.
     expect(second.session).toBe(2);
     expect(
       reduceCommandPaletteUiState(second, { _tag: "SetOpen", open: false }).openIntent,
@@ -293,7 +292,6 @@ describe("buildThreadActionItems", () => {
       }).map((group) => [group.label, group.items.map((item) => item.value)]);
 
     const before = filter([]);
-    // The server matched both; the title match stays where it was.
     const after = filter([items[0]!, items[1]!].toReversed());
     expect(before).toEqual([["Threads", ["thread:environment-local:title"]]]);
     expect(after).toEqual([
@@ -372,7 +370,6 @@ describe("buildThreadActionItems", () => {
 
     expect(labels("upgrade")).toEqual(["Threads"]);
     expect(labels("upl")).toEqual(["Actions"]);
-    // A short query still finds a command by a keyword it equals.
     const prGroups = filterCommandPaletteGroups({
       activeGroups: [
         {
@@ -560,7 +557,6 @@ describe("buildThreadActionItems", () => {
               kind: "action",
               value: "action:new-thread",
               searchTerms: ["new thread", "chat"],
-              // Styled: not a string, so only `searchTitle` holds its words.
               title: ["New thread in ", "supaterm"],
               searchTitle: "New thread in supaterm",
               icon: null,

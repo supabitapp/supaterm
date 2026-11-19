@@ -63,7 +63,6 @@ import { layerReaderDatabase, traceSqlRouting } from "../persistence/testkit/Sql
 
 declare module "node:sqlite" {
   interface StatementSync {
-    // Node 26 has this; @types/node 24 does not declare it yet.
     stat(counter: "vmStep"): number;
   }
 }
@@ -105,7 +104,6 @@ const traceSqlStatements = () => {
   return { statements, tracer, queryTransactions };
 };
 
-/** The shell index flags every live shell and matches its shells on the fields subscriber trims read. */
 const assertShellIndexCoversShells = Effect.fnUntraced(function* () {
   const store = yield* ProjectionStore.ProjectionStoreV2;
   const shells = (yield* store.getShellSnapshot({ location: "active" })).threads;
@@ -508,7 +506,6 @@ it.effect("record reads restrict provider histories to delivery identities", () 
       ),
       ["provider-thread:history", "provider-thread:selected", "provider-thread:owned"],
     );
-    // Unselected history must not be decoded, even if its payload is unreadable.
     yield* sql`UPDATE orchestration_v2_projection_provider_threads SET payload_json = '{}'
       WHERE provider_thread_id = 'provider-thread:history'`;
     assert.lengthOf(
@@ -562,7 +559,6 @@ it.effect("a latest-run read keeps the newest runs and older runs its statuses m
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
     const sql = yield* SqlClient.SqlClient;
-    // Its run 1 is rolled back.
     const threadId = yield* addRolledBackRecoveryCandidate("latest-runs");
     const now = yield* DateTime.now;
     const nodeId = NodeId.make("node:latest-runs");
@@ -602,7 +598,6 @@ it.effect("a latest-run read keeps the newest runs and older runs its statuses m
       });
     }
     assert.equal(yield* store.getRunCount(threadId), 5);
-    // The newest runs by ordinal, whatever their status, plus older runs the statuses match.
     for (const [filter, expected] of [
       [{ latestRunLimit: 2 }, [4, 5]],
       [{ latestRunLimit: 2, runStatuses: ["rolled_back"] as const }, [1, 4, 5]],
@@ -619,7 +614,6 @@ it.effect("a latest-run read keeps the newest runs and older runs its statuses m
         statement.includes("FROM orchestration_v2_projection_runs"),
       );
       assert.isDefined(recentQuery);
-      // Fetches the chosen runs by key instead of walking every run of the thread.
       assert.match(
         (yield* sql.unsafe<{ readonly detail: string }>(`EXPLAIN QUERY PLAN ${recentQuery}`))
           .map((row) => row.detail)
@@ -630,8 +624,6 @@ it.effect("a latest-run read keeps the newest runs and older runs its statuses m
   }).pipe(Effect.provide(layerTest)),
 );
 
-// One thread holds every way a run can still matter after a compaction. A run is requested at
-// its ordinal in minutes and ends 30 seconds later, unless the table says otherwise.
 it.effect("a compacted thread reads every run, and run records only for its recent runs", () =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
@@ -681,7 +673,6 @@ it.effect("a compacted thread reads every run, and run records only for its rece
     for (const [ordinal, status, endedAt] of [
       [2, "queued", null],
       [3, "completed"],
-      // A held queue ran this old run after the compactions.
       [4, "completed", at(11.5)],
       [5, "completed"],
       [6, "completed"],
@@ -834,7 +825,6 @@ it.effect("a compacted thread reads every run, and run records only for its rece
         },
       });
     }
-    // Each collection as the ordinals of the runs it was read for. Run 1 is the helper's.
     const ordinals = (ids: ReadonlyArray<string | null>) =>
       [...new Set(ids.map((id) => Number(id?.split(":").at(-1)) || 1))].toSorted((a, b) => a - b);
     const read = (keepRunIds: ReadonlyArray<RunId> = [], keepMessageId = messageId(0)) =>
@@ -859,8 +849,6 @@ it.effect("a compacted thread reads every run, and run records only for its rece
           })),
         );
     const all = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-    // Every run and every turn item is read, so a model switch is still measured from the last
-    // prompt. Run 1, the helper's, holds only a command item.
     const expected = (recent: ReadonlyArray<number>) => ({
       runs: 15,
       attempts: recent,
@@ -870,33 +858,25 @@ it.effect("a compacted thread reads every run, and run records only for its rece
       turnItems: [1, ...all],
     });
 
-    // Nothing is compacted yet, so the whole history is current.
     assert.deepEqual(yield* read(), expected(all));
 
-    // The window starts at the compaction's run. Queued run 2 and held run 4 are older but had
-    // not ended by then.
     yield* compaction(7, "completed");
     assert.deepEqual(yield* read(), expected([2, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15]));
 
-    // The latest compaction wins.
     yield* compaction(11, "completed");
     const latest = expected([2, 4, 11, 12, 13, 14, 15]);
     assert.deepEqual(yield* read(), latest);
 
-    // A compaction that was rolled back, failed or is still running does not move the window.
     yield* compaction(13, "completed");
     yield* compaction(14, "failed");
     yield* compaction(15, "running");
     assert.deepEqual(yield* read(), latest);
 
-    // A named run and the run that holds a re-sent message are read too.
     assert.deepEqual(
       yield* read([runId(3)], messageId(6)),
       expected([2, 3, 4, 6, 11, 12, 13, 14, 15]),
     );
 
-    // A command also skips the node and the provider thread of each done task. Tasks ended on
-    // both sides of the compaction; one ran in the provider thread the thread's own runs use.
     const addProviderThread = (id: ProviderThreadId, appThreadId: ThreadId) =>
       store.apply({
         id: EventId.make(`event:compacted:${id}`),
@@ -1034,15 +1014,12 @@ it.effect("a compacted thread reads every run, and run records only for its rece
     const windowed = yield* readWithTasks(window);
     const unsettled = yield* readWithTasks({ omitSettledSubagentRecords: true });
     const both = yield* readWithTasks({ ...window, omitSettledSubagentRecords: true });
-    // Each filter alone keeps records the other one drops.
     assert.deepEqual(windowed.taskNodes, ["recent-delivered", "recent-pending"]);
     assert.lengthOf(windowed.providerThreads, 5);
     assert.deepEqual(unsettled.taskNodes, ["old-pending", "recent-pending"]);
     assert.deepEqual(unsettled.providerThreads, ["compacted", "old-pending", "recent-pending"]);
     assert.lengthOf(unsettled.rootNodes, all.length);
     assert.lengthOf(unsettled.runs, 15);
-    // Together: every run, every turn item and the provider thread the runs use stay, and the
-    // windowed records are read for the recent and named runs, less each done task's node.
     const recentRuns = ["11", "12", "13", "14", "15", "2", "3", "4", "6"];
     assert.deepEqual(both, {
       ...unsettled,
@@ -1098,9 +1075,7 @@ it.effect("user-only message reads find ordinals through the user-message index"
       .pipe(Effect.withTracer(tracer));
     assert.lengthOf(userMessages.messages, 2);
     const ordinalLookup = statements.find((statement) => statement.includes("MIN(ordinal)"));
-    // User-only reads must seek the message-ordinal index instead of scanning every turn item.
     yield* assertReadsThroughMessageOrdinalIndex(ordinalLookup, ["thread_id=?", "<expr>=?"]);
-    // With every user item loaded, the items give the order and the lookup does not run.
     const withItems = traceSqlStatements();
     const ordered = yield* store
       .getThreadRecords(threadId, ["messages", "turnItems"], {
@@ -1579,7 +1554,6 @@ it.effect("SQL shells use the latest subagent owner for duplicate provider-threa
     });
     yield* assertOwners(threadId, []);
     const ownerSnapshot = (yield* store.getThreadProjection(threadId)).providerThreads[0]!;
-    // Rollback writes its provider snapshot before the rolled-back run events.
     yield* store.apply({
       id: EventId.make("event:duplicate-provider-thread-owner:rollback-provider-thread"),
       type: "provider-thread.updated",
@@ -1884,7 +1858,6 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
       });
     }
   }
-  // No row or node of this run is in the window.
   const finishedCheckpointId = CheckpointId.make("checkpoint:finished-leaf-nodes:earlier-run");
   yield* store.apply({
     id: EventId.make("event:finished-leaf-nodes:earlier-run-checkpoint"),
@@ -1927,15 +1900,12 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
     nodeNames(yield* store.getThreadRecords(threadId, ["nodes"])),
     nodes.map(([name]) => name).toSorted(),
   );
-  // A todo list stays running after its run ends. Counted as live work, every old run of a
-  // long thread would ride along with each window, with its nodes and subagents.
   const liveWindow = (yield* store.getThreadSnapshotWindow(threadId, { rowLimit: 1 })).projection;
   assert.deepEqual(nodeNames(liveWindow), ["active-run-todo", "finished-run-live-tool"]);
   assert.deepEqual(
     liveWindow.plans.map((plan) => plan.id),
     [PlanId.make("plan:finished-leaf-nodes:active-run-todo")],
   );
-  // Clients show the diff of the last finished turn from this record.
   assert.deepEqual(
     liveWindow.checkpoints.map((checkpoint) => checkpoint.id),
     [finishedCheckpointId],
@@ -1951,7 +1921,6 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
     ["running", finishedRun, "running", null],
     ["active-run-delivered", activeRun, "completed", "delivered"],
   ] as const;
-  // A follow-up reuses its task's child thread.
   const childThreadIds: Partial<Record<(typeof subagents)[number][0], ThreadId>> = {
     delivered: ThreadId.make("thread:finished-subagents:child-a"),
     running: ThreadId.make("thread:finished-subagents:child-a"),
@@ -2027,7 +1996,6 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
         updatedAt: now,
       },
     });
-    // Each task has a node in this thread and a provider thread in its child thread.
     yield* store.apply({
       id: EventId.make(`event:finished-subagents:node:${name}`),
       type: "node.updated",
@@ -2064,7 +2032,6 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
         appThreadId: ThreadId.make(`thread:finished-subagents:child:${name}`),
         driver,
         providerInstanceId,
-        // One finished task ran in a provider session this thread also uses.
         providerSessionId: name === "acknowledged" ? sharedSessionId : null,
         ownerNodeId: null,
         nativeThreadRef: null,
@@ -2081,8 +2048,6 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
   }
   yield* sql`INSERT INTO orchestration_v2_projection_provider_session_bindings
     (provider_session_id, thread_id) VALUES (${sharedSessionId}, ${threadId})`;
-  // A command drops the node and the provider thread of each task it drops. The provider thread
-  // in the shared session stays: detaching that session probes it for background work.
   const kept = ["active-run-delivered", "claimed", "no-delivery", "pending-delivery", "running"];
   const commandTrace = traceSqlStatements();
   const commandRecords = yield* store
@@ -2095,7 +2060,6 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
     commandRecords.nodes
       .flatMap((node) => (node.kind === "subagent" ? [node.id.split(":").at(-1)] : []))
       .toSorted(),
-    // A subagent node that no task record names stays.
     [...kept, "finished-subagent"].toSorted(),
   );
   assert.deepEqual(
@@ -2106,7 +2070,6 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
     (yield* store.getThreadRecords(threadId, ["providerThreads"])).providerThreads,
     subagents.length,
   );
-  // Both reads stay inside their indexes: no scan of the thread's nodes or provider threads.
   for (const [table, seeks] of [
     [
       "nodes",
@@ -2145,7 +2108,6 @@ const commandReadsSkipSettledLeafNodes = Effect.gen(function* () {
     subagentNames(yield* store.getThreadRecords(threadId, ["subagents"])),
     subagents.map(([name]) => name).toSorted(),
   );
-  // A command about one finished task keeps it, and reads only its node and turn item.
   const deliveredId = NodeId.make("node:finished-subagents:delivered");
   const forTask = yield* store.getThreadRecords(threadId, ["subagents", "nodes", "turnItems"], {
     omitSettledSubagents: { except: [deliveredId] },
@@ -2271,7 +2233,6 @@ const backgroundThreadUpdatesKeepTimestamp = Effect.gen(function* () {
   assert.deepEqual(reordered.updatedAt, createdAt);
   assert.equal(reordered.thread.activeOrderKey, "a");
 
-  // MCP pins read the stored pin key from the active shell index.
   yield* store.apply({
     id: EventId.make("event:background-updates:pinned"),
     type: "thread.pinned",
@@ -2411,12 +2372,10 @@ const subagentRecordsSelectById = Effect.gen(function* () {
     yield* readRuns(["running", "rolled_back"]).pipe(Effect.withTracer(byStatus.tracer)),
     ["rolled_back"],
   );
-  // Read only the matching runs, not every run in ordinal order.
   const statusPlan = yield* planOf(byStatus.statements, "runs");
   assert.notInclude(statusPlan, "orchestration_v2_projection_runs_thread_ordinal_idx");
   assert.match(statusPlan, /SEARCH orchestration_v2_projection_runs USING INDEX \w*status\w*/);
 
-  // An id filter reads by primary key, not every row of the thread.
   const runId = (yield* store.getThreadRecords(threadId, ["runs"])).runs[0]!.id;
   const byId = traceSqlStatements();
   yield* store
@@ -2433,7 +2392,6 @@ const subagentRecordsSelectById = Effect.gen(function* () {
       `USING INDEX sqlite_autoindex_orchestration_v2_projection_${table}_1`,
     );
   }
-  // A task's turn item and a child thread's tasks are found through their own indexes.
   const byOwner = traceSqlStatements();
   yield* store
     .getThreadRecords(threadId, ["subagents", "turnItems"], {
@@ -2489,8 +2447,6 @@ const queryPlan = Effect.fn("queryPlan")(function* (statement: string | undefine
   return rows.map((row) => row.detail);
 });
 
-// SQLite's plan wording changes between versions, so only the index search, the keys it seeks
-// and the absence of a temporary B-tree are pinned.
 const assertReadsThroughMessageOrdinalIndex = Effect.fn("assertReadsThroughMessageOrdinalIndex")(
   function* (statement: string | undefined, keys: ReadonlyArray<string>) {
     const plan = yield* queryPlan(statement);
@@ -2506,8 +2462,6 @@ const assertReadsThroughMessageOrdinalIndex = Effect.fn("assertReadsThroughMessa
   },
 );
 
-// Each message's first item orders it, not the stored message order (the assistant reply is stored
-// first); the message-ordinal statement reads those ordinals through migration 94's index.
 const messageOrdinalsReadThroughTheirIndex = Effect.gen(function* () {
   const store = yield* ProjectionStore.ProjectionStoreV2;
   const threadId = ThreadId.make("thread:message-ordinals");
@@ -2572,7 +2526,6 @@ const messageOrdinalsReadThroughTheirIndex = Effect.gen(function* () {
         text: `${name} user`,
         attachments: [],
       }),
-      // A message streamed over two items keeps its first ordinal.
       ...[1, 2].map((index) =>
         turnItem(index, {
           type: "assistant_message",
@@ -2606,7 +2559,6 @@ const messageOrdinalsReadThroughTheirIndex = Effect.gen(function* () {
     indexed.messages.map((message) => message.id),
     [first.user, first.assistant, second.user, second.assistant],
   );
-  // A narrow read (ids, runs or one role) seeks only its own messages in the same index.
   const narrowReads = [
     {
       filter: { messageIds: [second.assistant, first.user] },
@@ -2847,13 +2799,11 @@ it.effect("SQL shells read a subagent family and a worktree's threads", () =>
       store
         .getShellSnapshot({ location: "active", familyOf: threadId })
         .pipe(Effect.map((snapshot) => snapshot.threads.map((thread) => thread.id)));
-    // Any member, or the root itself, names the same active tree, root included.
     const tree = [id("root"), id("child"), id("grandchild")];
     assert.sameMembers([...(yield* family(id("root")))], tree);
     assert.sameMembers([...(yield* family(id("grandchild")))], tree);
     assert.deepEqual([...(yield* family(id("missing")))], []);
 
-    // Includes another root's idle child on the same path, which a shell may leave out.
     const { statements, tracer } = traceSqlStatements();
     const onWorktree = yield* store
       .getShellSnapshot({ location: "active", worktreePath })
@@ -2862,7 +2812,6 @@ it.effect("SQL shells read a subagent family and a worktree's threads", () =>
       onWorktree.threads.map((thread) => thread.id),
       [id("root"), id("child"), id("other-child")],
     );
-    // A path names a few threads; scanning every thread parses every payload.
     const sql = yield* SqlClient.SqlClient;
     const threadQuery = statements.find((statement) =>
       statement.includes("AS latest_run_stop_requested"),
@@ -2873,7 +2822,6 @@ it.effect("SQL shells read a subagent family and a worktree's threads", () =>
       [],
     )).map((row) => row.detail);
     assert.notInclude(threadPlan, "SCAN t", threadPlan.join("\n"));
-    // A fork keeps its deleted source's root, so the deleted root still names the live tree.
     yield* store.apply({
       id: EventId.make("event:family:root-deleted"),
       type: "thread.deleted",
@@ -2958,7 +2906,6 @@ it.effect("SQL list older done threads below a cursor", () =>
         { projectId: ProjectId.make("project:b"), count: 1 },
       ],
     );
-    // A cursor without an id is strict, as the snapshot's cut is: the day-4 tie is not counted.
     assert.sameDeepMembers(
       [...(yield* list({ doneAt: DateTime.formatIso(at(4)) }, 0)).counts],
       [
@@ -2966,7 +2913,6 @@ it.effect("SQL list older done threads below a cursor", () =>
         { projectId: ProjectId.make("project:b"), count: 1 },
       ],
     );
-    // The cursor is the last row: the tie on day 4 continues by id.
     const next = yield* list({ doneAt: DateTime.formatIso(at(4)), threadId: id("b") }, 10);
     assert.deepEqual(next.threadIds, [id("c"), id("d"), id("snoozed")]);
     assert.deepEqual(yield* list(before, 25, []), { threadIds: [], counts: [] });
@@ -2979,7 +2925,6 @@ it.effect("SQL list older done threads below a cursor", () =>
   }).pipe(Effect.provide(layerTest)),
 );
 
-// regression: #25806 pending request cards outlive the history window that drops their turn
 it.effect("SQL snapshot windows keep cards for requests still pending", () =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
@@ -3268,7 +3213,6 @@ it.effect("SQL snapshot windows leave handoff bodies in SQLite without changing 
       createdAt: now,
       updatedAt: now,
     });
-    // The window keeps a ready handoff and one its rows show; the third is outside it.
     const handoffs = [
       handoff("ready", "ready"),
       handoff("shown", "superseded"),
@@ -3365,7 +3309,6 @@ it.effect("lists only active subagent IDs without loading shell data", () =>
   }).pipe(Effect.provide(layerTest)),
 );
 
-// regression: #25621 SQLite rejects statements binding more than 32,766 variables
 it.effect("lists every thread in the shell snapshot past SQLite's bound variable limit", () =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
@@ -3454,7 +3397,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 
-  // regression: #25157 streamed payloads are not re-parsed to read their indexed timestamps
   it.effect("indexes streamed payload timestamps without parsing the payload JSON", () =>
     Effect.gen(function* () {
       const store = yield* ProjectionStore.ProjectionStoreV2;
@@ -3713,7 +3655,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       const now = yield* DateTime.now;
       const nowIso = DateTime.formatIso(now);
       const threadId = ThreadId.make("thread:bounded-sql-history");
-      // The raw SQL edits below stand in for committed writes, which always append a thread event.
       let revision = 0;
       const committed = <A, E, R>(read: Effect.Effect<A, E, R>) =>
         sql`INSERT INTO orchestration_events (
@@ -3868,7 +3809,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdAt: now,
         },
       });
-      // A reused root scope can retain its original baseline on a node outside the window.
       yield* projectionStore.apply({
         id: EventId.make("event:bounded-sql-history:baseline"),
         type: "checkpoint.captured",
@@ -3924,7 +3864,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         (yield* humanWindow()).projection.turnItems,
         THREAD_HISTORY_TURN_SNAPSHOT_ROW_LIMIT,
       );
-      // With the newest user turn 1,000 rows back, the window pages from inside it.
       const setNewestTurnType = (type: "command_execution" | "user_message") => sql`
         UPDATE orchestration_v2_projection_turn_items
         SET type = ${type}, payload_json = json_set(payload_json, '$.type', ${type})
@@ -3934,7 +3873,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       assert.lengthOf((yield* humanWindow()).projection.turnItems, 77);
       yield* setNewestTurnType("user_message");
 
-      // Fewer than 75 rows still need a byte pass after materializing wire payloads.
       yield* sql`
         UPDATE orchestration_v2_projection_turn_items
         SET type = 'assistant_message', payload_json = json_set(payload_json,
@@ -3969,8 +3907,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         Array.from({ length: 70 }, (_, index) => `turn-item:bounded-sql-history:${index + 1}`),
       );
 
-      // Selected message reads recover ordinals for only the loaded messages, while 69
-      // unloaded assistant messages remain in the thread's history.
       const firstMessageId = MessageId.make("message:bounded-sql-history:1");
       const lastMessageId = MessageId.make("message:bounded-sql-history:1000");
       const insertMessageItem = (
@@ -4055,8 +3991,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         WHERE thread_id = ${threadId} AND ordinal BETWEEN 2 AND 70
       `;
 
-      // A targeted page that needs more than 20 human turns must still reach its target
-      // after the byte pass re-bounds it.
       yield* sql`
         UPDATE orchestration_v2_projection_turn_items
         SET type = 'user_message', payload_json = json_set(payload_json,
@@ -4085,7 +4019,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         WHERE thread_id = ${threadId} AND ordinal BETWEEN 600 AND 624
       `;
 
-      // A turn split by the row budget keeps an interrupt result's request on the same page.
       yield* sql`
         UPDATE orchestration_v2_projection_turn_items
         SET run_id = 'run:bounded-sql-history:500',
@@ -4116,8 +4049,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         WHERE thread_id = ${threadId} AND ordinal IN (500, 580)
       `;
 
-      // Older pages and timeline pages read the rows near the page, not the whole history. A
-      // full index that another read left cached gives the same page.
       const pageStatements: Array<readonly [string, ReadonlyArray<unknown>]> = [];
       const recordPageStatements = <A, E, R>(read: Effect.Effect<A, E, R>) =>
         committed(
@@ -4151,8 +4082,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           ordinalsFrom(915, 75),
         );
         assert.strictEqual(decodeThreadHistoryCursor(page.nextCursor!).p, 914);
-        // A jump to an entry reads the full index and leaves it cached. With work, it looks for
-        // inline output only in its page's runs, not in a run after its cursor.
         const scannedRuns: Array<string> = [];
         yield* read("turn-item:bounded-sql-history:950").pipe(
           Effect.provideService(Statement.CurrentTransformer, (statement) => {
@@ -4186,7 +4115,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           ordinals.map((ordinal) => [ordinal, ordinal - 1]),
         );
         assert.strictEqual(page.totalItems, 1000);
-        // A jump to an entry reads the full index and leaves it cached.
         yield* projectionStore.getThreadHistoryPage(threadId, olderCursor, "absent");
         assert.deepEqual(yield* read, page);
       }
@@ -4194,8 +4122,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         const pagePath = "file:/history-page-steps?vfs=memdb";
         using copy = new NodeSqlite.DatabaseSync(pagePath);
         yield* sql`VACUUM INTO ${pagePath}`;
-        // Only statements that count positions may grow with the history, and those read an
-        // index alone. Every other statement costs the same when the rows below the page are gone.
         const countsPositions = ([query]: readonly [string, ReadonlyArray<unknown>]) =>
           /COUNT\(\*\)|OFFSET/.test(query);
         for (const [query, params] of pageStatements.filter(countsPositions)) {
@@ -4209,7 +4135,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             `${query}\n${plan.join("\n")}`,
           );
         }
-        // StatementSync#stat needs Node 26.8; the Node 24 runtime checks only the query plans.
         if (typeof NodeSqlite.StatementSync.prototype.stat === "function") {
           const rowReads = pageStatements.filter((statement) => !countsPositions(statement));
           const rowReadSteps = () =>
@@ -4226,7 +4151,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           assert.isAtMost(fullSteps, rowReadSteps() * 1.1);
         }
       }
-      // Rows that a rolled-back run hides below the page still shift every position above them.
       const setOldRunStatus = (status: "rolled_back" | "completed") => sql`
         UPDATE orchestration_v2_projection_runs
         SET status = ${status}, payload_json = json_set(payload_json, '$.status', ${status})
@@ -4419,7 +4343,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         { toolName: "view_image", viewedImagePath: "/repo/screenshot.png" },
         { toolName: "mcp__docs__chart", output: { [MCP_APP_OUTPUT_KEY]: { uri: "ui://chart" } } },
         { toolName: "mcp__supaterm__send_to_user" },
-        // OpenCode Code Mode reports a nested send_to_user call as one `execute` item.
         { toolName: "execute", output: JSON.stringify({ sentMessage: "Draft" }) },
       ]) {
         yield* writeSecondItem({
@@ -4449,8 +4372,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         });
         const page = yield* historyPage(threadId, newestCursor, undefined, false, "deferred");
         assert.isUndefined(page.items.find((row) => row.item.ordinal === 2)?.item.deferredWork);
-        // A page that reads the full index, as a jump to an entry does, looks for inline output
-        // only in its own runs.
         const pageRead = traceSqlStatements();
         yield* historyPage(
           threadId,
@@ -4465,12 +4386,10 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         assert.lengthOf(payloadScans, 1);
         assert.include(payloadScans[0], "item.run_id IS json_extract(wanted.value, '$.id')");
       }
-      // Until its run is scanned, a cursor on inline output is hidden inside a work group.
       yield* sql`UPDATE orchestration_v2_projection_turn_items SET type = 'dynamic_tool',
         payload_json = json_set(payload_json, '$.type', 'dynamic_tool', '$.toolName', 'supaterm.delegate_task'),
         inline_work_output = 1 WHERE thread_id = ${threadId} AND ordinal = 4`;
       const sharedRunId = "run:bounded-sql-history:1";
-      // A work page of rows that have no run leaves their inline output out too.
       yield* sql`UPDATE orchestration_v2_projection_turn_items SET run_id = NULL
         WHERE thread_id = ${threadId} AND ordinal BETWEEN 3 AND 6`;
       const runlessWork = yield* historyPage(
@@ -4492,8 +4411,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       );
       yield* sql`UPDATE orchestration_v2_projection_turn_items SET run_id = ${sharedRunId}
         WHERE thread_id = ${threadId} AND ordinal BETWEEN 3 AND 6`;
-      // A stale position selects from the cursor row itself, or from more than a page after it
-      // once the later rows are another run's and cannot fold.
       for (const [position, laterStatus, laterRun] of [
         [0, "completed", sharedRunId],
         [999, "running", "run:bounded-sql-history:300"],
@@ -4519,8 +4436,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           [1, 2, 3],
         );
       }
-      // A cursor whose row is gone falls back to its position. Inline output between the page
-      // and that position can belong to a run with no other row there.
       yield* sql`UPDATE orchestration_v2_projection_turn_items
         SET status = CASE WHEN ordinal <= 700 THEN 'running' ELSE 'completed' END,
           run_id = CASE WHEN ordinal <= 700 THEN 'run:bounded-sql-history:300' ELSE ${sharedRunId} END,
@@ -4594,7 +4509,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         });
         const oldWork = window.projection.visibleTurnItems.find((row) => row.item.deferredWork);
         assert.strictEqual(oldWork?.item.deferredWork?.itemCount, 987);
-        // A jump to an entry reads the full index, which folds the same group.
         const jump = yield* historyPage(
           threadId,
           encodeThreadHistoryCursor({
@@ -4662,8 +4576,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       yield* sql`UPDATE orchestration_v2_projection_turn_items SET ordinal = 999,
         payload_json = json_set(payload_json, '$.ordinal', 999)
         WHERE turn_item_id = 'turn-item:bounded-sql-history:999'`;
-      // Work folded below the newest 502 visible rows still counts its whole group, so the
-      // 100 commands after the messages stay hidden in the 398-item group.
       yield* sql`UPDATE orchestration_v2_projection_turn_items SET type = 'assistant_message',
         payload_json = json_set(payload_json, '$.type', 'assistant_message', '$.text', 'Working',
           '$.messageId', turn_item_id, '$.streaming', json('false'))
@@ -4681,7 +4593,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         straddledWindow.projection.turnItems.map((item) => item.ordinal),
         straddledOrdinals,
       );
-      // A run that starts with work (a wake) has no segment start, so the group begins at its first item.
       const moveFirstItemToRun = (runId: string) => sql`
         UPDATE orchestration_v2_projection_turn_items SET run_id = ${runId},
           payload_json = json_set(payload_json, '$.runId', ${runId})
@@ -4697,9 +4608,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         straddledOrdinals,
       );
       yield* moveFirstItemToRun(sharedRunId);
-      // A failed error below the tail still blocks folding for its run. Only the SQL columns
-      // change; the row sits below the window, so its payload is never decoded.
-      // A steer at 100 starts a later segment, so the error sits below the scan start too.
       const setItem = (ordinal: number, type: string, status: string) => sql`
         UPDATE orchestration_v2_projection_turn_items SET type = ${type}, status = ${status}
         WHERE thread_id = ${threadId} AND ordinal = ${ordinal}`;
@@ -4723,7 +4631,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         payload_json = json_set(payload_json, '$.type', 'command_execution')
         WHERE thread_id = ${threadId} AND ordinal BETWEEN 300 AND 899`;
 
-      // Runless rows below a run that starts after the newest 502 visible rows stay in the window.
       yield* sql`UPDATE orchestration_v2_projection_turn_items
         SET run_id = CASE WHEN ordinal > 990 THEN 'run:bounded-sql-history:991' END,
           type = CASE WHEN ordinal = 991 THEN 'user_message' ELSE 'assistant_message' END,
@@ -4749,9 +4656,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             return Effect.succeed(statement);
           }),
         );
-      // The window read must not grow with history below the newest visible rows. VM steps are
-      // deterministic; reading the whole history here cost 65% more steps.
-      // StatementSync#stat needs Node 26.8; the Node 24 runtime checks only the window rows.
       const copyPath = "file:/thread-window-steps?vfs=memdb";
       if (typeof NodeSqlite.StatementSync.prototype.stat === "function") {
         using copy = new NodeSqlite.DatabaseSync(copyPath);
@@ -4780,7 +4684,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       });
       assert.isTrue(runlessPage.hasMoreHistory);
       assert.isNotNull(runlessPage.historyCursor);
-      // Limits SQLite reads differently from `tailRows` skip the tail bound and match main.
       const windowOrdinalCount = (rowLimit: number) =>
         projectionStore
           .getThreadSnapshotWindow(threadId, { rowLimit, userTurnLimit: 10, deferWork: true })
@@ -4810,14 +4713,11 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         SET type = 'user_message', payload_json = json_set(payload_json, '$.type', 'user_message')
         WHERE thread_id = ${threadId} AND ordinal = 1
       `;
-      // A running run folds nothing, so its newest rows are the window. Reading them must not
-      // walk the rest of the turn: 999 commands here, tens of thousands after a day of work.
       const setSharedRunStatus = (status: "running" | "completed") => sql`
         UPDATE orchestration_v2_projection_runs
         SET status = ${status}, payload_json = json_set(payload_json, '$.status', ${status})
         WHERE run_id = ${sharedRunId}`;
       yield* setSharedRunStatus("running");
-      // Another thread's rows that carry this run's id must not count toward the tail.
       const foreignThreadId = "thread:bounded-sql-history:foreign";
       yield* sql`
         INSERT INTO orchestration_v2_projection_turn_items (
@@ -4845,7 +4745,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         liveWindow.projection.turnItems.map((item) => item.ordinal),
         Array.from({ length: sqlPageLimit }, (_, index) => 1001 - sqlPageLimit + index),
       );
-      // StatementSync#stat needs Node 26.8; the Node 24 runtime checks only the window rows.
       if (typeof NodeSqlite.StatementSync.prototype.stat === "function") {
         const livePath = "file:/thread-window-live-steps?vfs=memdb";
         using copy = new NodeSqlite.DatabaseSync(livePath);
@@ -4860,18 +4759,15 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           copy.exec(
             `DELETE FROM orchestration_v2_projection_turn_items WHERE ordinal BETWEEN ${from} AND ${to}`,
           );
-        // Nothing below the newest 502 rows is read to find the tail.
         const fullSteps = liveSteps();
         assert.isAbove(fullSteps, 0);
         deleteOrdinals(2, 498);
         assert.isAtMost(fullSteps, liveSteps() * 1.1);
-        // The rows themselves are read only from the newest page, not from all 502.
         const rowStatements = liveStatements.filter(([query]) => query.includes("work_segments"));
         assert.lengthOf(rowStatements, 1);
         const pageSteps = liveSteps(rowStatements);
         deleteOrdinals(499, 900);
         assert.isAtMost(pageSteps, liveSteps(rowStatements) * 1.1);
-        // The tail search reads conversation rows from their own index, not past the work rows.
         const tailSearch = liveStatements.find(([query]) => query.includes("visible_tail"));
         assert.isDefined(tailSearch);
         const plan = copy
@@ -4889,7 +4785,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         deferWork: true,
         anchorItemId: TurnItemId.make("turn-item:bounded-sql-history:600"),
       });
-      // Rows above the anchor must not set the tail, or the page would start above its end.
       assert.deepEqual(
         olderLivePage.projection.turnItems.map((item) => item.ordinal),
         Array.from({ length: sqlPageLimit }, (_, index) => 601 - sqlPageLimit + index),
@@ -5150,8 +5045,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           })}
         )
       `;
-      // A steer that fell back to the queue keeps its queued-turn item while its
-      // run waits. End on cancelled for the checks below.
       for (const status of ["queued", "cancelled"] as const) {
         yield* sql`
           UPDATE orchestration_v2_projection_runs
@@ -5181,7 +5074,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         );
       }
 
-      // A steer moves the cancelled queued message outside the window.
       const steeredItemId = "turn-item:bounded-sql-history:steered-output";
       const steeredRunId = RunId.make("run:bounded-sql-history:1000");
       yield* sql`
@@ -5807,8 +5699,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           )
         `;
       }
-      // An unbounded read of every turn item in the thread costs O(thread) per page, so a full
-      // scrollback that repeats it on each page is quadratic in thread length.
       const wholeThreadReads = (statements: ReadonlyArray<string>) =>
         statements.filter(
           (statement) =>
@@ -5865,7 +5755,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         `getTimelinePage read the whole thread on each of ${timelinePages} pages`,
       );
 
-      // A write to the thread a fork inherits from must reach the fork's next page.
       const forkThreadId = ThreadId.make("thread:paged-scrollback:fork");
       yield* projectionStore.apply({
         id: EventId.make("event:paged-scrollback:fork"),
@@ -5932,7 +5821,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       });
       assert.strictEqual((yield* forkPage()).totalItems, forkTotal + 1);
 
-      // Another store instance's write reaches this one only through the committed thread event.
       const directId = "turn-item:paged-scrollback:direct";
       yield* sql`
         INSERT INTO orchestration_v2_projection_turn_items (
@@ -5972,8 +5860,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       `;
       assert.strictEqual((yield* forkPage()).totalItems, forkTotal + 2);
 
-      // An agent started this thread, so the snapshot folds no work. Its cursor then names a
-      // command that an older page folds into the run's one work group.
       yield* sql`
         UPDATE orchestration_v2_projection_turn_items
         SET type = CASE WHEN ordinal = 0 THEN type ELSE 'assistant_message' END,
@@ -6028,7 +5914,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         view: "activity",
         limit: itemCount + 2,
       });
-      // Every row is on the client, or is work that the folded row stands for.
       assert.deepEqual(
         everyRow.items
           .filter(
@@ -6053,7 +5938,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       const sql = yield* SqlClient.SqlClient;
       const now = yield* DateTime.now;
       const nowIso = DateTime.formatIso(now);
-      // Seeded, so every run builds the same threads.
       let seed = 0x5eed;
       const random = () => {
         seed = (Math.imul(seed, 1_664_525) + 1_013_904_223) >>> 0;
@@ -6102,14 +5986,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           },
         } satisfies Parameters<typeof projectionStore.apply>[0];
         yield* projectionStore.apply(created);
-        // The last thread puts three things below a window: a user turn under a hidden queued
-        // turn, the start of a long run that folds, and the start of the run before it, which
-        // has later rows among the first rows of the long run.
         const windowEdges = round === 4;
-        // One run of each kind in a random order, then an active run. Every other thread has
-        // one user turn and then only wake turns.
-        // The fourth thread is a turn, many rolled-back rows, a late notification of that turn,
-        // then 149 one-row turns. A page stops at that notification only if it counts as a turn.
         const kinds =
           round === 3
             ? ["rolled back", "late wake", ...Array.from({ length: 149 }, () => "one row")]
@@ -6184,7 +6061,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             startedAt: nowIso,
             completedAt: nowIso,
           });
-          // The first row after a rolled-back run shares the ordinal of that run's last row.
           let tie = kinds[index - 1] === "rolled back";
           if (tie)
             tiedWithHidden.push(
@@ -6242,7 +6118,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
                 ? "queued_turn"
                 : "turn_start",
             );
-          // A stopped run never folds, so it is long enough for page ends to fall inside it.
           const work =
             kind === "late wake"
               ? 420 + Math.floor(random() * 40)
@@ -6256,7 +6131,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
                       ? 0
                       : Math.floor(random() * 30);
           for (let row = 0; row < work; row += 1) {
-            // The first rows of a long fold and the work of a late wake belong to the run before.
             const owner =
               (kind === "long fold" && row < 140) || kind === "late wake"
                 ? {
@@ -6267,12 +6141,8 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             if (chance(0.5))
               add("command_execution", { input: "echo", output: "ok", exitCode: 0, ...owner });
             else add("reasoning", { text: "", streaming: false, ...owner });
-            // A reply deep in a stopped run: a page that ends on it has enough work below it
-            // to fold, and only the stop request above it says that it does not.
             const reply = kind === "stopped" && row === 200;
             if (reply) pageEnds.push(`turn-item:window-equivalence:${round}:${items.length}`);
-            // With these replies, the part of a long fold in one window is too small to fold,
-            // and a shown row lies below the notification of a late wake.
             const replies = kind === "long fold" || kind === "late wake";
             if (reply || (replies && row % 5 === 0) || chance(0.02))
               add("assistant_message", {
@@ -6280,7 +6150,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
                 text: "Reply",
                 streaming: false,
               });
-            // A late wake has no other input above its turn start.
             if (chance(0.01) && kind !== "late wake") notification();
             if (chance(0.004) && !agentDriven && !windowEdges && kind !== "late wake")
               userMessage("steer");
@@ -6322,8 +6191,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             json_extract(value, '$.type'), json_extract(value, '$.status'), ${nowIso}, value
           FROM json_each(${encodeUnknownJsonString(items)})`;
 
-        // Applying an event drops the thread's cached index, as each event of a run does, so
-        // each of these reads a window.
         const requests: Array<{
           readonly read: Effect.Effect<unknown, ProjectionStore.ProjectionStoreV2Error>;
           readonly page: unknown;
@@ -6406,8 +6273,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         for (const itemId of [newest.sourceItemId, ...tiedWithHidden])
           yield* windowed(timeline({ itemId, limit: 1 }));
 
-        // Jumps to an entry read the full indexes and leave them cached, so the same requests
-        // now come from them.
         yield* history(firstCursor, "absent");
         yield* history(firstCursor, "absent", false, "deferred");
         spans.length = 0;
@@ -6875,8 +6740,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       for (const lookup of stopRequestLookups) {
         assert.include(lookup, "orchestration_v2_projection_turn_items_run_interrupt_idx");
       }
-      // The active, activity, and pending-secret lookups; walking the ordinal index instead
-      // reads every run of an idle thread.
       const activeRunLookups = plan.filter(
         (detail) => detail.startsWith("SEARCH r ") && detail.includes("(thread_id=?"),
       );
@@ -6888,19 +6751,16 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         detail.includes("orchestration_v2_projection_runs_last_executed_idx"),
       );
       assert.notStrictEqual(lastExecutedIndex, -1);
-      // The lookup that follows the search is the sort it no longer needs.
       assert.notInclude(plan[lastExecutedIndex + 1] ?? "", "USE TEMP B-TREE");
 
       const countQueries = statements.filter((statement) => statement.includes("item_count"));
       assert.isNotEmpty(countQueries);
       for (const countQuery of countQueries) {
         for (const detail of yield* planOf(countQuery)) {
-          // A thread's counts read only each run's status, never its row and payload.
           if (/^SEARCH (r|run) /.test(detail)) {
             assert.include(detail, "COVERING INDEX", detail);
           }
           if (detail.includes("orchestration_v2_projection_turn_items")) {
-            // Only held input is read from the sparse index; transcript history stays unread.
             assert.include(
               detail,
               "SEARCH held USING INDEX orchestration_v2_projection_turn_items_queued_input_idx (run_id=?)",
@@ -7041,7 +6901,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         FROM history
       `;
 
-      // Twelve ordinals with two items each, inserted in reverse id order.
       const selectedIds: Array<string> = [];
       for (let slot = 1; slot <= 12; slot += 1) {
         for (const suffix of ["b", "a"]) {
@@ -7203,7 +7062,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         };
         let items = 0;
         let writes = 0;
-        // Passing `rewrite` writes that earlier item again, possibly under another run.
         const applyItem = (threadId: ThreadId, runId: RunId | null, rewrite?: number) => {
           const ordinal = rewrite ?? (items += 1);
           writes += 1;
@@ -7262,7 +7120,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           assert.equal(shell?.itemCount, itemCount);
         }
 
-        // Writing an item again keeps its count; moving it to another run moves the count.
         const itemCountOf = (threadId: ThreadId) =>
           projectionStore.getThreadShell(threadId).pipe(Effect.map((shell) => shell?.itemCount));
         yield* applyItem(busyThreadId, completedRunId, 3);
@@ -7272,12 +7129,10 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         yield* applyItem(busyThreadId, null, 3);
         assert.equal(yield* itemCountOf(busyThreadId), 4);
 
-        // A run's rollback uncounts its items, and writing the run again counts them back.
         yield* applyRun(busyThreadId, "busy-completed", 1, true);
         assert.equal(yield* itemCountOf(busyThreadId), 3);
         yield* applyRun(busyThreadId, "busy-completed", 1, false);
         assert.equal(yield* itemCountOf(busyThreadId), 4);
-        // Items written before their run exist count once it does.
         const lateRunId = RunId.make("run:shell-item-counts:late");
         yield* applyItem(otherThreadId, lateRunId);
         assert.equal(yield* itemCountOf(otherThreadId), 1);
@@ -7787,13 +7642,11 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             value == null ? null : DateTime.toEpochMillis(value);
           assert.equal(timestamp(sqlShell.activityRunStartedAt), expected);
           assert.equal(timestamp(memoryShell.activityRunStartedAt), expected);
-          // A queued message steered or removed before it started never ran, so the run that did presents.
           for (const shell of [sqlShell, memoryShell]) {
             assert.equal(shell.latestRunId, status === "cancelled" ? runId : "run:clock:newer");
           }
         }
       }
-      // Removing a message after the earlier run ended leaves the cancelled run as the latest.
       yield* projectionStore.apply({
         id: EventId.make("event:clock:ended-before-cancel"),
         type: "run.updated",
@@ -8188,7 +8041,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         .pipe(Effect.withTracer(tracer));
       const childRecovery = yield* projectionStore.getRuntimeRecoveryProjection(childThreadId);
       assert.lengthOf(statements, 2);
-      // Live-item filters must hit the active partial indexes, not walk the thread's history.
       const sql = yield* SqlClient.SqlClient;
       for (const statement of statements.filter((query) => query.includes("turn_items"))) {
         const plan = (yield* sql.unsafe<{ readonly detail: string }>(
@@ -8759,7 +8611,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           `only the child of the open parent is armed (${JSON.stringify(options)})`,
         );
       }
-      // A recovery armed before the parent done still resumes at its reset.
       yield* store.apply({
         id: EventId.make("event:done-parent-limit:done:armed"),
         type: "thread.metadata-updated",
@@ -10207,8 +10058,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         statement.includes("WITH RECURSIVE retained"),
       );
       assert.lengthOf(retained, 1);
-      // The settled-leaf index also starts with thread_id, and through it this lookup fetches
-      // every node of the thread to check its status.
       const retainedPlan = (yield* sql.unsafe<{ readonly detail: string }>(
         `EXPLAIN QUERY PLAN ${retained[0]}`,
       )).map((row) => row.detail);
@@ -10952,7 +10801,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           text: "delivered steer",
           inputIntent: "queued_turn",
         });
-        // Enough local turns for a turn-limited window to count inherited rows in SQL.
         for (let index = 0; index < THREAD_HISTORY_PAGE_POLICY.maxUserTurns; index += 1) {
           yield* applyUserItem({
             threadId: targetThreadId,
@@ -11003,10 +10851,8 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         });
 
         yield* assertForkHidesHeldInput();
-        // Forks keep rolled-back source history, but still not undelivered input.
         yield* applyRun(answeredRunId, 2, "rolled_back");
         yield* assertForkHidesHeldInput();
-        // Rollback also takes cancelled runs, and overwrites the status that hid their input.
         if (heldStatus === "cancelled") {
           yield* applyRun(heldRunId, 1, "rolled_back");
           yield* assertForkHidesHeldInput();
@@ -11146,7 +10992,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
                   },
           });
         }
-        // Edit from here on prompt two rewinds run 2 before prompt three is sent.
         if (ordinal === 2) {
           yield* projectionStore.apply({
             id: EventId.make(`event:${prefix}:run-2-rolled-back`),

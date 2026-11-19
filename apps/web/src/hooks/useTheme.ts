@@ -66,7 +66,6 @@ function readStoredThemeHalves(): ThemeHalves | null {
   }
 }
 
-// Pruning unresolved published palettes would erase their halves when merging.
 function readStoredThemeHalvesRaw(): { light?: string; dark?: string } {
   try {
     const value: unknown = JSON.parse(
@@ -150,9 +149,7 @@ export function readAppearanceModePreference(theme: Theme): ThemePreferenceMode 
     try {
       const raw = window.localStorage.getItem(THEME_APPEARANCE_MODE_STORAGE_KEY);
       if (isThemePreferenceMode(raw)) return raw;
-    } catch {
-      // Infer the mode from the theme below when storage is unavailable.
-    }
+    } catch {}
   }
 
   if (theme === "system") return "system";
@@ -327,7 +324,6 @@ function applyTheme(theme: Theme, { suppressTransitions = false, preservePreview
   syncBrowserChromeTheme();
   syncDesktopTheme(theme, followSystem, appearanceMode);
   if (suppressTransitions) {
-    // Force a reflow so the no-transitions class takes effect before removal
     void document.documentElement.offsetHeight;
     requestAnimationFrame(() => {
       document.documentElement.classList.remove("no-transitions");
@@ -385,7 +381,6 @@ if (typeof document !== "undefined" && typeof window !== "undefined") {
 
 function getSnapshot(): ThemeSnapshot {
   if (typeof window === "undefined") return DEFAULT_THEME_SNAPSHOT;
-  // Cache localStorage reads until signalled; useTheme calls this every render.
   if (!snapshotStale && lastSnapshot) return lastSnapshot;
   snapshotStale = false;
   const theme = getStored();
@@ -503,9 +498,7 @@ export function useRenderedAppearance() {
 export function setTheme(next: Theme): boolean {
   if (typeof window === "undefined") return false;
   try {
-    // Save the current mode first; inferring it from the new theme can switch dark to light.
     pipe(getStored(), readAppearanceModePreference, writeAppearanceModePreference);
-    // A whole theme replaces the mix; retain it to restore on a failed preference write.
     const previousHalvesRaw = window.localStorage.getItem(THEME_HALVES_STORAGE_KEY);
     window.localStorage.removeItem(THEME_HALVES_STORAGE_KEY);
     try {

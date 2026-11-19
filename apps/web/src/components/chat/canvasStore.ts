@@ -95,16 +95,12 @@ export function resolveChatCanvasModel({
   const { findBar } = measurements;
   const detailsPopoverSideOffset = findBar?.bottom ?? 0;
   const lane = { padding: measurements.padding, minChatWidth: measurements.minChatWidth };
-  // The preview avoids where an open inline card would sit, whether or not a
-  // preview overlap has pushed the card itself into popover mode.
   const preferredDetailsCard = resolveThreadDetailsCardLayout({
     container,
     narrowestWidth: measurements.narrowestWidth ?? measurements.width,
     lane,
     frame: null,
   });
-  // The canvas outlives thread switches, so a measurement only counts for the
-  // thread whose card is shown now.
   const detailsCardMeasured =
     threadRef !== null &&
     detailsCardMeasurement !== null &&

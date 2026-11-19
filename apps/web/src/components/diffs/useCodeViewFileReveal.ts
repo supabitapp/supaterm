@@ -27,7 +27,6 @@ interface FileRevealHandle {
   scrollTo(target: CodeViewScrollTarget): void;
 }
 
-// Mirrors the viewer's `revealLine`, which reads distances from the edges of the collapsed gap.
 function expandPartialDiffToLine(
   diff: FileDiffMetadata,
   line: number,
@@ -102,13 +101,9 @@ export function createCodeViewFileReveal() {
       const { range } = pending;
       const startLine = additionLine(range.start, range.side);
       const endLine = additionLine(range.end, range.endSide ?? range.side);
-      // A patch-only diff holds no unchanged lines, and `revealLine` declines to expand it. The
-      // viewer's own expander loads the file first, so a line outside every hunk is opened with it.
       if (diff?.isPartial && rendered.instance.expandHunk) {
-        // Wait for the file contents the expander asked for.
         if (pending.loadingFile) return;
         const { expandHunk } = rendered.instance;
-        // A removed line is always in a hunk, and a deleted file has no contents to load.
         const removed = (line: number, side: SelectionSide | undefined) =>
           side === "deletions" &&
           diff.hunks.some(
@@ -136,8 +131,6 @@ export function createCodeViewFileReveal() {
         return;
     }
     const target = pending;
-    // The diff's first load can remount the viewer or re-render it right after this scroll, which
-    // loses it; the range is positioned once more on the next render that can hold it.
     pending = target.range && !target.settling ? { ...target, settling: true } : null;
     viewer.scrollTo(
       target.range
@@ -147,15 +140,12 @@ export function createCodeViewFileReveal() {
   };
   return {
     attach(next: FileRevealHandle | null) {
-      // The viewer rebuilds its handle on every render and can remount during the diff's first
-      // load. Item ids carry the diff's scope, so only a viewer without the item drops the reveal.
       const previous = viewer?.getInstance() ?? detachedInstance;
       if (next === null) detachedInstance = previous;
       else {
         const instance = next.getInstance();
         if (pending !== null && previous !== undefined && instance !== previous) {
           if (instance === undefined || next.getItem(pending.id) === undefined) pending = null;
-          // A new instance starts from the patch again, so it must expand the line itself.
           else pending.loadingFile = false;
         }
         detachedInstance = undefined;
@@ -167,7 +157,6 @@ export function createCodeViewFileReveal() {
       pending = { id: fileKey, ...(range ? { range } : {}) };
       flush();
     },
-    /** The user scrolled; a reveal still being positioned must not pull them back. */
     cancel() {
       pending = null;
     },

@@ -346,10 +346,6 @@ function migratePersistedThreadProjectKeys(
   );
 }
 
-/**
- * History follows the sidebar's project rows, so a duplicate row shares the
- * history of the group it is listed under rather than keying by its own path.
- */
 function deriveHistoryProjectKey(
   project: Project,
   projects: ReadonlyArray<Project>,
@@ -363,7 +359,6 @@ function deriveHistoryProjectKey(
   );
 }
 
-/** Server threads name their project in the shell; drafts in the composer draft store. */
 function readThreadProjectRef(ref: ScopedThreadRef): ScopedProjectRef | null {
   const projectId = readThreadShell(ref)?.projectId;
   if (projectId) return scopeProjectRef(ref.environmentId, projectId);
@@ -371,11 +366,6 @@ function readThreadProjectRef(ref: ScopedThreadRef): ScopedProjectRef | null {
   return draft ? scopeProjectRef(draft.environmentId, draft.projectId) : null;
 }
 
-/**
- * Registers the thread under its current project so queued visits and titles
- * land. Until the project loads, or client settings hydrate (the grouping is
- * unknown before then), the last registration stands and writes stay queued.
- */
 function resolveThreadProjectKey(ref: ScopedThreadRef): string | undefined {
   const state = useBrowserHistoryStore.getState();
   const registered = state.projectKeyByThreadKey[scopedThreadKey(ref)];
@@ -417,15 +407,9 @@ export function recordVisitForThread(ref: ScopedThreadRef, url: string, at?: num
     return;
   }
   state.recordVisit(projectKey, url, visitAt, { environmentHostname });
-  // A page can settle before the address bar records its visit.
   recordPreviewTitles(ref, readThreadPreviewState(ref), { urls: [url] });
 }
 
-/**
- * History is shared across a project's threads and settled sessions are retained,
- * so replaying an old settle would clobber another thread's newer title. Visits
- * only fill untitled entries; settles apply only pages that loaded or retitled.
- */
 function recordPreviewTitles(
   ref: ScopedThreadRef,
   preview: ThreadPreviewState,
@@ -453,7 +437,6 @@ function recordPreviewTitles(
     "urls" in only
       ? new Set(only.urls.map(titleKey).filter((key) => key !== null && !titled.has(key)))
       : null;
-  // Resizes and list reconciles replace a session without loading a new page.
   const settledAgain = (session: PreviewSessionSnapshot, previous?: PreviewSessionSnapshot) =>
     previous?.navStatus._tag === "Success" &&
     session.navStatus._tag === "Success" &&
@@ -463,7 +446,6 @@ function recordPreviewTitles(
     "changedSince" in only
       ? !settledAgain(session, only.changedSince[session.tabId])
       : (visitKeys?.has(titleKey(url)) ?? false);
-  // Tabs can share a URL; applying oldest first lets the newest settle win.
   const sessions = Object.values(preview.sessions).toSorted((a, b) =>
     a.updatedAt.localeCompare(b.updatedAt),
   );

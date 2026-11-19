@@ -38,7 +38,6 @@ export function createSoftwareKeyboardStore(win: KeyboardWindow | undefined, isD
   const onViewportResize = () => {
     if (!viewport || !win) return;
     const current = viewportSnapshot(viewport);
-    // Adapted from Ionic's keyboard assist, MIT, Copyright (c) 2015-present Drifty Co.
 
     const scaledHeightDifference = previous
       ? (previous.height - current.height) * current.scale

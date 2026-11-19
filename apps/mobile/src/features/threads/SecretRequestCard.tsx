@@ -92,7 +92,6 @@ function PendingSecretRequestForm(props: {
   const { item } = props;
   const answer = useAtomCommand(serverEnvironment.answerSecretRequest, {
     label: "answer secret request",
-    // The failure cause holds the request; keep it out of the console.
     reportFailure: false,
     reportDefect: false,
   });
@@ -104,7 +103,6 @@ function PendingSecretRequestForm(props: {
   const [submitting, setSubmitting] = useState(false);
   const locked = submitting || !canAnswer;
   const [error, setError] = useState<string | null>(null);
-  // Submit then a tap can both run before a re-render; this guard is synchronous.
   const inFlight = useRef(false);
 
   const send = async (reply: SecretRequestReply) => {
@@ -113,7 +111,6 @@ function PendingSecretRequestForm(props: {
     inFlight.current = true;
     setSubmitting(true);
     setError(null);
-    // A filled login leaving the screen makes the system offer to save it as a password.
     if (reply.type === "save") setValues({});
     const result = await answer({ environmentId: props.environmentId, input }).finally(() => {
       inFlight.current = false;
@@ -145,7 +142,6 @@ function PendingSecretRequestForm(props: {
             fullWidth
             onPress={() => void tryOpenExternalUrl(link.href, "secret-request")}
           />
-          {/* A link found in the reason is already shown there. */}
           {item.url !== undefined ? (
             <Text selectable className="font-mono text-xs text-foreground-muted">
               {item.url}
@@ -157,7 +153,6 @@ function PendingSecretRequestForm(props: {
         const value = secretRequestValue(values, input.key);
         const onChangeText = (next: string) =>
           setValues((current) => ({ ...current, [input.key]: next }));
-        // The field's own text, so a submit never uses a stale render of it.
         const onSubmit = (next: string) =>
           void send({ type: "save", values: { ...values, [input.key]: next } });
         return (

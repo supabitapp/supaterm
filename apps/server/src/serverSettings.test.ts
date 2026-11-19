@@ -476,7 +476,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         ),
       );
 
-      // An inherited Object.prototype member is not an instance that already exists.
       for (const name of ["constructor", "toString", "valueOf"]) {
         const prototypeNamedId = ProviderInstanceId.make(name);
         const created = yield* serverSettings.updateProviderInstance({
@@ -766,7 +765,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
-  // A backend behind a custom model may refuse the built-in default.
   it.effect("falls back to the thread default when it is a custom model on that instance", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsModule.ServerSettingsService;

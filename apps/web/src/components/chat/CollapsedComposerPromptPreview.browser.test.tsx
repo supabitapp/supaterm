@@ -35,7 +35,6 @@ it("shows quotes, file mentions, context references and skills as chips", async 
     scopeThreadRef(EnvironmentId.make("environment:test"), ThreadId.make("thread:build")),
     "Build thread",
   );
-  // No draft record backs this one, so the editor shows it as unresolved and so must the row.
   const terminal = formatInlineContextReference({
     kind: "terminal",
     contextId: "terminal_1",
@@ -56,7 +55,6 @@ it("shows quotes, file mentions, context references and skills as chips", async 
       })}
       theme="light"
     />,
-    // The inert preview has no router-dependent children.
     { router: false },
   );
   const { container } = screen;
@@ -80,7 +78,6 @@ it("shows quotes, file mentions, context references and skills as chips", async 
   expect(container.textContent).toBe(
     "Cache the parsed config. vs Also on 429? in package.json and file.txt per Terminal 1 on Build thread with Review PR please",
   );
-  // The row is one tap target that expands the composer, so chips stay inert.
   expect(container.querySelector("button, a, [tabindex]")).toBeNull();
 });
 
@@ -92,7 +89,6 @@ it("leaves unknown skills as the text the user typed", async () => {
       contextRecords={EMPTY_COMPOSER_CONTEXT_RECORDS}
       theme="dark"
     />,
-    // The inert preview has no router-dependent children.
     { router: false },
   );
   const { container } = screen;

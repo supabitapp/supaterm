@@ -4,6 +4,5 @@ import { useAndroidControlSizing } from "../../components/ui/useAndroidControlSi
 
 export function usePullRequestToolbarHeight(bottomInset: number) {
   const { buttonSize } = useAndroidControlSizing();
-  // Reserve the controls, native toolbar padding, and outer gaps before onLayout measures them.
   return useState(() => (Platform.OS === "android" ? bottomInset + buttonSize + 40 : 0));
 }

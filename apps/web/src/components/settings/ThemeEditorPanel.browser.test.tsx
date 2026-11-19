@@ -49,9 +49,7 @@ function pointerAt(target: HTMLElement, type: string, xFraction: number) {
 async function renderPanel() {
   await page.viewport(1280, 900);
   const stack = new AsyncDisposableStack();
-  // Synthetic pointer ids are not active pointers, so the browser would reject capture.
   stack.use(vi.spyOn(HTMLElement.prototype, "setPointerCapture").mockImplementation(() => {}));
-  // Tailwind is not loaded here; give the panel its fixed, card-sized box.
   const style = document.head.appendChild(document.createElement("style"));
   style.textContent = "[data-theme-editor-panel]{position:fixed;width:400px;height:300px}";
   stack.defer(() => style.remove());
@@ -75,7 +73,6 @@ async function renderPanel() {
   };
 }
 
-// The editor floats beside the Settings dialog, whose Esc handler sits on the document.
 async function renderBesideSettings() {
   const onSettingsOpenChange = vi.fn();
   const onEditorOpenChange = vi.fn();
@@ -99,7 +96,6 @@ async function renderBesideSettings() {
       </>,
     ),
   );
-  // Settings moves focus in on a later frame; landing after the test focuses the editor, it steals it.
   await expect.element(page.getByRole("button", { name: "Close" })).toHaveFocus();
   const screen = stack.move();
   return {
@@ -109,7 +105,6 @@ async function renderBesideSettings() {
   };
 }
 
-// The modal Settings dialog marks the editor inert, hiding it from role queries and pointer input.
 async function editorElement(selector: string) {
   const query = () => document.querySelector<HTMLElement>(`[data-theme-editor-panel] ${selector}`);
   await expect.poll(query).toBeTruthy();
@@ -133,11 +128,9 @@ describe("ThemeEditorPanel", () => {
 
   it("returns to where the user left it when the window shrinks and grows back", async () => {
     await page.viewport(1280, 900);
-    // Synthetic pointer ids are not active pointers, so the browser would reject capture.
     using _capture = vi
       .spyOn(HTMLElement.prototype, "setPointerCapture")
       .mockImplementation(() => {});
-    // Tailwind is not loaded here; give the panel its fixed, card-sized box.
     const style = document.head.appendChild(document.createElement("style"));
     style.textContent = "[data-theme-editor-panel]{position:fixed;width:400px;height:300px}";
     using _style = { [Symbol.dispose]: () => style.remove() };
@@ -184,7 +177,6 @@ describe("ThemeEditorPanel", () => {
     await act(async () => {
       pointerAt(hueSlider, "pointerdown", 0.25);
       hueSlider.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
-      // The drag keeps going while the picker animates out.
       pointerAt(hueSlider, "pointermove", 0.75);
       pointerAt(hueSlider, "pointerup", 0.75);
     });

@@ -6,7 +6,6 @@ import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from "react-nativ
 import { useStableCallback } from "../../lib/useStableCallback";
 
 const MAX_INLINE_ZOOM = 6;
-// Below UIScrollView's drag hysteresis, so a zoomed pan wins over the feed scroll.
 const ZOOMED_PAN_MIN_DISTANCE = 5;
 
 type Zoom = { readonly scale: number; readonly x: number; readonly y: number };
@@ -14,7 +13,6 @@ type Size = { readonly width: number; readonly height: number };
 
 const FIT: Zoom = { scale: 1, x: 0, y: 0 };
 
-/** Keeps the scaled content covering the frame: translation is about the frame center. */
 function clampZoom(zoom: Zoom, size: Size): Zoom {
   "worklet";
   const scale = Math.min(Math.max(zoom.scale, 1), MAX_INLINE_ZOOM);
@@ -59,7 +57,6 @@ function IosZoomableImagePressable({
     gestured.current = true;
   });
   const [gesture] = useState(() => {
-    // Focal points arrive in the untransformed frame; the transform is about its center.
     const pinch = Gesture.Pinch()
       .onStart((event) => {
         const frame = size.get();
@@ -79,7 +76,6 @@ function IosZoomableImagePressable({
         const focalX = event.focalX - frame.width / 2;
         const focalY = event.focalY - frame.height / 2;
         if (event.numberOfPointers !== start.pointers) {
-          // A lifted or added finger jumps the focal point; continue from here instead.
           pinchStart.set({
             zoom: zoom.get(),
             focalX,
@@ -93,7 +89,6 @@ function IosZoomableImagePressable({
           Math.max((start.zoom.scale * event.scale) / start.scale, 1),
           MAX_INLINE_ZOOM,
         );
-        // Keep the content point that started under the fingers under them.
         const contentX = (start.focalX - start.zoom.x) / start.zoom.scale;
         const contentY = (start.focalY - start.zoom.y) / start.zoom.scale;
         zoom.set(
@@ -107,7 +102,6 @@ function IosZoomableImagePressable({
     const pan = Gesture.Pan()
       .minDistance(ZOOMED_PAN_MIN_DISTANCE)
       .onTouchesDown((_event, manager) => {
-        // At fit, a one-finger drag belongs to the feed.
         if (zoom.get().scale <= 1) manager.fail();
       })
       .onStart((event) => {
@@ -120,7 +114,6 @@ function IosZoomableImagePressable({
       })
       .onUpdate((event) => {
         if (pinching.get()) {
-          // The pinch owns the transform; resume panning from wherever it leaves it.
           panStart.set({
             zoom: zoom.get(),
             translationX: event.translationX,
@@ -156,7 +149,6 @@ function IosZoomableImagePressable({
           onTouchStart?.(event);
         }}
         onPress={(event) => {
-          // Accessibility activation carries no touch identifier and no gesture.
           if (typeof event.nativeEvent.identifier === "number" && gestured.current) return;
           onPress?.(event);
         }}
@@ -164,7 +156,6 @@ function IosZoomableImagePressable({
           const { width, height } = event.nativeEvent.layout;
           const previous = layoutSize.current;
           if (previous?.width !== width || previous?.height !== height) {
-            // The old offsets no longer fit the new frame, so a resize starts over at fit.
             layoutSize.current = { width, height };
             size.set({ width, height });
             zoom.set(FIT);

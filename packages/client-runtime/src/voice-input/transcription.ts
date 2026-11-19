@@ -25,12 +25,7 @@ export type VoiceTranscriber = {
   readonly prepare: (options: VoiceTranscriptionOptions) => Promise<PreparedVoiceTranscription>;
 };
 
-export type VoiceTranscriptionErrorCode =
-  /** The environment declined with a reason the user can act on, carried in the message. */
-  | "refused"
-  /** Too little audio to transcribe, as from a tap; the recording is dropped without a word. */
-  | "tooShort"
-  | "cancelled";
+export type VoiceTranscriptionErrorCode = "refused" | "tooShort" | "cancelled";
 
 export class VoiceTranscriptionError extends Error {
   readonly code: VoiceTranscriptionErrorCode;

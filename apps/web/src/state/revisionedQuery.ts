@@ -1,16 +1,11 @@
 import * as Option from "effect/Option";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 
-// Outside the nodes: a node is dropped once unmounted, and the next read must
-// still compare against the revision the query was last read under.
 const readRevisions = new WeakMap<AtomRegistry.AtomRegistry, WeakMap<object, string | null>>();
 
-// The registry keys serializable atoms' nodes by their key, not the atom.
 const hasNode = (registry: AtomRegistry.AtomRegistry, atom: Atom.Atom<unknown>) =>
   registry.getNodes().has(Atom.isSerializable(atom) ? atom[Atom.SerializableTypeId].key : atom);
 
-// A query's own node can go with its last reader while the atom it takes its value from
-// (an environment query's cache, on an idle TTL) still holds the value.
 const isCached = (registry: AtomRegistry.AtomRegistry, query: Atom.Atom<unknown>) =>
   hasNode(registry, query) ||
   (query.initialValueTarget !== undefined && hasNode(registry, query.initialValueTarget));
@@ -19,8 +14,6 @@ const makeRevisionedFamily = (query: Atom.Atom<unknown>) =>
   Atom.family((revision: string | null) =>
     Atom.readable(
       (get) => {
-        // Only a node's first build compares: a node still mounted under the old
-        // revision rebuilds when the query refetches, and must not refetch it again.
         if (Option.isNone(get.self())) {
           let revisions = readRevisions.get(get.registry);
           if (revisions === undefined) {
@@ -29,15 +22,10 @@ const makeRevisionedFamily = (query: Atom.Atom<unknown>) =>
           }
           const stale = revisions.has(query)
             ? revisions.get(query) !== revision
-            : // A reader without a revision may have cached it before the latest
-              // workspace change; a query nobody has read yet fetches fresh anyway.
-              revision !== null && isCached(get.registry, query);
-          // Deferred: this builds while React renders, and a refresh would synchronously
-          // re-render the query's other readers, which React rejects.
+            : revision !== null && isCached(get.registry, query);
           if (stale) {
             const registry = get.registry;
             queueMicrotask(() => {
-              // No node, as after the registry is disposed: nothing cached to refetch.
               if (isCached(registry, query)) registry.refresh(query);
             });
           }
@@ -45,13 +33,10 @@ const makeRevisionedFamily = (query: Atom.Atom<unknown>) =>
         }
         return get(query);
       },
-      // Refreshing the reader refetches the query it reads.
       (refresh) => refresh(query),
     ),
   );
 
-// Held as long as the query lives, so one (query, revision) pair keeps one atom; an
-// `Atom.family` would hold the inner family only weakly and could swap the atom under a reader.
 const revisionedFamilies = new WeakMap<
   Atom.Atom<unknown>,
   ReturnType<typeof makeRevisionedFamily>

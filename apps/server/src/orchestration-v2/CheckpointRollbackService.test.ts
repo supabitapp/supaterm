@@ -331,7 +331,6 @@ it.effect.each([
           cleanupEntered = true;
           if (order === "cleanup-first") yield* Deferred.await(release);
           yield* fileSystem.remove(worktreePath, { recursive: true, force: true });
-          // A failed `git worktree remove` can leave the folder without its checkout.
           if (leavesFolder) {
             yield* fileSystem.makeDirectory(worktreePath);
             yield* fileSystem.writeFileString(path.join(worktreePath, "unsaved.txt"), "keep");
@@ -492,8 +491,6 @@ it.effect.each([{ restoreFiles: true }, { restoreFiles: false }])(
           .execute({ threadId, providerThreadId, checkpointId, scopeId, restoreFiles })
           .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Deferred.await(openEntered);
-        // A synchronous realPath lets the forked start reach the reservation
-        // before the next assertion, so "not entered" means "waiting".
         const startTurn = withTurnStartReservation(
           FileSystem.makeNoop({ realPath: (target) => Effect.succeed(target) }),
           path,
@@ -504,15 +501,12 @@ it.effect.each([{ restoreFiles: true }, { restoreFiles: false }])(
         if (restoreFiles) {
           assert.deepEqual(calls, []);
           yield* Deferred.succeed(release, undefined);
-          // The reservation must still be held while files are being restored,
-          // not only while the provider rollback is in flight.
           yield* Deferred.await(restoreEntered);
           const duringRestore = yield* startTurn;
           assert.deepEqual(calls, []);
           yield* Deferred.succeed(releaseRestore, undefined);
           yield* Fiber.join(duringRestore);
         } else {
-          // Nothing is rewritten, so the turn start must not wait for the provider.
           yield* Fiber.join(turnStart);
           yield* Deferred.succeed(release, undefined);
         }
@@ -667,7 +661,6 @@ const seedRollbackHistory = Effect.gen(function* () {
         completedAt: now,
       },
     });
-    // Rollback must exclude every attempt of discarded runs, including an inactive retry.
     for (const attemptOrdinal of ordinal === 7 ? [6.5, 7] : [ordinal]) {
       yield* apply({
         type: "run-attempt.created",
@@ -702,7 +695,6 @@ const seedRollbackHistory = Effect.gen(function* () {
       });
     }
   }
-  // A continuation shares the target attempt; its first provider turn is no longer the boundary.
   yield* apply({
     type: "provider-turn.updated",
     payload: {

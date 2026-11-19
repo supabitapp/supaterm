@@ -157,7 +157,6 @@ export function useSideChat(input: {
       draftId,
       targetThreadId: threadId,
       enqueue: () => {
-        // The fork copied the parent's current modes; this client's copy of the parent may lag.
         const modes = readThreadShell(scopeThreadRef(parent.environmentId, threadId)) ?? parent;
         return enqueueThreadOutboxTurn({
           environmentId: parent.environmentId,

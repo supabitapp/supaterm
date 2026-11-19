@@ -91,7 +91,6 @@ function restErrorMessages(body: string): ReadonlyArray<string> | undefined {
   });
 }
 
-/** Accept 304 only for cache revalidation. */
 function classify(input: {
   readonly answer: GitHubRestResponse;
   readonly acceptNotModified: boolean;
@@ -124,7 +123,6 @@ export const make = Effect.gen(function* () {
     readonly acceptNotModified: boolean;
   }) {
     const host = normalizeHost(input.host);
-    // Query strings can expose SHAs or branches in traces.
     yield* Effect.annotateCurrentSpan({
       "github.kind": "rest",
       "http.request.method": input.request.method,
@@ -134,7 +132,6 @@ export const make = Effect.gen(function* () {
       {
         host,
         operation: input.operation,
-        // All current paths spend `core`; search would need a different resource.
         resource: "core",
         allowReserve: input.allowReserve,
         timeout: input.timeout,
@@ -143,10 +140,7 @@ export const make = Effect.gen(function* () {
         Effect.gen(function* () {
           const response: HttpClientResponse.HttpClientResponse = yield* httpClient
             .execute(input.request.pipe(HttpClientRequest.setHeaders(headers)))
-            .pipe(
-              // Client spans expose SHAs and branches through url.full/url.query.
-              Effect.provideService(HttpClient.TracerDisabledWhen, () => true),
-            );
+            .pipe(Effect.provideService(HttpClient.TracerDisabledWhen, () => true));
           const collected = yield* collectUint8StreamText({
             stream: response.stream,
             maxBytes: input.maxResponseBytes,

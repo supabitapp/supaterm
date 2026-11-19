@@ -85,12 +85,10 @@ export const makeKimiPromptOutcomeWatch = Effect.fn("KimiTurnOutcome.make")(func
 
     return Effect.fn("KimiTurnOutcome.check")(function* (result: EffectAcpSchema.PromptResponse) {
       if (result.stopReason !== "end_turn") return undefined;
-      // A new session's log can first appear with its first prompt.
       const wire = Option.isSome(before) ? before : yield* findWire;
       if (Option.isNone(wire)) return undefined;
       let offset = startOffset;
       let ended: KimiTurnEnded | undefined;
-      // Each poll decodes only the complete lines appended since the last one.
       const readAppended = Effect.scoped(
         Effect.gen(function* () {
           const file = yield* fileSystem.open(wire.value, { flag: "r" });
@@ -114,7 +112,6 @@ export const makeKimiPromptOutcomeWatch = Effect.fn("KimiTurnOutcome.make")(func
           return ended;
         }),
       );
-      // Kimi writes `turn.ended` on a microtask after it answers the prompt.
       return yield* readAppended.pipe(
         Effect.retry({
           times: 40,

@@ -211,7 +211,6 @@ describe("Muse launch", () => {
     }),
   );
 
-  // The SDK spawns natively: libuv would wait on a hung mount under the cwd or PATH.
   it.effect("launches through env on Linux, which enters the cwd and searches PATH", () =>
     Effect.gen(function* () {
       if ((yield* HostProcess.Platform) !== "linux") return;
@@ -226,7 +225,6 @@ describe("Muse launch", () => {
         launch: { command: "/usr/bin/env", args: ["-C", "/work space", "--", "muse"] },
       });
       expect(throughEnv).not.toHaveProperty("cwd");
-      // env would read this path as an assignment.
       expect(yield* launched({ binaryPath: "/opt/a=b/muse", cwd: "/work" })).toMatchObject({
         launch: { command: "/opt/a=b/muse", args: [] },
         cwd: "/work",
@@ -234,7 +232,6 @@ describe("Muse launch", () => {
     }),
   );
 
-  // cmd's quote rules only show with a real cmd.exe, spawning as the SDK does.
   it.effect("starts a real launcher from a folder with spaces and cmd metacharacters", () =>
     Effect.gen(function* () {
       if ((yield* HostProcess.Platform) !== "win32") return;
@@ -292,15 +289,12 @@ describe("Muse workspace root", () => {
     }).pipe(Effect.provideService(HostProcess.Platform, "win32")),
   );
 
-  // FileSystem.realPath keeps the case it is given; Muse rejects a root whose case
-  // differs from the disk's, and APFS is case-insensitive just like NTFS.
   it.effect("fixes the case of a macOS root natively", () =>
     Effect.gen(function* () {
       if ((yield* HostProcess.Platform) !== "darwin") return;
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const created = yield* fs.makeTempDirectoryScoped({ prefix: "MuseRoot-" });
-      // Only a case-insensitive volume resolves the miscased path; skip on a case-sensitive one.
       if (!(yield* fs.exists(created.toUpperCase()))) return;
       const root = yield* museWorkspaceRoot(created.toUpperCase());
       expect(path.basename(root)).toBe(path.basename(created));

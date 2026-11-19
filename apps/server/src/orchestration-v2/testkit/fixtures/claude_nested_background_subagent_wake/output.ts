@@ -13,7 +13,6 @@ import {
 const CHILD_TASK_ID = "a5d7d869cbb05c754";
 const GRANDCHILD_TASK_ID = "a412f30077dfd84dd";
 
-// Grandchild completion notifies its owning child; only that child's completion wakes the root.
 export function assertClaudeNestedBackgroundSubagentWakeOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,

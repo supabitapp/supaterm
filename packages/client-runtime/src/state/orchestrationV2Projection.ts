@@ -23,8 +23,6 @@ export type ApplyOrchestrationV2ProjectionEventOptions = {
   readonly latestLocalTurnOrdinal?: number | null;
 };
 
-// Only this exact pair differs at one index. Both keys are weak so hints
-// neither retain streaming history nor apply to replacement snapshots.
 const arrayReplacements = new WeakMap<
   ReadonlyArray<unknown>,
   WeakMap<ReadonlyArray<unknown>, number>
@@ -64,7 +62,6 @@ function upsertEntity<T extends { readonly id: unknown }>(
   return next;
 }
 
-// A deduped item repeats a record the stream just sent, so search newest first.
 function latestBodies(projection: OrchestrationV2ThreadProjection): DedupedBodySource {
   return {
     messageText: (id) => projection.messages.findLast((message) => message.id === id)?.text,
@@ -147,10 +144,6 @@ function shouldDropMissingPartialTurnItem(
   if (item.runId === null) {
     return isBelowPartialWindow(projection, item, latestLocalTurnOrdinal);
   }
-  // A queued run keeps the ordinal it got when queued, so a steer sent later
-  // can raise the watermark past it. Items of a run that has not finished are
-  // new, not unloaded history: the first lands while the run is still queued,
-  // and a bounded window can start after the ones before it.
   if (
     projection.runs.some(
       (run) => run.id === item.runId && isOrchestrationV2RunUnsettled(run.status),
@@ -194,8 +187,6 @@ function upsertVisibleTurnItem(
   latestLocalTurnOrdinal: number | null | undefined,
 ): OrchestrationV2ThreadProjection["visibleTurnItems"] {
   const rows = projection.visibleTurnItems;
-  // Streamed updates land on the newest rows. Item ids are unique, so the
-  // search can start there.
   let index = rows.length - 1;
   while (index >= 0 && rows[index]!.sourceItemId !== item.id) index -= 1;
   const next = {
@@ -223,9 +214,6 @@ function upsertVisibleTurnItem(
   ) {
     return rows;
   }
-  // The item goes before the first later local row, as if its old row were
-  // removed first. Inserts, reorders, and inherited-to-local changes need
-  // this ordering pass; replacements above preserve every other row.
   let insertion = rows.length;
   for (let candidate = 0; candidate < rows.length; candidate += 1) {
     const row = rows[candidate]!;
@@ -253,10 +241,6 @@ function upsertVisibleTurnItem(
   return updated;
 }
 
-// A user item retained for a queued run stays hidden until the run leaves the
-// queue, and its update can arrive before or after that run update. Items in
-// `turnItems` were loaded or streamed, so they skip the partial-window check;
-// items never received stay absent.
 function restoreQueuedUserItems(
   projection: OrchestrationV2ThreadProjection,
   runId: OrchestrationV2Run["id"],
@@ -313,7 +297,6 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.model-selection-updated":
     case "thread.provider-switched":
       return { ...base, thread: event.payload };
-    // Read state and message pins are not activity: skip the updatedAt bump.
     case "thread.visited":
     case "thread.marked-unread":
     case "thread.pinned-messages-updated":
@@ -411,7 +394,6 @@ export function applyOrchestrationV2ProjectionEvent(
       return { ...base, plans: upsertEntity(base.plans, event.payload) };
     case "turn-item.updated": {
       let payload = restoreTurnItemBodies(event.payload, latestBodies(projection));
-      // Streamed updates land on the newest items, so search from the end.
       let itemIndex = projection.turnItems.length - 1;
       while (itemIndex >= 0 && projection.turnItems[itemIndex]!.id !== payload.id) {
         itemIndex -= 1;
@@ -431,8 +413,6 @@ export function applyOrchestrationV2ProjectionEvent(
           ? [...projection.turnItems, payload]
           : replaceProjectionArrayItem(projection.turnItems, itemIndex, payload);
       const next = { ...base, turnItems };
-      // Only interrupt requests can change another item's visibility. Streaming
-      // text/tool updates must not recheck every row against every run.
       const previous = itemIndex === -1 ? undefined : projection.turnItems[itemIndex];
       const visible =
         payload.type === "run_interrupt_request" || previous?.type === "run_interrupt_request"

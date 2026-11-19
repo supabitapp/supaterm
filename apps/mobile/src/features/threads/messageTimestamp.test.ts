@@ -31,7 +31,6 @@ describe("formatMessageTimestamp", () => {
     const dayIn = (iso: string, timeZone: string) =>
       new Date(iso).toLocaleDateString(undefined, { month: "numeric", day: "numeric", timeZone });
     try {
-      // Node re-resolves the default zone when TZ is assigned, like the OS zone changing.
       process.env.TZ = "America/New_York";
       const format24 = createMessageTimeFormatter(true);
       expect(formatMessageTimestamp(sameDay, nowMs)).toBe(timeIn(sameDay, "America/New_York"));

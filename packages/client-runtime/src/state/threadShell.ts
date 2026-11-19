@@ -40,15 +40,9 @@ const EMPTY_THREAD_REFS_BY_PROJECT: ReadonlyMap<
   ReadonlyArray<ScopedThreadRef>
 > = new Map();
 
-// An async question outlives the subagent's run, but once that run ends the
-// parent is no longer waiting on the answer, so it stops counting as input.
-// The activity run stays set when a follow-up is queued behind a blocked run.
 const isChildRunLive = (thread: Pick<OrchestrationV2ThreadShell, "activityRunStatus">) =>
   thread.activityRunStatus != null;
 
-// Subagents and side chats have no list row, so an open one is represented by its nearest
-// listed ancestor. A broken chain (missing parent, cycle) resolves to the thread itself, which
-// then matches no row.
 export function resolveListedAncestorThreadRef(
   ref: ScopedThreadRef,
   threads: readonly Pick<EnvironmentThreadShell, "id" | "environmentId" | "lineage">[],
@@ -71,8 +65,6 @@ export function resolveListedAncestorThreadRef(
   return ref;
 }
 
-/** Provider-native
-    subagents ask on their parent, so they are skipped. */
 function subagentRequest(thread: OrchestrationV2ThreadShell): PendingSubagentRequest | null {
   const kind = thread.pendingRuntimeRequest?.kind;
   if (
@@ -87,7 +79,6 @@ function subagentRequest(thread: OrchestrationV2ThreadShell): PendingSubagentReq
   return kind === "user_input" ? "user_input" : "approval";
 }
 
-/** A side chat asks its user directly, so questions roll up to the parent as well as approvals. */
 function sideChatRequest(thread: OrchestrationV2ThreadShell): PendingSubagentRequest | null {
   const kind = thread.pendingRuntimeRequest?.kind;
   if (kind === undefined || kind === "auth_refresh" || thread.lineage.sideChat !== true) {
@@ -111,7 +102,6 @@ export function pendingSubagentRequestsByThread(
       continue;
     }
     const request = subagentRequest(child);
-    // The coordinator answers child questions; approvals and user-only cards need the user.
     if (
       request === null ||
       (request === "user_input" && child.pendingRuntimeRequest?.userOnly !== true)
@@ -149,10 +139,6 @@ export function childThreadInputsTitle(
 
 const sameWireThreadShell = Schema.toEquivalence(OrchestrationV2ThreadShell);
 
-// While a run streams, the server bumps the shell's timestamps, item counts and
-// latest message several times a second. Only the zero crossing of the counts
-// says anything (whether the thread has started). Once the run stops every
-// field counts again, so snooze wakes and failure times read the current value.
 function sameApartFromStreaming(
   previous: EnvironmentThreadShell,
   next: EnvironmentThreadShell,
@@ -188,8 +174,6 @@ export function createEnvironmentThreadShellAtoms(input: {
     environmentId: EnvironmentId,
   ) => Atom.Atom<OrchestrationV2ShellSnapshot | null>;
 }) {
-  // Point reads and aggregate lists share values without keeping an atom alive
-  // for every listed thread. Replaced source objects can be collected.
   const scopedThreads = new WeakMap<
     OrchestrationV2ThreadShell,
     Map<string, EnvironmentThreadShell>
@@ -231,8 +215,6 @@ export function createEnvironmentThreadShellAtoms(input: {
     }).pipe(Atom.withLabel(`environment-thread-index:${environmentId}`)),
   );
 
-  // Side chats by parent, built once per change for every parent's row. Without side chats
-  // it stays the same empty map, so those rows do no work.
   const environmentSideChatsByParentAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get) => {
       let byParent: Map<ThreadId, OrchestrationV2ThreadShell[]> | undefined;
@@ -335,9 +317,6 @@ export function createEnvironmentThreadShellAtoms(input: {
     }).pipe(Atom.withLabel(`environment-thread-shell:${key}`));
   });
 
-  // Keeps the previous shell while only streaming ticks changed. During a run,
-  // its timestamps, item counts and latest message are as of the last kept
-  // change; anything that needs them current reads threadShellAtom.
   const quietThreadShellAtomFamily = Atom.family((key: string) => {
     let previous: EnvironmentThreadShell | null = null;
     return Atom.make((get) => {
@@ -350,8 +329,6 @@ export function createEnvironmentThreadShellAtoms(input: {
     }).pipe(Atom.withLabel(`environment-quiet-thread-shell:${key}`));
   });
 
-  // Child approvals and questions are hidden with their sidebar rows. Read their
-  // shell summaries, without subscribing to every child transcript.
   const childThreadInputsAtomFamily = Atom.family((key: string) => {
     const ref = parseThreadKey(key);
     let previous: ReadonlyArray<EnvironmentThreadShell> = [];
@@ -382,8 +359,6 @@ export function createEnvironmentThreadShellAtoms(input: {
           }
         }
       }
-      // Indicators read only ids, titles and the request kind, so other shell
-      // updates keep the old array.
       if (
         previous.length === next.length &&
         previous.every(
@@ -400,8 +375,6 @@ export function createEnvironmentThreadShellAtoms(input: {
     }).pipe(Atom.withLabel(`environment-child-thread-inputs:${key}`));
   });
 
-  // A parent's side chats. Rows read only ids, titles and whether one needs the user, so
-  // streaming updates keep the old array.
   const sideChatsAtomFamily = Atom.family((key: string) => {
     const ref = parseThreadKey(key);
     let previous = EMPTY_THREAD_SHELLS;
@@ -496,8 +469,6 @@ export function createEnvironmentThreadShellAtoms(input: {
     return previousThreadShells;
   }).pipe(Atom.withLabel("environment-thread-shell-list"));
 
-  // Lists that arrange threads read this, so a running thread's streaming
-  // ticks reach only what reads its live shell.
   let previousQuietThreadShells: ReadonlyArray<EnvironmentThreadShell> = [];
   const quietThreadShellsAtom = Atom.make((get) => {
     const next: EnvironmentThreadShell[] = [];

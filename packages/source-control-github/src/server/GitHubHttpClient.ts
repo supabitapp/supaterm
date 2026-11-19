@@ -40,7 +40,6 @@ export const layer = Layer.effect(
         let originalUrl = initialUrl;
         for (let redirects = 0; ; redirects++) {
           const url = new URL(originalUrl);
-          // gh sends plain HTTP over the socket while preserving the API authority.
           url.protocol = "http:";
           const response = yield* client.execute(
             request.pipe(

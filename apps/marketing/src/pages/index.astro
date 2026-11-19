@@ -1,7 +1,6 @@
 ---
 import { ArrowRight, ArrowUpRight, Check, EyeOff, iconSvgElements, Lock, LockOpen, Monitor, Server, Smartphone } from "@supaterm/icons/nodes";
 import { getImage, Image } from "astro:assets";
-// Regenerate with `vp run screenshots:marketing` (scene: scripts/marketing-hero.scene.ts).
 import desktopScreenshot from "../assets/app-desktop.webp";
 import appIcon from "../assets/icon.webp";
 import Layout from "../layouts/Layout.astro";
@@ -199,9 +198,6 @@ const screenshot = await getImage({
     return null;
   }
 
-  // Macs get the installer, which picks the build for the Mac's chip itself. Browsers cannot
-  // reliably tell Apple Silicon from Intel, and a wrong guess hands an Apple Silicon user a broken
-  // app, so do not add arch detection here. Releases without the installer fall back to arm64.
   function pickAsset(assets: ReleaseAsset[], platform: Platform): string | null {
     if (platform.os === "win") {
       return assets.find((a) => a.name.endsWith("-x64.exe"))?.browser_download_url ?? null;
@@ -248,8 +244,6 @@ const screenshot = await getImage({
 
   const crt = document.querySelector<HTMLElement>(".hero-crt");
   if (crt) {
-    // Thinking never settles, so the hero repaints while on screen: a deliberate exception to the
-    // no-continuous-animation rule.
     void import("../lib/boltComputer/mount").then(({ DEFAULT_SETTINGS, mountBoltComputer }) =>
       mountBoltComputer(crt, { ...DEFAULT_SETTINGS, state: "thinking" }),
     );

@@ -200,7 +200,6 @@ export function ScheduledTaskThreadPickerRouteScreen() {
     compactToolbar: true,
   };
   const searchToolbarInset = useSearchToolbarInset(search);
-  // Mounts older done threads matching the query, which shells may leave out.
   useThreadSearch(
     environmentId !== null && projectId !== null ? [environmentId] : [],
     query,

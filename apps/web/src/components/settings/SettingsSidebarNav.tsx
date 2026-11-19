@@ -81,7 +81,6 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/archived": ArchiveIcon,
 };
 
-// Detail pages without a nav entry highlight the page that links to them.
 const SETTINGS_DETAIL_PAGE_PARENTS: Readonly<Record<string, SettingsPath>> = {
   "/settings/diagnostics": "/settings/maintenance",
   "/settings/open-source-licenses": "/settings/about",
@@ -92,7 +91,6 @@ const SETTINGS_NAV_SECTIONS = SETTINGS_NAV_GROUPS.map((group) => ({
   paths: group.paths.filter(isSettingsSectionAvailable),
 })).filter((group) => group.paths.length > 0);
 
-// Attached only to the highlighted result, so it runs whenever the highlight lands on a row.
 function scrollResultIntoView(row: HTMLElement | null) {
   row?.scrollIntoView({ block: "nearest" });
 }
@@ -111,7 +109,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const activePath = SETTINGS_DETAIL_PAGE_PARENTS[pathname] ?? pathname;
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
-  // Below md the nav is an icon rail; searching expands it over the page.
   const [compactSearchOpen, setCompactSearchOpen] = useState(false);
   const [activeResultIndex, setActiveResultIndex] = useState(0);
   const searchableItems = useAvailableSettingsSearchItems();
@@ -119,7 +116,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const isSearching = query.trim().length > 0;
   const hasResults = results.length > 0;
   const maxResultIndex = Math.max(results.length - 1, 0);
-  // Persist the clamp so a shrink-then-recover of results keeps the clamped highlight.
   if (activeResultIndex > maxResultIndex) {
     setActiveResultIndex(maxResultIndex);
   }
@@ -131,8 +127,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
       const eventKeys = resolveEventKeys(event);
       const isFindShortcut =
         eventKeys.has("f") && (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
-      // Shift is allowed only when the layout types "/" with it (German Shift+7); Shift on
-      // the physical Slash key types "?" or "," instead.
       const isSlashShortcut =
         eventKeys.has("/") &&
         (event.key === "/" || !event.shiftKey) &&
@@ -246,7 +240,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
               )}
             >
               <SearchIcon className="size-4 shrink-0 text-sidebar-muted-foreground/80" />
-              {/* Native search inputs clear on Escape even during IME composition. */}
               <SidebarInput
                 ref={searchInputRef}
                 nativeInput
@@ -365,7 +358,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                       >
                         {group.heading}
                       </h3>
-                      {/* The heading stays outside the group it names so NVDA does not read the name twice. */}
                       <div role="group" aria-labelledby={`settings-nav-group-${index}`}>
                         <SidebarMenu size={navRowSize}>
                           {group.paths.map((to) => {

@@ -47,7 +47,6 @@ export function cursorSdkFailureMessage(error: CursorAgentSdkRunnerError): strin
     : `Cursor Agent SDK ${error.method} failed: ${reason}`;
 }
 
-// The SDK maps backend details to codes like PRO_USER_USAGE_LIMIT or RATE_LIMITED, without a status.
 const CURSOR_USAGE_LIMIT_CODE =
   /^(?:resource_exhausted|rate_limited(?:_changeable)?|\w*_usage_limit|\w*_rate_limit(?:_exceeded)?)$/i;
 
@@ -112,7 +111,6 @@ export interface CursorContextUsage {
   readonly maxTokens: number;
 }
 
-// The SDK types a checkpoint as `unknown`; Cursor keeps the conversation's context fill on it.
 const CursorCheckpoint = Schema.Struct({
   tokenDetails: Schema.Struct({ usedTokens: NonNegativeInt, maxTokens: NonNegativeInt }),
 });
@@ -394,8 +392,6 @@ interface CursorShellStreamOutput {
   };
 }
 
-// The SDK reports shell-output-delta only for user-started shell commands. Agent
-// shell output reaches this hook only from an @cursor/sdk patch that publishes it.
 const SHELL_STREAM_OUTPUT_HOOK = Symbol.for("@cursor/sdk.shellStreamOutput");
 const shellStreamListeners = new Set<(output: CursorShellStreamOutput) => void>();
 
@@ -416,7 +412,6 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
   const sdk = yield* CursorSdk.CursorSdk;
   const scope = yield* Effect.scope;
 
-  // Prime with cursorsandbox before any Full access run; the SDK caches sandbox support per process.
   const sandboxSupportPrimeStarted = yield* Ref.make(false);
   const sandboxSupportPrimed = yield* Deferred.make<void>();
   const primeCursorSandboxSupport = Effect.fn("CursorAgentSdkRunner.primeSandboxSupport")(
@@ -471,7 +466,6 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
         },
       });
 
-      // Cursor uses cwd for both execution and store lookup; a moved thread keeps its original store.
       const storeCwd = input.storeCwd;
       const storePlatform =
         input.operation === "resume" &&
@@ -584,8 +578,6 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
               (error) =>
                 Effect.gen(function* () {
                   abandonedRunRecoveryAvailable = false;
-                  // Local stores list runs oldest first, so the active run is on the
-                  // last page and every page has to be read to reach it.
                   let activeRun: Run | undefined;
                   let cursor: string | undefined;
                   do {
@@ -785,7 +777,6 @@ export const makeCursorAgentSdkRunner = Effect.fn("makeCursorAgentSdkRunner")(fu
         }).pipe(
           Effect.map((checkpoint) => {
             const usage = Option.getOrUndefined(decodeCursorCheckpoint(checkpoint))?.tokenDetails;
-            // An unset protobuf message reads as zeros.
             return usage === undefined || usage.maxTokens === 0 ? undefined : usage;
           }),
         ),

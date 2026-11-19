@@ -16,7 +16,6 @@ const { read, action, subscribe } = vi.hoisted(() => ({
   subscribe:
     vi.fn<(_target: unknown, onChange: (app: { id: string } | null) => void) => () => void>(),
 }));
-// Stubs only the transport; the device atoms' real scheduler and lanes decide ordering.
 vi.mock(import("@supaterm/client-runtime/state/runtime"), async (original) => {
   const runtime = await original();
   const createEnvironmentRpcCommand = (
@@ -95,7 +94,6 @@ function setup() {
   subscribe.mockReset();
   subscribe.mockReturnValue(() => {});
   read.mockResolvedValue(snapshot("light"));
-  // No idle TTL, as in the app: hiding the panel ends its read.
   const registry = AtomRegistry.make();
   const view = (visible: boolean) => (
     <RegistryContext.Provider value={registry}>

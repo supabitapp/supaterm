@@ -29,13 +29,11 @@ const CAPABILITIES: PullRequestCapabilities = {
   actions: [...definition.changeRequestActions],
   mergeMethods: ["merge", "squash", "rebase"],
   deleteBranch: true,
-  // GitLab has no merge-target-into-source operation.
   updateMethods: ["rebase"],
   search: true,
   reactions: true,
   mentions: true,
   referenceSigils: ["#", "!"],
-  // GitLab's viewed marks live in browser-local storage.
   viewedFiles: "environment",
   review: {
     inlineComment: true,
@@ -56,12 +54,6 @@ const UNAVAILABLE_REQUIREMENT = {
   unauthenticated: "GitLab CLI is not authenticated. Run `glab auth login` and retry.",
 };
 
-/**
- * The actions `user.can_merge` answers for. Rebasing writes to the source branch rather than to
- * the target, so it is not literally the same permission — but GitLab reports nothing narrower,
- * and someone it will not let land this change has no business rewriting its branch either.
- * Reverting pushes a branch to the target project, which the same permission covers.
- */
 const MERGE_ACTIONS: ReadonlySet<string> = new Set([
   "merge",
   "update-branch",
@@ -92,16 +84,9 @@ export function gitLabViewerPermissions(input: {
   };
 }
 
-/**
- * One page view asks for the detail and then its checks within a second, and the poll that
- * follows asks again. A minute keeps those to one `glab` call without hiding a pipeline for long;
- * a refresh or a finished turn drops it sooner through `forgetChangeRequestReads`.
- */
 const MERGE_REQUEST_DETAIL_TTL = Duration.minutes(1);
-/** A project's merge methods change in its settings, which nobody does between page views. */
 const PROJECT_MERGE_CAPABILITIES_TTL = Duration.minutes(15);
 const READ_CACHE_CAPACITY = 256;
-/** A host's GitLab version only changes on upgrade. */
 const GRAPHQL_LIST_SUPPORT_TTL = Duration.hours(1);
 
 function gitLabProviderFailure(
@@ -114,7 +99,6 @@ function gitLabProviderFailure(
   return { reason: "failed" };
 }
 
-// GitLab keeps a thread on the latest diff while its line survives, so older refs mean the code moved.
 const isOutdated = (
   thread: GitLabDiffRefs | undefined,
   current: GitLabDiffRefs | undefined,
@@ -128,8 +112,6 @@ const isOutdated = (
 export const make = Effect.gen(function* () {
   const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
-  // Keyed on the checkout as well: `glab` picks the host and the account to answer as from the
-  // checkout's remote and config, so two checkouts may read the same project as different people.
   const mergeRequestDetails = yield* Cache.makeWith(
     (key: string) => {
       const [cwd, repository, number, host] = JSON.parse(key) as [string, string, number, string];
@@ -143,7 +125,6 @@ export const make = Effect.gen(function* () {
   const graphqlListSupport = yield* Cache.makeWith(
     (key: string) => {
       const [cwd, host] = JSON.parse(key) as [string, string | undefined];
-      // A host whose version read fails keeps failing it; remember REST rather than ask each poll.
       return cli.supportsGraphqlList({ cwd, host }).pipe(
         Effect.catchIf(
           (cause) =>
@@ -183,8 +164,6 @@ export const make = Effect.gen(function* () {
     readonly number: number;
   }) => Cache.get(mergeRequestDetails, detailKey(input));
 
-  // Dropped on both sides, as the service does with its own reads: a read that starts while the
-  // write is in flight must not outlive it.
   const writing =
     <
       I extends {
@@ -212,8 +191,6 @@ export const make = Effect.gen(function* () {
       cause: error,
     });
 
-  // Optional endpoints may lose part of the activity, but an unusable CLI or account must
-  // reach the caller so it can report authentication failures and pause a throttled host.
   const recoverRead = <A>(
     read: Effect.Effect<A, GitLabPullRequestCli.GitLabPullRequestCliError>,
     fallback: A,
@@ -229,7 +206,6 @@ export const make = Effect.gen(function* () {
       }),
     );
 
-  // The rows were already read, so even a rate limit only leaves their states unknown.
   const listStates = (input: Parameters<typeof cli.getListStates>[0]) =>
     cli.getListStates(input).pipe(
       Effect.catch((error) =>
@@ -240,7 +216,6 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  // REST omits line counts; the CLI recovers optional stats failures per batch.
   const mergeRequestWithStats = (
     input: {
       readonly cwd: string;
@@ -276,7 +251,6 @@ export const make = Effect.gen(function* () {
 
     listChangeRequests: (input) =>
       Cache.get(graphqlListSupport, JSON.stringify([input.cwd, input.host])).pipe(
-        // Without a known version the REST list still answers, only with fewer filters.
         Effect.orElseSucceed(() => false),
         Effect.flatMap((graphql) =>
           cli.listMergeRequests({
@@ -325,7 +299,6 @@ export const make = Effect.gen(function* () {
         Effect.mapError(fail("getChangeRequestChecks")),
       ),
 
-    // Merge settings only affect the detail panel's actions.
     getChangeRequestPreview: (input) =>
       cli
         .getMergeRequestDetail({ ...input, maintainerEdits: false })
@@ -367,7 +340,6 @@ export const make = Effect.gen(function* () {
           ...mergeRequest,
           mergeCapabilities,
           viewerPermissions: gitLabViewerPermissions(mergeRequest),
-          // Missing divergence counts mean unknown, not up to date.
           baseComparison:
             mergeRequest.divergedCommits === undefined
               ? "unknown"
@@ -402,7 +374,6 @@ export const make = Effect.gen(function* () {
             editedAtByNoteId: new Map<string, string>(),
             botLogins: new Set<string>(),
           }),
-          // Fresh, not the cached detail: refs from before a push would mark every thread outdated.
           recoverRead(
             cli.getMergeRequestDetail({ ...input, downstreamChecks: false }).pipe(
               Effect.map((mergeRequest) => ({
@@ -473,8 +444,6 @@ export const make = Effect.gen(function* () {
         ),
       ),
 
-    // Straight from the host, never the shared read: this is what a write is refused or let
-    // through on, and access granted or withdrawn within the minute must count.
     getViewerPermissions: (input) =>
       cli
         .getMergeRequestDetail({ ...input, downstreamChecks: false })
@@ -509,7 +478,6 @@ export const make = Effect.gen(function* () {
         Effect.map((revisions) => ({ revisions })),
       ),
 
-    // MR reviewers are users; groups belong to approval rules.
     listReviewerCandidates: (input) =>
       cli
         .listReviewerCandidates({

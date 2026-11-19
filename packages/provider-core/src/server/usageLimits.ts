@@ -57,7 +57,6 @@ export function applyUsageLimitsUpdate(input: {
     return previous;
   }
   const merged = new Map(previous?.windows.map((window) => [window.id, window] as const));
-  // Codex repeats unchanged limits on token ticks; avoid allocating snapshots for no-ops.
   let changed = false;
   for (const window of update.windows) {
     const existing = merged.get(window.id);

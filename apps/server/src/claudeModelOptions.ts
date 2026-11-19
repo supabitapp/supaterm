@@ -77,7 +77,6 @@ export function compileClaudeModelSelection(
   };
   const apiModelId = resolveClaudeCatalogApiModelId(catalog, selection);
   const promptEffort = resolvePromptInjectedEffort(capabilities, rawEffort) ?? undefined;
-  // An alias the catalog routes a built-in model to is Claude Code's own and is not pinned.
   const pinnedAlias =
     CLAUDE_CODE_MODEL_ALIASES.has(apiModelId) &&
     resolveClaudeModelSlug(catalog, selection.model) === apiModelId

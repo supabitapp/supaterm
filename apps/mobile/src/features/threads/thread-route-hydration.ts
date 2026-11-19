@@ -25,7 +25,6 @@ export function threadRouteIsHydrating(input: {
   if (!input.localCacheRead) {
     return true;
   }
-  // Only a first attempt is worth waiting out; a reconnecting environment has already failed.
   if (
     input.connectionState === "available" ||
     input.connectionState === "offline" ||

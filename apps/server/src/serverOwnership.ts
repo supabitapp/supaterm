@@ -46,8 +46,6 @@ export class ServerAlreadyRunningError extends Schema.TaggedError<ServerAlreadyR
   "ServerAlreadyRunningError",
   { stateDir: Schema.String },
 ) {
-  // Distinct process exit code so a supervisor can tell "owned by another
-  // server" apart from a crash and stop restarting.
   override readonly [Runtime.errorExitCode] = SERVER_EXIT_CODE_STATE_DIR_OWNED;
 
   override get message(): string {
@@ -80,11 +78,6 @@ const isSqliteBusy = (cause: unknown) =>
   (("errcode" in cause && cause.errcode === 5) ||
     ("code" in cause && cause.code === "SQLITE_BUSY"));
 
-/**
- * Servers from before this lock only publish `server-runtime.json`. Treat
- * their record as stale only when the process start time proves PID reuse, or
- * when it names this process, as a restarted container reusing PID 1 does.
- */
 const legacyOwnerIsLive = Effect.fn("legacyOwnerIsLive")(function* (
   state: PersistedServerRuntimeState,
 ) {
@@ -107,8 +100,6 @@ const legacyOwnerIsLive = Effect.fn("legacyOwnerIsLive")(function* (
   );
 });
 
-// Pre-lock services become invisible when another server replaces their runtime
-// record. Unreadable configuration or an unavailable manager allows startup.
 const olderBootServiceHome = Effect.fn("olderBootServiceHome")(
   function* (stateDir: string) {
     if (
@@ -148,7 +139,6 @@ const olderBootServiceHome = Effect.fn("olderBootServiceHome")(
         (yield* run("launchctl", ["print", `gui/${uid}/${BOOT_SERVICE_LAUNCHD_LABEL}`])).code === 0;
       if (!loaded) {
         const disabled = yield* run("launchctl", ["print-disabled", `gui/${uid}`]);
-        // Older macOS versions print `true` instead of `disabled`.
         if (
           disabled.code !== 0 ||
           disabled.stdout.includes(`"${BOOT_SERVICE_LAUNCHD_LABEL}" => disabled`) ||
@@ -158,14 +148,12 @@ const olderBootServiceHome = Effect.fn("olderBootServiceHome")(
       }
     } else {
       const active = yield* run("systemctl", ["--user", "is-active", BOOT_SERVICE_UNIT_FILE]);
-      // A unit waiting out its Restart= delay is activating, with exit code 3.
       loaded = active.code === 0 || (active.code === 3 && active.stdout.trim() === "activating");
       if (!loaded) {
         const enabled = yield* run("systemctl", ["--user", "is-enabled", BOOT_SERVICE_UNIT_FILE]);
         if (enabled.code !== 0 || enabled.stdout.trim() !== "enabled") return undefined;
       }
     }
-    // A deferred update names the staged runtime, not the loaded service's runtime.
     if (loaded && (yield* fs.exists(NodePath.join(runtimeDir, SERVICE_RESTART_PENDING_FILE)))) {
       return baseDir;
     }
@@ -178,11 +166,6 @@ const olderBootServiceHome = Effect.fn("olderBootServiceHome")(
 
 const ownershipLockPath = (stateDir: string) => NodePath.join(stateDir, "server-owner.sqlite");
 
-/**
- * The lock is an exclusive transaction on `server-owner.sqlite`, which never
- * holds data and must never be unlinked: the OS releases it when the process
- * exits, even on SIGKILL, so a crashed owner never blocks the next start.
- */
 const openOwnershipLock = (stateDir: string) =>
   Effect.try({
     try: () => {
@@ -195,7 +178,6 @@ const openOwnershipLock = (stateDir: string) =>
       }
       const db = new NodeSqlite.DatabaseSync(lockPath);
       try {
-        // An idle service launcher probes this lock for a moment; wait out that probe.
         db.exec("PRAGMA busy_timeout = 250; BEGIN EXCLUSIVE;");
         const identity = NodeFS.statSync(lockPath, { bigint: true });
         return {
@@ -265,7 +247,6 @@ export const acquireServerOwnership = Effect.fn("acquireServerOwnership")(functi
     let statWarningLogged = false;
     while (!lost) {
       yield* Effect.sleep("5 seconds");
-      // Closing another descriptor for this inode releases SQLite's POSIX locks. Stat by path only.
       const current = yield* Effect.sync(() => {
         try {
           return NodeFS.statSync(lockPath, { bigint: true, throwIfNoEntry: false });

@@ -40,8 +40,6 @@ export function PullRequestToolbar(props: {
   useEffect(() => {
     if (!searching) return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      // Frozen Home screens stay mounted under a detail route or another tab,
-      // so back only applies while the PR list is in front.
       const state = navigation.getState();
       if (!state || state.routes[state.index]?.name !== "Home" || !isTabActive("pullRequests"))
         return false;

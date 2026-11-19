@@ -269,7 +269,6 @@ describe("accepted server update recovery", () => {
       let requested = false;
       const client = {
         [WS_METHODS.subscribeServerConfig]: () => Stream.never,
-        // Before the request, a boot-service update reads the accepting server's ready.
         [WS_METHODS.subscribeServerLifecycle]: () =>
           requested
             ? Stream.fromEffect(Deferred.succeed(observing, undefined)).pipe(
@@ -599,7 +598,6 @@ describe("server state projection", () => {
       const otherInstanceId = ProviderInstanceId.make("codex");
       const thirdInstanceId = ProviderInstanceId.make("cursor");
       const slashCommands = [{ name: "compact" }];
-      // What the server sends: a digest in place of the two lists.
       const snapshot = (catalogDigest = "d1") =>
         snapshotEvent({
           ...CONFIG,
@@ -630,14 +628,12 @@ describe("server state projection", () => {
             loadedCatalogDigest: "d1",
           });
 
-          // A reconnect sends the digest again, and the loaded lists stay.
           const reconnected = yield* h.send(snapshot());
           expect(reconnected.config.providers[0]).toMatchObject({
             slashCommands,
             loadedCatalogDigest: "d1",
           });
 
-          // A reply for an older catalog that lands late does not replace the current lists.
           const late = { instanceId, digest: "d0", slashCommands: [{ name: "old" }], skills: [] };
           yield* Queue.offer(catalogs, [late]);
           yield* Queue.offer(catalogs, [
@@ -654,8 +650,6 @@ describe("server state projection", () => {
             loadedCatalogDigest: "d1",
           });
 
-          // A reply for a newer catalog can land before the config names its digest. It is
-          // kept, and applies when the config does.
           const newer = { instanceId, digest: "d2", slashCommands: [{ name: "new" }], skills: [] };
           yield* Queue.offer(catalogs, [
             newer,
@@ -1251,14 +1245,12 @@ describe("server state projection", () => {
       fetched,
     );
     expect(merged.providers[0]?.workspaceSnapshots).toEqual([claudeA]);
-    // An unchanged answer keeps the cache, so config readers do not re-render.
     expect(
       record(fetched, claude, false, [
         provider(claude, [JSON.parse(JSON.stringify(claudeA)) as typeof claudeA]),
       ]),
     ).toBe(fetched);
 
-    // Health checks and usage updates leave the snapshot in place.
     expect(
       withFetchedWorkspaceSnapshots(
         configWith([
@@ -1268,7 +1260,6 @@ describe("server state projection", () => {
       ).providers[0]?.workspaceSnapshots,
     ).toEqual([claudeA]);
 
-    // New provider-wide commands, such as a live session's, retire the old snapshot.
     expect(
       withFetchedWorkspaceSnapshots(
         configWith([provider(claude, undefined, [{ name: "live" }])]),
@@ -1276,7 +1267,6 @@ describe("server state projection", () => {
       ).providers[0]?.workspaceSnapshots,
     ).toBeUndefined();
 
-    // A server rescan that changed the skills retires the snapshot fetched before it.
     expect(
       withFetchedWorkspaceSnapshots(
         configWith([
@@ -1286,11 +1276,9 @@ describe("server state projection", () => {
       ).providers[0]?.workspaceSnapshots,
     ).toBeUndefined();
 
-    // Nothing fetched leaves the config as streamed.
     const streamed = configWith([provider(claude)]);
     expect(withFetchedWorkspaceSnapshots(streamed, [])).toBe(streamed);
 
-    // A catalog digest stands for the lists: loading them keeps the snapshot, a new digest retires it.
     const digested = (catalogDigest: string, slashCommands: ReadonlyArray<{ name: string }> = []) =>
       ({ ...provider(claude, undefined, slashCommands), catalogDigest }) as ReturnType<
         typeof provider
@@ -1307,7 +1295,6 @@ describe("server state projection", () => {
     expect(snapshotsFor(digested("d1", [{ name: "loaded" }]))).toEqual([claudeA]);
     expect(snapshotsFor(digested("d2"))).toBeUndefined();
 
-    // A fresh scan drops the cwd's other provider snapshots, as the server does.
     expect(record(fetched, claude, true, [])).toEqual([]);
   });
 
@@ -1440,7 +1427,6 @@ describe("server state projection", () => {
         }),
       );
 
-      // Cached, it would read as a fresh freeze on the next launch.
       expect(yield* Queue.take(savedConfigs)).not.toHaveProperty("lastEventLoopStall");
     }),
   );
@@ -1473,8 +1459,6 @@ describe("launcher update resume", () => {
   const ACCEPTING = ready("2026-08-01T00:00:00.000Z", "0.0.30");
   const REPLACEMENT = ready("2026-08-01T00:05:00.000Z", "0.0.31");
 
-  // Lifecycle subscriptions opened before the update is acknowledged reach the accepting
-  // process; later ones reach whatever the host has become.
   const launchUpdate = Effect.fn("ServerUpdateTest.launchUpdate")(function* (host: {
     readonly accepting: Stream.Stream<ServerLifecycleStreamEvent>;
     readonly resumed: Stream.Stream<ServerLifecycleStreamEvent>;
@@ -1555,7 +1539,6 @@ describe("launcher update resume", () => {
       clearVcsRefs: () => Effect.void,
       clear: () => Effect.void,
     });
-    // Share the test clock so the command's timers and the host's restart run on TestClock.
     const runtime = Atom.runtime(
       Layer.mergeAll(
         Layer.succeed(EnvironmentRegistry.EnvironmentRegistry, environments),
@@ -1581,7 +1564,6 @@ describe("launcher update resume", () => {
       }),
     ).pipe(Effect.forkScoped);
     return {
-      // The host saw its first call: the update request or a lifecycle subscription.
       started: Deferred.await(started),
       resumeSubscribed: Deferred.await(resumeSubscribed),
       state: () => registry.get(updateStateAtom),
@@ -1635,7 +1617,6 @@ describe("launcher update resume", () => {
         const update = yield* launchUpdate({
           reconnectAfterBaseline: true,
           accepting: Stream.make(ACCEPTING),
-          // The process that accepted the update over the new session replays its own ready first.
           resumed: after("1 second", ready("2026-08-01T00:01:00.000Z", "0.0.30")).pipe(
             Stream.concat(
               after(

@@ -38,7 +38,6 @@ import { VcsAutomaticFetchInterval } from "./VcsAutomaticFetchInterval.ts";
 const VCS_STATUS_REFRESH_FAILURE_BASE_DELAY = Duration.seconds(30);
 const VCS_STATUS_REFRESH_FAILURE_MAX_DELAY = Duration.minutes(15);
 const MAX_FAILURE_DIAGNOSTIC_VALUES = 8;
-// A held index.lock fails the read, and its removal moves no HEAD to trigger another.
 const CHECKOUT_REFRESH_RETRY = Schedule.exponential(Duration.seconds(1)).pipe(
   Schedule.modifyDelay(({ duration }) =>
     Effect.succeed(Duration.min(duration, Duration.seconds(30))),
@@ -285,7 +284,6 @@ export const make = Effect.gen(function* () {
     }
   >();
   let branchRevision = 0;
-  // A slow detailed read must not replace a newer HEAD-only observation.
   let branchObservation = 0;
   const publishBranch = Effect.fn("VcsStatusBroadcaster.publishBranch")(function* (
     cwd: string,
@@ -304,9 +302,6 @@ export const make = Effect.gen(function* () {
   });
   const localRefreshLocks = yield* KeyedLock.make<string>();
   const cacheRef = yield* Ref.make(new Map<string, CachedVcsStatus>());
-  // One permit per cwd for remote reads that write the cache. Without it a
-  // periodic poll that started before an agent creates a PR can finish after the
-  // turn-end refresh and overwrite the fresh PR with its stale `pr: null`.
   const remoteWriteLocks = yield* KeyedLock.make<string>();
   const withRemoteWriteLock = <A, E, R>(cwd: string, effect: Effect.Effect<A, E, R>) =>
     remoteWriteLocks.withLock(cwd, effect);
@@ -319,8 +314,6 @@ export const make = Effect.gen(function* () {
     return yield* Ref.get(cacheRef).pipe(Effect.map((cache) => cache.get(cwd) ?? null));
   });
 
-  // Only full subscribers and direct reads show Changes totals. Command palette rows subscribe
-  // without remote status and skip them, which halves the git processes a burst of rows spawns.
   const branchChangesDemand = new Map<string, number>();
   const wantsBranchChanges = (cwd: string) => branchChangesDemand.has(cwd);
   const acquireBranchChangesDemand = (cwd: string) =>
@@ -341,7 +334,6 @@ export const make = Effect.gen(function* () {
   ) {
     const includeBranchChanges = wantsBranchChanges(cwd);
     const local = yield* workflow.localStatus({ cwd }, { includeBranchChanges });
-    // A subscriber that shows totals arrived during the read and must not receive it without them.
     if (!includeBranchChanges && wantsBranchChanges(cwd)) {
       return {
         local: yield* workflow.localStatus({ cwd }, { includeBranchChanges: true }),
@@ -468,8 +460,6 @@ export const make = Effect.gen(function* () {
     );
   }, Effect.scoped);
 
-  // A refresh that started after a request saw every change that request could mean, so queued
-  // callers share it instead of each running git status again.
   const localRefreshRequests = new Map<string, number>();
   const localRefreshResults = new Map<
     string,
@@ -511,7 +501,6 @@ export const make = Effect.gen(function* () {
     const cwd = yield* withFileSystem(normalizeCwd(rawCwd));
     const local = yield* refreshLocalStatusCore(cwd);
     const cached = yield* getCachedStatus(cwd);
-    // Divergence is local Git data; a slow forge lookup must not delay turn-end updates.
     if (cached?.remote?.value?.hasUpstream) {
       const divergence = yield* workflow.upstreamDivergence(cwd);
       const latest = yield* getCachedStatus(cwd);
@@ -540,12 +529,10 @@ export const make = Effect.gen(function* () {
     options?: Parameters<GitWorkflowService.GitWorkflowService["Service"]["remoteStatus"]>[1],
   ) {
     const branch = yield* workflow.currentBranch(cwd);
-    // GitManager's remote TTL cache is keyed by cwd, not the checked-out branch.
     yield* workflow.invalidateRemoteStatus(cwd);
     const previousRemote = (yield* getCachedStatus(cwd))?.remote;
     const remote = yield* workflow.remoteStatus({ cwd }, options);
     const latest = yield* getCachedStatus(cwd);
-    // An overlapping turn refresh and fetch can both move divergence during the forge lookup.
     const refreshed =
       remote?.hasUpstream && latest?.remote !== previousRemote && latest?.remote?.branch === branch
         ? yield* workflow.upstreamDivergence(cwd)
@@ -610,8 +597,6 @@ export const make = Effect.gen(function* () {
             errorTag: error._tag,
           });
           if (!pullAttempted) return null;
-          // A pull or its follow-up reads can fail after local state has changed.
-          // Let a failed reconciliation reach the caller instead of publishing old status.
           yield* refreshLocalStatusCore(cwd);
           yield* updateCachedRemoteStatus(cwd, remoteRead, { publish: true });
           return yield* getStatusParts(cwd);
@@ -636,7 +621,6 @@ export const make = Effect.gen(function* () {
             ? null
             : yield* maybeAutoPull(cwd, remoteRead, options?.policyCwds ?? [cwd]);
         if (pulled !== null) return pulled.remote;
-        // Base refs and merge bases can move without changing divergence counts.
         yield* refreshLocalStatusCore(cwd);
         return yield* updateCachedRemoteStatus(cwd, remoteRead, { publish: true });
       }),
@@ -649,16 +633,13 @@ export const make = Effect.gen(function* () {
         cwd,
         Effect.gen(function* () {
           const refreshUpstream = !Duration.isZero(yield* automaticFetchInterval);
-          // Bump the PR lookup epoch after earlier remote writers have finished.
           yield* workflow.invalidateStatus(cwd);
           const remoteRead = yield* readRemoteStatus(cwd, { refreshUpstream });
-          // Without a fetch, the cached behind count cannot justify an automatic pull.
           const pulled = refreshUpstream
             ? yield* maybeAutoPull(cwd, remoteRead, [policyCwd])
             : null;
           if (pulled !== null) return mergeGitStatusParts(pulled.local, pulled.remote);
           yield* updateCachedRemoteStatus(cwd, remoteRead, { publish: true });
-          // A fetch, ours or not, can move the base used for local Changes totals.
           if (
             refsBeforeLocalRead === null ||
             (yield* workflow.readRefSnapshot(cwd)) !== refsBeforeLocalRead
@@ -680,7 +661,6 @@ export const make = Effect.gen(function* () {
     const refsBeforeLocalRead = options?.localOnly ? null : yield* workflow.readRefSnapshot(cwd);
     yield* refreshLocalStatusCore(cwd);
     if (options?.localOnly) {
-      // Never cache a remote here: readers take `value: null` as "read and found no PR".
       const parts = yield* getStatusParts(cwd);
       return mergeGitStatusParts(parts.local, parts.remote);
     }
@@ -692,7 +672,6 @@ export const make = Effect.gen(function* () {
   )(function* (rawCwd) {
     const cwd = yield* withFileSystem(normalizeCwd(rawCwd));
     const localDone = yield* Deferred.make<void>();
-    // Owned by the broadcaster so a client disconnecting mid-switch still leaves status correct.
     yield* refreshLocalStatusCore(cwd).pipe(
       Effect.ensuring(Deferred.succeed(localDone, undefined)),
       Effect.andThen(refreshRemoteAndLocalTotals(cwd, rawCwd, null)),
@@ -710,8 +689,6 @@ export const make = Effect.gen(function* () {
         Effect.gen(function* () {
           const cached = yield* getCachedStatus(cwd);
           if (!cached || cached.remote?.value === null) return null;
-          // Resolve the checked-out branch again. A cached PR can belong to
-          // the previous branch after an agent checks out another branch.
           const remoteRead = yield* readRemoteStatus(cwd, {
             refreshUpstream: false,
             refreshMissingPullRequest: true,
@@ -721,7 +698,6 @@ export const make = Effect.gen(function* () {
       );
     });
 
-  // A subscription owns this loop; keep each poll's spans out of a never-ending parent span.
   const makeRemoteRefreshLoop = Effect.fnUntraced(function* (
     cwd: string,
     demandCwdsRef: Ref.Ref<ReadonlyMap<string, number>>,
@@ -888,9 +864,6 @@ export const make = Effect.gen(function* () {
     }
   });
 
-  // A request made during a refresh needs a read that starts after it, so overlapping requests
-  // share one follow-up. Keyed by raw cwd because auto-pull policy depends on it.
-  // Missing means idle; null means running with no follow-up queued.
   type SharedRefresh = Deferred.Deferred<VcsStatusResult, GitManagerServiceError>;
   const queuedRefreshesRef = yield* Ref.make(new Map<string, SharedRefresh | null>());
 
@@ -919,7 +892,6 @@ export const make = Effect.gen(function* () {
   )(function* (rawCwd, options) {
     if (options?.localOnly) return yield* refreshStatus(rawCwd, options);
     const requested = yield* Deferred.make<VcsStatusResult, GitManagerServiceError>();
-    // Registering and forking together keeps an interrupt from leaving an entry with no worker.
     const shared = yield* Effect.uninterruptible(
       Effect.gen(function* () {
         const followUp = yield* Ref.modify(
@@ -931,7 +903,6 @@ export const make = Effect.gen(function* () {
           },
         );
         if (followUp !== undefined) return followUp;
-        // The broadcaster scope owns the work, so one caller's interrupt does not cancel it for the rest.
         yield* runQueuedRefreshes(rawCwd, requested).pipe(Effect.forkIn(broadcasterScope));
         return requested;
       }),
@@ -942,12 +913,10 @@ export const make = Effect.gen(function* () {
   const readHeadBranch = Effect.fn("VcsStatusBroadcaster.readHeadBranch")(function* (cwd: string) {
     const observation = ++branchObservation;
     const refName = yield* workflow.currentBranch(cwd);
-    // A null branch is a detached HEAD or a checkout that is gone, such as a removed worktree.
     const isRepo = refName !== null || (yield* workflow.repositoryRoot(cwd)) !== null;
     return { observation, refName, isRepo };
   });
 
-  // Keep cache invalidation serialized with detailed reads and refreshes.
   const refreshBranchStatusCore = Effect.fn("VcsStatusBroadcaster.refreshBranchStatusCore")(
     (cwd: string) =>
       localRefreshLocks.withLock(
@@ -960,7 +929,6 @@ export const make = Effect.gen(function* () {
             );
           }
           const { observation, refName, isRepo } = yield* readHeadBranch(cwd);
-          // HEAD cannot certify working-tree totals, even when it has not moved.
           localRefreshResults.delete(cwd);
           yield* workflow.invalidateLocalStatus(cwd);
           yield* Ref.update(cacheRef, (cache) => {
@@ -979,8 +947,6 @@ export const make = Effect.gen(function* () {
       ),
   );
 
-  // A checkout outside Supaterm, such as `git switch` in the terminal, calls no refresh RPC.
-  // Rereading remote too, without a fetch, sends the new branch with its own PR and counts.
   const publishCheckedOutRef = Effect.fn("VcsStatusBroadcaster.publishCheckedOutRef")(function* (
     cwd: string,
   ) {
@@ -1011,28 +977,23 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  // Runs for the subscription lifetime, so tracing would leave a span open indefinitely.
   const watchHead = Effect.fnUntraced(function* (cwd: string, ready: Deferred.Deferred<void>) {
     const headPath = yield* workflow.headPath(cwd);
     if (headPath === null) return;
     const headDirectory = path.dirname(headPath);
-    // Git replaces HEAD by renaming HEAD.lock, which a watch on the file itself would lose.
     yield* fs
       .watch(headDirectory, {
         onReady: () => Deferred.doneUnsafe(ready, Exit.void),
       })
       .pipe(
-        // On Windows a watch outlives its deleted directory and reports it ~150k times a second.
         Stream.takeUntilEffect((event) =>
           event._tag === "Remove"
             ? fs.exists(headDirectory).pipe(Effect.map((exists) => !exists))
             : Effect.succeed(false),
         ),
         Stream.filter((event) => path.basename(event.path) === "HEAD"),
-        // A rebase moves HEAD many times; refresh once for whatever arrived during a refresh.
         Stream.buffer({ capacity: 1, strategy: "sliding" }),
         Stream.mapEffect(() => retryCheckedOutRef(cwd, publishCheckedOutRef(cwd))),
-        // Detailed status waits behind its own reads; the branch keeps up on the stage above.
         Stream.buffer({ capacity: 1, strategy: "sliding" }),
         Stream.runForEach(() => retryCheckedOutRef(cwd, reconcileCheckedOutRef(cwd))),
       );
@@ -1050,7 +1011,6 @@ export const make = Effect.gen(function* () {
         });
         return Effect.succeed([existing.ready, nextWatchers] as const);
       }
-      // A watch that ended, say before the repository existed, restarts for everyone holding it.
       return Effect.gen(function* () {
         const ready = yield* Deferred.make<void>();
         const fiber = yield* watchHead(cwd, ready).pipe(
@@ -1060,7 +1020,6 @@ export const make = Effect.gen(function* () {
               ...remoteRefreshFailureDiagnostics(cause),
             }),
           ),
-          // Subscribers wait for the watch, so one that cannot start must not hold them.
           Effect.ensuring(Deferred.succeed(ready, undefined)),
           Effect.forkIn(broadcasterScope),
         );
@@ -1112,7 +1071,6 @@ export const make = Effect.gen(function* () {
         );
         if (input.includeRemote !== false) yield* acquireBranchChangesDemand(cwd);
         const subscription = yield* PubSub.subscribe(changesPubSub);
-        // Watch before reading so a checkout in between still publishes.
         yield* Effect.acquireRelease(retainHeadWatcher(cwd), () => releaseHeadWatcher(cwd));
         const initialLocal = yield* getOrLoadLocalStatus(cwd);
         const cachedStatus = yield* getCachedStatus(cwd);

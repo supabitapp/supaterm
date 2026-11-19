@@ -154,9 +154,6 @@ export const make = Effect.fn("effect-codex-app-server/CodexAppServerClient.make
       >
     | undefined => CodexRpc.CLIENT_NOTIFICATION_PARAMS[method] as never;
 
-  // A notification the schema rejects has no reply to fail, so it is dropped.
-  // A Codex build that drifted from the generated schema repeats the bad shape
-  // on every frame, so each distinct failure is warned about once per client.
   const warnedDecodeFailures = new Set<string>();
   const warnUndecodableNotification = (error: CodexError.CodexAppServerProtocolParseError) => {
     const key = `${error.method}\n${error.issueKinds?.join(",")}`;

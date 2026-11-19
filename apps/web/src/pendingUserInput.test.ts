@@ -200,7 +200,6 @@ describe("carryDisplacedCustomAnswerIntoPrompt", () => {
 });
 
 describe("withdrawDisplacedCustomAnswerFromPrompt", () => {
-  // regression: #35205 an answer restored with undo stayed in the thread draft and was sent twice
   it("takes set-aside text back out of the thread draft and leaves the rest", () => {
     const setAside = carryDisplacedCustomAnswerIntoPrompt("", "first answer ");
     expect(withdrawDisplacedCustomAnswerFromPrompt(setAside, "first answer ")).toBe("");

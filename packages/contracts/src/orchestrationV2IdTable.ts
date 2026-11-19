@@ -25,7 +25,6 @@ function internRecordIds(container: JsonObject, ids: Array<string | number>): Js
     }
     return position;
   };
-  // Copies each record: unknown members can pass through encoding by reference.
   const internRecord = (record: JsonObject): JsonObject => {
     const out: JsonObject = {};
     for (const key in record) {
@@ -52,7 +51,6 @@ function internRecordIds(container: JsonObject, ids: Array<string | number>): Js
   return out;
 }
 
-// Mutates freshly parsed JSON in place; the client owns it and this avoids a copy.
 function expandRecordIds(container: JsonObject, ids: ReadonlyArray<unknown>): void {
   const expandRecord = (record: JsonObject) => {
     for (const key in record) {
@@ -81,8 +79,6 @@ function expandRecordIds(container: JsonObject, ids: ReadonlyArray<unknown>): vo
   }
 }
 
-// `toCodecJson` turns `Schema.Unknown` into a recursive JSON check of the whole
-// tree. The input is parsed JSON and the inner codec validates it anyway.
 const ParsedJson = Schema.declare((_: unknown): _ is unknown => true, {
   toCodecJson: () => undefined,
 });
@@ -102,7 +98,6 @@ export const withRecordIdTable = <S extends Schema.Top>(
     Schema.decodeTo(codec, {
       decode: SchemaGetter.transform((raw: unknown): Encoded => {
         if (!isObject(raw) || !Array.isArray(raw.ids)) return raw as Encoded;
-        // Consumed on the parsed object itself, so decoding it again is a no-op.
         const ids: ReadonlyArray<unknown> = raw.ids;
         delete raw.ids;
         const key = container(raw);

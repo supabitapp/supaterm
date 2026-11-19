@@ -69,7 +69,6 @@ function worktreeCheckHint(
   }`;
 }
 
-/** Require project worktrees so launches cannot target arbitrary host directories. */
 const assertProjectWorktree = Effect.fn("mcp.assertProjectWorktree")(function* (
   workspaceRoot: string,
   worktreePath: string,
@@ -89,7 +88,6 @@ const assertProjectWorktree = Effect.fn("mcp.assertProjectWorktree")(function* (
     });
 });
 
-/** A fixed-length id, so a long key fits in the scratch folder name derived from it. */
 const launchCommandId = Effect.fn("mcp.launchCommandId")(function* (
   namespace: string,
   key: string,
@@ -112,9 +110,6 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
       Effect.gen(function* () {
         const context = yield* readCaller();
         const { caller, scope } = context;
-        // A retry with the same key replays the first launch: the ids derive
-        // from the caller and the key, and the launch service replays a
-        // command it already accepted.
         const commandId =
           input.clientRequestId === undefined
             ? yield* newCommandId()
@@ -149,9 +144,6 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
                 ),
               )).projectId
             : yield* resolveProjectId(context, input.projectId);
-        // A retry of an accepted launch replays it: it keeps the model it started
-        // with and skips the checks only a new launch needs, which the project
-        // may no longer pass, such as a base branch deleted since.
         const launched =
           input.clientRequestId === undefined
             ? null
@@ -202,8 +194,6 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
                   (settings) => resolveProjectSettings(settings, projectId, project).settings,
                 ),
               );
-        // An omitted startFromOrigin follows the new-worktree setting, as the composer and
-        // supaterm_worktree_handoff do. Otherwise a stale local branch silently becomes the base.
         const strategy =
           projectSettings !== undefined &&
           input.workspaceStrategy?.type === "worktree" &&
@@ -213,7 +203,6 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
                 startFromOrigin: projectSettings.newWorktreesStartFromOrigin,
               }
             : input.workspaceStrategy;
-        // Reject unresolved base refs and blocked branch names before accepting a launch; worktree provisioning happens later.
         if (!replaying && strategy?.type === "worktree")
           yield* ThreadLaunch.ThreadLaunchService.pipe(
             Effect.flatMap((launches) =>
@@ -227,9 +216,6 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
                 }),
             ),
           );
-        // A caller outside a thread has nothing to inherit, so it starts with the
-        // project's effective defaults, as the composer does. Its mode stays
-        // within the ceiling it was approved with.
         const projectDefaults = caller === undefined ? projectSettings : undefined;
         const modelSelection =
           input.modelSelection ??
@@ -345,7 +331,6 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
     Effect.gen(function* () {
       const projects = yield* Project.ProjectService;
       if (workspaceRoot === undefined) {
-        // Only updates record model defaults; reject defaults that creation would silently drop.
         if (
           input.scripts !== undefined ||
           input.createWorkspaceRootIfMissing !== undefined ||
@@ -413,7 +398,6 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
   supaterm_project_clone: McpToolAccess.writesEnvironment((input) =>
     Effect.gen(function* () {
       const repositories = yield* Repositories.SourceControlRepositoryService;
-      // Agents' MCP calls have their own long budget, and an aborted call interrupts git.
       return yield* repositories.cloneRepository(input, { timeoutMs: null }).pipe(
         Effect.mapError(
           (error) =>

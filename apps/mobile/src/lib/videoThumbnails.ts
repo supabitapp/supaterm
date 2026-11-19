@@ -17,13 +17,10 @@ async function extractFrame(uri: string) {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   let attachedSubscription: { remove(): void } | undefined;
   try {
-    // Never play or change audio settings: thumbnails must leave the shared audio session alone.
     player.bufferOptions = { preferredForwardBufferDuration: 1 };
     const timedOut = new Promise<null>((resolve) => {
       timeout = setTimeout(() => resolve(null), 15_000);
     });
-    // iOS resolves replaceAsync before the main thread attaches the item, and until then
-    // generateThumbnailsAsync finds no asset and returns no frames.
     const attached = new Promise<void>((resolve) => {
       attachedSubscription = player.addListener("sourceChange", ({ source }) => {
         if (source) resolve();
@@ -68,8 +65,6 @@ export function loadVideoThumbnail(
       if (!source) return null;
       try {
         if (signal.aborted) return null;
-        // A started extraction finishes even if its reader leaves: its requests are already in
-        // flight, and a re-signed URL for the same video replaces the reader, not the frame.
         const thumbnail = await extractFrame(source.uri);
         if (!thumbnail) return null;
         thumbnails.set(key, thumbnail);

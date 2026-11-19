@@ -1,4 +1,3 @@
-/** The free tier refuses deny-all sessions. */
 import type { ProviderReplayEntry } from "@supaterm/contracts";
 
 export const OPENCODE2_TITLE_GENERATION: ReadonlyArray<ProviderReplayEntry> = [

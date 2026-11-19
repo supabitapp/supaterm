@@ -37,7 +37,6 @@ function normalizePathSegments(pathValue: string): string[] {
 }
 
 function compareByName(a: { name: string }, b: { name: string }): number {
-  // Defer ICU initialization until the first name comparison.
   sortCollator ??= new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
   return sortCollator.compare(a.name, b.name);
 }

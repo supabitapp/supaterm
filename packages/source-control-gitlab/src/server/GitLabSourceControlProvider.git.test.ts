@@ -163,7 +163,6 @@ it.effect("ignores unavailable or non-regular GitLab default templates", () =>
       yield* git("commit", "-m", "Add a blank default");
       expect(yield* readTemplate()).toEqual(Option.none());
 
-      // Index modes exercise committed symlinks and submodules even on hosts without symlinks.
       const blob = yield* git("rev-parse", "HEAD:README.md");
       yield* git("update-index", "--cacheinfo", "120000", blob, DEFAULT_TEMPLATE);
       yield* git("commit", "-m", "Replace default with a symlink");

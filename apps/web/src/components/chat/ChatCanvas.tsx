@@ -21,11 +21,9 @@ function panelWidthTransitions(element: HTMLElement) {
   );
 }
 
-// Sample only the layout panels; seeking unrelated transitions can change their lifecycle.
 function measureTransitionWidths(element: HTMLElement, transitions: CSSTransition[]) {
   if (transitions.length === 0) return null;
   const times = transitions.map((animation) => animation.currentTime);
-  // Opposite panel transitions can reach their widest points at different times.
   for (const animation of transitions) {
     const end = Number(animation.effect?.getComputedTiming().endTime ?? 0);
     animation.currentTime = 0;
@@ -71,7 +69,6 @@ export function ChatCanvas({
       ? element.querySelector<HTMLElement>("[data-thread-find-bar]")
       : null;
     let disposed = false;
-    // Seeking forces layout, so it runs once when a transition starts, not every frame.
     let transitionWidths: ReturnType<typeof measureTransitionWidths> = null;
     const measure = () => {
       const width = element.clientWidth;
@@ -88,7 +85,6 @@ export function ChatCanvas({
           );
         }
         transitionWidths = settling;
-        // The last resize can arrive while the transitions still count as running.
         if (settling) {
           void Promise.allSettled(settling.transitions.map((animation) => animation.finished)).then(
             () => {

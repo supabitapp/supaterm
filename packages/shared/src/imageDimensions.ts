@@ -89,20 +89,17 @@ function readJpeg(bytes: Uint8Array): ImageDimensions | null {
       offset += 1;
       continue;
     }
-    // Exclude arithmetic-coding and Huffman-table markers from the frame-header range.
     if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
       const height = data.getUint16(offset + 5);
       const width = data.getUint16(offset + 7);
       return rotated ? { width: height, height: width } : { width, height };
     }
     if (marker === 0xd9 || marker === 0xda) return null;
-    // TEM and the restart markers stand alone, with no length field.
     if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
       offset += 2;
       continue;
     }
     const length = data.getUint16(offset + 2);
-    // EXIF rotation swaps the displayed axes.
     if (marker === 0xe1 && !rotated) {
       rotated = exifOrientationSwapsAxes(bytes, offset + 4, offset + 2 + length);
     }

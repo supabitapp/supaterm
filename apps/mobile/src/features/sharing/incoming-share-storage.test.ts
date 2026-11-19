@@ -53,14 +53,12 @@ const fileSystemMocks = vi.hoisted(() => {
     }
 
     moveSync(destination: File): void {
-      // Expo removes the destination before attempting the native move.
       files.delete(destination.name);
       record();
       if (destination.name.endsWith(failRelocationTo) && failRelocationTo) {
         failRelocationTo = "";
         throw new Error("move failed after destination removal");
       }
-      // Android can fall back to copy-and-delete after native moves fail.
       files.set(destination.name, files.get(this.name)!.slice(0, 1));
       record();
       if (failRelocationTo === "partial") {
@@ -224,7 +222,6 @@ describe("incoming share storage", () => {
       ).rejects.toBeInstanceOf(IncomingShareStorageError);
       await expect(loadIncomingShareDrafts({ strict: true })).resolves.toEqual([VALID_DRAFT]);
 
-      // A second failed write must not damage a backup left by the failed move.
       fileSystemMocks.failNextWrite();
       await expect(writeIncomingShareDraft(VALID_DRAFT)).rejects.toBeInstanceOf(
         IncomingShareStorageError,

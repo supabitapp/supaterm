@@ -19,20 +19,15 @@ interface MarkdownRendererOptions {
   readonly urlTransform: MarkdownUrlTransform;
 }
 
-// Elements are immutable, so a remount (a thread switch, a row scrolled back into view)
-// reuses one instead of parsing again. Parsing is most of the cost of rendering markdown.
-// An element and the hast it keeps hold about 20 bytes per source character, so ~10 MB.
 const MAX_CACHED_CHARS = 500_000;
 const rendered = new Map<string, ReactElement>();
 let cachedChars = 0;
 let nextRendererId = 0;
 
-// A short block still holds a whole element tree.
 const ENTRY_OVERHEAD_CHARS = 200;
 const entrySize = (key: string) => key.length + ENTRY_OVERHEAD_CHARS;
 
 function remember(key: string, element: ReactElement) {
-  // One huge message would otherwise evict everything else.
   if (entrySize(key) > MAX_CACHED_CHARS / 4) return;
   rendered.set(key, element);
   cachedChars += entrySize(key);
@@ -59,7 +54,6 @@ export function createMarkdownRenderer({
     .freeze();
   const keyPrefix = `${nextRendererId++}\u0000`;
 
-  // Literal raw HTML that survived the rehype plugins, and URL attributes, as react-markdown treats them.
   const prepare = (node: Nodes) => {
     if (!("children" in node)) return;
     const { children } = node;
@@ -86,7 +80,6 @@ export function createMarkdownRenderer({
     const key = keyPrefix + text;
     const cached = rendered.get(key);
     if (cached !== undefined) {
-      // Refresh its place in the eviction order.
       rendered.delete(key);
       rendered.set(key, cached);
       return cached;

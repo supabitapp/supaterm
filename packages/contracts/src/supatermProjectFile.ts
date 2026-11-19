@@ -13,7 +13,6 @@ export const SUPATERM_PROJECT_FILE_SCHEMA_URL = "https://supaterm.com/schema/sup
 const SUPATERM_PROJECT_FILE_PATH_MAX_LENGTH = 512;
 const SUPATERM_PROJECT_FILE_MAX_SCRIPTS = 50;
 
-// Encoded-side annotations survive into JSON Schema; decoding still trims and rejects empty strings.
 const trimmedNonEmpty = (annotations: { readonly description: string }, maxLength?: number) => {
   const annotated = Schema.String.annotate(annotations);
   const encoded =
@@ -131,7 +130,6 @@ export const PROJECT_FILE_BACKED_SETTINGS = {
   defaultThreadEnvMode: { field: "defaultThreadEnvMode", builtIn: "local" },
   worktreeSubmodules: { field: "worktreeSubmodules", builtIn: "recursive" },
 } as const satisfies {
-  // providerInstances overrides individual fields, so it cannot use whole-setting file inheritance.
   readonly [K in ProjectScopedServerSettingKey & keyof ServerSettings]?: {
     readonly field: {
       readonly [F in keyof SupatermProjectFile]: SupatermProjectFile[F] extends

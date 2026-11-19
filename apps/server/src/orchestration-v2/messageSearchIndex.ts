@@ -3,7 +3,6 @@ import { ATTACHMENT_ONLY_BOOTSTRAP_PROMPT } from "@supaterm/shared/composerConte
 import * as Effect from "effect/Effect";
 import type * as SqlClient from "effect/sql/SqlClient";
 
-// SQLite's ltrim needs the characters matched by isAttachmentOnlyBootstrapPrompt's \s explicitly.
 const BOOTSTRAP_PREFIX_WHITESPACE =
   "\t\n\v\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff";
 
@@ -41,15 +40,11 @@ export const indexedMessageCondition = (sql: SqlClient.SqlClient, row = "message
   AND ${nonPlaceholderMessageCondition(sql, row)}
 `;
 
-// Curly apostrophes straight, as search folds a query, since iOS keyboards
-// type "’" and others type "'".
 const foldApostrophes = (text: string) => `replace(replace(${text}, '’', ''''), '‘', '''')`;
 
 const readableText = (row: string) =>
   `COALESCE(${row}.search_text, json_extract(${row}.payload_json, '$.text'))`;
 
-// A file mention stores `__init__.py` as `[\_\_init\_\_.py](...)`; the index
-// holds the label as it reads, so search can find the name as typed.
 const LINK_LABEL = /(!?\[)([^\]\n]*)(\]\([^)\s]*\))/g;
 
 /**
@@ -82,10 +77,6 @@ export const foldedMessageSearchText = (sql: SqlClient.SqlClient, row = "message
 export const indexedMessageText = (sql: SqlClient.SqlClient, payload: string) =>
   sql.literal(foldApostrophes(`json_extract(${payload}, '$.text')`));
 
-// What the index stores: a message's readable text with apostrophes folded.
-// Migrations 2 and 4 create the triggers before migration 10 adds
-// search_text, and `supaterm doctor` can rebuild a database that has not migrated,
-// so those fall back to the stored text.
 const indexedText = Effect.fn("MessageSearchIndex.indexedText")(function* (
   sql: SqlClient.SqlClient,
 ) {
@@ -111,10 +102,6 @@ export const createMessageSearchTriggers = Effect.fn("MessageSearchIndex.createT
         WHERE json_extract(new.payload_json, '$.text') IS NOT NULL;
       END
     `;
-    // Streaming deltas rewrite the row many times a second; skip them until the
-    // message settles. Upserts rewrite every column, so re-index only when what
-    // the index stores changed; migration 10's backfill writes only search_text.
-    // Deleting a rowid the index never held is a no-op.
     yield* sql`
       CREATE TRIGGER orchestration_v2_message_search_update
       AFTER UPDATE ON orchestration_v2_projection_messages
@@ -173,8 +160,6 @@ export const rebuildMessageSearch = Effect.fn("MessageSearchIndex.rebuild")(func
   `;
   if (index.length === 0) return;
   const text = yield* indexedText(sql);
-  // One transaction: an interrupt between clear and refill would leave an
-  // empty index that nothing repairs, since search only checks the table exists.
   yield* sql.withTransaction(
     Effect.gen(function* () {
       yield* sql`

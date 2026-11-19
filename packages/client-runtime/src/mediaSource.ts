@@ -73,8 +73,6 @@ export function resolveMediaSource(
     classified._tag === "Direct"
       ? splitMarkdownLinkSearchAndHash(classified.uri).path
       : splitFilePathPosition(classified.path).path;
-  // Local paths have already been decoded. Do not interpret literal #, ?, or % characters again.
-  // A data URI carries no file name; its last path segment is the payload.
   const basename = /^data:/i.test(path) ? "" : fileBasename(path);
   const extensionIndex = basename.lastIndexOf(".");
   const detectedMimeType =

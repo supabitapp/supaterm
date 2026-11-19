@@ -35,11 +35,9 @@ export interface FileSaveSessionDeps {
 
 interface FileSaveSession {
   readonly coordinator: FileSaveCoordinator;
-  /** Lease count per listener; surfaces may share one listener. */
   readonly listeners: Map<FilePendingListener, number>;
   readonly unsubscribeWritable: () => void;
   leases: number;
-  /** The last release flushed, and the session stays open until that settles. */
   flushingOnRelease: boolean;
 }
 
@@ -63,8 +61,6 @@ export function createFileSaveSessions(deps: FileSaveSessionDeps) {
     const coordinator: FileSaveCoordinator = new FileSaveCoordinator({
       debounceMs: deps.debounceMs,
       canPersist: () => deps.canPersist(target),
-      // The last surface's listeners outlive it: a flush that settles after
-      // the session is released still has to clear the pending marker.
       onPendingChange: (pending) => {
         for (const listener of listeners.keys()) listener(target.relativePath, pending);
       },
@@ -77,7 +73,6 @@ export function createFileSaveSessions(deps: FileSaveSessionDeps) {
           if (sessions.get(key) === session) sessions.delete(key);
           session.unsubscribeWritable();
         } else if (coordinator.unconfirmedContents !== null) {
-          // A surface rejoined while the release flush failed; retry it once.
           recover(target, coordinator);
         }
       },
@@ -122,9 +117,7 @@ export function createFileSaveSessions(deps: FileSaveSessionDeps) {
   };
 
   return {
-    /** Holds the file's session open until the returned release runs. */
     acquire,
-    /** Edits for a file nobody holds open are dropped, so retired editors stay inert. */
     change(target: FileSaveTarget, contents: string): void {
       const session = sessions.get(fileSaveKey(target));
       if (session && session.leases > 0) session.coordinator.change(contents);

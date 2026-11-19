@@ -104,7 +104,6 @@ export const renderCliShim = (input: {
     '  (cd "$work" && "$app" --appimage-extract >/dev/null) || { echo "Could not open $app." >&2; exit 1; }',
     '  mount="$work/squashfs-root"',
     "fi",
-    // The runtime sets this when it launches the app; the CLI skips its path-keyed compile cache on it.
     'export APPIMAGE="$app"',
     run("$mount"),
     "",

@@ -150,7 +150,6 @@ export function visibleConversationItems(
 
 type ForkHistorySource = Pick<OrchestrationV2ThreadProjection, "thread" | "runs" | "attempts">;
 
-/** Visible rows of `source`'s own runs through `throughRun`, plus its v1 imported rows. */
 const readOwnHistoryItems = Effect.fn("orchestrationV2.contextHandoff.readOwnHistoryItems")(
   function* (
     projectionStore: Pick<ProjectionStoreV2Shape, "getThreadRecords">,
@@ -263,7 +262,6 @@ export function makeSideChatContext(input: {
   const footer = `Use supaterm_thread_read on thread ${input.parentThreadId} to see the main thread's live state.`;
   const kept: Array<string> = [];
   let omitted = false;
-  // The cap covers the whole block, so the fixed lines are reserved before any digest line.
   let remaining =
     SIDE_CHAT_CONTEXT_MAX_CHARS - [framing, "", header, truncated, "", footer].join("\n").length;
   for (let index = input.digest.length - 1; index >= 0; index--) {

@@ -30,14 +30,9 @@ import {
 function keepScreenAwake(tag: string): () => void {
   const activation = activateKeepAwakeAsync(tag);
   void activation.catch(() => {});
-  // Release after activation settles, even if the recording ends immediately.
   return () => void activation.then(() => deactivateKeepAwake(tag)).catch(() => {});
 }
 
-/**
- * The app has one microphone and one dictation at a time, so the session
- * lives for the registry's lifetime rather than any screen's.
- */
 const voiceInputAtom = Atom.make((get) => {
   const audioLevels = makeMutable<ReadonlyArray<number>>(
     Array<number>(VOICE_WAVEFORM_SAMPLE_COUNT).fill(0),
@@ -93,16 +88,12 @@ const voiceInputAtom = Atom.make((get) => {
     publishAudioLevels: (levels) => audioLevels.set(levels),
     keepAwake: () => keepScreenAwake(`voice-input:${++keepAwakeSequence}`),
   });
-  // iOS reports `inactive` while its permission dialog is open. Only the real
-  // background state cancels preparation; recorder status handles calls and
-  // route interruptions during capture.
   const appStateSubscription = AppState.addEventListener("change", (nextState) => {
     if (nextState === "background") void session.controller.appMovedToBackground();
   });
   let phase = session.getSnapshot().state.phase;
   const finishSubscription = session.subscribe(() => {
     const next = session.getSnapshot().state.phase;
-    // The audio session is released before transcription, so iOS plays this.
     if ((phase === "transcribing" || phase === "sending") && next === "idle") {
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }

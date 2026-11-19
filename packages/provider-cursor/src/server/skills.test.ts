@@ -192,7 +192,6 @@ describe("Cursor skills", () => {
         yield* fileSystem.writeFileString(path.join(root, "a-large", "SKILL.md"), "---\n---\n");
         yield* fileSystem.makeDirectory(path.join(root, "b-small"), { recursive: true });
         yield* fileSystem.writeFileString(path.join(root, "b-small", "SKILL.md"), "---\n---\n");
-        // More ordinary files than the whole-scan entry budget of 10,000.
         yield* Effect.forEach(
           Array.from({ length: 11_000 }, (_, index) => path.join(artifacts, `file-${index}.txt`)),
           (file) => fileSystem.writeFileString(file, ""),

@@ -55,7 +55,6 @@ interface FakeCodexInput {
   stdinMustContain?: string;
   stdinMustNotContain?: string;
   mcpServers?: ReadonlyArray<{ name: string; enabled: boolean }> | number;
-  /** `codex mcp list` exits 7 without this argument. */
   mcpListRequireArg?: string;
   requiredCwd?: string;
   requireInstructions?: string;
@@ -616,7 +615,6 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
       },
       (textGeneration) =>
         Effect.gen(function* () {
-          // Background fibers can outlive request scopes; temp files scoped there would be reaped on creation.
           const closedScope = yield* Scope.make();
           yield* Scope.close(closedScope, Exit.void);
 

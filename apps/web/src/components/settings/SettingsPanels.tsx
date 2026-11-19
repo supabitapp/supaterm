@@ -133,15 +133,12 @@ function AboutVersionSection() {
       environmentIdsKey(environments.map(({ environmentId }) => environmentId)),
     ),
   );
-  // A second run would replace the first run's progress and local download.
   const updateRun = useUpdateEverythingRun();
   const checkProviderUpdates = useCheckProviderUpdates();
 
   const hasDesktopBridge = typeof window !== "undefined" && Boolean(window.desktopBridge);
   const selectedUpdateChannel = updateState?.channel ?? "latest";
   const selectedHostedAppChannel = hasDesktopBridge ? null : HOSTED_APP_CHANNEL;
-  // A switch that failed part way leaves this app or a server on the other track.
-  // With its updater off, a switch cannot move this app, so it is not counted.
   const appOffTrack =
     updateState?.enabled !== false && desktopUpdateChannelOf(APP_VERSION) !== selectedUpdateChannel;
   const unswitchedMachines =
@@ -249,7 +246,6 @@ function AboutVersionSection() {
   const statusLabel: Record<string, string> = {
     checking: "Checking…",
     downloading: "Downloading…",
-    // Off its track, "up to date" only means no switch is pending; Review moves it.
     ...(appOffTrack ? {} : { "up-to-date": "Up to Date" }),
   };
   const buttonLabel =
@@ -293,7 +289,6 @@ function AboutVersionSection() {
                   ? "1 machine still runs"
                   : `${unswitchedMachines} machines still run`}{" "}
                 {channelSwitchLabel(selectedUpdateChannel === "nightly" ? "latest" : "nightly")}.{" "}
-                {/* The dialog moves what it can and says why it skips the rest. */}
                 <Button
                   size="xs"
                   variant="link"
@@ -548,8 +543,6 @@ export function useSettingsRestore(onRestored?: () => void) {
     );
     if (!confirmed) return;
 
-    // Reset only dirty theme keys so storage failures cannot block other settings; re-read after confirmation
-    // for safe rollback.
     let previousTheme = theme;
     try {
       previousTheme = readThemePreference();
@@ -567,7 +560,6 @@ export function useSettingsRestore(onRestored?: () => void) {
         }),
       );
     };
-    // Restore the base preference before the mix because restoring the base clears the mix.
     const previousHalves = liveHalves;
     const rollbackThemeState = () => {
       if (needsThemeReset) setTheme(previousTheme);

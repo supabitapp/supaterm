@@ -53,7 +53,6 @@ export const ThreadTokenUsageSnapshot = Schema.Struct({
 });
 export type ThreadTokenUsageSnapshot = typeof ThreadTokenUsageSnapshot.Type;
 
-// Input includes cache reads/writes; output includes the optional reasoningTokens subset.
 const TurnTokenUsageCommonFields = {
   usageScope: Schema.Literal("main_agent"),
   cachedInputTokens: Schema.optional(NonNegativeInt),

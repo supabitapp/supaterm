@@ -39,7 +39,6 @@ const runStep = Effect.fn("browserSetup.runStep")(function* (
   }
 });
 
-/** Under sudo, an unspecified home uses the invoking user's ~/.supaterm. */
 const setupBaseDir = Effect.fn("browserSetup.baseDir")(function* (explicit: Option.Option<string>) {
   const env = yield* HostProcess.Environment;
   const raw = Option.getOrUndefined(explicit) ?? env.SUPATERM_HOME;
@@ -114,22 +113,18 @@ const browserSetupCommand = Command.make("setup", { baseDir: baseDirFlag }).pipe
       const isRoot = (yield* HostProcess.UserId) === 0;
       const env = yield* HostProcess.Environment;
       const baseDirPath = yield* setupBaseDir(baseDir);
-      // sudo resets the environment, so a chosen home has to be on the command line.
       const setupCommand = yield* resolveRootCliCommand(
         PreviewBrowserHost.SETUP_SUBCOMMAND,
         Option.isSome(baseDir) || env.SUPATERM_HOME !== undefined
           ? ["--base-dir", baseDirPath]
           : [],
       );
-      // Root, unless sudo came from another user, is likely the server's own account.
       const rootWarning =
         isRoot && (env.SUDO_USER ?? "root") === "root" && !PreviewBrowserHost.sandboxDisabled(env)
           ? new PreviewBrowserHost.PreviewBrowserRootError().message
           : undefined;
 
       const restricted = yield* PreviewBrowserHost.usernsRestricted;
-      // The kernel can lack a profile that is on disk, as on a host restored from an image,
-      // and only root can read the loaded list, so root reloads it on every run.
       const needsProfile = isRoot ? restricted : yield* PreviewBrowserHost.sandboxBlocked;
       const reloadHint =
         restricted && !isRoot
@@ -172,7 +167,6 @@ const browserSetupCommand = Command.make("setup", { baseDir: baseDirFlag }).pipe
       }
 
       if (needsProfile) {
-        // An existing profile may carry an administrator's edits, so it is reloaded as is.
         const profileOnDisk = yield* fs
           .exists(PreviewBrowserHost.APPARMOR_PROFILE_PATH)
           .pipe(Effect.orElseSucceed(() => false));

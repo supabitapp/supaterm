@@ -368,7 +368,6 @@ export function primaryRemoteUrl(output: string) {
     if (!match?.[1] || !match[2]) return null;
     if (match[3] === "fetch" && !remotes.has(match[1])) remotes.set(match[1], match[2]);
   }
-  // Match the provider context SourceControlProviderRegistry binds, and `az`'s own detection.
   return (
     remotes.get("origin") ??
     [...remotes.values()].find((url) => scopeFromRemoteUrl(url) !== null) ??
@@ -404,14 +403,12 @@ function scopeFromRemoteUrl(remote: string) {
     } else return null;
     const [project, repository] = parts;
     if (!organization || !project || !repository) return null;
-    // `az` replaces a value starting with `@` by the contents of that local file.
     if ([organization, project, repository].some((part) => /^@|[\p{Cc}/\\]/u.test(part))) {
       return null;
     }
     if (legacy && !/^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/u.test(organization))
       return null;
     return {
-      // az keys organization-scoped credentials by the original host family.
       organization: legacy
         ? `https://${organization}.visualstudio.com`
         : `https://dev.azure.com/${encodeURIComponent(organization)}`,
@@ -429,7 +426,6 @@ const remoteOf = (input: { readonly remoteUrl?: string }) =>
 const hasOption = (args: ReadonlyArray<string>, pattern: RegExp) =>
   args.some((arg) => pattern.test(arg));
 
-/** Whether `az` would run `--detect true`, which inspects the checkout from wherever `az` runs. */
 const detectsScope = (args: ReadonlyArray<string>) => {
   const detect = args.indexOf("--detect");
   return (
@@ -449,14 +445,12 @@ export function scopeAzureCliArgs(
   if (!scope) return args;
   const scoped = [...args, "--organization", scope.organization];
   scoped[args.indexOf("--detect") + 1] = "false";
-  // PR-ID commands and devops invoke accept only organization scope.
   const acceptsProject =
     args[0] === "repos" &&
     (args[1] === "show" ||
       args[1] === "create" ||
       (args[1] === "pr" && (args[2] === "list" || args[2] === "create")));
   if (!acceptsProject) return scoped;
-  // Joined so a name starting with `-` stays the option's value.
   if (!hasOption(args, /^(?:--project|-p)(?:=|$)/u)) scoped.push(`--project=${scope.project}`);
   if (args[1] !== "create" && !hasOption(args, /^(?:--repository|-r)(?:=|$)/u)) {
     scoped.push(`--repository=${scope.repository}`);
@@ -469,7 +463,6 @@ const classifyAzFailure = (stderr: string): VcsProcessExitFailureKind | null => 
   if (normalized.includes("az devops login") || /please run '?az login'?/.test(normalized)) {
     return "authentication";
   }
-  // Azure DevOps reports usage-limit throttling as TF400733, often without an HTTP status.
   if (normalized.includes("tf400733")) return "rate-limited";
   return normalized.includes("pull request") &&
     (normalized.includes("not found") || normalized.includes("does not exist"))
@@ -497,13 +490,11 @@ export const azureCliInvocation = Effect.fn("AzureDevOpsCli.invocation")(functio
   const launcher = resolveExecutable("az", "win32", yield* HostProcess.Environment);
   const installFor = yield* AzureCliInstallLocation;
   const install = launcher === undefined ? undefined : installFor(launcher);
-  // Unrecognized installs (pipx's Scripts\az.exe) keep the launcher and today's decode.
   return install === undefined
     ? ({ command: "az", args: [] } satisfies AzureCliInvocation)
     : ({
         command: install.interpreter,
         args: ["-X", "utf8", "-IBm", "azure.cli"],
-        // What the launcher sets before running this same interpreter.
         env: { AZ_INSTALLER: install.installer },
       } satisfies AzureCliInvocation);
 });
@@ -526,7 +517,6 @@ export const make = Effect.gen(function* () {
     function* (input) {
       let args = input.args;
       if (detectsScope(args)) {
-        // Windows az running in WSL cannot inspect the server's Linux checkout.
         const remoteUrl =
           input.remoteUrl ??
           (yield* process
@@ -596,7 +586,6 @@ export const make = Effect.gen(function* () {
     execute,
     listPullRequests: Effect.fn("AzureDevOpsCli.listPullRequests")(function (input) {
       const branch = SourceControlProvider.sourceBranch(input);
-      // az checks literal ref prefixes before constructing the request URL.
       const refPrefix =
         ["refs/heads/", "refs/pull/", "refs/tags/"].find((prefix) => branch.startsWith(prefix)) ??
         "";
@@ -610,7 +599,6 @@ export const make = Effect.gen(function* () {
           "--detect",
           "true",
           "--source-branch",
-          // az puts this in the query string unescaped; a `#` would cut the request.
           refPrefix + encodeURIComponent(branch.slice(refPrefix.length)),
           "--status",
           toAzureStatus(input.state),
@@ -707,7 +695,6 @@ export const make = Effect.gen(function* () {
     }),
     createRepository: Effect.fn("AzureDevOpsCli.createRepository")(function (input) {
       const repository = parseRepositorySpecifier(input.repository);
-      // Project/organization permissions control visibility; `az repos create` has no flag.
       return executeJson({
         cwd: input.cwd,
         args: [
@@ -728,7 +715,6 @@ export const make = Effect.gen(function* () {
       );
     }),
     createPullRequest: Effect.fn("AzureDevOpsCli.createPullRequest")(function (input) {
-      // A full ref keeps a branch named `@...` from reading as a file; az accepts either form.
       const branch = (name: string) => (name.startsWith("@") ? `refs/heads/${name}` : name);
       const title = textOption("--title", input.title);
       return execute({
@@ -744,7 +730,6 @@ export const make = Effect.gen(function* () {
           `--target-branch=${branch(input.target?.refName ?? input.baseBranch)}`,
           `--source-branch=${branch(SourceControlProvider.sourceBranch(input))}`,
           title.arg,
-          // Joined: az expands a separate `@file` value again, so a body of `@path` read that file.
           `--description=@${input.bodyFile}`,
         ],
         ...(title.stdin === undefined ? {} : { stdin: title.stdin }),
@@ -760,7 +745,6 @@ export const make = Effect.gen(function* () {
           "show",
           "--detect",
           "true",
-          // Joined so a name starting with `-` stays the option's value.
           `--repository=${repository.name}`,
           ...(repository.project ? ["--project", repository.project] : []),
         ],

@@ -59,8 +59,6 @@ export function SidebarThreadListMenu({
         <MenuSub>
           <MenuSubTrigger>
             <span className="flex-1">Grouping</span>
-            {/* Every label shares one cell so the popup keeps the widest one's
-                width: a resize re-runs collision flipping and moves the menu. */}
             <span className="ml-6 grid justify-items-end text-muted-foreground">
               {THREAD_GROUPING_OPTIONS.map((option) => (
                 <span

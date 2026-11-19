@@ -28,7 +28,6 @@ function cssColor(color: GhosttyColor): string {
 }
 
 function sameTextStyle(left: GhosttyCell, right: GhosttyCell): boolean {
-  // Selection only tints the background; splitting text runs shifts glyph spacing when advances differ from cell width.
   return (
     ghosttyColorsEqual(left.foreground, right.foreground) &&
     left.bold === right.bold &&
@@ -63,8 +62,6 @@ function fillSolidPowerlineSeparator(
     context.beginPath();
     context.ellipse(base, middle, width, height / 2, 0, start, start + Math.PI);
     context.closePath();
-    // Overlap the segment this cap closes so anti-aliasing at a fractional
-    // cell edge does not leave a hairline seam.
     context.rect(Math.min(base, base + inward * seamOverlap), top, seamOverlap, height);
     context.fill();
     return;
@@ -97,13 +94,10 @@ function ghosttyTextRunEnd(
   return end;
 }
 
-// Snapshots decode `wide` only for empty cells, so a wide glyph is known by its spacer tail.
 function isWideGlyph(cells: readonly GhosttyCell[], index: number): boolean {
   return cells[index + 1]?.wide === GHOSTTY_CELL_WIDE.spacerTail;
 }
 
-// Wide glyphs rarely advance exactly two cells, so each is centred in its own box
-// and the narrow text after it restarts at its own column instead of drifting.
 function fillGhosttyRunText(
   context: CanvasRenderingContext2D,
   cells: readonly GhosttyCell[],
@@ -146,7 +140,6 @@ function fillGhosttyRunText(
   }
 }
 
-// Draws in the current fill style, so a block cursor can redraw them in its text colour.
 function fillCellDecorations(
   context: CanvasRenderingContext2D,
   cell: GhosttyCell,
@@ -230,8 +223,6 @@ export function renderGhosttySnapshot(options: {
   const selectionBackground = options.selectionBackground ?? DEFAULT_SELECTION_BACKGROUND;
   const hoveredLinkRange = options.hoveredLinkRange ?? null;
   const originY = options.originY ?? padding;
-  // Rows start on whole device pixels and clear the full canvas width, so repainting
-  // a row replaces every pixel the last frame drew in it, including a cursor's edges.
   const transform = context.getTransform();
   const rowTop = (row: number) =>
     Math.round((originY + row * metrics.height) * transform.d) / transform.d;

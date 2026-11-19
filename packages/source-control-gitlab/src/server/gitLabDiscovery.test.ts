@@ -24,7 +24,6 @@ Logged in to gitlab.com as gitlab-user
   assert.deepStrictEqual(auth.account, Option.some("gitlab-user"));
 });
 
-// Without `--all`, glab 1.79+ checks only the current host unless that is gitlab.com.
 it.effect("reports a signed-in host when glab's default host is signed out", () =>
   Effect.gen(function* () {
     const defaultHostOnly = `gitlab.gnome.org

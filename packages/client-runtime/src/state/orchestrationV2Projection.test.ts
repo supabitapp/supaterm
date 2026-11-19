@@ -359,7 +359,6 @@ describe("applyOrchestrationV2ProjectionEvent", () => {
       } as OrchestrationV2DomainEvent,
     );
 
-    // Equal ordinals order by id, so item-a stays ahead of item-b.
     expect(next?.visibleTurnItems.map((row) => [row.item.id, row.position])).toEqual([
       ["item-inherited", 0],
       ["item-a", 1],
@@ -574,7 +573,6 @@ describe("applyOrchestrationV2ProjectionEvent", () => {
     const requeued = apply(accepted, [event("run.updated", queuedRun), queuedSteer]);
     expect(visibleIds(requeued)).toEqual([reply.id]);
 
-    // Servers publish the start's user item and run update in either order.
     const starting = event("run.updated", { ...queuedRun, status: "starting" });
     const dispatchedSteer = event("turn-item.updated", {
       ...steer,
@@ -586,8 +584,6 @@ describe("applyOrchestrationV2ProjectionEvent", () => {
     const cancelled = event("run.updated", { ...queuedRun, status: "cancelled" });
     expect(visibleIds(apply(requeued, [cancelled]))).toEqual([reply.id]);
 
-    // A bounded snapshot taken while queued omits the hidden item, and the
-    // newer reply puts it below the watermark.
     const bounded = {
       ...requeued!,
       turnItems: requeued!.turnItems.filter((item) => item.id !== steer.id),
@@ -604,7 +600,6 @@ describe("applyOrchestrationV2ProjectionEvent", () => {
     const retained = apply(bounded, [failedSteer], partial);
     expect(visibleIds(retained)).toEqual([reply.id]);
     expect(visibleIds(apply(retained, [failed], partial))).toEqual([steer.id, reply.id]);
-    // Leaving the queue never invents an item the client did not receive.
     expect(visibleIds(apply(bounded, [failed], partial))).toEqual([reply.id]);
   });
 
@@ -877,7 +872,6 @@ describe("provider-thread.updated", () => {
     } as OrchestrationV2DomainEvent);
 
   it("moves the thread's active provider thread to the new one", () => {
-    // The shell already knows the old thread, as it would after a provider switch.
     const projection = applyOrchestrationV2ProjectionEvent(emptyProjection, {
       id: "event-previous-thread",
       type: "provider-thread.updated",

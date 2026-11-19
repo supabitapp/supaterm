@@ -6,7 +6,6 @@ import { render as renderUi } from "../../../test/render";
 import { createIncrementalHighlightedDocument } from "../../lib/incrementalHighlighting";
 import { HighlightedCodeLines } from "./HighlightedCodeLines";
 
-// React writes inline styles through CSSOM, so normalize Shiki's style strings the same way.
 function normalizedHtml(html: string) {
   const host = document.createElement("div");
   host.innerHTML = html;

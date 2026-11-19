@@ -123,7 +123,6 @@ function writableQueryFamily<A, E>(
   return normalizePullRequestQuery((target) => writable(family(target)));
 }
 
-/** Restart pre-mutation reads before patching so they cannot restore stale values. */
 function updateCached<A, E>(
   registry: AtomRegistry.AtomRegistry,
   shown: Atom.Writable<AsyncResult.AsyncResult<A, E>>,
@@ -136,7 +135,6 @@ function updateCached<A, E>(
 }
 
 interface ActionReplyPatch {
-  /** The read this reader is waiting on, if any. */
   readonly pendingRead: (registry: AtomRegistry.AtomRegistry) => object | undefined;
   readonly apply: (
     registry: AtomRegistry.AtomRegistry,
@@ -147,7 +145,6 @@ interface ActionReplyPatch {
   ) => Effect.Effect<void>;
 }
 
-// Module-wide so readers built by separate factories, such as linked summaries, are patched too.
 const actionReplyPatches = new WeakMap<object, ActionReplyPatch>();
 
 /** What a write in flight will change, shown by every reader until the host answers. */
@@ -176,7 +173,6 @@ interface EditableReader {
   ) => unknown;
 }
 
-// Module-wide like the reply patches, so separately built readers see the same writes.
 export const pullRequestPendingEditsAtom = Atom.family((_environmentId: EnvironmentId | null) =>
   Atom.make<ReadonlyArray<PullRequestPendingEdit>>([]).pipe(Atom.keepAlive),
 );
@@ -270,10 +266,6 @@ function withLabelCandidateEdit(
   return changed ? { ...value, candidates } : value;
 }
 
-/**
- * The reader with every write in flight for its pull request applied. Writes go to the reader
- * underneath, so a refused edit never stays behind in what the host said.
- */
 function editedQuery<A, E>(
   inner: Atom.Writable<AsyncResult.AsyncResult<A, E>>,
   reader: Omit<EditableReader, "edit"> & {
@@ -307,7 +299,6 @@ function editedQuery<A, E>(
   return shown;
 }
 
-/** Shows the command's edit from the click until it settles, queued behind others or not. */
 function showWhileInFlight<Target extends { readonly environmentId: EnvironmentId }, A, E, C>(
   command: C & AtomCommand<Target, A, E>,
   editOf: (registry: AtomRegistry.AtomRegistry, target: Target) => PullRequestPendingEdit | null,
@@ -328,7 +319,6 @@ function showWhileInFlight<Target extends { readonly environmentId: EnvironmentI
   } satisfies AtomCommand<Target, A, E>;
 }
 
-/** Keeps an accepted edit in loaded readers once it stops being in flight. */
 function settleEdit(
   registry: AtomRegistry.AtomRegistry,
   environmentId: EnvironmentId,
@@ -345,7 +335,6 @@ function settleEdit(
     const unchanged =
       Option.isSome(shown) && reader.edit(shown.value, [edit], pending) === shown.value;
     if (unchanged) continue;
-    // A read still waiting may predate the write, unless the caller started it after the commit.
     if (!readsAfterWrite && registry.get(writable).waiting) registry.refresh(writable);
     if (Option.isNone(shown)) continue;
     registry.update(
@@ -366,7 +355,6 @@ function pullRequestReference(input: PullRequestRef): PullRequestRef {
   };
 }
 
-/** What an action changes, left out where only the host knows, as when a queue takes a merge. */
 function actionEdit(input: PullRequestActionInput): PullRequestPendingEdit | null {
   if (input.stackNumber !== undefined) return null;
   const reference = pullRequestReference(input);
@@ -400,7 +388,6 @@ function updateEdit(input: PullRequestUpdateInput): PullRequestPendingEdit | nul
 function samePullRequest(reader: PullRequestRef, acted: PullRequestRef) {
   return (
     reader.projectId === acted.projectId &&
-    // A missing host is not a wildcard: one project can reach the same repository on two hosts.
     reader.host?.toLowerCase() === acted.host?.toLowerCase() &&
     reader.repository.toLowerCase() === acted.repository.toLowerCase() &&
     reader.number === acted.number &&
@@ -565,10 +552,6 @@ function patchListWithReply(
   return entries === value.entries ? value : { ...value, entries };
 }
 
-/**
- * The query atom for one target, writable so an action's reply can replace what it shows. The
- * patch is saved and announced the way an answer would be, so cold starts and snapshots see it.
- */
 function actionPatchedQuery<Input, A, E>(
   source: (target: {
     readonly environmentId: EnvironmentId;
@@ -587,13 +570,9 @@ function actionPatchedQuery<Input, A, E>(
       reply: PullRequestSummary,
       pending: ReadonlyArray<PullRequestPendingEdit>,
     ) => A | "refresh";
-    /** Fields the reply lacks also changed, so the patched value shows while a read fetches them. */
     readonly rereads?: (value: A, reply: PullRequestSummary) => boolean;
-    /** Re-read when the host's reply did not carry the pull request. */
     readonly rereadWithoutReply?: boolean;
-    /** False for reads the refresh stream does not restart; defaults to true. */
     readonly refreshedByServer?: (input: Input) => boolean;
-    /** Shows a write in flight; absent where the reader holds nothing such a write changes. */
     readonly edit?: (
       input: Input,
       value: A,
@@ -635,10 +614,6 @@ function actionPatchedQuery<Input, A, E>(
           if (environmentId !== target.environmentId || !options.concerns(target.input, reference))
             return;
           const pending = pendingRead(registry);
-          // A read sent before the action may miss its result, and so may one sent before the host
-          // committed. The server's post-commit refresh restarts that one, but not a read outside
-          // its stream, whose re-read need not even show as waiting, so a mounted one the reply
-          // changes restarts here.
           const unrefreshed = options.refreshedByServer?.(target.input) === false;
           const freshRead = pending !== undefined && !unrefreshed && !readsBeforeSend.has(pending);
           const reread = () => (freshRead ? undefined : registry.refresh(atom));
@@ -737,7 +712,6 @@ export function createLinkedPullRequestSummaryAtomFamily<R, E>(
       onAnswer,
       idleTtlMs: LINKED_PULL_REQUEST_IDLE_TTL_MS,
       concerns: samePullRequest,
-      // A routed action replies with the destination's project and repository names.
       patch: (_input, value, _reference, reply) =>
         isStalePullRequestReply(value, reply)
           ? value
@@ -786,7 +760,6 @@ export function createPullRequestStackAtomFamily<R, E>(
   }) => JSON.stringify([target.environmentId, target.input]);
   const stack = createEnvironmentRpcQueryAtomFamily(runtime, {
     label: "environment-data:pull-requests:stack",
-    // A saved answer paints at once; `answered` stays false until the host answers.
     persistence: persistQuery(Schema.NullOr(PullRequestStack)),
     tag: WS_METHODS.pullRequestsStack,
     execute: (input) => routedRequest(WS_METHODS.pullRequestsStack, input),
@@ -796,7 +769,6 @@ export function createPullRequestStackAtomFamily<R, E>(
     onAnswer: (target, _value, registry) =>
       Effect.sync(() => registry.set(hostAnswers(answeredKey(target)), true)),
   });
-  /** Whether this session has the host's own answer, which is what merging one layer alone needs. */
   const answered = (target: {
     readonly environmentId: EnvironmentId;
     readonly input: PullRequestRef;
@@ -832,7 +804,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
     label: "environment-data:pull-requests:linked-thread-refreshes",
     tag: WS_METHODS.pullRequestsSubscribeLinkedThreadRefreshes,
   });
-  // Servers without `linkedThreadRefreshes` never signal link changes, so poll them instead.
   const linkedThreadsRefreshes = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get): unknown => {
       const signal = get(refreshes({ environmentId, input: {} }));
@@ -883,7 +854,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
         refreshTrigger: ({ environmentId }) => refreshes({ environmentId, input: {} }),
         onAnswer: (target, value, registry) =>
           Effect.sync(() => {
-            // Cache reads bypass onAnswer, and server freshness stays separate from local readbacks.
             registry.update(detailAnswers(target), (previous) => ({
               value,
               version: (previous?.version ?? 0) + 1,
@@ -896,7 +866,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
         onAnswer: onAnswer.detail,
         concerns: samePullRequest,
         rereadWithoutReply: true,
-        // Reopening or a new head changes branch data and permissions the reply lacks.
         rereads: (value, reply) =>
           !isStalePullRequestReply(value, reply) &&
           ((value.state === "closed" && reply.state === "open") ||
@@ -940,8 +909,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       },
     ),
   );
-  // Pages read the strict detail and other surfaces the default one; patch whichever is loaded
-  // without starting a read of the other.
   const loadedDetails = (
     registry: AtomRegistry.AtomRegistry,
     target: { readonly environmentId: EnvironmentId; readonly input: PullRequestRef },
@@ -981,7 +948,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
           persistence: previewPersistence,
           concerns: samePullRequest,
           rereadWithoutReply: true,
-          // Servers before action replies send unstamped previews, which only a read can order.
           patch: (_input, value, _reference, reply) =>
             value.updatedAt === undefined && value.observedAt === undefined
               ? "refresh"
@@ -1008,8 +974,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       ),
     );
   const preview = previewQuery("environment-data:pull-requests:preview");
-  // Hover cards read their own atoms, so a pending or failed hover read never decides where a
-  // click on the same link goes.
   const previewCard = previewQuery("environment-data:pull-requests:preview-card");
   const labelCandidateQueries = writableQueryFamily(
     createEnvironmentRpcQueryAtomFamily(runtime, {
@@ -1069,7 +1033,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       staleTimeMs: 60_000,
     }),
   );
-  // Asked only when the menu's first page is not everybody, so a query cannot be answered from it.
   const reviewerSearch = createEnvironmentRpcQueryAtomFamily(runtime, {
     label: "environment-data:pull-requests:reviewer-search",
     tag: WS_METHODS.pullRequestsReviewerCandidates,
@@ -1159,7 +1122,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
   });
   const checksLabel = "environment-data:pull-requests:checks";
   const checksPersistence = persistQuery(Schema.NullOr(PullRequestChecks));
-  // Panels take the state from the newest of detail and checks, so checks show writes too.
   const checks = normalizePullRequestQuery(
     actionPatchedQuery(
       createEnvironmentRpcQueryAtomFamily(runtime, {
@@ -1215,8 +1177,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       staleTimeMs: 0,
       refreshTrigger: ({ environmentId }) => linkedThreadsRefreshes(environmentId),
     }),
-    // For callers that open a thread from the answer: a persisted one reads as final before
-    // the connection is known, and a kept one can predate the thread.
     linkedThreadsUncached: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:pull-requests:linked-threads-uncached",
       tag: WS_METHODS.pullRequestsLinkedThreads,
@@ -1237,7 +1197,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
         label: listLabel,
         persistence: listPersistence,
         onAnswer: onAnswer.list,
-        // Rows carry no account scope, so a reply read through another account leaves them alone.
         concerns: (input, reference) =>
           reference.expectedAccountId === undefined &&
           (input.projectId === undefined || input.projectId === reference.projectId) &&
@@ -1253,11 +1212,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
         },
       },
     ),
-    /**
-     * Its own query because the listing is quicker without them — measured over twelve
-     * repositories, ~4.0s against ~7.1s — so the rows arrive first and their stats a moment
-     * later.
-     */
     listStats: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:pull-requests:list-stats",
       persistence: persistPullRequestStats(),
@@ -1292,7 +1246,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       label: "environment-data:pull-requests:diff",
       persistence: persistQuery(PullRequestDiffResult),
       staleTimeMs: 60_000,
-      // A guide tied to a commit must not reuse another push's cached pages.
       execute: ({
         cacheHeadSha: _cacheHeadSha,
         ...input
@@ -1337,10 +1290,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       staleTimeMs: 60_000,
       refreshTrigger: ({ environmentId }) => refreshes({ environmentId, input: {} }),
     }),
-    /**
-     * One write in flight per change request: the host applies these in order, and a reader
-     * ticking down a file list faster than the round trip would otherwise race their own presses.
-     */
     setFilesViewed: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:pull-requests:set-files-viewed",
       tag: WS_METHODS.pullRequestsSetFilesViewed,
@@ -1356,11 +1305,8 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       createEnvironmentRpcCommand(runtime, {
         tag: WS_METHODS.pullRequestsRunAction,
         label: "environment-data:pull-requests:run-action",
-        // Preparation belongs to the write's lane. Refreshable queries would restart it after
-        // every preceding action, and preparing outside the lane could reorder the clicks.
         execute: runAction,
         onStart: (_target, registry) => readsInFlight(registry),
-        // Loaded readers show the reply, or re-read when the host's reply lacked the pull request.
         onSuccess: ({ environmentId, input }, registry, reply, readsBeforeSend) =>
           applyActionReply(
             registry,
@@ -1369,7 +1315,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
             reply,
             readsBeforeSend ?? new Set(),
           ).pipe(
-            // The re-read a bare reply starts would otherwise show the old state until it answers.
             Effect.andThen(
               reply === undefined
                 ? acceptEdit(registry, environmentId, actionEdit(input), true)
@@ -1431,7 +1376,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       concurrency: serialPerEnvironment,
     }),
     reviewerCandidates,
-    /** The host's search for reviewers past the first page, keyed by what was typed. */
     reviewerSearch,
     requestReviewers: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:pull-requests:request-reviewers",
@@ -1451,8 +1395,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
               ),
             ) ?? [];
           const missingIdentities = selected.length < reviewers.length;
-          // Somebody found only by the host's search is not in the loaded list yet; the host
-          // puts requested reviewers first, so reading it again brings them in.
           updateCached(
             registry,
             candidatesAtom,
@@ -1554,10 +1496,6 @@ export function createPullRequestEnvironmentAtoms<R, E>(
       scheduler: commandScheduler,
       concurrency: serialPerEnvironment,
     }),
-    /**
-     * A separate request rather than a flag on a read, so only a person's refresh spends
-     * host requests while every silent re-read shares the cache.
-     */
     invalidate: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:pull-requests:invalidate",
       tag: WS_METHODS.pullRequestsInvalidate,

@@ -29,8 +29,6 @@ const harness = vi.hoisted(() => {
     route: { key: "thread-route", name: "Thread", params: {} as object },
     checkout: vi.fn(),
     draftProjectRefs: [] as unknown[],
-    // Hook results stay stable across renders, as the real hooks' are. Only
-    // main's screen reads these (see the main-comparison mocks below).
     layout: { deferThreadSelectionUntil: () => undefined },
     navigation: { goBack: () => undefined },
     preventContext: { preventedRoutes: {} },
@@ -68,10 +66,6 @@ vi.mock("./new-task-context-presentation", () => ({
   resolveNewTaskBranchWorktreePath: () => null,
 }));
 vi.mock("./checkout-new-task-branch", () => ({ checkoutNewTaskBranch: harness.checkout }));
-// Main-comparison mocks: this screen no longer uses them, but main's screen
-// did (deferThreadSelectionUntil, useAtomCommand, useNavigation). They stay so
-// this test can run against main's screen and fail there for the right reason
-// (a second checkout) instead of on an unmockable import.
 vi.mock("../layout/AdaptiveWorkspaceLayout", () => ({
   useAdaptiveWorkspaceLayout: () => harness.layout,
 }));
@@ -84,7 +78,6 @@ vi.mock("../../state/vcs", () => ({ vcsEnvironment: { readRefs: {}, switchRef: {
 vi.mock("@react-navigation/native", () => ({
   CommonActions: { goBack: () => ({ type: "GO_BACK" }) },
   createNavigationContainerRef: () => ({ current: null }),
-  // Main-comparison only, like the mocks above.
   useNavigation: () => harness.navigation,
   useRoute: () => harness.route,
   usePreventRemove: () => undefined,
@@ -97,14 +90,12 @@ const project = { environmentId: "env-1", id: "project-1", workspaceRoot: "/repo
 const connected: Snapshot["catalog"] = { awaitingProjects: false };
 const reloading: Snapshot["catalog"] = { awaitingProjects: true };
 
-// The project can vanish while the catalog still loads, or while it reports ready.
 it.each([
   ["while the catalog reloads", reloading],
   ["while the catalog stays ready", connected],
 ])(
   "checks the branch out once when a reconnect drops and restores the project %s",
   async (gap, gapCatalog) => {
-    // Checkouts live in a module table keyed by route, so each case uses its own route.
     const routeKey = `thread-route ${gap}`;
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const firstCheckout = Promise.withResolvers<unknown>();
@@ -128,7 +119,6 @@ it.each([
     );
     await vi.waitFor(() => expect(harness.checkout).toHaveBeenCalledTimes(1));
 
-    // The connection drops while the checkout runs, then the project comes back.
     act(() => harness.set({ projects: [], catalog: gapCatalog }));
     act(() => harness.set({ projects: [project], catalog: connected }));
     await act(async () => {
@@ -175,10 +165,6 @@ it("hands the draft screen the same project ref across re-renders", async () => 
   );
   await vi.waitFor(() => expect(container.textContent).toBe("draft on other"));
 
-  // The draft screen re-applies its route project when this identity changes,
-  // and that write re-renders the route; an unstable ref loops forever.
   act(() => harness.set({ projects: [{ ...project }], catalog: { ...connected } }));
-  // A stable ref lets the compiled screen skip re-rendering the draft screen at all; an unstable
-  // one re-renders it with a second ref.
   expect(new Set(harness.draftProjectRefs).size).toBe(1);
 });

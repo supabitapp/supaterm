@@ -52,7 +52,6 @@ vi.mock("../state/session", () => ({
   },
 }));
 
-// Cuts the expo-crypto -> react-native import chain out of the test graph.
 vi.mock("./uuid", () => ({
   uuidv4: () => "uuid",
   randomHex: () => "0000",
@@ -100,7 +99,6 @@ import {
   withUploadedMobileAttachmentReferences,
 } from "./attachmentUpload";
 
-/** Uploads each attachment directly, as the shared registry does for one holder. */
 function prepare(
   input: Omit<Parameters<typeof prepareWithUploads>[0], "uploadAttachment"> & {
     readonly onUploadProgress?: (attachmentId: string, progress: number) => void;
@@ -291,7 +289,6 @@ describe("prepareTurnAttachments", () => {
           _url: string,
           options: { onProgress?: (event: { bytesSent: unknown; totalBytes: unknown }) => void },
         ) => {
-          // expo-modules-jsi delivers native Int64 progress counts as BigInt.
           options.onProgress?.({ bytesSent: BigInt(1), totalBytes: BigInt(4) });
           return { status: 204, body: "", headers: {} };
         },

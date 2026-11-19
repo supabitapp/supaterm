@@ -13,7 +13,6 @@ export const PR_ROW_EXIT = FadeOut.duration(100).reduceMotion(ReduceMotion.Syste
 
 export const PR_DISCLOSURE_ENTER = FadeIn.delay(80).duration(120).reduceMotion(ReduceMotion.System);
 
-// Follow expanding status rows without interpolating the clipped markdown's height.
 export const PR_POSITION_LAYOUT: LayoutAnimationFunction = (values) => {
   "worklet";
   return {

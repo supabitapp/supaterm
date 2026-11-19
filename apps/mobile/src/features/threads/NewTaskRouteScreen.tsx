@@ -182,7 +182,6 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
       root?.goBack();
       return;
     }
-    // Restamp only on choice, so backing out leaves the draft as it was.
     const retargeted =
       routeDraftId === undefined
         ? false
@@ -241,7 +240,6 @@ export function NewTaskRouteScreen({ route }: StaticScreenProps<NewTaskRoutePara
       return;
     }
     if (!isFocused) {
-      // Reset on return so reserved-draft resume can retry without leaving project rows disabled.
       resumedDestinationKeyRef.current = null;
       return;
     }

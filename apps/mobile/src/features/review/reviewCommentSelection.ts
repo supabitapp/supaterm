@@ -366,7 +366,6 @@ export function parseReviewInlineComments(
   context?: OrchestrationMessageContext,
 ): ReadonlyArray<ReviewInlineComment> {
   const comments: ReviewInlineComment[] = [];
-  // Mask chip delimiters: labels containing </review_comment> would otherwise truncate the block.
   const masked = replaceComposerContextReferences(value, (reference) =>
     " ".repeat(reference.source.length),
   );

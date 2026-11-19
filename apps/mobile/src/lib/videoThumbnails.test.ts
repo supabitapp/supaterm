@@ -91,8 +91,6 @@ describe("video thumbnails", () => {
   it("asks for a frame only once the player has attached the item", async () => {
     const first = player();
     let attached = false;
-    // Like iOS: replaceAsync resolves before the item attaches, and until then
-    // generateThumbnailsAsync finds no asset.
     first.replaceAsync.mockImplementation(async () => {});
     first.generateThumbnailsAsync.mockImplementation(async () => (attached ? [frame] : []));
     mocks.createPlayer.mockReturnValueOnce(first);

@@ -131,7 +131,6 @@ const makeHarness = Effect.fn("RouteLatencyTest.makeHarness")(function* (options
   return { atoms, registry, supervisor, session, probes: () => probes };
 });
 
-/** Prepares a route and brings up a transport session, as the supervisor does on connect. */
 const connect = Effect.fn("SessionStateTest.connect")(function* (
   supervisor: EnvironmentSupervisor.EnvironmentSupervisor["Service"],
   session: RpcSession,
@@ -493,7 +492,6 @@ describe("relay transport", () => {
 });
 
 describe("sessionDeniesScope", () => {
-  // "Cannot control" must reflect the host's answer, not a lookup still pending or lost on the network.
   it("denies a scope only once the host has answered without it", () => {
     const failed = (error: unknown) =>
       AsyncResult.failure<AuthSessionState, unknown>(Cause.fail(error));

@@ -342,7 +342,6 @@ describe("XAiAcpExtension", () => {
     expect(extractXAiMonitorTaskId(normalized)).toBe("019f44a5-87d1-7640-8e35-6a4667ffc873");
   });
 
-  // regression: #23714 Recorded from Grok 1.0.77 calling stdio MCP tools through `use_tool`.
   it("rewrites use_tool MCP calls and results into the generic ACP MCP shapes", () => {
     const meta = { "x.ai/tool": { version: 1, name: "use_tool", kind: "use_tool" } };
     const grokCall = (
@@ -417,7 +416,6 @@ describe("XAiAcpExtension", () => {
   });
 
   it("keeps Monitor ticks running while Grok reports them in progress", () => {
-    // Grok 1.0.41 ticks report in_progress with exit_code 0; only _x.ai/task_completed ends the monitor.
     const command = "for i in 1 2 3; do sleep 8; echo tick $i; done";
     const started = parseRecordedToolCallUpdate({
       sessionUpdate: "tool_call_update",
@@ -571,7 +569,6 @@ describe("XAiAcpExtension", () => {
   });
 
   it("completes structured command TaskOutput ids without treating them as subagents", () => {
-    // Oracle: BackgroundTaskStarted and TaskOutput from the Grok hang incident.
     const toolCall: AcpToolCallState = {
       toolCallId: "call-poll",
       title: "get_command_or_subagent_output",
@@ -603,7 +600,6 @@ describe("XAiAcpExtension", () => {
   });
 
   it("keeps the normal tool frame for a command result from a mixed-ID poll", () => {
-    // Oracle: review 4325739061 requires the result ID to override requested subagent IDs.
     const toolCall: AcpToolCallState = {
       toolCallId: "call-mixed-poll",
       title: "get_command_or_subagent_output",
@@ -763,7 +759,6 @@ describe("XAiAcpExtension", () => {
     ]);
   });
 
-  // KillTask replies can report killed and already_exited outcomes.
   it.each([
     { rawInput: { task_id: "call-bg-1" }, rawOutput: { type: "KillTask" } },
     { rawInput: { task_id: "call-bg-1" }, rawOutput: { type: "KillTask", outcome: "killed" } },
@@ -791,7 +786,6 @@ describe("XAiAcpExtension", () => {
     ).toBeUndefined();
   });
 
-  // Native child status still comes from its lifecycle/result path, not the kill RPC.
   it.each(["Kill", "KillTask"])(
     "keeps %s aimed at a native child out of child result parsing",
     (variant) => {
@@ -809,7 +803,6 @@ describe("XAiAcpExtension", () => {
     },
   );
 
-  // A successful RPC is not proof of a successful kill when its outcome says otherwise.
   it.each([
     { type: "KillTask", outcome: "failed" },
     { type: "KillTask", Result: { task_id: "call-bg-1", outcome: "error" } },

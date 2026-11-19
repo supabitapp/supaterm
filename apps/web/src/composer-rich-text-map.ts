@@ -43,7 +43,6 @@ export interface RichRun {
   nodeName?: string;
 }
 
-// Shared by every caller that serializes the same doc, so it must not be mutated.
 export interface RichDocMap {
   readonly value: string;
   readonly runs: ReadonlyArray<Readonly<RichRun>>;
@@ -78,7 +77,6 @@ interface RichAccumulator {
 function pushBreakRun(acc: RichAccumulator, position?: number): void {
   const previous = acc.runs[acc.runs.length - 1];
   const pmPos = position ?? (previous ? previous.pmPos + previous.docLen : 1);
-  // Block boundary: one newline in every coordinate space.
   acc.runs.push({
     kind: "break",
     flatStart: acc.flat,
@@ -102,8 +100,6 @@ function horizontalRuleSource(block: ProseMirrorNode): string {
   return typeof source === "string" && source ? source : "---";
 }
 
-// A blank line keeps prose out of a quote (lazy continuation) and a dash rule from
-// underlining the line above into a setext heading; an empty paragraph already separates them.
 function needsBlankLineBetween(previous: ProseMirrorNode, block: ProseMirrorNode): boolean {
   if (previous.type.name === "blockquote") {
     return block.type.name === "paragraph" && block.content.size > 0;
@@ -116,7 +112,6 @@ function needsBlankLineBetween(previous: ProseMirrorNode, block: ProseMirrorNode
   );
 }
 
-// Blank-line runs own no document characters; offsets clamp to the start of the next block.
 function pushBlankLineRun(acc: RichAccumulator, pmPos: number): void {
   acc.runs.push({
     kind: "prefix",
@@ -135,9 +130,6 @@ function pushBlankLineRun(acc: RichAccumulator, pmPos: number): void {
   acc.md += 1;
 }
 
-// Moves an offset into a parsed `value` past the blank lines its serialization inserted,
-// treating other differences (`__` written as `**`) as same-length rewrites. When the two
-// strings do not align that way end to end, the offset is returned unmapped.
 export function serializedMarkdownOffset(
   value: string,
   serialized: string,
@@ -167,8 +159,6 @@ function appendInlineRuns(
       children.push(child);
       return;
     }
-    // Separate boundary whitespace so delimiters can move past it without
-    // changing the document offsets or marks on the visible text.
     const text = child.text!;
     const start = text.length - text.trimStart().length;
     const end = Math.max(start, text.trimEnd().length);
@@ -178,8 +168,6 @@ function appendInlineRuns(
       offset = boundary;
     }
   });
-  // Emphasis cannot open or close next to whitespace. Retain a whitespace
-  // mark only when its range has visible content on both sides.
   for (const mark of MARK_NESTING_ORDER) {
     if (mark === "code") continue;
     for (const direction of [1, -1]) {
@@ -208,8 +196,6 @@ function appendInlineRuns(
       }
     }
   }
-  // Longer shared marks surround shorter ones. This keeps both nested
-  // formatting and formatting across chips inside a single delimiter pair.
   const markEnds = new Map<RichTextMark, number>();
   const orderedMarks: RichTextMark[][] = [];
   for (let index = children.length - 1; index >= 0; index -= 1) {
@@ -284,7 +270,6 @@ function appendInlineRuns(
     acc.collapsed += collapsedLen;
     acc.md += mdText.length;
   });
-  // Empty paragraphs have an editable position even though they emit no text.
   if (children.length === 0) {
     acc.runs.push({
       kind: "text",
@@ -325,7 +310,6 @@ function walkList(list: ProseMirrorNode, listStart: number, acc: RichAccumulator
   let itemPos = listStart + 1;
   let firstItem = true;
   list.content.forEach((item) => {
-    // Sibling items are separated by one newline in every coordinate space.
     if (!firstItem) pushBreakRun(acc);
     firstItem = false;
     const itemContentStart = itemPos + 1;
@@ -333,7 +317,6 @@ function walkList(list: ProseMirrorNode, listStart: number, acc: RichAccumulator
     const empty = first?.type.name === "paragraph" && first.content.childCount === 0;
     const prefix = listItemPrefix(item, empty);
 
-    // to the start of the item text, exactly like style markers.
     acc.runs.push({
       kind: "prefix",
       flatStart: acc.flat,
@@ -452,8 +435,6 @@ export function serializeSelection(doc: ProseMirrorNode, from: number, to: numbe
   return serializeEditorDoc(doc.type.create(null, content)).value;
 }
 
-// Docs are immutable, and one keystroke serializes the same doc from the marker
-// plugin, onUpdate, and onSelectionUpdate.
 const serializedDocs = new WeakMap<ProseMirrorNode, RichDocMap>();
 
 export function serializeEditorDoc(doc: ProseMirrorNode): RichDocMap {
@@ -570,14 +551,12 @@ export function flatToPm(map: RichDocMap, flatOffset: number): number {
 export function pmToFlat(map: RichDocMap, pmPos: number): number {
   for (const run of map.runs) {
     if (pmPos >= run.pmPos && pmPos <= run.pmPos + run.docLen) {
-      // A position on a chip's trailing edge belongs after the chip.
       if (run.kind === "token" && pmPos === run.pmPos + run.docLen) {
         return run.flatStart + run.docLen;
       }
       return run.flatStart + Math.min(pmPos - run.pmPos, run.docLen);
     }
   }
-  // A paragraph boundary position belongs to the newline between paragraphs.
   let best = 0;
   for (const run of map.runs) {
     if (run.pmPos <= pmPos) best = run.flatStart + run.docLen;
@@ -585,10 +564,6 @@ export function pmToFlat(map: RichDocMap, pmPos: number): number {
   return Math.max(0, Math.min(best, map.docLength));
 }
 
-// A styled edge is a single document position. The caret gets two stops there, picked by stored
-// marks, so a pasted `**bold**` at the start of a line can still be typed in front of.
-
-// Shown Markdown source has real characters at its edges, so it needs no extra stop.
 function styleMarks(marks: readonly Mark[]): readonly Mark[] {
   return marks.filter((mark) => mark.type.name !== MARKDOWN_SOURCE_MARK);
 }
@@ -621,7 +596,6 @@ export function stepCaretAcrossStyledEdge(
 ): Transaction | null {
   const edge = styledEdge(state);
   if (!edge) return null;
-  // Marks the user toggled by hand (neither stop) are theirs: move as usual.
   if (!Mark.sameSet(edge.current, edge.before) && !Mark.sameSet(edge.current, edge.after)) {
     return null;
   }
@@ -667,7 +641,6 @@ export function skillChipReplacements(
     if (segment.type !== "skill") continue;
     const meta = skillLabelFor(segment.name);
     if (!meta) continue;
-    // Only text needs converting; an existing chip is a token run.
     const run = map.runs.find(
       (candidate) =>
         candidate.kind === "text" &&
@@ -697,7 +670,6 @@ export function markdownToFlat(map: RichDocMap, markdownOffset: number): number 
       if (run.kind === "text" || run.kind === "token") {
         const within = markdownOffset - run.mdStart;
         if (within <= run.openLen) return run.flatStart;
-        // A chip is one document position however long its source is.
         if (run.kind === "token" || within >= run.openLen + run.docLen) {
           return run.flatStart + run.docLen;
         }

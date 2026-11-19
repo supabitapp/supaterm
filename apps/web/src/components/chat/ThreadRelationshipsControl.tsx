@@ -101,7 +101,6 @@ function ThreadLineageRowList(props: {
 }) {
   return (
     <>
-      {/* ScrollArea's max-height viewport measures badly inside this scrolling panel. */}
       <ul
         aria-label={props.label ?? "Related threads"}
         className="m-0 max-h-[13.5rem] list-none overflow-y-auto p-0 [scrollbar-width:none] has-data-workflow-expanded:max-h-[min(28rem,55dvh)] [&::-webkit-scrollbar]:hidden"
@@ -180,7 +179,6 @@ function relationshipThreadTitle(input: {
   return formatSubagentDisplayTitle(input.title);
 }
 
-/** The full title, since the row truncates it, with what a click does. */
 function LineageTooltipContent(props: { readonly title: string; readonly hint: string }) {
   return (
     <>
@@ -264,7 +262,6 @@ export function ThreadRelationshipsPanel(props: {
   const [isMerging, setIsMerging] = useState(false);
   const mergeErrorToastId = useRef<string | null>(null);
   const [stoppingId, setStoppingId] = useState<string | null>(null);
-  // Derive graphs after hooks to preserve their compiler cache.
   const providers = providersByEnvironment.get(props.environmentId);
   const derivedProviderEntries = deriveProviderInstanceEntries(providers ?? []);
   const providerEntries = settings
@@ -342,7 +339,6 @@ export function ThreadRelationshipsPanel(props: {
         }),
   );
   const resolvedThreadTitles = threadTitles.data ?? {};
-  // Omitted and archived threads remain reachable; only a done lookup proves one is gone.
   const visibleRelationships = relationshipRows.filter(
     ({ threadId, edge }) =>
       edge.kind === "subagent" ||
@@ -414,7 +410,6 @@ export function ThreadRelationshipsPanel(props: {
     return null;
   }
 
-  // Idle children can be omitted from the shell; opening one loads its own detail.
   const openThread = (threadId: ThreadId) => {
     const threadRef = scopeThreadRef(props.environmentId, threadId);
     const lineage = graph.nodes.get(threadId)?.thread?.lineage;
@@ -546,7 +541,6 @@ export function ThreadRelationshipsPanel(props: {
               const threadTitle = relationshipThreadTitle({
                 title:
                   workflowGroup?.workflow.workflowName ??
-                  // Fresher than an archived snapshot's copy.
                   (Object.hasOwn(resolvedThreadTitles, threadId)
                     ? resolvedThreadTitles[threadId]
                     : undefined) ??

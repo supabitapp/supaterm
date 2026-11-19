@@ -1,4 +1,3 @@
-// A typed straight apostrophe finds a curly one: iOS keyboards type "’".
 const foldCharacters = (text: string) => text.replace(/ς/g, "σ").replace(/[‘’]/g, "'");
 
 function foldThreadSearchCase(text: string): string {

@@ -39,7 +39,6 @@ export const resolveSelfInvocation = Effect.fn("nodeRuntime.resolveSelfInvocatio
     return { command, entrypoint: undefined } satisfies SelfInvocation;
   const path = yield* Path.Path;
   const entry = (yield* HostProcess.Arguments)[1];
-  // Children spawn from their own working directory, so the script path must be absolute.
   return {
     command,
     entrypoint: entry === undefined ? undefined : path.resolve(entry),
@@ -87,6 +86,5 @@ export const resolveNodeExecutable = Effect.fn("nodeRuntime.resolveNodeExecutabl
   ) {
     return yield* new NodeRuntimeUnavailableError({ feature });
   }
-  // Launchers such as Vite+ dispatch by argv[0]; keep the node name intact.
   return nodePath;
 });

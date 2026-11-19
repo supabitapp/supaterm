@@ -21,8 +21,6 @@ export function WorkspaceInspectorSheet(props: {
   readonly content: InspectorContent | undefined;
 }) {
   const insets = useSafeAreaInsets();
-  // Stays mounted until the sheet has finished closing, so it doesn't empty as it slides away.
-  // Each opening gets a fresh native sheet, even one that starts while the last is closing.
   const [presented, setPresented] = useState({
     open: props.open,
     mounted: props.open,
@@ -52,7 +50,6 @@ export function WorkspaceInspectorSheet(props: {
       key={presented.session}
       isOpen={props.open}
       detents={formSheetDetents(0.6, 0.95)}
-      // The inspector's bar holds its actions, so the Duo needs no rail inside this sheet.
       prefersHorizontalBars
       onDismiss={closed}
       onNativeDismiss={() => {
@@ -62,7 +59,6 @@ export function WorkspaceInspectorSheet(props: {
     >
       <InspectorSheetContext value={close}>
         <RoutedFormSheetContext value={false}>
-          {/* The sheet starts below the status bar. */}
           <SafeAreaInsetsContext value={{ ...insets, top: 0 }}>
             <PaneContext value="inspector">
               <InspectorPanes content={props.content} onClose={() => close()} />

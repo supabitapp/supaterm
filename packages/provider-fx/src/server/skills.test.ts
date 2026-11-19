@@ -7,16 +7,10 @@ import * as Path from "effect/Path";
 import { discoverFxSkills } from "./skills.ts";
 
 describe("discoverFxSkills", () => {
-  // fx 0.0.13 scans workspace roots from the workspace up to HOME, then
-  // ~/.fx/skills, then home compatibility roots (src/builtins/skills.zig), and
-  // lists ~/.fx/skills first, then workspace roots, then compatibility roots
-  // in scan order (skillGroupRank in src/core/skills/skill_runtime.zig).
   it.effect("lists skills in fx's own order", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      // The workspace sits under the fake HOME, so the upward walk stops there.
-      // Real path: macOS temp folders sit behind the /var -> /private/var link, which discovery resolves.
       const home = yield* fileSystem.realPath(
         yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-fx-skills-home-" }),
       );
@@ -39,7 +33,6 @@ describe("discoverFxSkills", () => {
       yield* writeSkill(path.join(parent, "skills"), "parent-shared");
       yield* writeSkill(path.join(home, ".claude/skills"), "home-claude");
       yield* writeSkill(path.join(home, ".fx/skills"), "home-fx");
-      // HOME is not a workspace ancestor, and ~/skills is no fx root.
       yield* writeSkill(path.join(home, "skills"), "home-shared");
 
       const skills = yield* discoverFxSkills({ cwd: workspace, environment: { HOME: home } });
@@ -58,15 +51,10 @@ describe("discoverFxSkills", () => {
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  // For `$review` with two skills of exactly that name, fx's model loads the
-  // first in scan order, so only that one is offered; `Review` is a separate
-  // skill `$Review` loads. fx skips a SKILL.md whose frontmatter has no name
-  // or never closes, and a symlinked folder in its managed ~/.fx/skills.
   it.effect("offers the skill fx loads for each name", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      // Real path: macOS temp folders sit behind the /var -> /private/var link, which discovery resolves.
       const home = yield* fileSystem.realPath(
         yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-fx-skills-home-" }),
       );
@@ -88,9 +76,6 @@ describe("discoverFxSkills", () => {
         "---\ndescription: Missing name\n---\n",
       );
       yield* writeSkillFile(path.join(home, ".fx/skills/unclosed"), "---\nname: unclosed\n");
-      // A continued plain value is fx's `unsupported_multiline`, and fx trims
-      // only spaces and tabs, so a trailing vertical tab is a control byte:
-      // both these `review`s are invalid and the valid ones stay the only two.
       yield* writeSkillFile(
         path.join(home, ".codex/skills/review"),
         "---\nname: review\u000b\n---\n",
@@ -99,8 +84,6 @@ describe("discoverFxSkills", () => {
         path.join(home, ".agents/skills/review"),
         "---\nname: review\ndescription: first line\n  second line\n---\n",
       );
-      // fx sees no frontmatter after a byte-order mark, so this one is
-      // `bom-folder`, not `bom-name`, and its body may run past 1 MB.
       yield* fileSystem.makeDirectory(path.join(home, ".fx/skills/bom-folder"), {
         recursive: true,
       });
@@ -113,7 +96,6 @@ describe("discoverFxSkills", () => {
           ...new TextEncoder().encode(`---\nname: bom-name\n---\n${"x".repeat(1_100_000)}`),
         ]),
       );
-      // A literal U+FFFD is valid text to fx; an invalid UTF-8 byte is not.
       yield* writeSkillFile(
         path.join(home, ".fx/skills/replacement"),
         "---\nname: replacement\ndescription: Replace \ufffd in imported text.\n---\n",
@@ -131,7 +113,6 @@ describe("discoverFxSkills", () => {
           0x0a,
         ]),
       );
-      // fx folds only ASCII case, so these two are distinct.
       yield* writeSkillFile(
         path.join(home, ".fx/skills/accent-upper"),
         "---\nname: \u00c9t\u00e9\n---\n",
@@ -168,13 +149,10 @@ describe("discoverFxSkills", () => {
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  // Nix home-manager and dotfile setups link ~/.fx/skills; fx then loads
-  // nothing from it, while the compatibility roots still count.
   it.effect("lists nothing from a linked ~/.fx/skills", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      // Real path: macOS temp folders sit behind the /var -> /private/var link, which discovery resolves.
       const home = yield* fileSystem.realPath(
         yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-fx-skills-home-" }),
       );

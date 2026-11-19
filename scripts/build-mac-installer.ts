@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-/**
- * "Install Supaterm" is a small universal app shipped on its own disk image. It
- * downloads the latest stable build for the Mac it runs on, so the website can
- * offer one macOS download instead of asking people to pick a chip.
- */
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
@@ -38,7 +33,6 @@ export class MacInstallerCommandFailedError extends Schema.TaggedError<MacInstal
   }
 }
 
-// hdiutil intermittently fails with "Resource busy" on CI runners.
 const retryHdiutil = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   effect.pipe(Effect.retry({ times: 2, schedule: Schedule.spaced("5 seconds") }));
 
@@ -133,8 +127,6 @@ const buildMacInstaller = Effect.fn("buildMacInstaller")(function* (input: {
   ]);
   yield* run(layoutTool, ["background", imageRoot]);
 
-  // The Finder view's background alias must point into the volume itself, so
-  // the .DS_Store is written on a mounted read-write copy before compressing.
   const layoutImage = path.join(workDir, "layout.dmg");
   yield* run("hdiutil", [
     "create",

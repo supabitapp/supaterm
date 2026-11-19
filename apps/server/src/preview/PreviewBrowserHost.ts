@@ -12,7 +12,6 @@ export const NO_SANDBOX_SIGNATURE = "No usable sandbox";
 export const sandboxDisabled = (env: Readonly<Record<string, string | undefined>>) =>
   env.SUPATERM_SERVER_BROWSER_SANDBOX === "0";
 
-/** Set on Ubuntu 23.10+: unprivileged user namespaces need an AppArmor profile. */
 const USERNS_RESTRICTION = "/proc/sys/kernel/apparmor_restrict_unprivileged_userns";
 export const APPARMOR_PROFILE_PATH = "/etc/apparmor.d/supaterm-chrome-headless-shell";
 

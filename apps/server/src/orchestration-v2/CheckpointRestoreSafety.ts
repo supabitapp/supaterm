@@ -18,7 +18,6 @@ export function sharedWorkspaceRestoreMessage(blockingSideChats: ReadonlyArray<s
   return `File restore requires an isolated worktree. ${subject} ran commands or changed files here, or is still running. Rewind the conversation without restoring files instead, or delete side chats you no longer need.`;
 }
 
-// Check isolation at admission and rollback; checkpoints restore whole checkouts, which may become shared.
 export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpointRestoreIsolated")(
   function* (
     thread: Pick<OrchestrationV2AppThread, "id" | "worktreePath">,
@@ -42,7 +41,6 @@ export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpoi
     let shared = worktreePath == null;
     const blockingSideChats: Array<string> = [];
     if (!shared && worktreePath !== null) {
-      // Storage cleanup may have removed the worktree; rollback recreates it.
       const resolve = (target: string) =>
         fileSystem.realPath(target).pipe(
           Effect.catchIf(
@@ -60,9 +58,7 @@ export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpoi
         );
         const inThisWorktree = (otherThread: (typeof others)[number]) =>
           otherThread.lineage.sideChat === true && otherThread.worktreePath === worktreePath;
-        // Every one is named, so the user can clear them all at once.
         for (const sideChat of others.filter(inThisWorktree)) {
-          // An idle side chat that only answered questions never touched the shared worktree.
           if (sideChat.activeRunId === null) {
             const { turnItems } = yield* projections.getThreadRecords(sideChat.id, ["turnItems"], {
               turnItemTypes: ["command_execution", "file_change", "dynamic_tool"],
@@ -81,8 +77,6 @@ export const isCheckpointRestoreIsolated = Effect.fn("orchestrationV2.isCheckpoi
           const paths = [
             otherThread.worktreePath,
             ...other.checkpointScopes.map((candidate) => candidate.cwd),
-            // Errored sessions can still stream. Shared sessions retain another thread's opening cwd;
-            // turn worktrees and project roots are already covered here.
             ...providerContext.providerSessions
               .filter(
                 (session) =>

@@ -220,7 +220,6 @@ it("commits a dismissal when the thread switches during the exit transition", as
   await using screen = await renderUi(<ComposerBannerStack key="thread-a" items={[item]} />);
 
   await userEvent.click(screen.getByRole("button", { name: "Dismiss notice" }));
-  // The composer keys the stack by thread, so switching threads remounts it mid-exit.
   await screen.rerender(<ComposerBannerStack key="thread-b" items={[]} />);
 
   await vi.waitFor(() => expect(onDismiss).toHaveBeenCalledTimes(1));
@@ -237,8 +236,6 @@ function noticeRow(width: string, children: ReactNode) {
 }
 
 it("leaves out the details button when only a link's hit area reaches past the text", async () => {
-  // Phones lay out in device pixels, so a range can measure one float32 step (2^-17 px at
-  // this size) wider than its element. Headless Chromium's rects agree exactly.
   const rangeRect = Range.prototype.getBoundingClientRect;
   using _rangeRect = vi
     .spyOn(Range.prototype, "getBoundingClientRect")
@@ -246,7 +243,6 @@ it("leaves out the details button when only a link's hit area reaches past the t
       const rect = rangeRect.call(this);
       return new DOMRect(rect.x, rect.y, rect.width + 2 ** -17, rect.height);
     });
-  // The flicker is a details button that mounts and then unmounts, so record every insertion.
   const inserted: Node[] = [];
   using observing = new DisposableStack();
   const mutations = new MutationObserver((records) =>
@@ -281,7 +277,6 @@ it("leaves out the details button when only a link's hit area reaches past the t
 
 it("leaves out the details button while a popover opened from the notice text is open", async () => {
   await using screen = await renderUi(
-    // Offset from the viewport origin, where the popover's fixed focus guards sit.
     <div style={{ paddingLeft: "10rem" }}>
       {noticeRow(
         "20rem",
@@ -351,7 +346,6 @@ it("opens the details of a long notice right above its button", async () => {
   const popup = page.getByLabelText("Notice details");
   await expect.element(popup).toBeVisible();
 
-  // A positioner sized to the unscrolled text flips beside the button and covers it.
   await vi.waitFor(() => {
     const gap =
       details.element().getBoundingClientRect().top -

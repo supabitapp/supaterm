@@ -94,8 +94,6 @@ export function SnapShotSettings() {
   const { state, refreshError } = useAtomValue(desktopSnapShotAtom);
   const [setupBusy, setSetupBusy] = useState(false);
   const [setupError, setSetupError] = useState<SnapShotSetupError | null>(null);
-  // macOS can quit the app from a permission prompt; until the user opens or closes the wizard
-  // themselves, a saved resume reopens it where it left off.
   const [resume] = useState(readSnapShotSetupResume);
   const [chosenWizard, setWizard] = useState<{
     initialStep: CaptureSetupStep;
@@ -107,7 +105,6 @@ export function SnapShotSettings() {
       : state?.macPermissions && resume
         ? { initialStep: "access" as const, wasEnabled: resume.wasEnabled }
         : null;
-  // The wizard shows errors inline; outside it there is nowhere to, so they become a toast.
   const reportSetupError = (title: string, error: unknown) => {
     const report = snapShotSetupError(title, error);
     setSetupError(report);
@@ -123,9 +120,6 @@ export function SnapShotSettings() {
     status: "idle",
     availability: null,
   });
-  // A check answers for one candidate against one saved shortcut. Once either moves on (an edit,
-  // or hydration saving a new shortcut) a late answer no longer shows, so a check for the
-  // shortcut that just got saved can't claim it is ready to save.
   const savedShortcut = settings.snapShotShortcut;
   const shortcutCheck: ShortcutCheck =
     latestShortcutCheck.status === "idle" ||
@@ -159,7 +153,6 @@ export function SnapShotSettings() {
         wizard &&
         (action === "allow-screen-recording" || action === "allow-accessibility")
       ) {
-        // macOS can quit the app from its permission prompt.
         saveSnapShotSetupResume(wizard.wasEnabled);
       }
       await bridge.setupSnapShot(action);
@@ -176,7 +169,6 @@ export function SnapShotSettings() {
     setSetupBusy(false);
   };
 
-  // Hydration can hand back an equal shortcut object; only a different shortcut resets the edit.
   const [renderedSavedShortcut, setRenderedSavedShortcut] = useState(savedShortcut);
   if (!sameSnapShotShortcut(renderedSavedShortcut, savedShortcut)) {
     setRenderedSavedShortcut(savedShortcut);
@@ -286,7 +278,6 @@ export function SnapShotSettings() {
     if (!settings.snapShotEnabled && captureSetupInitialStep(current, requested) !== "access") {
       current = await save({ snapShotEnabled: true });
       if (!current) {
-        // Settings may save before status checking fails; keep Finish later available to disable capture.
         setWizard({ initialStep: "access", wasEnabled: false });
         return;
       }

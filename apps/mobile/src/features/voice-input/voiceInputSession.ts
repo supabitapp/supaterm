@@ -101,7 +101,6 @@ export class VoiceInputSession {
       ...dependencies,
       onStateChange: (state) => this.handleStateChange(state),
       getTranscriber: () => this.target?.engine?.transcriber ?? null,
-      // The target's selection is fixed at start, so a draft changed since refuses the transcript.
       readDraft: () => {
         const draft = this.target?.readDraft() ?? null;
         return draft?.text === this.startText ? draft : null;

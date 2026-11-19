@@ -34,7 +34,6 @@ const MAX_FIND_TEXT = 4 * 1024 * 1024;
 
 const MAX_POSITIONS = 50;
 type PdfPosition = PdfViewState & { width: number; ratios: readonly number[] };
-// Thread switches unmount the preview; retain only the most recent documents.
 const positions = new Map<string, PdfPosition>();
 
 export type PdfViewState = {
@@ -100,7 +99,6 @@ function PdfPage(props: {
       cancelled = true;
       paint?.cancel();
       layer?.cancel();
-      // Release operator lists when virtual pages leave the viewport.
       void Promise.allSettled([paint?.promise]).then(() => loadedPage?.cleanup());
     };
   }, [pdf, index, width, onSize, onError]);
@@ -224,7 +222,6 @@ export default function PdfViewer(props: {
   const offsets = pdfPageOffsets(ratios, width);
   const current = currentPdfPage(offsets, ratios.length, scrollTop);
   const visible = visiblePdfPages(ratios, offsets, scrollTop, viewport.height);
-  // Stable callbacks let page canvases survive scroll and find updates.
   const [onSize] = useState(
     () => (index: number, ratio: number) =>
       setRatios((old) =>
@@ -326,7 +323,6 @@ export default function PdfViewer(props: {
           if (!pdfFindIncludes(text, query)) continue;
           found.push(index);
           if (found.length > 1) continue;
-          // Pages up to the first hit are measured, so its jump lands before the scan finishes.
           setRatios((old) => [...sizes, ...old.slice(sizes.length)]);
           setMatches([index]);
         }

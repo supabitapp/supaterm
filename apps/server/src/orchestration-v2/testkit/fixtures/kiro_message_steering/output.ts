@@ -21,7 +21,6 @@ export function assertKiroMessageSteeringOutput(
   const methods = transcript.entries.flatMap((entry) =>
     entry.type === "expect_outbound" ? [String(field(entry.frame, "method"))] : [],
   );
-  // Kiro steers natively: one prompt, one `_session/steer`, and no cancel-and-re-prompt.
   assert.deepEqual(
     ["session/prompt", "_session/steer", "session/cancel"].map(
       (method) => methods.filter((candidate) => candidate === method).length,
@@ -38,7 +37,6 @@ export function assertKiroMessageSteeringOutput(
   ]);
   assertUserMessageInputIntents(projection, ["turn_start", "steer"]);
   assertAssistantTextIncludes(projection, "steering fixture observed");
-  // Kiro's model appends a `[STEERING steer-…]` note for Kiro's own UI; Supaterm drops it.
   assert.notInclude(
     projection.turnItems
       .map((item) => (item.type === "assistant_message" ? item.text : ""))

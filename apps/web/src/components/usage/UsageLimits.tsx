@@ -69,9 +69,6 @@ export function PaceIcon({ pace }: { readonly pace: LimitPace }) {
   );
 }
 
-// The tick sits in a transparent gap cut from the bar, clamped so it stays inside at 0% and 100%.
-// The gap is a clip-path slot rather than a mask: a mask composites its layer and re-antialiases
-// the bar's rounded ends, and the polygon reaches 1px past the box so only the slot edges clip.
 function paceMarkStyles(timeLeft: number | null) {
   if (timeLeft === null) return null;
   const at = `clamp(3px, ${timeLeft}%, calc(100% - 3px))`;
@@ -82,7 +79,6 @@ function paceMarkStyles(timeLeft: number | null) {
     gap: {
       clipPath: `polygon(${near} ${near}, ${left} ${near}, ${left} ${far}, ${right} ${far}, ${right} ${near}, ${far} ${near}, ${far} ${far}, ${near} ${far})`,
     },
-    // For a track painted on an element that also draws focus rings, which a clip would cut.
     gappedTrack: {
       backgroundColor: "transparent",
       backgroundImage: `linear-gradient(to right, var(--color-muted) ${left}, transparent ${left}, transparent ${right}, var(--color-muted) ${right})`,
@@ -141,7 +137,6 @@ function WindowBar({
           />
         }
       >
-        {/* Clip both layers so the gap exposes even a translucent composer surface. */}
         <div className="absolute inset-0" style={paceMark?.gap}>
           <div className="absolute inset-x-0 inset-y-1.5 rounded-full bg-muted" />
           {remaining > 0 ? (

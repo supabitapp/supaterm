@@ -1,4 +1,3 @@
-// Opt in with SUPATERM_STARTUP_PROFILE_DIR=/absolute/path NODE_OPTIONS="--no-node-snapshot --import=/absolute/path/to/this/file".
 import * as NodeFS from "node:fs";
 import * as NodeInspector from "node:inspector";
 import * as NodeChildProcess from "node:child_process";
@@ -128,7 +127,6 @@ if (directory && !isLauncher) {
       }),
     );
   };
-  // Bound the capture without keeping dev servers or short-lived helpers alive.
   setTimeout(finish, 20_000).unref();
   process.once("exit", finish);
 }
@@ -147,7 +145,6 @@ if (isLauncher) {
       env: {
         ...process.env,
         SUPATERM_STARTUP_PROFILE_DIR: output,
-        // Node 26's snapshotted loader cannot accept the debugger breakpoint used by this profiler.
         NODE_OPTIONS:
           `${process.env.NODE_OPTIONS ?? ""} --no-node-snapshot --import=${import.meta.url}`.trim(),
       },

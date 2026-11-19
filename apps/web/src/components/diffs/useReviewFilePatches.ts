@@ -96,7 +96,6 @@ export function useReviewFilePatches({
       });
       return added.length === 0 ? current : { scope, paths: [...previous, ...added] };
     });
-  // The first unsettled file already requested means a batch is in flight; wait for it.
   const loadNextFiles = () => {
     if (queries.some(({ index }) => index === settledFileCount)) return;
     requestFiles(Array.from({ length: 4 }, (_, index) => settledFileCount + index));

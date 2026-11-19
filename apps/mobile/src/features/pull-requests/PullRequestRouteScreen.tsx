@@ -238,7 +238,6 @@ function PullRequestLabels(props: {
     <Animated.View layout={PR_ROW_LAYOUT} className="flex-row flex-wrap gap-2">
       {props.pr.labels.map((label) => {
         const color = pullRequestLabelColor(label.color);
-        // Tinted like the list row's label pills, at the overview's chip size.
         return (
           <View
             key={label.name}
@@ -316,7 +315,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const insets = useSafeAreaInsets();
   const [toolbarHeight, setToolbarHeight] = usePullRequestToolbarHeight(insets.bottom);
   const contentTopInset = useContentTopInset();
-  // Only iOS lists run under the bottom safe area; Android's floating toolbar pads its own.
   const contentBottomInset = Platform.OS === "ios" ? insets.bottom : 0;
   const params = route.params;
   usePullRequestEnvironmentFallback(params);
@@ -330,8 +328,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const filesContent = usePullRequestFilesSection(params);
   const guidesEnabled = useReviewGuidesEnabled(params);
-  // The guide tab goes away while guides are off and overview stands in. The pick is kept, so
-  // guides coming back (a settings reload, a reconnect) return to the guide the user chose.
   const shown = (tab: typeof chosenSection) =>
     !guidesEnabled && tab === "guide" ? "overview" : tab;
   const section = shown(chosenSection);
@@ -339,8 +335,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const activityFilter = activity.filter;
   const activityContent = usePullRequestActivityRows(params, activityFilter);
   const scrollOffsets = useRef<Record<string, number>>({});
-  // The offset of the tab last shown, and which tab that was: a tab standing in for a hidden guide
-  // has its own offset, which only its next scroll would record here.
   const currentScrollOffset = useRef<{ tab: typeof section; offset: number }>({
     tab: "overview",
     offset: -contentTopInset,
@@ -349,8 +343,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   const [headerHeight, setHeaderHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const scrollViews = useRef<Partial<Record<typeof section, LegendListRef | null>>>({});
-  // AnimatedLegendList re-attaches its handle and sets state whenever its ref changes,
-  // so an inline ref in the tab map loops the screen into "Maximum update depth exceeded".
   const [listRefs] = useState(() => {
     const listRef = (tab: typeof section) => (list: LegendListRef | null) => {
       scrollViews.current[tab] = list;
@@ -394,7 +386,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
       activity.showCommits();
     } else if (target?.kind === "checks") {
       selectSection("overview");
-      // Checks head Overview, which a reused screen may have scrolled past.
       scrollViews.current.overview?.scrollToOffset({ offset: -contentTopInset, animated: false });
     } else if (target?.kind === "summary") {
       selectSection("overview");
@@ -412,7 +403,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
   );
   const openedDiscussion = useRef<string | null>(null);
   const positionedActivity = useRef<string | null>(null);
-  // Rows above the target measure in after the first jump, so it is held until the user scrolls.
   const heldActivityRow = useRef<number | null>(null);
   const positionActivityRow = (index: number) =>
     void scrollViews.current.activity?.scrollToIndex({
@@ -431,10 +421,8 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
       });
       return;
     }
-    // Later filter or refresh changes move the row; they must not pull the user back to it.
     if (activityTargetIndex >= 0 && positionedActivity.current !== key) {
       positionedActivity.current = key;
-      // Its top sits under the app bar; centering a long comment pushed its start off screen.
       heldActivityRow.current = activityTargetIndex + 1;
       positionActivityRow(activityTargetIndex + 1);
     }
@@ -653,9 +641,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
               >
                 <AnimatedLegendList
                   ref={listRefs[tab]}
-                  // The scroll view owns its resting offset. LegendList keeps the first
-                  // initialScrollOffset it gets, and the first render has the window's top
-                  // inset (0 on the folded iPhone Duo), not the header's.
                   onScrollBeginDrag={
                     tab === "activity"
                       ? () => {
@@ -688,7 +673,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                   onItemSizeChanged={({ itemKey }) => {
                     const held = heldActivityRow.current;
                     if (tab === "activity" && held !== null) {
-                      // A filter or refresh that moved the row ends the hold.
                       if (held !== activityTargetIndex + 1) heldActivityRow.current = null;
                       else positionActivityRow(held);
                       return;
@@ -712,7 +696,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                     paddingHorizontal: 16,
                     paddingTop: 8,
                     paddingBottom: 24 + (Platform.OS === "android" ? toolbarHeight : 0),
-                    // Short tabs must still be tall enough to preserve the collapsed header.
                     minHeight: Math.max(
                       0,
                       viewportHeight + headerHeight - contentTopInset - contentBottomInset,
@@ -803,7 +786,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                   getItemType={(row) =>
                     row.key.endsWith(":body") ? row.key : row.key.split(":")[0]
                   }
-                  // Animating overview fights clipped markdown and collapse scroll correction; file rows can still fade.
                   itemLayoutAnimation={tab === "overview" ? undefined : PR_ROW_LAYOUT}
                   onLoad={() => setListAnimationsReady(true)}
                   renderItem={({ item }) => (
@@ -842,8 +824,6 @@ export function PullRequestRouteScreen({ route }: StaticScreenProps<PullRequestP
                           }}
                         >
                           <PullRequestIdentity pr={identity} params={params} />
-                          {/* UIKit draws the tapped control's glass lens outside the hidden
-                              tab's opacity, so only the visible tab mounts the control. */}
                           {Platform.OS !== "ios" || section === tab ? (
                             <SegmentedControl
                               options={[

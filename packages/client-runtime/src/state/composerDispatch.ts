@@ -37,7 +37,6 @@ export function outboxDispatchMode(input: {
   return input.dispatchMode === "steer" ? "auto" : input.dispatchMode;
 }
 
-// Automatic compaction takes steers only where the provider says a steer leaves it running.
 export function compactionBlocksSteering(input: {
   readonly compactCommandIsActive: boolean;
   readonly compactionRunning: boolean;

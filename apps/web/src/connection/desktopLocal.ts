@@ -5,11 +5,6 @@ import {
   type DesktopEnvironmentBootstrap,
 } from "@supaterm/contracts";
 
-/**
- * The renderer's only signal that a connection is a host-managed local backend (e.g. WSL) rather
- * than a saved remote or SSH environment. Mint ids via {@link desktopLocalConnectionId} and
- * classify via {@link isDesktopLocalConnectionTarget} so the convention cannot drift.
- */
 const DESKTOP_LOCAL_CONNECTION_ID_PREFIX = "local:";
 
 export function desktopLocalConnectionId(backendId: string): string {

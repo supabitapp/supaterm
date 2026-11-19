@@ -24,7 +24,6 @@ import {
 
 const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 
-/** A loopback port that accepts connections until the scope closes, like Supaterm's device connection. */
 const listeningPort = Effect.acquireRelease(
   Effect.promise(
     () =>
@@ -47,7 +46,6 @@ describe("host-bound agent commands", () => {
         const dir = path.join(temp, "quotes '\" $HOME `literal`");
         yield* fs.makeDirectory(dir);
         const desktopApp = path.join(dir, "Supaterm");
-        // Dropping Node mode after checking it forces each hop to set it independently.
         yield* fs.writeFileString(
           desktopApp,
           `#!/bin/sh
@@ -121,7 +119,6 @@ exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
         "-i",
         ...target,
       ]);
-      // A flag the agent passes itself wins over the bound one.
       expect(yield* Effect.promise(() => launch(bound, ["open", "--session", "mine"]))).toEqual([
         "open",
         "--session",
@@ -143,7 +140,6 @@ exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
         "--config",
         "/h.json",
       ]);
-      // After `--` everything is text: no help, no overrides, and bound flags go before it.
       for (const text of [["--help"], ["literal text", "--session", "mine"]]) {
         expect(yield* Effect.promise(() => launch(bound, ["fill", "@e5", "--", ...text]))).toEqual([
           "fill",
@@ -206,7 +202,6 @@ exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
           path.join(path.dirname(command), "agent-device-launcher.mjs"),
           ...args,
         ]).then((result) => JSON.parse(result.stdout));
-      // agent-device 0.21.31 rejects these flags with "unknown option" or "not supported for command".
       const cdp = ["cdp", "target", "list", "--url", "http://127.0.0.1:8081"];
       expect(yield* Effect.promise(() => launch(cdp))).toEqual(cdp);
       expect(yield* Effect.promise(() => launch(["connection"]))).toEqual([
@@ -216,7 +211,6 @@ exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
         "--session",
         "supaterm-a",
       ]);
-      // The command is found past leading flags and their values, in either form.
       for (const config of [["--config", "/o.json"], ["--config=/o.json"]]) {
         expect(yield* Effect.promise(() => launch([...config, "connection"]))).toEqual([
           ...config,
@@ -224,7 +218,6 @@ exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
           "--session",
           "supaterm-a",
         ]);
-        // device status reads claims on the machine it runs on, which is not the device's host.
         yield* Effect.promise(() =>
           expect(launch([...config, "device", "status"])).rejects.toThrow(
             "`device status` reads this machine's device claims, not those on the device's host",
@@ -262,7 +255,6 @@ exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
       timedOut,
     });
     expect(agentDeviceCloseOutcome(result(0))).toBe("closed");
-    // A session that never ran `open` has nothing to release.
     expect(
       agentDeviceCloseOutcome(
         result(1, "Error (SESSION_NOT_FOUND): No active session. Run open first."),
@@ -282,7 +274,6 @@ exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
       const entryPath = path.join(dir, "cli.mjs");
       yield* fs.writeFileString(entryPath, "console.log(JSON.stringify(process.argv.slice(2)));");
       const configPath = path.join(dir, "host.json");
-      // A port that was just free: nothing listens on it, so a connect is refused.
       const port = yield* Effect.promise(
         () =>
           new Promise<number>((resolve) => {
@@ -315,7 +306,6 @@ exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
           stderr: `Supaterm's device connection at 127.0.0.1:${port} is not reachable from this shell (connect ECONNREFUSED). Call device_open again to reconnect; if that succeeds and this repeats, this shell runs in a network sandbox, so run the command with network access, outside the sandbox.\n`,
         }),
       );
-      // An explicit --daemon-base-url wins over the config, as it does in agent-device.
       const override = `http://127.0.0.1:${yield* listeningPort}`;
       for (const flag of [["--daemon-base-url", override], [`--daemon-base-url=${override}`]]) {
         expect(
@@ -332,7 +322,6 @@ exec '${process.execPath.replaceAll("'", "'\"'\"'")}' "$@"
           "supaterm-a",
         ]);
       }
-      // cdp talks to Metro, not to Supaterm's connection, so it still runs.
       expect(
         JSON.parse((yield* Effect.promise(() => launch(["cdp", "target", "list"]))).stdout),
       ).toEqual(["cdp", "target", "list"]);
@@ -452,7 +441,6 @@ if (process.env.AGENT_DEVICE_DAEMON_BASE_URL) process.exit(2);`,
       });
       expect((yield* Effect.promise(() => invoke(files[0]!))).daemonAuthToken).toBe("new");
       expect(yield* fs.readFileString(files[1]!)).toBe(second);
-      // Hosts with a daemon per device get a file per device, apart from the host's own.
       const perDevice = yield* Effect.forEach(["udid-1", "udid-2"], (device) =>
         agentDeviceConfigPath(dir, "eas", path, device),
       );

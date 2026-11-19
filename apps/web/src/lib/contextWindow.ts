@@ -40,7 +40,6 @@ export function latestProviderTurnTokenUsage(
   for (const { providerThreadId, tokenUsage } of turns) {
     if (tokenUsage === undefined) continue;
     if (providerThread != null && providerThreadId !== providerThread.id) continue;
-    // Ties go to the later entry, since live upserts append.
     if (latest === null || Date.parse(tokenUsage.updatedAt) >= Date.parse(latest.updatedAt)) {
       latest = tokenUsage;
     }
@@ -141,7 +140,6 @@ export function deriveLatestContextWindowSnapshot(
       continue;
     }
     const payload = entry.item;
-    // A retired provider thread's compaction says nothing about the active conversation.
     if (
       providerThread != null &&
       payload.providerThreadId != null &&

@@ -87,9 +87,7 @@ export function WorktreeSetupCard({
 }
 
 function SetupCard(props: WorktreeSetupCardProps & SetupDetailsControl) {
-  // Once the agent has the turn, running setup is a chip on the live Working row.
   if (worktreeSetupHandedOff(props)) {
-    // As on web, only a setup that went wrong stays in view.
     return setupWentWrong(props.snapshot) ? <WorktreeSetupSummaryRow {...props} /> : null;
   }
   return <WorktreeSetupHeaderCard {...props} />;
@@ -193,10 +191,6 @@ export function WorktreeSetupFoldChip(props: WorktreeSetupCardProps & SetupDetai
   );
 }
 
-/**
- * Setup that ended after the agent took the turn, as one row under the prompt, like web's
- * collapsed summary. Tapping it opens the details.
- */
 function setupWentWrong(snapshot: WorktreeSetupSnapshot): boolean {
   return (
     snapshot.phase === "failed" ||
@@ -248,7 +242,6 @@ export function WorktreeSetupDetails(
   return <SetupDetailsSheet {...props} now={now} />;
 }
 
-// Same rows the first snapshot brings, so the card keeps its height when that snapshot lands.
 const PREPARING_STAGES: ReadonlyArray<WorktreeSetupStage> = WORKTREE_SETUP_STAGE_ORDER.filter(
   (id) => id !== "agent",
 ).map((id) => ({

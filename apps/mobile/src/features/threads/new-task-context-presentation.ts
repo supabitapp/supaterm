@@ -90,7 +90,6 @@ export function resolveNewTaskBranchLabel(input: {
     return input.branchName;
   }
 
-  // Only the server can determine a local branch's configured remote.
   return input.startFromOrigin ? `From ${input.branchName} (remote)` : `From ${input.branchName}`;
 }
 
@@ -133,7 +132,6 @@ export function fillNewTaskWorkspaceBranch(input: {
   const { selection } = input;
   if (selection.branch !== null) return selection;
   if (selection.mode === "worktree") {
-    // The default may only exist as origin/<default>, so search remote refs too.
     const base =
       input.branches.find((branch) => branch.isDefault) ??
       input.branches.find((branch) => !branch.isRemote && branch.current) ??

@@ -15,7 +15,6 @@ export function fileBreadcrumbs(projectName: string, relativePath: string): File
   const hostPath = isHostPath(relativePath);
   const windowsPath = isWindowsAbsolutePath(relativePath);
   const separator = windowsPath ? "\\" : "/";
-  // `\` is a legal filename character outside Windows paths.
   const parts = relativePath.split(windowsPath ? /[\\/]/ : "/").filter(Boolean);
   const root = relativePath.startsWith("\\\\") ? "\\\\" : relativePath.startsWith("/") ? "/" : "";
   return [
@@ -24,8 +23,6 @@ export function fileBreadcrumbs(projectName: string, relativePath: string): File
       const path = root + parts.slice(0, index + 1).join(separator);
       return {
         label: part,
-        // A bare drive (`C:`) means the drive's current directory; its root is `C:\`.
-        // A bare `~` is not a host path; the home folder is `~/`.
         path: /^[A-Za-z]:$/.test(path) ? `${path}\\` : hostPath && path === "~" ? "~/" : path,
         kind: index === parts.length - 1 ? ("file" as const) : ("directory" as const),
       };

@@ -20,7 +20,6 @@ const imageProps = {
 <Layout title="Download | Supaterm" description="Download Supaterm for macOS, Windows, or Linux.">
   <div class="download-page" id="download-page" data-channel="stable" data-installer="true">
     <script is:inline>
-      // Set the channel before first paint so ?channel=nightly never flashes the stable page.
       if (new URLSearchParams(location.search).get("channel") === "nightly") {
         const page = document.getElementById("download-page");
         page.dataset.channel = "nightly";
@@ -191,7 +190,6 @@ const imageProps = {
     releasesPageLink.href = fallback;
     changelogLink.href = fallback;
     versionLabel.textContent = "\u00a0";
-    // Only stable releases ship the installer; assume it until the release says otherwise.
     page.dataset.installer = String(channel === "stable");
     cards.forEach((card) => {
       card.href = fallback;
@@ -199,10 +197,8 @@ const imageProps = {
 
     try {
       const release = await fetchLatestRelease(channel);
-      // A toggle click while the fetch was in flight wins; drop the stale result.
       if (page.dataset.channel !== channel) return;
 
-      // Stable shows its version. Nightly shows how fresh the build is; the tag is noise.
       versionLabel.textContent =
         channel === "nightly"
           ? `Built ${relativeAge(release.published_at)}`
@@ -213,8 +209,6 @@ const imageProps = {
       cards.forEach((card) => {
         card.href = findAsset(card.dataset.asset)?.browser_download_url ?? fallback;
       });
-      // The installer picks the build for the Mac's chip; without it, the card
-      // keeps the arm64 DMG and the copy says so.
       const installer = findAsset("installer.dmg");
       page.dataset.installer = String(Boolean(installer));
       if (installer) macCard.href = installer.browser_download_url;

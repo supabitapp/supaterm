@@ -28,7 +28,6 @@ const CAPABILITIES: PullRequestCapabilities = {
   comment: true,
   actions: [...definition.changeRequestActions],
   mergeMethods: ["merge", "squash", "rebase"],
-  // Branch updates restack every layer above the target.
   updateMethods: ["rebase"],
   search: true,
   stacks: true,
@@ -37,7 +36,6 @@ const CAPABILITIES: PullRequestCapabilities = {
   mentions: true,
   referenceSigils: [],
   labels: true,
-  // Line comments go through GitCafe's review drafts, which arrive with revision fencing.
   review: {
     inlineComment: false,
     reply: true,
@@ -50,18 +48,10 @@ const CAPABILITIES: PullRequestCapabilities = {
 
 const PAGE_SIZE = 100;
 const MAX_PAGES = 10;
-/**
- * Pages read looking for a GitHub-synced author before a listing filtered by them gives up. The
- * login only appears on their pull requests, so one older than this many is out of reach.
- */
 const AUTHOR_DISCOVERY_PAGES = 5;
-/** Bounds the logins remembered from listings; a repository's authors fit many times over. */
 const KNOWN_AUTHORS_LIMIT = 10_000;
-/** GitCafe's cap on paths per `/diff-files` read, and so one diff page. */
 const DIFF_FILES_BATCH = 64;
-/** Changed-path pages carry no hunks, so they can be read in larger pages. */
 const CHANGES_PAGE_LIMIT = 500;
-/** Line totals require hunk reads; omit them for large PRs. */
 const LINE_STATS_MAX_FILES = DIFF_FILES_BATCH * 4;
 const MAX_CHANGE_PAGES = 20;
 const LINE_STATS_CACHE_SIZE = 256;
@@ -91,8 +81,6 @@ const Versioned = Schema.Struct({ version: NonNegativeInt });
 const CommentDetail = Schema.Struct({ id: Id, version: NonNegativeInt });
 const Status = Schema.Struct({
   merge: Schema.Struct({
-    // The API reference lists "unknown" and "conflicting", but git.cafe also sends "none" and
-    // "pending", so any state is read and only the known ones are mapped.
     conflicts: Schema.String,
     fastForward: Schema.NullOr(Schema.Boolean),
     strategies: Schema.Array(Schema.String),
@@ -110,7 +98,6 @@ const Status = Schema.Struct({
     total: NonNegativeInt,
   }),
 });
-/** A merge GitCafe accepted runs on afterwards: on GitHub for a synced pull request, or natively. */
 const MERGE_IN_FLIGHT = new Set(["provider-merge-pending", "native-operation-pending"]);
 const Listed = Schema.Struct({
   items: Schema.Array(Schema.Struct({ id: TrimmedNonEmptyString })),
@@ -169,7 +156,6 @@ const MergeOutcome = Schema.Struct({
 const StackOutcome = Schema.Struct({ id: Schema.String, state: Schema.String });
 const FAILED_STACK_STATES = new Set(["failed", "stopped", "cancelled", "reconciliation_required"]);
 
-// A pull action replies with the pull it left; `closedAt`/`mergedAt` are read only when sent.
 const decodeActionReply = Schema.decodeUnknownOption(
   Schema.fromJsonString(
     Schema.Struct({
@@ -182,7 +168,6 @@ const decodeActionReply = Schema.decodeUnknownOption(
 
 type PullRef = ProviderRepositoryRef & { readonly number: number };
 
-/** GitHub's merge counts as soon as GitCafe records it, ahead of the sync that reports it. */
 const settledMerge = (pull: Json.GitCafePullDetail) =>
   pull.state === "open" && pull.providerMerge != null
     ? { state: "merged" as const, mergedAt: pull.providerMerge.mergedAt }
@@ -230,8 +215,6 @@ const withDetails = (
 /** @public */
 export const make = Effect.gen(function* () {
   const api = yield* GitCafeApi.GitCafeApi;
-  // GitCafe filters by actor id and has no lookup from a GitHub login to the actor sync made for
-  // it, so the pairs are learned from the pull requests every listing reads.
   const knownAuthors = new Map<string, string>();
   const authorKey = (host: string, login: string) =>
     `${host.toLowerCase()}\n${login.toLowerCase()}`;
@@ -377,11 +360,6 @@ export const make = Effect.gen(function* () {
     return { items, next };
   });
 
-  /**
-   * GitCafe filters by ids, so label names and the author's handle are looked up first. A label it
-   * cannot resolve is left out, and the service narrows the rows by name instead. An author it
-   * cannot resolve comes back as `unresolvedAuthor` for the listing to find.
-   */
   const listFilterParams = Effect.fn("GitCafePullRequestProvider.listFilterParams")(function* (
     input: ProviderRepositoryRef & {
       readonly filters?: PullRequestListFilters | undefined;
@@ -410,8 +388,6 @@ export const make = Effect.gen(function* () {
           const id = ids.get(name.trim().toLowerCase());
           return id === undefined ? [] : [id];
         });
-      // Several ids in `labels` match a pull request holding any one of them, which is exactly
-      // one group; the remaining groups are the service's to narrow.
       const group = groups.find((names) => idsOf(names).length === names.length);
       if (group !== undefined) params.push(["labels", encodeIds(idsOf(group))]);
       const excludedIds = idsOf(excluded);
@@ -419,8 +395,6 @@ export const make = Effect.gen(function* () {
     }
     if (filters.author !== undefined && !input.authorNarrowed) {
       const handle = resolvePullRequestAuthorFilter(filters.author, input.viewer);
-      // A profile matches what GitHub sync authored for it too. A GitHub-synced author with no
-      // profile is known only by the actor on their pull requests.
       const user = yield* read(
         "listChangeRequests",
         input,
@@ -454,11 +428,6 @@ export const make = Effect.gen(function* () {
   const isForbidden = (error: PullRequestProviderError) =>
     isApiError(error.cause) && error.cause.status === 403;
 
-  /**
-   * GitCafe offers no way to read a token's scopes, so reviewer controls show
-   * for anyone who may edit the pull request; a token without the reviewer
-   * scopes learns which ones it lacks when it uses them.
-   */
   const explainReviewerScopes =
     (operation: string) =>
     <A, R>(effect: Effect.Effect<A, PullRequestProviderError, R>) =>
@@ -474,12 +443,6 @@ export const make = Effect.gen(function* () {
         ),
       );
 
-  /**
-   * GitCafe replaces a pull request's whole reviewer or label list, so one toggle reads the
-   * list, changes it, and writes it back fenced on the pull request's version. The version is
-   * read first: a change landing between the two reads then fails the fence instead of being
-   * overwritten.
-   */
   const toggleListed = Effect.fn("GitCafePullRequestProvider.toggleListed")(function* (
     operation: string,
     input: PullRef,
@@ -507,10 +470,6 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  /**
-   * GitCafe's stack lists no heads, and they are what a land or restack is fenced on, so each
-   * open layer's pull is read.
-   */
   const readStack = Effect.fn("GitCafePullRequestProvider.readStack")(function* (
     operation: string,
     input: PullRef,
@@ -551,7 +510,6 @@ export const make = Effect.gen(function* () {
         : yield* decodeDiffCursor(input.cursor).pipe(
             Effect.mapError((cause) => failure(operation, "Invalid GitCafe diff cursor.", cause)),
           );
-    // A pull without a head yet has nothing to pin; its version still is.
     const expected = cursor ?? (yield* readPull(operation, input));
     const version = expected.version;
     const path = yield* pullPath(operation, input);
@@ -646,12 +604,7 @@ export const make = Effect.gen(function* () {
       return yield* failure(operation, `GitCafe's stack operation ${outcome.state}.`);
   });
 
-  // GitCafe's pulls carry no line totals, and linked pull requests are summarized every minute,
-  // so hunk totals are held per compared pair of commits. The file list that names the pair is
-  // cheap; a retarget or a landed parent layer moves the base without moving the head.
   const lineTotals = new Map<string, { readonly additions: number; readonly deletions: number }>();
-  // The compared pair follows from the head and the target tip the pull reports, so while neither
-  // moves the stats are reused without listing the files again.
   const statsByTips = new Map<
     string,
     { readonly changedFiles: number; readonly additions?: number; readonly deletions?: number }
@@ -661,7 +614,6 @@ export const make = Effect.gen(function* () {
     cache.set(key, value);
   };
 
-  // readLineStats owns the span.
   const countLines = Effect.fnUntraced(function* (input: PullRef, version: number) {
     const path = yield* pullPath("getChangeRequest", input);
     const files: Array<Json.GitCafeDiffFile> = [];
@@ -698,7 +650,6 @@ export const make = Effect.gen(function* () {
     const key = `${input.host} ${input.repository.toLowerCase()} ${input.number} ${revision.baseOid} ${revision.headOid}`;
     const held = lineTotals.get(key);
     const { headOid } = revision;
-    // A listing that stopped before its last page counts only part of the diff, so nothing is held.
     const listed = after === null;
     if (held !== undefined)
       return { headOid, complete: listed, stats: { changedFiles: files.length, ...held } };
@@ -715,7 +666,6 @@ export const make = Effect.gen(function* () {
             Effect.map((batches) => batches.flat()),
             Effect.option,
           );
-    // Unread hunks leave the lines unknown rather than zero; the file count still stands.
     if (Option.isNone(details))
       return { headOid, complete: listed && tooMany, stats: { changedFiles: files.length } };
     const counted = details.value;
@@ -738,8 +688,6 @@ export const make = Effect.gen(function* () {
     const heldStats = tipsKey === null ? undefined : statsByTips.get(tipsKey);
     if (heldStats !== undefined) return heldStats;
     const stats = yield* countLines(input, pull.version);
-    // A failed hunk read is retried next time rather than held as unknown, and a head that moved
-    // between the two reads would hold another pair's stats.
     if (tipsKey !== null && stats.complete && stats.headOid === pull.headOid)
       remember(statsByTips, tipsKey, stats.stats);
     return stats.stats;
@@ -753,7 +701,6 @@ export const make = Effect.gen(function* () {
     if (pull.mergeRoute === "unsupported")
       return yield* failure("merge", "This GitCafe pull request has no supported merge route.");
     const base = yield* repositoryPath("merge", input);
-    // Native merges fence on the current target commit; provider-routed merges supply the base.
     const baseOid =
       pull.mergeRoute === "provider"
         ? pull.observedBaseOid
@@ -807,10 +754,6 @@ export const make = Effect.gen(function* () {
         const involved = input.involvement === "authored" || input.involvement === "reviewing";
         let actorId: string | undefined;
         if (involved) {
-          // The viewer is the token's principal, whose actor also matches the pull requests GitHub
-          // sync authored for its linked profile. When it can't be read, the listing comes back
-          // unnarrowed and the page's own involvement filter does the rest. A refused token or a
-          // rate limit still fails, since the service acts on those for the whole host.
           const principal = yield* read(
             "listChangeRequests",
             input,
@@ -854,8 +797,6 @@ export const make = Effect.gen(function* () {
           ).pipe(Effect.tap((page) => Effect.sync(() => learnAuthors(input.host, page.items))));
         });
         if (unresolvedAuthor !== null) {
-          // Rows are only ever handed out narrowed by actor, so a continuation always carries on
-          // the same narrowed listing.
           const key = authorKey(input.host, unresolvedAuthor);
           let after: string | null = null;
           let pages = 0;
@@ -871,9 +812,6 @@ export const make = Effect.gen(function* () {
         }
         const limit = Math.max(1, input.limit);
         const items: Array<Json.GitCafePull> = [];
-        // GitCafe pages by an opaque token and orders by creation, so a continuation reads from the
-        // top and keeps only the rows created after the last one delivered. A count of rows would
-        // skip one for every row above it that closed in between.
         const resume = parsePosition(input.cursor?.resumeAfter);
         const isNew = (pull: Json.GitCafePull) => {
           if (resume === null) return true;
@@ -920,7 +858,6 @@ export const make = Effect.gen(function* () {
           pull.headOid === null
             ? null
             : yield* readLineStats(input, pull).pipe(Effect.orElseSucceed(() => null));
-        // A count that could not be read is absent rather than zero.
         const {
           additions: _additions,
           deletions: _deletions,
@@ -939,7 +876,6 @@ export const make = Effect.gen(function* () {
       const pull = yield* readPull("getChangeRequest", input);
       const path = yield* pullPath("getChangeRequest", input);
       const base = yield* repositoryPath("getChangeRequest", input);
-      // A single pull request read carries neither its reviewers nor its labels.
       const [status, checks, changes, reviewers, labels] = yield* Effect.all(
         [
           read("getChangeRequest", input, { path: `${path}/status` }, Status),
@@ -954,7 +890,6 @@ export const make = Effect.gen(function* () {
           pull.headOid === null
             ? Effect.succeed(null)
             : readLineStats(input, pull).pipe(Effect.orElseSucceed(() => null)),
-          // Reviewers need `pr:review:read`, which a contents-only token lacks.
           readPages("getChangeRequest", input, `${path}/reviewers`, Json.GitCafeActorEntries).pipe(
             // @effect-diagnostics-next-line catchConditionalRefailToCatchIf:off - catchIf widens this paginated result to any in tsc-rs.
             Effect.catch((error) =>
@@ -967,8 +902,6 @@ export const make = Effect.gen(function* () {
       );
       const listed = { ...pull, reviewers: reviewers.items, labels: labels.items };
       const checkList = checks === null ? [] : Json.toChecks(checks);
-      // GitCafe's own counts include runs a re-run replaced, so the newest runs are the state. A
-      // truncated listing may be missing a failure; the counts never call failing checks passing.
       const checksState =
         checks !== null && checks.next === null
           ? Json.checksStateOf(checkList)
@@ -1036,9 +969,7 @@ export const make = Effect.gen(function* () {
             readPages(operation, input, `${path}/reviews`, Json.GitCafeReviews),
             pull.headOid === null
               ? Effect.succeed({ items: [], next: null })
-              : // A closed pull request whose branch is gone keeps its head, but git.cafe answers
-                // 404 for commits it no longer has; the conversation still stands without them.
-                readPages(operation, input, `${path}/commits`, Json.GitCafeCommits).pipe(
+              : readPages(operation, input, `${path}/commits`, Json.GitCafeCommits).pipe(
                   // @effect-diagnostics-next-line catchConditionalRefailToCatchIf:off - catchIf widens this paginated result to any in tsc-rs.
                   Effect.catch((error) =>
                     error.reason === "not-found"
@@ -1095,7 +1026,6 @@ export const make = Effect.gen(function* () {
           );
         const path = yield* pullPath(operation, input);
         const query = new URLSearchParams({ expectedVersion: String(pull.version), limit: "1" });
-        // observedBaseOid is the target tip, not necessarily the diff's merge base.
         const snapshot = yield* read(
           operation,
           input,
@@ -1148,7 +1078,6 @@ export const make = Effect.gen(function* () {
           });
           const left = decodeActionReply(reply);
           if (Option.isNone(left)) return;
-          // The reply carries no line totals or conflict state, so they stay absent.
           const {
             additions: _additions,
             deletions: _deletions,
@@ -1309,7 +1238,6 @@ export const make = Effect.gen(function* () {
       function* (input) {
         const operation = "searchRepositoryAuthors";
         const query = input.query?.trim() ?? "";
-        // User search needs two characters; before that the repository's own people stand in.
         const path =
           query.length < 2
             ? `${yield* repositoryPath(operation, input)}/collaborators?${new URLSearchParams({ limit: "50" })}`

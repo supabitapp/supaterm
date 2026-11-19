@@ -263,7 +263,6 @@ export default function DiffPanel({
   const [baseRefQuery, setBaseRefQuery] = useState("");
   const [baseRefPickerOpen, setBaseRefPickerOpen] = useState(false);
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  // The open commit menu keeps the list it opened with, so rows do not move under the pointer.
   const [openCommitMenu, setOpenCommitMenu] = useState<ReviewBranchCommitsResult | null>(null);
   const [codeViewRevision, setCodeViewRevision] = useState(0);
 
@@ -310,8 +309,6 @@ export default function DiffPanel({
     selectThreadBranchBaseRef(state, routeThreadRef),
   );
   const toolCallSelection = diffSelection.kind === "tool-call" ? diffSelection : null;
-  // Turn and git diffs name files from the repository root; a tool call's diff names them as
-  // its provider recorded them, absolute or relative to the workspace.
   const diffPathRepositoryRoot = toolCallSelection ? undefined : activeRepositoryRoot;
   const isGitSelection =
     diffSelection.kind === "branch" ||
@@ -414,8 +411,6 @@ export default function DiffPanel({
       : undefined;
   const canRefreshGitDiff =
     isGitRepo && isGitSelection && activeThread != null && activeCwd != null;
-  // Read under the workspace mutation id, so each mutation refetches the diff; the panel stays
-  // mounted while hidden, so a mutation made then is already reflected when it shows.
   const branchDiffPreview = useEnvironmentQuery(
     branchDiffPreviewInput && activeThread
       ? revisionedQuery(
@@ -484,7 +479,6 @@ export default function DiffPanel({
       ? projectCommitUrl(activeProject?.repositoryIdentity, headerCommitSha)
       : null;
   const openLink = useOpenLink(routeThreadRef);
-  // A SHA link goes to the code host; it must not route back into this pane's commit selection.
   const openCommitUrl = (event: MouseEvent<HTMLElement>, url: string) => {
     event.stopPropagation();
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1)
@@ -575,7 +569,6 @@ export default function DiffPanel({
           cacheKey: selectedGitSource.diffHash,
         })
       : undefined;
-  // The code view keeps one loader for its lifetime; a new identity would remount it.
   const loadDiffFiles: FileDiffContentsLoader = useStableCallback(async (fileDiff) => {
     if (!currentLoadDiffFiles) {
       throw new Error("Diff file contents are unavailable for this selection.");
@@ -666,10 +659,6 @@ export default function DiffPanel({
   const refreshBranchDiffPreview = refreshPreviewQuery;
   const diffRefreshKey = `diff:${activeThreadRefreshKey ?? ""}`;
 
-  // The panel stays mounted while hidden, and edits made outside Supaterm bump no mutation id, so
-  // showing it revalidates the diff; that also stands in for focus events missed while hidden.
-  // A git diff is too costly to repeat on a timer nobody asked for. A diff read within the floor,
-  // such as a mutation's refetch while hidden, already counts as that revalidation.
   useLiveRefresh(
     branchDiffPreview.data !== null && !branchDiffPreview.isPending
       ? () => {
@@ -690,7 +679,6 @@ export default function DiffPanel({
   const renderableFileEntries = buildFileDiffEntries(renderableFiles).map((entry) => {
     if (!isGitSelection) return entry;
     const { fileDiff } = entry;
-    // Metadata's change type can be missing or differ from the patch's; key each path's identity by path.
     const pathKey = JSON.stringify([fileDiff.prevName ?? fileDiff.name, fileDiff.name]);
     const occurrence = pathOccurrences.get(pathKey) ?? 0;
     pathOccurrences.set(pathKey, occurrence + 1);
@@ -700,7 +688,6 @@ export default function DiffPanel({
   const testFileCount = renderableFiles.filter((file) =>
     isTestChangedFile(resolveFileDiffPath(file)),
   ).length;
-  // Hiding is display-only: lazy loading indexes into the full list. A requested file stays visible.
   const isFileShown = (file: FileDiffMetadata) => {
     const path = resolveFileDiffPath(file);
     return !hideTestFiles || path === selectedFilePath || !isTestChangedFile(path);
@@ -741,7 +728,6 @@ export default function DiffPanel({
   const diffLineStat = sourceLineStat ?? getDiffLineStat(renderableFiles);
   const fileTreeEntries = diffFileTreeEntries(renderableFiles.filter(isFileShown));
   const codeViewReveal = useCodeViewFileReveal();
-  // Lazy files that sat above the saved position load again only when asked for.
   const codeViewScroll = useCodeViewScrollRestore(
     collapseScopeKey,
     !isRefreshingDiff && remainingFileCount === 0,
@@ -772,8 +758,6 @@ export default function DiffPanel({
     return true;
   };
 
-  // A file another view asked to reveal (a chat diff link): retried as the diff loads until it
-  // holds the file, then not again until a new request, so it does not undo what the user did since.
   const externalRevealRef = useRef<string | null>(null);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reveals an externally requested file in the diff viewer, retrying as the diff DOM loads
   useEffect(() => {
@@ -814,7 +798,6 @@ export default function DiffPanel({
     });
   };
   const stableOpenDiffFile = useStableCallback(openDiffFile);
-  // Every file header holds these; a new identity per collapse change would redraw them all.
   const toggleDiffFileCollapsed = useStableCallback((fileKey: string) => {
     const file = renderableFileEntries.find((file) => file.fileKey === fileKey);
     if (lazySource && file) requestFile(resolveFileDiffPath(file.fileDiff));
@@ -961,7 +944,6 @@ export default function DiffPanel({
               onOpenChange={(open) => {
                 setOpenCommitMenu(open ? (branchCommitsQuery.data ?? null) : null);
                 if (!open) return;
-                // The menu keeps the list it opened with; the refreshed one shows next time.
                 branchCommitsQuery.refresh();
               }}
             >

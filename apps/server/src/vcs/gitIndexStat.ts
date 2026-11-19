@@ -31,7 +31,6 @@ const FLAG_EXTENDED = 0x4000;
 const FLAG_STAGE = 0x3000;
 const FLAG_NAME_LENGTH = 0x0fff;
 const EXTENDED_SKIP_WORKTREE = 0x4000;
-// Extensions that let Git trust an entry without checking the file, or that point at another index.
 const UNSAFE_EXTENSIONS = new Set(["link", "FSMN", "sdir", "UNTR"]);
 
 const decoder = new TextDecoder();
@@ -68,11 +67,9 @@ export function parseIndex(bytes: Uint8Array): ParsedIndex | null {
       nameLength < FLAG_NAME_LENGTH ? nameStart + nameLength : bytes.indexOf(0, nameStart);
     if (nameEnd < 0 || bytes[nameEnd] !== 0) return null;
     entries.push({ offset, path: decoder.decode(bytes.subarray(nameStart, nameEnd)) });
-    // Entries are NUL-padded to a multiple of eight bytes, with at least one NUL.
     offset += (nameEnd - offset + 8) & ~7;
   }
 
-  // Extensions follow the entries as a 4-byte signature and a 4-byte length.
   while (offset < bytes.length - SHA1_BYTES) {
     if (offset + 8 > bytes.length - SHA1_BYTES) return null;
     if (UNSAFE_EXTENSIONS.has(decoder.decode(bytes.subarray(offset, offset + 4)))) return null;
@@ -107,7 +104,6 @@ export function restatIndex(
 ): Uint8Array | null {
   const bytes = new Uint8Array(parsed.bytes);
   const view = new DataView(bytes.buffer);
-  // Two tracked paths on one file, as on a case-insensitive volume, cannot both match.
   const files = new Set<string>();
   for (const [index, entry] of parsed.entries.entries()) {
     const stat = stats[index];

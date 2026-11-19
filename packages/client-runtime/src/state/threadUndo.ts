@@ -1,4 +1,3 @@
-// Shared across hook instances so sidebar, header and menu actions invalidate each other.
 const currentActions = new Map<string, symbol>();
 const listeners = new Set<() => void>();
 
@@ -60,17 +59,14 @@ export function planThreadUndo(
     action: "pin",
     ...(thread?.pinOrderKey != null ? { orderKey: thread.pinOrderKey } : {}),
   };
-  // Pinning clears snooze on the server; restore it after restoring pin placement.
   const snooze =
     thread?.snoozedUntil != null
       ? [{ action: "snooze" as const, snoozedUntil: thread.snoozedUntil }]
       : [];
   if (action === "unpin") return [pin, ...snooze];
-  // Marking an already Done thread only cleared its snooze.
   if (thread?.doneOverride === "done" && thread.snoozedUntil != null) {
     return [{ action: "snooze", snoozedUntil: thread.snoozedUntil }];
   }
-  // Marking done clears a manual active position; pinned threads are placed by their pin instead.
   const placement: ThreadUndoStep[] =
     thread?.pinnedAt != null
       ? [pin]
@@ -93,7 +89,6 @@ export async function executeThreadUndo<Result>(
   let result: Result | undefined;
   for (const step of plan) {
     if (result !== undefined && !succeeded(result)) return result;
-    // A snooze can expire before Undo runs, and the server rejects an expired restore.
     // @effect-diagnostics-next-line globalDate:off
     if (step.action === "snooze" && Date.parse(step.snoozedUntil) <= Date.now()) continue;
     result = await execute(step);

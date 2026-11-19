@@ -65,11 +65,6 @@ const LIST_RESULT: PullRequestListResult = {
 };
 
 describe("PullRequestListResult", () => {
-  /**
-   * The RPC builds this codec at call time, so a shape it cannot lower — an open-keyed record
-   * with an optional value, for one — fails as an interrupted request rather than as a schema
-   * error.
-   */
   it("round-trips through the JSON codec the RPC serializes with", () => {
     const codec = Schema.toCodecJson(PullRequestListResult);
 

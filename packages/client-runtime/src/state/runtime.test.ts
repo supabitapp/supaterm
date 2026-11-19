@@ -182,10 +182,6 @@ const makeEnvironmentQueryHarness = Effect.fn("TestEnvironmentQuery.makeHarness"
   };
 });
 
-/**
- * `getResult` resumes from inside the query's listener, so it only unsubscribes
- * once the reader yields.
- */
 const readEnvironmentQuery = <A, E>(
   registry: AtomRegistry.AtomRegistry,
   atom: Atom.Atom<AsyncResult.AsyncResult<A, E>>,
@@ -291,7 +287,6 @@ describe("preview event subscriptions", () => {
         createdAt: event.createdAt,
       }));
       const releaseEvents = yield* Deferred.make<void>();
-      // Each iterable is one RPC chunk; separate emissions would hide lost events.
       const stream = Stream.fromEffect(Deferred.await(releaseEvents)).pipe(
         Stream.flatMap(() =>
           Stream.fromIterable(opened).pipe(
@@ -411,7 +406,6 @@ describe("finite environment subscription lifecycle", () => {
           const resubscribed = yield* Deferred.make<void>();
           const surfaced = yield* Deferred.make<Cause.Cause<unknown>>();
           let subscriptions = 0;
-          // Mirrors RpcClient, which decodes each chunk with `Effect.orDie`.
           const decodeDefect = decodeNumber("not a number").pipe(Effect.orDie);
           const client = {
             [ORCHESTRATION_V2_WS_METHODS.searchThreadStream]: () => {
@@ -445,14 +439,12 @@ describe("finite environment subscription lifecycle", () => {
                 supervisor,
               ),
           } as unknown as EnvironmentRegistry.EnvironmentRegistry["Service"]);
-          // Atoms run their own fibers; share the test clock so a pending retry is driven by it.
           const runtime = Atom.runtime(
             Layer.mergeAll(
               Layer.succeed(EnvironmentRegistry.EnvironmentRegistry, environmentRegistry),
               Layer.succeed(Clock.Clock, yield* Clock.Clock),
             ),
           );
-          // Same options as the progressive thread find in orchestration.ts.
           const family = createEnvironmentRpcSubscriptionAtomFamily(runtime, {
             label: "test.finite-rpc-subscription",
             tag: ORCHESTRATION_V2_WS_METHODS.searchThreadStream,
@@ -479,7 +471,6 @@ describe("finite environment subscription lifecycle", () => {
             }),
           );
           yield* Deferred.await(firstSubscribed);
-          // Lets any same-session retry run, so its resubscription can win the race below.
           yield* TestClock.adjust("1 minute");
           const outcome = yield* Effect.raceFirst(
             Deferred.await(surfaced).pipe(
@@ -526,7 +517,6 @@ describe("finite environment subscription lifecycle", () => {
           ...(completedTtlMs === undefined ? {} : { completedTtlMs }),
         });
         const atom = family({ environmentId: QUERY_ENVIRONMENT.environmentId, input: undefined });
-        // Flushed after each close: idle removals have run by the time a user reopens a row.
         const scheduled: Array<() => void> = [];
         const registry = AtomRegistry.make({
           scheduleTask: (task) => {
@@ -708,7 +698,6 @@ describe("environment query lifecycle", () => {
     }),
   );
 
-  // The server sizes a shared PTY to every attached viewer, so a lingering attach pins its grid.
   it.effect("terminal attach detaches as soon as its last viewer leaves", () =>
     Effect.gen(function* () {
       const harness = yield* makeEnvironmentQueryHarness(Effect.void);
@@ -816,7 +805,6 @@ describe("environment query lifecycle", () => {
           }),
         );
         yield* Effect.yieldNow;
-        // The query has never answered, so it reports why the environment is retrying.
         const backingOff = registry.get(harness.atom);
         expect(backingOff.waiting).toBe(false);
         expect(AsyncResult.isFailure(backingOff) && Cause.squash(backingOff.cause)).toBe(
@@ -1008,7 +996,6 @@ describe("environment query lifecycle", () => {
         }),
       });
       const registry = yield* mountEnvironmentQuery(harness.atom);
-      // Callers hold the failure a read got while the environment was retrying.
       const failed = yield* Effect.promise(() =>
         executeAtomQuery(registry, harness.atom, { reportFailure: false }),
       );
@@ -1191,8 +1178,6 @@ describe("environment query lifecycle", () => {
       });
       const registry = AtomRegistry.make();
       yield* Effect.addFinalizer(() => Effect.sync(() => registry.dispose()));
-      // Stale-while-revalidate refreshes from a task on the registry scheduler;
-      // queue behind it so the read sees the revalidation instead of racing it.
       const afterScheduledTasks = Effect.callback<void>((resume) => {
         registry.schedulerAsync.makeDispatcher().scheduleTask(() => resume(Effect.void), 0);
       });
@@ -1204,8 +1189,6 @@ describe("environment query lifecycle", () => {
       const closePicker = registry.mount(atom);
       expect(yield* listNames).toEqual(["existing"]);
       closePicker();
-      // A closed picker stays closed past the registry's scheduled node
-      // removal; a remount within the same tick keeps the live node.
       yield* afterScheduledTasks;
 
       onDisk = [entry("created-externally"), entry("existing")];
@@ -1267,12 +1250,10 @@ describe("environment query lifecycle", () => {
       expect(yield* remount).toBe("before edit");
       contents = "after edit";
 
-      // Inside the harness's 60s stale time: the cached value stands.
       now = 30_000;
       expect(yield* remount).toBe("before edit");
       expect(fetches).toBe(1);
 
-      // Past the stale time, well inside the default 5 minute idle TTL.
       now = 61_000;
       expect(yield* remount).toBe("after edit");
       expect(fetches).toBe(2);
@@ -1293,8 +1274,6 @@ describe("environment query lifecycle", () => {
       );
       const registry = AtomRegistry.make();
       yield* Effect.addFinalizer(() => Effect.sync(() => registry.dispose()));
-      // `Atom.family` holds members weakly, so the test must hold none: another environment
-      // than `harness.atom`'s, which the harness holds.
       const environmentId = EnvironmentId.make("unheld-environment");
       const query = () => harness.family({ environmentId, input: undefined });
       const first = new WeakRef(query());
@@ -1305,7 +1284,6 @@ describe("environment query lifecycle", () => {
         unmount();
         return value;
       });
-      // A WeakRef target survives until the current job ends, so collect after it.
       const collect = Effect.yieldNow.pipe(Effect.andThen(Effect.sync(gc)));
 
       expect(yield* remount).toBe(1);
@@ -1367,7 +1345,6 @@ describe("environment query lifecycle", () => {
       const removed = (entries: ReadonlyArray<readonly [string, number]>) => ({
         removedAt: new Map(entries.map(([id, sequence]) => [ThreadId.make(id), sequence])),
       });
-      // Thread titles never use the HTTP client.
       const runtime = harness.runtime as unknown as Atom.AtomRuntime<
         EnvironmentRegistry.EnvironmentRegistry | HttpClient.HttpClient
       >;
@@ -1390,7 +1367,6 @@ describe("environment query lifecycle", () => {
       registry.set(shellState, removed([["other", 5]]));
       expect(registry.get(atom).waiting).toBe(false);
 
-      // Archiving and then deleting the fork both remove it from the shell.
       registry.set(shellState, removed([["fork", 6]]));
       const beforeDelete = yield* Queue.take(requests);
       registry.set(shellState, removed([["fork", 7]]));
@@ -1440,7 +1416,6 @@ describe("environment query lifecycle", () => {
       yield* Deferred.succeed(yield* Queue.take(requests), page([]));
       expect(yield* archivedIds).toEqual([]);
 
-      // Another client archives the thread, then deletes it from the archive.
       registry.set(shellState, { removedAt: new Map([[v2ThreadId, 2]]) });
       expect(registry.get(atom).waiting).toBe(true);
       yield* Deferred.succeed(
@@ -1774,7 +1749,6 @@ describe("persisted environment queries", () => {
       const harness = yield* makeEnvironmentQueryHarness(Effect.succeed("fresh"), {
         persistence: {
           load: () => Effect.succeedNone,
-          // The registry's scheduler stops on dispose, so signal synchronously.
           save: () =>
             Effect.never.pipe(Effect.onInterrupt(() => Effect.sync(() => saveEnded.openUnsafe()))),
         },

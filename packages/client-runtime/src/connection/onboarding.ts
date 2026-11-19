@@ -100,10 +100,6 @@ const resolvePairingTarget = Effect.fn("clientRuntime.connection.onboarding.reso
   },
 );
 
-/**
- * Re-pairing an address the user already paired keeps that route's id, so the
- * routes learned through it stay attached and share the new credential.
- */
 function pairingConnectionId(
   entry: ConnectionCatalogEntry | undefined,
   environmentId: EnvironmentId,
@@ -172,17 +168,13 @@ export const preparePairingRegistration = Effect.fn(
           : {}),
       }),
     };
-    // A link may claim any saved environment's id. Only a saved route proves the identity, so
-    // any other address must already be known; adding one goes through Add route instead.
     const knownAddressOnly =
       input.expectedEnvironmentId === undefined && reached.source !== "saved";
-    // The registry checks again under its lease; this early check keeps a refused code unspent.
     const registry = yield* Effect.serviceOption(EnvironmentRegistry.EnvironmentRegistry);
     if (knownAddressOnly && Option.isSome(registry)) {
       yield* registry.value.assertKnownAddress({ ...route, profile: Option.some(route.profile) });
     }
     const compatibilityError = orchestrationProtocolCompatibilityError(descriptor);
-    // An outdated server is still saved so it can be updated from this client.
     if (compatibilityError !== null && compatibilityError.serverUpdateRequired !== true) {
       return yield* compatibilityError;
     }
@@ -205,12 +197,6 @@ export const preparePairingRegistration = Effect.fn(
 
 const isBearerCredential = Schema.is(BearerConnectionCredential);
 
-/**
- * Routes keep the credential they were paired with, so re-pairing after a revoke
- * would fix only the link's address. A reached route the server now rejects takes
- * the new credential; the check only goes to an address already holding the old
- * one. Runs before `register`, whose restarted supervisor reads credentials.
- */
 const refreshReachedRouteCredential = Effect.fn(
   "clientRuntime.connection.onboarding.refreshReachedRouteCredential",
 )(
@@ -224,8 +210,6 @@ const refreshReachedRouteCredential = Effect.fn(
     const reachedRoute = routesAt(entry, reachedHttpBaseUrl).find(
       (route) => route.target._tag === "BearerConnectionTarget",
     );
-    // The route borrows another route's credential; checking it here must not
-    // carry that credential somewhere a connect would refuse to send it.
     if (reachedRoute === undefined || sendsTokenInClear(connectionRoutes(entry), reachedRoute))
       return;
     const connectionId = credentialConnectionId(connectionRouteId(reachedRoute.target));
@@ -418,7 +402,6 @@ export const make = Effect.gen(function* () {
   const ssh = yield* ClientCapabilities.SshEnvironmentGateway;
   const credentials = yield* ConnectionCredentialStore.ConnectionCredentialStore;
 
-  // Provisioning retains the delegated onboarding operation spans.
   return ConnectionOnboarding.of({
     registerPairing: Effect.fnUntraced(
       function* (input) {

@@ -16,7 +16,6 @@ const COLOR_ATTRIBUTE_RE = /\s+color\s*=\s*(?:"[^"]*"|'[^']*')/i;
 const MEDIA_ATTRIBUTE_RE = /\s+media\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
 const COLOR_SCHEME_CONDITION_RE = /^\(\s*prefers-color-scheme\s*:\s*(light|dark)\s*\)$/i;
 
-// CoreSVG ignores root stylesheet colors and misreads @media; resolve both before decoding.
 export function resolveProjectFaviconColorScheme(url: string, scheme: MobileThemeAppearance) {
   if (!url.startsWith(SVG_DATA_URL_PREFIX)) return url;
   const decoded = Base64.decodeString(url.slice(SVG_DATA_URL_PREFIX.length));
@@ -36,7 +35,6 @@ export function resolveProjectFaviconColorScheme(url: string, scheme: MobileThem
         if (condition[1]?.toLowerCase() !== scheme) return "";
         open = open.replace(MEDIA_ATTRIBUTE_RE, "");
       }
-      // Comments can hold braces or a commented-out `@media`, which the block matcher would count.
       const resolvedCss = replaceBlocks(
         css.replace(CSS_COMMENT_RE, ""),
         COLOR_SCHEME_MEDIA_RE,

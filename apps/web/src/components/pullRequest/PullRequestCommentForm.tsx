@@ -95,7 +95,6 @@ export function PullRequestCommentForm({
       <PullRequestMarkdownTextarea
         ref={textareaRef}
         completionScope={pullRequestCompletionScope(detail, environmentId, reference)}
-        // Lock while posting because success clears the draft.
         disabled={submitting !== null || actionPending}
         readOnly={voiceBusy}
         value={body}

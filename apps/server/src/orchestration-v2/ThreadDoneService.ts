@@ -136,11 +136,6 @@ export function threadHasQueuedTurnStart(
   ].every((value) => value === null || value < messageAtMs);
 }
 
-/**
- * A merged or closed pull request marks the thread done unless the user wrote to
- * it afterwards. Runs that background work, a PR watch, or another agent
- * started do not count, so they cannot hold a merged thread open.
- */
 function pullRequestMarksDone(
   thread: Pick<
     ProjectionStore.ProjectionDoneCandidate,
@@ -170,12 +165,10 @@ export function isAutoMarkDoneCandidate(
 ): boolean {
   if (thread.archivedAt !== null || thread.doneOverride !== null) return false;
   if (thread.pinnedAt != null || thread.autoMarkDoneDisabledAt != null) return false;
-  // Blocked-on-you work must never park behind a done override.
   if (thread.pendingRuntimeRequest !== null) return false;
   if (thread.activityRunStatus != null) return false;
   const pendingTasks = thread.pendingBackgroundTasks ?? [];
   if (backgroundWorkHoldsCompletion(pendingTasks)) return false;
-  // Marking done ends watches and detaches the session, which kills monitors the agent relies on.
   if (pendingTasks.some((task) => task.kind === "monitor")) return false;
   if (threadHasQueuedTurnStart(thread, nowMs)) return false;
 
@@ -220,8 +213,6 @@ export function resolveAutoMarkDoneAt(input: {
   let pullRequest = input.pullRequest;
   const links = donePullRequestLinks(thread.pullRequests ?? []);
   if (links.some((link) => link.snapshot === null)) return null;
-  // An open link means the pull request has not finished, so only inactivity
-  // can mark the thread done, never a merged or closed lookup.
   const hasOpenLink = links.some((link) => link.snapshot?.state === "open");
   if (hasOpenLink) {
     pullRequest = null;
@@ -253,7 +244,6 @@ export function resolveAutoMarkDoneAt(input: {
       : pullRequest.state === "open");
   if (input.autoMarkDoneKeepPullRequests === true && hasOpenPullRequest) return null;
   if (input.autoMarkDoneAfterDays === null) return null;
-  // A passed wake timer restarts inactivity. An earlier wake can only delay completion.
   const snoozedUntilMs = toMillis(thread.snoozedUntil);
   const timerWakeAtMs =
     snoozedUntilMs !== null && snoozedUntilMs <= input.nowMs ? snoozedUntilMs : null;
@@ -284,8 +274,6 @@ function autoMarkDoneConfigured(settings: import("@supaterm/contracts").ServerSe
   );
 }
 
-/** Identity of every completion input, so unrelated settings edits do not trigger a sweep. */
-/** @internal Exported for tests. */
 export function autoMarkDoneSettingsKey(
   settings: import("@supaterm/contracts").ServerSettings,
 ): string {
@@ -293,9 +281,6 @@ export function autoMarkDoneSettingsKey(
     settings.sidebarAutoMarkDoneOnMerge,
     settings.sidebarAutoMarkDoneAfterDays,
     settings.sidebarAutoMarkDoneKeepPullRequests,
-    // Only entries that touch completion, in a stable order, so a project
-    // override on an unrelated key does not queue a sweep. JSON drops
-    // undefined, so inherit (absent) and never (null) need distinct marks.
     Object.entries(settings.projectSettingsOverrides)
       .filter(
         ([, entry]) =>
@@ -325,20 +310,13 @@ export const make = Effect.gen(function* () {
   const random = yield* SecureRandom.SecureRandom;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  // A shell merge or close sends no event, and the branch lookup caches an open pull request for
-  // a minute, so these threads' next lookup reads the host fresh.
   const shellClosedThreads = new Set<ThreadId>();
-  // Each summary read can be a host CLI process (one `az` per read on Azure DevOps), so a quiet
-  // open pull request is read on the sync reactor's quiet cadence rather than every sweep.
   const quietOpenReadAt = new Map<string, number>();
   const quietReadKey = (reference: {
     readonly projectId: string;
     readonly repository: string;
     readonly number: number;
   }) => `${reference.projectId}\0${reference.repository.toLowerCase()}\0${reference.number}`;
-  // A host can finish a merge minutes after the app's merge action and its refresh, and Azure's
-  // updatedAt never moves while open, so pull requests stay on the fast cadence for a while after.
-  // Sweeps that started before the pause fail the same check, so their reads record nothing.
   let quietPausedAtMs = Number.NEGATIVE_INFINITY;
   const pauseQuietReads = Effect.fn("ThreadDoneServiceV2.pauseQuietReads")(function* () {
     quietPausedAtMs = DateTime.toEpochMillis(yield* DateTime.now);
@@ -346,8 +324,6 @@ export const make = Effect.gen(function* () {
   });
   const terminals = yield* TerminalManager.TerminalManager;
   const projectScripts = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
-  // Marking a done thread done again re-emits thread.marked-done with the same doneAt,
-  // so this keeps the done action to one run per completion.
   const doneActionRunAt = new Map<ThreadId, number>();
   const noPullRequestRechecks = makeNoPullRequestRechecks();
 
@@ -355,7 +331,6 @@ export const make = Effect.gen(function* () {
     mergedPullRequest: PullRequestService.PullRequestMergeEvent | null,
     threadId?: ThreadId,
   ) {
-    // A thread that is not a candidate now (still running) must not keep a merged PR's quiet entry.
     if (mergedPullRequest !== null) yield* pauseQuietReads();
     const settings = yield* settingsService.getSettings;
     const automaticMarkDoneEnabled = autoMarkDoneConfigured(settings);
@@ -367,22 +342,15 @@ export const make = Effect.gen(function* () {
     for (const [key, readAtMs] of quietOpenReadAt) {
       if (nowMs - readAtMs >= QUIET_SYNC_INTERVAL_MS) quietOpenReadAt.delete(key);
     }
-    // A merge event re-sweeps every candidate, not just the threads linked to
-    // the merged pull request: most threads carry no link and become done from
-    // their branch lookup, which would otherwise wait for the next minute's
-    // sweep on a possibly stale cached answer.
     const candidates = threads.filter(
       (thread) =>
         (automaticMarkDoneEnabled || thread.lineage.relationshipToParent === "subagent") &&
         isAutoMarkDoneCandidate(thread, nowMs),
     );
 
-    // Runs per candidate thread, thousands per sweep on busy servers; the sweep owns the span.
     const markThreadDone = Effect.fnUntraced(
       function* (thread: (typeof candidates)[number], pullRequest: DonePullRequest | null) {
         if (thread.lineage.relationshipToParent === "subagent") {
-          // The store returns a subagent only once its parent is done, so it
-          // is marked done with the parent and never runs its own lookup.
           const uuid = yield* random.uuidV4();
           yield* orchestrator.dispatch({
             type: "thread.auto-mark-done",
@@ -392,7 +360,6 @@ export const make = Effect.gen(function* () {
           });
           return null;
         }
-        // thread.auto-mark-done does not recheck settings, so read them per decision; reads are cached.
         const currentSettings = resolveProjectSettings(
           yield* settingsService.getSettings,
           thread.projectId,
@@ -435,7 +402,6 @@ export const make = Effect.gen(function* () {
       (thread) => {
         if (thread.lineage.relationshipToParent === "subagent") return markThreadDone(thread, null);
         const projectSettings = resolveProjectSettings(settings, thread.projectId).settings;
-        // Skip no-op decisions; marking done still reads fresh settings before dispatch.
         const doneAt = resolveAutoMarkDoneAt({
           thread,
           pullRequest: null,
@@ -463,8 +429,6 @@ export const make = Effect.gen(function* () {
         Effect.gen(function* () {
           const project = projects.get(thread.projectId);
           if (project === undefined || thread.branch === null) return;
-          // A worktree folder can outlive its .git, and git there fails with not_a_repository.
-          // An unreadable .git keeps the worktree, so git fails there and the thread is skipped.
           lookupCwdByThreadId.set(
             thread.id,
             thread.worktreePath !== null &&
@@ -478,9 +442,6 @@ export const make = Effect.gen(function* () {
       { concurrency: 8, discard: true },
     );
     if (mergedPullRequest !== null) {
-      // Cached branch answers outlive a sweep and can still call the merged branch open, so
-      // drop them to complete its threads now. Threads linked to the merged pull request are
-      // done from the event itself and never enter this map.
       const cwds = [...new Set(lookupCwdByThreadId.values())];
       yield* Effect.forEach(cwds, (cwd) => git.invalidateStatus(cwd), {
         concurrency: 8,
@@ -507,7 +468,6 @@ export const make = Effect.gen(function* () {
     };
     const groups = Map.groupBy(lookupCandidates, lookupKey);
 
-    // wouldMarkDone and pullRequestFor run per lookup group; the git and pull request reads they make carry the spans.
     const wouldMarkDone = Effect.fnUntraced(function* (
       group: ReadonlyArray<(typeof lookupCandidates)[number]>,
       pullRequest: DonePullRequest,
@@ -535,9 +495,6 @@ export const make = Effect.gen(function* () {
       const thread = group[0]!;
       const reference = thread.linkedPullRequest ?? thread.branchPullRequest;
       if (reference != null) {
-        // Only threads linked to the merged pull request become done from the event. Every
-        // other linked thread falls through to a fresh lookup, since an unrelated merge must
-        // never complete them.
         const matchesMerge =
           mergedPullRequest !== null &&
           reference.projectId === mergedPullRequest.projectId &&
@@ -582,8 +539,6 @@ export const make = Effect.gen(function* () {
         } satisfies DonePullRequest;
         const cwd = lookupCwdByThreadId.get(thread.id);
         if (summary.state !== "open" && thread.branch !== null && cwd !== undefined) {
-          // Recheck reused branches only when this sweep would mark a thread done.
-          // Eligibility that changes after this check waits for the next sweep.
           if (!(yield* wouldMarkDone(group, terminal))) return undefined;
           const current = yield* git.branchPullRequest(
             { cwd, branch: thread.branch },
@@ -608,8 +563,6 @@ export const make = Effect.gen(function* () {
       const refresh = group.filter((member) => shellClosedThreads.delete(member.id)).length > 0;
       const key = lookupKey(thread);
       if (scheduledLookups !== null && !refresh && !scheduledLookups.has(key)) return undefined;
-      // Remembered git state is enough to rule a thread out; only an answer
-      // that would mark it done is confirmed against fresh git state.
       const remembered = yield* git.branchPullRequest(
         { cwd, branch: thread.branch },
         { refresh, confirmTerminal: false },
@@ -620,7 +573,6 @@ export const make = Effect.gen(function* () {
       return yield* git.branchPullRequest({ cwd, branch: thread.branch }, { freshGitState: true });
     });
 
-    // A merge, a shell close and a thread's own events read at once; only scheduled sweeps wait.
     const scheduledLookups =
       mergedPullRequest !== null || threadId !== undefined
         ? null
@@ -675,10 +627,7 @@ export const make = Effect.gen(function* () {
       ),
     );
   let fullSweepPending = false;
-  // A thread that just stopped must not wait behind a full sweep or another thread's host
-  // reads: clients hold it in Working only briefly, so a late settle makes it appear and then vanish.
   const fullSweeps = yield* makeDrainableWorker(() => {
-    // Clear at the start so events during this sweep can request one follow-up.
     fullSweepPending = false;
     return runSweep(null);
   });
@@ -690,7 +639,6 @@ export const make = Effect.gen(function* () {
     });
   const threadSweeps = yield* FiberSet.make<void>();
   const threadSweepSlots = yield* Semaphore.make(8);
-  // One sweep per thread at a time; events during a running sweep coalesce into one more pass.
   const threadSweepStates = new Map<ThreadId, "queued" | "running" | "rerun">();
   const sweepThread = (
     threadId: ThreadId,
@@ -715,9 +663,6 @@ export const make = Effect.gen(function* () {
       return sweepThread(threadId).pipe(FiberSet.run(threadSweeps), Effect.asVoid);
     });
 
-  // Idle shells close so they stop holding the worktree; a terminal running a command stays
-  // for the user to close. The done script skips the shared checkout, where other threads may
-  // still be working.
   const cleanUpDoneThread = Effect.fn("ThreadDoneServiceV2.cleanUpDoneThread")(
     function* (threadId: ThreadId) {
       const done = yield* projections.getThread(threadId);
@@ -725,14 +670,10 @@ export const make = Effect.gen(function* () {
       yield* terminals.closeOnDone({ threadId });
       const worktreePath = done.worktreePath;
       if (worktreePath === null || !(yield* fileSystem.exists(worktreePath))) return;
-      // Closing and the worktree check wait on I/O. A thread re-engaged or
-      // deleted meanwhile is no place for cleanup.
       const thread = yield* projections.getThread(threadId);
       if (thread.deletedAt !== null || thread.doneOverride !== "done") return;
       const doneAtMs = toMillis(thread.doneAt);
       if (doneAtMs === null || doneActionRunAt.get(threadId) === doneAtMs) return;
-      // The parent's worktree belongs to the parent; shared-worktree children
-      // skip duplicate cleanup there.
       if (
         thread.lineage.relationshipToParent === "subagent" &&
         thread.lineage.parentThreadId !== null
@@ -750,8 +691,6 @@ export const make = Effect.gen(function* () {
         worktreePath,
         trigger: "done",
         observeCompletion: {},
-        // Terminal startup stays outside admission; only the final state check
-        // and write must exclude a concurrent run command.
         withCommandWriteGuard: (writeCommand) =>
           orchestrator.withThreadCommandLock(
             threadId,
@@ -812,7 +751,6 @@ export const make = Effect.gen(function* () {
       case "provider-session.detached":
       case "run.background-work-cancelled":
         return enqueueThread(event.threadId);
-      // Sweep only when the work can have ended: progress updates cannot settle anything.
       case "subagent.updated":
         return isOrchestrationV2WorkActive(event.payload.status)
           ? Effect.void

@@ -50,13 +50,7 @@ import {
   PullRequestsByHead,
 } from "./sourceControlProvider.graphql.ts";
 
-/**
- * The generated head lookup with its rows left undecoded, so `listByHead` decodes them one at a
- * time: a row whose fields no longer decode is skipped rather than failing every lookup that
- * shared its document.
- */
 const LenientPullRequestsByHead = GraphQL.query(PullRequestsByHead.name, {
-  // The template, not the joined text: `GraphQLResolver.aliased` repeats it per lookup.
   document: PullRequestsByHead.template!,
   variables: PullRequestsByHead.variables,
   result: Schema.Struct({
@@ -166,7 +160,6 @@ const decodeRestPullRequest = Schema.decodeUnknownOption(
   }),
 );
 
-/** Reshapes a REST pull request into the GraphQL node so both decode the same way. */
 function restPullRequestNode(entry: unknown) {
   const pr = Option.getOrNull(decodeRestPullRequest(entry));
   if (pr === null) return null;
@@ -222,12 +215,6 @@ function trimmed(value: string): string | null {
   return text.length > 0 ? text : null;
 }
 
-/**
- * A pull request as every read reports it, or null for a row this cannot use: a number below
- * one, a blank title, URL or branch name, or an `updatedAt` that is not a date. A list skips a
- * null, so one such row cannot hide the rest. The generated schema already holds every row to
- * GitHub's own types, with `state` as a lenient enum.
- */
 function toPullRequestRecord(node: PullRequestNode): NormalizedGitHubPullRequestRecord | null {
   const title = trimmed(node.title);
   const url = trimmed(node.url);
@@ -329,10 +316,6 @@ export const make = Effect.gen(function* () {
     ),
   ).pipe(Effect.provide(GitHubGraphQlClient.layer));
 
-  /**
-   * Runs a generated read against `target`. GitHub's refusals and `errors` fail the way REST
-   * ones do; an answer that does not decode is a `decodeDetail` failure.
-   */
   const graphqlRead = <A, E, R>(
     target: GitHubGraphQlClient.GitHubGraphQlTarget["Service"],
     decodeDetail: string,
@@ -350,11 +333,6 @@ export const make = Effect.gen(function* () {
   const rest = (input: GitHubRest.GitHubRestInput, notFoundDetail?: string) =>
     api.rest(input).pipe(Effect.mapError((error) => fromGitHubApiError(error, notFoundDetail)));
 
-  /**
-   * Lookups to one host under one credential share aliased documents, each with its own
-   * `repository` root, so a repository GitHub cannot find fails only its own lookup. Interactive
-   * and background lookups use separate resolvers, so a document has one reserve setting.
-   */
   const headResolver = GraphQLResolver.aliased(client.PullRequestsByHead, {
     batchKey: GitHubGraphQlClient.batchKey,
   }).pipe(RequestResolver.batchN(HEAD_LOOKUPS_PER_DOCUMENT));
@@ -381,7 +359,6 @@ export const make = Effect.gen(function* () {
     const ownerMatch = /^([^:/\s]+):(.+)$/u.exec(input.headSelector.trim());
     const headRefName = ownerMatch?.[2] ?? input.headSelector.trim();
     if (ownerMatch) {
-      // GraphQL cannot filter heads by owner, and names like a fork's `main` match thousands.
       const query = new URLSearchParams({
         head: `${ownerMatch[1]}:${headRefName}`,
         state: input.state === "all" || input.state === "open" ? input.state : "closed",
@@ -413,8 +390,6 @@ export const make = Effect.gen(function* () {
         host: locator.host,
         operation: "listPullRequestsByHead",
         allowReserve: input.allowReserve,
-        // Up to 50 heads of 100 rows each. A default branch such as `main` can match a hundred
-        // fork pull requests, so the usual cap would cut the answer short.
         maxResponseBytes: HEAD_LOOKUP_MAX_RESPONSE_BYTES,
       },
       "GitHub returned an invalid change request list.",
@@ -580,8 +555,6 @@ export const make = Effect.gen(function* () {
         if (known !== null) return known;
         const [owner, name] = headNameWithOwner.split("/");
         const fork = yield* readRepository({ host: base.host, owner: owner!, name: name! });
-        // Git fetches from a remote's first URL; `config --get` returns the last of several, and
-        // `git remote -v` applies `insteadOf` rewrites.
         const originUrl = yield* runGit(input.cwd, "readOriginUrl", [
           "config",
           "--get-all",
@@ -728,10 +701,6 @@ export const make = Effect.gen(function* () {
     resolveRemoteWebHost: Effect.fn("GitHubSourceControlProvider.resolveRemoteWebHost")(
       ({ context }) => Effect.succeed(gitHubApiHostForRemote(context.remoteUrl)),
     ),
-    // `gh pr list --head` matches the ref name alone, so an `owner:branch` selector silently
-    // lists nothing while spending a GraphQL call. A bare branch also lists same-named branches
-    // on other forks, so read a full page and let the owner check pick the right head. A default
-    // branch collides with most forks, so its owner-qualified lookup has GitHub filter by owner.
     headBranchProbe: ({ headSelectors, ownerHeadSelector }) => ({
       headSelectors: ownerHeadSelector
         ? [ownerHeadSelector]
@@ -743,10 +712,6 @@ export const make = Effect.gen(function* () {
         return GitHubChangeRequestTemplate.detect(cwd, treeish, git.execute);
       },
     ),
-    // `createChangeRequest` targets what `resolveRepository` picks: GH_REPO when it parses, else
-    // gh's pick among the checkout's remotes, led by the one `gh repo set-default` marked
-    // (`gh-resolved`). An HTTPS remote keeps a non-default port in the context's host, and the
-    // mark is then ignored.
     createsChangeRequestsIn: Effect.fn("GitHubSourceControlProvider.createsChangeRequestsIn")(
       function* ({ cwd, context, repository }) {
         const host = URL.canParse(context.provider.baseUrl)
@@ -774,8 +739,6 @@ export const make = Effect.gen(function* () {
         return locator === null || `${locator.owner}/${locator.name}`.toLowerCase() === target;
       },
     ),
-    // `gh pr create` run in the checkout, as an agent in a Supaterm worktree often does, takes its base
-    // from this key.
     recordBranchBase: Effect.fn("GitHubSourceControlProvider.recordBranchBase")(function ({
       cwd,
       branch,
@@ -790,7 +753,6 @@ export const make = Effect.gen(function* () {
         );
     }),
     resolveLink: (input) => {
-      // Automatic enrichment must not send ambient CLI credentials to a host from message text.
       if (input.url.host !== "github.com") return undefined;
       const match = /^\/([\w.-]+)\/([\w.-]+)\/(?:pull|issues)\/([1-9]\d*)(?:\/.*)?$/.exec(
         input.url.pathname,

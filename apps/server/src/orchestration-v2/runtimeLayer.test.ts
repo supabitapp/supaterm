@@ -350,7 +350,6 @@ const layerScheduledTasksTest = ScheduledTaskService.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
-      // The orchestrator depends on this layer, so read the shell from its projection.
       Layer.unwrap(
         ProjectionStore.ProjectionStoreV2.pipe(
           Effect.map(({ getThreadShell }) =>
@@ -463,7 +462,6 @@ const layerProjectDeletionTest = Layer.mergeAll(
   Layer.provide(McpProviderSessions.layer),
   Layer.provide(SqlitePersistence.layerMemory),
   Layer.provide(layerCheckpointStoreTest),
-  // Exposed so tests can reach the attachments directory that resource cleanup removes from.
   Layer.provideMerge(layerServerConfig),
   Layer.provide(ServerSettings.layerTest()),
   Layer.provide(layerTestProviderInstanceRegistry),
@@ -508,7 +506,6 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
         }
         const save = (name: string, target: ThreadId | null) =>
           tasks.upsert({
-            // As schedule_task sends it, so clearing the thread unbinds the task.
             threadMode: target === null ? "new_thread" : "continue",
             id: ScheduledTaskId.make(`automation:${deletion}:${name}`),
             title: name,
@@ -561,7 +558,6 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
         assert.includeMembers(remainingIds, [independent.id, detached.id, moved.id, other.id]);
         const rejected = yield* tasks.runNow({ id: bound.id }).pipe(Effect.flip);
         assert.equal(rejected.message, "Schedule task not found.");
-        // Retried cleanup is harmless and cannot affect unrelated tasks.
         yield* tasks.deleteForThread(threadId);
         assert.sameMembers(
           (yield* tasks.list()).tasks.map((task) => task.id),
@@ -1019,8 +1015,6 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
       }),
   );
 
-  // A fork from a side chat onto its parent used to lock the side chat, then the parent: the
-  // reverse of the parent delete's order.
   it.effect("a parent delete and a fork from its side chat onto the parent do not deadlock", () =>
     Effect.gen(function* () {
       const projects = yield* ProjectService.ProjectService;
@@ -1070,7 +1064,6 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
         effect,
       ) => {
         if (key !== parentId) return withLock(key, effect);
-        // Dispatch builds locks it may not run, so count when one runs.
         return Effect.suspend(() =>
           ++parentLockRequests === 1
             ? withLock(
@@ -1171,7 +1164,6 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
       });
       const [first, second] = [ThreadId.make("html-fork-first"), ThreadId.make("html-fork-second")];
       yield* fork(forkThreadId, forkPage.runId, first);
-      // Project deletion goes newest first, so it reaches `second` before `first`.
       yield* TestClock.adjust("1 second");
       yield* fork(forkThreadId, forkPage.runId, second);
       const firstRun = yield* writeHtmlRenderRun({ threadId: first, key: "first", ordinal: 1 });
@@ -1196,9 +1188,6 @@ it.layer(layerProjectDeletionTest)("project deletion during thread commands", (i
       yield* deleteThread(sourceThreadId);
       assert.deepEqual(yield* pagesOnDisk, [true, true, false]);
 
-      // `first`'s delete pauses after reading what to free. A fork of it and the project delete,
-      // which reaches `second`, must each wait on a lock it holds rather than decide on the same
-      // state; `blocked` hears each request for one.
       const firstPlanned = yield* Deferred.make<void>();
       const releaseFirst = yield* Deferred.make<void>();
       const blocked = yield* Queue.unbounded<void>();
@@ -1493,7 +1482,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
           )!;
           const now = yield* DateTime.now;
           const commandId = CommandId.make(`${name}-complete`);
-          // The provider completion is the fixture boundary; capture and rollback use real effects.
           yield* outbox.cancelUnsettled({
             threadId,
             effectTypes: ["provider-turn.start"],
@@ -1988,7 +1976,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
     }),
   );
 
-  // regression: #37412 one thread's busy lock held up every other thread's run-end reaction
   it.effect("starts an idle thread's queued run while another thread's lock is busy", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -2084,7 +2071,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
         Effect.andThen(Effect.sync(() => order.push("idle thread's queued run started"))),
         Effect.forkScoped,
       );
-      // Stands in for a long send or delegated bookkeeping holding the busy thread's lock.
       const lockHeld = yield* Deferred.make<void>();
       const busyLock = yield* executor
         .withLock(
@@ -2107,7 +2093,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
     }),
   );
 
-  // regression: one coordinator's busy lock held up every other coordinator's question wake
   it.effect("wakes an idle coordinator for its task's question while another's lock is busy", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -2187,7 +2172,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
           }),
         };
       });
-      // Started as server.ts starts it, so its wakes come from its own event stream.
       yield* DelegatedTaskQuestionReactor.DelegatedTaskQuestionReactor.pipe(
         Effect.flatMap((reactor) => reactor.start()),
         Effect.provide(DelegatedTaskQuestionReactor.layer),
@@ -2206,7 +2190,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
         Effect.andThen(Effect.sync(() => order.push("idle coordinator woken"))),
         Effect.forkScoped,
       );
-      // Stands in for a long send or delegated bookkeeping holding the busy coordinator's lock.
       const lockHeld = yield* Deferred.make<void>();
       const busyLock = yield* executor
         .withLock(
@@ -2551,8 +2534,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
       assert.deepEqual(snoozed.nodes, beforeSnooze.nodes);
       assert.deepEqual(snoozed.runs, beforeSnooze.runs);
 
-      // A question arriving after an earlier snooze must be acknowledged even
-      // when the user picks the same wake time again.
       const priorSnooze = DateTime.makeUnsafe(DateTime.toEpochMillis(now) - 1_000);
       yield* eventSink.write({
         commandId: CommandId.make("runtime-async-question-earlier-snooze"),
@@ -2662,7 +2643,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
       const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("runtime-lost-answer");
-      // Projected as attached, but no live session holds it, so every delivery fails.
       const providerSessionId = ProviderSessionId.make("runtime-lost-answer-session");
       const requestId = RuntimeRequestId.make("runtime-lost-answer-request");
       const nodeId = NodeId.make("runtime-lost-answer-node");
@@ -2761,7 +2741,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
           Effect.map((projection) => projection.turnItems.filter((item) => item.type === "error")),
         );
 
-      // A delivery that can still be retried reports nothing.
       yield* worker.drain();
       assert.deepEqual(yield* errors, []);
       for (let attempt = 1; attempt < 5; attempt++) {
@@ -2777,7 +2756,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
       assert.equal(reported.length, 1);
       assert.equal(reported[0]?.status, "failed");
       assert.equal(reported[0]?.nodeId, nodeId);
-      // The answer stays recorded; the user is not asked again.
       const request = failed.runtimeRequests.find((row) => row.id === requestId);
       assert.equal(request?.status, "resolved");
       assert.deepEqual(request?.answers, answers);
@@ -3370,7 +3348,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         .pipe(Effect.flip);
       assert.instanceOf(staleProjectWorkspace, Orchestrator.OrchestratorDispatchError);
       yield* moveProject(projectId, project.workspaceRoot, "2026-09-07T00:02:00.000Z");
-      // An unrelated thread event during discovery must not drop the branch pull request.
       yield* orchestrator.dispatch({
         type: "thread.visit",
         commandId: CommandId.make("runtime-layer-lifecycle-visit-during-pr-sync"),
@@ -3459,8 +3436,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       });
       assert.equal((yield* orchestrator.getThreadProjection(threadId)).thread.activeOrderKey, "a0");
 
-      // Automatic completion: a stale snapshot loses to any change
-      // made after it, and a fresh one marks done like a user action would.
       const preAutoProjection = yield* orchestrator.getThreadProjection(threadId);
       const staleAutoMarkDone = yield* orchestrator
         .dispatch({
@@ -3488,7 +3463,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         threadId,
         reason: "user",
       });
-      // An explicit reopen outranks the sweep even with a fresh snapshot.
       const postReopenProjection = yield* orchestrator.getThreadProjection(threadId);
       const overriddenAutoMarkDone = yield* orchestrator
         .dispatch({
@@ -4514,7 +4488,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         for (const number of numbers) assert.include(wakes[0]!.text, `#${number}`);
         if (!busy) return;
 
-        // A pull request unwatched while the wake waited leaves it; the others still start.
         yield* orchestrator.dispatch({
           type: "thread.pull-request.watch",
           commandId: CommandId.make("pr-watch-pass-stop-12"),
@@ -4571,7 +4544,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           branch: null,
           worktreePath: null,
         });
-        // Two watches, as with a stack, so news on both wakes the thread once for both.
         for (const number of [17, 18]) {
           yield* orchestrator.dispatch({
             type: "thread.pull-request.watch",
@@ -4644,7 +4616,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
             commandId: CommandId.make(`pr-watch-quiet-${id}`),
             threadId,
           });
-        // A push forgets a running answer too, so a read begun before it cannot settle it.
         yield* reopen("push-pending");
         assert.isUndefined(yield* checksPending);
 
@@ -4654,8 +4625,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         assert.deepEqual(yield* summaries, []);
         assert.isFalse(yield* checksPending);
 
-        // A push clears the answer while a read with news is in flight. That read's answer is the
-        // old head's, so the answer stays cleared while its news still wakes the agent.
         const started = yield* Deferred.make<void>();
         const release = yield* Deferred.make<void>();
         gate = { started, release };
@@ -4675,7 +4644,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const inFlight = yield* reactor.sweep.pipe(Effect.forkChild({ startImmediately: true }));
         yield* Deferred.await(started);
         yield* reopen("push");
-        // Another push before the watch read again finds nothing to clear, which is fine.
         yield* reopen("push-again");
         gate = null;
         yield* Deferred.succeed(release, undefined);
@@ -4683,7 +4651,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         assert.lengthOf(yield* summaries, 1);
         assert.isUndefined(yield* checksPending);
 
-        // The next sweep reads it again though nothing on the host changed.
         yield* TestClock.adjust("2 minutes");
         yield* reactor.sweep;
         assert.isFalse(yield* checksPending);
@@ -4782,14 +4749,11 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         ],
         approval ? [runUrl] : ["test"],
       );
-      // The fresh reactor reloads the nonempty obligation from the persisted watch.
       const restarted = yield* PullRequestWatchReactor.make.pipe(Effect.provide(host));
       yield* restarted.sweep;
       yield* worker.drain();
       assert.deepEqual(yield* summaries, []);
 
-      // A new watch on the same pull request knows what the last one told, and that its checks
-      // were still running. A finished answer may be an older head's, so it reads again.
       yield* watch(false, "stop");
       yield* watch(true, "again");
       assert.strictEqual(
@@ -4946,7 +4910,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
     }),
   );
 
-  // regression: #23701 a head no check runs on never woke the watch
   it.effect("wakes once when no checks report on the head, without saying they passed", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -4983,7 +4946,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         link: { url: "https://github.com/supabitapp/supaterm/pull/14", source: "agent" },
       });
 
-      // A docs-only push that path filters keep every workflow off.
       let headSha = "6074dd48ff";
       let checks: PullRequestDetail["checks"] = [];
       const host = Layer.mergeAll(
@@ -5032,10 +4994,8 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.notMatch(told[0]!.text, /\bpass/i);
       assert.notEqual(told[0]!.notification?.outcome, "completed");
 
-      // An empty read on a head whose checks were seen is a failed read, not "no checks".
       headSha = "7777777777";
       checks = [{ name: "lint", status: "pending", description: null, url: null, required: true }];
-      // Without a fingerprint, a quiet pull request is read again only once the reread is due.
       yield* TestClock.adjust("10 minutes");
       yield* reactor.sweep;
       checks = [];
@@ -5121,7 +5081,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
                 reviewThreads: [],
                 commits: [],
               }),
-            // A fresh fingerprint every time, so every pass reads the detail.
             watchFingerprint: () =>
               Effect.sync(() => ({ status: String(++fingerprints), remarks: "" })),
             invalidate: () => Effect.void,
@@ -5141,7 +5100,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const reactor = yield* PullRequestWatchReactor.make.pipe(Effect.provide(host));
         const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
         yield* reactor.start();
-        // The feed starts after the first sweep has read the pull request.
         yield* Deferred.await(following);
         yield* Queue.take(detailReads);
 
@@ -5149,12 +5107,9 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           { name: "lint", status: "failure", description: null, url: null, required: true },
         ];
         yield* Queue.offer(events, undefined);
-        // The clock never moves, so no sweep can be the one that reads the failure.
         yield* Queue.take(detailReads);
-        // Nothing new: this read must compare against the watch the last one recorded.
         yield* Queue.offer(events, undefined);
         yield* Queue.take(detailReads);
-        // A sweep waits for the change read in flight.
         yield* reactor.sweep;
         yield* worker.drain();
         const woken = yield* wakes;
@@ -5211,7 +5166,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           NodeServices.layer,
           NodeCrypto.layer,
           Layer.mock(PullRequestService.PullRequestService)({
-            // Earlier tests can leave watches in other projects; only this one's reads count.
             detail: (input) =>
               (input.projectId === projectId
                 ? Queue.offer(detailReads, undefined)
@@ -5238,7 +5192,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
             invalidate: () => Effect.void,
             changes: () => Stream.never,
           }),
-          // Events come from a queue that exists before the reactor subscribes, so none is missed.
           Layer.mock(Orchestrator.OrchestratorV2)({
             dispatch: orchestrator.dispatch,
             streamDomainEvents: Stream.fromQueue(domainEvents),
@@ -5260,7 +5213,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const reactor = yield* PullRequestWatchReactor.make.pipe(Effect.provide(host));
         const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
         yield* reactor.start();
-        // The first sweep listed watches before this one existed, so it cannot be the read below.
         yield* Queue.take(watchListings);
 
         const key = { host: "github.com", repository: "supabitapp/supaterm", number: 16 };
@@ -5276,13 +5228,11 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           domainEvents,
           started.storedEvents.map((stored) => stored.event),
         );
-        // The clock never moves, so no sweep can be the read that sees the checks running.
         yield* Queue.take(detailReads);
 
         checks = [
           { name: "lint", status: "success", description: null, url: null, required: true },
         ];
-        // A sweep waits for the watch-start read in flight.
         yield* reactor.sweep;
         yield* worker.drain();
         const woken = yield* wakes;
@@ -5461,7 +5411,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           NodeServices.layer,
           NodeCrypto.layer,
           Layer.mock(PullRequestService.PullRequestService)({
-            // The host reports the same fingerprint throughout, so only the deadline can prompt a read.
             watchFingerprint: () =>
               Effect.succeed(fingerprinted ? { status: "quiet", remarks: "none" } : null),
             invalidate: () => Effect.void,
@@ -5508,7 +5457,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         assert.lengthOf(told, 1);
         assert.include(told[0]!.text, "after 16 minutes");
 
-        // The notice clears the deadline, so the watch returns to its quiet cadence.
         const readsAfterNotice = reads;
         yield* TestClock.adjust("2 minutes");
         yield* sweep;
@@ -5574,7 +5522,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
             invalidate: () => Effect.void,
             detail: (input) =>
               Effect.sync(() => {
-                // Watches left by earlier cases in this layer are swept too.
                 if (input.projectId === projectId) reads++;
                 return {
                   ...watchedPullRequestDetail({
@@ -5774,7 +5721,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       yield* sweep;
       const started = (yield* orchestrator.getThreadShell(threadId))?.pullRequests?.[0]?.watch;
       assert.isDefined(started);
-      // #14's first watch is stopped, and the one that replaces it merges before a pass sees it.
       yield* watching(14, false, "stop");
       yield* TestClock.adjust("1 minute");
       yield* watching(14, true, "restart");
@@ -6311,7 +6257,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
             baseBranch: "main",
             isDraft: false,
             updatedAt: null,
-            // A delayed sync can still report the closure from before this watch restarted.
             syncedAt: snapshotSyncedAt,
           },
           stack: null,
@@ -6446,7 +6391,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
             },
           })
           .pipe(Effect.result);
-        // Recording the merge already ended the watch, so its sync is refused outright.
         assert.equal(synced._tag, mode === "merged" ? "Failure" : "Success");
         const after = yield* orchestrator.getThreadProjection(threadId);
         const deliverable = mode === "open" || mode === "closed notice" || mode === "reopened";
@@ -6504,8 +6448,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         orchestrator
           .getThreadShell(ThreadId.make(`runtime-pull-request-watch-pipeline-${number}`))
           .pipe(Effect.map((thread) => thread?.pullRequests?.[0]?.watch?.headSha));
-      // #21's host answers only after #22 has been read, so waiting on every fingerprint first
-      // never finishes.
       const read22 = yield* Deferred.make<void>();
       const host = Layer.mergeAll(
         NodeServices.layer,
@@ -6602,7 +6544,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
               occurredAt: now,
               payload: { ...original, status: "cancelled", completedAt: now },
             },
-            // A provider wake the restart cut before it started does not supersede it.
             {
               id: EventId.make("restart-cut-wake-event"),
               type: "run.created",
@@ -6943,7 +6884,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       const run = (yield* orchestrator.getThreadProjection(threadId)).runs[0];
       if (run === undefined) return yield* Effect.die(new Error("Run missing."));
 
-      // The deferred mark done that `markThreadDone` forks for its own agent's active run.
       const settleRequest = yield* threadManagement
         .markDoneAfterRun({ projectId, threadId, runId: run.id })
         .pipe(Effect.forkChild);
@@ -7223,7 +7163,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.equal(task.status, "running");
       assert.isNotNull(task.childThreadId);
 
-      // Archive must preserve the idle parent's path for receiving this child's result.
       const error = yield* orchestrator
         .dispatch({
           type: "thread.archive",
@@ -8045,7 +7984,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       }),
   );
 
-  // A thread fed by agent messages, with helpers to end its runs as a provider would.
   const queueTestThread = (threadId: ThreadId) =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -8086,7 +8024,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           return run;
         });
       const startedRunIds = yield* Queue.unbounded<RunId>();
-      // Run updates in commit order; the run-update listener handles them in this order too.
       const runUpdates: Array<OrchestrationV2Run> = [];
       yield* eventSink
         .stream({ threadId, afterSequence: yield* orchestrator.getThreadEventSequence(threadId) })
@@ -8174,7 +8111,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           });
         });
 
-      // The run-update listener places failure holds after the terminal event commits.
       const awaitHeld = (key: string) =>
         Effect.gen(function* () {
           const run = yield* runFor(key);
@@ -8205,9 +8141,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       yield* end("active", "failed");
       yield* awaitHeld("issue");
       assert.isTrue((yield* runFor("issue")).queueHeld);
-      // Delivery bookkeeping rewrites an older completed run; the thread has not moved on.
       yield* end("earlier", "completed", ":bookkeeping");
-      // A scheduled tick finds the thread idle and starts past the held queue.
       yield* send("tick", "agent", true);
       assert.equal((yield* runFor("tick")).status, "starting");
       yield* end("tick", "completed");
@@ -8217,7 +8151,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.equal(user.status, "queued");
       assert.isTrue(user.queueHeld);
 
-      // A run that finishes despite a stop request does not release what the stop held.
       yield* send("after-stop", "agent", false);
       assert.isTrue((yield* runFor("after-stop")).queueHeld);
       const issue = yield* runFor("issue");
@@ -8255,7 +8188,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         ],
       });
       yield* end("issue", "completed");
-      // The next completed run releases it, which also shows the listener handled the stopped one.
       yield* send("probe", "agent", true);
       assert.equal((yield* runFor("probe")).status, "starting");
       yield* end("probe", "completed");
@@ -8282,7 +8214,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
       assert.equal((yield* dispatcher.runFor("tick")).status, "starting");
       yield* witness.send("active", "agent", true);
       yield* witness.send("queued", "agent", false);
-      // The failed setup never produced the thread's worktree.
       const { thread } = yield* orchestrator.getThreadProjection(dispatcherId);
       yield* eventSink.write({
         events: [
@@ -8296,8 +8227,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         ],
       });
       yield* dispatcher.end("tick", "completed");
-      // One listener handles every thread's completions in order, so the witness starting
-      // means the tick's completion was handled too.
       yield* witness.end("active", "completed");
       assert.equal(yield* Queue.take(witness.startedRunIds), (yield* witness.runFor("queued")).id);
       assert.isTrue((yield* dispatcher.runFor("issue")).queueHeld);
@@ -8569,8 +8498,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           ],
         });
 
-        // A message on another provider starts ahead of the held queue and
-        // completes there.
         yield* send("switch", switchedSelection, "start_immediately");
         const switched = (yield* orchestrator.getThreadProjection(threadId)).runs.find(
           (run) => run.userMessageId === MessageId.make(`${threadId}:switch`),
@@ -8870,7 +8797,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           creationSource: "web",
         });
       }
-      // What supaterm_thread_send dispatches: no model of its own.
       yield* orchestrator.dispatch({
         type: "message.dispatch",
         commandId: CommandId.make(`${threadId}:agent`),
@@ -9070,10 +8996,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           createdBy: "agent",
           creationSource: "mcp",
         });
-      // It runs after the pick, on a provider that can pause goals.
       yield* sendGoal("pause", "/goal pause");
-      // A resume stops the active run and starts before the pick, so the thread's
-      // Claude instance still refuses it.
       const sequence = yield* orchestrator.getThreadEventSequence(threadId);
       const refused = yield* Effect.flip(sendGoal("resume", "/goal resume", "auto"));
       assert.instanceOf(refused, Orchestrator.OrchestratorDispatchError);
@@ -9129,7 +9052,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           creationSource: "web",
         });
         const active = (yield* orchestrator.getThreadProjection(threadId)).runs[0]!;
-        // Bound scheduled tasks send like ScheduledTaskService: no model of their own.
         yield* orchestrator.dispatch({
           type: "message.dispatch",
           commandId: CommandId.make(`${threadId}:scheduled`),
@@ -9147,7 +9069,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         )!;
         assert.equal(queued.status, "queued");
         assert.deepEqual(queued.modelSelection, modelSelection);
-        // Stop holds the queue; a thread changes instance only while no run is active.
         yield* orchestrator.dispatch({
           type: "run.interrupt",
           commandId: CommandId.make(`${threadId}:stop`),
@@ -9216,7 +9137,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           creationSource: "web",
         });
         const active = (yield* orchestrator.getThreadProjection(threadId)).runs[0]!;
-        // A task that pins a model names it on the delivery, as a fresh-thread launch seeds it.
         yield* orchestrator.dispatch({
           type: "message.dispatch",
           commandId: CommandId.make(`${threadId}:scheduled`),
@@ -9235,7 +9155,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         )!;
         assert.equal(queued.status, "queued");
         assert.deepEqual(queued.modelSelection, pinnedSelection);
-        // Stop holds the queue; a thread changes instance only while no run is active.
         yield* orchestrator.dispatch({
           type: "run.interrupt",
           commandId: CommandId.make(`${threadId}:stop`),
@@ -9243,7 +9162,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           runId: active.id,
           holdQueue: true,
         });
-        // The user moves the thread off the pinned model while the delivery is held.
         const movedSelection = { instanceId: alternateInstanceId, model: "gpt-5.5" };
         yield* orchestrator.dispatch({
           type: "thread.model-selection.set",
@@ -9260,14 +9178,12 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const after = yield* orchestrator.getThreadProjection(threadId);
         const delivered = after.runs.find((run) => run.userMessageId === scheduledMessageId)!;
         assert.equal(delivered.status, "starting");
-        // The pin wins: the run starts on the selection the delivery named, not the thread's later pick.
         assert.deepEqual(delivered.modelSelection, pinnedSelection);
         assert.equal(
           after.attempts.find((attempt) => attempt.id === delivered.activeAttemptId)
             ?.providerInstanceId,
           pinnedSelection.instanceId,
         );
-        // Pinned tasks keep today's behaviour: the thread follows the run's selection back.
         assert.deepEqual(after.thread.modelSelection, pinnedSelection);
       }),
   );
@@ -9324,14 +9240,12 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const queued = queuedProjection.runs.find(
           (run) => run.userMessageId === scheduledMessageId,
         )!;
-        // The queue reserved an unused provider thread on the original instance.
         const reserved = queuedProjection.providerThreads.find(
           (providerThread) => providerThread.id === queued.providerThreadId,
         )!;
         assert.equal(reserved.providerInstanceId, modelSelection.instanceId);
         assert.isNull(reserved.firstRunOrdinal);
         assert.isNull(reserved.nativeThreadRef);
-        // Stop holds the queue; a thread changes instance only while no run is active.
         yield* orchestrator.dispatch({
           type: "run.interrupt",
           commandId: CommandId.make(`${threadId}:stop`),
@@ -9579,8 +9493,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const active = yield* runFor("active");
         assert.equal((yield* runFor("queued")).status, "queued");
 
-        // Hold the run-end handler before it takes the thread lock, as a busy handler stream
-        // does, then let it run once and signal when its queue release has finished.
         const handlerHeld = yield* Deferred.make<void>();
         const releaseHandler = yield* Deferred.make<void>();
         const releaseAttempted = yield* Deferred.make<void>();
@@ -9613,7 +9525,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           const { thread } = yield* orchestrator.getThreadProjection(threadId);
           yield* eventSink.write({
             events: [
-              // A failed worktree setup leaves the thread without its worktree.
               ...(worktreeFailed
                 ? [
                     {
@@ -9647,14 +9558,12 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
           });
           yield* Deferred.await(handlerHeld);
           yield* dispatch("newer", !worktreeFailed);
-          // The thread is idle but has a queue, so the newer send waits behind it.
           assert.equal((yield* runFor("newer")).status, "queued");
 
           yield* Deferred.succeed(releaseHandler, undefined);
           yield* Deferred.await(releaseAttempted);
           const queued = yield* runFor("queued");
           if (worktreeFailed) {
-            // Without a worktree the queue stays held instead of running in the project checkout.
             assert.equal(queued.status, "queued");
             assert.isTrue(queued.queueHeld);
           } else {
@@ -9770,7 +9679,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const continuation = (yield* runFor("continuation"))!;
         assert.isNotNull(continuation.rootNodeId);
         const queued = (yield* runFor("queued"))!;
-        // The failure holds the queue after the reactor scheduled any retry.
         const held = yield* eventSink
           .stream({ threadId, afterSequence: yield* orchestrator.getThreadEventSequence(threadId) })
           .pipe(
@@ -10010,7 +9918,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
             resumed.nodes.find((row) => row.id === source.rootNodeId)?.status,
             "pending",
           );
-          // Recovery command identities include the restart timestamp.
           yield* TestClock.adjust("1 millis");
           yield* recovery.reconcile("startup");
           yield* orchestrator.dispatch({
@@ -10092,7 +9999,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         const run = before.runs[0]!;
         const attempt = before.attempts.find((row) => row.id === run.activeAttemptId)!;
         const rootNode = before.nodes.find((row) => row.id === run.rootNodeId)!;
-        // What a provider turn start commits before the provider accepts the prompt.
         const startedAt = yield* DateTime.now;
         yield* (yield* EventSink.EventSinkV2).write({
           events: [
@@ -10141,7 +10047,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         });
         yield* recovery.reconcile(trigger);
         yield* expectResent;
-        // The server stops again before the worker sent the prompt.
         yield* TestClock.adjust("1 second");
         yield* recovery.reconcile("startup");
         yield* orchestrator.recoverDelegatedTasks;
@@ -10220,7 +10125,6 @@ it.layer(layerTest)("OrchestrationV2LayerLive lifecycle", (it) => {
         after.runs.find((run) => run.id === held.id),
         held,
       );
-      // Nobody will resume a server message, so the completed run released it behind the wake.
       assert.deepEqual(
         after.runs.find((run) => run.id === textContinuation.id),
         { ...textContinuation, queueHeld: false },
@@ -10600,7 +10504,6 @@ it.layer(layerTest)("snooze queued runs", (it) => {
                   startedAt: now,
                   completedAt: now,
                   updatedAt: now,
-                  // A proxied provider can report no reset time.
                   failure: {
                     class: "usage_limit",
                     message: "Claude API rate limit reached. Try again later.",
@@ -10627,8 +10530,7 @@ it.layer(layerTest)("snooze queued runs", (it) => {
             occurredAt: now,
             payload:
               run.status === "queued"
-                ? // A usage limit stops the queue from starting without marking it held.
-                  kind === "limited-user"
+                ? kind === "limited-user"
                   ? run
                   : { ...run, queueHeld: true }
                 : {
@@ -11213,7 +11115,6 @@ it.layer(layerSharedApplicationDataPlaneTest)("visited projection", (it) => {
             rows.map((row) => Object.keys(JSON.parse(row.payload_json)).toSorted()),
           ),
         );
-      // A visit stores read state, not a copy of the thread.
       for (const keys of yield* visitPayloadKeys("runtime-layer-visited-thread-visit")) {
         assert.includeMembers(["lastVisitedAt", "opens", "threadId"], keys);
       }
@@ -11226,7 +11127,6 @@ it.layer(layerSharedApplicationDataPlaneTest)("visited projection", (it) => {
       });
       const afterStaleVisit = yield* orchestrator.getThreadProjection(threadId);
       assert.equal(DateTime.formatIso(afterStaleVisit.thread.lastVisitedAt!), visitedAt);
-      // A stale visit with no open changes nothing, so it stores nothing.
       assert.deepEqual(yield* visitPayloadKeys("runtime-layer-visited-thread-visit-stale"), []);
 
       const shell = yield* orchestrator.getShellSnapshot();
@@ -11480,7 +11380,6 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("thread opens", (it) 
             type: "thread.visit",
             commandId: CommandId.make(`runtime-layer-opened-visit-${++visits}`),
             threadId,
-            // A client clock far in the past must not move the open time.
             visitedAt: "2000-01-01T00:00:00.000Z",
             ...input,
           });
@@ -11514,7 +11413,6 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("thread opens", (it) 
         const later = yield* opens;
         assert.closeTo(later!.score, 1 + 2 ** (-(14 * 24 * 60 + 1) / (14 * 24 * 60)), 1e-9);
         assert.equal(later!.openedAt, DateTime.toEpochMillis(yield* DateTime.now));
-        // Opening without a query keeps each pick and its time.
         assert.deepEqual(later!.picks, [
           { query: "uploadthing docs", at: start + 60_000 },
           { query: "upl", at: start },
@@ -11626,8 +11524,6 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
         (yield* orchestrator.getThreadShell(threadId))?.pullRequests,
         after?.pullRequests,
       );
-      // Later syncs of the same link supersede the ones between the first
-      // (kept for replay order) and the newest.
       for (const [commandId, title] of [
         ["compact-pr-sync-again", "Still open PR"],
         ["compact-pr-sync-merged", "Merged PR"],
@@ -11667,9 +11563,6 @@ it.layer(Layer.fresh(layerSharedApplicationDataPlaneTest))("compact PR events", 
         latest?.pullRequests,
       );
 
-      // A later visit is read state only: clients keep updatedAt from the
-      // rename, so compaction must keep the rename. A visit carries no whole
-      // thread, so it supersedes nothing, and a later rename supersedes it.
       const threadEvents = () => sql<{ event_type: string }>`
         SELECT event_type FROM orchestration_events
         WHERE stream_id = ${threadId}
@@ -11839,9 +11732,6 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
           OrchestrationV2Run,
           OrchestrationV2Run,
         ];
-        // A user stop holds the queue as the run ends (thread.turn.interrupt with
-        // holdQueue). Without the hold, the terminal-run worker may start the
-        // queued run before the resume below, depending on fiber scheduling.
         yield* events.write({
           events: [
             {
@@ -12552,7 +12442,6 @@ it.layer(layerTest)("usage-limit recovery", (it) => {
           });
         }
         if (scenario === "resume-untagged") {
-          // A server older than the run tag stored the resume run without it.
           const { usageLimitContinuationOfRunId: _, ...untagged } = continuation;
           yield* events.write({
             events: [

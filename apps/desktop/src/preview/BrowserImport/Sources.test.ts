@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - Builds a Chromium-shaped cookie
-// table with the same native bindings the source reads.
 import * as NodePath from "node:path";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
@@ -892,7 +891,6 @@ describe("isSourceRunning for Firefox", () => {
         const fileSystem = yield* FileSystem.FileSystem;
         const home = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-firefox-" });
         const context = yield* sourcePathContext.pipe(
-          // Without APPDATA, the Windows Firefox fixture would escape into the repo.
           Effect.provideService(HostProcess.Environment, {
             HOME: home,
             APPDATA: `${home}/AppData/Roaming`,

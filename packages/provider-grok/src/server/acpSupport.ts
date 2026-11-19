@@ -36,14 +36,12 @@ interface GrokAcpRuntimeInput extends Omit<
   readonly runtimeMode?: RuntimeMode;
 }
 
-// grok agent treats settings-only acceptEdits as ask; it has no Auto-accept edits launch mode.
 export const GROK_SUPPORTED_RUNTIME_MODES = [
   "approval-required",
   "auto",
   "full-access",
 ] as const satisfies ReadonlyArray<RuntimeMode>;
 
-// argv overrides Grok config so Supervised cannot inherit always-approve.
 export function grokAcpSpawnArgs(runtimeMode?: RuntimeMode): ReadonlyArray<string> {
   switch (runtimeMode) {
     case undefined:
@@ -87,20 +85,16 @@ function grokAcpRuntimeProcessOwnership(
   "ownDescendantProcessGroups" | "ownDetachedProcessGroup" | "processGroupPlatform"
 > {
   return {
-    // macOS lacks a stable libproc identity provider for Grok's nested detached tool groups.
     ownDescendantProcessGroups: processGroupPlatform === "linux",
     ownDetachedProcessGroup: true,
     processGroupPlatform,
   };
 }
 
-// Grok Ctrl+C blocks stale background wakes until the next genuine user turn.
 export const GROK_ACP_CANCEL_META = { cancelTrigger: "ctrl_c" } as const;
 
-// generic silently denies Auto refusals; extension prompts without persistent command grants.
 export const GROK_ACP_INITIALIZE_META = { clientType: "extension" } as const;
 
-// Only allow-edits-session is session-scoped; other allow-always choices persist project grants.
 const GROK_ALLOW_EDITS_SESSION_OPTION_ID = "allow-edits-session";
 
 export function grokApprovalOptions(
@@ -141,7 +135,6 @@ export const makeGrokAcpRuntime = Effect.fn("GrokAcpSupport.makeGrokAcpRuntime")
       authMethodId: resolveGrokAuthMethodId(input.environment),
       cancelMeta: { ...input.cancelMeta, ...GROK_ACP_CANCEL_META },
       initializeMeta: GROK_ACP_INITIALIZE_META,
-      // Grok's session/load can stay unanswered after replay finishes.
       sessionLoadReplayIdleReadiness: true,
       ...grokAcpRuntimeProcessOwnership(processGroupPlatform),
     }),
@@ -152,7 +145,6 @@ export const makeGrokAcpRuntime = Effect.fn("GrokAcpSupport.makeGrokAcpRuntime")
   return yield* makeXAiPromptCompletionRuntime(runtime);
 });
 
-// This product name is not an ACP model ID; it selects the current session model.
 export const GROK_DEFAULT_MODEL_SLUG = "grok-build";
 
 export function resolveGrokAcpBaseModelId(model: string | null | undefined): string {

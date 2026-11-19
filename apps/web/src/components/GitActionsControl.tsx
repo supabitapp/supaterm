@@ -967,9 +967,6 @@ export default function GitActionsControl({
   const ignoreWhitespace =
     useDiffPanelSessionStore((state) => state.ignoreWhitespace) ?? ignoreWhitespaceSetting;
   const { canReadFiles } = useFilesystemReadAccess(activeEnvironmentId);
-  // Same input as the Diff panel's branch query, so both read one cached result. Status
-  // totals join the revision because edits, pulls and resets outside a turn leave the mutation
-  // id as is.
   const changesRevision = gitStatusForActions
     ? JSON.stringify([
         workspaceMutationId,
@@ -1034,7 +1031,6 @@ export default function GitActionsControl({
     activeDraftThread?.envMode === "worktree" &&
     activeDraftThread.worktreePath === null;
 
-  // Until a clone finishes, the status names an unborn HEAD that the repository may never have.
   const activeProjectClone = useProjectClone(
     activeDraftThread
       ? scopeProjectRef(activeDraftThread.environmentId, activeDraftThread.projectId)
@@ -1085,7 +1081,6 @@ export default function GitActionsControl({
       ? (quickAction.hint ?? "This action is currently unavailable.")
       : null;
   const gitActionProgress = resolveGitActionProgressPresentation(vcsActionState);
-  // A fresh draft or a thread with no turns hides the actions and diff rows until there is work.
   const quietEmptyDraft =
     (draftId !== undefined || activeServerThreadShell?.latestRun === null) &&
     gitActionProgress === null &&
@@ -1231,7 +1226,6 @@ export default function GitActionsControl({
     });
   };
 
-  // Keep a typed message for the retry unless the user already started a new one.
   const restoreDialogCommitMessageOnFailure = (commitMessage: string) => (committed: boolean) => {
     if (committed || !commitMessage) return;
     setDialogCommitMessage((current) => current || commitMessage);
@@ -1383,7 +1377,6 @@ export default function GitActionsControl({
     hasNotice: isDetachedHead || isCleanAndBehind || Boolean(gitStatusError),
   });
 
-  // A disabled menu cannot refresh on open, and terminal edits or commits publish no status.
   const refreshStatusForEmptyMenu = () =>
     requestVcsStatusRefresh(refreshVcsStatus, activeEnvironmentId, gitCwd);
 
@@ -1586,7 +1579,6 @@ export default function GitActionsControl({
             </Tooltip>
           )}
           {gitActionProgress ? (
-            // Use the disabled menu's slot for elapsed time, preserving the status label's width.
             <GitActionElapsedTime
               startedAtMs={gitActionProgress.startedAtMs}
               className="flex h-6 shrink-0 items-center self-start pe-2 text-2xs font-normal tabular-nums text-muted-foreground pointer-coarse:h-11"
@@ -1687,7 +1679,6 @@ export default function GitActionsControl({
             </span>
           </TooltipTrigger>
           {changesBreakdown && (changesTotals.insertions > 0 || changesTotals.deletions > 0) ? (
-            // Base UI fixes the popup width on open; remeasure when the breakdown changes.
             <TooltipPopup key={JSON.stringify(changesBreakdown)} side="bottom">
               <ChangeBreakdownGrid
                 breakdown={changesBreakdown}
@@ -1876,7 +1867,6 @@ export default function GitActionsControl({
         </DialogPopup>
       </Dialog>
 
-      {/* Its discovery query should stop when the Git actions row that opens it is hidden. */}
       {showActions ? (
         <PublishRepositoryDialog
           open={isPublishDialogOpen}

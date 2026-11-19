@@ -50,7 +50,6 @@ function parsePeriodBoundary(value: string | undefined) {
   ) {
     return Number.NaN;
   }
-  // Date parsing can normalize impossible calendar dates instead of rejecting them.
   const datePart = value.slice(0, value.indexOf("T"));
   const date = DateTime.make(`${datePart}T00:00:00.000Z`);
   if (Option.isNone(date)) return Number.NaN;
@@ -73,7 +72,6 @@ export function grokUsageResponseToLimits(
   const windowDurationMins = Math.round((end - start) / 60_000);
   let usedPercent = response.config?.creditUsagePercent;
   if (usedPercent === undefined && (kind === "weekly" || kind === "monthly") && start < end) {
-    // Grok omits a zero percentage while retaining the complete subscription period.
     usedPercent = 0;
   }
   if (usedPercent === undefined || !Number.isFinite(usedPercent)) {
@@ -94,9 +92,7 @@ export function grokUsageResponseToLimits(
 const readGrokCredential = Effect.fn("readGrokCredential")(function* (
   environment: NodeJS.ProcessEnv,
 ) {
-  // Supaterm's ACP adapter explicitly selects API-key auth when this variable is set.
   if (environment.XAI_API_KEY?.trim()) return undefined;
-  // Alternate auth deployments can select another scope or account from the same file.
   if (
     [
       "GROK_OIDC_ISSUER",
@@ -136,7 +132,6 @@ const readGrokCredential = Effect.fn("readGrokCredential")(function* (
           error.reason._tag === "NotFound" ? Effect.succeed("") : Effect.fail(error),
       }),
     );
-    // These sections can change the selected account or endpoint. Leave custom deployments to the CLI.
     if (/^\s*(?:\[\[?\s*)?["']?(?:auth|grok_com_config|endpoints)["']?\s*[.\]=]/m.test(config)) {
       return undefined;
     }
@@ -150,7 +145,6 @@ const readGrokCredential = Effect.fn("readGrokCredential")(function* (
       }),
     ));
   const credentials = yield* decodeCredentials(contents);
-  // Never pick an arbitrary account from other deployments stored in the same file.
   const credential =
     credentials["https://auth.x.ai::b1a00492-073a-47ea-816f-4c329264a828"] ??
     credentials["https://accounts.x.ai/sign-in"];
@@ -184,7 +178,6 @@ export const readGrokAccount = Effect.fn("readGrokAccount")(function* (
     );
     if (response.status === 403) {
       const { error } = yield* HttpClientResponse.schemaBodyJson(GrokErrorResponse)(response);
-      // xAI refuses Grok Build while the account's privacy setting is a legacy mode.
       if (error.includes("WKE=privacy-mode:")) {
         return makeUnavailableUsageLimits({
           checkedAt,

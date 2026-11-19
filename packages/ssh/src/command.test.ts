@@ -99,7 +99,6 @@ describe("ssh command", () => {
     }),
   );
 
-  // Remote servers store state under this key, so it must not change across releases.
   it.effect("derives a stable remote state key", () =>
     Effect.gen(function* () {
       assert.equal(
@@ -139,7 +138,6 @@ describe("ssh command", () => {
       const diagnostic = "\nPANIC: emulator SDK is broken\n";
       const stdout = `${prefix}{"credential":"${secret}"}${diagnostic}`;
       const nativeSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-      // Replace only the SSH endpoint with a real, deterministic process.
       const spawner = ChildProcessSpawner.make(() =>
         nativeSpawner.spawn(
           ChildProcess.make(process.execPath, [
@@ -176,7 +174,6 @@ describe("ssh command", () => {
     () =>
       Effect.gen(function* () {
         const nativeSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-        // Stands in for ssh and a ProxyCommand: ssh exits on SIGTERM, the proxy ignores it.
         const spawner = ChildProcessSpawner.make((command) =>
           nativeSpawner.spawn(
             ChildProcess.make(
@@ -212,7 +209,6 @@ describe("ssh command", () => {
 
   it.live("enables server-alive checks for long remote commands", () =>
     Effect.gen(function* () {
-      // Ask OpenSSH for its effective configuration without opening a connection.
       const { stdout } = yield* runSshCommand(
         { alias: "synthetic-fixture", hostname: "synthetic-fixture", username: null, port: null },
         { preHostArgs: ["-F", "none", "-G"], timeoutMs: 900_000 },

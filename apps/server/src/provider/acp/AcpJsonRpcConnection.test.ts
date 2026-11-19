@@ -45,7 +45,6 @@ const isOutgoing = (tag: string) => (event: EffectAcpProtocol.AcpProtocolLogEven
   event.payload !== null &&
   Reflect.get(event.payload, "tag") === tag;
 
-// The methods the mock agent read, in order, keeping only the given ones.
 const readReceived = (requestLogPath: string, methods: ReadonlyArray<string>) =>
   NodeFS.readFileSync(requestLogPath, "utf8")
     .split("\n")
@@ -53,10 +52,6 @@ const readReceived = (requestLogPath: string, methods: ReadonlyArray<string>) =>
     .map((line) => (JSON.parse(line) as { readonly method?: string }).method)
     .filter((method) => method !== undefined && methods.includes(method));
 
-// Prompts, then cancels while the prompt is held on its way out: in its started request record,
-// in its outgoing protocol log record, or by its fiber yielding every few operations. The cancel
-// comes on dispatch or from inside the held record. Returns the prompt's exit
-// and the order in which the agent read the prompt, the cancel and the request that ends it.
 const promptThenCancel = (input: {
   readonly cancelBehavior: "interrupt" | "wait-for-prompt";
   readonly holdPrompt: {
@@ -132,7 +127,6 @@ const promptThenCancel = (input: {
           : (effect) => effect,
         Effect.forkChild,
       );
-    // A round trip: whatever was queued before it reaches the agent first.
     const roundTrip = runtime.request("_test/environment", {});
     let cancel: Fiber.Fiber<void, EffectAcpErrors.AcpError>;
     if (holdPrompt.in === "scheduler") {
@@ -153,7 +147,6 @@ const promptThenCancel = (input: {
     }
     yield* Deferred.await(cancelReceived);
     yield* runtime.request("_test/finish-cancel", {});
-    // The agent answers it only after reading every earlier line.
     yield* roundTrip;
     const received = readReceived(requestLogPath, [
       "session/prompt",
@@ -1071,7 +1064,6 @@ describe("AcpSessionRuntime", () => {
           "logout",
         ]),
       );
-      // Omitted roots clear an agent's stored ones, so every activation resends them.
       for (const method of ["session/new", "session/fork", "session/resume"]) {
         expect(
           requestEvents.find((event) => event.method === method && event.status === "started")
@@ -1253,7 +1245,6 @@ describe("AcpSessionRuntime", () => {
     ),
   );
 
-  // regression: #37106 prompt sent before session/load replied
   it.live("does not prompt before session/load replies after replay goes idle", () =>
     Effect.gen(function* () {
       const runtime = yield* AcpSessionRuntime.AcpSessionRuntime;
@@ -1465,8 +1456,6 @@ describe("AcpSessionRuntime", () => {
             env: { SUPATERM_ACP_REQUEST_LOG_PATH: requestLogPath },
           },
           interruptPromptOnCancel: false,
-          // The cancel spends a test-clock second in its outgoing record, the window in which the
-          // next prompt could overtake it.
           protocolLogging: {
             logOutgoing: true,
             logger: (event) =>
@@ -1493,7 +1482,6 @@ describe("AcpSessionRuntime", () => {
         const next = yield* runtime
           .prompt({ prompt: [{ type: "text", text: "next" }] })
           .pipe(Effect.forkChild);
-        // The first prompt ends before it is queued, which releases the cancel's wait.
         yield* Effect.sleep("1 second").pipe(
           Effect.andThen(Fiber.interrupt(first)),
           Effect.forkChild,

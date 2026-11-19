@@ -7,8 +7,6 @@ import { observeResize } from "~/lib/observeResize";
 import { Button } from "../ui/button";
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 
-// A virtualized timeline row unmounts once it leaves the draw window, taking an
-// open dialog with it; hosts that recycle rows pin the row while this reports open.
 export const ExpandedPreviewHostContext = createContext<((open: boolean) => void) | null>(null);
 
 /** Content that reflows to the card's width and is as tall as it says, so only the card scrolls. */
@@ -25,16 +23,12 @@ export function ExpandedPreviewDialog(props: {
 }) {
   const [zoom, setZoom] = useState(1);
   const [width, setWidth] = useState(props.fit.initialWidth);
-  // A callback ref, since the popup can mount after this component's first commit.
   const measureBox = (box: HTMLDivElement) => {
     setWidth(box.clientWidth);
     return observeResize(box, ([entry]) => {
-      // Rounded like clientWidth, so the two writes agree at fractional widths.
       if (entry) setWidth(Math.round(entry.contentRect.width));
     });
   };
-  // Zoom divides the page's layout width, so the page reflows to fill the card
-  // at every level, and the frame is as tall as the page so only the card scrolls.
   const height = props.fit.heightAtWidth(width / zoom);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const reportOpen = use(ExpandedPreviewHostContext);
@@ -53,7 +47,6 @@ export function ExpandedPreviewDialog(props: {
         initialFocus={closeButtonRef}
       >
         <DialogTitle className="sr-only">Expanded {props.title} preview</DialogTitle>
-        {/* 1144px is the widest the server measures a page; pages are written for the reply column and stretch badly beyond it. */}
         <div className="relative w-[min(92vw,1176px)]">
           <Button
             ref={closeButtonRef}

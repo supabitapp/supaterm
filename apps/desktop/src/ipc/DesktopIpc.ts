@@ -95,7 +95,6 @@ export class DesktopIpc extends Context.Service<
   }
 >()("@supaterm/desktop/ipc/DesktopIpc") {}
 
-// ipcMain is shared by every webContents, including preview guests that load arbitrary pages.
 export const make = (
   ipcMain: DesktopIpcMain,
   isTrustedSender: DesktopIpcSenderGuard,
@@ -153,7 +152,6 @@ export const make = (
               event.returnValue = runSync(
                 Effect.gen(function* () {
                   yield* Effect.annotateCurrentSpan({ channel });
-                  // Throwing here would surface as an uncaught main-process exception.
                   if (!(yield* isTrustedSender(event))) {
                     yield* Effect.logWarning("Rejected sync IPC from an untrusted sender.");
                     return undefined;

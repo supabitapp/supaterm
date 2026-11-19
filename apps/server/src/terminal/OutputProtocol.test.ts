@@ -129,8 +129,6 @@ const snapshot = (history: string): TerminalAttachStreamEvent => ({
   },
 });
 
-// Stands in for TerminalManager's fanout: listeners run in publish order and
-// may release themselves while it iterates.
 const makePublisher = () => {
   const listeners = new Set<(event: TerminalAttachStreamEvent) => Effect.Effect<void>>();
   return {
@@ -152,7 +150,6 @@ const makePublisher = () => {
   };
 };
 
-// Like TerminalManager.attachStream: a snapshot, then live events.
 const attach =
   (publisher: ReturnType<typeof makePublisher>, history: string) =>
   (
@@ -218,7 +215,6 @@ describe("terminal output stream", () => {
           Effect.forkScoped,
         );
         const write = yield* Deferred.await(receive);
-        // Each event arrives after the batching window, so it is sent on its own.
         const publish = (event: TerminalAttachStreamEvent) =>
           TestClock.adjust("2 millis").pipe(Effect.andThen(publisher.publish(event)));
         const takeChunk = Effect.fnUntraced(function* (queue: typeof stalled) {
@@ -234,7 +230,6 @@ describe("terminal output stream", () => {
         assert.deepEqual(yield* takeChunk(healthy), [initial]);
         yield* write(1, { _tag: "Ack", requestId: "2" });
 
-        // Eight unacknowledged chunks fill only client 0's output window.
         for (let index = 0; index < 7; index++) {
           const event = output("before-stall-" + index);
           yield* publish(event);
@@ -304,7 +299,6 @@ describe("terminal output stream", () => {
         const complete = yield* Deferred.make<void>();
         const acquire: ReturnType<typeof attach> = (listener, registerCleanup) =>
           attach(publisher, "")(listener, registerCleanup).pipe(
-            // Hold the successful exit before its cleanup handle reaches the caller.
             Effect.onExit(() =>
               Deferred.succeed(handoff, undefined).pipe(Effect.andThen(Deferred.await(complete))),
             ),
@@ -344,7 +338,6 @@ describe("terminal output stream", () => {
       const burst = yield* pull.pipe(Effect.forkChild({ startImmediately: true }));
       yield* TestClock.adjust("1 millis");
       assert.isUndefined(burst.pollUnsafe());
-      // Arrivals inside the window never push the deadline back.
       yield* publisher.publish(output("c"));
       yield* publisher.publish(output("d"));
       yield* TestClock.adjust("1 millis");
@@ -376,11 +369,9 @@ describe("terminal output stream", () => {
       const publisher = makePublisher();
       const pull = yield* Stream.toPull(terminalOutputStream(attach(publisher, "")));
       assert.deepEqual(yield* pull, [snapshot("")]);
-      // 1,024 code units but 3 KiB of UTF-8.
       const data = "界".repeat(1024);
       for (let index = 0; index < 1024; index++) yield* publisher.publish(output(data));
 
-      // Twenty 3 KiB events fill a 64 KiB batch, so full batches skip the deadline.
       let delivered = 0;
       while (delivered < 1020) {
         const batch = yield* pull;
@@ -407,11 +398,9 @@ describe("terminal output stream", () => {
       const history = "界".repeat(16 * 1024);
       const events = terminalOutputStream(attach(publisher, history), undefined, 32 * 1024);
       const pull = yield* Stream.toPull(events);
-      // A snapshot larger than the budget is still delivered.
       assert.deepEqual(yield* pull, [snapshot(history)]);
       assert.equal(publisher.listeners.size, 1);
 
-      // Queued snapshots count their history: a second one overflows.
       yield* publisher.publish(snapshot(history));
       assert.equal(publisher.listeners.size, 1);
       yield* publisher.publish(snapshot(history));

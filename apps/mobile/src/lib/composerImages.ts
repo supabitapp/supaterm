@@ -128,7 +128,6 @@ export async function persistComposerAttachmentFile(
   const { Directory, File, FileMode, Paths } = await loadExpoFileSystem();
   const directory = new Directory(Paths.document, COMPOSER_ATTACHMENT_DIRECTORY);
   directory.create({ idempotent: true, intermediates: true });
-  // Android's java.net.URI rejects characters expo-file-system leaves unencoded, such as `[` and `]`.
   const safeName = name.replace(/[^\w. -]/g, "-") || "file";
   const destination = new File(directory, `${uuidv4()}-${safeName}`);
   const source = new File(uri);
@@ -178,7 +177,6 @@ export async function persistComposerAttachmentFile(
   try {
     await source.copy(destination);
   } catch (error) {
-    // Failed copies may leave untracked partial files; delete before surfacing failure.
     try {
       if (destination.exists) {
         destination.delete();
@@ -188,7 +186,6 @@ export async function persistComposerAttachmentFile(
     }
     throw error;
   }
-  // Android content streams may exceed reported size; validate the persisted copy.
   const copiedSize = destination.size;
   if (maxBytes !== undefined && copiedSize !== null && copiedSize > maxBytes) {
     try {
@@ -281,7 +278,6 @@ export async function pickComposerFiles(input: {
   const endHandoff = beginForegroundHandoff();
   let result: DocumentPickerResult;
   try {
-    // Import a readable cache copy because FileSystem may not read provider URIs directly.
     result = await getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
   } catch (cause) {
     return {
@@ -306,7 +302,6 @@ export async function pickComposerFiles(input: {
       exceededAttachmentLimit = true;
       break;
     }
-    // SAF can return blank display names, but the wire contract rejects them; fill before persisting.
     const name = file.name.trim().length > 0 ? file.name : "file";
     try {
       const mimeType = imageMimeType({ name, mimeType: file.mimeType ?? "" });
@@ -407,7 +402,6 @@ export async function pickComposerMedia(input: {
     };
   }
 
-  // Android pickers report background state; guard against deferred restarts mid-pick.
   const endHandoff = beginForegroundHandoff();
   let result: Awaited<ReturnType<typeof imagePicker.launchImageLibraryAsync>>;
   try {
@@ -415,7 +409,6 @@ export async function pickComposerMedia(input: {
       mediaTypes: input.maxVideoBytes === undefined ? ["images"] : ["images", "videos"],
       allowsMultipleSelection: true,
       selectionLimit: remainingSlots,
-      // Base64 makes iOS decode all full-size photos and stalls JS with large strings; read bytes only as needed.
       base64: false,
       quality: 1,
       shouldDownloadFromNetwork: true,
@@ -474,7 +467,6 @@ export async function pickComposerMedia(input: {
     }
 
     const name = asset.fileName?.trim() || "image";
-    // Android content streams can exceed their reported size; measure the file before loading bytes into JS.
     let sourceBytes: number | null = null;
     try {
       const { File } = await loadExpoFileSystem();
@@ -482,7 +474,6 @@ export async function pickComposerMedia(input: {
     } catch {
       sourceBytes = null;
     }
-    // Pass through supported, under-cap originals unchanged to preserve transparency and animation.
     const originalMimeType =
       mimeType !== undefined &&
       isProviderSendTurnSupportedImageMimeType(mimeType) &&

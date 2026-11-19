@@ -34,12 +34,10 @@ function RawView({
   contentResetKey = "",
 }: NativeReviewDiffViewProps & { ref: Ref<unknown> }) {
   const [content, setContent] = useState({ resetKey: contentResetKey, rows: "" });
-  // Native setContentResetKey clears rows unless the key is unchanged.
   const setContentResetKey = (resetKey: string) =>
     setContent((current) => (current.resetKey === resetKey ? current : { resetKey, rows: "" }));
   const [tokenRowIds, setTokenRowIds] = useState<string[]>([]);
   const latest = useRef({ onDebug, initialFileId, contentResetKey });
-  // Android Fabric can apply a prop update after an AsyncFunction call made later.
   if (!mocks.contentResetKeyLandsLate && content.resetKey !== contentResetKey) {
     setContentResetKey(contentResetKey);
   }
@@ -47,7 +45,6 @@ function RawView({
     mocks.onDebug = onDebug;
     latest.current = { onDebug, initialFileId, contentResetKey };
   });
-  // A real native view keeps one instance, so the surface sees one stable handle.
   useImperativeHandle(
     nativeRef,
     () => ({

@@ -102,7 +102,6 @@ describe("protected storage startup", () => {
       ({ runtime } = await import("./runtime"));
       const startup = runtime.runPromiseExit(Effect.succeed("ready"));
 
-      // A missing gate finishes startup with a cached storage failure instead.
       await Promise.race([mocks.subscribed.promise, startup]);
       expect(mocks.readStorage).not.toHaveBeenCalled();
       mocks.appState = "inactive";

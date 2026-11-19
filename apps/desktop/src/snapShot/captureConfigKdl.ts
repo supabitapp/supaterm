@@ -71,7 +71,6 @@ export function readKdlNodes(source: string): KdlNode[] {
       }
       if (offset === source.length) throw invalid();
       offset++;
-      // KDL's unicode escapes differ from JSON; names needing those stay on the manual path.
       let value: string;
       try {
         value = decodeString(source.slice(start, offset));

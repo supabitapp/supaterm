@@ -827,7 +827,6 @@ describe("review thread decoding", () => {
     const result = expectSuccess(
       decodeReviewThreadsJson(
         reviewJson({
-          // A pull request where CODEOWNERS asked the team.
           requested: [
             {
               combinedSlug: "supabitapp/supaterm-devs",
@@ -853,7 +852,6 @@ describe("review thread decoding", () => {
   });
 
   it("keeps the conversation when a reviewer has neither a login nor a team slug", () => {
-    // Unselected GraphQL union members return no selected fields.
     const result = expectSuccess(
       decodeReviewThreadsJson(
         reviewJson({
@@ -927,7 +925,6 @@ describe("review thread decoding", () => {
     );
     const comments = reviewThreadConversation(result.threads.map((entry) => entry.thread));
     expect(comments.map((comment) => comment.id)).toEqual(["t1", "t2"]);
-    // A reply-only review has no text of its own; its link finds it through the reply it posted.
     expect(result.threads[0]?.thread.comments.map((comment) => comment.reviewUrl)).toEqual([
       undefined,
       "https://github.com/acme/web/pull/1#pullrequestreview-9",
@@ -1825,11 +1822,9 @@ describe("pull request watch fingerprints", () => {
     expect(summaryEdited.remarks).not.toBe(before.remarks);
     expect(summaryEdited.status).toBe(before.status);
     expect(replied.remarks).not.toBe(before.remarks);
-    // Queued and dropped between two passes leaves the head and its checks as they were.
     const dropped = fingerprint({ ...base, removals: 1, timelineItems: 5 });
     expect(dropped.status).not.toBe(before.status);
     expect(dropped.remarks).toBe(before.remarks);
-    // GitHub's totalCount counts every timeline item, whatever itemTypes asks for.
     const queued = fingerprint({ ...base, timelineItems: 4 });
     expect(queued.status).toBe(before.status);
   });

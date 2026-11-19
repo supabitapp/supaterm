@@ -1,4 +1,3 @@
-/** Instances sharing a login directory share credits; serialize redemptions on that directory. */
 import type { ProviderConsumeResetCreditOutcome, ServerProvider } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
@@ -39,7 +38,6 @@ export const make = Effect.gen(function* () {
   const random = yield* SecureRandom.SecureRandom;
   const statesRef = yield* Ref.make<ReadonlyMap<string, AccountRedemptionState>>(new Map());
 
-  // Create account locks atomically so concurrent first redemptions cannot use separate locks.
   const stateFor = Effect.fn("ResetCreditCoordinator.stateFor")(function* (accountKey: string) {
     const existing = (yield* Ref.get(statesRef)).get(accountKey);
     if (existing) return existing;

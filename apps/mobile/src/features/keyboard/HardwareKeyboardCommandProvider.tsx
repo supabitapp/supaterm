@@ -245,7 +245,6 @@ export function HardwareKeyboardCommandProvider({
         return;
       }
       if (command === "back") {
-        // Beside a visible list, the first detail page has nothing to go back to.
         if (Platform.OS === "ios" && workspaceHasColumns() && firstWorkspaceDetailOpen(navigation))
           return;
         if (navigation.canGoBack()) {

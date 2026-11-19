@@ -96,8 +96,6 @@ import { appAtomRegistry } from "../../state/atom-registry";
 
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 
-// Below this (keyboard up on iPad, phone landscape) the hero cannot fit above the composer,
-// so the project and environment pickers move into the composer controls instead.
 const SHORT_DRAFT_VIEWPORT_HEIGHT = 380;
 
 function NewTaskWorkspaceIcon(props: {
@@ -291,8 +289,6 @@ export function NewTaskDraftScreen(props: {
   } else if (isReturningToProjectPicker && requestedInitialProjectAvailable) {
     setIsReturningToProjectPicker(false);
   }
-  // A route naming a draft that is gone, or whose project is gone, also
-  // returns to the picker; a draft that survives goes along with it.
   const pickerDraftId =
     flow.unopenableRouteDraft?.kind === "pickProject"
       ? flow.unopenableRouteDraft.draftId
@@ -350,15 +346,10 @@ export function NewTaskDraftScreen(props: {
       ? idleShareImportPhaseAtom
       : incomingShareImports.phaseAtom(shareImportTarget),
   );
-  // Locks on the route, not the target: the target turns null when server config
-  // drops or the project stops matching, while the import keeps writing the draft.
   const isImportingShare = useAtomValue(incomingShareImports.inFlightAtom(flowKey));
   const isIncomingShareTransferPending = Boolean(
     incomingShare && shareImportPhase !== "cancelled" && !isIncomingShareAwaitingServerConfig,
   );
-  // A failed import waits in a modal alert, and a cancel finishes its undo even
-  // after the route leaves, so neither holds the route: the cancel can leave as
-  // soon as it is done.
   const isIncomingShareHoldingRoute =
     isIncomingShareTransferPending &&
     shareImportPhase !== "failed" &&
@@ -374,7 +365,6 @@ export function NewTaskDraftScreen(props: {
     if (next !== null) void switchEnvironment(next);
     return true;
   };
-  // Covered draft routes stay mounted; only the served one takes the shortcut.
   const cycleEnvironmentCommands =
     flow.served && environments.length > 1 ? (["cycleHost"] as const) : [];
   useHardwareKeyboardCommand(cycleEnvironmentCommands, cycleEnvironment);
@@ -391,7 +381,6 @@ export function NewTaskDraftScreen(props: {
     if (!isProjectPickerReturnActive) {
       return;
     }
-    // Wait for usePreventRemove to disable before replacing, or the transfer guard swallows the fallback.
     const frame = requestAnimationFrame(() => {
       navigation.dispatch(
         StackActions.replace("NewTaskProject", {
@@ -424,7 +413,6 @@ export function NewTaskDraftScreen(props: {
         ) ?? null;
 
       if (directProject) {
-        // Apply the route project once or picker changes would immediately revert.
         const directProjectKey = `${directProject.environmentId}:${directProject.id}`;
         if (appliedInitialProjectKeyRef.current === directProjectKey) {
           return;
@@ -438,7 +426,6 @@ export function NewTaskDraftScreen(props: {
             return;
           }
           if (!flow.draftKey) return;
-          // Checkout completed before mount; local mode reuses it while worktree mode would create another.
           updateComposerDraftSettings(flow.draftKey, {
             workspaceSelection: {
               mode: "local",
@@ -449,8 +436,6 @@ export function NewTaskDraftScreen(props: {
           });
         }
         appliedInitialProjectKeyRef.current = directProjectKey;
-        // Recorded here too: when the route's project is already the
-        // provider's fallback selection, setProject below is skipped.
         setStickyNewTaskProject({
           environmentId: directProject.environmentId,
           projectId: directProject.id,
@@ -489,7 +474,6 @@ export function NewTaskDraftScreen(props: {
       goBack();
       return;
     }
-    // Open the first picker once; catalog updates must not push it again over a cancelled draft.
     if (initialPickerRef.current !== null) {
       return;
     }
@@ -614,7 +598,6 @@ export function NewTaskDraftScreen(props: {
       Dialog.alert(title, detail);
       return null;
     }
-    // Recovery may retain over-cap attachments; block send before uploading a turn the server would reject.
     if (draft.attachments.length > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
       Dialog.alert(
         "Too many attachments",
@@ -647,8 +630,6 @@ export function NewTaskDraftScreen(props: {
 
     const editingPendingTask = flow.editingPendingTask;
 
-    // Persist locally, then open the reserved thread on every connection state.
-    // The outbox owns uploads and server creation after navigation.
     const metadata = editingPendingTask
       ? {
           threadId: editingPendingTask.threadId,
@@ -664,7 +645,6 @@ export function NewTaskDraftScreen(props: {
     if (!message) {
       return null;
     }
-    // Persist locally before clearing or leaving the draft; server setup runs on the thread.
     flow.setSubmitting(true);
     const queued = await settlePromise(() => enqueueThreadOutboxMessage(message));
     flow.setSubmitting(false);
@@ -682,15 +662,11 @@ export function NewTaskDraftScreen(props: {
         submittedThreadParams(String(message.environmentId), String(message.threadId)),
       ),
     );
-    // The composer has moved to the submitted thread; a pick still converting
-    // would otherwise resurrect this draft.
     abortComposerDraftOperations(draftKey);
     const draftSnapshot = getComposerDraftSnapshot(draftKey);
     if (editingPendingTask) {
       flow.finishEditingPendingTask();
     } else {
-      // The queued message owns the attachments now, so the sweep is deferred
-      // until the write confirms it.
       clearComposerDraftContent(draftKey, {
         clearModelSelection: true,
         clearWorkspaceSelection: true,
@@ -701,8 +677,6 @@ export function NewTaskDraftScreen(props: {
     return message.messageId;
   }
 
-  // Keep the current surface until the local draft selection is ready. Publishing
-  // an empty loading surface here flashes between two already-cached threads.
   if (!selectedProject) return null;
 
   const setupBlockReason =
@@ -711,8 +685,7 @@ export function NewTaskDraftScreen(props: {
         ? "Wait for the project clone to finish."
         : flow.submitting
           ? "Starting the thread…"
-          : // Until the repository check answers, a saved worktree selection may belong to a non-git folder.
-            flow.workspaceMode === "worktree" && !flow.isGitRepoKnown
+          : flow.workspaceMode === "worktree" && !flow.isGitRepoKnown
             ? "Checking the repository…"
             : null
       : "Wait for shared content to finish importing.";
@@ -797,8 +770,6 @@ export function NewTaskDraftScreen(props: {
       {shareUnavailableNotice}
     </View>
   );
-  // The nested hero scroll view does not receive UIKit's automatic navigation inset in split columns.
-  // Task context sits at the bottom so it stays within reach of the composer.
   const heroViewport = (headerInset: number, bottomInset: number, viewportHeight: number) =>
     viewportHeight < SHORT_DRAFT_VIEWPORT_HEIGHT ? null : (
       <NativeScrollEdgeEffectsContext

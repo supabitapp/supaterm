@@ -17,7 +17,6 @@ export const isEntrypoint = (input: {
   if (input.moduleUrl === NodeURL.pathToFileURL(input.entryPath).href) {
     return true;
   }
-  // npm/npx keep the symlink in argv[1], but Node resolves the module URL.
   try {
     return input.moduleUrl === NodeURL.pathToFileURL(NodeFS.realpathSync(input.entryPath)).href;
   } catch {

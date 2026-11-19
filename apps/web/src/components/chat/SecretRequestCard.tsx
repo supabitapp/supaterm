@@ -90,7 +90,6 @@ function PendingSecretRequestForm(props: {
   const privacyId = useId();
   const answer = useAtomCommand(serverEnvironment.answerSecretRequest, {
     label: "answer secret request",
-    // The failure cause holds the request; keep it out of the console.
     reportFailure: false,
     reportDefect: false,
   });
@@ -101,7 +100,6 @@ function PendingSecretRequestForm(props: {
   const [submitting, setSubmitting] = useState(false);
   const locked = submitting || !canAnswer;
   const [error, setError] = useState<string | null>(null);
-  // Enter and click can both submit before a render.
   const inFlight = useRef(false);
 
   const send = async (reply: SecretRequestReply) => {
@@ -110,7 +108,6 @@ function PendingSecretRequestForm(props: {
     inFlight.current = true;
     setSubmitting(true);
     setError(null);
-    // A filled login leaving the screen makes the system offer to save it as a password.
     if (reply.type === "save") setValues({});
     const result = await answer({ environmentId: props.environmentId, input }).finally(() => {
       inFlight.current = false;
@@ -149,9 +146,6 @@ function PendingSecretRequestForm(props: {
       className="flex min-w-0 flex-col gap-3 rounded-xl border border-border/60 bg-card p-4"
       onSubmit={onSubmit}
       autoComplete="off"
-      // On click, not pointerdown: the mousedown that follows a pointerdown
-      // moves focus back off the input. A click that ends a text selection
-      // leaves it alone so the reason can still be copied.
       onClick={(event) => {
         if (!(event.target instanceof Element)) return;
         if (event.target.closest("input, button, a")) return;
@@ -182,7 +176,6 @@ function PendingSecretRequestForm(props: {
             Open {link.host}
             <ExternalLinkIcon aria-hidden />
           </Button>
-          {/* A link found in the reason is already shown there. */}
           {item.url !== undefined ? (
             <p className="font-mono text-xs wrap-anywhere text-muted-foreground">{item.url}</p>
           ) : null}
@@ -241,7 +234,6 @@ function SecretRequestField(props: {
       ) : null}
       <Input
         id={props.id}
-        // A CSS-masked text field still exposes its value to screen readers.
         type={props.input.masked ? "password" : "text"}
         autoComplete="off"
         autoCorrect="off"

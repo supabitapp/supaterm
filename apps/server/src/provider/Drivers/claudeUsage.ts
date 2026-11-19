@@ -73,7 +73,6 @@ function parseClaudeRecord(parsed: unknown): readonly UsageRecord[] {
       cachedInputTokens: tokenCount(usageRecord["cache_read_input_tokens"]),
       cacheCreationTokens: tokenCount(usageRecord["cache_creation_input_tokens"]),
       outputTokens: tokenCount(usageRecord["output_tokens"]),
-      // Anthropic folds thinking tokens into output and does not break them out.
       reasoningTokens: 0,
     },
     ...cacheCreation1h(usageRecord),
@@ -82,8 +81,6 @@ function parseClaudeRecord(parsed: unknown): readonly UsageRecord[] {
     dedupeKey,
   };
 
-  // Top-level `usage` is the executor's alone. Advisor calls run on another model at its own rates
-  // and appear only in `iterations`, so each one is its own record under that model.
   const records = [executor];
   const iterations: readonly unknown[] = Array.isArray(usageRecord["iterations"])
     ? usageRecord["iterations"]

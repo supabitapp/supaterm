@@ -29,10 +29,8 @@ const KNOWN_SHARED_DIRECTORIES = [
   "thread-writer-locks",
 ] as const;
 
-// auth.lock guards the shadow home's private auth.json.
 const PRIVATE_ENTRY_NAMES = new Set(["auth.json", "auth.lock", "models_cache.json"]);
 const SHADOW_LOCAL_ENTRY_NAMES = new Set(["log", "memories", "tmp", ".DS_Store"]);
-// Shadow homes may create local runtime locks first; replace them with shared links because they guard shared state.
 const REPLACEABLE_SHARED_RUNTIME_ENTRIES = new Set([
   "mcp-oauth-locks",
   "thread-writer-locks",
@@ -287,8 +285,6 @@ const ensureSymlink = Effect.fn("CodexHomeLayout.ensureSymlink")(function* (inpu
             }),
         }),
       );
-      // Codex deletes a thread lock on release, so one that is left may still guard a live
-      // writer. Keep the local directory until a later setup finds none.
       if (lockNames.some((name) => name.endsWith(".lock") && name !== ".coordination.lock")) {
         return yield* Effect.logWarning(
           "Codex shadow home still has thread writer locks; it will share them on a later setup.",

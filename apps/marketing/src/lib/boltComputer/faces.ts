@@ -21,7 +21,6 @@ export interface Grid {
 }
 
 export function makeGrid(cols: number, rows: number): Grid {
-  // Grow by even steps so the face area stays on whole cells.
   const c = FACE_COLS + 2 * Math.max(0, Math.ceil((cols - FACE_COLS) / 2));
   const r = FACE_ROWS + 2 * Math.max(0, Math.ceil((rows - FACE_ROWS) / 2));
   return {
@@ -79,7 +78,6 @@ export const FACES: Record<BoltComputerState, (g: Grid, t: number) => void> = {
   },
 
   working(g, t) {
-    // Current runs down the bolt, a bright band with a fading tail above it.
     const head = ((t / 1.1) % 1) * (BOLT.length + 10) - 2;
     bolt(g, (_c, r) => {
       const d = head - r;

@@ -70,7 +70,6 @@ export function useHoldToTalk(
       press = followPress(event.code, {
         onHold: start,
         onHeldRelease: (release) => {
-          // Releasing a lone Alt opens the menu bar on Windows and Linux unless the page consumes it.
           release.preventDefault();
           if (opening()) cancel();
           else finish();
@@ -98,7 +97,6 @@ export function useHoldToTalk(
       }
       if (!canStart()) return;
       const before = readDraft();
-      // A space typed over a selection can delete context chips, which restoring text can't bring back.
       if (before.selection.start !== before.selection.end) return;
       press = followPress(event.code, {
         onHold: () => {

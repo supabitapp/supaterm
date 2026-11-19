@@ -24,7 +24,6 @@ interface NativeProps {
   readonly onComposerChange: (event: { readonly nativeEvent: NativeEvent }) => void;
 }
 
-// Mirrors the iOS editor's revision and reset bookkeeping (SupatermComposerEditorView.setControlledDocumentJson).
 const native = vi.hoisted(() => ({
   text: "",
   eventCount: 0,
@@ -74,7 +73,6 @@ function NativeView({ ref, ...props }: NativeProps) {
   return null;
 }
 
-// A native edit whose event has not reached JS yet.
 function pend(value: string): NativeEvent {
   native.eventCount += 1;
   native.text = value;
@@ -100,7 +98,6 @@ function emit(value: string, resetGeneration = native.resetGeneration) {
 }
 
 vi.mock("expo", () => ({ requireNativeView: () => NativeView }));
-// Vite resolves the platform-neutral module; the race lives in the iOS editor.
 vi.mock("../native/SupatermComposerEditor", () => import("../native/SupatermComposerEditor.ios"));
 vi.mock("react-native", () => ({ StyleSheet: { flatten: (style: unknown) => style } }));
 vi.mock("expo-file-system", () => ({
@@ -185,7 +182,6 @@ it("keeps a sent draft cleared when an autocorrection lands in the same batch as
   await act(async () => emit("Hello wrold"));
   expect(getComposerDraftSnapshot(DRAFT_KEY).text).toBe("Hello wrold");
 
-  // Send clears the draft; iOS commits the pending autocorrection as the keyboard dismisses.
   await act(async () => {
     clearComposerDraftContent(DRAFT_KEY);
     emit("Hello world");
@@ -217,7 +213,6 @@ it("keeps a pending event from the previous native editor out of the selected dr
   const pending = { eventCount: native.eventCount + 1, resetGeneration: native.resetGeneration };
   const mounts = native.mounts;
   await act(async () => renderDraft(second));
-  // Remounting the native view would drop the keyboard mid-edit.
   expect(native.mounts).toBe(mounts);
   await act(async () =>
     deliverPendingEvent({

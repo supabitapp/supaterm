@@ -17,7 +17,6 @@ interface CachedPullRequestDiffPages {
   readonly parsed: ReviewParsedDiff;
 }
 
-// Keep only the latest combination per scoped first page; query results own its lifetime.
 const parsedSnapshots = new WeakMap<
   PullRequestDiffResult,
   Map<string, CachedPullRequestDiffPages>

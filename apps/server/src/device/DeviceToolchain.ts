@@ -1,5 +1,4 @@
 import type { DeviceToolVersions } from "@supaterm/contracts";
-// npm exposes entry files before extraction completes; their presence does not prove a usable tree.
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";

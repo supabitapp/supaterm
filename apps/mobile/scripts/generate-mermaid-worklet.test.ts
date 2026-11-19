@@ -8,8 +8,6 @@ import fixtures from "../../../packages/mermaid/src/fixtures.json" with { type: 
 const WORKLET_BUILD_TIMEOUT_MS = 120_000;
 
 const range = (length: number) => Array.from({ length }, (_, index) => index);
-// Ordering edges across subgraphs costs pele millions of steps while still finishing well
-// inside the time budget.
 const subgraphFlowchart = [
   "flowchart TD",
   ...range(8).flatMap((group) => [

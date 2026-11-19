@@ -57,7 +57,6 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
   const [expanded, toggleExpanded, setExpanded] = useTimelineDisclosure();
   const canWriteFiles = useEnvironmentScope(environmentId, AuthFilesystemWriteScope);
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
-  // The path last submitted, so reopening the dialog offers it again.
   const [lastSavePath, setLastSavePath] = useState("");
   const [isSavingToWorkspace, setIsSavingToWorkspace] = useState(false);
   const writeProjectFile = useAtomCommand(projectEnvironment.writeFile, {
@@ -239,7 +238,6 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
           }
         }}
       >
-        {/* The form owns the path so a keystroke re-renders it, not the dialog chrome. */}
         <DialogPopup className="max-w-xl">
           <SavePlanToWorkspaceForm
             initialPath={lastSavePath || downloadFilename}

@@ -73,8 +73,6 @@ let endRequestWithProject: (() => void) | null = null;
 export function openAddProjectToMachine(request: AddProjectToMachineRequest) {
   if (readProject(request.projectRef) === null) return;
   endRequestWithProject?.();
-  // The request ends when its project goes away, so a project that comes back
-  // later cannot reopen a dialog nobody asked for.
   endRequestWithProject = subscribeProject(request.projectRef, (project) => {
     if (project === null) close();
   });
@@ -148,7 +146,6 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
   );
   const ignoredFiles = searching ? searchedFiles : allIgnoredFiles;
   const files = ignoredFiles.data?.files ?? [];
-  // Keyed by path with the file kept, so picks made under one search survive the next.
   const [selected, setSelected] = useState<ReadonlyMap<string, ProjectIgnoredFile> | null>(null);
   const selectedFiles = selected ?? defaultSelection(allIgnoredFiles.data?.files ?? []);
   const copyable = files.filter((file) => file.byteLength <= COPYABLE_FILE_MAX_BYTES);
@@ -162,8 +159,6 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // The project or every target can vanish while the dialog is open. Submitting
-  // before the file list loads would silently skip the default .env copies.
   const unavailable =
     project === null ||
     target === null ||
@@ -183,9 +178,6 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
     setSelected(next);
   };
 
-  // Lands the user on the new machine right away; its composer shows the clone
-  // and holds sends until it finishes. A draft open on the source project moves
-  // over with whatever was typed in it.
   const openClonedProject = (targetRef: ScopedProjectRef) => {
     const drafts = useComposerDraftStore.getState();
     const draftId = routeDraftId as DraftId | undefined;
@@ -384,7 +376,6 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
                     value={fileQuery}
                     maxLength={256}
                     onChange={(event) => setFileQuery(event.target.value)}
-                    // Enter would otherwise submit the clone.
                     onKeyDown={(event) => {
                       if (event.key === "Enter") event.preventDefault();
                     }}
@@ -448,10 +439,6 @@ function AddProjectToMachineDialog({ request }: { request: AddProjectToMachineRe
   );
 }
 
-/**
- * A project can be rooted below its repository's top folder. The clone lands
- * at the top, so copied files keep the same path below it.
- */
 function projectSubdirectory(repositoryRoot: string | undefined, workspaceRoot: string) {
   if (!repositoryRoot) return "";
   const prefix = repositoryRoot.replace(/[\\/]+$/, "");

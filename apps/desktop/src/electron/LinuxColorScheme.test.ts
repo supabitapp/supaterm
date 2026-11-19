@@ -66,7 +66,6 @@ it("reads the current color scheme and follows portal changes", async () => {
   bus.changed("org.freedesktop.appearance", "accent-color", 1);
   bus.changed("org.gnome.desktop.interface", "color-scheme", 1);
   bus.changed("org.freedesktop.appearance", "color-scheme", 1);
-  // GNOME's light mode reports "no preference".
   bus.changed("org.freedesktop.appearance", "color-scheme", 0);
   bus.changed("org.freedesktop.appearance", "color-scheme", 3);
   expect(schemes).toEqual(["dark", "light", "dark", "light", null]);

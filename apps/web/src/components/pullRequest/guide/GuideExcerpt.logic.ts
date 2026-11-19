@@ -5,15 +5,12 @@ import {
 } from "@supaterm/client-runtime/review-guide-tour";
 import type { PullRequestReviewGuideExcerpt } from "@supaterm/contracts";
 
-// Other hunks shift old-side context; expand against an excerpt-matching old side.
-// Loads with the source file's diff, which the loaded contents must reproduce.
 export function excerptLoader(
   excerpt: PullRequestReviewGuideExcerpt,
   file: FileDiffMetadata,
   sliceRows: ReadonlyArray<DiffRow>,
   loadDiffFiles: FileDiffContentsLoader,
 ): FileDiffContentsLoader | null {
-  // An added or deleted file has no unchanged context to expand.
   if (
     file.type === "new" ||
     file.type === "deleted" ||

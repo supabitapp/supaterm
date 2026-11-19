@@ -1,9 +1,3 @@
-/**
- * Cloud simulators from Expo Simulators. A device exists only while a session
- * runs, and every session bills the Expo account until it stops, so this host
- * bounds each one, stops all of them when it stops, and stops sessions a
- * previous server left behind. It never touches sessions it did not start.
- */
 import {
   DeviceBootError,
   type DeviceHostSummary,
@@ -38,9 +32,7 @@ import { findEasProjectId } from "./easProjectId.ts";
 import { type ExpoApi, makeExpoApi, resolveExpoCredential } from "./ExpoApi.ts";
 
 const POLL_INTERVAL = Duration.seconds(5);
-// How stale a running session's status may get before listing rechecks it.
 const STATUS_TTL_MS = 15_000;
-// Expo's own CLI waits this long once a worker picks the session up.
 const START_TIMEOUT = Duration.minutes(15);
 const PREVIEW_TIMEOUT = Duration.seconds(20);
 const decodeServeSimApi = Schema.decodeUnknownEffect(
@@ -49,11 +41,6 @@ const decodeServeSimApi = Schema.decodeUnknownEffect(
 const decodeServeEmuApi = Schema.decodeUnknownEffect(
   Schema.Struct({ serial: Schema.NonEmptyString }),
 );
-/**
- * Each session's preview host serves serve-sim at its root and serve-emu under
- * its vendor prefix, and names its device by an id of its own that agent-device
- * also selects it by.
- */
 const PLATFORMS = {
   ios: {
     name: "iPhone (Expo Simulator)",
@@ -71,7 +58,6 @@ const PLATFORMS = {
   },
 } as const;
 
-/** Expo picks the simulator model; one entry starts a session. */
 const CATALOG: ReadonlyArray<DeviceHost.HostDevice> = [
   {
     id: "eas-ios",
@@ -98,40 +84,25 @@ interface RunningSession {
   readonly remoteDeviceId: string;
   readonly preview: { readonly origin: string; readonly token: Redacted.Redacted<string> };
   readonly agent: DeviceHost.AgentDaemonEndpoint;
-  /** Set once a stop has been asked for but Expo has not confirmed it. */
   stopping: boolean;
 }
 
-/**
- * Every session this host may have started, recorded by its unique name before
- * Expo is asked to create it, so a server that crashes at any point can still
- * find and stop the session on its next start.
- */
 const LedgerEntry = Schema.Struct({
   name: Schema.String,
   appId: Schema.String,
   recordedAt: Schema.Number,
-  /** Expo refused the create: nothing should run, but the reaper still looks. */
   refused: Schema.optional(Schema.Boolean),
 });
 type LedgerEntry = typeof LedgerEntry.Type;
 const Ledger = Schema.fromJsonString(Schema.Array(LedgerEntry));
 const decodeLedger = Schema.decodeUnknownEffect(Ledger);
 const encodeLedger = Schema.encodeSync(Ledger);
-// How often listing looks for recorded sessions this host no longer tracks.
 const REAP_INTERVAL_MS = 60_000;
-// Expo's ready queue is unbounded despite its 115-minute session limit and five-minute cleanup.
-// Unlisted sessions stop counting after this lifetime; forget their records only once
-// confirmed not running or after a day unconfirmed.
 const RECORD_LIFETIME_MS = 180 * 60_000;
 const RECORD_MAX_AGE_MS = 24 * 60 * 60_000;
-// Expo lists a session it made within seconds; a create with an unknown
-// outcome stops counting against the limit once it has had this long.
 const UNCERTAIN_CREATE_MS = 5 * 60_000;
-// One failed request to Expo during a minutes-long start does not end the start.
 const TRANSIENT_RETRY = { times: 3, schedule: Schedule.spaced("2 seconds") } as const;
 
-/** A malformed escape names no device, so the proxy answers 404 instead of failing. */
 const decodePathSegment = (segment: string): string | null => {
   try {
     return decodeURIComponent(segment);
@@ -150,29 +121,15 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
   >();
   const hostId = config.id;
   const ledgerPath = path.join(server.stateDir, "device", "eas", `${hostId}.json`);
-  // Keyed by Expo's session id, which is also the device id: every Expo
-  // simulator reports the same remote device id, so that id cannot tell sessions apart.
   const sessions = new Map<string, RunningSession>();
   const checkedAt = new Map<string, number>();
   const startLock = yield* Semaphore.make(1);
   const ledgerLock = yield* Semaphore.make(1);
-  // One sweep at a time: two would stop the same session twice.
   const reapLock = yield* Semaphore.make(1);
-  // Starts run in the host rather than the caller: a client that disconnects
-  // while a session boots leaves it running and tracked, and stopping or
-  // closing the host interrupts the start, which then stops its session.
   const starts = yield* FiberSet.make<string, unknown>();
-  // The startup sweep for recorded leftovers.
   const background = yield* FiberSet.make<void, never>();
-  // Sessions this host owns that `sessions` does not hold: starts in progress,
-  // and sessions whose stop after a failed start failed too. The reaper leaves
-  // them alone and they count against the limit.
   const starting = new Set<string>();
   const unresolved = new Map<string, { readonly sessionId: string }>();
-  // Creates whose outcome is unknown (no answer, or a server error), and
-  // fresh records a previous server left: Expo may have made the session.
-  // Each listing looks for it, and it counts against the limit until found
-  // or until Expo would have listed it by now. The reaper handles these.
   const uncertain = new Map<string, { readonly entry: LedgerEntry; readonly until: number }>();
   const ownedNames = () =>
     new Set([
@@ -180,12 +137,7 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
       ...starting,
       ...unresolved.keys(),
     ]);
-  // Bumped whenever the host stops its sessions, so a start that finishes
-  // afterwards stops its own session instead of leaving it untracked.
   let epoch = 0;
-  // Set once the host's scope closes. A listing still running on this
-  // instance then neither sweeps nor writes the ledger: a replacement with
-  // the same id owns the sessions and the record now.
   let closed = false;
   let reapedAt = 0;
   let ready: DeviceHost.DeviceHostReady | null = null;
@@ -206,7 +158,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     Effect.mapError((error) => unavailable(error.message, error)),
   );
 
-  /** A missing ledger is empty; an unreadable one is an error, never an empty list. */
   const readLedger = fs.readFileString(ledgerPath).pipe(
     Effect.catchIf(
       (error) => error.reason._tag === "NotFound",
@@ -253,7 +204,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
       ),
     );
 
-  /** Stops a session and, once Expo confirms it, drops it from the ledger. */
   const stopSession = (expo: ExpoApi, sessionId: string, name: string) =>
     expo.stop(sessionId).pipe(
       Effect.andThen(forgetEntry(name)),
@@ -262,7 +212,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
       ),
     );
 
-  /** Finds recorded sessions by name, so a session whose id never arrived is found too. */
   const stopRecorded = (expo: ExpoApi, entries: ReadonlyArray<LedgerEntry>) => {
     const found = new Set<string>();
     const listed = new Set<string>();
@@ -282,7 +231,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
                       running,
                       (session) =>
                         stopSession(expo, session.id, entry.name).pipe(
-                          // Still running and billed: owned, counted, and retried by listing.
                           Effect.catch(() =>
                             Effect.sync(
                               () => void unresolved.set(entry.name, { sessionId: session.id }),
@@ -303,16 +251,11 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     ).pipe(
       Effect.as({ found, listed } as {
         readonly found: ReadonlySet<string>;
-        /** The apps whose listing succeeded; a failed one rules nothing out. */
         readonly listed: ReadonlySet<string>;
       }),
     );
   };
 
-  /**
-   * Retries the stop of a session whose stop failed. A session Expo already
-   * ended is let go even if stopping it keeps failing.
-   */
   const retryUnresolved = (expo: ExpoApi, name: string, sessionId: string) =>
     stopSession(expo, sessionId, name).pipe(
       Effect.catch(() =>
@@ -330,27 +273,15 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
       Effect.ignore,
     );
 
-  /**
-   * Records a previous server left count against the limit until a sweep
-   * finds them (a fresh one until Expo would have listed it by now), so a
-   * restart cannot start past it.
-   */
   const adoptRecorded = Effect.gen(function* () {
     const now = yield* Clock.currentTimeMillis;
     const owned = ownedNames();
     for (const entry of yield* readLedger) {
       const until = Math.max(entry.recordedAt + UNCERTAIN_CREATE_MS, now);
-      // A refused create made nothing: its record is for the reaper only.
       if (!owned.has(entry.name) && !entry.refused) uncertain.set(entry.name, { entry, until });
     }
   }).pipe(Effect.ignore);
 
-  /**
-   * Stops recorded sessions this host does not own: a previous server's, or
-   * a failed or uncertain start's. An uncertain one found (stopped, or
-   * unresolved if that failed) or long enough unlisted frees its slot; its
-   * record stays until it expires.
-   */
   const reapLeftovers = Effect.fn("EasDeviceHost.reapLeftovers")(
     function* (expo: ExpoApi) {
       if (closed) return;
@@ -364,10 +295,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
           uncertain.delete(name);
         }
       }
-      // Expo has ended these by now unless they waited in its queue: the slot
-      // goes whatever the listing says (the app may be gone, or belong to
-      // another account); the record goes once a listing confirms Expo does
-      // not run it, or once no queue could have held it.
       for (const entry of leftovers) {
         const age = reapedAt - entry.recordedAt;
         if (age > RECORD_LIFETIME_MS) uncertain.delete(entry.name);
@@ -466,8 +393,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     startedIn: number,
   ) {
     const name = `Supaterm · ${config.label} · ${(yield* Random.nextIntBetween(0, 0xffffff)).toString(16).padStart(6, "0")}`;
-    // The credential comes first: without one, the answer is how to sign in,
-    // not that the limit is reached.
     const expo = yield* api;
     return yield* Effect.acquireUseRelease(
       reserveSlot(name),
@@ -486,15 +411,11 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
             );
           }
           const entry = { name, appId, recordedAt: yield* Clock.currentTimeMillis };
-          // Recorded first: a session the ledger cannot hold is never started.
           yield* writeLedger((entries) => [...entries, entry]);
           if (epoch !== startedIn) {
             yield* forgetEntry(name);
             return yield* unavailable(`${config.label} was stopped while the session started.`);
           }
-          // Create runs uninterrupted (Expo's API answers within 30 seconds) and
-          // the stop below is in place before anything can interrupt the start,
-          // so a session Expo made is always either tracked or stopped.
           return yield* Effect.uninterruptibleMask((restore) =>
             Effect.gen(function* () {
               const sessionId = yield* expo
@@ -506,10 +427,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
                   maxIdleTimeMinutes: config.idleMinutes,
                 })
                 .pipe(
-                  // Unless Expo refused, it may have made the session before
-                  // failing to answer. Unlisted, it stays counted for a while.
-                  // Refused, it made nothing: the slot frees, but the record
-                  // stays for the reaper in case the refusal was misread.
                   Effect.tapError((error) =>
                     error.rejected
                       ? stopRecorded(expo, [entry]).pipe(
@@ -537,7 +454,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
               ).pipe(
                 Effect.onError(() =>
                   stopSession(expo, sessionId, name).pipe(
-                    // Still running and billed: owned, counted, and retried by listing.
                     Effect.catch(() => Effect.sync(() => void unresolved.set(name, { sessionId }))),
                   ),
                 ),
@@ -549,7 +465,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     );
   });
 
-  /** Waits for a created session and starts tracking it. */
   const trackSession = Effect.fn("EasDeviceHost.trackSession")(function* (
     expo: ExpoApi,
     sessionId: string,
@@ -604,11 +519,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
       checkedAt.delete(session.sessionId);
     });
 
-  /**
-   * Expo ends sessions on its own at their run or idle limit; stop listing
-   * those. A stop that failed earlier is retried, and recorded sessions nothing
-   * tracks are reaped now and then.
-   */
   const dropEnded = Effect.gen(function* () {
     if (closed) return;
     const now = yield* Clock.currentTimeMillis;
@@ -621,8 +531,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     const reap = reapDue || uncertain.size > 0;
     if (reap) reapedAt = now;
     const expo = yield* api.pipe(
-      // Without a credential no sweep can look; a record Expo would have
-      // listed by now still stops counting, so the limit is not held forever.
       Effect.tapError(() =>
         Effect.sync(() => {
           for (const [name, { until }] of uncertain) if (now >= until) uncertain.delete(name);
@@ -640,7 +548,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
         (session.stopping
           ? stopSession(expo, session.sessionId, session.name).pipe(
               Effect.andThen(forget(session)),
-              // A session Expo already ended is let go even if stopping it keeps failing.
               Effect.catch(() =>
                 expo
                   .session(session.sessionId)
@@ -668,10 +575,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     if (reap) yield* reapLeftovers(expo);
   }).pipe(Effect.ignore);
 
-  /**
-   * Stops a tracked session. Until Expo confirms, it stays tracked: listed,
-   * counted against the limit, and retried by the next listing.
-   */
   const stopTracked = (expo: ExpoApi, session: RunningSession) =>
     Effect.suspend(() => {
       session.stopping = true;
@@ -699,8 +602,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     ),
     boot: (device, context) => {
       if (sessions.has(device.id)) return Effect.succeed(device.id);
-      // Read before anything yields, so a stop that lands while the start
-      // reads settings or files is seen.
       const startedIn = epoch;
       return startSession(device, context, startedIn).pipe(
         FiberSet.run(starts),
@@ -772,11 +673,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     endsDevices: true,
   };
 
-  /**
-   * Clients name the device by its session id; the preview host knows it by its
-   * own id, so the session id is swapped for that in the path and in the
-   * `device` parameter. A session answers only on its own platform's server.
-   */
   const upstream: NonNullable<DeviceHost.DeviceHostReady["upstream"]> = (hubPath, search) =>
     Effect.sync(() => {
       const platform = (["ios", "android"] as const).find((candidate) =>
@@ -814,21 +710,17 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
   )(function* () {
     if (ready) return ready;
     yield* adoptRecorded;
-    // Without a credential the host is still ready: opening a device then
-    // says how to sign in, and listing reaps once one is there.
     yield* FiberSet.run(background)(api.pipe(Effect.flatMap(reapLeftovers), Effect.ignore));
     ready = {
       nodePath,
       hub: { origin: "https://api.expo.dev" },
       devices,
       upstream,
-      // Each session runs its own daemon, so one that has ended holds no agent sessions.
       releaseAgentSession: (session, deviceId) =>
         Option.match(sessionFor(deviceId), {
           onNone: () => Effect.void,
           onSome: (running) => releaseAgentDeviceSession(http, running.agent)(session),
         }),
-      // Device settings run simctl on the simulator's own machine, which Expo does not expose.
       run: () =>
         Effect.succeed({
           stdout: "",
@@ -840,11 +732,8 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     return ready;
   });
 
-  // A session whose stop fails stays tracked for the next listing to retry,
-  // and stays in the ledger for the next server if this one closes first.
   const stopAll = Effect.gen(function* () {
     epoch++;
-    // Interrupted starts stop the sessions they created before this returns.
     yield* FiberSet.clear(starts);
     yield* FiberSet.clear(background);
     const expo = yield* api;
@@ -858,13 +747,10 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
       ([name, { sessionId }]) => retryUnresolved(expo, name, sessionId),
       { discard: true, concurrency: 4 },
     );
-    // Also stop a recorded session a create with an unknown outcome made after all.
     yield* reapLeftovers(expo);
   }).pipe(Effect.ignore);
   yield* Effect.addFinalizer(() =>
     stopAll.pipe(
-      // Under the ledger lock, so a write still in flight lands before a
-      // replacement writes its own, which that write would overwrite.
       Effect.andThen(
         ledgerLock.withPermit(
           Effect.sync(() => {
@@ -875,8 +761,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     ),
   );
 
-  // Each server signs in on its own, so one with no Expo credential answers for itself. Reading
-  // the credential is local; whether Expo accepts it is only known once a session starts.
   const platformAvailability = (platform: DevicePlatform) =>
     resolveExpoCredential(config.accessToken).pipe(
       Effect.provide(services),
@@ -895,7 +779,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
       label: config.label,
       kind: "eas" as const,
       platforms,
-      // Nothing to install: the hub and agent-device daemon run in each session.
       hubInstalled: true,
       agentDeviceInstalled: true,
     })),
@@ -912,7 +795,6 @@ export const make = Effect.fn("EasDeviceHost.make")(function* (config: EasDevice
     }),
     current: Effect.sync(() => ready),
     stopAgent: Effect.void,
-    // Unlike machines the user owns, every running session here is billed.
     stop: stopAll,
   });
 });

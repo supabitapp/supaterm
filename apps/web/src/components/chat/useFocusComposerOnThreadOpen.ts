@@ -20,11 +20,9 @@ export function useFocusComposerOnThreadOpen(
     let frame: number | undefined;
     const leave = restoreFocusOnThreadEnter(threadRef, {
       root,
-      // Split panes each mount a chat; only the focused pane takes focus back.
       restoresFocus: ownsFocus(),
       focusComposer: () => {
         frame = window.requestAnimationFrame(() => {
-          // Double-clicking a sidebar row opens its thread and its rename field in one gesture.
           if (document.activeElement?.matches("[data-sidebar-row] input")) return;
           focusComposer();
         });

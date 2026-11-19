@@ -270,7 +270,6 @@ export function getReasoningTraitStep(input: {
           { instanceId: input.instanceId, model: input.model, options: input.modelOptions ?? [] },
           input.reportedModelSelection,
         );
-  // Walk the full catalog order so a typed Ultrathink keeps its place, then land on a pickable level.
   const ordered = input.direction > 0 ? descriptor.options : descriptor.options.toReversed();
   const position =
     [current, getDescriptorStringValue(descriptor)]
@@ -415,7 +414,6 @@ export const TraitsMenuContent = memo(function TraitsMenuContentImpl({
     descriptor: Extract<ProviderOptionDescriptor, { type: "select" }>,
     value: string,
   ) => {
-    // Whether a pick applies, and the options it writes, do not depend on the prompt text.
     const change = getTraitSelectChange(selected, descriptor, "", value);
     if (!change) return;
     onPromptEdit?.(

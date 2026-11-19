@@ -19,8 +19,6 @@ export function FitSheet({
 }: FitSheetProps) {
   const insets = useSafeAreaInsets();
   return (
-    // Material sheet drags follow the first nested-scrolling native view, and a header's
-    // Compose button is one, so the content renders first in a reversed column.
     <SheetContainer avoidsKeyboard={avoidsKeyboard}>
       <ScreenContent fitToContents>
         <ScrollView
@@ -34,7 +32,6 @@ export function FitSheet({
           ]}
         >
           {children}
-          {/* Partial-height sheets keep submit actions inside the scrolling form. */}
           {footer ? (
             <View
               className="mt-4 bg-sheet-solid pt-3"

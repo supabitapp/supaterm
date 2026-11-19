@@ -5,7 +5,6 @@ import { expect, it, vi } from "vite-plus/test";
 
 const listeners = vi.hoisted(() => new Map<string, Set<(event: KeyboardEventData) => void>>());
 
-// Exercises the patched library source with only its native bindings replaced.
 vi.mock("react-native-keyboard-controller/src/bindings", () => ({
   KeyboardEvents: {
     addListener: (name: string, listener: (event: KeyboardEventData) => void) => {
@@ -40,7 +39,6 @@ function KeyboardState() {
   return <output>{JSON.stringify({ isVisible, height })}</output>;
 }
 
-// The library keeps keyboard state at module scope; every test starts and ends hidden.
 function setup() {
   emit("keyboardDidHide", 0);
   return { [Symbol.dispose]: () => emit("keyboardDidHide", 0) };
@@ -53,8 +51,6 @@ function renderKeyboardState() {
   return { container, [Symbol.dispose]: () => act(() => root.unmount()) };
 }
 
-// Android's syncKeyboardPosition repairs a nonanimated IME inset change with
-// keyboardDidHide then keyboardDidShow, and no keyboardWillShow.
 it("reports the keyboard shown after Android repairs the IME inset without keyboardWillShow", () => {
   using _keyboard = setup();
   using screen = renderKeyboardState();

@@ -286,7 +286,6 @@ describe("environment summary subscriptions", () => {
       expect(h.registry.get(h.pullRequestsSupportedAtom)).toBe(false);
       h.registry.set(h.configs(FIRST), config());
       expect(h.registry.get(h.pullRequestsSupportedAtom)).toBe(true);
-      // The first true result short-circuits: the second must be read when the first loses its config.
       h.registry.set(h.configs(SECOND), config());
       h.registry.set(h.configs(FIRST), null);
       expect(h.registry.get(h.pullRequestsSupportedAtom)).toBe(true);
@@ -345,14 +344,11 @@ describe("offline environments", () => {
       expect(offline()).toEqual([]);
       vi.advanceTimersByTime(1);
       expect(offline()).toEqual([FIRST, SECOND]);
-      // A retry does not restart the grace period; only a connection does.
       expect(offlineAfter("connecting")).toEqual([FIRST, SECOND]);
       expect(offlineAfter("connected")).toEqual([]);
       expect(offlineAfter("backoff")).toEqual([]);
-      // Retrying cannot fix a blocked connection, so it is offline at once.
       expect(offlineAfter("blocked")).toEqual([FIRST, SECOND]);
 
-      // With no list open, a reconnect still resets the grace period and retries still do not.
       stop();
       removeUnobservedAtoms();
       vi.advanceTimersByTime(OFFLINE_ENVIRONMENT_GRACE_MS);

@@ -18,8 +18,6 @@ const state = vi.hoisted(() => ({
   localEnvironmentDisabled: false,
 }));
 
-// One connected primary environment that can read pull requests. Its project list and
-// discovery flag start empty so a test can deliver links before they arrive.
 vi.mock(import("@tanstack/react-router"), async (original) => ({
   ...(await original()),
   useNavigate: (() => state.navigate) as never,
@@ -157,7 +155,6 @@ function setup() {
   appAtomRegistry.set(discoverySettled, false);
 }
 
-/** Mounts the coordinator behind a desktop bridge that hands over `urls` once the renderer is ready. */
 async function mount(...urls: string[]) {
   let deliver: ((url: string) => void) | undefined;
   await using stack = new AsyncDisposableStack();
@@ -271,7 +268,6 @@ it("opens a plain commit the workspace lacks like any other delivered link", asy
   const plainCommitUrl = `https://github.com/Effect-TS/effect/commit/${sha}`;
   await using _coordinator = await mount(plainCommitUrl);
   await vi.waitFor(() => expect(state.openScratchProject).toHaveBeenCalledOnce());
-  // Handing it to the OS browser would loop when Supaterm is the default browser.
   expect(state.openLink).not.toHaveBeenCalled();
   expect(useDiffPanelStore.getState().byThreadKey).toEqual({});
   expect(useRightPanelStore.getState().byThreadKey).toEqual({});

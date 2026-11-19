@@ -223,7 +223,6 @@ const withServer = <E>(
           received.frames.push(frame);
           if (isBinary) Deferred.doneUnsafe(received.firstAudio, Effect.void);
           if (frame === '{"type":"CloseStream"}' && options.sendInvalidFrame) {
-            // Reserved bits set: the client must treat this as a protocol error.
             (socket as unknown as { _socket: NodeNet.Socket })._socket.write(
               Buffer.from([0xf1, 0]),
             );
@@ -260,7 +259,6 @@ describe("streamClaudeTranscription", () => {
         expect(text).toBe("hello from the fixture");
         expect(received.headers?.authorization).toBe("Bearer token");
         expect(received.headers?.["x-config-keyterms"]).toBe("supaterm,thermos");
-        // The CLI's Bun WebSocket writes its own headers first, then the caller's in byte order.
         expect(received.rawHeaders?.filter((_, index) => index % 2 === 0)).toEqual([
           "Host",
           "Connection",
@@ -304,8 +302,6 @@ describe("streamClaudeTranscription", () => {
   it.live("fails promptly when the connection breaks after the clip is sent", () =>
     withServer({ sendInvalidFrame: true }, (url) =>
       Effect.gen(function* () {
-        // A 3-minute clip puts the session deadline past the test timeout, so only a
-        // prompt failure passes.
         const error = yield* Effect.flip(
           streamClaudeTranscription({
             url,

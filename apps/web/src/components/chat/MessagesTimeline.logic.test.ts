@@ -1073,7 +1073,6 @@ describe("deriveMessagesTimelineRows", () => {
     expect(liveRowsFor([prompt, compaction, interruptResult])).toMatchObject([
       { kind: "context-compaction", label: "Context compaction stopped" },
     ]);
-    // Stopped before the provider started: no compaction row says so, so the interrupt stays.
     expect(liveRowsFor([prompt, interruptResult]).map((row) => row.id)).toContain(
       "interrupt-result",
     );
@@ -1141,7 +1140,6 @@ describe("deriveMessagesTimelineRows", () => {
       { kind: "context-compaction", active: true },
     ]);
     expect(dividers[1]).not.toHaveProperty("title");
-    // Declining keeps the answer: no compaction ran for it to fold into.
     expect(liveRowsFor([answeredWith("Keep full history")]).map((row) => row.kind)).toEqual([
       "work",
     ]);
@@ -1951,7 +1949,6 @@ describe("deriveMessagesTimelineRows", () => {
         turnDiffSummaries: [],
         supportsConversationRollback: false,
       });
-    // The second steer arrives while the first message object is reused, as live updates do.
     const before = computeStableMessagesTimelineRows(deriveRows([prompt, work, firstSteer]), {
       result: [],
       byId: new Map(),
@@ -2664,7 +2661,6 @@ describe("deriveMessagesTimelineRows", () => {
       ...base(id, ordinal),
       type: "dynamic_tool" as const,
       toolName: "Read",
-      // The Claude adapter tags reads of image files.
       ...(filePath.endsWith(".png") ? { viewedImagePath: filePath } : {}),
       input: { file_path: filePath },
     });
@@ -2732,7 +2728,6 @@ describe("deriveMessagesTimelineRows", () => {
     const paths = ["/repo/docs/sidebar.png", "/repo/docs/topbar.png"];
 
     expect(viewedImages(false)).toEqual([{ after: "work-live", paths }]);
-    // A settled turn's fold keeps hiding its work, images included, until it is opened.
     expect(viewedImages(true)).toEqual([]);
     expect(viewedImages(true, new Set([runId]))).toEqual([{ after: "work-toggle", paths }]);
   });
@@ -5120,8 +5115,7 @@ describe("streaming v2 row projection", () => {
     let visibleTurnItems =
       scenario === "thinking superseded by a running tool" || finishedTool
         ? [...source.visibleTurnItems, laterTool(finishedTool ? "completed" : "running")]
-        : // Alone in a settled group, the thought's text becomes the group summary.
-          source.visibleTurnItems.filter((row) => running || row !== tool);
+        : source.visibleTurnItems.filter((row) => running || row !== tool);
     visibleTurnItems = withStreamedText(
       visibleTurnItems,
       source.streamingItemId,
@@ -6168,8 +6162,6 @@ describe("parent run waiting on foreground subagents", () => {
 });
 
 describe("subagent continued by a later turn", () => {
-  // Stored shape: resuming a subagent moves its item to the
-  // resuming run, but the item keeps the ordinal from the turn that started it.
   const threadId = ThreadId.make("parent-thread");
   const run1 = RunId.make("run-1");
   const run2 = RunId.make("run-2");
@@ -6278,7 +6270,6 @@ describe("subagent continued by a later turn", () => {
 
 describe("isTimelineMinimapTurnVisible", () => {
   it("keeps a turn lit while only its reply is on screen", () => {
-    // Turn rows 10..499, viewport inside the reply.
     expect(isTimelineMinimapTurnVisible(10, 500, 200, 210)).toBe(true);
     expect(isTimelineMinimapTurnVisible(500, undefined, 600, 610)).toBe(true);
     expect(isTimelineMinimapTurnVisible(500, undefined, 200, 210)).toBe(false);

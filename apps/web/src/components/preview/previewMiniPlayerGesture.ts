@@ -42,7 +42,6 @@ export function stepPreviewMiniPlayerGesture(
   container: PreviewMiniPlayerSize,
 ): PreviewMiniPlayerGestureStep {
   if (pointer.pointerId !== gesture.pointerId) return { kind: "ignore" };
-  // A release the handle never saw (over a native view, another window) leaves only this trace.
   if ((pointer.buttons & 1) === 0) return { kind: "end" };
   const delta = { x: pointer.clientX - gesture.pointerX, y: pointer.clientY - gesture.pointerY };
   if (!gesture.moved && Math.hypot(delta.x, delta.y) < HANDLE_TAP_SLOP_PX) {

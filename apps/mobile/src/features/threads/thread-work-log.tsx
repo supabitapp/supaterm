@@ -207,7 +207,6 @@ export function ShimmeringWorkContent(props: {
   const [availableWidth, setAvailableWidth] = useState(0);
   const [textWidth, setTextWidth] = useState(0);
   const motionEnabled = useForegroundMotion();
-  // Native from creation, so each setValue updates the view without a React render.
   const progress = useAnimatedValue(0, { useNativeDriver: true });
   const gradientId = `work-shimmer-${useId().replaceAll(":", "")}`;
   const contentWidth = Math.min(
@@ -222,8 +221,6 @@ export function ShimmeringWorkContent(props: {
     return startShimmerSteps(progress);
   }, [contentWidth, progress, motionEnabled]);
 
-  // The React Compiler memoizes these, so re-renders don't rebuild the native
-  // animation nodes.
   const sweepTranslateX = progress.interpolate({
     inputRange: [0, 1],
     outputRange: [-SHIMMER_WIDTH, contentWidth],
@@ -350,16 +347,12 @@ function workRowSymbolName(icon: ThreadFeedActivity["icon"]): WorkContentIcon {
   }
 }
 
-// Entering fades only for rows created moments ago: rows remount whenever the
-// list scrolls them back into view, and old rows must not replay an entrance.
 const FRESH_ROW_WINDOW_MS = 3_000;
 function isFreshRow(createdAt: string): boolean {
   const timestamp = Date.parse(createdAt);
   return Number.isFinite(timestamp) && Date.now() - timestamp < FRESH_ROW_WINDOW_MS;
 }
 
-// The minimum matches min-h-8 below. Exact sizing is disabled when native
-// accessibility scaling can make the single-line text taller than that minimum.
 const WORK_ROW_HEIGHT = THREAD_WORK_ROW_MIN_HEIGHT;
 const WORK_ROW_GAP = 1;
 const WORK_LOG_BOTTOM_MARGIN = 3.5;
@@ -572,8 +565,6 @@ function ThreadWorkGroupList(props: {
   const scrollOffset = useSharedValue(initialPosition?.scrollOffset ?? 0);
   const sharedValues = { scrollOffset };
 
-  // Each edge fades only while content continues past it. Scroll offset stays
-  // on the UI thread; only content-size changes update React state.
   const topFadeStyle = useAnimatedStyle(() => ({
     opacity: Math.min(1, Math.max(0, scrollOffset.value) / WORK_GROUP_EDGE_FADE_HEIGHT),
   }));
@@ -676,7 +667,6 @@ function ThreadWorkGroupList(props: {
   );
 }
 
-/** A screen-colored gradient painted over the list edge that still has content past it. */
 function EdgeFade(props: { readonly color: string; readonly direction: "up" | "down" }) {
   const gradientId = `work-group-fade-${useId().replaceAll(":", "")}`;
   return (
@@ -764,7 +754,6 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
     const warning = failureItem.failure.class === "usage_limit";
     const timestamp = new Date(row.createdAt);
     const resetAt = failureItem.failure.resetAt;
-    // The reset time is the viewer's local time; naming the zone keeps it unambiguous.
     const resetTime = resetAt
       ? `${new Date(resetAt).toLocaleString(undefined, {
           month: "short",

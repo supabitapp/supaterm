@@ -12,7 +12,6 @@ export class DesktopPrimaryPaste extends Context.Service<
   }
 >()("@supaterm/desktop/app/DesktopPrimaryPaste") {}
 
-// Chrome applies gtk-enable-primary-paste from chrome/, which Electron does not include.
 export const readGtkPrimaryPasteEnabled = Effect.gen(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const output = yield* spawner.string(
@@ -30,7 +29,6 @@ export const readGtkPrimaryPasteEnabled = Effect.gen(function* () {
 
 const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
-  // Resolved before any window exists so the first preload never sees a provisional value.
   const enabled =
     platform === "darwin" || platform === "win32" ? true : yield* readGtkPrimaryPasteEnabled;
   return DesktopPrimaryPaste.of({ enabled });

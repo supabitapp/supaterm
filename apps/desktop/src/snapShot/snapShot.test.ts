@@ -451,7 +451,6 @@ describe("findAccessibleWindow", () => {
 });
 
 describe("toElectronAccelerator", () => {
-  // The settings recorder stores shortcuts through parseKeybindingShortcut, which lowercases keys.
   it.each([
     ["mod+shift+arrowup", "CommandOrControl+Shift+Up"],
     ["mod+shift+arrowdown", "CommandOrControl+Shift+Down"],

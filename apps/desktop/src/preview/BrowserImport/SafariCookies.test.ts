@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - Hand-builds Safari's binary jar
-// format byte by byte.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";

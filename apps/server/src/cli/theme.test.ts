@@ -17,7 +17,6 @@ import { cli } from "../binCli.ts";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
-// Windows chmod cannot force these directory or file permission failures.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
 
 const runCli = (args: ReadonlyArray<string>) =>
@@ -242,8 +241,6 @@ describe("supaterm theme", () => {
     }),
   );
 
-  // Deciding on existence alone would publish ./nord instead of selecting the
-  // built-in, purely because of what happens to be in the working directory.
   it.effect("treats a bare id as an id even when a file shares its name", () =>
     Effect.gen(function* () {
       const baseDir = makeBaseDir();

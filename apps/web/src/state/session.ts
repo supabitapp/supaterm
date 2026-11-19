@@ -25,7 +25,6 @@ export function useEnvironmentScope(
   environmentId: EnvironmentId | null,
   scope: AuthEnvironmentScope,
 ): boolean {
-  // Select the grant: every revalidation emits a new result, and most consumers are list rows.
   return useAtomValue(
     environmentId === null
       ? EMPTY_SESSION_STATE_ATOM

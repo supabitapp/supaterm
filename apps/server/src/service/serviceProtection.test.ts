@@ -47,7 +47,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("renderPrivileg
       NodeFS.writeFileSync(unrelated, "[Service]\nNice=1\n");
       const bin = NodePath.join(root, "bin");
       NodeFS.mkdirSync(bin);
-      // Raising a score needs no privilege, so the test's own child stands in for a main process.
       NodeFS.writeFileSync(
         NodePath.join(bin, "systemctl"),
         [
@@ -89,7 +88,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("renderPrivileg
       expect(NodeFS.readFileSync(`/proc/${target.pid}/oom_score_adj`, "utf8").trim()).toBe("900");
       expect(NodeFS.readFileSync(calls, "utf8").split("\n")[0]).toBe("daemon-reload");
 
-      // Undo removes every drop-in a user could own, and keeps shared ones while another user is protected.
       const undo = (uid: number) => plan(uid, ServiceProtection.REMOTE_ACCESS_UNITS);
       runScript(undo(1000), "undo");
       expect(["user-1000.slice", "user@1000.service"].some(exists)).toBe(false);
@@ -203,7 +201,6 @@ it.effect("lowers no score before the manager default is in place, and undoes in
     expect(refused.atSudo).toEqual({ managerDefaults: true, user: 0 });
     expect(present()).toEqual({ managerDefaults: false, user: 0 });
 
-    // Failing after it lowered the manager, sudo must leave the manager default in place.
     const partial = yield* withSudo(ServiceProtection.applyProtection(plan), 1, true);
     expect(partial.exit._tag).toBe("Failure");
     expect(present()).toEqual({ managerDefaults: true, user: 0 });
@@ -212,7 +209,6 @@ it.effect("lowers no score before the manager default is in place, and undoes in
 
     const applied = yield* withSudo(ServiceProtection.applyProtection(plan), 0);
     expect(applied.atSudo).toEqual({ managerDefaults: true, user: 0 });
-    // sudo needs the controlling terminal to ask for a password.
     expect(applied.sudoOptions).toMatchObject({ detached: false, stdin: "inherit" });
     expect(present()).toEqual({ managerDefaults: true, user: plan.user.length });
 

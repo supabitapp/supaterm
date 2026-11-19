@@ -84,7 +84,6 @@ export const layer = Layer.effectDiscard(
         return [Math.min(100 * 2 ** Math.min(attempt, 6), 5_000), updated] as const;
       });
 
-    // Cancelling or stopping a queued continuation ends it unstarted; only the request can release the adapter's wake latch.
     const releaseIfNeverStarted = Effect.fn("ProviderContinuationService.releaseIfNeverStarted")(
       function* (
         request: ProviderContinuationRequests.ProviderContinuationRequest,
@@ -260,11 +259,9 @@ export const layer = Layer.effectDiscard(
             attachments: [],
             dispatchMode: { type: "queue_after_active" },
             createdBy: "agent",
-            // Only buffered wakes use creationSource "provider"; Claude would drain an empty buffer instead of prompting message_text.
             creationSource: request.delivery === "message_text" ? "server" : "provider",
           })
           .pipe(Effect.tap((dispatched) => releaseIfNeverStarted(request, messageId, dispatched)));
-        // Catch after dispatchIfCurrent so adapters see raw failures first; clearIfCurrent is idempotent and covers others.
         const logInstanceDisabled = (
           error: ThreadManagementService.ThreadManagementProviderInstanceDisabledError,
         ) =>
@@ -340,7 +337,6 @@ export const layer = Layer.effectDiscard(
               }
             }),
           ),
-          // A dispatch can wait on its parent's lock, so only its own thread's later requests queue behind it.
           (handled) => continuations.run(request.threadId, handled),
         ),
       ),

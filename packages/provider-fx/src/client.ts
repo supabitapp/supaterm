@@ -1,9 +1,3 @@
-/**
- * fx's client definition: settings form, label, and glyph.
- * Browser- and React Native-safe.
- *
- * @module provider-fx/client
- */
 import { ProviderDriverKind } from "@supaterm/contracts";
 import { defineProviderClient } from "@supaterm/provider-core/client";
 

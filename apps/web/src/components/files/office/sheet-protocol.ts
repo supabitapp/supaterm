@@ -1,13 +1,8 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import type { SheetInfo } from "@betteroffice/xlsx";
 import type { CellAddr, CellRange, GridMeta, HyperlinkRegion } from "@betteroffice/xlsx/headless";
 import type { WorkbookView } from "../officePreviewProtocol";
 import type { Span } from "./sheet-cells";
 import type { Method } from "./worker-rpc";
-
-// What the Excel preview's window and its workbook worker say to each other. The window keeps the selection, the
-// headers and the scroll area; the engine, its recalculation, the display lists and the cells' painting live in the
-// worker.
 
 /** A visible sheet: its index in the workbook and its tab name. */
 export type SheetTab = { readonly index: number; readonly name: string };

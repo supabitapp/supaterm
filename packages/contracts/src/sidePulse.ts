@@ -23,8 +23,6 @@ export const SIDE_PULSE_EFFECTS = [
 export const SidePulseEffect = Schema.Literals(SIDE_PULSE_EFFECTS);
 export type SidePulseEffect = typeof SidePulseEffect.Type;
 
-// A newer build's effect decodes to the state's default instead of failing the settings document.
-// The fallback is a String member, not catchDecoding, which an enclosing decoding default bypasses.
 const effectSetting = (fallback: SidePulseEffect) =>
   Schema.Union([
     SidePulseEffect,
@@ -46,7 +44,6 @@ const SidePulseEffects = Schema.Struct({
 export const SidePulseColor = Schema.String.check(Schema.isPattern(/^#[\da-f]{6}$/i));
 export type SidePulseColor = typeof SidePulseColor.Type;
 
-// Null is the light's own color. A malformed color decodes to null instead of failing the document.
 const colorSetting = Schema.Union([
   Schema.NullOr(SidePulseColor),
   Schema.String.pipe(

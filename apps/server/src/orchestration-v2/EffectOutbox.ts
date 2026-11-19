@@ -333,7 +333,6 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
         available,
         Array.from({ length: Math.min(64, Math.max(0, Math.floor(count))) }, () => undefined),
       ).pipe(Effect.asVoid);
-    // Retry backoff must block later effects so turns cannot race a pending rollback.
     const claimableCandidatePredicate = (
       availableBefore?: string,
       excludeRestartContinuations = false,
@@ -438,7 +437,6 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
             `,
             { concurrency: 1, discard: true },
           );
-          // EventSink owns the corresponding post-commit notification.
         },
         Effect.mapError((cause) => new EffectOutboxError({ operation: "enqueue", cause })),
       ),
@@ -512,7 +510,6 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
           cancellationSignals.delete(effectId);
         }),
       awaitSettled: Effect.fn("EffectOutbox.awaitSettled")(function* (effectId) {
-        // Registered before the read, so a settle right after it still resolves.
         const signal = settledSignals.get(effectId) ?? Deferred.makeUnsafe<void>();
         settledSignals.set(effectId, signal);
         const effect = yield* service.get(effectId);
@@ -554,12 +551,10 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
           (cause) => new EffectOutboxError({ operation: "reconcile-process-loss", cause }),
         ),
       ),
-      // The worker polls for the next effect even when there is no work to claim.
       claimNext: Effect.fnUntraced(
         function* ({ workerId, excludeRestartContinuations = false, maxRunningTitleGenerations }) {
           const now = yield* DateTime.now;
           const nowIso = DateTime.formatIso(now);
-          // Idle claims return empty; tracing their full SQL on every poll overwhelms useful traces.
           const claimStatement = sql<EffectRow>`
             UPDATE orchestration_v2_effect_outbox
             SET
@@ -591,7 +586,6 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
               cancellationSignals.set(row.effect_id, Deferred.makeUnsafe<void>());
               return Option.some(decoded.success);
             }
-            // Left running, an unreadable row would block every later effect on its thread.
             yield* Effect.logWarning("Failing an orchestration effect this build cannot decode", {
               effectId: row.effect_id,
               effectType: row.effect_type,
@@ -731,8 +725,6 @@ export const layer: Layer.Layer<EffectOutboxV2, never, SqlClient.SqlClient> = La
         const cutoff = DateTime.formatIso(
           DateTime.subtractDuration(yield* DateTime.now, SETTLED_EFFECT_RETENTION),
         );
-        // Live continuations retain their preceding intent's cumulative crash budget.
-        // Separate batch statements release the write lock between batches.
         const deleteBatch = sql<{ readonly effect_id: string }>`
           DELETE FROM orchestration_v2_effect_outbox
           WHERE rowid IN (

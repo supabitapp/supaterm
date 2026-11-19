@@ -320,9 +320,8 @@ describe("codexUsageLimitResetAt", () => {
 describe("codexMessageResetAt", () => {
   const dhaka = DateTime.zoneMakeNamedUnsafe("Asia/Dhaka");
   const at = (iso: string) => DateTime.makeUnsafe(iso);
-  const failedAt = at("2026-11-07T03:00:00Z"); // 09:00 in Dhaka
+  const failedAt = at("2026-11-07T03:00:00Z");
 
-  // Codex prints local time without seconds, so the parsed reset is the minute after.
   it("reads Codex's same-day and dated reset text in Codex's zone", () => {
     expect(
       codexMessageResetAt("You’ve hit your usage limit. Try again at 3:37 PM.", failedAt, dhaka),
@@ -342,7 +341,6 @@ describe("codexMessageResetAt", () => {
   });
 
   it("takes the later instant of a repeated DST hour", () => {
-    // 1:30 AM occurs twice in New York on Nov 1st, 2026: 05:30Z (EDT) and 06:30Z (EST).
     const newYork = DateTime.zoneMakeNamedUnsafe("America/New_York");
     for (const iso of ["2026-11-01T05:15:00Z", "2026-11-01T06:15:00Z"]) {
       expect(codexMessageResetAt("Try again at 1:30 AM.", at(iso), newYork)).toBe(

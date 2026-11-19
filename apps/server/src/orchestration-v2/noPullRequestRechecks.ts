@@ -10,10 +10,6 @@ const RECHECKS_PER_SWEEP = 4;
 export function makeNoPullRequestRechecks() {
   const reads = new Map<string, { readonly readAtMs: number; readonly found: boolean }>();
   return {
-    /**
-     * The branches a scheduled sweep looks up now: every one that last had a pull request, and
-     * the few longest unread that had none and are due. One idle a day is due every two hours.
-     */
     select: (
       nowMs: number,
       branches: ReadonlyArray<{ readonly key: string; readonly activityAtMs: number }>,
@@ -38,7 +34,6 @@ export function makeNoPullRequestRechecks() {
           ? right.activityAtMs - left.activityAtMs
           : left.readAtMs - right.readAtMs,
       );
-      // Stamped before the lookup, so one that keeps failing cannot hold a place in every sweep.
       for (const { key } of due.slice(0, RECHECKS_PER_SWEEP)) {
         selected.add(key);
         reads.set(key, { readAtMs: nowMs, found: false });

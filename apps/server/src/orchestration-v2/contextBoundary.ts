@@ -7,7 +7,6 @@ export function isScheduledFreshRun(
   run: Pick<OrchestrationV2Run, "freshContext" | "userMessageId">,
   turnItems: OrchestrationV2ThreadProjection["turnItems"],
 ): boolean {
-  // Turn items, unlike messages, are not narrowed to the runs since the latest compaction.
   return (
     run.freshContext === true &&
     turnItems.some(

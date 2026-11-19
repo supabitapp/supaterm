@@ -189,7 +189,6 @@ export function useComposerContextImport(input: {
       }
       file = new File([blob], record.name, { type: record.mimeType || blob.type });
       if (record.kind === "image") await readComposerImageBytes(file);
-      // Question attachments have no inline reference; annotations can own their screenshots.
       const references = new Set(collectInlineContextIds(promptRef.current));
       if (
         !questionAttachmentTarget &&
@@ -204,8 +203,6 @@ export function useComposerContextImport(input: {
       )
         return;
     }
-    // The draft these bytes belong to may have been sent or switched away from while they
-    // downloaded. Dropping them here keeps them out of whatever draft is open now.
     if (attachmentTargetKeyRef.current !== importTargetKey) return;
     const replacesFileMarker =
       record.kind === "file" &&
@@ -270,9 +267,6 @@ export function useComposerContextImport(input: {
     localId: string,
     sourceEnvironmentId: EnvironmentId,
   ) => {
-    // The chip lands in the draft immediately while these bytes are still downloading. Count
-    // the transfer against its own draft so a send cannot snapshot a message whose chip has no
-    // attachment behind it, and so bytes for an abandoned draft never enter the next one.
     const importTargetKey = attachmentTargetKey;
     pendingDraftWork.begin(importTargetKey);
     await runAttachmentImport(record, localId, sourceEnvironmentId, importTargetKey).finally(() =>
@@ -287,8 +281,6 @@ export function useComposerContextImport(input: {
     const rewritten = new Map<string, string>();
     const dependentAttachmentLocalIds = new Map<string, string>();
     const skippedDependentAttachmentIds = new Set<string>();
-    // Resolve annotations before their dependent screenshot records even if a foreign
-    // clipboard producer emitted the records in a different order.
     const orderedRecords = records.toSorted((left, right) =>
       left.kind === "preview-annotation" && right.kind !== "preview-annotation"
         ? -1
@@ -297,9 +289,6 @@ export function useComposerContextImport(input: {
           : 0,
     );
     for (const candidate of orderedRecords) {
-      // Producer ids fold into context ids, so two different excerpts can collide. Only skip
-      // when the draft already holds the same payload; a colliding but different record is
-      // re-minted under a fresh id so both survive the paste. Threads resolve below.
       const record = asKnownContextRecord(candidate);
       if (!record) continue;
       const existing = dependentAttachmentLocalIds.has(record.contextId)
@@ -386,9 +375,7 @@ export function useComposerContextImport(input: {
           break;
         }
         case "thread": {
-          // The agent can only read threads on its own server; a pasted foreign one is dropped.
           if (record.environmentId !== environmentId) break;
-          // Threads reuse their destination record by identity, reminting only on an ID collision.
           const references = getComposerDraft(referenceDraftTarget)?.referenceContexts ?? [];
           const attached = references.find(
             (reference) =>

@@ -83,7 +83,6 @@ const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?
     [ORCHESTRATION_V2_WS_METHODS.subscribeThread]: (input: { readonly afterSequence?: number }) =>
       Stream.unwrap(
         Effect.gen(function* () {
-          // Like the server, a fresh subscribe to a thread that does not exist yet fails.
           if (input.afterSequence === undefined && snapshotMissing) {
             return yield* new OrchestrationV2GetThreadProjectionError({
               threadId: THREAD_ID,
@@ -103,7 +102,6 @@ const makeHarness = Effect.fn("TestThreadAtoms.makeHarness")(function* (options?
               }).pipe(Effect.andThen(Deferred.succeed(closed, undefined))),
           );
           yield* Queue.offer(subscriptions, { afterSequence: input.afterSequence, events, closed });
-          // Like a paging server, a fresh subscribe opens with the bounded snapshot.
           if (input.afterSequence === undefined && options?.socketSnapshot !== false) {
             yield* Queue.offer(events, { kind: "snapshot", ...snapshot });
           }
@@ -318,7 +316,6 @@ describe("createEnvironmentThreadStateAtoms", () => {
     Effect.gen(function* () {
       const h = yield* makeHarness({ snapshotMissing: true });
       h.registry.mount(h.stateAtom);
-      // The socket-only open fails, so the retry asks HTTP, which reports the thread missing.
       yield* TestClock.adjust("250 millis");
       yield* observeState(h.registry, h.stateAtom, (state) => state.status === "deleted");
       expect(h.counts().httpLoads).toBe(1);
@@ -400,7 +397,6 @@ describe("createEnvironmentThreadStateAtoms", () => {
       unmount();
       yield* Deferred.await(first.closed);
 
-      // Force the weak-family miss without depending on host GC timing.
       const deref = WeakRef.prototype.deref;
       vi.spyOn(WeakRef.prototype, "deref").mockImplementation(function (this: WeakRef<object>) {
         const value = deref.call(this);

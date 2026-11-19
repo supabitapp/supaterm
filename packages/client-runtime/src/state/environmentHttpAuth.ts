@@ -33,11 +33,6 @@ export function withOrchestrationProtocolHeader(
   };
 }
 
-/**
- * Environments without a bearer credential authenticate with a session cookie,
- * which a cross-origin `fetch` omits unless it opts into credentialed mode. Set
- * per request via `FetchHttpClient.RequestInit`, read from the fiber context.
- */
 const withEnvironmentCredentials = <A, E, R>(
   authorization: PreparedHttpAuthorization | null,
   request: Effect.Effect<A, E, R>,

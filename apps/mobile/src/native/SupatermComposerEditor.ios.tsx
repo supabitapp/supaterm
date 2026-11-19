@@ -115,9 +115,6 @@ interface NativeComposerEditorProps extends ViewProps {
 
 const NativeView = requireNativeView<NativeComposerEditorProps>(NATIVE_MODULE_NAME);
 
-// A view command rejects with "Unable to find the view" when the composer's native view is
-// unmounted, which can happen while an open question hides the composer slot. There is nothing
-// to act on then.
 function settleViewCommand(command: Promise<void> | undefined): void {
   command?.catch(() => undefined);
 }
@@ -144,11 +141,7 @@ export function ComposerEditor({
   const mostRecentEventCountRef = useRef(0);
   const [mostRecentEventCount, setMostRecentEventCount] = useState(0);
   const [, forceNativeEventRender] = useState(0);
-  // Native stamps every event with the reset generation it had applied.
   const nativeResetGenerationRef = useRef(0);
-  // The native editor mounts empty, so the snapshot history starts empty: the
-  // first controlled payload must be a non-echo so a restored draft (or a
-  // recycled native view) is applied rather than skipped.
   const nativeEventSnapshotsRef = useRef<ComposerNativeEventSnapshot[]>([]);
   const [confirmedTokens, setConfirmedTokens] = useState(() => ({
     value: props.value,
@@ -180,12 +173,7 @@ export function ComposerEditor({
       }),
     );
   }, [inlineTokens, props.value, props.context, skillLabels, theme, chipTextColor]);
-  // Every render resolves against the snapshot history, so a render whose
-  // (value, selection) lags the acknowledged native state is stamped behind
-  // the native revision and rejected by the editor instead of re-applying a
-  // stale caret or stale text mid-typing.
   const resetGeneration = readResetGeneration();
-  // Native restarts its revision at a reset's stamp, so stamp it at the latest acknowledged event.
   const controlledEventCount =
     // oxlint-disable-next-line react/refs -- a reset newer than the last native event restamps at the acknowledged revision, read during render on purpose
     resetGeneration > nativeResetGenerationRef.current
@@ -228,9 +216,6 @@ export function ComposerEditor({
   useEffect(() => {
     if (assumedControlledDocumentRef.current === controlledDocumentJson) return;
     assumedControlledDocumentRef.current = controlledDocumentJson;
-    // A native event that arrived after this render was committed moves the
-    // acknowledged revision forward; the editor rejects this payload, so the
-    // snapshot history must not assume it applied.
     if (isNativeEcho || controlledEventCount !== mostRecentEventCountRef.current) return;
     nativeEventSnapshotsRef.current = assumeComposerControlledState(
       nativeEventSnapshotsRef.current,
@@ -240,7 +225,6 @@ export function ComposerEditor({
   });
   const acceptNativeEvent = useCallback(
     (event: NativeEditorEvent["nativeEvent"]) => {
-      // Read at delivery: a send can clear the draft in the same batch, before this view re-renders.
       const acknowledgedEventCount = acknowledgeComposerNativeEvent(
         mostRecentEventCountRef.current,
         event.eventCount,
@@ -274,13 +258,10 @@ export function ComposerEditor({
     blur: () => settleViewCommand(nativeRef.current?.blur()),
     setSelection: (nextSelection) =>
       settleViewCommand(nativeRef.current?.setSelection(nextSelection.start, nextSelection.end)),
-    // Tapping outside the editor makes iOS accept a pending autocorrection, and that edit's
-    // event can reach JS after the tap's handler has already read the draft.
     flushPendingInput: async () => {
       const state = await Promise.resolve()
         .then(() => nativeRef.current?.readState())
         .catch(() => undefined);
-      // Acknowledging past a paste JS has not received yet would get the paste rejected.
       if (state && state.pasteEventCount <= mostRecentEventCountRef.current) {
         applyNativeChange(state);
       }
@@ -327,10 +308,6 @@ export function ComposerEditor({
       onComposerSelectionChange={(event) => {
         const acknowledgedEventCount = acceptNativeEvent(event.nativeEvent);
         if (acknowledgedEventCount === false) return;
-        // A selection change that raced a text mutation can carry post-edit
-        // text. It must reach the parent alongside the acknowledged revision,
-        // or the next render stamps the stale draft at that revision and can
-        // re-apply it over the newer native text.
         if (event.nativeEvent.value !== props.value) {
           onChangeText(event.nativeEvent.value);
         }
@@ -354,8 +331,6 @@ export function ComposerEditor({
         const paste = event.nativeEvent;
         const acknowledgedEventCount = acceptNativeEvent(paste);
         if (acknowledgedEventCount === false) return;
-        // Synchronize the draft before an async paste captures its insertion target.
-        // React props can still precede the last native keystroke.
         onChangeText(paste.value);
         onSelectionChange?.(paste.selection);
         onPasteText?.(paste);

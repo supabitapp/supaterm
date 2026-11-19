@@ -231,7 +231,6 @@ it.effect("shares the turn and full-thread diff budget across real Git batches",
     });
     const toCheckpointRef = CheckpointRef.make("refs/supaterm/test/aggregate-after");
     yield* store.captureCheckpoint({ cwd, checkpointRef: fromCheckpointRef });
-    // The old commit models files imported by a pull after the baseline was captured.
     yield* fs.writeFileString(path.join(cwd, "upstream.ts"), "imported\n");
     yield* git(["add", "."]);
     yield* git(["commit", "-m", "imported"], {

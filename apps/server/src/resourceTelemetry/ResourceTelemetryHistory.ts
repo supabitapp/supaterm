@@ -217,7 +217,6 @@ export function buildResourceTelemetryHistory(
       updatePrevious: true,
       accumulateCounters: false,
     });
-    // Keep absent identities' baselines without copying every exited process on each sample.
     for (const [identityKey, state] of merged.previous) {
       previous.set(identityKey, state);
     }

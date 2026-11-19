@@ -97,13 +97,11 @@ export function createNewThreadHandler(router: AnyRouter) {
       envMode?: DraftThreadEnvMode;
       startFromOrigin?: boolean;
       replace?: boolean;
-      /** Composer text for the draft, set before it shows. A draft with user text keeps it. */
       prompt?: string;
     },
   ): Promise<{ draftId: DraftId; threadId: ThreadId } | null> => {
     const projects = readProjects();
     const projectGroupingSettings = selectProjectGroupingSettings(getClientSettings());
-    // Read at call time; status pushes replace the config map and would recreate every sidebar handler.
     const environmentServerConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
     const targetServerSettings =
       environmentServerConfigs.get(projectRef.environmentId)?.settings ?? DEFAULT_SERVER_SETTINGS;
@@ -118,7 +116,6 @@ export function createNewThreadHandler(router: AnyRouter) {
       setModelSelection,
       setPrompt,
     } = useComposerDraftStore.getState();
-    // Never over text the user wrote: a draft can gain some while this awaits.
     const seedPrompt = (draftId: DraftId) => {
       if (options?.prompt === undefined) return;
       if (composerDraftHasUserContent(getComposerDraft(draftId))) return;
@@ -235,7 +232,6 @@ export function createNewThreadHandler(router: AnyRouter) {
           if (abandonedSinceRequest()) {
             return null;
           }
-          // Concurrent calls may change the draft; stale resets, remaps, or navigation could clobber it.
           const routeTargetNow = getCurrentRouteTarget();
           const openedMeanwhile =
             routeTargetNow?.kind === "draft" &&
@@ -272,7 +268,6 @@ export function createNewThreadHandler(router: AnyRouter) {
             });
           }
         }
-        // Remapping physical projects clears workspace context; preserve the branch and worktree.
         setLogicalProjectDraftThreadId(
           logicalProjectKey,
           projectRef,
@@ -349,7 +344,6 @@ export function createNewThreadHandler(router: AnyRouter) {
       if (abandonedSinceRequest()) {
         return null;
       }
-      // Reuse drafts registered while awaiting so their pending navigation cannot lose them.
       const racedDraft = getDraftSessionByLogicalProjectKey(logicalProjectKey);
       if (
         racedDraft &&

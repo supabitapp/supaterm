@@ -69,7 +69,6 @@ export function useNewTaskProjectDefaults(project: EnvironmentProject | null) {
         newProjectsRoot: serverConfig?.newProjectsRoot,
         projectHasThreads,
       });
-  // While supaterm.json loads, the environment default is provisional; supaterm.json may replace it.
   const defaultWorkspaceModeSettled =
     projectSettings.sources.defaultThreadEnvMode !== "environment" ||
     (!supatermProjectFileQuery.isPending && !fileAccessPending);

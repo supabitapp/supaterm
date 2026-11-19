@@ -102,8 +102,6 @@ const isFutureTimestamp = (value: string, nowMs: number) => {
   );
 };
 
-// Claude Code's own grouping: a grant that gives back weekly usage is a Fable reset, else its
-// declared type, else what it clears.
 const RESET_KINDS = {
   session: { label: "5-hour reset", description: "Refills your 5-hour limit." },
   weekly: { label: "Weekly reset", description: "Refills your weekly limit." },
@@ -312,7 +310,6 @@ export const consumeClaudeResetCredit = Effect.fn("consumeClaudeResetCredit")(fu
   if (body.result === "cooldown") {
     return yield* new ClaudeResetCreditError({ reason: "coolingDown" });
   }
-  // Unknown outcomes retain the request ID so retries address the same claim.
   if (body.result === "unavailable") {
     return yield* new ClaudeResetCreditError({ reason: "unconfirmed" });
   }

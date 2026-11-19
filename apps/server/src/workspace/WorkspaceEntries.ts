@@ -115,13 +115,10 @@ export class WorkspaceEntries extends Context.Service<
   }
 >()("supaterm/workspace/WorkspaceEntries") {}
 
-/** Ignored files offered for copying; more than this is a build folder, not config. */
 const IGNORED_FILES_LIMIT = 200;
 
-/** Paths sent to one `git check-ignore` call when labelling a folder's children. */
 const IGNORE_CHECK_CHUNK_SIZE = 1000;
 
-/** Children classified at once when listing a folder; each symlink costs a realpath and a stat. */
 const SYMLINK_RESOLVE_BATCH_SIZE = 64;
 
 const resolveBrowseTarget = Effect.fn("WorkspaceEntries.resolveBrowseTarget")(function* (
@@ -283,8 +280,6 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  // The index skips gitignored folders, where agents often put worktrees (`.worktrees/x`).
-  // A path relative to such a worktree is found only when it names an existing file exactly.
   const findNestedWorktreeFiles = Effect.fn("WorkspaceEntries.findNestedWorktreeFiles")(function* (
     cwd: string,
     query: string,
@@ -319,7 +314,6 @@ export const make = Effect.gen(function* () {
           Effect.map((result) => (result.exitCode === 0 ? result.stdout : undefined)),
           Effect.orElseSucceed(() => undefined),
         );
-    // Only NUL framing keeps a newline in a worktree path. Pre-2.36 Git rejects `-z`.
     const listed =
       (yield* listWorktrees(["-z"])) ?? (yield* listWorktrees([]))?.replaceAll("\n", "\0");
     if (listed === undefined) return [];
@@ -327,7 +321,6 @@ export const make = Effect.gen(function* () {
     const worktreeRoots = listed.split("\0\0").flatMap((record) => {
       const fields = record.split("\0");
       const worktree = fields.find((field) => field.startsWith("worktree "));
-      // A `prunable` record's directory is gone; another checkout may now sit there.
       if (worktree === undefined || fields.some((field) => field.startsWith("prunable"))) return [];
       const root = worktree.slice("worktree ".length);
       const relativeRoot = path.relative(realCwd, root);
@@ -412,7 +405,6 @@ export const make = Effect.gen(function* () {
                 !path.isAbsolute(relativeChild)
               );
             };
-            // Reject canonical ancestors so "Expand all folders" cannot follow a cycle.
             let visitedFolders: Promise<ReadonlyArray<string>> | undefined;
             const loadVisitedFolders = () =>
               (visitedFolders ??= (async () => {
@@ -445,7 +437,6 @@ export const make = Effect.gen(function* () {
                 ? undefined
                 : "directory";
             };
-            // Bound filesystem work for directories such as pnpm node_modules.
             const kinds: Array<ProjectEntry["kind"] | undefined> = [];
             for (let offset = 0; offset < children.length; offset += SYMLINK_RESOLVE_BATCH_SIZE) {
               kinds.push(
@@ -482,7 +473,6 @@ export const make = Effect.gen(function* () {
                   },
                 ];
               }),
-              // Git refuses to classify paths beyond a symbolic link.
               throughSymlink: relative !== target.relativePath.split("/").join(path.sep),
             };
           },
@@ -490,7 +480,6 @@ export const make = Effect.gen(function* () {
         });
         let gitRoot = "";
         let gitPrefix = "";
-        // stdin avoids argument limits; ignore classification is optional without git/repositories.
         const checkIgnore = (paths: ReadonlyArray<string>) =>
           vcsProcess
             .run({
@@ -504,15 +493,12 @@ export const make = Effect.gen(function* () {
               maxOutputBytes: 16 * 1024 * 1024,
             })
             .pipe(Effect.orElseSucceed(() => undefined));
-        // Git refuses paths inside a submodule (128) but still answers for nested clones.
         for (const nestedGitRoot of nestedGitRoots) {
           if ((yield* checkIgnore([`${nestedGitRoot}/.git`]))?.exitCode !== 128) continue;
           gitRoot = nestedGitRoot;
           gitPrefix = `${gitRoot}/`;
         }
         const directoryGitPath = target.relativePath.slice(gitPrefix.length);
-        // Check ignored folders once to avoid child index lookups; exit 0 guarantees no tracked descendants.
-        // Symlinks and pathspec magic still need per-child checks.
         if (
           entries.length > IGNORE_CHECK_CHUNK_SIZE &&
           directoryGitPath !== "" &&
@@ -557,8 +543,6 @@ export const make = Effect.gen(function* () {
     "WorkspaceEntries.listIgnoredFiles",
   )(function* (input) {
     const normalizedCwd = yield* normalizeWorkspaceRoot(input.cwd);
-    // `--directory` reports a folder holding nothing but ignored files as one
-    // `name/` entry, which is how `node_modules` and build output drop out.
     const result = yield* vcsProcess
       .run({
         operation: "WorkspaceEntries.listIgnoredFiles",
@@ -581,7 +565,6 @@ export const make = Effect.gen(function* () {
       })
       .pipe(Effect.orElseSucceed(() => undefined));
     if (!result || result.exitCode !== 0) return { files: [], truncated: false };
-    // Filter before the cap so files sorting past it stay reachable by search.
     const query = input.query?.toLowerCase() ?? "";
     const paths = result.stdout
       .split("\0")
@@ -592,7 +575,6 @@ export const make = Effect.gen(function* () {
     const files = yield* Effect.promise(() =>
       Promise.all(
         paths.slice(0, IGNORED_FILES_LIMIT).map(async (relativePath) => {
-          // lstat: a symlink usually points outside the workspace, where reads refuse to go.
           const stat = await NodeFSP.lstat(path.join(normalizedCwd, relativePath)).catch(
             () => null,
           );

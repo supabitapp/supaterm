@@ -7,7 +7,6 @@ import {
 
 export const WORKSPACE_BASENAME_LOOKUP_LIMIT = 25;
 
-// All callers open one panel; the newest click must win across callers.
 let latestLookupSequence = 0;
 
 export function claimWorkspaceBasenameLookup(): () => boolean {
@@ -53,7 +52,6 @@ export function pickWorkspaceBasenameMatch(
   return foldedMatches.length === 1 ? (foldedMatches[0]?.path ?? null) : null;
 }
 
-// Repository-relative paths can repeat the project's suffix in subfolder projects.
 function stripRepeatedWorkspacePrefix(relativePath: string, cwd: string): string | null {
   if (isAbsolutePath(relativePath)) return null;
   const pathSegments = relativePath.split(/[\\/]+/);
@@ -158,12 +156,10 @@ export async function findAgentDirectoryMatch(
   return null;
 }
 
-// A quoted string or a comment is one token, so `cd` inside either is not read as a command.
 const SHELL_TOKEN = /(?<![^\s;&|()])#[^\n]*|"[^"]*"|'[^']*'|[;&|()\n]|[ \t]+|[^\s;&|()"']+/g;
 const SHELL_NAME = /(?:^|\/)(?:ba|z|da)?sh$/;
 const CD_OPTION = /^-[LPe@]*$|^--$/;
 
-/** The operands of the `cd` commands in `script`, in order, through `sh -c "<script>"`. */
 function cdOperands(script: string): Array<string> {
   const operands: Array<string> = [];
   let words: Array<string> = [];
@@ -183,7 +179,6 @@ function cdOperands(script: string): Array<string> {
     wordOpen = false;
   };
   for (const [token] of script.matchAll(SHELL_TOKEN)) {
-    // A here-document's body is data, and where it ends is the shell's to say.
     if (!/^["'#]/.test(token) && token.includes("<<")) break;
     if (/^[;&|()\n]/.test(token)) endCommand();
     else if (/^[ \t]/.test(token) || (!wordOpen && token.startsWith("#"))) wordOpen = false;
@@ -199,7 +194,6 @@ function cdOperands(script: string): Array<string> {
 
 function literalDirectory(operand: string): string | null {
   const path = /^["']/.test(operand) ? operand.slice(1, -1) : operand;
-  // The shell would expand these, and only it knows to what.
   if (!isAbsolutePath(path) || /[$`*?[\]{}"']/.test(path)) return null;
   return path.includes("\\") && !isWindowsAbsolutePath(path) ? null : path;
 }

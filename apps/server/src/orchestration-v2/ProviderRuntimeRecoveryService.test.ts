@@ -669,7 +669,6 @@ it.effect.each([
       Layer.mergeAll(
         Layer.mock(ProjectionStore.ProjectionStoreV2)({
           getRecoveryThreadIds: () => Effect.succeed([threadId]),
-          // Like the store, recovery state carries only provider turns that have not ended.
           getRuntimeRecoveryProjection: () =>
             Effect.succeed({
               ...projection,
@@ -702,7 +701,6 @@ it.effect.each([
           runRecoveryOnce: Effect.succeed(false),
         }),
         Layer.mock(EffectOutbox.EffectOutboxV2)({
-          // Three earlier restarts each cut a resend the worker had claimed.
           listByCommandId: () =>
             Effect.succeed(
               scenario === "running-delegated-capped"
@@ -762,7 +760,6 @@ it.effect.each([
         assert.isUndefined(nodeEvent);
       }
     }
-    // The unsent auto-resume gets a fresh request id so the limit worker sends it again.
     if (scenario === "running-resume") {
       const rearmed = command.events.find((event) => event.type === "thread.metadata-updated");
       assert.equal(

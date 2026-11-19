@@ -26,8 +26,6 @@ export function createTerminalOutputWriter(
           await writeOutput(update.data, update.type === "reset");
         } catch (error) {
           if (disposed) return;
-          // A rejected command may have partially applied. Replay the latest retained history
-          // once per drain; a persistent native failure must settle instead of spinning.
           cursor = INITIAL_TERMINAL_OUTPUT_CURSOR;
           pending ??= output;
           if (recovering) throw error;

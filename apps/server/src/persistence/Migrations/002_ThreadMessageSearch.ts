@@ -17,9 +17,6 @@ import {
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
-  // Older system SQLite builds may lack these FTS5 options; search can scan messages instead.
-  // Only SQLITE_ERROR signals unsupported options. Disk and I/O failures must fail the migration
-  // so the next startup retries creating the index.
   const created = yield* sql`
     CREATE VIRTUAL TABLE orchestration_v2_message_search USING fts5(
       text,

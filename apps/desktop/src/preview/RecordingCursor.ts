@@ -16,8 +16,6 @@ import {
   type RecordingInputOptions,
 } from "./RecordingInput.ts";
 
-// Modal dialogs, popovers and fullscreen elements paint above any z-index, so the cursors live in
-// the top layer as manual popovers and move back to its front whenever the page adds to it.
 const POPOVER_RESET =
   "all:initial;margin:0;padding:0;border:0;background:transparent;overflow:visible;inset:auto;animation:none;transition:none;";
 

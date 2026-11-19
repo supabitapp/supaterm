@@ -12,7 +12,6 @@ it("counts RAM and swap for the dev runner's descendants only", () => {
     parseProcStatusBytes("Name:\tnode\nVmRSS:\t   2048 kB\nVmSwap:\t  1024 kB\nThreads:\t9\n"),
     3 * 1024 * 1024,
   );
-  // Listed before its parent, as /proc may order them.
   const processes = [
     { pid: 30, ppid: 20 },
     { pid: 20, ppid: 10 },

@@ -120,8 +120,6 @@ export function resolveThreadListV2SwipeActions(input: {
   };
 }
 
-// Nested keeps iOS menus short: UIKit scrolls a taller menu, and that scroll
-// cancels press-drag-release selection.
 export function layoutThreadListV2RowMenuActions(input: {
   readonly nested: boolean;
   readonly direct: readonly MenuAction[];
@@ -190,7 +188,6 @@ export function nextSnoozeWakeAfter(
   return next;
 }
 
-// Outside search, the clock only changes list membership/order at snooze deadlines.
 export function threadListV2LayoutTime(input: {
   readonly threads: ReadonlyArray<{ readonly snoozedUntil?: string | null }>;
   readonly now: string;
@@ -211,9 +208,6 @@ export function threadListV2LayoutTime(input: {
   return new Date(previousWakeAt ?? (nextWakeAt === undefined ? 0 : nextWakeAt - 1)).toISOString();
 }
 
-// Done-tail paging: recent history is the common lookup; the deep tail
-// stays behind an explicit Show more. Shared by the compact Home list and
-// the iPad sidebar so both page identically.
 export const THREAD_LIST_V2_DONE_INITIAL_COUNT = 10;
 export const THREAD_LIST_V2_DONE_PAGE_COUNT = 25;
 
@@ -257,7 +251,6 @@ export function threadListV2RowAccessibilityLabel(input: {
   readonly hasQueuedMessages: boolean;
   readonly regeneratingTitle: boolean;
 }): string {
-  // Mirrors the row's meta line: a card shows Woke, else its status, else the time.
   const meta =
     input.variant === "slim"
       ? (input.snoozeWakeLabel ?? input.timeLabel)
@@ -537,10 +530,6 @@ export function threadListV2ListItemsAreEqual(
   }
 }
 
-/** The timestamp a row renders when it shows no status label: the done
-    stamp on done slim rows, otherwise the latest activity. Blank for
-    status-labelled cards and snoozed rows with a wake countdown — those
-    never draw a time, so their minute tick must not invalidate the cell. */
 function resolveThreadListV2ItemTimeLabel(
   item: ThreadListV2Item,
   showSnoozeWakeLabel: boolean,
@@ -585,9 +574,6 @@ export function buildThreadListV2ListItems(
       item.snoozed && item.thread.snoozedUntil != null && input.snoozeLabelNow !== undefined
         ? snoozeWakeLabel(item.thread.snoozedUntil, { now: input.snoozeLabelNow })
         : undefined;
-    // The minute clock belongs on the item, not the list's extraData, so the
-    // recycler's equality can confine the per-minute re-render to rows whose
-    // snooze menu actually shows preset times.
     const snoozePresetMinute =
       !item.snoozed &&
       input.snoozeLabelNow !== undefined &&
@@ -813,9 +799,7 @@ function resolveThreadListV2Shelf(
   thread: EnvironmentThreadShell,
   input: Pick<ThreadListV2ItemsInput, "now" | "isWorking" | "queuedThreadKeys">,
 ): ThreadListV2Shelf {
-  // Snooze outranks completion and pinning until the thread wakes.
   if (effectiveSnoozed(thread, { now: input.now })) return "snoozed";
-  // The server stamps doneOverride for the tail.
   if (
     thread.doneOverride === "done" &&
     input.queuedThreadKeys?.has(`${thread.environmentId}:${thread.id}`) !== true
@@ -878,18 +862,12 @@ export function buildThreadListV2Items(input: ThreadListV2ItemsInput): ThreadLis
     : buildThreadListV2ShelfLayout(input, listedThreads);
 }
 
-/**
- * Lists every match by rank across shelves, as the palette does, then threads
- * listed for their messages in the server's order. Each row keeps its shelf's look.
- */
 function buildThreadListV2SearchLayout(
   input: ThreadListV2ItemsInput,
   listedThreads: ReadonlyArray<EnvironmentThreadShell>,
   query: string,
 ): ThreadListV2SearchLayout {
   const nowMs = Date.parse(input.now);
-  // The same matches as the command palette, typo fallback included. Only
-  // listed threads are ranked: a hidden exact match must not turn typos off.
   const rankedMatches = rankSearchItems(listedThreads, (thread, options) =>
     scoreThreadSearch(query, threadSearchSubject(thread, null), nowMs, {
       ...options,
@@ -897,8 +875,6 @@ function buildThreadListV2SearchLayout(
     }),
   ).map(({ item }) => item);
   const rankedThreads = new Set(rankedMatches);
-  // Threads listed only because their messages match; only their rows show
-  // the message and open at it.
   const contentOnlyByKey = new Map<string, EnvironmentThreadShell>();
   for (const thread of listedThreads) {
     if (rankedThreads.has(thread)) continue;
@@ -951,8 +927,6 @@ function buildThreadListV2ShelfLayout(
           }),
         );
 
-  // The inbox orders by when each thread came back to the user, not the saved
-  // arrangement.
   const grouping = input.grouping ?? "status";
   const selectedThreadKey = input.selectedThreadKey ?? null;
   const isSelected = (thread: EnvironmentThreadShell) =>

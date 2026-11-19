@@ -24,7 +24,7 @@ function SavedDaysField({ onSave }: { onSave: (days: number) => void }) {
 
 async function renderField() {
   const onSave = vi.fn();
-  const screen = await render(<SavedDaysField onSave={onSave} />, { router: false }); // no routes involved
+  const screen = await render(<SavedDaysField onSave={onSave} />, { router: false });
   return { screen, onSave, input: screen.getByRole("textbox", { name: "Auto mark-done in days" }) };
 }
 

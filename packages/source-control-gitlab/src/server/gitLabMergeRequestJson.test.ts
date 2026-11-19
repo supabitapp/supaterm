@@ -422,7 +422,6 @@ describe("decodePipelineStageChecksJson", () => {
     expect(expectSuccess(decodePipelineStageChecksJson(stagesJson([]), "https://gitlab.com"))).toBe(
       null,
     );
-    // A stage past the first page could be the failed one.
     expect(
       expectSuccess(
         decodePipelineStageChecksJson(
@@ -431,7 +430,6 @@ describe("decodePipelineStageChecksJson", () => {
         ),
       ),
     ).toBe(null);
-    // A stage GitLab failed to resolve comes back null beside an error, and could be the failed one.
     expect(
       expectSuccess(
         decodePipelineStageChecksJson(
@@ -462,7 +460,6 @@ describe("decodePipelineStageChecksJson", () => {
         ),
       ),
     ).toBe(null);
-    // GitLab answers an error it hit with no data at all.
     expect(
       expectSuccess(
         decodePipelineStageChecksJson(
@@ -1127,7 +1124,6 @@ describe("decodeMergeRequestStatsJson", () => {
       ),
     );
 
-    // A merge request without a summary is left out rather than shown as zero lines changed.
     expect([...stats]).toEqual([[7, { additions: 12, deletions: 3 }]]);
   });
 
@@ -1319,14 +1315,12 @@ describe("decodeMergeRequestWatchFingerprintJson", () => {
       ),
     );
 
-  // A remarks change makes the watch reread every comment, so pipeline progress must not touch it.
   it("moves pipeline progress into status and comment edits into remarks", () => {
     const base = read({});
     const passed = read({ headPipeline: pipeline("SUCCESS", "RUNNING") });
     const downstreamPassed = read({ headPipeline: pipeline("SUCCESS", "SUCCESS") });
     const jobFailed = read({ headPipeline: pipeline("RUNNING", "RUNNING", 1) });
     const edited = read({ notes: { nodes: [edit("2026-07-03T00:00:00Z")] } });
-    // Resolving a thread restamps its notes without an edit, so it must not reread comments.
     const resolved = read({
       notes: { nodes: [edit("2026-07-02T00:00:00Z"), edit("2026-07-03T00:00:00Z", true)] },
     });
@@ -1340,14 +1334,11 @@ describe("decodeMergeRequestWatchFingerprintJson", () => {
     expect(edited?.remarks).not.toBe(base?.remarks);
     expect(resolved?.remarks).toBe(base?.remarks);
     expect(read({ userNotesCount: 3 })?.remarks).not.toBe(base?.remarks);
-    // A target branch moving on leaves merge_status at can_be_merged on fast-forward projects.
     expect(read({ detailedMergeStatus: "NEED_REBASE" })?.status).not.toBe(base?.status);
   });
 
-  // Only the REST read asks GitLab to recheck mergeability, and only for viewers who can update.
   it("covers the detail read once merge status has settled or no read could settle it", () => {
     expect(read({})?.coversDetail).toBe(true);
-    // A capped job count or a second bridge page can hide a job settling.
     expect(read({ headPipeline: pipeline("RUNNING", "RUNNING", 1001) })?.coversDetail).toBe(false);
     expect(read({ headPipeline: pipeline("RUNNING", "RUNNING", 0, true) })?.coversDetail).toBe(
       false,

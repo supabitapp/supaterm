@@ -154,7 +154,6 @@ function firstRouteParam(value: string | string[] | undefined): string | null {
 
 const RECONNECT_ERROR_DELAY_MS = 5_000;
 
-// The inspector pane's bar belongs to ThreadInspectorHeader; the fallback must not draw its own.
 const InspectorHeaderShownContext = createContext(false);
 
 function ThreadRouteFallbackLayout(props: { readonly children: ReactNode }) {
@@ -222,7 +221,6 @@ function ThreadUnavailableScreen(props: {
   );
 }
 
-/** A thread that can't load opens a new task in its environment instead of a dead end. */
 function UnavailableThreadDraftRedirect(props: { readonly environmentId: EnvironmentId }) {
   const navigation = useNavigation();
   const projects = useProjects();
@@ -312,7 +310,6 @@ function LiveThreadRouteController(props: ThreadRouteScreenProps) {
   }
 
   if (selectedThread !== null && selectedThreadKey === routeThreadKey) {
-    // ThreadRouteContent draws its own inspector header so it can show the sync status.
     return (
       <InspectorHeaderShownContext value={props.inspectorPresentation !== undefined}>
         <ThreadRouteContent {...props} selectedThreadDetailState={selectedThreadDetailState} />
@@ -414,7 +411,6 @@ function ThreadRouteContent(
       selectedThread === null || isProviderNativeSubagentThread(selectedThread.source)
         ? null
         : scopedThreadKey(selectedThread.environmentId, selectedThread.id),
-    // A preview beside its host names its thread, so the two threads' statuses can't be confused.
     subject:
       props.inspectorPresentation !== undefined && "onMaximize" in props.inspectorPresentation
         ? (selectedThread?.title ?? null)
@@ -481,7 +477,6 @@ function ThreadRouteContent(
   const [messageJump, setMessageJump] = useState<
     (MessageJump & { readonly threadKey: string; readonly fromSearch?: true }) | null
   >(null);
-  // A search result opens its thread at the matched message, through the same jump as a pin.
   const searchJump = useSyncExternalStore(subscribeThreadMessageJump, () =>
     selectedThreadKey === null ? null : pendingThreadMessageJump(selectedThreadKey),
   );
@@ -529,7 +524,6 @@ function ThreadRouteContent(
       }
     : undefined;
   const reportMessageJumpFailure: MessageJumpHandlers["fail"] = (jump, failure) => {
-    // A search result whose message is gone still opens its thread, at the end.
     if (messageJump?.key === jump.key && messageJump.fromSearch) return;
     if (failure === "history-error") {
       Dialog.alert(
@@ -945,7 +939,6 @@ function ThreadRouteContent(
     if (!creation?.creation || routeThreadIdentity === null) {
       return;
     }
-    // Open recovery by draft id or the sheet creates an empty draft and strands restored content.
     try {
       await recoverFailedThreadDraft(creation);
     } catch (error) {
@@ -1011,7 +1004,6 @@ function ThreadRouteContent(
       localResendBusy.current = false;
       return;
     }
-    // V2 accepts launch before setup; cancellation cannot reject that delivery, so reuse server-owned prompt and uploads.
     const metadata = makeTurnCommandMetadata();
     const launched = await startLocalThread({
       environmentId: selectedThread.environmentId,
@@ -1061,7 +1053,6 @@ function ThreadRouteContent(
       serverOwned: false,
     };
   })();
-  // Queued creation displays its prompt before server creation; temporary not-found is expected.
   const contentPresentation =
     creationState !== null
       ? { kind: "ready" as const }
@@ -1073,7 +1064,6 @@ function ThreadRouteContent(
         });
   const connectionRetrying =
     routeConnectionState === "connecting" || routeConnectionState === "reconnecting";
-  // Connection failures survive retries and app suspension.
   const retryConnectionError = useDelayedStatus(
     `${environmentId}:${connectionRetrying && routeConnectionError !== null}`,
     connectionRetrying ? routeConnectionError : null,
@@ -1083,12 +1073,10 @@ function ThreadRouteContent(
     connectionError: retryConnectionError,
     connectionState: routeConnectionState,
   });
-  // A thread this client is creating has nothing older to sync.
   const threadSyncLabel =
     creationState === null
       ? threadSyncStatusLabel(selectedThreadDetailState.status, contentPresentation.kind)
       : null;
-  // Transient states go in the header subtitle so the composer's status slot doesn't jump.
   const threadStatusLabel = useDelayedStatus(
     selectedThread === null ? "" : scopedThreadKey(selectedThread.environmentId, selectedThread.id),
     connectionStatusLabel !== null ? connectionStatusLabel : threadSyncLabel,
@@ -1232,7 +1220,6 @@ function ThreadRouteContent(
       {inspectorHeader}
       {!props.inspectorPresentation && inspectorContent ? (
         <Inspector
-          // A route's own inspector (files) opens once per thread; going back keeps the user's choice.
           revealKey={
             props.renderInspector !== undefined && selectedThreadCwd !== null
               ? (routeThreadIdentity ?? undefined)
@@ -1264,7 +1251,6 @@ export function FullscreenThreadRouteScreen(
   );
 }
 
-/** Reads the pane state itself, so a sidebar toggle doesn't re-render the whole thread screen. */
 function ThreadInspectorPreviewWhileVisible(props: Parameters<typeof ThreadInspectorPreview>[0]) {
   const { panes } = useWorkspacePaneState();
   return panes.auxiliaryPaneVisible ? <ThreadInspectorPreview {...props} /> : null;

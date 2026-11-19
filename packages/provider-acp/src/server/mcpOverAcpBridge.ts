@@ -98,7 +98,6 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
             : Effect.succeed(connection);
         });
 
-      // Only initialization needs ordering; negotiated calls may wait independently.
       const untilNegotiated = <A, E>(connection: Connection, effect: Effect.Effect<A, E>) =>
         Effect.suspend(() =>
           connection.protocolVersion === null ? connection.mutex.withPermits(1)(effect) : effect,
@@ -205,7 +204,6 @@ export const makeAcpMcpOverAcpBridge = Effect.fn("AcpMcpOverAcpBridge.make")(
               () => response.body?.cancel().catch(() => undefined) ?? Promise.resolve(),
             );
           }).pipe(
-            // Restore a session that failed to close, so a retry or dispose can close it.
             Effect.onError(() =>
               Effect.sync(() => connections.set(request.connectionId, connection)),
             ),

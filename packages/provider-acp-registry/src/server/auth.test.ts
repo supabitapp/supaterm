@@ -415,11 +415,9 @@ it("formatFailureDetail handles all cause types and formatting edge cases cleanl
   const baseWithPeriod = "The ACP agent could not complete sign-in.";
   const baseWithoutPeriod = "The ACP agent could not complete sign-in";
 
-  // 1. undefined or null cause
   assert.strictEqual(formatFailureDetail(baseWithPeriod, undefined), baseWithPeriod);
   assert.strictEqual(formatFailureDetail(baseWithPeriod, null), baseWithPeriod);
 
-  // 2. plain Error object, string, number, or object defect
   assert.strictEqual(
     formatFailureDetail(baseWithPeriod, new Error("Something broke")),
     baseWithPeriod,
@@ -427,7 +425,6 @@ it("formatFailureDetail handles all cause types and formatting edge cases cleanl
   assert.strictEqual(formatFailureDetail(baseWithPeriod, "string error"), baseWithPeriod);
   assert.strictEqual(formatFailureDetail(baseWithPeriod, { foo: "bar" }), baseWithPeriod);
 
-  // 3. AcpRequestError with empty or whitespace-only errorMessage
   const emptyError = new AcpRequestError({
     method: "authenticate",
     code: -32000,
@@ -441,7 +438,6 @@ it("formatFailureDetail handles all cause types and formatting edge cases cleanl
   assert.strictEqual(formatFailureDetail(baseWithPeriod, emptyError), baseWithPeriod);
   assert.strictEqual(formatFailureDetail(baseWithPeriod, whitespaceError), baseWithPeriod);
 
-  // 4. AcpRequestError with valid message: ensure no double periods, clean separation
   const validError = new AcpRequestError({
     method: "authenticate",
     code: -32000,
@@ -456,7 +452,6 @@ it("formatFailureDetail handles all cause types and formatting edge cases cleanl
     "The ACP agent could not complete sign-in. Connect to the VPN, then sign in again.",
   );
 
-  // 5. AcpRequestError with trimmed message and message without ending period
   const unpunctError = new AcpRequestError({
     method: "authenticate",
     code: -32000,
@@ -467,7 +462,6 @@ it("formatFailureDetail handles all cause types and formatting edge cases cleanl
     "The ACP agent could not complete sign-in. Invalid credentials",
   );
 
-  // 6. Nested Cause (e.g. Cause.fail or Cause.die wrapping AcpRequestError)
   assert.strictEqual(
     formatFailureDetail(baseWithPeriod, Cause.fail(validError)),
     "The ACP agent could not complete sign-in. Connect to the VPN, then sign in again.",
@@ -477,7 +471,6 @@ it("formatFailureDetail handles all cause types and formatting edge cases cleanl
     "The ACP agent could not complete sign-in. Connect to the VPN, then sign in again.",
   );
 
-  // 7. Extremely long error message: truncates to 500 characters with ellipsis
   const longText = "A".repeat(600);
   const longError = new AcpRequestError({
     method: "authenticate",

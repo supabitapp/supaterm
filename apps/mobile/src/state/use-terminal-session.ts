@@ -57,7 +57,6 @@ export function useAttachedTerminalSession(input: {
   );
   const output = attach.data?.output ?? EMPTY_TERMINAL_BUFFER_STATE.output;
   const materializeBuffer = input.materializeBuffer ?? true;
-  // Older installed binaries are fed this as initialBuffer; clearing it would recreate their emulator.
   const buffer = materializeBuffer ? terminalOutputReplay(output) : "";
 
   return useMemo(() => {

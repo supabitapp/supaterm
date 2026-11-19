@@ -18,8 +18,6 @@ export function pullRequestFallbackEnvironment(
   const requested = environments.find(
     (environment) => environment.environmentId === target.environmentId,
   );
-  // Pending connections retain the requested target until an explicit failure, even before
-  // its project hydrates. Available includes the period before connection startup.
   if (
     requested?.isEnabled &&
     (requested.connectionState === "connected" ||

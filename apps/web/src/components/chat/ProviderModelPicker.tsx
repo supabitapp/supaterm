@@ -28,7 +28,6 @@ import { shortcutLabelForCommand } from "../../keybindings";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 
-/** Holds the page still behind the open picker; its lifetime is the popup element's. */
 function lockBackgroundScroll(popup: HTMLElement | null) {
   if (!popup) return;
   const { documentElement, body } = document;
@@ -112,7 +111,6 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   const refreshModelCatalog = useEffectEvent(() => {
     const environmentId = props.environmentId;
     if (environmentId === null) return;
-    // An older server drops the field and probes every provider.
     const config = registry.get(serverEnvironment.configValueAtom(environmentId));
     if (config?.environment.capabilities.modelCatalogRefresh !== true) return;
     void refreshProviders({ environmentId, input: { modelCatalogOnly: true } });
@@ -123,7 +121,6 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
   }, [isMenuOpen]);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const popupRef = useRef<HTMLDivElement | null>(null);
-  // Touch opens on the popup itself so the on-screen keyboard stays down until the search is tapped.
   const isCoarsePointer = useMediaQuery({ pointer: "coarse" });
   const size = props.size ?? "sm";
 
@@ -282,7 +279,6 @@ export const ProviderModelPicker = memo(function ProviderModelPicker(props: {
             <span
               className={cn(
                 "min-w-0 flex-1 overflow-hidden truncate",
-                // A long model name would otherwise push the other composer controls out.
                 props.isComposerOwned && "max-w-56",
               )}
               data-chat-provider-model-picker-label="true"

@@ -41,9 +41,7 @@ export function createThreadNotificationGate<Key>(
   notify: (key: Key, kind: ThreadNotificationKind) => void,
 ) {
   const pending = new Map<Key, { at: number; timer: ReturnType<typeof setTimeout> }>();
-  // The newest completion already notified, or deliberately skipped.
   const handled = new Map<Key, number>();
-  // The newest completion seen settled, kept while the thread works or waits.
   const lastSettled = new Map<Key, number>();
   const cancel = (key: Key) => {
     clearTimeout(pending.get(key)?.timer);
@@ -52,7 +50,6 @@ export function createThreadNotificationGate<Key>(
   const skip = (key: Key, at: number | null) => {
     if (at !== null && at > (handled.get(key) ?? -Infinity)) handled.set(key, at);
   };
-  // Attention keys with a request id seen since the thread last stopped needing attention.
   const attended = new Map<Key, Set<string>>();
   const attend = (
     key: Key,
@@ -80,12 +77,10 @@ export function createThreadNotificationGate<Key>(
       const silenced = options.archived || options.quiet || options.snoozed;
       if (next.settled && next.completedAt !== null) lastSettled.set(key, next.completedAt);
       if (!next.settled || silenced) cancel(key);
-      // The first sighting, archived or snoozed threads, and stopped or silent runs never notify completion.
       if (!prior || silenced) skip(key, next.completedAt);
       const fresh = attend(key, prior, next);
       if (!prior || options.archived) return;
       if (fresh) {
-        // Attention replaces the completion before it, so that run must not notify later.
         skip(key, lastSettled.get(key) ?? null);
         cancel(key);
         notify(key, "input");
@@ -104,7 +99,6 @@ export function createThreadNotificationGate<Key>(
         }, WORKING_EXIT_GRACE_MS),
       });
     },
-    /** Forgets threads that left the snapshot. */
     retain(keys: ReadonlySet<Key>): void {
       for (const key of pending.keys()) if (!keys.has(key)) cancel(key);
       for (const key of handled.keys()) if (!keys.has(key)) handled.delete(key);

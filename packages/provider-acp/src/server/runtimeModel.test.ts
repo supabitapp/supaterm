@@ -573,8 +573,6 @@ describe("AcpRuntimeModel", () => {
   });
 
   it("bounds an oversized cumulative tool_call_update content buffer to a tail window", () => {
-    // Mirrors Grok's ACP CLI resending the ENTIRE accumulated terminal output on every
-    // tool_call_update notification instead of a delta.
     const hugeText = Array.from({ length: 2_000 }, (_, i) => `line ${i}: ${"x".repeat(50)}`).join(
       "\n",
     );
@@ -583,8 +581,6 @@ describe("AcpRuntimeModel", () => {
     const result = parseSessionUpdateEvent({
       sessionId: "session-1",
       update: {
-        // Real ACP `tool_call_update` deltas typically omit `title` (already established by
-        // the initial `tool_call`); that is also the shape that surfaces raw content as detail.
         sessionUpdate: "tool_call_update",
         toolCallId: "tool-1",
         kind: "other",
@@ -1165,7 +1161,6 @@ describe("AcpRuntimeModel", () => {
     expect(full.outputBytes).toBe(cap);
     expect(full.output.length).toBe(cap - 1);
 
-    // The cut at one byte past the cap plus 1 MiB falls inside "é", so the whole character goes.
     const trimmed = applyAcpAgentTerminalUpdate(full, chunk("c"));
     expect(trimmed.outputBytes).toBe(cap - step - 1);
     expect(trimmed.output.length).toBe(cap - step - 1);
@@ -1474,7 +1469,6 @@ describe("extractMcpToolCallIdentity", () => {
     }
   });
 
-  // regression: #33667 OMP mounts MCP tools as xd:// devices and calls them through `write`.
   it("recovers Supaterm identity from OMP xd:// device writes but not its doc reads", () => {
     const args = {
       html: '<svg width="320" height="120"><rect width="300" height="100" fill="#4f46e5"/></svg>',
@@ -1548,8 +1542,6 @@ describe("extractMcpToolCallIdentity", () => {
   });
 
   it("recovers Supaterm identity from goose _meta despite LLM-rewritten titles", () => {
-    // goose enriches titles asynchronously, so only _meta.goose.toolCall is
-    // stable; shape from crates/goose/src/acp/server/tool_calls/conversion.rs.
     const toolCall = toolCallFromUpdate({
       sessionUpdate: "tool_call",
       toolCallId: "goose-1",
@@ -1570,9 +1562,6 @@ describe("extractMcpToolCallIdentity", () => {
   });
 
   it("recovers Supaterm identity from qwen serverId meta regardless of prefix format", () => {
-    // qwen-code 0.21.12 emits _meta.serverId + _meta.toolName; serverId is an
-    // explicit origin assertion, so a known tool suffix suffices even if the
-    // prefix format changes.
     const toolCall = toolCallFromUpdate({
       sessionUpdate: "tool_call",
       toolCallId: "qwen-meta-1",
@@ -1616,7 +1605,6 @@ describe("extractMcpToolCallIdentity", () => {
   ] as const)(
     "leaves goose $toolName unclassified so built-ins keep their projection",
     ({ kind, toolName, extensionName }) => {
-      // goose tags built-in extensions exactly like user MCP servers.
       const toolCall = toolCallFromUpdate({
         sessionUpdate: "tool_call",
         toolCallId: "goose-builtin",

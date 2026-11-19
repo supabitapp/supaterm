@@ -1,9 +1,3 @@
-/**
- * fx instance settings. Shared by the server driver and the client
- * settings form, so it holds only browser-safe schema code.
- *
- * @module provider-fx/settings
- */
 import {
   CustomModelSetting,
   makeBinaryPathSetting,

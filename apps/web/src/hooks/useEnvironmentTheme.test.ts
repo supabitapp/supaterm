@@ -47,10 +47,6 @@ describe("environment themes", () => {
     expect(theme.variants?.light?.canvas).not.toBe(theme.colors.canvas);
   });
 
-  // A published `dracula.json` would be shadowed by the built-in, a retired
-  // `ocean.json` would capture everyone who still stores that id, and a
-  // published `dark.json` would capture everyone whose stored preference is
-  // the stock "dark". Reserved ids never reach the picker.
   it("drops published themes with reserved ids", () => {
     const definitions = publishedThemeDefinitions([
       NIGHTFALL_THEME,
@@ -102,7 +98,6 @@ describe("environment themes", () => {
     ]);
   });
 
-  // Routes without the old root sync component (/connect, prompt-link landings) never saw them.
   it("resolves published themes without a React subscriber mounted", () => {
     appAtomRegistry.set(publishedThemes.atom, [NIGHTFALL_THEME]);
     expect(getThemeDefinition("nightfall")?.label).toBe("Nightfall");

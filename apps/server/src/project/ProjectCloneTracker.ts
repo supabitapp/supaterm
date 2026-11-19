@@ -66,9 +66,6 @@ export interface ProjectCloneHooks {
 }
 
 const DONE_RETENTION = "30 seconds";
-// Git prints nothing while a transfer waits on the network, and the kernel can
-// take 15+ minutes to give up on a dead connection. Without this the banner
-// keeps showing the last transfer speed as if data were still arriving.
 const STALL_AFTER = "20 seconds";
 
 function clampText(text: string, maxLength: number): string {
@@ -83,7 +80,6 @@ interface TrackedClone {
   readonly hooks: ProjectCloneHooks;
   readonly input: {
     readonly request: ProjectCloneStartInput;
-    /** Its cloneUrl is what git is given; it may carry credentials and never leaves the server. */
     readonly prepared: SourceControlRepositoryService.SourceControlPreparedClone;
   };
 }
@@ -97,7 +93,6 @@ export const make = Effect.gen(function* () {
   let sequence = 0;
   const cloneScope = yield* Scope.make("parallel");
   yield* Effect.addFinalizer(() => Scope.close(cloneScope, Exit.void));
-  // Serialize actions on the shared entry and directory so retries cannot race clones.
   const actionLock = yield* Semaphore.make(1);
   const locked = <A, E, R>(effect: Effect.Effect<A, E, R>) => actionLock.withPermits(1)(effect);
 
@@ -176,7 +171,6 @@ export const make = Effect.gen(function* () {
       snapshot: { ...tracked.snapshot, stalled: true },
     })).pipe(Effect.asVoid);
 
-  /** Marks the clone stalled once, then waits for git to speak again. */
   const watchForStall = (projectId: ProjectId, pulses: Queue.Dequeue<void>) =>
     Queue.take(pulses).pipe(
       Effect.timeoutOption(STALL_AFTER),
@@ -222,10 +216,6 @@ export const make = Effect.gen(function* () {
     });
   }, Effect.scoped);
 
-  /**
-   * `onExit` records outcomes even on interruption; `matchCause` would be skipped.
-   * Mark the clone done before the post-clone hook so a late Cancel cannot remove it.
-   */
   const runClone = (projectId: ProjectId, tracked: TrackedClone) =>
     cloneWatchingForStall(projectId, tracked).pipe(
       Effect.onExit((exit) =>
@@ -308,11 +298,9 @@ export const make = Effect.gen(function* () {
         detail: "A clone into this destination is already in progress.",
       });
       if (!claimed) return yield* alreadyInProgress;
-      // Finish or release the claim despite disconnects; a claim without a fiber cannot be cancelled or retried.
       const projectId = yield* Effect.uninterruptible(
         Effect.gen(function* () {
           yield* clearRetention(input.projectId);
-          // Register before creation so racing thread.create and project.delete see the clone.
           const projectId = yield* hooks
             .createProject({
               projectId: input.projectId,
@@ -322,8 +310,6 @@ export const make = Effect.gen(function* () {
             })
             .pipe(
               Effect.as(input.projectId),
-              // A failed clone's project still owns its empty folder after a restart
-              // forgets the clone; clone for that project instead.
               Effect.catchTags({
                 ProjectConflictError: (conflict) =>
                   moveClaim(input.projectId, conflict.conflictingProjectId).pipe(
@@ -355,7 +341,6 @@ export const make = Effect.gen(function* () {
       const current = yield* Ref.get(clones);
       const tracked = current.get(projectId);
       if (!tracked || tracked.snapshot.phase !== "running" || !tracked.fiber) return false;
-      // Finish cancellation despite disconnects to avoid dead fibers behind running snapshots.
       yield* Effect.uninterruptible(
         Effect.gen(function* () {
           yield* Fiber.interrupt(tracked.fiber!);
@@ -409,8 +394,6 @@ export const make = Effect.gen(function* () {
     const tracked = current.get(projectId);
     if (!tracked) return;
     if (tracked.fiber) yield* Fiber.interrupt(tracked.fiber);
-    // Git may have finished while the interrupt was landing; the project
-    // is going away either way, but a complete checkout is the user's.
     const after = yield* get(projectId);
     if (after?.phase !== "done") {
       yield* repositories.discardClone(tracked.input.prepared.destinationPath).pipe(Effect.ignore);
@@ -436,7 +419,6 @@ export const make = Effect.gen(function* () {
     { bufferSize: 1, strategy: "sliding" },
   );
 
-  // Forwarders retain the underlying operation spans.
   return ProjectCloneTracker.of({
     start: Effect.fnUntraced(function* (input, hooks) {
       return yield* locked(start(input, hooks));

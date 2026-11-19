@@ -181,7 +181,6 @@ it("finds a review with no text of its own through the earliest comment it poste
     },
   ];
   expect(resolvePullRequestReviewAnchor("pullrequestreview-9", [], threads)).toBe("discussion_r2");
-  // A review shown in its own right, an unknown review and other anchors are kept.
   expect(resolvePullRequestReviewAnchor("pullrequestreview-9", [{ url: review }], threads)).toBe(
     "pullrequestreview-9",
   );

@@ -72,19 +72,15 @@ const DRIVER_KIND = ProviderDriverKind.make("codex");
 const CODEX_STANDALONE_HOME_PATTERN = /^(.*)\/packages\/standalone\//is;
 
 function codexStandaloneHome(commandPath: string): string | null {
-  // Slash replacement preserves indices; Unicode lowercasing can change the path length.
   const match = CODEX_STANDALONE_HOME_PATTERN.exec(commandPath.replaceAll("\\", "/"));
   if (!match) {
     return null;
   }
   const home = match[1]!;
-  // Keep root separators: `C:` is drive-relative, and an empty home is not `/`.
   const isRoot = home === "" || /^[a-z]:$/i.test(home);
   return commandPath.slice(0, home.length + (isRoot ? 1 : 0));
 }
 
-// Standalone updates locate their install through CODEX_HOME. Account and auth-overlay
-// homes can share an executable, so only the updater uses the executable's owning home.
 function makeCodexMaintenanceResolver(sharedHomePath: string) {
   return makePackageManagedProviderMaintenanceResolver({
     provider: DRIVER_KIND,
@@ -104,7 +100,6 @@ function makeCodexMaintenanceResolver(sharedHomePath: string) {
   });
 }
 
-// `codex update` installs this channel's release, which can lag npm's latest tag.
 const CODEX_NATIVE_CHANNEL = "https://releases.openai.com/codex/channels/latest";
 const CodexNativeRelease = Schema.Struct({ tag_name: Schema.String });
 
@@ -266,8 +261,6 @@ export const CodexDriver: ProviderDriver<
       ),
     );
 
-    // Kick the TTL-gated manifest refresh in the background and classify with the in-memory
-    // manifest, so a slow or hung fetch never delays the provider check.
     const authHomePath = yield* resolveCodexAuthHomePath(homeLayout, processEnv);
     const withTranscriptionStatus = (draft: ServerProviderDraft) =>
       fileSystem.exists(pathService.join(authHomePath, "auth.json")).pipe(
@@ -360,9 +353,6 @@ export const CodexDriver: ProviderDriver<
             ),
           );
 
-    // Redemption spends account credit; serialize by the auth.json directory, keep one idempotency key
-    // until the outcome, and bound the wait so a hung app-server cannot hold the account lock.
-    // Auth overlays use effectiveHomePath; the continuation key would conflate them with shared homes.
     const accountKey = homeLayout.effectiveHomePath ?? homeLayout.sharedHomePath;
     const consumeResetCredit: NonNullable<ProviderInstance["consumeResetCredit"]> = () =>
       resetCreditCoordinator
@@ -436,7 +426,6 @@ export const CodexDriver: ProviderDriver<
       Effect.provideService(Path.Path, pathService),
     );
 
-    // `codex login` and `codex logout` rewrite auth.json outside Supaterm.
     if (effectiveConfig.enabled) {
       yield* fileSystem.watch(authHomePath).pipe(
         Stream.filter((event) => pathService.basename(event.path) === "auth.json"),

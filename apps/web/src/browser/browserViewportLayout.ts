@@ -38,7 +38,6 @@ export const browserViewportSettingKey = (setting: PreviewViewportSetting): stri
 const normalizeZoomFactor = (zoomFactor: number): number =>
   Number.isFinite(zoomFactor) && zoomFactor > 0 ? zoomFactor : 1;
 
-// Convert guest CSS pixels to host CSS pixels without changing the guest's page zoom.
 export const resolveBrowserLayoutZoomFactor = (
   previewZoomFactor: number,
   windowZoomFactor: number,
@@ -136,7 +135,6 @@ export function resolveBrowserViewportTransform(
 ): string | undefined {
   if (scale >= 1) return undefined;
   if (!fullDetail) return `scale(${scale})`;
-  // Positive depth keeps the guest in front of its parent for hit testing.
   const depth = Math.sqrt(1 - scale * scale);
   return `matrix3d(${scale}, 0, ${depth}, 0, 0, ${scale}, ${depth}, 0, 0, 0, 1, 0, 0, 0, 0, 1)`;
 }

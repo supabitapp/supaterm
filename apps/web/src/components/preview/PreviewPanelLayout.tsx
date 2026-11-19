@@ -10,9 +10,7 @@ import { cn } from "~/lib/utils";
 
 const PREVIEW_PANEL_DEFAULT_WIDTH = 540;
 const PREVIEW_PANEL_MIN_WIDTH = 360;
-/** Only binds on wide screens; the sibling column's minimum binds first on narrow ones. */
 const PREVIEW_PANEL_MAX_WIDTH = "70vw";
-/** Floor for the column beside the panel: below this the chat composer overflows. */
 const PREVIEW_PANEL_SIBLING_MIN_WIDTH = 360;
 
 export const MaximizedContext = createContext(false);
@@ -31,7 +29,6 @@ export function PreviewPanelGroup({
     <MaximizedContext value={maximized}>
       <ResizablePanelGroup
         className={cn(
-          // Maximize overrides the library's inline flex-grow so the stored layout survives it.
           "data-[maximized=true]:[&>[data-preview-panel-inline]]:grow! data-[maximized=true]:[&>[data-preview-panel-sibling]]:grow-0!",
           className,
         )}

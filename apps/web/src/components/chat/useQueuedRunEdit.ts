@@ -74,11 +74,9 @@ interface EditingQueuedRun {
   readonly originalText: string;
   readonly existingAttachments: ReadonlyArray<ChatAttachment>;
   readonly context?: OrchestrationMessageContext | undefined;
-  /** Removing a server attachment changes the message even when the draft looks untouched. */
   readonly removedExistingAttachment?: true;
 }
 
-// Keyed by the route thread, so an edit survives navigating away and back.
 const queuedRunEdits = makeQueuedRunEditStore<EditingQueuedRun>({
   registry: appAtomRegistry,
   label: "web-queued-run-edits",
@@ -139,7 +137,6 @@ async function submitQueuedRunEdit(input: {
     });
     if (input.draftChanged())
       return "Draft changed while preparing this message. Review it and save again.";
-    // The edit draft owns thread and model mentions, so a chip removed while editing is dropped.
     const keptRecords = (editing.context?.records ?? []).filter(
       (record) =>
         !isDraftOwnedRecord(record) &&
@@ -242,7 +239,6 @@ export function useQueuedRunEdit(input: {
   };
   const clearEditDraft = (runId: RunId) => {
     const target = queuedRunEditDraftId(routeThreadRef, runId);
-    // A save in flight still sends these uploads.
     if (isSaving) useComposerDraftStore.getState().clearComposerContent(target);
     else discardQueuedEditDraft(target);
   };
@@ -287,10 +283,6 @@ export function useQueuedRunEdit(input: {
               get(environmentThreadDetails.quietThreadAtom(threadRef))?.projection.runs ?? null,
           ),
         }),
-        // The run started or was cancelled from another client. A changed
-        // edit moves into the thread's own draft when that draft is empty;
-        // otherwise it is dropped. Edits outlive navigation, so the toast is
-        // unscoped and names the thread: the user may be anywhere by now.
         onRunLeftQueue: (_, edit) => {
           const recovery = recoverQueuedMessageEdit({
             editTarget: queuedRunEditDraftId(routeThreadRef, edit.runId),
@@ -334,7 +326,6 @@ export function useQueuedRunEdit(input: {
     }));
   });
 
-  // The same move as the queued row's "Send now" while a turn runs.
   const steerSavedRun = async (edited: EditingQueuedRun) => {
     const projection = appAtomRegistry.get(
       environmentThreadDetails.quietThreadAtom({ environmentId, threadId: edited.threadId }),
@@ -387,7 +378,6 @@ export function useQueuedRunEdit(input: {
     ) {
       return;
     }
-    // The save's result decides the edit's fate, even if the run starts meanwhile.
     const finishSave = queuedRunEdits.startSave(editKey);
     if (finishSave === null) return;
     const draftBeforeSave = useComposerDraftStore.getState().getComposerDraft(draftTarget);
@@ -414,7 +404,6 @@ export function useQueuedRunEdit(input: {
     );
     const current = finishSave(error === null && !changedAfterSave);
     if (!current) {
-      // A failed save can recover into the thread draft; a newer edit can also retain resources.
       const drafts = Object.values(useComposerDraftStore.getState().draftsByThreadKey);
       const retainedIds = new Set(
         drafts.flatMap((draft) =>
@@ -441,8 +430,6 @@ export function useQueuedRunEdit(input: {
     clearEditDraft(editing.runId);
     composerRef.current?.resetCursorState();
     focusComposerSoon();
-    // A plain submit means "Update queued message"; only the opposite-action shortcut or
-    // modifier-click asks to steer, as it does for a new follow-up.
     if (submission?.submissionIntent === "alternate" && submission.dispatchMode === "steer") {
       await steerSavedRun(editing);
     }

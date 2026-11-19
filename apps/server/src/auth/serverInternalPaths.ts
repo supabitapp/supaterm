@@ -11,7 +11,6 @@ import { isWithinRoot } from "../workspace/KnownWorkspaces.ts";
 export const makeIsServerInternalPath = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const path = yield* Path.Path;
-  // Native realpath returns the on-disk letter case.
   const realPath = (value: string) =>
     Effect.promise(() => NodeFSP.realpath(value).catch(() => path.resolve(value)));
   return Effect.fn("ServerInternalPaths.isServerInternalPath")(function* (filePath: string) {
@@ -22,7 +21,6 @@ export const makeIsServerInternalPath = Effect.gen(function* () {
     return (
       isWithinRoot(path, file, secretsDir) ||
       (path.dirname(file) === stateDir && path.basename(file).includes(".sqlite")) ||
-      // macOS does not resolve `/dev/fd/N` to the open file's path.
       isWithinRoot(path, file, "/dev/fd")
     );
   });

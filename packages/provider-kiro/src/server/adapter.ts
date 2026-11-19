@@ -52,7 +52,6 @@ import {
 } from "./acpSupport.ts";
 
 export const KIRO_PROVIDER = ProviderDriverKind.make("kiro");
-/** Supaterm's slug for "Kiro default", and Kiro's documented default model id. */
 const KIRO_DEFAULT_MODEL = "default";
 const KIRO_COMPACT_METHOD = "_kiro/session/compact";
 const KIRO_STEER_METHOD = "_session/steer";
@@ -65,18 +64,15 @@ const KiroProviderCapabilitiesV2 = {
     ...AcpProviderCapabilitiesV2.sessions,
     supportsModelSwitchInSession: true,
   },
-  // Kiro 2.27 and later fork at a turn's prompt (`_meta.kiro.messageId`); see kiroForkFromTurn.
   threads: {
     ...AcpProviderCapabilitiesV2.threads,
     canForkThread: true,
     canForkFromTurn: true,
   },
-  // `_session/steer` waits for the running tool, then Kiro reads the message at its next step.
   turns: {
     ...AcpProviderCapabilitiesV2.turns,
     supportsActiveSteering: true,
     activeSteeringInterruptsTools: false,
-    // `_session/steer` takes a string, so a message with images restarts the turn.
     activeSteeringAcceptsAttachments: false,
   },
   tools: {
@@ -97,10 +93,6 @@ const decodeKiroExtensionMethods = Schema.decodeUnknownOption(
   Schema.Struct({ kiro: Schema.Struct({ extensionMethods: Schema.Array(Schema.String) }) }),
 );
 
-/**
- * Kiro answers a `/compact` prompt as chat, so Supaterm compacts with Kiro's own request,
- * on deployments whose `initialize` result lists it among Kiro's extension methods.
- */
 const kiroCompactSession = {
   supported: (
     initializeResult: AcpSessionRuntime.AcpSessionRuntimeStartResult["initializeResult"],
@@ -132,7 +124,6 @@ const KiroSteeringInjected = Schema.Struct({
 });
 const decodeKiroSteeringInjected = Schema.decodeUnknownOption(KiroSteeringInjected);
 
-/** Kiro queues a steer, then reports `steering_injected` with its id once the model reads it. */
 const kiroSteering = {
   send: (
     runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
@@ -173,10 +164,6 @@ const decodeKiroUserMessageId = Schema.decodeUnknownOption(
   }),
 );
 
-/**
- * Kiro assigns each prompt a `userMessageId`, and `session/fork` with that id keeps the
- * session up to and including the reply to that prompt.
- */
 const kiroForkFromTurn = {
   supported: (
     initializeResult: AcpSessionRuntime.AcpSessionRuntimeStartResult["initializeResult"],
@@ -217,15 +204,9 @@ export interface KiroAdapterV2Options {
   readonly testHooks?: Parameters<typeof makeAcpAdapterV2>[0]["testHooks"];
 }
 
-/** Kiro's `model` option once it advertises one. */
 const findKiroModelOption = (configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>) =>
   configOptions.find((option) => option.id === KIRO_MODEL_CONFIG_ID || option.category === "model");
 
-/**
- * Kiro selects models only through its `model` config option; "default" is
- * Kiro's own default. The write goes to `model` even before Kiro advertises it,
- * and for unlisted ids: Kiro fails the next prompt on a model it can't use.
- */
 const applyKiroModel = Effect.fn("KiroAdapterV2.applyKiroModel")(function* (
   runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
   modelSelection: ModelSelection,
@@ -236,8 +217,6 @@ const applyKiroModel = Effect.fn("KiroAdapterV2.applyKiroModel")(function* (
   const current = modelOption?.type === "select" ? modelOption.currentValue : undefined;
   const selected = modelSelection.model.trim();
   const isDefault = selected.length === 0 || selected === KIRO_DEFAULT_MODEL;
-  // Before Kiro advertises `model` the session is new, so it already runs
-  // Kiro's default, unless an agent switch just moved it to the agent's model.
   if (isDefault && modelOption?.type !== "select" && !agentSwitched) {
     return current;
   }
@@ -251,18 +230,8 @@ const applyKiroModel = Effect.fn("KiroAdapterV2.applyKiroModel")(function* (
   return requested;
 });
 
-/**
- * Bound on waiting for Kiro to advertise the model Supaterm just wrote. Kiro 2.27.0
- * sent it 40-90 ms after the write's result.
- */
 const KIRO_MODEL_ADVERT_BOUND = "2 seconds";
 
-/**
- * Writes the thread's effort to Kiro's `effortLevel` once Kiro advertises the
- * written model, since Kiro ignores the option before then and resets it on a
- * model change. Levels the model doesn't offer are not sent. A rejected write
- * or no advert within the bound keeps Kiro's level rather than failing the turn.
- */
 const applyKiroEffort = Effect.fn("KiroAdapterV2.applyKiroEffort")(function* (
   runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
   modelSelection: ModelSelection,
@@ -293,7 +262,6 @@ const applyKiroEffort = Effect.fn("KiroAdapterV2.applyKiroEffort")(function* (
   }
   yield* runtime.setConfigOption(KIRO_EFFORT_CONFIG_ID, requested).pipe(
     Effect.catchTags({
-      // `requested` is one of the levels Kiro just advertised, so it is safe to log.
       AcpRequestError: (error) =>
         Effect.logWarning("Kiro rejected the reasoning effort", {
           value: requested,
@@ -303,11 +271,6 @@ const applyKiroEffort = Effect.fn("KiroAdapterV2.applyKiroEffort")(function* (
   );
 });
 
-/**
- * Selects the thread's Kiro agent and reports whether a switch went out. It runs
- * before the model write, because switching applies the agent's own model. An
- * agent the session doesn't list is skipped: Kiro would accept it and not switch.
- */
 const applyKiroAgent = Effect.fn("KiroAdapterV2.applyKiroAgent")(function* (
   runtime: AcpSessionRuntime.AcpSessionRuntime["Service"],
   modelSelection: ModelSelection,
@@ -348,11 +311,6 @@ function selectValues(
 
 const isAcpRequestError = Schema.is(EffectAcpErrors.AcpRequestError);
 
-/**
- * Evidence that Kiro started the current prompt, so Stop's `session/cancel` is
- * honored: a `turn_start` info update or output only a running prompt produces.
- * Kiro doesn't promise `turn_start`, so Stop gives up after KIRO_CANCEL_HOLD_BOUND.
- */
 function isKiroPromptActivity(update: EffectAcpSchema.SessionUpdate): boolean {
   switch (update.sessionUpdate) {
     case "agent_message_chunk":
@@ -375,17 +333,10 @@ function isKiroPromptActivity(update: EffectAcpSchema.SessionUpdate): boolean {
   }
 }
 
-/** Past the 0-0.5 s window where TinBane saw cancels dropped, and the 1.5 s cancel they saw honored. */
 const KIRO_CANCEL_HOLD_BOUND = "2 seconds";
 
-/**
- * Kiro 2.31 fetches an Identity Center account's cloud config as a tool call
- * of its own around session start (reported by @hstern), which can land inside
- * the user's turn. Only the call carries this id; its updates name the call.
- */
 const KIRO_CLOUD_CONFIG_TOOL_ID = "fetch_cloud_config";
 
-/** Drops Kiro's cloud-config tool call and every update that follows it. */
 function makeKiroCloudConfigFilter() {
   const running = new Set<string>();
   return (notification: EffectAcpSchema.SessionNotification): boolean => {
@@ -415,7 +366,6 @@ const decodeKiroSteeringInfo = Schema.decodeUnknownOption(
   Schema.Struct({ kiro: Schema.Struct({ kind: Schema.String }) }),
 );
 
-/** Length of the longest end of `text` that could still grow into the steering note. */
 function steeringNotePrefixLength(text: string): number {
   for (let length = Math.min(text.length, KIRO_STEERING_NOTE.length - 1); length > 0; length -= 1) {
     if (KIRO_STEERING_NOTE.startsWith(text.slice(-length))) return length;
@@ -423,11 +373,6 @@ function steeringNotePrefixLength(text: string): number {
   return 0;
 }
 
-/**
- * After an injected steer, Kiro's model ends its reply with a `[STEERING steer-…: …]`
- * note meant for Kiro's own UI. This drops it from the streamed text, holding back a
- * chunk end that may be the start of the note until the next chunk shows otherwise.
- */
 function makeKiroSteeringNoteFilter() {
   const sessions = new Map<string, { held: string; inNote: boolean }>();
   return (
@@ -488,11 +433,6 @@ const decodeKiroSubagentInput = Schema.decodeUnknownOption(
   Schema.Struct({ name: Schema.String, prompt: Schema.String }),
 );
 
-/**
- * Kiro runs sub-agents inside the parent's session: frames from an
- * `invoke_sub_agent` call carry `_meta.kiro.agentSubtaskId`, and routing them
- * to that id as their session gives the shared adapter the child to project.
- */
 function normalizeKiroSessionUpdate(
   notification: EffectAcpSchema.SessionNotification,
 ): EffectAcpSchema.SessionNotification {
@@ -503,7 +443,6 @@ function normalizeKiroSessionUpdate(
     : notification;
 }
 
-/** The `invoke_sub_agent` call; it completes with the sub-agent's final response. */
 function extractKiroSubagentUpdate(tool: AcpToolCallState): AcpAdapterV2SubagentUpdate | undefined {
   const subtask = decodeKiroAgentSubtask(tool.data.meta);
   if (Option.isNone(subtask) || subtask.value.kiro.kind !== "agent-subtask") return undefined;
@@ -521,12 +460,6 @@ function extractKiroSubagentUpdate(tool: AcpToolCallState): AcpAdapterV2Subagent
   };
 }
 
-/**
- * Kiro's prompt errors carry a message meant for the user (live 2.27: -32000
- * "The model 'x' is not available. Please select a different model and try
- * again. (Request ID: …)"). Show it instead of the generic failure text;
- * makeProviderFailure bounds and redacts it.
- */
 function kiroPromptFailure(cause: unknown) {
   return makeProviderFailure({
     cause,
@@ -551,9 +484,6 @@ function makeKiroAcpAdapterFlavor(options: KiroAdapterV2Options): AcpAdapterV2Fl
     driver: KIRO_PROVIDER,
     runtimeHarness: "Kiro",
     capabilities: KiroProviderCapabilitiesV2,
-    // Kiro V3 loads the user's hooks only when the client opts in. `v2` makes
-    // Kiro run them itself; `enabled` alone hands them to the client as
-    // `_kiro/hooks/*` requests, which Supaterm does not answer.
     clientCapabilitiesMeta: { kiro: { hooks: { enabled: true, v2: true } } },
     makeRuntime,
     promptFailure: kiroPromptFailure,
@@ -561,29 +491,20 @@ function makeKiroAcpAdapterFlavor(options: KiroAdapterV2Options): AcpAdapterV2Fl
     normalizeSessionUpdate: (notification) =>
       stripSteeringNote(normalizeKiroSessionUpdate(notification)),
     extractSubagentUpdate: extractKiroSubagentUpdate,
-    // See applyKiroModelSelection: `model` arrives after session/new.
     modelOptionArrivesLate: true,
     applyModelSelection: applyKiroModelSelection(
       options.defaultModel ?? Effect.succeed(KIRO_FALLBACK_DEFAULT_MODEL),
     ),
-    // The generic option loop runs after the model write, and an agent write
-    // there would put the agent's own model back.
     ownedModelOptionIds: ["reasoningEffort", KIRO_AGENT_CONFIG_ID],
-    // With Autopilot off (Supervised) Kiro asks the user to accept a turn's
-    // changes before it ends. Supaterm's runtime policy answers its per-tool prompts
-    // either way, and a runtime-mode change reopens the session to reapply it.
     sessionConfigForPolicy: (policy) => [
       { id: KIRO_AUTOPILOT_CONFIG_ID, value: kiroAutopilotValue(policy) },
     ],
-    // See isKiroPromptActivity: Kiro 2.27.1 can drop a cancel sent just after
-    // `session/prompt` and run the turn to completion.
     cancelAfterPromptStarts: { isStart: isKiroPromptActivity, bound: KIRO_CANCEL_HOLD_BOUND },
     permissionDisposition: kiroPermissionDisposition,
     approvalOptions: kiroApprovalOptions,
     compactSession: kiroCompactSession,
     steering: kiroSteering,
     forkFromTurn: kiroForkFromTurn,
-    // Kiro V3 advertises `promptCapabilities.image`; the shared adapter reads it.
     ...(options.assertComplete === undefined ? {} : { assertComplete: options.assertComplete }),
   };
 }

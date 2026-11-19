@@ -5,14 +5,10 @@ import { cn, isMacPlatform } from "../lib/utils";
 import { canNavigateHistory, navigateHistory, type HistoryDirection } from "../navigationHistory";
 
 const SWIPE_TRIGGER_DISTANCE = 120;
-// Movement needed before the gesture picks an axis; first events are often diagonal.
 const SWIPE_AXIS_LOCK_DISTANCE = 8;
-// Vertical scrolls drift sideways, so a swipe's horizontal travel must clearly dominate once
-// it has moved far enough for its direction to be more than noise.
 const SWIPE_HORIZONTAL_DOMINANCE = 2;
 const SWIPE_DOMINANCE_DISTANCE = 30;
 const MOMENTUM_SAMPLE_SIZE = 5;
-// Modals and their backdrops, the terminal and browser previews keep horizontal wheel input.
 const SWIPE_EXCLUDED = [
   '[role="dialog"]',
   '[role="alertdialog"]',
@@ -35,7 +31,6 @@ type SwipeGesture =
       y: number;
       bounds: SwipeBounds;
     }
-  // Not a swipe, or one already decided: the rest of its events are ignored.
   | { kind: "ignored" };
 type SwipeIndicatorState = {
   direction: HistoryDirection;
@@ -52,7 +47,6 @@ function readMainContentBounds(): SwipeBounds {
   return { left, top, width, height };
 }
 
-// `event.target` stops at a shadow host; the composed path also reaches scrollers inside it.
 function canScrollHorizontally(path: readonly EventTarget[], deltaX: number): boolean {
   for (const element of path) {
     if (!(element instanceof Element) || element.scrollWidth <= element.clientWidth) continue;
@@ -126,7 +120,6 @@ export function HistorySwipeNavigation() {
     let gesture: SwipeGesture | null = null;
     const hideIndicator = () =>
       setSwipe((current) => (current === null ? null : { ...current, tracking: false }));
-    // The fingers lifted: navigate if the swipe went far enough, then ignore its momentum.
     const release = () => {
       if (gesture?.kind === "tracking" && gesture.distance >= SWIPE_TRIGGER_DISTANCE) {
         navigateHistory(gesture.direction);
@@ -134,7 +127,6 @@ export function HistorySwipeNavigation() {
       gesture = { kind: "ignored" };
       hideIndicator();
     };
-    // Chromium brackets each trackpad scroll, momentum included, with these.
     const unsubscribeScrollBegin = window.desktopBridge?.onTrackpadScrollBegin(() => {
       if (gesture?.kind === "ignored") gesture = null;
     });
@@ -188,7 +180,6 @@ export function HistorySwipeNavigation() {
   return swipe === null ? null : <SwipeIndicator {...swipe} />;
 }
 
-// A circle pinned to the edge of the main content that peeks in up to half its width.
 function SwipeIndicator({ direction, progress, y, bounds, tracking }: SwipeIndicatorState) {
   const armed = progress >= 1;
   const Icon = direction === "back" ? ArrowLeftIcon : ArrowRightIcon;

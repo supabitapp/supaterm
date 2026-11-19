@@ -75,7 +75,6 @@ function ResumeButton(props: {
 it("continues on the resumed thread's model after the composer moves to another thread", async () => {
   const { startedTurn } = setup();
   const settingsPersisted = deferred<AtomCommandResult<void, unknown>>();
-  // ChatView keeps one composer across thread routes, so its ref follows navigation.
   const composerRef: ComposerHandleRef = { current: composerShowing(threadAModel) };
   await using screen = await render(
     <ResumeButton composerRef={composerRef} persistSettings={() => settingsPersisted.promise} />,

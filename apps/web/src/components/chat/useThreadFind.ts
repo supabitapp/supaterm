@@ -30,8 +30,6 @@ export function useThreadFind({
   progressive?: boolean;
   skills?: readonly InlineSkill[];
 }) {
-  // Read here rather than passed in: a streamed delta re-renders only the find
-  // provider, which refreshes open results from it.
   const content = useThreadProjection(enabled ? thread : null)?.projection;
   const lastContentRef = useRef(content);
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -85,7 +83,6 @@ export function useThreadFind({
         : null,
     findNavigationId: navigationId,
   };
-  // Keep timeline identity stable during count and response updates to avoid extra jumps.
   const [storedTimeline, setTimeline] = useState(nextTimeline);
   let timeline = storedTimeline;
   if (!sameTimeline(timeline, nextTimeline)) {
@@ -151,11 +148,8 @@ export function useThreadFind({
     });
   };
 
-  // Runs from the refresh timer and after a coalesced search settles, against
-  // the results and selection showing by then.
   const refreshLiveResults = useEffectEvent(() => {
     if (!isOpen || !state.query.trim()) return;
-    // Coalesce paging updates while the server counts to avoid restarting scans.
     if (progressive && remote.isPending) {
       refreshAfterSearchRef.current = true;
       return;

@@ -124,7 +124,6 @@ export function observeSelectionActions({
     dismissed = !gestureActive;
   };
   const onPointerUp = (event: PointerEvent) => {
-    // Preventing pointerdown (for example on a toolbar) can suppress mouseup.
     if (event.isPrimary && event.button === 0) pointerDown = false;
   };
   const onMouseUp = (event: MouseEvent) => {
@@ -152,7 +151,6 @@ export function observeSelectionActions({
   };
   const onScroll = () => {
     cancelPending();
-    // Autoscroll during a drag must not cancel that gesture's eventual release.
     if (!pointerDown) {
       pointer = null;
       if (restoreAfterScroll && !dismissed && restorable) schedule(SELECTION_SCROLL_SETTLE_MS);
@@ -186,13 +184,11 @@ export function observeSelectionActions({
         schedule(0);
       }
     },
-    /** A framed document reports its own settled selection; focus moving into it blurred this window. */
     selectionReported() {
       dismissed = false;
       pointer = null;
       schedule(0);
     },
-    /** A scroller outside `element`, such as a dialog, moved the selection. */
     scrolled: onScroll,
     dispose() {
       cancel();

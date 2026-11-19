@@ -1,5 +1,3 @@
-/** Stops a dev server whose process tree outgrows a memory limit, so a leak cannot fill RAM and swap. */
-
 import * as NodeOS from "node:os";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -58,7 +56,6 @@ const readProcessTreeBytes = Effect.fn("DevRunner.readProcessTreeBytes")(functio
   rootPid: number,
 ) {
   const fs = yield* FileSystem.FileSystem;
-  // Processes exit between listing and reading, so each read may fail.
   const read = (path: string) => fs.readFileString(path).pipe(Effect.option);
   const entries = yield* fs.readDirectory("/proc").pipe(Effect.orElseSucceed(() => []));
   const pids = entries.filter((entry) => /^\d+$/.test(entry));

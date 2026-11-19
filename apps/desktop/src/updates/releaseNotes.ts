@@ -87,7 +87,6 @@ function isIgnoredReleaseNoteLine(line: string): boolean {
     normalized === "whats changed" ||
     normalized.startsWith("compare: ") ||
     normalized.includes("/compare/") ||
-    // The feed's HTML footer loses its compare URL to stripMarkup, leaving only the range.
     /^full changelog: \S+\.\.\.\S+$/.test(normalized)
   );
 }
@@ -99,10 +98,6 @@ interface ExtractedReleaseNoteItems {
   readonly stats?: string;
 }
 
-/**
- * Reads a generated summary (`scripts/generate-release-notes.ts`): a `v1.2.3 · N changes…`
- * header, a highlights paragraph, and fix bullets. PR numbers are left to the GitHub page.
- */
 function extractReleaseNoteSummary(summary: string): ExtractedReleaseNoteItems {
   let stats: string | undefined;
   const intro: string[] = [];
@@ -132,7 +127,6 @@ function extractReleaseNoteSummary(summary: string): ExtractedReleaseNoteItems {
 function extractReleaseNoteItems(note: string | null | undefined): ExtractedReleaseNoteItems {
   if (!note) return { items: [], totalItems: 0 };
 
-  // Generated summaries fold GitHub's full list under this exact <details> block.
   const summaryEnd = note.search(/<details>\s*<summary>\s*Full changelog\s*<\/summary>/i);
   if (summaryEnd >= 0) return extractReleaseNoteSummary(note.slice(0, summaryEnd));
   const items: string[] = [];
@@ -154,7 +148,6 @@ function extractReleaseNoteItems(note: string | null | undefined): ExtractedRele
   return { items: items.toReversed(), totalItems };
 }
 
-// The update feed dates only the offered version; prerelease versions carry their UTC build day.
 const PRERELEASE_BUILD_DAY = /-(?:nightly|preview)\.(\d{4})(\d{2})(\d{2})\.\d+$/;
 
 function resolveReleasedAt(version: string, offeredVersion: string, releaseDate?: string) {

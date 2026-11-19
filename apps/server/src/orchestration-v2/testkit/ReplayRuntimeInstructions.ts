@@ -22,22 +22,15 @@ export function materializeReplayTranscriptRuntimeInstructions(
                 : undefined;
   if (harness === undefined) return transcript;
   const instructions = buildRuntimeInstructions({ harness, model: runtime.model });
-  // The notes name the model, so each prompt expects the ones for its session's current model.
   const sessionModels = new Map<unknown, string>();
   const notesFor = (sessionId: unknown) => {
     const model = sessionModels.get(sessionId) ?? runtime.model;
     return model === runtime.model ? instructions : buildRuntimeInstructions({ harness, model });
   };
-  // Grok's flavor sets `supportsCompaction`; Kiro compacts through its own request instead.
   const compactsThroughPrompt = runtime.driver === "grok";
-  // Like the adapter: notes go out until a prompt carrying that text succeeds, and a new runtime
-  // or compaction resets that. Not mirrored, as no recording has them: Copilot compaction events,
-  // child-session compactions, and ACP v2 prompts that settle through an idle `state_update`.
   const deliveredNotes = new Map<unknown, string>();
-  // A prompt's success records delivery only if no compaction completed after it was sent.
   const compactionCounts = new Map<unknown, number>();
   const completedCompactionIds = new Set<string>();
-  // A turn that completes with a compaction still open projects it as completed.
   const openCompactions = new Map<unknown, Set<unknown>>();
   const markCompacted = (sessionId: unknown, compactionId?: unknown) => {
     if (typeof compactionId === "string") {
@@ -51,7 +44,6 @@ export function materializeReplayTranscriptRuntimeInstructions(
   let pendingPrompt:
     | {
         readonly sessionId: unknown;
-        /** The runtime notes the prompt carried, if any. */
         readonly notes: string | undefined;
         readonly compact: boolean;
         readonly compactionsAtSend: number;
@@ -92,7 +84,6 @@ export function materializeReplayTranscriptRuntimeInstructions(
           frame.method === "_kiro/session/compact" &&
           pendingKiroCompact
         ) {
-          // Kiro's adapter accepts only `{ success: true }`.
           if (isRecord(frame.result) && frame.result.success === true) {
             markCompacted(pendingKiroCompact.sessionId);
           }
@@ -181,7 +172,6 @@ export function materializeReplayTranscriptRuntimeInstructions(
         "method" in frame &&
         (frame.method === "session/close" || frame.method === "initialize")
       ) {
-        // A closed or restarted session comes back in a new runtime, which resends the instructions.
         deliveredNotes.clear();
         completedCompactionIds.clear();
         openCompactions.clear();
@@ -210,7 +200,6 @@ export function materializeReplayTranscriptRuntimeInstructions(
         frame.params !== null &&
         "sessionId" in frame.params
       ) {
-        // Once it succeeds, Kiro's native compaction makes the next prompt resend them.
         pendingKiroCompact = { sessionId: frame.params.sessionId };
         return entry;
       }
@@ -226,8 +215,6 @@ export function materializeReplayTranscriptRuntimeInstructions(
         const promptSessionId = "sessionId" in frame.params ? frame.params.sessionId : undefined;
         const prompt: ReadonlyArray<unknown> = frame.params.prompt;
         const firstText = promptPartText(prompt[0])?.trim();
-        // Like the adapter, native slash commands go out without instructions. Where the agent
-        // compacts through the prompt, a successful `/compact` makes the next prompt resend them.
         if (firstText?.startsWith("/") === true) {
           pendingPrompt = {
             sessionId: promptSessionId,
@@ -240,8 +227,6 @@ export function materializeReplayTranscriptRuntimeInstructions(
         }
         const lastText = promptPartText(prompt.at(-1));
         const expected = notesFor(promptSessionId);
-        // A recording that switched models mid-thread already carries the
-        // instructions for the model each prompt ran on.
         const recordedNotes =
           lastText === expected || lastText?.startsWith("<runtime_info>") === true
             ? lastText
@@ -250,7 +235,6 @@ export function materializeReplayTranscriptRuntimeInstructions(
           recordedNotes === undefined && deliveredNotes.get(promptSessionId) !== expected;
         pendingPrompt = {
           sessionId: promptSessionId,
-          // Recorders normalize the notes they keep, so a recorded block stands for this model's.
           notes: recordedNotes !== undefined || resend ? expected : undefined,
           compact: false,
           compactionsAtSend: compactionCounts.get(promptSessionId) ?? 0,

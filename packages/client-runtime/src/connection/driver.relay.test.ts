@@ -158,7 +158,6 @@ const connectWithRealResolver = Effect.fnUntraced(function* (
       () => Effect.void,
     );
     const gateway = yield* RelayGateway.RelayGateway;
-    // A tunnel released when selection ended has to be opened again.
     yield* Effect.promise(() => gateway.resolve(relayAddress));
     return { target: lease.prepared.target, opens, offered };
   }).pipe(

@@ -41,7 +41,6 @@ export const orchestrationEffectQueueWait = Metric.timer(
   },
 );
 
-// OTLP carries the unit, and Prometheus names the series by it: a unitless gauge gains `_ratio`.
 export const serverResidentBytes = Metric.gauge("supaterm_server_resident_bytes", {
   description: "Resident memory of the server process.",
   attributes: { unit: "By" },
@@ -114,41 +113,38 @@ export interface WithMetricsOptions {
   ) => Readonly<Record<string, unknown>>;
 }
 
-const recordMetrics =
-  /* Instrumentation must not create its own span for every recorded operation. */
-  Effect.fnUntraced(function* (
-    options: WithMetricsOptions,
-    startedAt: bigint,
-    exit: Exit.Exit<unknown, unknown>,
-  ) {
-    const duration = Duration.nanos((yield* Clock.monotonicTimeNanos) - startedAt);
-    const baseAttributes =
-      typeof options.attributes === "function" ? options.attributes() : (options.attributes ?? {});
+const recordMetrics = Effect.fnUntraced(function* (
+  options: WithMetricsOptions,
+  startedAt: bigint,
+  exit: Exit.Exit<unknown, unknown>,
+) {
+  const duration = Duration.nanos((yield* Clock.monotonicTimeNanos) - startedAt);
+  const baseAttributes =
+    typeof options.attributes === "function" ? options.attributes() : (options.attributes ?? {});
 
-    if (options.timer) {
-      yield* Metric.update(
-        Metric.withAttributes(options.timer, metricAttributes(baseAttributes)),
-        duration,
-      );
-    }
+  if (options.timer) {
+    yield* Metric.update(
+      Metric.withAttributes(options.timer, metricAttributes(baseAttributes)),
+      duration,
+    );
+  }
 
-    if (options.counter) {
-      const outcome = outcomeFromExit(exit);
-      yield* Metric.update(
-        Metric.withAttributes(
-          options.counter,
-          metricAttributes({
-            ...baseAttributes,
-            outcome,
-            ...(options.outcomeAttributes ? options.outcomeAttributes(outcome) : {}),
-          }),
-        ),
-        1,
-      );
-    }
-  });
+  if (options.counter) {
+    const outcome = outcomeFromExit(exit);
+    yield* Metric.update(
+      Metric.withAttributes(
+        options.counter,
+        metricAttributes({
+          ...baseAttributes,
+          outcome,
+          ...(options.outcomeAttributes ? options.outcomeAttributes(outcome) : {}),
+        }),
+      ),
+      1,
+    );
+  }
+});
 
-// Monotonic timing ignores clock corrections; exit finalizers count interruptions.
 const withMetricsImpl = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options: WithMetricsOptions,
@@ -164,7 +160,6 @@ export const withMetrics: {
   <A, E, R>(effect: Effect.Effect<A, E, R>, options: WithMetricsOptions): Effect.Effect<A, E, R>;
 } = dual(2, withMetricsImpl);
 
-// Shaped as an `Effect.fn` combinator: the command is the instrumented function's argument.
 export const withCommandMetrics = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   command: { readonly type: string },

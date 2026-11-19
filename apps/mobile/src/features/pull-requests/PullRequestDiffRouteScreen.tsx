@@ -108,7 +108,6 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     (detail.data ?? route.params.initialSummary)?.provider,
   ).changeRequest;
   const result = usePullRequestDiff(route.params, terminology);
-  // Other screens open files with the link's params spread in; only the link's own entry follows it.
   const linkAnchor =
     route.params.path === "" &&
     (route.params.commit ?? null) === pullRequestLinkCommit(route.params.navigationUrl)
@@ -240,7 +239,6 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
   }
   const requestedFileId =
     (jumpPath ? data.files.find((file) => file.path === jumpPath)?.id : null) ?? null;
-  // A linked file must stay open if its Viewed response arrives after the first native draw.
   if (requestedFileId !== revealedFileId) {
     setRevealedFileId(requestedFileId);
     if (requestedFileId)
@@ -252,9 +250,6 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     .map((file) => file.id);
   const [visibleFileId, setVisibleFileId] = useState<string | null>(null);
   const nativeView = useRef<NativeReviewDiffViewHandle>(null);
-  // The filter the current jump was made under. Hiding or showing test files replaces the rows,
-  // so a jump made under the other filter has to run again. Native applies the entry
-  // destination before its first viewport, so the first one counts as made.
   const jumpedUnder = useRef<boolean | null>(targetFile ? filter.hideTestFiles : null);
   const hasTestFiles =
     result.parsed.kind === "files" &&
@@ -269,7 +264,6 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     });
   };
   const jumpScope = pullRequestFileJumpScope(route.params);
-  // Each sheet selection jumps in this reader, including reselecting its original file.
   const jumpToFile = useEffectEvent((path: string) => {
     if (route.params.focus) navigation.setParams({ focus: undefined });
     setJumpPath(path);
@@ -280,8 +274,6 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     setFoldChoices((current) => withFileDiffFold(current, file.id, false));
     scrollToFile(file.id);
   });
-  // Subscribed for the whole screen, so a pick made while the diff is still loading is kept for
-  // the first draw.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to file jumps picked in the files sheet for this pull request's scope
   useEffect(() => subscribePullRequestFileJump(jumpScope, (path) => jumpToFile(path)), [jumpScope]);
   const { nativeReviewDiffStyle } = useAppearanceCodeSurface();
@@ -297,7 +289,6 @@ function PullRequestFileRouteContent({ route }: PullRequestFileRouteProps) {
     canHighlight: true,
   });
   const [NativeDiffView] = useState(() => resolveNativeReviewDiffView());
-  // A file picked from a later page must be fetched before we can jump to its header.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fetches the next diff page while the picked target file has not loaded yet
   useEffect(() => {
     if (!targetFile) loadMore();

@@ -2,30 +2,18 @@ import { BOLT_CELLS, thinkingLevel } from "@supaterm/shared/boltFace";
 
 import { LAUNCH_ICON_LEDS } from "./LaunchIconLeds.generated.ts";
 
-// Pixels this far apart in the two renders are resampling noise, not LED light.
 const LIGHT_THRESHOLD = 8;
-// In LED pitches: sharp enough that a sparking LED owns its cell, wide enough
-// that the glow between two LEDs blends them.
 const SPREAD = 0.35;
 const falloff = (distanceSquared: number) => Math.exp(-distanceSquared / (2 * SPREAD * SPREAD));
-// Glow a full pitch from every LED, out in the screen's bloom, follows the bolt as a whole.
 const MEAN_WEIGHT = falloff(1);
 
-// While thinking, a rainbow runs down the bolt: one turn of hue per period,
-// spread over this many cells along the diagonal.
 const HUE_PERIOD_SECONDS = 2.4;
 const HUE_WAVELENGTH_CELLS = 14;
-// At Dock size the studio's dim thinking face reads as an unlit icon, so LEDs
-// dim only this share of the way, and the rainbow is this much more saturated
-// than a plain turn of the bolt's own hue.
 const DIMMING = 0.4;
 const SATURATION = 2;
 const hueAt = (column: number, row: number, t: number) =>
   2 * Math.PI * (t / HUE_PERIOD_SECONDS - (column + row) / HUE_WAVELENGTH_CELLS);
 
-// CSS's hue-rotate(θ) is LUMA + cos θ · COS + sin θ · SIN, row-major over RGB,
-// and saturate(s) after it scales the COS and SIN terms by s. Both keep
-// luminance, and grey light stays grey.
 const LUMA = [0.213, 0.715, 0.072, 0.213, 0.715, 0.072, 0.213, 0.715, 0.072];
 const COS = [0.787, -0.715, -0.072, -0.213, 0.285, -0.072, -0.213, -0.715, 0.928];
 const SIN = [-0.213, -0.715, 0.928, 0.143, 0.14, -0.283, -0.787, 0.715, 0.072];
@@ -85,8 +73,6 @@ export function makeLaunchIconFrames(
 
   const output = new Uint8ClampedArray(icon);
   const frame = Buffer.from(output.buffer, output.byteOffset, output.byteLength);
-  // Each LED's brightness, and that brightness carried on cos θ and sin θ of its
-  // hue turn, so a pixel blends its LEDs' rotations by blending three sums.
   const levels = new Float64Array(BOLT_CELLS.length);
   const cosines = new Float64Array(BOLT_CELLS.length);
   const sines = new Float64Array(BOLT_CELLS.length);

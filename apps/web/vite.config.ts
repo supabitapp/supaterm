@@ -26,7 +26,6 @@ import { warmBundledDevPlugin } from "./vite/warmBundledDev";
 
 Object.assign(process.env, loadRepoEnv());
 
-// Signal single-origin dev explicitly; loadRepoEnv can restore deleted URL keys from .env.
 const isSingleOriginDev = process.env.SUPATERM_SINGLE_ORIGIN_DEV === "1";
 
 const port = Number(process.env.PORT ?? 5733);
@@ -44,16 +43,11 @@ const configuredDesktopUpdateRepository =
 const configuredHostedAppUrl = process.env.VITE_HOSTED_APP_URL?.trim() || undefined;
 const sourcemapEnv = process.env.SUPATERM_WEB_SOURCEMAP?.trim().toLowerCase();
 
-// `vp run dev --share --built` rebuilds on every change. The license manifest
-// is about 2 s of each build, and nothing in that mode reads it.
 const builtDev = process.env.SUPATERM_BUILT_DEV === "1";
 
 const bundledDevEnv = process.env.SUPATERM_BUNDLED_DEV?.trim().toLowerCase();
 const bundledDev = bundledDevEnv === "1" || bundledDevEnv === "true";
 
-// Bundled dev and `build --watch` pass Rolldown `exclude` but not Vite's default `ignored`, so
-// they watch node_modules. Those files are pnpm-store hardlinks shared by every worktree, so each
-// `vp i` or worktree removal elsewhere rebuilds every long-running server and leaks native memory.
 const rolldownWatchExclude = [/[\\/]node_modules[\\/]/];
 
 const buildSourcemap: boolean | "hidden" =
@@ -78,13 +72,10 @@ const unitTestProject = {
   },
 } satisfies TestProjectInlineConfiguration;
 
-// Hash checkout paths to ports 20000-23999; Vitest's fixed port collides under inherited strictPort.
-// Stay below ephemeral ranges: Windows reserves Hyper-V/WSL blocks there and EACCES is not skipped.
 const browserTestApiPort = 20_000 + ((Hash.string(import.meta.dirname) >>> 0) % 4_000);
 
 const browserTestProject = {
   extends: true,
-  // Pre-bundle lazy browser and worker dependencies to avoid mid-run reloads.
   optimizeDeps: {
     include: [
       "vite-plus/test/browser",
@@ -123,8 +114,6 @@ const browserTestProject = {
       instances: [{ browser: "chromium" }],
       screenshotFailures: false,
       commands: {
-        // Playwright's mouse outlives each test, so whatever mounts under its last
-        // position starts hovered. test/browserSetup.ts parks it off the page before each test.
         resetPointer: async ({ page }) => {
           await page.mouse.move(-1, -1);
         },
@@ -133,21 +122,17 @@ const browserTestProject = {
   },
 } satisfies TestProjectInlineConfiguration;
 
-// Render scenarios count React commits; they run only through scripts/render-metrics.ts,
-// which reads the per-scenario reports this command writes.
 const renderScenariosProject = {
   ...browserTestProject,
   test: {
     ...browserTestProject.test,
     name: "renders",
     include: ["test/*.renders.tsx"],
-    // App scenarios mount the whole app per test, which outlasts 15s on a loaded machine.
     hookTimeout: 60_000,
     testTimeout: 60_000,
     setupFiles: ["./test/renderCounter.ts", ...browserTestProject.test.setupFiles],
     browser: {
       ...browserTestProject.test.browser,
-      // Vitest names each instance in place, so a shared array would clash with the browser project.
       instances: [{ browser: "chromium" }],
       commands: {
         ...browserTestProject.test.browser.commands,
@@ -170,7 +155,6 @@ function resolveDevProxyTarget(
     return `http://localhost:${port}/`;
   }
 
-  // dev:desktop connects directly to the backend; derive its target from the explicit WebSocket URL.
   if (!wsUrl) {
     return undefined;
   }
@@ -193,7 +177,6 @@ function resolveDevProxyTarget(
 
 const devProxyTarget = resolveDevProxyTarget(process.env.SUPATERM_PORT, configuredWsUrl);
 
-// Brotli quality 5 encodes in hundreds of ms; default quality 11 would replace transfer stalls with encode stalls.
 function devCompressionPlugin(): Plugin {
   return {
     name: "supaterm:dev-compression",
@@ -208,8 +191,6 @@ function devCompressionPlugin(): Plugin {
   };
 }
 
-// A static import cycle between chunks can run a chunk before the values it imports exist,
-// which blanks the app at boot. Fail the build instead of shipping it.
 function chunkCycleGuardPlugin(): Plugin {
   return {
     name: "supaterm:chunk-cycle-guard",
@@ -232,8 +213,6 @@ function chunkCycleGuardPlugin(): Plugin {
   };
 }
 
-// Bundled dev never evicts emitted files from memory (vitejs/vite#23781), so hashed names keep
-// a copy of every changed chunk from every rebuild. Fixed names overwrite the previous copy.
 function bundledDevStableNamesPlugin(): Plugin {
   return {
     name: "supaterm:bundled-dev-stable-names",
@@ -246,7 +225,6 @@ function bundledDevStableNamesPlugin(): Plugin {
   };
 }
 
-// Allow Tailnet hosts for sharing; Tailscale-controlled DNS prevents attacker rebinding.
 const configuredAllowedHosts = (process.env.SUPATERM_DEV_ALLOWED_HOSTS ?? "")
   .split(",")
   .map((entry) => entry.trim())
@@ -254,8 +232,6 @@ const configuredAllowedHosts = (process.env.SUPATERM_DEV_ALLOWED_HOSTS ?? "")
 const allowedHosts = [".ts.net", ...configuredAllowedHosts];
 
 export default defineConfig(({ command }) => {
-  // `vp dev` and `--built` dev pair this client with a server run from source, which reports the
-  // manifest version. Only a production build is paired with a packed server.
   const configuredAppVersion =
     process.env.APP_VERSION?.trim() ||
     (command === "build" && !builtDev
@@ -264,7 +240,6 @@ export default defineConfig(({ command }) => {
   return {
     run: {
       tasks: {
-        // tsc (tsc-rs) rewrites the tsbuildinfo it reads, which keeps a task out of the cache.
         typecheck: {
           command: "tsc --noEmit",
           cache: { input: [{ auto: true }, "!*.tsbuildinfo"] },
@@ -306,7 +281,6 @@ export default defineConfig(({ command }) => {
     },
     define: {
       "import.meta.env.VITE_WS_URL": JSON.stringify(configuredWsUrl ?? ""),
-      // Override .env URLs with empty values in single-origin dev so clients use window.location.origin.
       "import.meta.env.VITE_HTTP_URL": JSON.stringify(configuredHttpUrl ?? ""),
       "import.meta.env.VITE_HOSTED_APP_URL": JSON.stringify(configuredHostedAppUrl ?? ""),
       "import.meta.env.VITE_HOSTED_APP_CHANNEL": JSON.stringify(configuredHostedAppChannel),
@@ -334,15 +308,12 @@ export default defineConfig(({ command }) => {
       port,
       strictPort: true,
       allowedHosts,
-      // Warm the module graph before first request to avoid serial import transforms over tailnet.
-      // Bundled dev ignores this; warmBundledDevPlugin handles it there.
       warmup: {
         clientFiles: ["./src/main.tsx"],
       },
       watch: { exclude: rolldownWatchExclude },
       ...(devProxyTarget
         ? {
-            // Share prefixes with the backend catch-all so the proxy and 404 lists cannot drift.
             proxy: Object.fromEntries(
               DEV_PROXIED_PATH_PREFIXES.map((prefix) => [
                 prefix,
@@ -355,7 +326,6 @@ export default defineConfig(({ command }) => {
             ),
           }
         : {}),
-      // Electron needs an explicit HMR host; elsewhere derive it from page origin for Tailscale/LAN.
       ...(explicitHost
         ? {
             hmr: {
@@ -366,7 +336,6 @@ export default defineConfig(({ command }) => {
           }
         : {}),
     },
-    // Tailwind needs devSourcemap to avoid Rolldown SOURCEMAP_BROKEN on sourcemapped builds.
     css: {
       devSourcemap: buildSourcemap !== false,
     },
@@ -379,7 +348,6 @@ export default defineConfig(({ command }) => {
       ...(builtDev ? { watch: { exclude: rolldownWatchExclude } } : {}),
       rolldownOptions: {
         output: {
-          // PDF.js resolves decoder modules and ICC data relative to wasmUrl.
           assetFileNames: (asset) =>
             asset.originalFileNames.some((path) => /[/\\]pdfjs-dist[/\\]wasm[/\\]/.test(path))
               ? `assets/pdfjs-${pdfjsPkg.version}/[name][extname]`

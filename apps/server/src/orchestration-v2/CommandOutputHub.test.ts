@@ -341,7 +341,6 @@ layer("CommandOutputHub", (it) => {
       const frames = yield* subscribeFrames(threadId);
       yield* takeFrame(frames);
       yield* TestClock.adjust("1 second");
-      // Some providers omit stopped-command output; the live tail is released before the settled item persists.
       yield* hub.finish({ threadId, itemId: ITEM_ID });
       yield* writeCommandItem(threadId, { status: "interrupted" });
       const final = yield* takeFrame(frames);

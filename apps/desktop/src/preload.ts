@@ -35,7 +35,6 @@ function isSnapShotEvent(value: unknown): value is DesktopSnapShotEvent {
 const clientPlatform = process.platform;
 
 if (clientPlatform === "darwin") {
-  // Native buttons ignore Chromium zoom; reserve native points even after reload.
   const syncWindowControlInset = () => {
     document.documentElement.style.setProperty(
       "--desktop-window-controls-inset",
@@ -54,13 +53,11 @@ function isRelayViaChange(value: unknown): value is DesktopRelayViaChange {
 
 const syncHtmlFullscreen = () => {
   const element = document.fullscreenElement;
-  // A preview guest's fullscreen surfaces here as its <webview>, which stays inside the window.
   void ipcRenderer.invoke(
     IpcChannels.SYNC_HTML_FULLSCREEN_CHANNEL,
     element !== null && element.tagName !== "WEBVIEW",
   );
 };
-// A reload or renderer crash never reports the old document's exit, so each document reports its start.
 syncHtmlFullscreen();
 document.addEventListener("fullscreenchange", syncHtmlFullscreen);
 
@@ -71,7 +68,6 @@ try {
 } catch {}
 
 if (!primaryPasteEnabled) {
-  // Blink pastes the PRIMARY selection on a middle-click mouseup unless it is default-prevented.
   window.addEventListener(
     "mouseup",
     (event) => {

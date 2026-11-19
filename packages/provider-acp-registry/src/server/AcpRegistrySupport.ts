@@ -53,15 +53,11 @@ const ACP_REGISTRY_URL = "https://cdn.agentclientprotocol.com/registry/v1/latest
 const MAX_REGISTRY_BYTES = 1024 * 1024;
 const MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024;
 const MAX_COMMAND_OUTPUT_BYTES = 1024 * 1024;
-// Install errors become the provider status message; npm and uv print the actionable error last.
 const MAX_COMMAND_ERROR_TAIL_CHARS = 1_000;
-// Archive listings can exceed the output of package-manager commands.
 const MAX_ARCHIVE_LISTING_BYTES = 64 * 1024 * 1024;
 const MAX_PACKAGE_MANIFEST_BYTES = 1024 * 1024;
-// Older clients omit the limit and validate responses against a 20-agent cap.
 const DEFAULT_SEARCH_LIMIT = 20;
 const REGISTRY_REQUEST_TIMEOUT = "30 seconds";
-// Searches reuse an index fetched this recently; prepare always fetches the latest.
 const REGISTRY_SEARCH_MAX_AGE_MS = 5 * 60 * 1_000;
 const ARCHIVE_REQUEST_TIMEOUT = "20 minutes";
 const PACKAGE_INSTALL_TIMEOUT = "20 minutes";
@@ -72,7 +68,6 @@ const BoundedAgentId = Schema.String.check(
   Schema.isPattern(/^[a-z0-9][a-z0-9._-]*$/u),
 );
 const BoundedName = TrimmedNonEmptyString.check(Schema.isMaxLength(160));
-// Versions become install directory names, so "." and ".." must not decode.
 const BoundedVersion = TrimmedNonEmptyString.check(
   Schema.isMaxLength(128),
   Schema.isPattern(/^[A-Za-z0-9][A-Za-z0-9._+-]*$/u),
@@ -253,7 +248,6 @@ function resolveAcpRegistryPlatformTargetCandidates(
   platformTarget: AcpRegistryPlatformTarget | undefined,
 ): ReadonlyArray<AcpRegistryPlatformTarget> {
   if (platformTarget === undefined) return [];
-  // Windows 11 ARM can emulate x86_64 binaries when no native build exists.
   if (platformTarget === "windows-aarch64") {
     return ["windows-aarch64", "windows-x86_64"];
   }
@@ -669,11 +663,9 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
       : path.join(packageInstallRoot(agent, distribution), "bin");
   const packageReceiptsDirectory = path.join(registryDirectory, "package-installs");
   const registryRef = yield* Ref.make<AcpRegistryIndex | undefined>(undefined);
-  // When the network last served registryRef; unset while it holds the disk cache.
   const registryFetchedAtMs = yield* Ref.make<number | undefined>(undefined);
   const registryRevision = yield* Ref.make(0);
   const registrySemaphore = yield* Semaphore.make(1);
-  // Long installs must only block operations on the same agent.
   const installPermits = new Map<string, Semaphore.Semaphore>();
   const withInstallPermit = (agentId: string) => {
     const permit = installPermits.get(agentId) ?? Semaphore.makeUnsafe(1);
@@ -690,7 +682,6 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
     const target = path.isAbsolute(linkedTarget.value)
       ? linkedTarget.value
       : path.resolve(path.dirname(runner), linkedTarget.value);
-    // Wrapper symlinks may identify the toolchain bin directory; npm-cli.js points inside npm instead.
     return path.basename(target) === path.basename(runner)
       ? path.dirname(target)
       : path.dirname(runner);
@@ -891,7 +882,6 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
     const current = yield* Ref.get(registryRef);
     const fetchedAtMs = yield* Ref.get(registryFetchedAtMs);
     const now = yield* Clock.currentTimeMillis;
-    // A clock moved back makes the stamp untrustworthy, so it counts as stale.
     if (
       current !== undefined &&
       fetchedAtMs !== undefined &&
@@ -961,7 +951,6 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
           detail: `ACP Registry install command '${command}' exited with code ${Number(exitCode)}: ${stderr.trim()}`,
         });
       }
-      // Truncated listings would bypass archive traversal validation.
       if (stdout.truncated) {
         return yield* new AcpRegistryError({
           reason: options.truncatedOutputReason ?? "archive_invalid",
@@ -1366,7 +1355,6 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
         detail: "ACP Registry archive command resolves outside its installation directory.",
       });
     }
-    // chmod follows symlinks, so only change the mode once the real path is known to be inside.
     if (options?.makeExecutable && platform !== "win32") {
       yield* fileSystem.chmod(executableRealPath, 0o755);
     }
@@ -1506,7 +1494,6 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
             ),
         }),
       );
-      // Stream hashes to avoid buffering large archives; Effect Crypto requires a whole buffer.
       const hash = sha256.create();
       let downloadedBytes = 0;
       yield* response.stream.pipe(
@@ -1703,7 +1690,6 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
       const agent = yield* findAgent(registry, input.agentId);
       const distribution = yield* compatibleDistribution(agent, "auto");
       if (distribution.kind === "binary") {
-        // Only explicit command overrides may use PATH copies with different ACP capabilities.
         yield* withInstallPermit(agent.id)(
           installBinary(agent, distribution.binaryTarget!).pipe(
             Effect.tap(() => reservePreparedBinary(agent.id)),
@@ -1797,7 +1783,6 @@ export const makeAcpRegistryCatalog = Effect.fn("AcpRegistryCatalog.make")(funct
             const exists = yield* fileSystem
               .exists(paths.executablePath)
               .pipe(Effect.orElseSucceed(() => false));
-            // Any prepared version keeps the agent ready; resolve installs the current one on demand.
             if (!exists && !(yield* hasInstalledBinaryVersion(agent.id))) {
               return {
                 status: "unprepared",

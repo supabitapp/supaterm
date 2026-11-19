@@ -25,7 +25,6 @@ export const restart = Effect.fn("ElectronAudio.restart")(function* () {
             metric.type === "Utility" && metric.serviceName === "audio.mojom.AudioService",
         );
       if (!audio) return Promise.resolve(false);
-      // A failed PulseAudio context survives new getUserMedia calls; Chromium reconnects when its utility exits.
       pendingRestart = new Promise<boolean>((resolve, reject) => {
         const cleanup = () => {
           clearTimeout(timer);

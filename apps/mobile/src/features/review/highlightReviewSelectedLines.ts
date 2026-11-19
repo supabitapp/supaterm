@@ -87,7 +87,6 @@ export function highlightReviewSelectedLines(input: {
     return {};
   }
 
-  // Deleted and added lines each read as their own continuous source.
   const language = resolveHighlightLanguage({ path: input.filePath });
   const deletionLines = input.lines.filter((line) => line.change === "delete");
   const additionLikeLines = input.lines.filter((line) => line.change !== "delete");

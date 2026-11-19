@@ -16,7 +16,6 @@ function readViewerSize() {
 
 let viewerSize: ReturnType<typeof readViewerSize> | null = null;
 
-// Cached so an unchanged size keeps its identity: a new one resets the zoom.
 function getViewerSize() {
   const next = readViewerSize();
   if (next.width !== viewerSize?.width || next.height !== viewerSize.height) viewerSize = next;
@@ -25,7 +24,6 @@ function getViewerSize() {
 
 function subscribeViewerSize(onChange: () => void) {
   window.addEventListener("resize", onChange);
-  // Fullscreen caption-strip changes may not emit resize.
   const stopOverlayListener = onWindowControlsOverlayGeometryChange(onChange);
   return () => {
     window.removeEventListener("resize", onChange);
@@ -54,7 +52,6 @@ export function ZoomableImage({
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const viewerSize = useSyncExternalStore(subscribeViewerSize, getViewerSize);
   const [zoom, setZoom] = useState(1);
-  // A resized viewer refits the image.
   const [zoomViewerSize, setZoomViewerSize] = useState(viewerSize);
   if (zoomViewerSize !== viewerSize) {
     setZoomViewerSize(viewerSize);
@@ -70,7 +67,6 @@ export function ZoomableImage({
   const suppressClickRef = useRef(false);
   const [dragging, setDragging] = useState(false);
   const maxHeight = Math.max(1, Math.min(viewerSize.height * 0.86, viewerSize.height - 160));
-  // A vector scales without loss, and an SVG without width and height reports a tiny default size.
   const fit = Math.min(
     mimeType === "image/svg+xml" ? Infinity : 1,
     (viewerSize.width * 0.92 - (viewerSize.width >= 640 ? 96 : 0)) / (naturalSize.width || 1),
@@ -85,7 +81,6 @@ export function ZoomableImage({
       pan(key) {
         const viewport = viewportRef.current;
         if (!viewport || zoom <= 1) return false;
-        // A vertical scrollbar alone must not swallow gallery navigation.
         if (
           (key === "ArrowLeft" || key === "ArrowRight") &&
           viewport.scrollWidth <= viewport.offsetWidth
@@ -124,7 +119,6 @@ export function ZoomableImage({
     const anchorY = (viewport.scrollTop + y) / zoom;
     const clientX = bounds.left + x;
     const clientY = bounds.top + y;
-    // The new size must be laid out before the scroll position can keep the anchor in place.
     flushSync(() => setZoom(clamped));
     const resized = viewport.getBoundingClientRect();
     viewport.scrollLeft = anchorX * clamped - (clientX - resized.left);
@@ -133,8 +127,6 @@ export function ZoomableImage({
 
   const attachViewport = (viewport: HTMLDivElement) => {
     viewportRef.current = viewport;
-    // Trackpad pinch arrives as a ctrlKey wheel; plain wheels pan through native overflow scrolling.
-    // React's onWheel is passive and cannot stop the browser's own page zoom.
     const wheel = (event: WheelEvent) => {
       if (!event.ctrlKey || event.deltaY === 0) return;
       event.preventDefault();
@@ -169,7 +161,6 @@ export function ZoomableImage({
           cursor: zoom > 1 ? (dragging ? "grabbing" : "grab") : "zoom-in",
         }}
         onClick={(event) => {
-          // Pointer capture also produces a click after dragging; leave the image zoomed.
           if (suppressClickRef.current || event.detail > 1) return;
           changeZoom(zoom > 1 ? 1 : 2, { x: event.clientX, y: event.clientY });
         }}

@@ -8,7 +8,6 @@ import * as Schema from "effect/Schema";
 
 export const KiroSettings = makeProviderSettingsSchema(
   {
-    // Off by default like Grok: users opt in from Settings.
     enabled: Schema.Boolean.pipe(
       Schema.withDecodingDefault(Effect.succeed(false)),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),

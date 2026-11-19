@@ -55,7 +55,6 @@ describe("createInboxReturnTracker", () => {
     expect(second.returnedAt(thread("a", false))).toBeDefined();
     expect(second.returnedAt(thread("b", false))).toBeUndefined();
     expect(tracker.returnedAt(thread("a", false))).toBe(second.returnedAt(thread("a", false)));
-    // An earlier observation keeps its answer, so lists built from it stay valid.
     expect(held.isWorking(thread("a", false))).toBe(true);
     expect(held.returnedAt(thread("a", false))).toBeUndefined();
   });

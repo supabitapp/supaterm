@@ -49,7 +49,6 @@ const NATIVE_CLI_INSTANCE_ID = ProviderInstanceId.make("nativeCli");
 const OPENCODE_INSTANCE_ID = ProviderInstanceId.make("opencode");
 const encoder = new TextEncoder();
 
-// Pin Linux so raw command/args assertions bypass Windows shim resolution.
 const layerNonWindowsPlatform = Layer.succeed(HostProcess.Platform, "linux");
 
 function lifecycleFor(provider: ProviderDriverKind): ProviderMaintenanceCapabilities {
@@ -261,7 +260,6 @@ const makeTestRunner = (
               refreshInBackground: Effect.void,
             }),
             latestVersions,
-            // Layers memoize by reference, so a test that provides the gate shares it.
             ProviderInstallationGate.layer,
           ),
         ),
@@ -583,7 +581,6 @@ describe("providerMaintenanceRunner", () => {
               update: {
                 command: "codex update",
                 executable: "/bin/sh",
-                // An open pipe here would block a CLI that reads stdin until the update times out.
                 args: ["-c", "[ -c /dev/stdin ] || { echo 'stdin is an open pipe' >&2; exit 1; }"],
                 lockKey: "codex-native",
               },
@@ -591,7 +588,6 @@ describe("providerMaintenanceRunner", () => {
         });
 
         const result = yield* updater.updateProvider(CODEX_DRIVER);
-        // The registry reports no new version, so a command that exits 0 ends as "unchanged".
         assert.strictEqual(
           result.providers[0]?.updateState?.message,
           "Update command completed, but Supaterm still detects an outdated provider version.",
@@ -867,9 +863,6 @@ describe("providerMaintenanceRunner", () => {
       ),
   );
 
-  // A native updater such as `claude update` downloads a ~300 MB binary and
-  // prints nothing while it does. Killed mid-download, it leaves a truncated
-  // binary behind that later updates mistake for an install.
   it.effect.each([
     { runFor: "6 minutes", status: "succeeded", message: "Provider updated." },
     { runFor: "31 minutes", status: "failed", message: "Update timed out after 30 minutes." },
@@ -1099,7 +1092,6 @@ describe("providerMaintenanceRunner", () => {
         ],
         { installedVersionAfterUpdate: "1.0.0" },
       );
-      // OpenCode installs into the same npm prefix, so it shares the lock key but not the package.
       const updater = yield* makeTestRunner(registry);
       const gate = yield* ProviderInstallationGate.ProviderInstallationGate;
 
@@ -1242,7 +1234,6 @@ describe("providerMaintenanceRunner", () => {
       Effect.provide(
         Layer.mergeAll(
           Layer.succeed(HostProcess.Platform, "win32"),
-          // Only the provider's PATH has npm.
           Layer.succeed(HostProcess.Environment, {
             PATH: "C:\\Windows\\System32",
             PATHEXT: ".COM;.EXE;.BAT;.CMD",

@@ -96,9 +96,6 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   );
 }
 
-// Opacity runs on the glass layer and arrows, not the popup: an opacity below 1 on an
-// ancestor stops the glass backdrop blur until the fade ends. Scale stays on the popup,
-// which Base UI resets while it aligns the selected item with the trigger.
 const selectPopupFadeClassName =
   "transition-opacity duration-150 ease-drawer in-data-starting-style:opacity-0 in-data-ending-style:opacity-0 in-data-ending-style:duration-100 in-data-ending-style:ease-in motion-reduce:transition-none";
 
@@ -135,7 +132,6 @@ function SelectPopup({
         sideOffset={sideOffset}
       >
         <SelectPrimitive.Popup
-          // Electron drag hit-testing ignores z-index; items over a drag region would swallow clicks.
           className="origin-(--transform-origin) rounded-lg text-foreground outline-none transition-[scale] duration-150 ease-drawer data-starting-style:scale-98 data-ending-style:scale-98 data-ending-style:duration-100 data-ending-style:ease-in motion-reduce:transition-none [-webkit-app-region:no-drag]"
           data-slot="select-popup"
           {...props}

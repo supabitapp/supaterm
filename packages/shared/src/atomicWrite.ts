@@ -34,9 +34,6 @@ export const writeFileStringAtomically = (input: {
       const targetDirectory = path.dirname(targetPath);
 
       yield* fs.makeDirectory(targetDirectory, { recursive: true });
-      // The temp directory is cleanup, not part of the write: failing to remove
-      // it (a virus scanner holding it on Windows) must not fail a write that
-      // already landed.
       const tempDirectory = yield* Effect.acquireRelease(
         fs.makeTempDirectory({
           directory: targetDirectory,
@@ -50,7 +47,6 @@ export const writeFileStringAtomically = (input: {
       if (typeof contents === "string") {
         yield* fs.writeFileString(tempPath, contents);
       } else {
-        // Closed before the rename, which Windows refuses for open files.
         yield* Effect.scoped(
           Effect.gen(function* () {
             const file = yield* fs.open(tempPath, { flag: "w" });

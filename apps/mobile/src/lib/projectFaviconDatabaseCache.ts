@@ -48,7 +48,6 @@ export async function downscaleProjectFavicon(
       try {
         if (file.size > PROJECT_FAVICON_MAX_DATA_URL_LENGTH) continue;
         const base64 = await file.base64();
-        // SDWebImage chooses JPEG for opaque images and PNG for transparency; Glide always writes PNG.
         const mimeType = base64.startsWith("/9j/")
           ? "image/jpeg"
           : base64.startsWith("iVBORw0KGgo")

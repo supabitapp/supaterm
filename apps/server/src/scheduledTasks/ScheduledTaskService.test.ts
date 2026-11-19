@@ -220,7 +220,6 @@ it.effect(
               ),
             ),
           );
-          // The poll delays before its first pass; advance the frozen clock once.
           yield* TestClock.adjust("6 seconds");
           yield* Deferred.await(lastDispatched);
           const inflight = yield* sql<{
@@ -503,8 +502,6 @@ it.effect("a bound run follows its thread when promotion moves it mid-send", () 
     const scratch = ProjectId.make("project:scratch");
     const promoted = ProjectId.make("project:promoted");
     const sends = yield* Ref.make<Array<{ projectId: ProjectId; commandId: string }>>([]);
-    // Saving reads it first. Then the rebind lands, and the promotion commits between the shell
-    // read and the retry.
     const shellProjects = yield* Ref.make([promoted, scratch, promoted]);
     const layer = ScheduledTaskService.layer.pipe(
       Layer.provide(
@@ -620,7 +617,6 @@ it.effect("a fresh-session task launches one thread, then starts each later run 
       yield* service.upsert({ ...input, threadMode: "fresh_session" });
 
       assert.equal((yield* service.runNow({ id: input.id })).threadId, launched);
-      // A form opened before the first run saves no thread; the binding stays.
       const { task } = yield* service.upsert({
         ...input,
         threadId: null,
@@ -628,7 +624,6 @@ it.effect("a fresh-session task launches one thread, then starts each later run 
       });
       assert.equal(task.threadId, launched);
       assert.equal(task.threadMode, "fresh_session");
-      // A client that predates thread modes sends neither; both stay.
       const legacy = yield* service.upsert({ ...input, threadId: null });
       assert.equal(legacy.task.threadId, launched);
       assert.equal(legacy.task.threadMode, "fresh_session");
@@ -636,7 +631,6 @@ it.effect("a fresh-session task launches one thread, then starts each later run 
 
       assert.equal(yield* Ref.get(launches), 1);
       assert.deepEqual(yield* Ref.get(sends), [{ threadId: launched, freshContext: true }]);
-      // Its thread stays in the old project, so moving the task leaves it for a new one.
       const moved = yield* service.upsert({
         ...input,
         projectId: ProjectId.make("project:moved"),
@@ -721,7 +715,6 @@ it.effect("a first run whose thread was deleted before it bound removes the task
                 resumed: false,
               } as never),
           }),
-          // Deleted before the binding landed, so its cleanup found no task to remove.
           Layer.mock(ThreadManagementService.ThreadManagementService)({
             getThreadShell: () =>
               Effect.succeed({ deletedAt: DateTime.makeUnsafe("2026-11-03T00:00:00Z") } as never),
@@ -880,7 +873,6 @@ it.effect("checks a task's destination thread only when the destination changes"
       assert.lengthOf((yield* service.list()).tasks, 0);
 
       yield* save(destination);
-      // A task whose thread was archived later stays editable.
       yield* Ref.update(shells, (all) =>
         new Map(all).set(destination, threadShell(project, { archivedAt })),
       );
@@ -926,7 +918,6 @@ it.effect("a run interrupted right after it reserves the task does not block the
         interactionMode: "default",
       });
 
-      // The reservation is the first Set.add of the task id; interrupt the run right there.
       const add = Set.prototype.add;
       let interrupted = false;
       const first = yield* Effect.gen(function* () {

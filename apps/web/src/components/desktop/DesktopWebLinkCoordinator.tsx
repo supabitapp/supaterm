@@ -35,7 +35,6 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 
-/** A link handed over by the OS is a plain click: nothing about it asks for the browser. */
 const externalClick = {
   preventDefault() {},
   stopPropagation() {},
@@ -43,7 +42,6 @@ const externalClick = {
   ctrlKey: false,
 };
 
-/** Resolves once every reachable environment has reported its projects or settled offline. */
 const projectsSettled = (): Promise<void> =>
   Effect.runPromise(
     AtomRegistry.toStream(appAtomRegistry, allReachableShellsLiveAtom).pipe(
@@ -53,10 +51,6 @@ const projectsSettled = (): Promise<void> =>
     ),
   );
 
-/**
- * HTML files are served by this machine's environment, so only its threads can
- * take them.
- */
 function threadShowingBrowser(
   routeParams: Record<string, string | undefined>,
   fileEnvironmentId: EnvironmentId | null,
@@ -95,10 +89,7 @@ export function DesktopWebLinkCoordinator() {
   const queueRef = useRef(Promise.resolve());
   const pairedUrlsRef = useRef(new Set<string>());
   const webLinks = window.desktopBridge?.webLinks;
-  // A sync IPC read; the setting only changes across a relaunch.
   const [localEnvironmentDisabled] = useState(isLocalEnvironmentDisabled);
-  // With Local environment disabled there is no primary to wait for, so links run against the
-  // saved remote environments instead of waiting forever.
   const ready =
     webLinks !== undefined &&
     (localEnvironmentDisabled ||
@@ -119,11 +110,8 @@ export function DesktopWebLinkCoordinator() {
       }),
     );
 
-  // Any page can open a pairing link, so the user confirms the host before its one-time token is spent.
   const pairFromLink = async (pairingUrl: string) => {
-    // A repeated click would only ask again and then fail on the spent one-time token.
     if (pairedUrlsRef.current.has(pairingUrl)) return;
-    // The origin keeps the scheme visible, so a plain HTTP backend is not mistaken for HTTPS.
     let origin: string;
     try {
       origin = new URL(resolveRemotePairingTarget({ pairingUrl }).httpBaseUrl).origin;
@@ -167,7 +155,6 @@ export function DesktopWebLinkCoordinator() {
   const openInBrowser = useEffectEvent(async (url: string) => {
     const routeParams = router.state.matches.at(-1)?.params ?? {};
     const isFile = url.startsWith("file:");
-    // Only this machine's environment serves files, so fail before starting a thread.
     if (isFile && httpBaseUrl === null) {
       reportFailure(url);
       return;
@@ -224,7 +211,6 @@ export function DesktopWebLinkCoordinator() {
       sourceControlClients.parseCommitUrl(url, activeProject?.repositoryIdentity?.provider) !== null
         ? activeThreadRef
         : undefined;
-    // A commit the thread's workspace lacks continues here, after its lookup.
     const openUnavailableCommit = () => {
       queueRef.current = queueRef.current.then(() => openInBrowser(url)).catch(() => undefined);
     };
@@ -234,9 +220,6 @@ export function DesktopWebLinkCoordinator() {
   });
 
   const receiveLink = useEffectEvent((url: string) => {
-    // A connected server publishes its config before its project snapshot, so a source control
-    // link delivered at launch would miss its project and fall through to the browser. Hold
-    // those links until discovery settles; an ordinary link never waits for it.
     const hold =
       openPullRequestsInApp &&
       (sourceControlClients.parseChangeRequestUrl(url) !== null ||

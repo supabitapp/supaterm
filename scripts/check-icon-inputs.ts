@@ -20,7 +20,6 @@ class IconInputsStaleError extends Schema.TaggedError<IconInputsStaleError>()(
   }
 }
 
-/** Fails when the icons' sources no longer match the digest `icons:export` last wrote. */
 const checkIconInputs = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;

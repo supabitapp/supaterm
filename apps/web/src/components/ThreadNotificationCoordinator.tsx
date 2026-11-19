@@ -77,7 +77,6 @@ export function startThreadNotifications(
     pending.set(notification.tag, { environmentId, notification });
     setNotificationBadge(pending.size);
   };
-  // Toast ids by thread key, so opening a thread, or removing its environment, closes them.
   const openToasts = new Map<string, Array<ToastId>>();
   const forgetToast = (key: string, toastId: ToastId) => {
     const remaining = (openToasts.get(key) ?? []).filter((id) => id !== toastId);
@@ -108,7 +107,6 @@ export function startThreadNotifications(
     setNotificationBadge(0);
   };
 
-  // Completions fire from a timer, so read settings, focus and route when presenting.
   const present = (
     environmentId: EnvironmentId,
     state: NotificationState,
@@ -185,7 +183,6 @@ export function startThreadNotifications(
         body: thread.title,
         tag: threadNotificationTag(environmentId, thread.id),
         silent: true,
-        // Windows drops clicks after a toast moves into Notification Center.
         requireInteraction: kind === "completion" && isWindowsPlatform(navigator.platform),
       });
       trackNotification(environmentId, notification);
@@ -198,9 +195,7 @@ export function startThreadNotifications(
           params: { environmentId, threadId: thread.id },
         });
       });
-    } catch {
-      // Some browsers expose Notification but reject desktop presentation.
-    }
+    } catch {}
   };
 
   const observeThreads = (
@@ -230,8 +225,6 @@ export function startThreadNotifications(
       const needsAttention =
         status === "input" || status === "approval" || status === "failed" || status === "limited";
       const requestId = needsAttention ? resolveBackgroundThreadRequest(thread).requestId : null;
-      // Queued messages become the latest run while a request stays pending, so a request
-      // with an id is keyed by that id alone and announces once.
       const attention = !needsAttention
         ? null
         : requestId !== null
@@ -329,7 +322,6 @@ export function startThreadNotifications(
     if (count !== pending.size) setNotificationBadge(pending.size);
   };
 
-  // Listeners that only exist for some notification modes, rebuilt when the mode changes.
   let appliedMode: ClientSettings["notificationMode"] | null = null;
   let stopModeListeners = () => {};
   const applyMode = () => {

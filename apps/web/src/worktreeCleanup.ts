@@ -16,8 +16,6 @@ export function getOrphanedWorktreePathForThread(
     return null;
   }
 
-  // Threads can store one worktree as `/repo/wt` and `/repo/wt/`, and
-  // confirming deletion force-removes the checkout for every thread on it.
   const targetKey = normalizeProjectPathForComparison(targetWorktreePath);
   const isShared = threads.some(
     (thread) =>

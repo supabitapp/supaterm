@@ -161,7 +161,6 @@ function readRemoteAddressFromSource(source: unknown): string | undefined {
 const isLoopbackIpAddress = (address: string): boolean =>
   (NodeNet.isIPv4(address) && address.startsWith("127.")) || address === "::1";
 
-// A loopback peer is a local reverse proxy (Tailscale Serve); trust only the entry it appended.
 function resolveClientIpAddress(request: HttpServerRequest.HttpServerRequest): string | undefined {
   const peer = readRemoteAddressFromSource(request.source);
   if (!peer || !isLoopbackIpAddress(peer)) {

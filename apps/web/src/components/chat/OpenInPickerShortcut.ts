@@ -48,7 +48,6 @@ export function useOpenFavoriteEditorShortcut({
   const openInEditorMutation = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
   const remote = useRemoteOpenState(environmentId);
   const remoteCapableEditors = useRemoteCapableEditors();
-  // Matches the picker: remote editors run on the viewing machine.
   const [preferredEditor] = usePreferredEditor(
     remote.mode === "local-exec" ? availableEditors : remoteCapableEditors,
   );

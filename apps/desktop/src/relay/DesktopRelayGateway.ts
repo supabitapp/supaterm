@@ -61,8 +61,6 @@ const make = Effect.gen(function* () {
         try: () => pool.acquire(address, OWNER, relayUrl, directUrls),
         catch: (cause) => new DesktopRelayError({ operation: "start", cause }),
       }).pipe(
-        // Every window shares one tunnel, so a window that starts one already up
-        // (another window's, or its own before a reload) would otherwise never learn its transport.
         Effect.tap(() =>
           Effect.sync(() => publish(canonicalRelayAddress(address) ?? address, pool.via(address))),
         ),

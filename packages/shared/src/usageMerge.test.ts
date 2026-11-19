@@ -523,8 +523,6 @@ describe("mergeUsage", () => {
   });
 
   describe("one directory seen from both sides of a Windows and WSL boundary", () => {
-    // Fingerprints the reporter captured for one NTFS directory, read natively by
-    // Windows and through the drvfs mount by WSL. Path and dev:ino both differ.
     const physicalSourceId = "physical-claude-projects";
     const windows = {
       provider: "claude" as const,

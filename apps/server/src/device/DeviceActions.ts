@@ -1,4 +1,3 @@
-// serve-sim's preview socket accepts shell commands; use typed actions to avoid arbitrary host execution.
 import {
   type DeviceActionInput,
   type DeviceActionType,
@@ -147,9 +146,6 @@ const ANDROID_PERMISSIONS: Record<string, ReadonlyArray<string>> = {
   motion: ["android.permission.ACTIVITY_RECOGNITION"],
 };
 
-// Android numbers rotations from the display's natural orientation and the emulator's accelerometer
-// reports gravity in that same frame, so both tables are keyed by the orientation a portrait-native
-// device shows at each rotation.
 const ANDROID_GRAVITY: Record<DeviceOrientation, string> = {
   portrait: "0:9.81:0",
   landscape_left: "9.81:0:0",
@@ -162,8 +158,6 @@ const ANDROID_ROTATION: Record<DeviceOrientation, string> = {
   portrait_upside_down: "2",
   landscape_right: "3",
 };
-// A landscape-native tablet sits a quarter turn further along that sequence: its portrait is
-// rotation 3 and its landscape is rotation 0.
 const ANDROID_LANDSCAPE_NATIVE_ROTATION: Record<DeviceOrientation, DeviceOrientation> = {
   portrait: "landscape_right",
   landscape_left: "portrait",
@@ -171,8 +165,6 @@ const ANDROID_LANDSCAPE_NATIVE_ROTATION: Record<DeviceOrientation, DeviceOrienta
   landscape_right: "portrait_upside_down",
 };
 
-// `wm size` reports the natural-orientation size; an `Override size:` line is what the window
-// manager uses and is printed after `Physical size:`.
 const isLandscapeNative = (wmSize: string | undefined) => {
   const size = wmSize ? [...wmSize.matchAll(/size: (\d+)x(\d+)/g)].at(-1) : undefined;
   return size !== undefined && Number(size[1]) > Number(size[2]);
@@ -265,7 +257,6 @@ const runIos = Effect.fn("DeviceActions.runIos")(function* (
       return;
     case "setPermission": {
       if (input.permission === "notifications") {
-        // simctl lacks notification permissions; serve-sim edits the BulletinBoard plist.
         yield* serveSimPermissions(ready, udid, input);
         return;
       }
@@ -341,7 +332,6 @@ const serveSimPermissions = Effect.fn("DeviceActions.serveSimPermissions")(funct
 const adb = (run: Runner, serial: string, args: ReadonlyArray<string>, operation: string) =>
   run("adb", ["-s", serial, ...args]).pipe(Effect.flatMap(ok(operation)));
 
-// adb shell joins arguments without escaping before the device's shell parses them.
 const androidShellWord = (value: string) =>
   /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", "'\\''")}'`;
 
@@ -390,9 +380,6 @@ const runAndroid = Effect.fn("DeviceActions.runAndroid")(function* (
       const rotation = isLandscapeNative(wmSize)
         ? ANDROID_LANDSCAPE_NATIVE_ROTATION[input.value]
         : input.value;
-      // `user-rotation lock` only rotates window content on recent images; the display the
-      // encoder captures stays put. Tilting the emulator's accelerometer rotates it for real, so
-      // that is used whenever the target is an emulator.
       if (serial.startsWith("emulator-")) {
         yield* shell(["settings", "put", "system", "accelerometer_rotation", "1"], "orientation");
         yield* shell(["cmd", "window", "user-rotation", "free"], "orientation");
@@ -419,7 +406,6 @@ const runAndroid = Effect.fn("DeviceActions.runAndroid")(function* (
       );
       return;
     case "clearLocation":
-      // The emulator cannot clear location; keep the fix and refresh the reading.
       return;
     case "setPermission": {
       const permissions = ANDROID_PERMISSIONS[input.permission];
@@ -431,8 +417,6 @@ const runAndroid = Effect.fn("DeviceActions.runAndroid")(function* (
         });
       }
       const verb = input.decision === "grant" ? "grant" : "revoke";
-      // `pm` rejects a permission the app or system image does not declare, and Photos lists both
-      // the Android 13 and the older storage permission, so fail only when none of them applied.
       const results = yield* Effect.forEach(permissions, (permission) =>
         shell(["pm", verb, input.appId, permission], "permission").pipe(Effect.result),
       );
@@ -548,7 +532,6 @@ const readAndroid = Effect.fn("DeviceActions.readAndroid")(function* (run: Runne
       shell(["settings", "get", "system", "font_scale"]),
       shell(["settings", "get", "global", "animator_duration_scale"]),
       shell(["settings", "get", "global", "wifi_on"]),
-      // API 36 dropped focus from `dumpsys window windows`; use the unfiltered dump.
       shell(["dumpsys", "window"]),
     ],
     { concurrency: 5 },

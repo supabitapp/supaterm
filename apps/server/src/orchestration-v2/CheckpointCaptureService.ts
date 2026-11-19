@@ -67,10 +67,8 @@ export const layer: Layer.Layer<
     }) {
       const { run, rootNode, scope, providerThread, preservedCheckpointOrdinals, sideChat } =
         yield* projections.getCheckpointCaptureContext(input.threadId, input);
-      // Stopped runs remain terminal; their checkpoint is the next message's rollback point.
       const stopped = run?.status === "interrupted" || run?.status === "cancelled";
 
-      // A checkpoint on a settled run proves this at-least-once effect already committed.
       if (
         run !== undefined &&
         run.checkpointId !== null &&
@@ -78,7 +76,6 @@ export const layer: Layer.Layer<
       ) {
         return;
       }
-      // Rollback uses the same lane and can precede a capture retry; preserve the restored workspace and discarded run.
       if (run?.status === "rolled_back") {
         return;
       }
@@ -103,8 +100,6 @@ export const layer: Layer.Layer<
       const baselineOrdinalWithinScope = Math.max(0, run.ordinal - 1);
       const isPreserved = (ordinalWithinScope: number) =>
         preservedCheckpointOrdinals.includes(ordinalWithinScope);
-      // The baselines this capture materializes are attributed to the run materializing them. The
-      // thread's scope may already be a later run's: one queued meanwhile, or sent after Stop.
       const materializeBaseline = (ordinalWithinScope: number) =>
         checkpoints.materializeBaselineCheckpoint({
           scope,
@@ -127,7 +122,6 @@ export const layer: Layer.Layer<
         capturedAt,
         forceMissing: sideChat,
       });
-      // Omit delegatedCompletion to preserve cohort writes made after capture loaded the run.
       const { delegatedCompletion: _delegatedCompletion, ...runWithoutDelegatedCompletion } = run;
       const commandId = CommandId.make(`command:effect:checkpoint.capture:${run.id}`);
       yield* eventSink.commitCommand({

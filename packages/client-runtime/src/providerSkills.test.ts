@@ -179,7 +179,6 @@ describe("provider workspace snapshot refresh atom", () => {
   function setup(
     initialProviders: ReadonlyArray<ServerProvider>,
     initialResponses?: Response[],
-    // The client drops a reply whose provider changed while it was in flight.
     options?: { readonly droppedReplies?: number },
   ) {
     let droppedReplies = options?.droppedReplies ?? 0;
@@ -209,7 +208,6 @@ describe("provider workspace snapshot refresh atom", () => {
   it("scans a missing snapshot once and skips a repeat inside the TTL", async () => {
     vi.useFakeTimers({ now: Date.parse("2026-01-01T00:00:00.000Z") });
     const { registry, atom, family, responses, run, unmount } = setup(noSnapshot);
-    // A second composer on the same target shares the scan.
     registry.mount(family({ environmentId, instanceId: provider.instanceId, cwd }))();
     expect(run).toHaveBeenCalledTimes(1);
     expect(run).toHaveBeenCalledWith(expect.anything(), {

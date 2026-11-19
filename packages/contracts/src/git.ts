@@ -74,7 +74,6 @@ export const VcsRef = Schema.Struct({
   name: TrimmedNonEmptyStringSchema,
   isRemote: Schema.optional(Schema.Boolean),
   remoteName: Schema.optional(TrimmedNonEmptyStringSchema),
-  // Full Git ref, for example refs/remotes/origin/feature.
   upstreamRef: Schema.optional(TrimmedNonEmptyStringSchema),
   current: Schema.Boolean,
   isDefault: Schema.Boolean,
@@ -342,9 +341,6 @@ export const VcsPullResult = Schema.Struct({
 });
 export type VcsPullResult = typeof VcsPullResult.Type;
 
-// Git stderr can echo credentials from argv and remote URLs. Only a fixed
-// reason reaches the error and its diagnostic suffix; newer, unknown reasons
-// decode as absent through GitCommandError.
 export const GitCommandFailureReason = Schema.Literals([
   "authentication_failed",
   "branch_already_exists",

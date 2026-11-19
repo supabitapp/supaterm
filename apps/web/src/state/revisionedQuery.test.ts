@@ -3,11 +3,8 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { revisionedQuery } from "./revisionedQuery";
 
-// A stand-in query that counts its fetches.
 function setup(readQuery: (cache: Atom.Atom<number>) => Atom.Atom<number> = (cache) => cache) {
   let fetches = 0;
-  // Node removal runs on the registry's scheduler; releasing flushes it so the
-  // next mount of the same revision builds a fresh node, as a React remount does.
   const scheduled: Array<() => void> = [];
   const registry = AtomRegistry.make({
     scheduleTask: (task) => {
@@ -23,7 +20,6 @@ function setup(readQuery: (cache: Atom.Atom<number>) => Atom.Atom<number> = (cac
   );
   const mount = async (revision: string | null | undefined) => {
     const release = registry.mount(revisionedQuery(query, revision));
-    // A stale read refetches in a microtask, after the render that read it.
     await Promise.resolve();
     return () => {
       release();
@@ -80,7 +76,6 @@ describe("revisionedQuery", () => {
   });
 
   it("counts a query as cached while the atom it reads through keeps the value", async () => {
-    // Like an environment query: its own node goes with its last reader, the cache stays.
     const { mount, fetches } = setup((cache) =>
       Atom.transform(cache, (get) => get(cache), { initialValueTarget: cache }),
     );
@@ -125,7 +120,6 @@ describe("revisionedQuery", () => {
     release();
     registry.dispose();
 
-    // A refetch that ran now would throw "registry is disposed" as an uncaught error.
     await Promise.resolve();
   });
 });

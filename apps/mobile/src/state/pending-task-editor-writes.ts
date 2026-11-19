@@ -51,7 +51,6 @@ export function flushPendingTaskEditorWrite(input: {
           nextRevision: expectedRevision + (updated ? 1 : 0),
         };
       } catch (error) {
-        // Failed writes do not advance the outbox; hand their expected revision to later editor saves.
         return {
           status: "failed",
           error,

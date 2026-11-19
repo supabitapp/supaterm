@@ -20,11 +20,9 @@ function setup() {
   const registry = AtomRegistry.make();
   const touches: unknown[] = [];
   const image = vi.spyOn(HTMLImageElement.prototype, "src", "set").mockImplementation(() => {});
-  // Select MJPEG without starting a WebCodecs decoder. Input uses the real stream client.
   const decoder = stubGlobal("VideoDecoder", undefined);
   Reflect.deleteProperty(globalThis, "VideoDecoder");
   const fetch = stubGlobal("fetch", () => Promise.resolve(new Response("prime")));
-  // The client opens its input socket only after the MJPEG prime resolves.
   type InputSocket = {
     onmessage?: (event: { data: ArrayBuffer }) => void;
   };
@@ -95,12 +93,10 @@ function view() {
   );
 }
 
-// router: false because the device view renders no links and never navigates.
 const options = { router: false } as const;
 
 function flatPointer(container: HTMLElement) {
   const surface = container.querySelector("canvas")!.parentElement!.parentElement!;
-  // Synthetic IDs exercise concurrent touches independently of the browser's capture state.
   surface.setPointerCapture = () => {};
   const rect = new DOMRect(0, 0, 400, 800);
   surface.getBoundingClientRect = () => rect;
@@ -169,7 +165,6 @@ it.each(["pointerup", "pointercancel", "lostpointercapture"])(
     send("pointerdown", 7);
     send("pointermove", 7, 0.5, 0.5);
     send("lostpointercapture", 8, 0, 0);
-    // Capture loss reports its own point; the end must still use the last move.
     const at = ending === "lostpointercapture" ? 0 : 0.5;
     send(ending, 7, at, at);
     send("lostpointercapture", 7, 0, 0);

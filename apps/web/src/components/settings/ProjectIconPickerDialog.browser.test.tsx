@@ -18,7 +18,6 @@ function button(name: string) {
   });
 }
 
-// The modal's inert backdrop covers the unstyled popup, so Playwright pointer clicks land on it.
 async function click(name: string) {
   const target = await button(name);
   await act(async () => target.click());

@@ -15,8 +15,6 @@ import { environmentServerConfigsAtom } from "~/state/server";
 import { threadEnvironment } from "~/state/threads";
 import { useAtomCommand } from "~/state/use-atom-command";
 
-// A boolean, so provider status pushes and snapshots that keep the environment's
-// config present don't re-render every link renderer.
 const linkSupportedAtom = Atom.family((environmentId: EnvironmentId | null) =>
   Atom.make(
     (get) =>

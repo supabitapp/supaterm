@@ -1,7 +1,3 @@
-// Render scenarios for scripts/render-metrics.ts. Each one mounts real components on
-// fixed fixtures, counts React commits and component renders while it drives them,
-// and writes the counts through the writeRenderReport browser command. They mount the
-// components ChatView composes, not ChatView, which needs a live environment connection.
 import { EnvironmentId, MessageId } from "@supaterm/contracts";
 import type { LegendListRef } from "@legendapp/list/react";
 import { createRef, useRef, useState, type ComponentProps, type ReactNode } from "react";
@@ -64,9 +60,6 @@ function message(id: string, role: "user" | "assistant", text: string, streaming
   } as Entry;
 }
 
-// A thread with history: user prompts and markdown answers with lists and inline code.
-// No fenced code: Shiki highlights it asynchronously, and whether a block first renders
-// its fallback varies run to run.
 function history(thread: string): Entry[] {
   return Array.from({ length: HISTORY_TURNS }, (_, turn) => [
     message(`${thread}-user-${turn}`, "user", `${thread}: question ${turn} about the sidebar`),
@@ -79,14 +72,8 @@ function history(thread: string): Entry[] {
   ]).flat();
 }
 
-// Props that some trees under comparison have dropped. A JSX spread is not checked for
-// excess properties, so this file type-checks on trees with and without them.
 const versionedProps = { onManualNavigation: () => {}, onJumpToPinnedMessage: () => {} };
 
-// One list handle per mounted timeline, as ChatView keeps one: the timeline compares the
-// handle across renders, and a new one per render would skip its scroll-to-end and settle work.
-// The callbacks and lists stay the same across renders too, as ChatView's do: new ones change
-// the rows' shared context, which re-renders every row and hides a row that re-renders alone.
 function timelineFor() {
   const props: Omit<
     TimelineProps,
@@ -133,9 +120,6 @@ function sizedContainer() {
   return container;
 }
 
-// Legend List measures rows, and the minimap follows scroll, on later frames, and how
-// much of that lands inside a window varies run to run. Every window opens and closes
-// on a quiet tree: no commit across two consecutive checks.
 async function quiet() {
   let seen = -1;
   await vi.waitFor(
@@ -149,8 +133,6 @@ async function quiet() {
   );
 }
 
-// Off the guest page the connection runtime retries a missing environment on timers, and
-// its atom updates commit at varying times. On it, the runtime fails once and stays quiet.
 function onGuestPage(): Disposable {
   const previous = `${window.location.pathname}${window.location.search}`;
   window.history.replaceState(window.history.state, "", "/guest?share=render-scenarios");
@@ -159,8 +141,6 @@ function onGuestPage(): Disposable {
   };
 }
 
-// A first mount loads lazy modules, web fonts and syntax highlighting at varying times.
-// Each scenario mounts its tree once uncounted, so the counted run starts warm.
 async function warmUp(ui: ReactNode, container?: HTMLElement) {
   await using screen = await render(ui, container ? { container } : {});
   await document.fonts.ready;
@@ -214,9 +194,6 @@ it("stream-assistant-turn", async () => {
   await report("stream-assistant-turn");
 });
 
-// Thread A to B and back, each switch counted until the tree is quiet again. Commits
-// are not reported: the minimap's follow-up renders sometimes split across two frames,
-// so the commit count varies by one while the renders stay identical.
 it("switch-thread", async () => {
   using _guest = onGuestPage();
   const timeline = timelineFor();

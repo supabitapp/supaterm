@@ -54,7 +54,6 @@ export const makeTerminationError = (
 ): Effect.Effect<AcpError.AcpError> =>
   Effect.match(handle.exitCode, {
     onFailure: (cause) => {
-      // The Node spawner reports signal exits as a platform error rather than an exit code.
       const signal =
         cause.reason.module === "ChildProcess" &&
         cause.reason.method === "exitCode" &&

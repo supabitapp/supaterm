@@ -201,7 +201,6 @@ function setGrant(environmentId: EnvironmentId, allowed: boolean) {
   );
 }
 
-// Default selection only picks recently active projects, so pin "now".
 const NOW = Date.parse("2026-01-01T00:00:00.000Z");
 
 function candidate(path: string): AgentSessionProjectCandidate {
@@ -223,8 +222,6 @@ function recordProject({ environmentId, input }: CreateProjectInput) {
   return AsyncResult.success(undefined);
 }
 
-// Resolves once the project reaches the mocked projects atom; the real helper's timeout is
-// replaced per test with a rejection.
 function waitForRecordedProject(ref: { environmentId: EnvironmentId; projectId: string }) {
   const find = () =>
     appAtomRegistry
@@ -293,8 +290,6 @@ async function mountImport(remote = false) {
   return screen;
 }
 
-// The mocked modules read `state`, so every test starts by replacing all of it.
-// Returns the clock spy so each test can `using` it; the spy would otherwise outlive the test.
 function setup() {
   const now = vi.spyOn(Date, "now").mockReturnValue(NOW);
   state.addedEnvironments = [];
@@ -409,7 +404,6 @@ it("completes accepted imports when permission is revoked after the final server
 it("finishes setup without landing when the imported project never reaches the client", async () => {
   using _now = setup();
   state.candidates = state.candidates.slice(0, 1);
-  // The server accepts the project, but it never shows up in the client's projects.
   state.createProject.mockResolvedValue(AsyncResult.success(undefined));
   state.waitForProject.mockRejectedValue(new Error("The project did not appear."));
   state.completeOnboarding.mockRejectedValueOnce(new Error("offline"));
@@ -417,7 +411,6 @@ it("finishes setup without landing when the imported project never reaches the c
 
   await click("Import 1 project");
   await vi.waitFor(() => expect(state.completeOnboarding).toHaveBeenCalledOnce());
-  // A failed completion hands the step back instead of leaving it importing.
   await vi.waitFor(() => expect(button("Import 1 project").disabled).toBe(false));
   expect(state.onDone).not.toHaveBeenCalled();
 
@@ -467,7 +460,6 @@ it("checks an agent again once its install command finishes in the setup termina
 
   await act(async () => appAtomRegistry.set(runningTerminalIds, [terminalId]));
   expect(state.refreshProviders).not.toHaveBeenCalledWith(recheck);
-  // The shell stays open at its prompt after the install, so only the command exits.
   await act(async () => appAtomRegistry.set(runningTerminalIds, []));
   expect(state.refreshProviders).toHaveBeenCalledWith(recheck);
   expect(state.closeTerminal).not.toHaveBeenCalled();

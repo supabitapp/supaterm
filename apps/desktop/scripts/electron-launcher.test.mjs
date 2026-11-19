@@ -117,7 +117,6 @@ describe("electron development launcher", () => {
   });
 });
 
-// Supply inert imports so the real startup runs without launching Electron or signalling processes.
 async function runDevElectronStartup({ desktopDir = "/repo/apps/desktop", spawn, ...context }) {
   const source = NodeFS.readFileSync(new URL("./dev-electron.mjs", import.meta.url), "utf8");
   await NodeVM.runInNewContext(
@@ -214,7 +213,6 @@ it("dev supervisor stops Electron and exits once its parent process goes away", 
   await clock.advance(5_000);
   assert.deepEqual(appSignals, [], "supervisor stopped Electron while its parent was alive");
 
-  // The launching process died without signalling us; the OS reparented the supervisor.
   ppid = 1;
   await clock.advance(5_000);
 

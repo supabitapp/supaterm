@@ -443,12 +443,10 @@ it.effect.each([
             : { ...stop, type },
       );
       const after = yield* orchestrator.getThreadProjection(parentThreadId);
-      // The Lineage stop of one subagent leaves the parent's watches alone.
       assert.lengthOf(
         (after.thread.pullRequests ?? []).filter((link) => link.watch !== undefined),
         type === "subagent.stop" ? 1 : 0,
       );
-      // A task with a bound run, live or ended, keeps its settlement path.
       const expected =
         childState === "bound" || childState === "correlated"
           ? "running"
@@ -485,8 +483,6 @@ it.effect.each([
         assert.deepEqual(repeated.messages, after.messages);
         assert.deepEqual(repeated.contextTransfers, after.contextTransfers);
         if (type === "subagent.stop") {
-          // A client that missed the cancel, such as one resumed from an older cache, still
-          // shows the task as running. Its Stop gets the ended task back.
           const eventStore = yield* EventStore.EventStoreV2;
           const afterSequence = yield* eventStore.latestSequence({ threadId: parentThreadId });
           yield* orchestrator.dispatch({
@@ -599,7 +595,6 @@ it.effect.each(["run.interrupt", "thread.stop"] as const)(
 
       yield* threads.stopDelegatedTasks({ threadId: parentThreadId, commandId: stopCommandId });
       assert.deepEqual((yield* threadState(childThreadId)).runs, ["interrupted", "queued:held"]);
-      // The walk stops each level itself, so the child stops it sends queue no walk of their own.
       const walks = yield* sql<{ readonly command_id: string }>`
       SELECT command_id FROM orchestration_v2_effect_outbox
       WHERE effect_type = 'delegated-tasks.stop'
@@ -636,8 +631,6 @@ it.effect("a repeated Stop that changes nothing still stops the delegated tasks"
       threadId: parentThreadId,
     });
 
-    // The first Stop already disposed the delivery and ended the watch, so this one writes no
-    // events, like Stop on a thread an older server stopped without stopping its children.
     const again = yield* orchestrator.dispatch({
       type: "thread.stop",
       commandId: CommandId.make("stop-again:second"),
@@ -1754,7 +1747,6 @@ it.effect("an unanswered Stop is flagged until Force stop ends the run with its 
       "Force stopped by user",
     );
 
-    // A provider confirming late changes nothing once the run has ended.
     const late = yield* orchestrator.dispatch({
       ...target,
       type: "thread.interrupt.unresponsive",
@@ -1811,7 +1803,6 @@ it.effect.each(["Stop", "Force stop"] as const)(
           completedAt: now,
         },
       });
-      // The provider session was already released.
       yield* apply({
         type: "provider-thread.updated",
         occurredAt: now,
@@ -1842,8 +1833,6 @@ it.effect.each(["Stop", "Force stop"] as const)(
     }).pipe(Effect.provide(layerTest)),
 );
 
-// A finished delegated child whose native subagent the provider never reported ending,
-// with no open turn item, and a nested native subagent on that agent's own thread.
 it.effect(
   "Stop settles a delegated row whose finished child still records a running native subagent",
   () =>
@@ -1965,7 +1954,6 @@ it.effect(
         };
       });
 
-      // The row's Stop: the parent's task, then the child thread.
       yield* orchestrator.dispatch({
         type: "subagent.stop",
         commandId: CommandId.make("held-row:stop-task"),
@@ -2009,9 +1997,6 @@ it.effect.each([
       const started: Array<ProviderAdapter.ProviderAdapterV2TurnInput> = [];
       const interrupted: Array<ProviderAdapter.ProviderAdapterV2InterruptInput> = [];
       let opened = 0;
-      // Fresh context on a one-thread-per-session provider puts the follow-up on its own session.
-      // The session itself reports shared threads so fresh-context cleanup leaves the stopped
-      // run's session to Force stop, as pending background work would.
       const adapterCapabilities = freshContext
         ? {
             ...CodexProviderCapabilitiesV2,
@@ -2103,7 +2088,6 @@ it.effect.each([
             };
           }),
       });
-      // The settlement promotes the follow-up; optionally its turn starts before Force stop releases.
       const layerSessionsStartingFollowUpFirst = Layer.effect(
         ProviderSessionManager.ProviderSessionManagerV2,
         Effect.gen(function* () {
@@ -2224,7 +2208,6 @@ it.effect.each([
           "Force stop detached the thread the follow-up runs on as if its session were shared",
         );
 
-        // The first run's provider never confirms the stop; the follow-up's turn ends normally.
         yield* Queue.offer(eventQueues.get(providerSessionId)!, {
           type: "turn.terminal",
           driver,

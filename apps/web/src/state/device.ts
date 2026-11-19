@@ -54,11 +54,6 @@ export function useDeviceState(environmentId: EnvironmentId | null): {
   };
 }
 
-/**
- * Hub access for one environment. Bearer connections mint a ticket here; a
- * stream that gets a 401 back refreshes this atom and reconnects.
- * Keyed on the prepared connection so a re-pair produces new credentials.
- */
 const deviceHubAccessAtom = Atom.family((environmentId: EnvironmentId) =>
   connectionAtomRuntime
     .atom((get) => {

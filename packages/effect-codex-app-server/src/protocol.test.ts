@@ -219,7 +219,6 @@ it.layer(NodeServices.layer)("effect-codex-app-server protocol", (it) => {
         yield* Queue.offer(input, encodeJsonl({ id: 1, result: { secret: "private-result" } }));
         yield* Fiber.join(requests[0]!);
         yield* Fiber.interrupt(requests[2]!);
-        // A late response for an interrupted request must not affect the next request.
         yield* Queue.offer(input, encodeJsonl({ id: 3, result: {} }));
         const next = yield* transport.request("config/read").pipe(Effect.forkScoped);
         yield* Queue.take(output);
@@ -362,13 +361,11 @@ it.layer(NodeServices.layer)("effect-codex-app-server protocol", (it) => {
         );
         yield* Effect.forEach(pending, () => Queue.take(output));
 
-        // Two 16-byte lines must survive; the 17-byte line is only 15 UTF-16 code units.
         const firstLine = '{"method":"xé"}';
         const secondLine = '{"method":"x/a"}';
         const bytes = encoder.encode(
           `${firstLine}\n${secondLine}\n{"method":"éé"}${framing === "unfinished" ? "" : "\n"}`,
         );
-        // Split a UTF-8 sequence on both sides of the byte limit.
         const firstSplit = bytes.indexOf(0xc3) + 1;
         yield* Queue.offer(input, bytes.subarray(0, firstSplit));
         if (framing === "unfinished") {

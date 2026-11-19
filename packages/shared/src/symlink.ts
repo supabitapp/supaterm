@@ -23,7 +23,6 @@ export const resolveSymlinkTarget = Effect.fn("symlink.resolveSymlinkTarget")(fu
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   let current = path.resolve(filePath);
-  // The terminal file needs a probe after the last permitted link is followed.
   for (let hop = 0; hop <= MAX_SYMLINK_HOPS; hop++) {
     const link = yield* fs.readLink(current).pipe(
       Effect.asSome,
@@ -32,8 +31,6 @@ export const resolveSymlinkTarget = Effect.fn("symlink.resolveSymlinkTarget")(fu
     if (Option.isNone(link)) {
       return current;
     }
-    // A relative target is relative to where the link really lives, which
-    // differs from its lexical parent when that parent is itself a symlink.
     const linkDirectory = yield* fs
       .realPath(path.dirname(current))
       .pipe(Effect.catchIf(isNotFound, () => Effect.succeed(path.dirname(current))));

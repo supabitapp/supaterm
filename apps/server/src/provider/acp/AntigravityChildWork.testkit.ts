@@ -10,8 +10,6 @@ export const ROOT = "7d40e54d-5977-4239-940b-246cdd81a12b";
 export const CHILD = "a357bf2720914589dd1ec49f7a816115";
 export const LAUNCH = { role: "Readme Reader", prompt: "Read README.md and report the marker" };
 
-// Mirrors the 1.4.5 runtime: Step{5: metadata{4: tool call{1 id, 2 name}}, 20: planner{7: calls},
-// 143: invoke_subagent{9: specs{2 role, 3 prompt}, 10: results{1 conversation, 2 log uri}}}.
 const varint = (value: number): number[] => {
   const bytes: number[] = [];
   while (value >= 0x80) {
@@ -51,7 +49,6 @@ export const plannerStep = (callIds: ReadonlyArray<string>) =>
   proto(field(20, proto(...callIds.map((id) => field(7, toolCall(id))))));
 
 export const transcriptLines = [
-  // Trimmed from 1.4.5: the launch envelope around the prompt the parent record already holds.
   {
     step_index: 0,
     type: "SYSTEM_MESSAGE",
@@ -62,7 +59,6 @@ export const transcriptLines = [
     step_index: 1,
     type: "PLANNER_RESPONSE",
     status: "DONE",
-    // The runtime stores each argument value as JSON text.
     tool_calls: [{ name: "view_file", args: { AbsolutePath: '"/project/README.md"' } }],
   },
   { step_index: 2, type: "VIEW_FILE", status: "DONE", content: "2: child read marker 4242" },

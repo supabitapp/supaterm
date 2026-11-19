@@ -13,10 +13,8 @@ import { cn } from "~/lib/utils";
 
 export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded";
 
-// Prefers the element focus entered the panel from, falling back to the panel toggle.
 function returnFocus(host: HTMLElement, origin: HTMLElement | null) {
   const { ownerDocument } = host;
-  // focus() is a no-op on a disabled origin, so activeElement says whether it took.
   if (origin?.isConnected && !host.contains(origin) && canReturnFocusTo(origin)) {
     origin.focus({ preventScroll: true });
     if (ownerDocument.activeElement === origin) return true;
@@ -48,9 +46,6 @@ export function PreviewPanelShell(props: {
   const lastBlurred = useRef<EventTarget | null>(null);
   const collapsible = props.mode === "inline" && props.open !== undefined;
   const open = props.open ?? true;
-  // React focus events also see content that focuses itself while mounting (a terminal does,
-  // from a ref that attaches before the host's). Focus moving within the panel, portalled menus
-  // included, first blurs an element of it.
   const rememberFocusOrigin = (event: FocusEvent<HTMLDivElement>) => {
     const from = event.relatedTarget;
     if (from === null || from === lastBlurred.current) return;
@@ -79,7 +74,6 @@ export function PreviewPanelShell(props: {
     if (collapsed && host.contains(host.ownerDocument.activeElement)) {
       returnedFocus.current = returnFocus(host, focusOrigin.current);
     }
-    // An origin belongs to one open; the next one records its own.
     if (collapsed) focusOrigin.current = null;
     host.toggleAttribute("inert", collapsed);
   }, [collapsible, open]);

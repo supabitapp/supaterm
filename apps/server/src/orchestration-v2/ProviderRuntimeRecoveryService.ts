@@ -182,7 +182,6 @@ export const make = Effect.gen(function* () {
   const ids = yield* IdAllocator.IdAllocatorV2;
   const outbox = yield* EffectOutbox.EffectOutboxV2;
   type RecoverySession = ProjectionStore.ProjectionRuntimeRecoveryState["providerSessions"][number];
-  /** Shared sessions stop on their first recovered thread; later threads still decide wakes from pre-recovery liveness. */
   const sessionsLiveAtStart = (
     projection: ProjectionStore.ProjectionRuntimeRecoveryState,
     stoppedThisPass: ReadonlyMap<string, RecoverySession>,
@@ -198,10 +197,6 @@ export const make = Effect.gen(function* () {
     return [...sessions.values()];
   };
 
-  /**
-   * A run is marked running before its provider accepts the prompt, so only a provider turn of
-   * one of its attempts proves the prompt arrived. Recovery treats the others as never started.
-   */
   const rewindUnacceptedRuns = Effect.fn("ProviderRuntimeRecoveryService.rewindUnacceptedRuns")(
     function* (projection: ProjectionStore.ProjectionRuntimeRecoveryState) {
       const runIdByAttempt = new Map(
@@ -226,7 +221,6 @@ export const make = Effect.gen(function* () {
       for (const attempt of projection.attempts) {
         if (unaccepted.has(attempt.runId)) runIdByAttempt.set(attempt.id, attempt.runId);
       }
-      // The recovery projection omits ended provider turns, such as one a steer replaced.
       accept(
         (yield* projections
           .getThreadRecords(projection.thread.id, ["providerTurns"], {
@@ -291,8 +285,6 @@ export const make = Effect.gen(function* () {
       const pendingRequests = projection.runtimeRequests.filter(
         (request) => request.status === "pending",
       );
-      // The lost provider callback cannot resume; persisted questions can be
-      // answered by a new user message in threads that accept messages.
       const questions = pendingRequests.filter(
         (request) =>
           request.kind === "user_input" &&
@@ -320,7 +312,6 @@ export const make = Effect.gen(function* () {
         (request) =>
           request.responseCapability.type !== "message" && !recoveredRequestIds.has(request.id),
       );
-      // Delegated task rows, items and nodes stay open: the child settles them.
       const delegatedTaskNodeIds = new Set<string>([
         ...(projection.subagents ?? []).filter(isAppOwnedDelegation).map((subagent) => subagent.id),
         ...(projection.turnItems ?? []).flatMap((item) =>
@@ -425,11 +416,9 @@ export const make = Effect.gen(function* () {
           )
           .map((message) => message.id),
       );
-      // A saved user message the provider never accepted stays available through the held queue.
       const retryableRuns = unstartedRuns.filter((run) =>
         retryableMessageIds.has(run.userMessageId),
       );
-      // Nobody reviews a delegated, agent-sent or scheduled prompt, so it is sent again instead.
       const unattendedRuns = continueAfterRestart
         ? unstartedRuns.filter((run) =>
             queuedMessages.some(
@@ -470,7 +459,6 @@ export const make = Effect.gen(function* () {
               }),
           ),
         );
-        // A prompt whose start keeps crashing the server would otherwise be sent forever.
         if (earlierResends.filter((effect) => effect.attemptCount > 0).length >= MAX_RESENDS) {
           yield* Effect.logWarning("Not resending a prompt that restarts cut too many times", {
             threadId: projection.thread.id,
@@ -594,8 +582,6 @@ export const make = Effect.gen(function* () {
         run.startedAt === null && run.usageLimitContinuationOfRunId !== undefined ? [run.id] : [],
       );
       const limitRecovery = projection.thread.limitRecovery;
-      // The unsent resume spent the worker's request id, so a fresh one lets it send again. An
-      // untagged resume from an older server stays cancelled: its copy couldn't be hidden.
       if (limitRecovery?.autoResume === true && unsentResumeRunIds.length > 0) {
         events.push({
           id: yield* allocateEventId(),
@@ -609,8 +595,6 @@ export const make = Effect.gen(function* () {
           },
         });
       }
-      // The worker sends the auto-resume again, so the unsent copy leaves the transcript the way
-      // cancelled queued input does.
       const unsentResumePrompts =
         unsentResumeRunIds.length === 0
           ? []
@@ -765,7 +749,6 @@ export const make = Effect.gen(function* () {
               candidate.status === "running" ||
               candidate.status === "waiting"),
         )) {
-          // Cut native subagents do not resume; record them for the continuation to restart.
           if (run.status === "waiting") recordCancelledBackgroundItem(item);
           else if (item.type === "subagent" && item.origin === "provider_native")
             recordCancelledBackgroundItem(item);
@@ -780,7 +763,6 @@ export const make = Effect.gen(function* () {
             payload: cancelledItem(item, now),
           });
         }
-        // Queued runs and unsent resumes leave no visible turn behind, so there is nothing to explain.
         if (run.status === "queued" || unsentResumeRunIds.includes(run.id)) continue;
         events.push({
           id: yield* allocateEventId(),
@@ -799,7 +781,6 @@ export const make = Effect.gen(function* () {
             providerTurnId: null,
             nativeItemRef: null,
             parentItemId: null,
-            // EventSink allocates the real position, after the run's existing items.
             ordinal: 0,
             status: "completed",
             title: trigger === "startup" ? "Server restarted" : "Server shut down",
@@ -811,7 +792,6 @@ export const make = Effect.gen(function* () {
           },
         });
       }
-      // Blocking waits die with their turn; let child results wake the parent continuation as async tasks.
       const cutRunIds = new Set(runs.map((run) => run.id));
       for (const task of projection.subagents ?? []) {
         if (
@@ -878,7 +858,6 @@ export const make = Effect.gen(function* () {
           }
         }
       }
-      // No provider process survives the server; open native subagents can never report completion.
       for (const subagent of projection.subagents ?? []) {
         events.push(
           ...(yield* endOrphanedNativeSubagent({
@@ -891,7 +870,6 @@ export const make = Effect.gen(function* () {
           })),
         );
       }
-      // Native subagent threads have no runs to settle their runless root turns.
       events.push(
         ...(yield* endRunlessRootTurns({
           threadId: projection.thread.id,
@@ -911,7 +889,6 @@ export const make = Effect.gen(function* () {
         }
         if (providerThread.ownerNodeId === null) {
           for (const task of providerThread.pendingBackgroundTasks ?? []) {
-            // A subagent already recorded covers the shells it started.
             if (
               cancelledBackgroundNativeIds.has(task.taskId) ||
               (task.parentTaskId !== undefined &&
@@ -961,7 +938,6 @@ export const make = Effect.gen(function* () {
       for (const [providerThreadId, work] of cancelledBackgroundWork) {
         const noteRun = latestStartedRun(projection, providerThreadId);
         if (noteRun === undefined) continue;
-        // Use a separate event; stale run snapshots can overwrite intervening lifecycle changes.
         events.push({
           id: yield* allocateEventId(),
           type: "run.background-work-cancelled",
@@ -986,7 +962,6 @@ export const make = Effect.gen(function* () {
             )
           : undefined;
       let processLossCount = 1;
-      // Normal upgrades must not exhaust an unfinished turn's crash allowance.
       if (
         continuationRun?.restartContinuationOfRunId !== undefined &&
         continuationRun.status !== "completed" &&
@@ -1103,7 +1078,6 @@ export const make = Effect.gen(function* () {
     const groupSize = grouped ? 32 : 1;
     for (let offset = 0; offset < threadIds.length; offset += groupSize) {
       const cancelledEffectIds: string[] = [];
-      // Read and decide on the writer so shared sessions see earlier updates in this group.
       const reconcileGroup = Effect.gen(function* () {
         for (const threadId of threadIds.slice(offset, offset + groupSize)) {
           const projection = yield* projections.getRuntimeRecoveryProjection(threadId).pipe(
@@ -1141,7 +1115,6 @@ export const make = Effect.gen(function* () {
             : new ProviderRuntimeRecoveryError({ operation: "reconcile", cause }),
         ),
       );
-      // Eventless outbox cancellations also wait for the group's durable commit.
       if (cancelledEffectIds.length > 0) yield* outbox.signalCancellations(cancelledEffectIds);
     }
     const outboxReconciliation = yield* outbox.reconcileAfterProcessLoss.pipe(
@@ -1149,8 +1122,6 @@ export const make = Effect.gen(function* () {
         (cause) => new ProviderRuntimeRecoveryError({ operation: "drain-outbox", cause }),
       ),
     );
-    // After the drain, which cancels every reopened provider start. A crash before this write
-    // leaves the run unstarted, so the next recovery sends it again.
     if (resends.length > 0) {
       yield* eventSink
         .writeWithEffects({ events: [], effects: resends })
@@ -1224,7 +1195,6 @@ export const make = Effect.gen(function* () {
               Effect.logWarning("Failed to prepare a restart continuation", { threadId, cause }),
           ),
         ),
-      // Leave room in the four-reader pool for other shutdown reads.
       { concurrency: 2, discard: true },
     );
   }).pipe(

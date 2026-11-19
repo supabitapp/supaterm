@@ -55,9 +55,6 @@ const QUERY_MAX_ROWS = 256;
 const QUERY_MAX_BYTES = 32 * 1024 * 1024;
 const QUERY_MAX_PAYLOAD_BYTES = 4 * 1024 * 1024;
 const QUERY_MAX_AGE_MS = 30 * 24 * 60 * 60_000;
-// A stats answer saves one row per listed PR, so the bounds index is walked once per batch of
-// saves. Each walk trims a batch below the caps, so the caps hold between walks. The batch count
-// lives in the database, so tabs sharing it share one count.
 const QUERY_PRUNE_BATCH_ROWS = 32;
 const QUERY_PRUNE_BATCH_BYTES = 1024 * 1024;
 const CATALOG_KEY = "document";
@@ -193,7 +190,6 @@ const makeDatabaseHandle = Effect.fn("web.connectionStorage.makeDatabaseHandle")
             const opened = yield* openDatabase();
             current = opened;
             opened.addEventListener("close", () => forget(opened));
-            // Another tab upgrading the schema waits on this connection.
             opened.addEventListener("versionchange", () => {
               forget(opened);
               opened.close();
@@ -215,7 +211,6 @@ const makeDatabaseHandle = Effect.fn("web.connectionStorage.makeDatabaseHandle")
   return { handle, close };
 });
 
-// Browsers can omit close events; retry InvalidStateError with a fresh connection.
 function withDatabase<A>(
   database: DatabaseHandle,
   use: (opened: IDBDatabase) => Effect.Effect<A, ConnectionTransientError>,
@@ -266,7 +261,6 @@ function writeDatabaseValueOnConnection(
   return Effect.callback<void, ConnectionTransientError>((resume) => {
     try {
       const transaction = database.transaction(storeName, "readwrite");
-      // Commit failures can fire abort without error; every failed write fires abort.
       transaction.addEventListener("abort", () => {
         resume(
           Effect.fail(catalogError("write", transaction.error ?? "Unknown IndexedDB write error")),
@@ -349,7 +343,6 @@ function removeDatabaseValuesInRangeOnConnection(
   }).pipe(Effect.withSpan("web.connectionStorage.removeDatabaseValuesInRange"));
 }
 
-// Mirrors mobile's pull-request cache bounds, per environment.
 function saveQueryOnConnection(
   database: IDBDatabase,
   environmentId: EnvironmentId,
@@ -370,7 +363,6 @@ function saveQueryOnConnection(
         resume(Effect.void);
       });
       const store = transaction.objectStore(QUERY_STORE_NAME);
-      // An answer too large to keep must not leave its older copy to paint on the next start.
       if (bytes > QUERY_MAX_PAYLOAD_BYTES) {
         store.delete(queryCacheKey(environmentId, key));
         return;
@@ -591,8 +583,6 @@ export const makeCatalogStore = Effect.fn("web.connectionStorage.makeCatalogStor
   return { read, update } satisfies CatalogStore;
 });
 
-// The stored names predate the rename and stay, so a tab still on an older version and an
-// updated one read and revoke the same grants.
 const PULL_REQUEST_ROUTING_KEY_PREFIX = "supaterm:github-routing:";
 const PULL_REQUEST_ROUTING_CHANGED = "supaterm:github-routing-changed";
 const isStoredPullRequestRoutingPermission = Schema.is(StoredPullRequestRoutingPermission);
@@ -695,7 +685,6 @@ export function makeBrowserPullRequestRoutingPermissions(
   });
 }
 
-// MessageChannel yields without nested-timer clamping or background throttling.
 const yieldToBrowserTask = Effect.callback<void>((resume) => {
   const { port1, port2 } = new MessageChannel();
   port1.addEventListener(
@@ -708,7 +697,6 @@ const yieldToBrowserTask = Effect.callback<void>((resume) => {
   );
   port1.start();
   port2.postMessage(null);
-  // A closed port delivers nothing, so interruption needs no listener bookkeeping.
   return Effect.sync(() => port1.close());
 });
 
@@ -720,7 +708,6 @@ export const layer = Layer.effectContext(
     );
     const catalog = yield* makeCatalogStore(makeCatalogBackend(database));
     const pullRequestRoutingPermissions = makeBrowserPullRequestRoutingPermissions();
-    // Remembers each thread row's encoding, so a save only encodes rows that changed.
     const encodeStoredShellSnapshot = makeStoredShellSnapshotEncoder({
       yieldToHost: yieldToBrowserTask,
     });
@@ -953,7 +940,6 @@ export const layer = Layer.effectContext(
             snapshot,
           }).pipe(Effect.mapError((cause) => persistenceError("save-thread", cause)));
           if (!isLatest()) return;
-          // An older copy of a thread now too large to keep would paint stale on reopen.
           yield* Option.match(encoded, {
             onNone: () => removeDatabaseValue(database, THREAD_STORE_NAME, key),
             onSome: (payload) => writeDatabaseValue(database, THREAD_STORE_NAME, key, payload),

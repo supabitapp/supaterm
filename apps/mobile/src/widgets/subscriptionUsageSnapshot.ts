@@ -42,7 +42,6 @@ export interface SubscriptionUsageSnapshot {
   }>;
 }
 
-// Snapshots expire after 15 minutes; suspended refresh requires a separate authenticated transport.
 const SNAPSHOT_MAX_AGE = 15 * 60_000;
 export const WIDGET_REFRESH_INTERVAL = 5 * 60_000;
 
@@ -66,7 +65,6 @@ export function createWidgetRefresher<Id>(refresh: (id: Id) => Promise<unknown>)
   };
 }
 
-// Widget snapshots must not persist account emails.
 function accountName(account: LimitAccount) {
   if (account.displayName && !account.displayName.includes("@")) return account.displayName;
   const email = account.email ?? account.displayName;
@@ -88,17 +86,14 @@ function clockLabel(at: number, from: number) {
 function widgetAccounts(window: LimitPoolWindow): WidgetLimitAccount[] {
   const seen = new Map<string, number>();
   return window.columns.map((column) => {
-    // Redacted initials can collide, and the widget keys segments by name.
     const base = accountName(column.account);
     const count = (seen.get(base) ?? 0) + 1;
     seen.set(base, count);
     const color = normalizeProviderAccentColor(column.account.accentColor);
-    // expo-widgets cannot convert an explicit undefined into a Kotlin value.
     const account = { name: count > 1 ? `${base}${count}` : base, ...(color && { color }) };
     if (column.window === null) return account;
     const checkedAt = Date.parse(column.account.limits.checkedAt);
     const resetsAt = column.window.resetsAt ? Date.parse(column.window.resetsAt) : NaN;
-    // A reset at or before the observation already happened.
     const reset = resetsAt > checkedAt;
     return {
       ...account,
@@ -115,7 +110,6 @@ function widgetAccounts(window: LimitPoolWindow): WidgetLimitAccount[] {
   });
 }
 
-// A reset at or before its account's observation already happened, so it cannot expire the snapshot.
 const isUpcoming = (reset: LimitPoolWindow["resets"][number]) =>
   reset.at > Date.parse(reset.member.account.limits.checkedAt);
 
@@ -219,7 +213,6 @@ export function buildSubscriptionUsageSnapshot(
   const configuredDrivers = new Set(
     [...presentations.values()].flatMap((presentation) =>
       (presentation.serverConfig?.providers ?? [])
-        // Servers report default-enabled drivers even when their CLI is missing.
         .filter(
           (provider) =>
             provider.enabled &&

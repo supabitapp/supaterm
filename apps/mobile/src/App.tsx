@@ -136,7 +136,6 @@ const appLinking = {
   ): ReturnType<typeof getActionFromState> => {
     const current = rootNavigationRef.isReady() ? rootNavigationRef.getRootState() : undefined;
     return (
-      // Our router handles the selection; React Navigation's type only lists its own actions.
       (workspaceDetailLinkAction(state) as ReturnType<typeof getActionFromState>) ??
       pairingFormLinkAction(state, current) ??
       settingsLinkAction(state, current) ??
@@ -164,7 +163,6 @@ function handleNavigationStateChange(state: NavigationState | undefined): void {
   resolvePendingNewTaskPromptLink(state);
   resolvePendingThreadPromptLink(state);
   if (!state) return;
-  // A launch that opens another route has no Home rows for the splash to wait for.
   if (state.routes[state.index]?.name !== "Home") settleLaunchSplashHomeRows();
   recordAppShortcutNavigationState(state);
   pruneNewTaskFlowStates(state);
@@ -201,8 +199,6 @@ disposeOnFoundationReplace(typeof module === "undefined" ? undefined : module.ho
   for (const dispose of appServiceDisposers) dispose();
 });
 
-// Cached shells are local reads that end in a fraction of this time; the limit keeps a failed
-// read, or a list that does not lay out, from holding the splash screen.
 const SPLASH_WAIT_MS = 1_500;
 
 function SplashScreenCoordinator() {
@@ -223,8 +219,6 @@ function SplashScreenCoordinator() {
     const canHide = splashCanHide({
       preferencesReady: isReady,
       shellCachesRead,
-      // Home holds the splash in a layout effect of the commit that gives it rows. That can be
-      // this commit, after this render read the store.
       homeRowsPending: homeRowsPending || launchSplashHomeRowsPending(),
       waitEnded,
     });
@@ -269,9 +263,6 @@ function AppContent() {
             {Platform.OS === "android" ? (
               <StatusBar barStyle={themeAppearance === "dark" ? "light-content" : "dark-content"} />
             ) : null}
-            {/* native-stack forwards the navigation theme's `dark` as the nav bar's
-                overrideUserInterfaceStyle; without it every native header is forced light
-                even in system dark mode. */}
             <GlobalVoiceInputControl>
               <NativeLayoutMetricsProvider>
                 <Navigation
@@ -286,8 +277,6 @@ function AppContent() {
                 <ProjectChipIconRasterizer />
               </NativeLayoutMetricsProvider>
             </GlobalVoiceInputControl>
-            {/* Anchored-menu overlays render here — in-window, so the
-                keyboard stays up while a dropdown is open. */}
             <OverlayPortalHost />
           </SafeAreaProvider>
         </KeyboardProvider>

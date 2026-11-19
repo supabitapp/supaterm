@@ -246,11 +246,6 @@ export const updateCommand = Command.make("update", {
   ),
 );
 
-/**
- * A `supaterm serve` or `supaterm` someone started by hand, as opposed to the one the
- * background service supervises. The server records its pid on startup; a
- * stale file from a crashed server is ignored by checking the pid is alive.
- */
 const findForegroundServer = Effect.fn("cli.update.find_foreground_server")(function* (input: {
   readonly serverRuntimeStatePath: string;
 }) {
@@ -322,7 +317,6 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
   }
 
   const status = yield* service.status;
-  // Service names are per user, so another home's unit belongs to a different install.
   const servesThisHome =
     status.installedBaseDir !== undefined &&
     path.resolve(status.installedBaseDir) === path.resolve(input.baseDir);
@@ -413,8 +407,6 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
         runtime,
         targetVersion,
         databasePath: input.databasePath,
-        // The target then runs under its own launcher, so only its database check matters.
-        // Older builds may predate protocol 4, and every build since the bump accepts 3.
         launcherProtocol:
           compareExactServiceVersions(targetVersion, currentVersion) < 0
             ? 3
@@ -459,8 +451,6 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
     targetEntryPath: runtime.entryPath,
   });
 
-  // Use today's service manager for the target version. Inside the service it hands off to
-  // the target CLI, so stopping this process cannot interrupt the switch.
   let servicePlan: BootService.BootServicePlan | undefined;
   if (serviceInstalled && !serviceCurrent) {
     yield* Console.log(
@@ -488,9 +478,7 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
     );
   }
 
-  // A handed-off service install rewrites the unit later, while the old launcher may be stopped.
   if (servicePlan?.handedOff !== true) {
-    // A stopped service's unit still names the launcher runtime it will start.
     const unit = yield* fs.readFileString(status.unitPath).pipe(Effect.option);
     yield* prunePinnedRuntimes({
       baseDir: input.baseDir,
@@ -514,7 +502,6 @@ export const runUpdate = Effect.fn("cli.update.run")(function* (input: {
   } else if (serviceInstalled && serviceCurrent) {
     yield* Console.log(`  Background service already on ${targetVersion}`);
   } else if (serviceInstalled) {
-    // A pending restart means the service already points at serviceVersion but runs an older one.
     const running =
       serviceVersion === undefined
         ? "an unknown version"

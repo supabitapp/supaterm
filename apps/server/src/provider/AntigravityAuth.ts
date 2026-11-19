@@ -31,9 +31,6 @@ import {
 import type { ProviderAuthController } from "./ProviderAuthService.ts";
 
 const AUTH_TIMEOUT_MS = 300_000;
-// Once initialized, a healthy agent shows the Google link within seconds; its bundled Python has no
-// IPv4 fallback, so broken IPv6 stalls each Google request. Startup is timed separately: the
-// one-file runtime unpacks on every launch (about a minute on Windows) before it answers initialize.
 const NO_RESPONSE_HINT_MS = 30_000;
 const STARTUP_HINT_MS = 90_000;
 const NOT_STARTED_MESSAGE =
@@ -215,7 +212,6 @@ export const makeAntigravityAuth = Effect.fn("makeAntigravityAuth")(function* <
             return child;
           }),
         );
-        // Propagate interruption after the exit wait so concurrent stop waiters stay attached.
         return yield* restore(Fiber.await(fiber)).pipe(
           Effect.flatMap((result) => result),
           Effect.ensuring(Fiber.interrupt(fiber)),
@@ -295,7 +291,6 @@ export const makeAntigravityAuth = Effect.fn("makeAntigravityAuth")(function* <
         onAuthorizationUrl: (url) => receiveAuthorizationUrl(flow, url),
       });
       const startupHint = yield* publishStartingHint(flow, STARTUP_HINT_MS, NOT_STARTED_MESSAGE);
-      // `start` reuses this memoized handshake.
       yield* runtime.initialize();
       flow.initialized = true;
       yield* Fiber.interrupt(startupHint);
@@ -459,7 +454,6 @@ export const makeAntigravityAuth = Effect.fn("makeAntigravityAuth")(function* <
             options.forwardCallback?.(callback) ??
             forwardAntigravityCallback(options.instanceId, callback)
           ).pipe(
-            // stopFlow interrupts this fiber, so it runs from a sibling fiber.
             Effect.tapError(() =>
               stopFlow(flow, "failed", FORWARDING_FAILED_MESSAGE).pipe(
                 Effect.forkIn(instanceScope),

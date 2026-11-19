@@ -40,7 +40,6 @@ describe("KiroDriver", () => {
     assert.deepEqual(custom.env, { KIRO_API_KEY: "ksk_test" });
   });
 
-  // Outputs recorded from `kiro-cli whoami --format json` on Kiro CLI 2.27.0.
   it("reads the sign-in state from kiro-cli whoami", () => {
     assert.deepEqual(kiroAuthFromWhoami({ code: 1, stdout: '{"account":null}\n' }, {}), {
       status: "unauthenticated",
@@ -62,8 +61,6 @@ describe("KiroDriver", () => {
     assert.deepEqual(kiroAuthFromWhoami(undefined, {}), { status: "unknown" });
   });
 
-  // Reported from Kiro CLI 2.27.1 with an IAM Identity Center login (exit 0;
-  // values are placeholders, layout unchanged).
   it("keeps the account email when whoami appends an Identity Center profile", () => {
     const stdout = [
       '{"accountType":"IamIdentityCenter","email":"jane.doe@example.com","region":"us-east-1","startUrl":"https://d-0123456789.awsapps.com/start"}',
@@ -93,7 +90,6 @@ const layerTest = TestProviderHost.layer({ runBackgroundWork: false }).pipe(
   ),
 );
 
-/** Records each spawned command and answers only `--version`. */
 function recordingSpawner(launches: Array<string>) {
   return ChildProcessSpawner.make((command) => {
     const standard = ChildProcess.isStandardCommand(command);

@@ -23,7 +23,6 @@ export function dispatchCommandPalette(action: CommandPaletteUiAction): void {
   const state = useCommandPaletteStore.getState();
   const next = reduceCommandPaletteUiState(state, action);
   if (!state.open && next.open) {
-    // The workspace turns inert before the popup mounts, which blurs the opener.
     returnFocus = {
       element: document.activeElement instanceof HTMLElement ? document.activeElement : null,
       href: window.location.href,
@@ -48,8 +47,6 @@ export function getCommandPaletteReturnFocus(): HTMLElement | boolean {
   return element?.isConnected && !element.matches(":disabled") ? element : true;
 }
 
-// The palette is only mounted on app-shell routes (not /pair, sign-in or
-// landings), so its shortcuts must stay inert elsewhere.
 let mountedPalettes = 0;
 
 export function isCommandPaletteMounted(): boolean {

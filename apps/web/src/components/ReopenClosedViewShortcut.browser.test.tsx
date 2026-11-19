@@ -129,7 +129,6 @@ async function renderShortcut() {
   stack.use(await render(<ReopenClosedViewShortcut />));
   const environment = stack.move();
   return {
-    /** Attaches an element to the document until the test ends. */
     append(element: HTMLElement) {
       document.body.append(element);
       environment.defer(() => element.remove());

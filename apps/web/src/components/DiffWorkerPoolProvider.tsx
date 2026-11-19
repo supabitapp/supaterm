@@ -47,8 +47,6 @@ function applyDiffWorkerTheme(pool: WorkerPoolManager) {
   })();
 }
 
-// The pool follows the rendered appearance for as long as it lives, so it never depends on a
-// mounted provider to carry a theme change across.
 function createDiffWorkerPool(poolSize: number) {
   const themeName = resolveDiffThemeName(getRenderedAppearance());
   const pool = new WorkerPoolManager(
@@ -86,7 +84,6 @@ function acquireDiffWorkerPool(poolSize: number) {
   return entry;
 }
 
-// Plain-text views do not queue a highlight task that could retry a blank first render.
 function DiffWorkerReady({ children }: { children?: ReactNode }) {
   const workerPool = useWorkerPool();
   const [readyPool, setReadyPool] = useState<WorkerPoolManager>();
@@ -120,8 +117,6 @@ function DiffWorkerReady({ children }: { children?: ReactNode }) {
   );
 }
 
-// Module-level so the subscribe identity is stable: a new one would release and reacquire
-// the shared pool on every render.
 function subscribeSharedWorkerPool(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {};
   const entry = acquireDiffWorkerPool(resolveDiffWorkerPoolSize());

@@ -66,7 +66,6 @@ function InlineAudio(
   },
 ) {
   const { onPlaybackActivityChange } = props;
-  // An empty source keeps native buffering off until the user explicitly plays.
   const player = usePlaybackAudioPlayer(null);
   const status = useAudioPlayerStatus(player);
   const [loading, setLoading] = useState(false);
@@ -241,7 +240,6 @@ function InlineAudio(
 function VisibleFilePreview(
   props: PreviewProps & { readonly onPlaybackActivityChange?: (active: boolean) => void },
 ) {
-  // Each mounted preview owns its source; feed streaming must not restart a fetch or player.
   const [source] = useState(props.source);
   const refresh = useRefreshAssetUrl(
     "environmentId" in source ? source.environmentId : null,
@@ -255,9 +253,6 @@ export function ThreadInlineFilePreview(props: PreviewProps) {
   const visible = useContext(ThreadMediaVisibleContext);
   const focused = useIsFocused();
   const retainRow = useContext(ThreadMediaRetainContext);
-  // Unmounting disposes the native player, so a started player stays mounted off-screen
-  // (and its feed row out of recycling) until it finishes or fails. Leaving the screen
-  // disposes it, so the latch resets too; the feed drops its row pin on blur itself.
   const [playbackActive, setPlaybackActive] = useState(false);
   if (!focused && playbackActive) setPlaybackActive(false);
   const onPlaybackActivityChange = (active: boolean) => {

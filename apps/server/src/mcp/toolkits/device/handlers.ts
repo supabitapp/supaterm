@@ -46,9 +46,6 @@ export function agentDeviceQuickStart(
     target === ""
       ? `Drive it with ${executable}. It is bound to this device and session, so it needs no --platform, --udid, --serial, --config or --session flags. Use this exact path; login shells may reset PATH.`
       : `Drive it with ${executable}. Use this exact path; login shells may reset PATH. Always pass ${target}.`,
-    // Screenshots and input need the session agent-device's open starts, and an iOS snapshot also
-    // needs its app. device_open does not run open itself: on iOS that can start a minutes-long
-    // XCTest runner build.
     "Every app launch, deep link, tap, text entry, alert, setting, screenshot and recording on this device goes through it. Run open <bundle-or-package-id> (apps lists them) before snapshots, CLI screenshots or input; it starts the session they need. Use device_screenshot just to look.",
     `  ${run("open <bundle-or-package-id> --relaunch")}  # restarts the app; Expo dev clients connect to their Metro, --metro-port <port> picks it`,
     `  ${run("open <bundle-or-package-id> <deep-link-url>")}`,
@@ -242,7 +239,6 @@ const handlers = {
       }
       const hostId = yield* resolveHostId(state.hosts, input.hostId);
       const target = yield* pickDevice(state, { ...input, hostId });
-      // Resolve consent and agent connectivity before booting or registering a session.
       if (!(yield* devices.agentReadinessIfSupported(target.hostId))) {
         return yield* new DeviceToolUnavailableError({
           reason:
@@ -263,8 +259,6 @@ const handlers = {
         after.devices.find(
           (candidate) => candidate.hostId === session.hostId && candidate.id === session.deviceId,
         ) ?? target;
-      // Target the opened device: an Expo device and its agent-device daemon
-      // exist only once its session runs, and Android ids change on boot.
       const opened = {
         threadId: scope.thread.threadId,
         hostId: session.hostId,

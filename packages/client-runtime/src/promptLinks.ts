@@ -21,8 +21,6 @@ import {
   visibleThreadPullRequests,
 } from "./threadPullRequests.ts";
 
-// A link's `owner/name` is GitHub's. GitCafe syncs a repository two-way with GitHub under the
-// same path, so a checkout cloned from git.cafe counts as the linked repository.
 const PROMPT_LINK_REPOSITORY_HOSTS = ["github.com", "git.cafe", "staging.git.cafe"];
 
 /**
@@ -57,7 +55,6 @@ export function findPromptLinkPullRequestThread<
   let latest: T | undefined;
   for (const thread of threads) {
     if (latest !== undefined && thread.updatedAt <= latest.updatedAt) continue;
-    // Side chats inherit their parent's links but stay hidden.
     if (thread.lineage?.sideChat === true) continue;
     const linked = visibleThreadPullRequests(threadPullRequestsOf(thread)).some(
       (link) => threadPullRequestKeyOf(link) === key,

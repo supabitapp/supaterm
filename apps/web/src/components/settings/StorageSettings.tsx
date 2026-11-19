@@ -115,14 +115,8 @@ function RetentionControl({
 }) {
   const [draft, setDraft] = useState(value);
   const [savedValue, setSavedValue] = useState(value);
-  // Saving an age can start a cleanup sweep, so turning a rule on only opens a draft.
-  // While its first save is in flight this holds that submission.
   const [enabling, setEnabling] = useState<"draft" | "edited" | { days: number } | null>(null);
-  // Holds an age until Enter or focus leaves the row: one edited before focus moved to the
-  // switch, so switching off never saves it first, or one stepped toward a rule's first age,
-  // so raising it from 8 never saves a shorter age on the way.
   const [held, setHeld] = useState(false);
-  // Hides a saved rule's age once it is switched off, so no blur can save it after null.
   const [switchedOff, setSwitchedOff] = useState(false);
   if (savedValue !== value) {
     setSavedValue(value);
@@ -201,22 +195,17 @@ function RetentionControl({
               autoFocus={value === null}
               size={5}
               className="w-auto grow-0 text-right"
-              // Any typed or pasted edit replaces a held age: NumberField commits it on blur itself,
-              // and text it cannot parse yet must not leave the held age to be saved.
               onChange={() => setHeld(false)}
               onPaste={() => setHeld(false)}
               onKeyDown={(event) => {
                 if (event.nativeEvent.isComposing || event.keyCode === 229) return;
                 if (event.key === "Enter") {
-                  // Blurring lets NumberField parse the visible text and commit it once. It
-                  // skips an unedited value, so an untouched draft is committed here.
                   const input = event.currentTarget;
                   const shown =
                     draft !== null && input.value === new Intl.NumberFormat().format(draft);
                   if (enabling === "draft" && shown) commit(draft);
                   input.blur();
                 } else if (event.key === "Escape" && (held || typeof enabling === "string")) {
-                  // An unhandled Escape closes the settings page.
                   event.preventDefault();
                   event.stopPropagation();
                   setDraft(pending?.days ?? value);
@@ -235,7 +224,6 @@ function RetentionControl({
       <Switch
         aria-label={label}
         checked={on}
-        // Keeps focus in the age field, so switching off never commits an edited age first.
         onMouseDown={(event) => event.preventDefault()}
         onCheckedChange={(enabled) => {
           if (enabled) {
@@ -509,7 +497,6 @@ function hasUnconfiguredEnvironment(
   return environments.some((environment) => environment.serverConfig == null);
 }
 
-/** Narrows a mixed selection to the machines that can be configured. */
 function StorageCleanupScopeNotice() {
   const { connectedEnvironments } = useSettingsScope();
   return (

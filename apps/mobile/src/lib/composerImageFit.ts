@@ -17,7 +17,6 @@ function shrinkToByteLimit(
   bytes: number,
 ): { width: number; height: number } | null {
   if (bytes <= PROVIDER_SEND_TURN_MAX_IMAGE_BYTES) return null;
-  // Encoded size tracks pixel count, so scale each edge by the square root with some headroom.
   const scale = Math.sqrt(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / bytes) * 0.9;
   const next = {
     width: Math.max(1, Math.floor(size.width * scale)),
@@ -48,7 +47,6 @@ export async function renderPhoto(
       if (!saved.base64) {
         throw new Error("The rendered photo has no bytes.");
       }
-      // PNG ignores compress, so a resampled PNG can encode larger than its original.
       size =
         shrinks < MAX_BYTE_LIMIT_SHRINKS
           ? shrinkToByteLimit(image, estimateBase64ByteSize(saved.base64))

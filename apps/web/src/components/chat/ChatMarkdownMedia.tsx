@@ -40,7 +40,6 @@ export function markdownImageCopy(alt: string, src: string, title: string | unde
   return `![${escapedAlt}](${markdownDestination(src)}${titleSuffix})`;
 }
 
-// Raw HTML sources keep spaces and parentheses that a bare Markdown destination cannot hold.
 function markdownDestination(src: string): string {
   if (!/[\s<>()]/.test(src)) return src;
   const escaped = src
@@ -191,7 +190,6 @@ export function ChatMarkdownImage(props: {
   const src = props.src ?? loadedSrc;
   const failed = props.sourceFailed === true || (src !== null && failedSrc === src);
   const settled = src !== null && !failed && (!props.standalone || loadedSrc !== null);
-  // Cached images are complete before `onLoad` can fire.
   const markLoadedIfComplete = (image: HTMLImageElement | null) => {
     if (!image) return;
     if (image.complete && image.naturalWidth > 0) setLoadedSrc(image.currentSrc || image.src);
@@ -457,7 +455,6 @@ export const ChatMarkdownAssetImage = memo(function ChatMarkdownAssetImage(props
         originalUrl={props.originalUrl}
         style={props.style}
         mediaIdentity={JSON.stringify([props.environmentId, props.resource, props.srcFragment])}
-        // Re-signing cannot grant the file access this connection lacks.
         onRetry={missingFileAccess ? undefined : refreshAssetUrl}
         actionsSource={actionsSource}
       />

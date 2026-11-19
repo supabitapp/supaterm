@@ -15,7 +15,6 @@ type ListMarker =
 interface ParsedListMarker {
   marker: ListMarker;
   markerEnd: number;
-  /** Column a nested item must reach to belong to this item. */
   contentColumn: number;
 }
 
@@ -37,7 +36,6 @@ function parseListMarker(line: string): ParsedListMarker | null {
       contentColumn: contentColumn(indent, ordered[1].length + 1, space),
     };
   }
-  // The checkbox is item content, so a task's content starts after "- ".
   const task = rest.match(/^-(\s)\[[ xX]\]((?:[ \t]+)|\s*$)/);
   if (task && task[1] !== undefined) {
     return {
@@ -58,8 +56,6 @@ function parseListMarker(line: string): ParsedListMarker | null {
   return null;
 }
 
-// CommonMark content follows 1-4 columns of padding; wider padding is code, so the content
-// column sits one column past the marker.
 function contentColumn(indent: string, markerWidth: number, padding: string): number {
   const markerEnd = indentWidth(indent) + markerWidth;
   const space = indentWidth(padding, markerEnd);
@@ -177,7 +173,6 @@ function* listMarkersAbove(
   while (lineStart > 0) {
     const lineEnd = lineStart - 1;
     lineStart = value.lastIndexOf("\n", lineEnd - 1) + 1;
-    // A newline inside a chip does not start a list item.
     for (let token = tokens[tokenIndex]; token; token = tokens[tokenIndex]) {
       if (token.start >= lineStart) tokenIndex -= 1;
       else if (token.end > lineStart) lineStart = value.lastIndexOf("\n", token.start - 1) + 1;
@@ -318,7 +313,6 @@ export function listOutdentForTab(
   if (isInsideInlineToken(tokens, start)) return null;
   const { marker } = parsed;
   const parent = parentMarker(value, line.start, marker, tokens);
-  // With no parent above, undo one step of Tab's two-space fallback.
   const indent = parent?.indent ?? marker.indent.replace(/^(?:\t| {1,2})/, "");
   const continues =
     parent?.kind === "ordered" &&

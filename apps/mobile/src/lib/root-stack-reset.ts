@@ -31,7 +31,6 @@ export function dispatchRootStackReset(
   state: NavigationState,
   payload: RootStackResetAction["payload"],
 ) {
-  // Same shape as `CommonActions.reset`, which would pull React Native into node tests.
   navigation.dispatch({ type: "RESET", payload, target: state.key });
 }
 

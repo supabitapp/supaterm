@@ -24,7 +24,7 @@ it("follows a changed word wrap default while mounted", async () => {
         <code>a long line</code>
       </pre>
     </MarkdownCodeBlock>,
-    { router: false }, // The code block reads no route state.
+    { router: false },
   );
   const block = () => screen.container.querySelector(".chat-markdown-codeblock");
   expect(block()?.getAttribute("data-wrap")).toBe("false");
@@ -48,7 +48,7 @@ it("copies a fenced command without the fence's closing newline", async () => {
         <code>sudo pacman -S patchelf</code>
       </pre>
     </MarkdownCodeBlock>,
-    { router: false }, // The code block reads no route state.
+    { router: false },
   );
   using write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
   await screen.getByRole("button", { name: "Copy code" }).click();

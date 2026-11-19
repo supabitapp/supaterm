@@ -17,7 +17,6 @@ export default function ProviderAuthTerminal({
   const [surface, setSurface] = useState<GhosttyTerminalSurface | null>(null);
   const written = useRef(0);
   const [error, setError] = useState<string | null>(null);
-  // The surface captures its callbacks once at creation.
   const respond = useStableCallback(onResponse);
   const offset = outputOffset ?? output.length;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes new auth output into the imperative Ghostty terminal surface

@@ -42,8 +42,6 @@ export function AddCodexAccountDialog({
   const [instanceId, setInstanceId] = useState<ProviderInstanceId | null>(null);
   const [pending, setPending] = useState(false);
   const provider = providers?.find((candidate) => candidate.instanceId === instanceId);
-  // Closes itself once the new account connects; the owner unmounts it after
-  // the close animation.
   const connected = usesChatGptSharing(provider);
 
   const createAccount = async () => {

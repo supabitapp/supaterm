@@ -66,11 +66,6 @@ describe("project favicon URL cache", () => {
   });
 });
 
-/**
- * Environments whose `assets.createUrl` never answers until the test releases a call.
- * `started` receives the environment of each call as it begins, and `inFlight` counts
- * calls that have begun and not yet been released or interrupted.
- */
 const makeAssetUrlHarness = Effect.fn("TestAssetUrl.makeHarness")(function* (
   environmentIds: ReadonlyArray<EnvironmentId>,
 ) {
@@ -194,7 +189,6 @@ describe("asset URL requests", () => {
       }
       expect(harness.inFlight(remote)).toBe(ASSET_URL_MAX_IN_FLIGHT);
 
-      // Each answer admits the next waiting request.
       for (let call = 0; call < total; call += 1) {
         yield* harness.release(remote);
         if (call < total - ASSET_URL_MAX_IN_FLIGHT) yield* Queue.take(harness.started);
@@ -238,7 +232,6 @@ describe("desktop-local media fallback", () => {
   const local = EnvironmentId.make("media-local");
   const threadId = ThreadId.make("remote-thread");
 
-  // The remote is missing every file; the desktop has one at every absolute path.
   const makeFallback = Effect.fn("TestAssetUrl.makeFallback")(function* () {
     const calls: Array<EnvironmentId> = [];
     const supervisor = (environmentId: EnvironmentId) =>
@@ -322,7 +315,6 @@ describe("desktop-local media fallback", () => {
     Effect.gen(function* () {
       const { load } = yield* makeFallback();
       expect(yield* load("docs/report.png")).toEqual({ loaded: false, calls: [remote] });
-      // The same resolved path written absolute still falls back, and shares no cached result.
       expect(yield* load("/tmp/repo/docs/report.png")).toEqual({
         loaded: true,
         calls: [remote, local],
@@ -351,12 +343,8 @@ const minted = (n: number, fileRevision?: string): MintResult =>
     ...(fileRevision === undefined ? {} : { fileRevision }),
   });
 
-// A stand-in for the asset URL query: a refresh starts a mint (counted, shown as
-// waiting) and `settle` completes the latest one.
 function setup(initial: MintResult) {
   let mints = 0;
-  // Node removal runs on the registry's scheduler; `unmount` flushes it so the
-  // next mount of the same revision builds a fresh node.
   const scheduled: Array<() => void> = [];
   const registry = AtomRegistry.make({
     scheduleTask: (task) => {
@@ -465,7 +453,6 @@ describe("makeRevisionedAssetUrlFamily", () => {
     expect(url("mutation-2")).toBe("/a/0");
     unchanged();
 
-    // The query now holds /a/3; a later revision must still keep the URL on screen.
     const stillUnchanged = mount("mutation-3");
     expect(url("mutation-3")).toBe("/a/0");
     settle("file-a");

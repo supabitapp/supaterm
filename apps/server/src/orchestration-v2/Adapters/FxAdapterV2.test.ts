@@ -47,13 +47,11 @@ const testLayer = Layer.mergeAll(
 
 const SESSION_ID = "fx-session-01";
 const ENABLED_FX_SETTINGS = Schema.decodeSync(FxSettings)({ enabled: true });
-/** The model `fx status --json` reports. */
 const FX_DEFAULT_MODEL = "anthropic/claude-opus-5.5";
 const NAMED_MODEL = "anthropic/claude-sonnet-5.5";
 const CUSTOM_MODEL = "openai/gpt-6.1-sol";
 const CODEX_MODEL = "gpt-6.1-sol";
 const FX_0_0_13_MODES = ["code", "ask"];
-/** fx `main` after vercel-labs/fx#1189. */
 const FX_MAIN_MODES = ["auto", "ask", "full-access"];
 
 type Frame = Record<string, unknown>;
@@ -82,16 +80,10 @@ const select = (
   options: values.map((value) => ({ value, name: value })),
 });
 
-/**
- * fx's session config as recorded from 0.0.13 (fixtures/simple), models
- * trimmed. fx lists its backend `provider` before `model`, both with
- * category `model`.
- */
 const fxConfig = (input: {
   readonly model: string;
   readonly modes: ReadonlyArray<string>;
   readonly mode?: string;
-  /** The session's own model list, on a backend other than the gateway. */
   readonly models?: ReadonlyArray<string>;
 }) => [
   select("provider", "model", "gateway", ["gateway", "codex", "grok"]),
@@ -105,10 +97,6 @@ const fxConfig = (input: {
   select("effort", "thought_level", "xhigh", ["auto", "low", "medium", "high", "xhigh", "max"]),
 ];
 
-/**
- * fx's reply to `session/new` or `session/load`. fx 0.0.13 reports `ask`
- * while it enforces its saved default until a client writes the mode.
- */
 const fxSession = (input: {
   readonly model: string;
   readonly modes: ReadonlyArray<string>;
@@ -132,7 +120,6 @@ const initialize: ReadonlyArray<Frame> = [
   }),
 ];
 
-/** A config write and fx's reply, which lists the session's config after it. */
 const setConfig = (
   configId: string,
   value: string,
@@ -142,19 +129,13 @@ const setConfig = (
   answer("session/set_config_option", { configOptions: configAfter }),
 ];
 
-/**
- * Opens an fx session against a scripted ACP agent, which fails on any
- * frame the script does not expect. Every scripted frame must be used.
- */
 const openFxSession = Effect.fn("openFxSession")(function* (input: {
   readonly scenario: string;
   readonly frames: ReadonlyArray<Frame>;
   readonly runtimeMode: RuntimeMode;
   readonly model?: string;
   readonly modeOptions?: ReadonlyArray<{ readonly id: string; readonly value: string }>;
-  /** Loads this fx session instead of creating one. */
   readonly loadSessionId?: string;
-  /** Then starts a turn on this model. */
   readonly turnModel?: string;
 }) {
   const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -192,7 +173,6 @@ const openFxSession = Effect.fn("openFxSession")(function* (input: {
     }),
   });
   const threadId = ThreadId.make(`thread-fx-${input.scenario}`);
-  // The thread's effort matches the session's, so no effort write is scripted.
   const selectionOn = (model: string) => ({
     instanceId,
     model,
@@ -331,21 +311,16 @@ describe("FxAdapterV2", () => {
           _meta: { fx: { profileMcpServers: true } },
         }),
         answer("session/load", fxSession({ model: NAMED_MODEL, modes: FX_0_0_13_MODES })),
-        // Config id `model`, never fx's `provider`, and never Supaterm's "default".
         ...setConfig(
           "model",
           FX_DEFAULT_MODEL,
           fxConfig({ model: FX_DEFAULT_MODEL, modes: FX_0_0_13_MODES }),
         ),
-        // Written on load even though fx reports ask.
         ...setConfig("mode", "ask", fxConfig({ model: FX_DEFAULT_MODEL, modes: FX_0_0_13_MODES })),
       ],
     }).pipe(Effect.provide(testLayer)),
   );
 
-  // `fx status` names the gateway default, but this loaded session runs on
-  // Codex, whose catalog lacks it; fx would refuse the write and the thread
-  // could not start.
   it.effect("keeps the session's model when its backend lacks fx's default", () =>
     openFxSession({
       scenario: "default-other-backend",
@@ -368,10 +343,6 @@ describe("FxAdapterV2", () => {
     }).pipe(Effect.provide(testLayer)),
   );
 
-  // fx 0.0.13's gateway takes any model id (src/acp/server.zig
-  // handleSetConfigOption) and lists the current one even when its catalog
-  // does not, so a custom model reaches fx instead of running on another,
-  // and switching back afterwards leaves it again.
   it.effect("sends a custom model fx does not list, and leaves it for Default", () =>
     openFxSession({
       scenario: "custom-model",
@@ -388,8 +359,6 @@ describe("FxAdapterV2", () => {
           fxConfig({ model: CUSTOM_MODEL, modes: FX_0_0_13_MODES }),
         ),
         ...setConfig("mode", "ask", fxConfig({ model: CUSTOM_MODEL, modes: FX_0_0_13_MODES })),
-        // Back on Default, which the session started on: fx runs the custom
-        // model now, so the write must go out again.
         ...setConfig(
           "model",
           FX_DEFAULT_MODEL,

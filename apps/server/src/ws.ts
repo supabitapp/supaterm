@@ -336,8 +336,6 @@ export const withLateConfig = <E, R>(
         editors.join() !== config.availableEditors.join() ||
         (editors.includes("file-manager") && config.shellRevealInFileManagerKind === undefined),
     ),
-    // Unbounded, unlike the snapshot: this exists to deliver a probe that
-    // outlasts the snapshot's timeout.
     Stream.mapEffect((editors) =>
       resolveEditorConfig(editors, launcher.resolveFileManagerRevealKind()),
     ),
@@ -348,8 +346,6 @@ export const withLateConfig = <E, R>(
     ),
     Stream.map((editorConfig) => ({ type: "editorsResolved" as const, editorConfig })),
   );
-  // No config event carries these, so a change (Encrypted Relay creating the
-  // identity) goes out as a fresh snapshot.
   const lateTunnelEndpoints = tunnelEndpoints.pipe(
     Stream.map((endpoints) => ({ type: "tunnelEndpointsResolved" as const, endpoints })),
   );
@@ -422,8 +418,6 @@ export const withLateConfig = <E, R>(
               },
               [event],
             ];
-          // Themes never ride in a snapshot; clients carry their projected
-          // values across one.
           default:
             return [current, [event]];
         }
@@ -432,8 +426,6 @@ export const withLateConfig = <E, R>(
   );
 };
 
-// Discoveries run side by side so the slowest one, not their sum, bounds the
-// server config snapshot. Each degrades on timeout rather than failing it.
 export const resolveOpenDiscoveryForConfig = <T, D, E1, R1, E2, R2, E3, R3, E4, R4>(discovery: {
   readonly editors: Effect.Effect<ReadonlyArray<EditorId>, E1, R1>;
   readonly fileManagerRevealKind: Effect.Effect<FileManagerRevealKind | undefined, E2, R2>;
@@ -450,15 +442,11 @@ export const resolveOpenDiscoveryForConfig = <T, D, E1, R1, E2, R2, E3, R3, E4, 
           ),
         ),
       ),
-      // Same discovery-with-timeout treatment as editors: a slow probe must
-      // not stall server.getConfig, so it degrades to an empty list.
       remoteOpenTargets: resolveAvailableEditorsForConfig(discovery.remoteOpenTargets),
       directEndpoints: resolveAvailableEditorsForConfig(discovery.directEndpoints),
     },
     { concurrency: "unbounded" },
   ).pipe(Effect.map(({ editorConfig, ...endpoints }) => ({ ...editorConfig, ...endpoints })));
-// A failed scan leaves no cwd snapshot, so a client without the machine catalog gets it
-// as a pending snapshot, which it shows while it retries the scan.
 function workspaceSnapshotOrCatalog(
   provider: ServerProvider,
   cwd: string,
@@ -477,8 +465,6 @@ function workspaceSnapshotOrCatalog(
   ];
 }
 
-// What an on-demand catalog client keeps of the machine catalog: full entries come from the
-// cwd snapshot it fetches, and skill names and labels keep skill links working without one.
 function machineCatalogNames(provider: Pick<ServerProvider, "slashCommands" | "skills">) {
   return {
     slashCommands: provider.slashCommands.map(({ name }) => ({ name })),
@@ -486,16 +472,12 @@ function machineCatalogNames(provider: Pick<ServerProvider, "slashCommands" | "s
   };
 }
 
-// Stable across restarts, so a client's cached lists stay current until the catalog changes.
-// It covers the full entries: a changed description or input hint must reach the client too.
 const machineCatalogDigest = (provider: Pick<ServerProvider, "slashCommands" | "skills">) =>
   NodeCrypto.createHash("sha256")
     .update(JSON.stringify([provider.slashCommands, provider.skills]))
     .digest("hex")
     .slice(0, 16);
 
-// Names, or the digest that stands for them, still change the config when the machine catalog
-// does, so the client refetches its cwd snapshot.
 function withoutWorkspaceSnapshots(
   providers: ReadonlyArray<ServerProvider>,
   catalogsPerCwd: ReadonlySet<string> = new Set(),
@@ -514,7 +496,6 @@ function withoutWorkspaceSnapshots(
   });
 }
 
-// Deltas are taken from the list this client last received, which a late snapshot replaces.
 const withProviderStatusDeltas = (sent: ReadonlyArray<ServerProvider>) =>
   Stream.mapAccum(
     () => sent,
@@ -731,13 +712,8 @@ function projectFileFailureContext(
 
 const PROVIDER_STATUS_DEBOUNCE_MS = 200;
 
-// Middleware added later wraps middleware added earlier, so instrumentation wraps authorization.
 const ServerWsRpcGroup = WsRpcGroup.middleware(RpcInstrumentation);
 
-// RpcGroup.toLayer derives each handler's requirements by scanning every RPC in
-// the group, so its type cost grows with handlers × RPCs. Near 200 methods that
-// crosses TypeScript's instantiation limit and the layer's requirements degrade to
-// `any`, so the handlers are registered as two disjoint, smaller groups.
 type ServerWsRpc = RpcGroup.Rpcs<typeof ServerWsRpcGroup>;
 const SPLIT_WS_RPC_PREFIXES = ["server", "pullRequests", "provider", "orchestration"] as const;
 type SplitWsRpc = Extract<
@@ -847,7 +823,6 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
   }) {
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
     const dedupeBodies = input.acceptDedupedBodies === true;
-    // Replay, snapshot, and live tail share one deduper: it must see every delivered record.
     const withLiveDedupe = <E, R>(stream: Stream.Stream<OrchestrationV2ThreadStreamItem, E, R>) =>
       dedupeBodies ? Stream.suspend(() => Stream.map(stream, makeLiveBodyDeduper())) : stream;
     const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
@@ -881,9 +856,6 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
           afterSequence,
           throughSequence,
           limit: THREAD_RESUME_MAX_REPLAY_EVENTS + 1,
-          // A row a newer build wrote (e.g. after a downgrade) must not fail
-          // every resubscribe. The live tail resumes from `highWater`, so a
-          // dropped row never hides later events.
           skipUnknownEventTypes: true,
         })
         .pipe(
@@ -952,9 +924,6 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
       );
     });
 
-    // The event sink subscribes to live events before reading the persisted
-    // tail, so no event published during the replay window is lost; overlapping
-    // events are deduped by sequence on the client.
     if (input.afterSequence !== undefined) {
       const highWater = yield* applicationEvents.latestAgentSequence(input.threadId).pipe(
         Effect.mapError(
@@ -986,8 +955,6 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
               }),
           ),
         );
-      // Bound stored JSON before decoding, then check projected event
-      // size separately. Neither byte count is a bound on process memory.
       if (
         stats.eventCount > THREAD_RESUME_MAX_REPLAY_EVENTS ||
         !isThreadReplayRawPayloadSafe(stats.rawPayloadBytes)
@@ -1005,8 +972,6 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
               }),
           ),
         );
-        // A retained creation can belong to a thread already deleted.
-        // Only replace its bounded replay when a snapshot can exist.
         if (shell !== null) return yield* snapshotThenLive();
       }
       const replay = coalesceLiveUpdatedEvents(
@@ -1097,7 +1062,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       stored: ChangedApplicationAggregate,
     ) {
       const projectId = ProjectId.make(stored.aggregateId);
-      // A deleted project has no shell, so the same read covers removal.
       const project = yield* projectService.getShell(projectId);
       return Option.match(project, {
         onNone: () => ({
@@ -1120,7 +1084,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       const threadIds = coalesced.flatMap((stored) =>
         stored.aggregateKind === "thread" ? [ThreadId.make(stored.aggregateId)] : [],
       );
-      // A failed batch can't name its thread, so the scalar reads below report which one is bad.
       const batch =
         threadIds.length > 1
           ? yield* threadManagement
@@ -1203,9 +1166,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
       ),
     );
 
-    // Subscribe to enrichment before the first load so completions racing the HTTP snapshot
-    // still push a refresh. One metadata refresh still goes out up front: getAvailable may have
-    // been cold on the HTTP path, and PubSub drops events published before this subscribe.
     const completionMarker =
       input.requestCompletionMarker === true
         ? Stream.make({ kind: "synchronized" as const })
@@ -1230,9 +1190,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
           resolvedRepositoryIdentityRoots: loaded.resolvedRepositoryIdentityRoots,
         }),
       );
-    // Initial unmarked (+ optional same-load marked) always drains first.
-    // Enrichment merges only with the post-prefix tail so a ready marked
-    // refresh cannot interleave before the authoritative initial frame.
     const completionThenLive = (afterSequence: number) =>
       Stream.concat(completionMarker, liveFrom(afterSequence));
 
@@ -1352,7 +1309,6 @@ export const layerWsRpc = (
       const orchestrationEngine = yield* Orchestrator.OrchestratorV2;
       const random = yield* SecureRandom.SecureRandom;
       const shellSyncGeneration = yield* ShellSyncGeneration.ShellSyncGeneration;
-      // RPC client ids are only unique within one socket; terminals share viewers across sockets.
       const terminalViewerPrefix = yield* random.uuidV4();
       const terminalViewerId = (metadata: { readonly client: { readonly id: number } }) =>
         `${terminalViewerPrefix}:${metadata.client.id}`;
@@ -1439,7 +1395,6 @@ export const layerWsRpc = (
       const otlpEndpointCheck = yield* OtlpEndpointCheck.OtlpEndpointCheck;
       const sourceControlRepositories =
         yield* SourceControlRepositoryService.SourceControlRepositoryService;
-      // The panel's reads for a pull request the user opened go out during a rate-limit pause.
       const openedPullRequestRead = Effect.provideService(SourceControlRateLimit.Interactive, true);
       const bootstrapCredentials = yield* PairingGrantStore.PairingGrantStore;
       const sessions = yield* SessionStore.SessionStore;
@@ -1793,7 +1748,6 @@ export const layerWsRpc = (
         ),
       );
 
-      // Rows the shell can omit, read with the same snapshot sequence the shell uses.
       const readOmittableShellRows = Effect.fn("ws.orchestrationV2.readOmittableShellRows")(
         function* (
           options: { readonly familyOf: ThreadId } | { readonly worktreePath: string },
@@ -1988,8 +1942,6 @@ export const layerWsRpc = (
         [ORCHESTRATION_V2_WS_METHODS.getThreadProjection]: (input) =>
           Effect.annotateCurrentSpan({ "orchestration_v2.thread_id": input.threadId }).pipe(
             Effect.andThen(
-              // Pre-pagination clients still call this compatibility endpoint.
-              // Keep stale clients from materializing an unbounded transcript.
               threadManagement
                 .getThreadSnapshotWindow(input.threadId, {
                   rowLimit: THREAD_HISTORY_SNAPSHOT_ROW_LIMIT,
@@ -2277,176 +2229,169 @@ export const layerWsRpc = (
               }),
             ),
           ),
-        [WS_METHODS.serverRefreshProviders]:
-          /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(function* (input) {
-            if (input.modelCatalogOnly === true) {
-              yield* providerRegistry.refreshModelCatalog;
-              return { providers: [] };
-            }
-            if (input.refreshModels) {
-              yield* providerRegistry.invalidateModelCaches({
+        [WS_METHODS.serverRefreshProviders]: Effect.fnUntraced(function* (input) {
+          if (input.modelCatalogOnly === true) {
+            yield* providerRegistry.refreshModelCatalog;
+            return { providers: [] };
+          }
+          if (input.refreshModels) {
+            yield* providerRegistry.invalidateModelCaches({
+              instanceId: input.instanceId,
+              cwd: input.cwd,
+              fresh: input.fresh,
+            });
+          }
+          let providers = yield* input.cwd !== undefined && input.instanceId !== undefined
+            ? providerRegistry.refreshWorkspaceSnapshot({
                 instanceId: input.instanceId,
                 cwd: input.cwd,
-                fresh: input.fresh,
-              });
-            }
-            let providers = yield* input.cwd !== undefined && input.instanceId !== undefined
-              ? providerRegistry.refreshWorkspaceSnapshot({
-                  instanceId: input.instanceId,
-                  cwd: input.cwd,
-                  scanCwd: yield* projectService.workspaceScanDirectory(input.cwd),
-                  fresh: input.fresh === true,
-                })
-              : input.instanceId !== undefined
-                ? providerRegistry.refreshInstance(input.instanceId)
-                : providerRegistry.refresh();
-            if (input.refreshModels) {
-              const instances = yield* providerInstances.listInstances;
-              for (const instance of instances) {
-                if (
-                  !instance.refreshModels ||
-                  (input.instanceId !== undefined && input.instanceId !== instance.instanceId) ||
-                  !providers.some(
-                    (provider) =>
-                      provider.instanceId === instance.instanceId &&
-                      provider.enabled &&
-                      provider.installed,
-                  )
+                scanCwd: yield* projectService.workspaceScanDirectory(input.cwd),
+                fresh: input.fresh === true,
+              })
+            : input.instanceId !== undefined
+              ? providerRegistry.refreshInstance(input.instanceId)
+              : providerRegistry.refresh();
+          if (input.refreshModels) {
+            const instances = yield* providerInstances.listInstances;
+            for (const instance of instances) {
+              if (
+                !instance.refreshModels ||
+                (input.instanceId !== undefined && input.instanceId !== instance.instanceId) ||
+                !providers.some(
+                  (provider) =>
+                    provider.instanceId === instance.instanceId &&
+                    provider.enabled &&
+                    provider.installed,
                 )
-                  continue;
-                yield* instance.refreshModels().pipe(
-                  Effect.mapError(
-                    (error) =>
-                      new ProviderSetupError({
-                        instanceId: instance.instanceId,
-                        operation: "refresh-models",
-                        detail: error.detail,
-                      }),
-                  ),
-                );
-                providers = yield* providerRegistry.refreshInstance(instance.instanceId);
-              }
+              )
+                continue;
+              yield* instance.refreshModels().pipe(
+                Effect.mapError(
+                  (error) =>
+                    new ProviderSetupError({
+                      instanceId: instance.instanceId,
+                      operation: "refresh-models",
+                      detail: error.detail,
+                    }),
+                ),
+              );
+              providers = yield* providerRegistry.refreshInstance(instance.instanceId);
             }
-            const { instanceId, cwd } = input;
-            if (input.omitProviders === true && (instanceId === undefined || cwd === undefined)) {
-              return { providers: [] };
-            }
-            if (input.workspaceSnapshotsOnDemand !== true) return { providers };
-            const commandProviders = withUsageLimitsCommands(providers);
-            if (instanceId === undefined || cwd === undefined) {
-              return { providers: withoutWorkspaceSnapshots(commandProviders) };
-            }
-            const catalogOnDemand =
-              input.providerCatalogsOnDemand === true &&
-              (yield* providerInstances.getInstance(instanceId))?.snapshotForCwd !== undefined;
-            return {
-              providers: commandProviders
-                .filter((provider) => provider.instanceId === instanceId)
-                .map((provider) => {
-                  const catalog =
-                    catalogOnDemand && input.machineCatalog === true
-                      ? machineCatalogNames(provider)
-                      : undefined;
-                  return {
-                    ...provider,
-                    // Callers read only the cwd snapshot; the config stream carries the rest.
-                    models: [],
-                    slashCommands: catalog?.slashCommands ?? [],
-                    skills: catalog?.skills ?? [],
-                    ...(catalog === undefined
-                      ? {}
-                      : { catalogDigest: machineCatalogDigest(provider) }),
-                    workspaceSnapshots: workspaceSnapshotOrCatalog(provider, cwd, catalogOnDemand),
-                  };
-                }),
-            };
-          }),
+          }
+          const { instanceId, cwd } = input;
+          if (input.omitProviders === true && (instanceId === undefined || cwd === undefined)) {
+            return { providers: [] };
+          }
+          if (input.workspaceSnapshotsOnDemand !== true) return { providers };
+          const commandProviders = withUsageLimitsCommands(providers);
+          if (instanceId === undefined || cwd === undefined) {
+            return { providers: withoutWorkspaceSnapshots(commandProviders) };
+          }
+          const catalogOnDemand =
+            input.providerCatalogsOnDemand === true &&
+            (yield* providerInstances.getInstance(instanceId))?.snapshotForCwd !== undefined;
+          return {
+            providers: commandProviders
+              .filter((provider) => provider.instanceId === instanceId)
+              .map((provider) => {
+                const catalog =
+                  catalogOnDemand && input.machineCatalog === true
+                    ? machineCatalogNames(provider)
+                    : undefined;
+                return {
+                  ...provider,
+                  models: [],
+                  slashCommands: catalog?.slashCommands ?? [],
+                  skills: catalog?.skills ?? [],
+                  ...(catalog === undefined
+                    ? {}
+                    : { catalogDigest: machineCatalogDigest(provider) }),
+                  workspaceSnapshots: workspaceSnapshotOrCatalog(provider, cwd, catalogOnDemand),
+                };
+              }),
+          };
+        }),
         [WS_METHODS.mcpAppsCallTool]: (input) => mcpAppRequests.callTool(input),
         [WS_METHODS.mcpAppsToolInfo]: (input) => mcpAppRequests.toolInfo(input),
         [WS_METHODS.mcpAppsUpdateModelContext]: (input) => mcpAppRequests.updateModelContext(input),
         [WS_METHODS.mcpAppsReadResource]: (input) => mcpAppRequests.readResource(input),
-        [WS_METHODS.providerUploadFeedback]:
-          /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(
-            function* (input) {
-              const projection = yield* threadManagement.getThreadRecords(input.threadId, [
-                "providerThreads",
-              ]);
-              const providerThread =
-                projection.providerThreads.find(
-                  (candidate) => candidate.id === projection.thread.activeProviderThreadId,
-                ) ?? projection.providerThreads.at(-1);
-              const providerSessionId = providerThread?.providerSessionId ?? null;
-              if (providerThread === undefined || providerSessionId === null) {
-                return yield* new ProviderUploadFeedbackError({
-                  threadId: input.threadId,
-                  cause: "No provider session has run in this thread yet.",
-                });
-              }
-              const runtime = Option.getOrNull(yield* providerSessionsV2.get(providerSessionId));
-              if (runtime === null) {
-                return yield* new ProviderUploadFeedbackError({
-                  threadId: input.threadId,
-                  cause: "The provider session is no longer running. Send a message first.",
-                });
-              }
-              if (runtime.uploadFeedback === undefined) {
-                return yield* new ProviderUploadFeedbackError({
-                  threadId: input.threadId,
-                  cause: `Provider '${runtime.driver}' does not support feedback uploads.`,
-                });
-              }
-              return yield* runtime.uploadFeedback({
-                providerThread,
-                ...(input.reason === undefined ? {} : { reason: input.reason }),
+        [WS_METHODS.providerUploadFeedback]: Effect.fnUntraced(
+          function* (input) {
+            const projection = yield* threadManagement.getThreadRecords(input.threadId, [
+              "providerThreads",
+            ]);
+            const providerThread =
+              projection.providerThreads.find(
+                (candidate) => candidate.id === projection.thread.activeProviderThreadId,
+              ) ?? projection.providerThreads.at(-1);
+            const providerSessionId = providerThread?.providerSessionId ?? null;
+            if (providerThread === undefined || providerSessionId === null) {
+              return yield* new ProviderUploadFeedbackError({
+                threadId: input.threadId,
+                cause: "No provider session has run in this thread yet.",
               });
-            },
-            (effect, input) =>
-              effect.pipe(
-                Effect.mapError((cause) =>
-                  isProviderUploadFeedbackError(cause)
-                    ? cause
-                    : new ProviderUploadFeedbackError({
-                        threadId: input.threadId,
-                        cause,
-                      }),
-                ),
+            }
+            const runtime = Option.getOrNull(yield* providerSessionsV2.get(providerSessionId));
+            if (runtime === null) {
+              return yield* new ProviderUploadFeedbackError({
+                threadId: input.threadId,
+                cause: "The provider session is no longer running. Send a message first.",
+              });
+            }
+            if (runtime.uploadFeedback === undefined) {
+              return yield* new ProviderUploadFeedbackError({
+                threadId: input.threadId,
+                cause: `Provider '${runtime.driver}' does not support feedback uploads.`,
+              });
+            }
+            return yield* runtime.uploadFeedback({
+              providerThread,
+              ...(input.reason === undefined ? {} : { reason: input.reason }),
+            });
+          },
+          (effect, input) =>
+            effect.pipe(
+              Effect.mapError((cause) =>
+                isProviderUploadFeedbackError(cause)
+                  ? cause
+                  : new ProviderUploadFeedbackError({
+                      threadId: input.threadId,
+                      cause,
+                    }),
               ),
-          ),
+            ),
+        ),
         [WS_METHODS.serverUpdateProvider]: (input) =>
           providerMaintenanceRunner.updateProvider(input),
-        [WS_METHODS.providerConsumeResetCredit]:
-          /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(function* (input) {
-            const instance = yield* providerInstances.getInstance(input.instanceId);
-            if (instance === undefined || !instance.enabled) {
-              return yield* new ProviderSetupError({
-                instanceId: input.instanceId,
-                operation: "consume-reset-credit",
-                detail: instance ? "This provider is disabled." : "Provider instance not found.",
-              });
-            }
-            if (instance.consumeResetCredit === undefined) {
-              return yield* new ProviderSetupError({
-                instanceId: input.instanceId,
-                operation: "consume-reset-credit",
-                detail: "This provider does not bank reset credits.",
-              });
-            }
-            const outcome = yield* instance.consumeResetCredit(input.creditId).pipe(
-              Effect.mapError(
-                (error) =>
-                  new ProviderSetupError({
-                    instanceId: input.instanceId,
-                    operation: "consume-reset-credit",
-                    detail: error.detail,
-                    cause: error,
-                  }),
-              ),
-            );
-            return { outcome };
-          }),
+        [WS_METHODS.providerConsumeResetCredit]: Effect.fnUntraced(function* (input) {
+          const instance = yield* providerInstances.getInstance(input.instanceId);
+          if (instance === undefined || !instance.enabled) {
+            return yield* new ProviderSetupError({
+              instanceId: input.instanceId,
+              operation: "consume-reset-credit",
+              detail: instance ? "This provider is disabled." : "Provider instance not found.",
+            });
+          }
+          if (instance.consumeResetCredit === undefined) {
+            return yield* new ProviderSetupError({
+              instanceId: input.instanceId,
+              operation: "consume-reset-credit",
+              detail: "This provider does not bank reset credits.",
+            });
+          }
+          const outcome = yield* instance.consumeResetCredit(input.creditId).pipe(
+            Effect.mapError(
+              (error) =>
+                new ProviderSetupError({
+                  instanceId: input.instanceId,
+                  operation: "consume-reset-credit",
+                  detail: error.detail,
+                  cause: error,
+                }),
+            ),
+          );
+          return { outcome };
+        }),
         [WS_METHODS.providerAuthStart]: (input) => providerAuth.start(input, currentSessionId),
         [WS_METHODS.providerAuthRespond]: (input) =>
           Effect.annotateCurrentSpan({ instanceId: input.instanceId }).pipe(
@@ -2476,34 +2421,29 @@ export const layerWsRpc = (
           ServerSelfUpdate.updateProgressStream(serverSelfUpdate, input),
         [WS_METHODS.serverCommitDesktopUpdate]: (input) =>
           serverSelfUpdate.commitDesktopUpdate(input.requestId),
-        [WS_METHODS.serverUpsertKeybinding]:
-          /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(function* (rule) {
-            return yield* keybindings.upsertKeybindingRule(rule);
-          }),
-        [WS_METHODS.serverRemoveKeybinding]:
-          /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(function* (rule) {
-            return yield* keybindings.removeKeybindingRule(rule);
-          }),
+        [WS_METHODS.serverUpsertKeybinding]: Effect.fnUntraced(function* (rule) {
+          return yield* keybindings.upsertKeybindingRule(rule);
+        }),
+        [WS_METHODS.serverRemoveKeybinding]: Effect.fnUntraced(function* (rule) {
+          return yield* keybindings.removeKeybindingRule(rule);
+        }),
         [WS_METHODS.serverRunStorageCleanup]: () => storageCleanup.runNow,
         [WS_METHODS.serverGetStorageCleanupReport]: () => storageCleanup.reports,
         [WS_METHODS.serverGetDatabaseStorage]: () => databaseStorage.status,
         [WS_METHODS.serverReclaimDatabaseSpace]: () => databaseStorage.requestReclaim,
-        [WS_METHODS.serverUpdateSettings]:
-          /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(function* ({ patch, providerInstanceMutation }) {
-            const deviceHosts = patch.deviceHosts
-              ? yield* remoteSshDeviceHosts(patch.deviceHosts).pipe(
-                  Effect.provide(deviceHostContext),
-                )
-              : undefined;
-            const nextPatch = { ...patch, ...(deviceHosts ? { deviceHosts } : {}) };
-            const settings = yield* providerInstanceMutation === undefined
-              ? serverSettings.updateSettings(nextPatch)
-              : serverSettings.updateProviderInstance(providerInstanceMutation, nextPatch);
-            return ServerSettings.redactServerSettingsForClient(settings);
-          }),
+        [WS_METHODS.serverUpdateSettings]: Effect.fnUntraced(function* ({
+          patch,
+          providerInstanceMutation,
+        }) {
+          const deviceHosts = patch.deviceHosts
+            ? yield* remoteSshDeviceHosts(patch.deviceHosts).pipe(Effect.provide(deviceHostContext))
+            : undefined;
+          const nextPatch = { ...patch, ...(deviceHosts ? { deviceHosts } : {}) };
+          const settings = yield* providerInstanceMutation === undefined
+            ? serverSettings.updateSettings(nextPatch)
+            : serverSettings.updateProviderInstance(providerInstanceMutation, nextPatch);
+          return ServerSettings.redactServerSettingsForClient(settings);
+        }),
         [WS_METHODS.serverDiscoverSourceControl]: () => sourceControlDiscovery.discover,
         [WS_METHODS.serverGetTraceDiagnostics]: (_input) =>
           TraceDiagnostics.readTraceDiagnostics({
@@ -2670,8 +2610,6 @@ export const layerWsRpc = (
                   }),
                 ),
                 Effect.andThen(refreshGitStatus(project.workspaceRoot)),
-                // The folder was empty when the project was created, so the cached
-                // enrichment says "no repository" and clients cannot group it yet.
                 Effect.andThen(projectEnrichment.invalidate([project.workspaceRoot])),
                 Effect.andThen(projectEnrichment.request(project.workspaceRoot)),
                 Effect.ignoreCause({ log: true }),
@@ -2705,14 +2643,15 @@ export const layerWsRpc = (
           projectCloneTracker.retry(input.projectId).pipe(Effect.map((applied) => ({ applied }))),
         [WS_METHODS.subscribeProjectClones]: () => projectCloneTracker.stream,
         [WS_METHODS.sourceControlPublishRepository]: (input) =>
-          sourceControlRepositories.publishRepository(input).pipe(
-            // A failed push still leaves the new remote added.
-            Effect.ensuring(
-              repositoryIdentityResolver
-                .resolve(input.cwd, { refresh: true })
-                .pipe(Effect.andThen(refreshGitStatus(input.cwd))),
+          sourceControlRepositories
+            .publishRepository(input)
+            .pipe(
+              Effect.ensuring(
+                repositoryIdentityResolver
+                  .resolve(input.cwd, { refresh: true })
+                  .pipe(Effect.andThen(refreshGitStatus(input.cwd))),
+              ),
             ),
-          ),
         [WS_METHODS.projectsSearchEntries]: (input) =>
           workspaceEntries.search(input).pipe(
             Effect.mapError(
@@ -2830,70 +2769,27 @@ export const layerWsRpc = (
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
-        [WS_METHODS.assetsCreateUrl]:
-          /* Request instrumentation already owns the span; keep this helper in that context. */
-          Effect.fnUntraced(function* (input) {
-            const path = yield* Path.Path;
-            if (
-              input.resource._tag === "attachment" ||
-              input.resource._tag === "native-app-icon" ||
-              input.resource._tag === "tool-output-image" ||
-              input.resource._tag === SOURCE_CONTROL_MEDIA_ASSET ||
-              // A network path is served only from the thread's project, looked up below.
-              (input.resource._tag === "media-file" &&
-                path.isAbsolute(input.resource.path) &&
-                !isNetworkPath(input.resource.path))
-            ) {
-              return yield* issueAssetUrl({ resource: input.resource });
-            }
-            if (input.resource._tag === "draft-workspace-file") {
-              return yield* issueAssetUrl({
-                resource: input.resource,
-                workspaceRoot: input.resource.cwd,
-              });
-            }
-            if (input.resource._tag === "project-favicon") {
-              const project = yield* projectStore
-                .findActiveByWorkspaceRoot(input.resource.cwd)
-                .pipe(
-                  Effect.mapError(
-                    (cause) =>
-                      new AssetWorkspaceContextResolutionError({
-                        resource: input.resource,
-                        cause,
-                      }),
-                  ),
-                );
-              if (Option.isNone(project)) {
-                return yield* new AssetWorkspaceContextNotFoundError({
-                  resource: input.resource,
-                });
-              }
-              // A cloned project exists before its files do. Clients ask again
-              // when the clone lands (see createProjectFaviconUrlAtomFamily).
-              const clone = yield* projectCloneTracker.get(project.value.projectId);
-              return yield* issueAssetUrl({
-                resource: input.resource,
-                ...(project.value.faviconPath
-                  ? { projectFaviconPath: project.value.faviconPath }
-                  : {}),
-                ...(clone !== null && clone.destinationPath === project.value.workspaceRoot
-                  ? { projectCheckout: clone.phase === "done" ? "cloned" : "pending" }
-                  : {}),
-              });
-            }
-            const thread = yield* threadManagement
-              .getThreadRecords(input.resource.threadId, [])
-              .pipe(
-                Effect.mapError(
-                  (cause) =>
-                    new AssetWorkspaceContextResolutionError({
-                      resource: input.resource,
-                      cause,
-                    }),
-                ),
-              );
-            const project = yield* projectService.getById(thread.thread.projectId).pipe(
+        [WS_METHODS.assetsCreateUrl]: Effect.fnUntraced(function* (input) {
+          const path = yield* Path.Path;
+          if (
+            input.resource._tag === "attachment" ||
+            input.resource._tag === "native-app-icon" ||
+            input.resource._tag === "tool-output-image" ||
+            input.resource._tag === SOURCE_CONTROL_MEDIA_ASSET ||
+            (input.resource._tag === "media-file" &&
+              path.isAbsolute(input.resource.path) &&
+              !isNetworkPath(input.resource.path))
+          ) {
+            return yield* issueAssetUrl({ resource: input.resource });
+          }
+          if (input.resource._tag === "draft-workspace-file") {
+            return yield* issueAssetUrl({
+              resource: input.resource,
+              workspaceRoot: input.resource.cwd,
+            });
+          }
+          if (input.resource._tag === "project-favicon") {
+            const project = yield* projectStore.findActiveByWorkspaceRoot(input.resource.cwd).pipe(
               Effect.mapError(
                 (cause) =>
                   new AssetWorkspaceContextResolutionError({
@@ -2907,11 +2803,45 @@ export const layerWsRpc = (
                 resource: input.resource,
               });
             }
+            const clone = yield* projectCloneTracker.get(project.value.projectId);
             return yield* issueAssetUrl({
               resource: input.resource,
-              workspaceRoot: thread.thread.worktreePath ?? project.value.workspaceRoot,
+              ...(project.value.faviconPath
+                ? { projectFaviconPath: project.value.faviconPath }
+                : {}),
+              ...(clone !== null && clone.destinationPath === project.value.workspaceRoot
+                ? { projectCheckout: clone.phase === "done" ? "cloned" : "pending" }
+                : {}),
             });
-          }),
+          }
+          const thread = yield* threadManagement.getThreadRecords(input.resource.threadId, []).pipe(
+            Effect.mapError(
+              (cause) =>
+                new AssetWorkspaceContextResolutionError({
+                  resource: input.resource,
+                  cause,
+                }),
+            ),
+          );
+          const project = yield* projectService.getById(thread.thread.projectId).pipe(
+            Effect.mapError(
+              (cause) =>
+                new AssetWorkspaceContextResolutionError({
+                  resource: input.resource,
+                  cause,
+                }),
+            ),
+          );
+          if (Option.isNone(project)) {
+            return yield* new AssetWorkspaceContextNotFoundError({
+              resource: input.resource,
+            });
+          }
+          return yield* issueAssetUrl({
+            resource: input.resource,
+            workspaceRoot: thread.thread.worktreePath ?? project.value.workspaceRoot,
+          });
+        }),
         [WS_METHODS.assetsPersistChatAttachments]: (input) =>
           persistChatAttachments(input).pipe(Effect.map((attachments) => ({ attachments }))),
         [WS_METHODS.subscribeVcsBranch]: (input) => vcsStatusBroadcaster.streamBranchStatus(input),
@@ -2944,7 +2874,6 @@ export const layerWsRpc = (
               })
               .pipe(
                 Effect.matchCauseEffect({
-                  // Earlier steps (branch, commit) may have landed before the failing one.
                   onFailure: (cause) =>
                     refreshGitStatus(input.cwd).pipe(Effect.andThen(Queue.failCause(queue, cause))),
                   onSuccess: (result) =>
@@ -2986,7 +2915,6 @@ export const layerWsRpc = (
         [WS_METHODS.vcsRemoveWorktree]: (input) =>
           gitWorkflow.removeWorktree(input).pipe(
             Effect.tap(() => refreshGitStatus(input.cwd)),
-            // Subscribers of the removed checkout learn it is no longer a repository.
             Effect.tap(() =>
               vcsStatusBroadcaster
                 .refreshLocalStatus(input.path)
@@ -3113,8 +3041,6 @@ export const layerWsRpc = (
           Stream.unwrap(
             Effect.gen(function* () {
               const workspaceSnapshotsOnDemand = input.workspaceSnapshotsOnDemand === true;
-              // Only providers that can scan a cwd answer the client's on-demand catalog fetch.
-              // Read per update, since a replaced instance can change that.
               const currentCatalogsPerCwd =
                 workspaceSnapshotsOnDemand && input.providerCatalogsOnDemand === true
                   ? providerInstances.listInstances.pipe(
@@ -3157,16 +3083,11 @@ export const layerWsRpc = (
                   },
                 })),
               );
-              // The registry stream carries changes only. Seed it with the current
-              // providers, then compare against the snapshot the client already
-              // holds: a refresh that landed between the snapshot and the
-              // subscription still goes out.
               const providerStatuses = Stream.concat(
                 Stream.fromEffect(providerRegistry.getProviders),
                 providerRegistry.streamChanges,
               ).pipe(
                 Stream.map(withUsageLimitsCommands),
-                // Stripped before the de-dupe below, so snapshot-only changes send nothing.
                 Stream.mapEffect((commandProviders) =>
                   workspaceSnapshotsOnDemand
                     ? currentCatalogsPerCwd.pipe(
@@ -3192,10 +3113,6 @@ export const layerWsRpc = (
                 })),
                 Stream.debounce(Duration.millis(PROVIDER_STATUS_DEBOUNCE_MS)),
               );
-              // The only source of published themes: the stream emits the
-              // current set before any change, so the snapshot carrying it too
-              // would just send every client the same array twice per connect.
-              // Only clients that render published themes ask for them.
               const environmentThemeUpdates =
                 input.environmentThemes === true
                   ? environmentTheme.streamChanges.pipe(
@@ -3280,7 +3197,6 @@ export const layerWsRpc = (
               const liveBuffer = yield* Queue.unbounded<
                 PairingGrantStore.BootstrapCredentialChange | SessionStore.SessionCredentialChange
               >();
-              // Each store subscribes only when consumed, so start both before the snapshot read.
               yield* Effect.forkScoped(
                 Stream.runForEach(bootstrapCredentials.streamChanges, (change) =>
                   Queue.offer(liveBuffer, change),
@@ -3340,8 +3256,6 @@ export const layerWsRpc = (
     }),
   );
 
-// RpcServer's default sends a socket-level Defect frame instead, and the client
-// ends every pending request on the socket with it.
 export const WS_RPC_SERVER_OPTIONS = {
   disableTracing: true,
   disableFatalDefects: true,
@@ -3383,7 +3297,6 @@ export const layer = Layer.unwrap(
             failEnvironmentInternal("internal_error", error),
           ),
         );
-        // Desktop bootstrap sessions connect to their own backend, including same-machine WSL.
         if (session.subject === "desktop-bootstrap") {
           delete NodeHttpServerRequest.toIncomingMessage(request).headers[
             "sec-websocket-extensions"
@@ -3404,16 +3317,12 @@ export const layer = Layer.unwrap(
           Effect.provide(
             layerWsRpc(session, serverBrowser, reportProfiles).pipe(
               Layer.provideMerge(RpcSerialization.layerJson),
-              // Request fibers run in the handlers' context, so this reporter sees
-              // their defects, not the rest of the server's.
               Layer.provide(DefectReporter.layer),
               Layer.provide(AcpRegistrySessions.layer),
               Layer.provide(Layer.succeed(SqlClient.SqlClient, sql)),
               Layer.provide(ProviderMaintenanceRunner.layer),
               Layer.provide(Layer.succeed(NpmRelease.NpmRelease, npmRelease)),
               Layer.provide(Layer.succeed(ServerSelfUpdate.ServerSelfUpdate, serverSelfUpdate)),
-              // One server-lifetime service means clients share the same PR caches, and a WS
-              // mutation invalidates the HTTP diff cache that every client reads from.
               Layer.provide(Layer.succeed(PullRequestService.PullRequestService, pullRequests)),
               Layer.provide(OtlpEndpointCheck.layer),
               Layer.provide(
@@ -3436,8 +3345,6 @@ export const layer = Layer.unwrap(
           ? rpcWebSocketHttpEffect.pipe(
               Effect.provideService(
                 HttpServerRequest.HttpServerRequest,
-                // The RPC server upgrades the request itself, so its socket is
-                // wrapped through the request it reads.
                 Object.create(request, {
                   upgrade: { value: Effect.map(request.upgrade, splitLargeSocketFrames) },
                 }),

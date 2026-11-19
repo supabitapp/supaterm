@@ -45,7 +45,6 @@ function isBase64Whitespace(code: number): boolean {
   return code === 0x09 || code === 0x0a || code === 0x0c || code === 0x0d || code === 0x20;
 }
 
-// V8 regexes use the JS stack; scanning image payloads can overflow a deep fiber stack.
 export function parseBase64DataUrl(
   dataUrl: string,
 ): { readonly mimeType: string; readonly base64: string } | null {
@@ -97,7 +96,6 @@ export function parseBase64DataUrl(
   if (base64.length === 0 || base64.length % 4 !== 0) return null;
   const firstPad = base64.indexOf("=");
   if (firstPad !== -1) {
-    // Node silently truncates at the first =; allow only one or two trailing padding characters.
     if (base64.length - firstPad > 2) return null;
     for (let index = firstPad; index < base64.length; index += 1) {
       if (base64.charCodeAt(index) !== 0x3d) return null;

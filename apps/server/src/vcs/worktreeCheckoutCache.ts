@@ -18,27 +18,19 @@ import type * as GitVcsDriver from "./GitVcsDriver.ts";
 import { indexEntryStat, parseIndex, restatIndex, type IndexEntryStat } from "./gitIndexStat.ts";
 
 const KEEP_PER_REPOSITORY = 3;
-// Moving a cached checkout costs about 0.1 ms per changed file when a worktree is created, while
-// replacing it means writing and later deleting a whole checkout, which slows the next clone.
 const REBUILD_AFTER_CHANGED_FILES = 500;
 const UNUSED_REPOSITORY_MS = 30 * 24 * 60 * 60 * 1000;
-// Older leftovers came from a crash, not from work in progress. A full build of a huge repository
-// can take minutes, and its staging folder's own mtime does not change while files land inside.
 const ABANDONED_STAGING_MS = 24 * 60 * 60 * 1000;
 const ABANDONED_TRASH_MS = 10 * 60 * 1000;
 const STAT_BATCH = 512;
 const TREE_ID = /^[0-9a-f]{40}$/;
-// `<tree>-<fingerprint>`: checkouts of one tree under different settings never replace each other.
 const ENTRY_NAME = /^([0-9a-f]{40})-([0-9a-f]{16})$/;
 const GIT_FALSE = new Set(["false", "no", "off", "0"]);
 const MAX_LIST_BYTES = 256 * 1024 * 1024;
 const NULL_OID = "0".repeat(40);
-// 2.42 names its system attributes file, which the fingerprint needs; `git hook run` is from 2.36.
 const MIN_GIT = [2, 42] as const;
-// Settings that change what a checkout writes. Read in the new worktree, so conditional includes apply.
 const CHECKOUT_CONFIG =
   "^(core\\.(autocrlf|eol|symlinks|safecrlf|checkroundtripencoding|precomposeunicode|ignorecase|filemode|attributesfile|sparsecheckout)|filter\\.|lfs\\.|extensions\\.)";
-// Keeps cache indexes in the one format the stat rewriter reads.
 const CACHE_INDEX_CONFIG = [
   "index.version=2",
   "index.skipHash=false",
@@ -46,15 +38,12 @@ const CACHE_INDEX_CONFIG = [
   "core.untrackedCache=false",
   "core.fsmonitor=false",
   "core.sparseCheckout=false",
-  // Private builds must not run the repository's hooks.
   "core.hooksPath=/dev/null",
   "checkout.workers=0",
 ].flatMap((setting) => ["-c", setting]);
 
-// How a case- and normalization-insensitive volume such as default APFS compares names.
 const foldCase = (file: string) => file.normalize("NFC").toLowerCase();
 
-// `check-attr --all -z` output: any `filter` attribute counts, as `unset` can also name a driver.
 function namesFilter(output: string): boolean {
   const fields = output.split("\0");
   for (let index = 1; index < fields.length; index += 3) {
@@ -63,7 +52,6 @@ function namesFilter(output: string): boolean {
   return false;
 }
 
-/** Every folder that holds one of `paths`, including the root as "". */
 function parentDirectories(paths: Iterable<string>): Set<string> {
   const directories = new Set([""]);
   for (const entryPath of paths) {
@@ -111,7 +99,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
   const environment = yield* HostProcess.Environment;
   const builds = yield* Semaphore.make(1);
   const pendingBuilds = new Set<string>();
-  // Bumped by `clear`, so a build that started before it does not publish its result.
   let generation = 0;
   const { cacheDir, execute } = input;
 
@@ -185,14 +172,12 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     };
   });
 
-  // Empty when `GIT_ATTR_NOSYSTEM` turns the system attributes file off.
   const systemAttributePaths = yield* Effect.cached(
     git("systemAttributes", homeDirectory, ["var", "GIT_ATTR_SYSTEM"]).pipe(
       Effect.map((stdout) => (stdout?.trim() ? [stdout.trim()] : [])),
     ),
   );
 
-  // Null for setups the cache cannot reproduce, such as sparse checkouts.
   const fingerprint = Effect.fn("WorktreeCheckoutCache.fingerprint")(function* (
     cwd: string,
     commonDir: string,
@@ -213,7 +198,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     const attributesFile = pairs
       .findLast(([key]) => key === "core.attributesfile")?.[1]
       ?.replace(/^~(?=$|\/)/, homeDirectory);
-    // Git reads a relative path from each checkout, which differs between the cache and the worktree.
     if (attributesFile !== undefined && !path.isAbsolute(attributesFile)) return null;
     const attributePaths = [
       ...(yield* systemAttributePaths),
@@ -274,7 +258,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
       Effect.ignore,
     );
 
-  // Untraced: one stat per tracked file, already covered by the caller's span.
   const statEntries = Effect.fnUntraced(function* (root: string, paths: ReadonlyArray<string>) {
     return yield* Effect.tryPromise({
       try: async () => {
@@ -300,10 +283,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     });
   });
 
-  /**
-   * Writes `target` from the index at `source` with stat data from the files under `root`, and
-   * returns what it read. Null when the index or the files cannot be trusted.
-   */
   const restate = Effect.fn("WorktreeCheckoutCache.restate")(function* (input: {
     readonly source: string;
     readonly target: string;
@@ -325,7 +304,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     return { paths, stats };
   });
 
-  // Untraced: one stat per folder, already covered by the caller's span.
   const directoryTimes = Effect.fnUntraced(function* (
     root: string,
     directories: ReadonlyArray<string>,
@@ -345,7 +323,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     });
   });
 
-  // Adding or removing a file changes its folder's mtime, so this catches files the index lacks.
   const recordDirectories = Effect.fn("WorktreeCheckoutCache.recordDirectories")(function* (
     entryDirectory: string,
     recorded: {
@@ -357,13 +334,11 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     for (const [index, entryPath] of recorded.paths.entries()) {
       if (recorded.stats[index]?.kind === "directory") directories.add(entryPath);
     }
-    // Folders whose names differ only in case share one spelling on disk, which depends on history.
     const folded = new Set([...directories].map((directory) => foldCase(directory)));
     if (folded.size !== directories.size) {
       return yield* new WorktreeCheckoutCacheError({ detail: "folder names differ only in case" });
     }
     const list = [...directories];
-    // Backdated, so any later change moves the time even on a filesystem with a coarse clock.
     const root = path.join(entryDirectory, "files");
     yield* Effect.tryPromise({
       try: () =>
@@ -413,14 +388,12 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     const fields = stdout.split("\0");
     const added: Array<string> = [];
     const deleted: Array<string> = [];
-    // Added or changed: what `read-tree -m -u` writes itself.
     const written: Array<string> = [];
     let count = 0;
     let attributes = false;
     for (let index = 0; index + 1 < fields.length; index += 2) {
       const [status, file] = [fields[index]!, fields[index + 1]!];
       count++;
-      // `read-tree -m -u` leaves unchanged files alone, even when their attributes changed.
       if (file === ".gitattributes" || file.endsWith("/.gitattributes")) attributes = true;
       if (status === "A") added.push(file);
       if (status === "D") deleted.push(file);
@@ -429,13 +402,11 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     return { count, attributes, added, deleted, written };
   });
 
-  // A smudge filter's output can depend on the environment and the network, as with Git LFS.
   const usesFilter = Effect.fn("WorktreeCheckoutCache.usesFilter")(function* (
     cwd: string,
     bucket: string,
     tree: string,
   ) {
-    // An index of the tree lets `check-attr` read its `.gitattributes` on any Git version.
     const index = path.join(bucket, `.attributes-${NodeCrypto.randomUUID()}`);
     const env = { GIT_INDEX_FILE: index };
     const run = (args: ReadonlyArray<string>, stdin?: string) =>
@@ -460,7 +431,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     );
   });
 
-  // Attributes come from the cloned `.gitattributes` files, which the move leaves unchanged.
   const writesWithFilter = Effect.fn("WorktreeCheckoutCache.writesWithFilter")(function* (
     cwd: string,
     files: ReadonlyArray<string>,
@@ -480,14 +450,12 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     return output === null || namesFilter(output);
   });
 
-  // Renamed first so nothing clones a half-deleted checkout; deleting a large one takes seconds.
   const discard = Effect.fn("WorktreeCheckoutCache.discard")(
     function* (target: string) {
       const trashed = `${target}.trash-${NodeCrypto.randomUUID()}`;
       yield* fileSystem.rename(target, trashed);
       yield* fileSystem.remove(trashed, { recursive: true });
     },
-    // Uninterruptible: deleting is not resumable, and a half-deleted folder must not be left named.
     (effect) => Effect.ignore(Effect.uninterruptible(effect)),
   );
 
@@ -502,10 +470,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     return path.resolve(worktreePath, gitDir.trim());
   });
 
-  /**
-   * Creates the worktree from the cache. False means nothing was created and the caller should
-   * run `git worktree add`; any partial worktree has been removed again.
-   */
   const create = Effect.fn("WorktreeCheckoutCache.create")(function* (input: {
     readonly cwd: string;
     readonly worktreePath: string;
@@ -519,7 +483,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     if (requested === null) return false;
     const entries = yield* listEntries(requested.bucket);
     if (entries.length === 0) return false;
-    // A clone only works within one volume.
     const parent = path.dirname(worktreePath);
     yield* fileSystem.makeDirectory(parent, { recursive: true }).pipe(Effect.ignore);
     const [bucketInfo, parentInfo] = yield* Effect.all([
@@ -531,7 +494,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     }
 
     const populate = Effect.gen(function* () {
-      // What Git checked out, which can differ from `requested` when a tag shares the branch name.
       const target = yield* describe(worktreePath, "HEAD");
       if (target === null || (yield* fileSystem.exists(target.indexHook))) return null;
       const worktreeFingerprint = yield* fingerprint(worktreePath, target.commonDir);
@@ -547,7 +509,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
         }
       }
       if (base === undefined) return null;
-      // A cached file changed after Git wrote it; never hand it out again.
       const reject = (entry: CacheEntry) =>
         Effect.logWarning("worktree checkout cache entry changed; discarding it", {
           directory: entry.directory,
@@ -556,15 +517,12 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
       yield* Effect.all([touch(base.directory), touch(requested.bucket)], { discard: true });
 
       const files = path.join(base.directory, "files");
-      // The worktree folder already holds Git's `.git` file, so its entries are cloned one by one.
       yield* Effect.forEach(
         yield* fileSystem.readDirectory(files),
         (name) => clone(path.join(files, name), path.join(worktreePath, name)),
         { discard: true },
       );
-      // Checked again: a file added during the clone would otherwise come along unnoticed.
       if (!(yield* directoriesUnchanged(base))) return yield* reject(base);
-      // A tracked hooks folder only exists once the files do; Git would have run this hook.
       if (yield* fileSystem.exists(target.indexHook)) return null;
       const restated = yield* restate({
         source: path.join(base.directory, "index"),
@@ -574,11 +532,9 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
       });
       if (restated === null) return yield* reject(base);
       if (base.tree === target.tree || changes === null) return target;
-      // On a case-insensitive volume an added path can land on a file the cached tree kept.
       const deleted = new Set(changes.deleted);
       const kept = restated.paths.filter((file) => !deleted.has(file));
       const names = new Set(kept.map((file) => foldCase(file)));
-      // A new folder whose name differs only in case would keep the cached spelling.
       const keptFolders = parentDirectories(kept);
       for (const [index, file] of restated.paths.entries()) {
         if (restated.stats[index]?.kind === "directory" && !deleted.has(file))
@@ -596,10 +552,7 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
           spellings.set(foldCase(directory), directory);
         }
       }
-      // A smudge filter run here would see the cached index, not the one Git builds from scratch.
       if (yield* writesWithFilter(worktreePath, changes.written)) return null;
-      // Hooks off: a hook the move adds runs with Git's checkout environment there, so its
-      // presence afterwards means the caller falls back to that checkout.
       const moved = yield* git("update", worktreePath, [
         "-c",
         `checkout.workers=${input.checkoutWorkers}`,
@@ -628,7 +581,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
           : Effect.void,
       ),
     );
-    // Registration and the rollback that undoes it can't be separated by an interruption.
     const target = yield* Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
         const registered = yield* git("register", input.cwd, [
@@ -655,7 +607,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     );
     if (target === null) return false;
 
-    // `git worktree add --no-checkout` skips this hook; a normal add runs it.
     const hook = yield* execute({
       operation: "GitVcsDriver.createWorktree.postCheckout",
       cwd: worktreePath,
@@ -697,10 +648,8 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     (effect) => Effect.ignore(effect),
   );
 
-  /** Caches the tree checked out in `worktreePath`, unless a cached checkout is already close to it. */
   const build = Effect.fn("WorktreeCheckoutCache.build")(function* (
     worktreePath: string,
-    // From before the worktree was checked out, so a `clear` during the checkout also counts.
     generationAtStart: number,
   ) {
     if (!(yield* gitSupported)) return;
@@ -713,7 +662,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     const entries = yield* listEntries(target.bucket);
     const compatible = entries.filter((entry) => entry.fingerprint === entryFingerprint);
     if (compatible.some((entry) => entry.tree === target.tree)) return;
-    // Skip when a cached checkout is close enough to move forward cheaply.
     let base: CacheEntry | undefined;
     for (const entry of compatible) {
       const changes = yield* changedPaths(worktreePath, entry.tree, target.tree);
@@ -768,7 +716,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
           return yield* new WorktreeCheckoutCacheError({ detail: "git read-tree failed" });
         }
       }
-      // Record the files' own stat data; Git leaves racily written entries for a later re-read.
       const recorded = yield* restate({
         source: stagingIndex,
         target: stagingIndex,
@@ -814,7 +761,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     }
   });
 
-  /** Caches the worktree's checkout in the background, so the next worktree can clone it. */
   const schedule = (worktreePath: string, generationAtStart: number) =>
     Effect.suspend(() => {
       if (pendingBuilds.has(worktreePath)) return Effect.void;
@@ -828,7 +774,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
       );
     });
 
-  /** Deletes every cached checkout in the background; builds already running are dropped. */
   const clear = Effect.suspend(() => {
     generation++;
     return fileSystem.exists(cacheDir);
@@ -841,7 +786,6 @@ export const makeWorktreeCheckoutCache = Effect.fn("WorktreeCheckoutCache.make")
     Effect.ignore,
   );
 
-  /** Pass to `schedule` from before a checkout starts. */
   const currentGeneration = Effect.sync(() => generation);
 
   return { create, build, schedule, clear, currentGeneration };

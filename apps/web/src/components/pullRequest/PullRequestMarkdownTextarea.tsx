@@ -46,8 +46,6 @@ export function pullRequestCompletionScope(
     ? { environmentId, projectId: reference.projectId, support: { mentions, referenceSigils } }
     : null;
 }
-// About a full list of suggestions. The popup fits itself to the space it opens into, so it never
-// flips once results grow it; the side is picked up front from the room a full list needs.
 const SUGGESTION_LIST_HEIGHT = 320;
 
 function suggestionSide(target: HTMLTextAreaElement): "top" | "bottom" {
@@ -85,7 +83,6 @@ function useCompletions(
           },
         ],
   );
-  // Older answers stay useful while the debounced search catches up, narrowed to what is typed now.
   const completions = pullRequestCompletions(trigger, hosted, COMPLETION_SUGGESTION_LIMIT);
   return {
     completions,
@@ -246,7 +243,6 @@ export function PullRequestMarkdownTextarea({
           onBlur?.(event);
         }}
         onKeyDown={(event) => {
-          // Some IMEs confirm a composition with an Enter that reports keyCode 229 but not isComposing.
           if (open && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229) {
             const handled = (() => {
               if (event.key === "Escape") {
@@ -315,7 +311,6 @@ export function PullRequestMarkdownTextarea({
                   onMouseMove={() => {
                     if (index !== activeIndex) setHighlight({ query: trigger?.query ?? "", index });
                   }}
-                  // Keeps focus, and the caret, in the textarea.
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => select(completion)}
                 >

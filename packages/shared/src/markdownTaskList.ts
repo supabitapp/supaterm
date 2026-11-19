@@ -34,7 +34,6 @@ export function setMarkdownTaskChecked(
   return `${markdown.slice(0, markerOffset + 1)}${checked ? "x" : " "}${markdown.slice(markerOffset + 2)}`;
 }
 
-/** Hard breaks as U+2028, as iOS draws them; soft breaks stay "\n". */
 function plainText(node: Nodes): string {
   if (node.type === "text" || node.type === "inlineCode") return node.value;
   if (node.type === "break" || (node.type === "html" && /^<br\b/i.test(node.value))) {
@@ -45,7 +44,6 @@ function plainText(node: Nodes): string {
 
 const lettersAndDigits = (text: string) => text.replace(/[^\p{L}\p{N}]/gu, "");
 
-/** iOS sends the first paragraph whole. Android cuts it at a hard break, or any break with hard breaks on. */
 function renderedTexts(item: ListItem): string[] {
   const first = item.children[0];
   const text = first?.type === "paragraph" ? plainText(first) : "";
@@ -54,8 +52,6 @@ function renderedTexts(item: ListItem): string[] {
   );
 }
 
-// Native renderers give other top-level blocks (code, tables, quotes, media) their own views, and
-// each view numbers its tasks from 0. Lists, headings and rules share the text view around them.
 const sharedViewBlocks = new Set(["list", "heading", "thematicBreak"]);
 
 /**
@@ -68,7 +64,6 @@ export function markdownTaskMarkerOffset(
   renderedText: string,
   checked: boolean,
 ): number | null {
-  // Native attachments replace their labels, so the remaining text could name another task.
   if (renderedText.includes("\uFFFC")) return null;
   const tasks: ListItem[] = [];
   const collect = (node: Nodes) => {

@@ -91,9 +91,6 @@ const readDelegatedTaskStatusTranscript = Effect.fn("readDelegatedTaskStatusTran
     const transcript = yield* decodeProviderReplayNdjson(
       text.replaceAll(queuedFollowupResult, followupResult),
     );
-    // The recording ends when the recorder closes the app-server while the parent
-    // turn is still open. This test keeps acting as that parent afterwards, and
-    // replaying the exit would kill the shared process and fail the parent run.
     return {
       ...transcript,
       entries: transcript.entries.filter((entry) => entry.type !== "runtime_exit"),
@@ -182,7 +179,6 @@ describe("orchestrator MCP toolkit", () => {
         },
         CodexOrchestratorReplayHarness,
       );
-      // SQL spans carry no bound parameters, so this records which thread each tool read.
       const threadRecordReads: Array<{
         readonly threadId: ThreadId;
         readonly fields: ReadonlyArray<string>;
@@ -677,7 +673,6 @@ describe("orchestrator MCP toolkit", () => {
           nextTextOffset = nextPage.items[0]?.nextTextOffset ?? null;
         }
         expect(text).toBe(result);
-        // The acknowledgement reads the task and its spawning run by id, not the parent's history.
         expect(acknowledgementReads.length).toBeGreaterThan(0);
         expect(
           acknowledgementReads.filter(
@@ -702,7 +697,6 @@ describe("orchestrator MCP toolkit", () => {
         );
         expect(capabilities.isError).not.toBe(true);
         expect(messageReads).toHaveLength(messageReadsBeforeCapabilities);
-        // The caller check reads only the thread row, never its history.
         expect(new Set(projectionTableReads.slice(tableReadsBeforeCapabilities))).toEqual(
           new Set(["threads"]),
         );
@@ -713,7 +707,6 @@ describe("orchestrator MCP toolkit", () => {
           Effect.withTracer(tracer),
         );
         expect(statusAgain.isError).not.toBe(true);
-        // A task wait reads result transfers and runs from the child; the parent's stay unread.
         expect(runReads).toHaveLength(runReadsBeforeStatus + 1);
         expect(transferReads).toHaveLength(transferReadsBeforeStatus + 1);
         expect(

@@ -174,27 +174,21 @@ describe("RemoteEnvironmentAuthorization", () => {
 
         yield* remember(Option.some(descriptor));
         yield* authorize;
-        // Used once.
         yield* authorize;
-        // Stale.
         yield* remember(Option.some(descriptor));
         yield* TestClock.adjust("6 seconds");
         yield* authorize;
-        // A mismatch reads again, so a host back on the right environment is not blocked.
         yield* remember(Option.some({ ...descriptor, environmentId: "other" as never }));
         yield* authorize;
-        // A failed check drops an older match.
         yield* remember(Option.some(descriptor));
         yield* remember(Option.none());
         yield* authorize;
-        // Plain HTTP is no reason to read again where the address keeps its host.
         yield* remote.rememberCheckedDescriptor(
           "http://127.0.0.1:3773",
           Option.some(descriptor),
           true,
         );
         yield* authorizeAt("http://127.0.0.1:3773");
-        // After a network change, a plain LAN address can belong to another machine.
         yield* remote.rememberCheckedDescriptor(
           "http://192.168.1.2:3773",
           Option.some(descriptor),
@@ -235,7 +229,6 @@ describe("RemoteEnvironmentAuthorization", () => {
             .pipe(Effect.flip, Effect.forkChild);
         const lan = yield* authorizeAt("http://192.168.1.2:3773");
         const tailnet = yield* authorizeAt("http://100.101.102.103:3773");
-        // An SSH forward listens on loopback but reaches a remote host.
         const forwarded = yield* authorizeAt("http://127.0.0.1:4010", "ssh");
 
         yield* TestClock.adjust("3 seconds");

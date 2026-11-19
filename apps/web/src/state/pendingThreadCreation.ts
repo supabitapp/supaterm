@@ -7,8 +7,6 @@ import type { OrchestrationV2ThreadShell } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import type { PendingThreadTurn } from "./threadOutbox";
 
-// ChatView resets its retained creation during render whenever this identity
-// changes, so one outbox entry must always present as the same object.
 const presentedCreations = new WeakMap<PendingThreadTurn, WebPendingThreadCreation | null>();
 
 export function pendingThreadCreation(entry: PendingThreadTurn): WebPendingThreadCreation | null {

@@ -97,7 +97,6 @@ describe("chat file links into another project", () => {
     entries: [{ path: "src/api/rules/categories.ts", kind: "file" as const }],
   };
 
-  // regression: #10553 a path the agent cited inside another registered project
   it("resolves to the absolute path in the one project that has the file", () => {
     expect(
       pickProjectLinkMatch("rules/categories.ts", [
@@ -114,7 +113,6 @@ describe("chat file links into another project", () => {
   });
 });
 
-// regression: #35337 a path the agent cited inside a checkout no project is rooted at
 describe("agentWorkingDirectories", () => {
   const directories = (...commands: ReadonlyArray<string>) =>
     agentWorkingDirectories(
@@ -152,7 +150,6 @@ describe("agentWorkingDirectories", () => {
   });
 });
 
-// regression: #35337 a bare file name the agent cited from a subfolder of an unregistered checkout
 describe("findAgentDirectoryMatch", () => {
   const search = (found: Record<string, ReadonlyArray<string>>) => (root: string) =>
     Promise.resolve({

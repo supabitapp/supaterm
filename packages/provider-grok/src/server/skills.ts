@@ -1,5 +1,4 @@
 import { resolveProviderProbeTimeoutMs } from "@supaterm/provider-core/server/snapshotProbe";
-// The CLI catalog honors ignored/disabled skills and nested plugin skills that flat scans miss.
 import type { ServerProviderSkill } from "@supaterm/contracts";
 import type { GrokSettings } from "../settings.ts";
 import * as Effect from "effect/Effect";
@@ -13,7 +12,6 @@ import { spawnAndCollect } from "@supaterm/provider-core/server/snapshotProbe";
 import { grokProbeEnvironment } from "./probeEnvironment.ts";
 
 const GROK_SKILLS_PROBE_TIMEOUT_MS = 4_000;
-// The composer's chip rule, anchored to the message start, so `$25` never names a skill.
 const LEADING_SKILL_MENTION = new RegExp(`^\\s*${SKILL_MENTION_PATTERN.source}`, "u");
 
 /** A message opening with a mention, such as `deploy` and ` ship it` for `$deploy ship it`. */

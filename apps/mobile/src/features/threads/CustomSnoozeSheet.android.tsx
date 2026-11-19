@@ -126,7 +126,6 @@ export function CustomSnoozeSheet(props: Props) {
     timeSelectorUnselectedContentColor: colors["--color-foreground"],
   };
   return (
-    // Recycled thread rows can detach a zero-sized native dialog host.
     <OverlayPortal>
       <Host colorScheme={themeAppearance} style={{ height: 0, width: 0 }}>
         <BasicAlertDialog
@@ -285,7 +284,6 @@ function SnoozeDateTimePicker(props: {
   readonly colors: React.ComponentProps<typeof DateTimePicker>["elementColors"];
   readonly onChange: (date: Date) => void;
 }) {
-  // Changing initialDate resets Compose's picker state, including its active clock dial.
   const [initialDate] = useState(() =>
     props.picker === "date" ? snoozeDateToPickerDate(props.date) : props.date.toISOString(),
   );
@@ -296,7 +294,6 @@ function SnoozeDateTimePicker(props: {
       is24Hour={props.is24Hour}
       showVariantToggle={false}
       elementColors={props.colors}
-      // Null marks incomplete input; keep the last valid date.
       onDateSelected={(date) => {
         if (date) props.onChange(date);
       }}

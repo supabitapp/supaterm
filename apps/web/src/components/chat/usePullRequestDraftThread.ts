@@ -124,7 +124,6 @@ export function usePullRequestDraftThread(input: PullRequestDraftThreadInput) {
     worktreePath: string | null;
     pullRequestUrl: string;
   }) => {
-    // The draft carries the pull request until its first send makes it a thread, which links it.
     await openOrReuseProjectDraftThread({
       branch: input.branch,
       worktreePath: input.worktreePath,

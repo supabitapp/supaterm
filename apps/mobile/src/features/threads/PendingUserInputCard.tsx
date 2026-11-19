@@ -100,37 +100,24 @@ export interface PendingUserInputCardProps {
   readonly supportsQuestionAutoDismiss?: boolean;
 }
 
-/** Long enough to see the picked option highlight before the next question replaces it. */
 const SINGLE_SELECT_ADVANCE_DELAY_MS = 200;
 
 const FALLBACK_TITLE = "Fill in the pending answers";
 
-/**
- * Both pages travel the window width on one curve, so they move as a unit and
- * sit side by side instead of overlapping; the card clips whatever is outside it.
- */
 const QUESTION_PUSH_TIMING = {
   duration: 300,
   easing: Easing.bezier(0.32, 0.72, 0, 1),
   reduceMotion: ReduceMotion.System,
 };
 
-/**
- * Keyed by question so paging pushes the old question out and the new one in.
- * The config skips both when the card itself mounts or unmounts, so only a
- * page change animates.
- */
 function QuestionPage(props: {
   readonly questionId: string | undefined;
-  /** 1 when paging forward (pages move left), -1 when paging back. */
   readonly direction: SharedValue<number>;
   readonly className?: string;
   readonly style?: StyleProp<ViewStyle>;
   readonly children: ReactNode;
 }) {
   const { direction } = props;
-  // The worklets read the direction when they run, because the outgoing page
-  // keeps the exiting prop it last rendered with.
   const pushIn = useCallback(
     (values: EntryAnimationsValues): LayoutAnimation => {
       "worklet";
@@ -216,7 +203,6 @@ function QuestionText(props: {
       markdown={markdown}
       textStyle={textStyle}
       writingDirection={markdownProseDirection(markdown)}
-      // Android's renderer aligns relative to each paragraph's direction.
       textAlign={
         Platform.OS === "android" ? undefined : props.setDirection === "rtl" ? "right" : "left"
       }
@@ -242,8 +228,6 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       .join(" "),
   );
 
-  // One question per page, like the desktop composer. Drafts outlive the card,
-  // so a reopened request resumes at its first unanswered question.
   const [page, setPage] = useState(() => ({
     requestId,
     index: resumePendingUserInputQuestionIndex(questions, props.drafts),
@@ -276,8 +260,6 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   };
   const goToQuestion = (index: number) => {
     cancelAutoAdvance();
-    // Leaving unmounts the page's answer field, which would drop a paste or
-    // pick that is still converting.
     if (attachmentsPreparing) {
       return;
     }
@@ -296,9 +278,6 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       void props.onSubmit();
     }
   };
-  // The delayed advance must see the answer the tap just recorded, so it reads
-  // the latest render's advance instead of the one that scheduled it, and skips
-  // a request that replaced the one tapped.
   const advanceRef = useRef(advance);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed advance to a ref read by the delayed auto-advance timer
   useLayoutEffect(() => {
@@ -321,8 +300,6 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
   const cardHeightRef = useRef(0);
   const cardHeight = useSharedValue(0);
   const notifyCoverage = () => {
-    // The card resizes with the keyboard every frame, so easing each sample would leave the
-    // feed inset and floating controls trailing it.
     cardCoverage.set(Math.max(0, cardHeightRef.current - barHeightRef.current));
   };
   const handleBarLayout = (event: LayoutChangeEvent) => {
@@ -346,7 +323,6 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
       transform: [{ translateY: (1 - progress) * travel }],
     };
   });
-  // Android hit-tests inside the parent; its height is also the space the card takes below the feed.
   const androidBoundsStyle = useAnimatedStyle(() => ({
     paddingTop: cardCoverage.value * cardProgress.value,
   }));
@@ -464,7 +440,6 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
         </QuestionAutoDismissToggle>
         {stopButton}
       </View>
-      {/* Remounting per question also starts each page scrolled to its top. */}
       <QuestionPage
         questionId={question?.id}
         direction={pushDirection}

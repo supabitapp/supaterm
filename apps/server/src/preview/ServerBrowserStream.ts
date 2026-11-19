@@ -121,10 +121,6 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
         return HttpServerResponse.empty();
       }
       const viewer = attached.viewer;
-      // `write` returns once the frame is queued, so Chromium's ack for each
-      // frame waits for the viewer's `ack` message instead. Only one frame
-      // is on the wire and only the newest waits behind it, so replies never
-      // queue behind stale images on a slow link.
       let inFlight: Effect.Effect<void> | null = null;
       let pending: Frame | null = null;
       const disconnectSlowViewer = Effect.sync(() => transport.destroy()).pipe(
@@ -149,7 +145,6 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
               if (inFlight === null) return sendFrame(output);
               const superseded = pending;
               pending = output;
-              // Never sent, but Chromium still waits for its ack.
               return superseded ? Effect.forkScoped(superseded.ack) : Effect.void;
             }
             case "viewport":
@@ -173,11 +168,8 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
           }
         }),
       );
-      // Incoming messages share the session span; frame acknowledgements are frequent.
       const receive = Effect.fnUntraced(function* (chunk: Uint8Array | string) {
         const message = parseMessage(chunk);
-        // Ownership serializes actions in the service. Keep reading so dialog
-        // replies and takeover can unblock an action already waiting on the page.
         if (!isAck(message))
           return yield* canOperate
             ? viewer.input(message).pipe(Effect.forkScoped, Effect.asVoid)
@@ -186,7 +178,6 @@ const makeHandler = Effect.fnUntraced(function* (browser: ServerBrowser.ServerBr
         const next = pending;
         inFlight = null;
         pending = null;
-        // Forked: Chromium acks are paced and must not hold up input.
         return yield* Effect.andThen(
           ack ? Effect.forkScoped(ack) : Effect.void,
           next ? sendFrame(next) : Effect.void,
@@ -218,7 +209,6 @@ const isSandboxError = Schema.is(PreviewBrowserHost.PreviewBrowserSandboxError);
 const isLibrariesError = Schema.is(PreviewBrowserHost.PreviewBrowserLibrariesError);
 const encodeHostSetup = Schema.encodeSync(Schema.fromJsonString(PreviewStreamHostSetup));
 
-// The request span already covers this download route.
 const serveDownload = Effect.fnUntraced(function* (
   browser: ServerBrowser.ServerBrowser["Service"],
   params: URLSearchParams,
@@ -241,7 +231,6 @@ const serveDownload = Effect.fnUntraced(function* (
 const UPLOAD_MAX_FILE_BYTES = 100 * 1024 * 1024;
 const UPLOAD_MAX_FILES = 20;
 
-// The request span already covers this upload route.
 const receiveUpload = Effect.fnUntraced(
   function* (browser: ServerBrowser.ServerBrowser["Service"], params: URLSearchParams) {
     yield* authenticateMediaRequest(AuthPreviewOperateScope);

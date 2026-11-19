@@ -17,7 +17,6 @@ import * as Layer from "effect/Layer";
 import * as ServerConfig from "../config.ts";
 import * as ProviderProcesses from "./providerProcesses.ts";
 
-// Real child processes stand in for servers and CLIs; only PIDs captured at spawn are signalled.
 const ownedProcess = Effect.gen(function* () {
   const ready = yield* Deferred.make<void>();
   const exited = yield* Deferred.make<void>();

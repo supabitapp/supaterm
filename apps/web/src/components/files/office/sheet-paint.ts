@@ -1,9 +1,7 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import { rangeRect, type CellRange, type GridMeta } from "@betteroffice/xlsx/headless";
 import { columnName } from "./sheet-cells";
 import type { SheetFrame, SheetFrameRequest } from "./sheet-protocol";
 
-/** Excel's light headers and green selection. The sheet keeps them on its white paper in every theme. */
 const colours = {
   header: "#f5f5f5",
   label: "#5c5c5c",
@@ -83,7 +81,6 @@ export function paintCells(
   const scale = ratio / request.ratio;
   const origin = { x: input.headers.width * ratio, y: input.headers.height * ratio };
 
-  // Each side splits at the frozen panes: the panes stay put, the cells past them follow the scroll.
   const columns = [
     { start: 0, end: Math.min(panes.width, input.width), shift: 0 },
     { start: panes.width, end: input.width, shift: painted.frame.viewport.x - input.x },
@@ -94,8 +91,6 @@ export function paintCells(
     { start: panes.height, end: input.height, shift: painted.frame.viewport.y - input.y },
   ];
 
-  // The whole canvas clears, headers included: their edges cover part of a device pixel, which would darken with every
-  // paint drawn over the last.
   context.save();
   context.setTransform(1, 0, 0, 1, 0, 0);
   context.clearRect(0, 0, context.canvas.width, context.canvas.height);
@@ -104,7 +99,6 @@ export function paintCells(
     columns.forEach((column) => {
       if (row.end <= row.start || column.end <= column.start) return;
 
-      // A shifted bitmap's frozen pixels must never enter a scrolling pane.
       const left = Math.round(
         origin.x + Math.max(column.start, column.start + column.shift) * ratio,
       );
@@ -117,7 +111,6 @@ export function paintCells(
       context.beginPath();
       context.rect(left, top, right - left, bottom - top);
       context.clip();
-      // Whole device pixels, so a frame at its own position lands exactly where the worker painted its cells.
       context.drawImage(
         bitmap,
         Math.round(origin.x + column.shift * ratio - request.offset.x * scale),
@@ -152,7 +145,6 @@ export function shiftGrid(
     edge: number,
     by: number,
   ) => {
-    // The offsets up to the panes' far edge belong to the panes; without panes, every track moves.
     const fixed =
       count === 0
         ? -1
@@ -188,7 +180,6 @@ export function shiftGrid(
   };
 }
 
-/** The sheet row or column at a position in a frame's grid: its indices when tracks are skipped, else consecutive. */
 function trackIndex(start: number, indices: readonly number[] | undefined, position: number) {
   return indices?.[position] ?? start + position;
 }
@@ -250,7 +241,6 @@ export function paintHeaders(
 
   line(context, colours.edge, 0, headers.height, input.width, headers.height);
   line(context, colours.edge, headers.width, 0, headers.width, input.height);
-  // Excel's select-all corner: a small triangle pointing at the cells.
   context.fillStyle = colours.corner;
   context.beginPath();
   context.moveTo(headers.width - 4, headers.height - 12);
@@ -340,7 +330,6 @@ function paintHeader(
   );
   context.clip();
 
-  // A selected header is tinted, with a bar on the edge that meets the cells.
   if (header.selected) {
     context.fillStyle = colours.selectedHeader;
     context.fillRect(header.x, header.y, header.width, header.height);
@@ -353,7 +342,6 @@ function paintHeader(
     );
   }
 
-  // A track too small for its label shows none, rather than labels piled over each other.
   if (columns ? context.measureText(header.label).width + 2 <= header.width : header.height >= 9) {
     context.fillStyle = header.selected ? colours.selectedLabel : colours.label;
     context.fillText(header.label, header.x + header.width / 2, header.y + header.height / 2 + 0.5);
@@ -361,7 +349,6 @@ function paintHeader(
 
   context.restore();
 
-  // The line after the header, where the gridline between its cells and the next ones meets it.
   const x = columns ? header.x + header.width : header.x;
   const y = columns ? header.y : header.y + header.height;
 
@@ -375,7 +362,6 @@ function paintHeader(
   );
 }
 
-/** A one-pixel line centred on its coordinates, as the display list draws gridlines, so the two meet. */
 function line(
   context: CanvasRenderingContext2D,
   colour: string,

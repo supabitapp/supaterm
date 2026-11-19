@@ -152,8 +152,6 @@ export function createFileMetadataAtoms<R, E>(
           const byPath = new Map(paths.map((path, index) => [path, result.entries[index] ?? null]));
           const retry: typeof pending = [];
           for (const entry of pending) {
-            // Retry only paths invalidated during this request. Never retain the
-            // old response or complete a waiting chip with pre-write metadata.
             if (!tokens.get(entry.request.path)!.valid) {
               retry.push(entry);
               continue;
@@ -202,7 +200,6 @@ export function createFileMetadataAtoms<R, E>(
       }
       const retainedEntry = retained?.get(input.path);
       const now = yield* Clock.currentTimeMillis;
-      // Agents mention paths before creating them, so misses must still expire within a thread.
       if (retainedEntry && (retainedEntry.value !== null || retainedEntry.expires > now))
         return retainedEntry.value;
       const cached = knownEntry(session.value, input.path, now);
@@ -308,30 +305,26 @@ export function createFileMetadataAtoms<R, E>(
     );
   });
 
-  const seedAfterRead =
-    /* Metadata seeding runs on every file read and is covered by the read operation. */
-    Effect.fnUntraced(function* <A, ReadError, ReadServices>(
-      read: Effect.Effect<A, ReadError, ReadServices>,
-      seed: (
-        result: A,
-        isCurrent: (session: RpcSession) => boolean,
-      ) => Effect.Effect<void, never, EnvironmentSupervisor.EnvironmentSupervisor>,
-    ) {
-      const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
-      const session = yield* SubscriptionRef.get(supervisor.session);
-      const version = session._tag === "Some" ? (invalidationVersions.get(session.value) ?? 0) : 0;
-      const result = yield* read;
-      // Seeding is optional. Any intervening invalidation or reconnect makes
-      // the old response unsuitable for the current metadata cache.
-      yield* seed(
-        result,
-        (current) =>
-          session._tag === "Some" &&
-          current === session.value &&
-          (invalidationVersions.get(current) ?? 0) === version,
-      );
-      return result;
-    });
+  const seedAfterRead = Effect.fnUntraced(function* <A, ReadError, ReadServices>(
+    read: Effect.Effect<A, ReadError, ReadServices>,
+    seed: (
+      result: A,
+      isCurrent: (session: RpcSession) => boolean,
+    ) => Effect.Effect<void, never, EnvironmentSupervisor.EnvironmentSupervisor>,
+  ) {
+    const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
+    const session = yield* SubscriptionRef.get(supervisor.session);
+    const version = session._tag === "Some" ? (invalidationVersions.get(session.value) ?? 0) : 0;
+    const result = yield* read;
+    yield* seed(
+      result,
+      (current) =>
+        session._tag === "Some" &&
+        current === session.value &&
+        (invalidationVersions.get(current) ?? 0) === version,
+    );
+    return result;
+  });
 
   const refreshPath = (
     environmentId: EnvironmentId,

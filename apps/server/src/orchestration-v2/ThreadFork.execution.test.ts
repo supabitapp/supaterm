@@ -589,8 +589,6 @@ it.effect.each([
               contextHandoffId: null,
             },
           },
-          // Each message alone exceeds the default 16k handoff budget, so a
-          // portable handoff omits both whole items.
           {
             id: EventId.make("fork-compact-user-item"),
             type: "turn-item.updated",
@@ -682,7 +680,6 @@ const writeParentRun = (input: {
   readonly threadId: ThreadId;
   readonly runId: RunId;
   readonly ordinal: number;
-  /** Preparing, failed, and interrupted runs asked for a new worktree. */
   readonly status:
     | "preparing"
     | "running"
@@ -692,7 +689,6 @@ const writeParentRun = (input: {
     | "failed"
     | "interrupted";
   readonly text: string;
-  /** A checkpointed run on a native provider thread, which `latest_stable` forks start from. */
   readonly stable?: boolean;
 }) =>
   Effect.gen(function* () {
@@ -805,7 +801,6 @@ const writeParentRun = (input: {
     });
   });
 
-/** Marks `threadId` as imported from V1 and gives it one runless imported user message. */
 const writeImportedHistory = (threadId: ThreadId, text: string) =>
   Effect.gen(function* () {
     const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -1036,7 +1031,6 @@ it.effect("a side chat of an idle parent still starts with the framing note", ()
 
     const started = yield* orchestrator.getThreadProjection(sideChatId);
     assert.isNotNull(started.providerThreads[0]?.forkedFrom);
-    // The side chat does not show the parent's run, so it is no baseline.
     assert.isFalse(
       started.turnItems.some((item) => item.type === "user_message" && item.modelSwitch),
     );
@@ -1187,7 +1181,6 @@ it.effect("a side chat opens once a later run has worked in the project checkout
     yield* forkSideChat("side-chat-worktree-abandoned-fork", parentId, sideChatId);
     assert.isNull((yield* orchestrator.getThreadProjection(sideChatId)).thread.deletedAt);
 
-    // A retried setup that is running again, or failed again, comes after the later run.
     for (const status of ["preparing", "failed"] as const) {
       const retriedParentId = ThreadId.make(`side-chat-worktree-retried-parent-${status}`);
       yield* createParent(retriedParentId);
@@ -1324,7 +1317,6 @@ it.effect("a side chat opened during the parent's first turn starts from a diges
       ThreadId.make("side-chat-busy-nested"),
     ).pipe(Effect.flip);
     assert.equal(nested._tag, "OrchestratorDispatchError");
-    // Either would take the side chat's lock before the parent's, against the delete cascade.
     const ontoParent = yield* fork("side-chat-busy-onto-parent", sideChatId, parentId).pipe(
       Effect.flip,
     );
@@ -1377,7 +1369,6 @@ it.effect("a side chat opened during the parent's first turn starts from a diges
       contextHandoffId: handoff!.id,
     });
     assert.include(handoff!.summaryText, "You are in a side chat beside the main thread.");
-    // Inherited rows come first, so the cap truncates them first.
     assert.isAbove(
       handoff!.summaryText.indexOf("- User: PARENT_IMPORTED_MARKER"),
       handoff!.summaryText.indexOf("- User: GRANDPARENT_MARKER"),
@@ -1449,10 +1440,8 @@ it.effect("merge-back rejects a second fork's context until the first is consume
     const rejected = yield* mergeBack("merge-back-guard-second", second).pipe(Effect.flip);
     assert.include(String(rejected.cause), "pending context from another side chat or fork");
     yield* mergeBack("merge-back-guard-first-again", first);
-    // That pending merge-back targets the parent, so it does not block one into `first`.
     const nested = { threadId: ThreadId.make("merge-back-guard-nested") };
     const nestedRunId = RunId.make("merge-back-guard-nested-run");
-    // A side chat forks only once it is a full thread.
     yield* orchestrator.dispatch({
       type: "thread.side-chat.promote",
       commandId: CommandId.make("merge-back-guard-promote-first"),
@@ -1690,7 +1679,6 @@ const runForkWithFailingNativeSource = (forkFailures: number) => {
       createdBy: "user",
       creationSource: "web",
     });
-    // Run every start attempt so the last one runs with willRetry false.
     for (let attempt = 0; attempt < 5; attempt++) {
       yield* worker.drain();
       yield* TestClock.adjust("1 second");
@@ -1716,7 +1704,6 @@ const runForkWithFailingNativeSource = (forkFailures: number) => {
 it.effect("a native fork whose source session is gone starts fresh with the source history", () =>
   Effect.gen(function* () {
     const { projection, turn } = yield* runForkWithFailingNativeSource(Number.POSITIVE_INFINITY);
-    // Resolving the fork transfer stops later sends from retrying the native fork.
     assert.equal(projection.contextTransfers[0]?.status, "resolved_portable");
     assert.isNull(projection.providerThreads[0]?.forkedFrom);
     assert.include(JSON.stringify(turn), "FORKED_SOURCE_MARKER");

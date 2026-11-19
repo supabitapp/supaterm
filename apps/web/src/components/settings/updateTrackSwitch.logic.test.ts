@@ -5,7 +5,6 @@ import { nothingToMove, prepareLocalTrackSwitch } from "./updateTrackSwitch.logi
 
 const STABLE = "0.1.3";
 
-/** Like the desktop app, saving a track re-checks the feed and reports what it offers. */
 function fakeBridge(offer: string | null | Error) {
   const saved: DesktopUpdateChannel[] = [];
   const base: DesktopUpdateState = {
@@ -49,7 +48,6 @@ const prepare = (bridge: ReturnType<typeof fakeBridge>["bridge"], reinstall = tr
 describe("prepareLocalTrackSwitch", () => {
   it("installs the checked release or a newer one on the track, never an older one", async () => {
     expect(await prepare(fakeBridge(STABLE).bridge)).toMatchObject({ ok: true });
-    // A newer Stable knows every migration the checked one does.
     expect(await prepare(fakeBridge("0.1.4").bridge)).toMatchObject({ ok: true });
 
     const stale = fakeBridge("0.1.2");
@@ -57,7 +55,6 @@ describe("prepareLocalTrackSwitch", () => {
       ok: false,
       message: "This app found 0.1.2, which is older than 0.1.3. Try again in a few minutes.",
     });
-    // The saved track is intent; "Switch them" retries without re-picking it.
     expect(stale.saved).toEqual(["latest"]);
   });
 
@@ -102,17 +99,14 @@ describe("nothingToMove", () => {
       ...onlySaves,
       disabledReason: null,
     });
-    // Before the desktop reports its saved track, confirming may still need to save it.
     expect(nothingToMove({ ...stableSwitch, savedChannel: null })).toEqual({
       ...onlySaves,
       disabledReason: null,
     });
-    // A desktop host already on the track still gets its saved track changed.
     expect(nothingToMove({ ...stableSwitch, hasTargets: true })).toEqual({
       ...onlySaves,
       disabledReason: null,
     });
-    // With its updater off, this app stays on the other track.
     expect(
       nothingToMove({ ...stableSwitch, rows: [], crossesLocal: true, savedChannel: "nightly" }),
     ).toEqual({

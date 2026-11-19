@@ -371,7 +371,6 @@ describe("OrchestratorMcpService", () => {
         assert.isNull(continuing.latestTerminalRunId);
         assert.isNull(continuing.latestTerminalStatus);
 
-        // A second restart cut the continuation, and its own continuation declined.
         childRuns = [
           ...childProjection.runs,
           {
@@ -387,7 +386,6 @@ describe("OrchestratorMcpService", () => {
         assert.equal(done.latestTerminalStatus, "cancelled");
         assert.equal(yield* Ref.get(dispatched), 1);
 
-        // A continuation cancelled before it started leaves the cut run as the result.
         childRuns = [
           ...childProjection.runs,
           { ...continuationRun, status: "cancelled", startedAt: null },
@@ -396,7 +394,6 @@ describe("OrchestratorMcpService", () => {
         assert.equal(unstarted.latestTerminalRunId, cutRunId);
         assert.equal(unstarted.latestTerminalStatus, "cancelled");
 
-        // That unstarted continuation was itself continued, so the whole chain is still live.
         childRuns = [
           ...childProjection.runs,
           { ...continuationRun, status: "cancelled", startedAt: null },
@@ -535,7 +532,6 @@ describe("OrchestratorMcpService", () => {
       });
       const runs = [run(1, taskA), run(2, taskA), run(3, taskB)];
       let reports: ReadonlyArray<readonly [number, string]> = [];
-      // The mock ignores run filters, so every report is loaded whichever runs are asked for.
       const childProjection = () =>
         ({
           thread: { id: childThreadId, title: "Child task" },
@@ -588,7 +584,6 @@ describe("OrchestratorMcpService", () => {
 
       yield* Effect.gen(function* () {
         const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-        // Task A reported, then a run queued behind the report ended without text.
         reports = [[1, "REPORT-A"]];
         const reported = yield* service.taskStatus(scope, taskA);
         assert.equal(reported.status, "completed");
@@ -597,7 +592,6 @@ describe("OrchestratorMcpService", () => {
         assert.equal(reported.latestTerminalSummary, silent);
         assert.equal((yield* service.taskStatus(scope, taskB)).summary, silent);
 
-        // A later task's report is not the result of a task that said nothing.
         reports = [[3, "REPORT-B"]];
         const quiet = yield* service.taskStatus(scope, taskA);
         assert.equal(quiet.summary, silent);
@@ -699,7 +693,6 @@ describe("OrchestratorMcpService", () => {
         assert.isTrue(waiting.timedOut);
         assert.equal(waiting.next, ORCHESTRATOR_MCP_RUNNING_TASK_NEXT);
 
-        // A child waiting on a question or approval needs an answer, not a wake.
         pendingRequest = true;
         const asking = yield* service.waitForThread(scope, { threadId: childThreadId });
         assert.isTrue(asking.timedOut);
@@ -826,7 +819,6 @@ describe("OrchestratorMcpService", () => {
               },
             ],
           }) as unknown as OrchestrationV2ThreadProjection;
-        // A finished run whose binding to the follow-up was lost.
         const childProjection = {
           thread: { id: childThreadId, title: "Child" },
           runs:
@@ -855,7 +847,6 @@ describe("OrchestratorMcpService", () => {
             stopDelegatedTasks: () => Effect.void,
             cancelDelegatedTask: ({ command }) =>
               Ref.update(dispatched, (commands) => [...commands, command]),
-            // The orchestrator's subagent.stop repair is covered in ThreadStop.test.ts.
             dispatch: (command) =>
               Ref.update(dispatched, (commands) => [...commands, command]).pipe(
                 Effect.andThen(
@@ -894,7 +885,6 @@ describe("OrchestratorMcpService", () => {
           });
           assert.deepEqual(result, { taskId, status: "cancelled" });
           const commands = yield* Ref.get(dispatched);
-          // A child whose run finished can still run another turn's work, so it is stopped too.
           assert.deepEqual(
             commands.flatMap((command) =>
               command.type === "thread.stop" ? [command.threadId] : [],
@@ -1308,7 +1298,6 @@ describe("OrchestratorMcpService", () => {
         result: done === undefined ? null : "Done.",
         completionDelivery: { state: done === undefined ? "pending" : "delivered" },
       });
-      // Older tasks the parent and child dispatched and that have long done.
       const doneThreadId = ThreadId.make("thread:mcp-cancel-grandchild-done");
       const projections = new Map([
         [
@@ -1453,7 +1442,6 @@ describe("OrchestratorMcpService", () => {
         const error = yield* service
           .cancelTask(scope, { taskId, clientRequestId: "cancel-grandchild-above-modes" })
           .pipe(Effect.flip);
-        // No read decodes every task a thread has dispatched.
         for (const filter of yield* Ref.get(subagentReads)) {
           assert.isTrue(
             filter?.subagentIds !== undefined || filter?.omitSettledSubagents !== undefined,
@@ -1729,7 +1717,6 @@ describe("OrchestratorMcpService provider resolution", () => {
           .pipe(Effect.forkChild);
         yield* Deferred.await(subscribed);
         if (wake === "Node fetch's 300 s idle timeout") {
-          // Nothing is written during the wait, so undici drops the call at 300 s, before any handle.
           const beforeClientTimeout = yield* Fiber.join(waiting).pipe(
             Effect.timeoutOption(Duration.seconds(299)),
             Effect.forkChild,
@@ -1822,7 +1809,6 @@ describe("OrchestratorMcpService provider resolution", () => {
                 runs: projection.runs.map((run) => ({ ...run, status: runStatus })),
                 turnItems: card === undefined ? [] : [{ ...card, type: "secret_request" }],
               } as unknown as OrchestrationV2ThreadProjection;
-              // The answer commits after this read's snapshot, before the wait subscribes.
               if (
                 outcome === "an answer during the first read" &&
                 card?.secretStatus === "pending"
@@ -1843,7 +1829,6 @@ describe("OrchestratorMcpService provider resolution", () => {
               : Stream.empty,
           dispatch: (command) =>
             Effect.sync(() => {
-              // As the orchestrator does, a closed card keeps its outcome.
               if (
                 command.type === "secret_request.record" &&
                 (card === undefined || card.secretStatus === "pending")
@@ -1880,10 +1865,8 @@ describe("OrchestratorMcpService provider resolution", () => {
           runStatus = "interrupted";
           yield* commit("run.updated", { id: parentRunId });
         } else if (outcome === "an answer during the first read") {
-          // Nothing else arrives, so a wait that skipped the answer ends without one.
           yield* Queue.end(events);
         } else if (outcome === "no answer") {
-          // The card stays open for the whole hour a call may wait.
           yield* TestClock.adjust("59 minutes");
           assert.equal(card?.secretStatus, "pending");
           yield* TestClock.adjust("1 minute");
@@ -1905,13 +1888,11 @@ describe("OrchestratorMcpService provider resolution", () => {
             ? { status, file }
             : { status, note: SECRET_REQUEST_UNSAVED_NOTE[status] },
         );
-        // Only a timeout marks the card expired; a run that ended just closes it.
         if (outcome === "the run ending") {
           assert.deepEqual(card, { id: card!.id, secretStatus: "cancelled" });
         }
         if (outcome === "no answer") {
           assert.deepEqual(card, { id: card!.id, secretStatus: "cancelled", timedOut: true });
-          // A retry with the same key still hears that the card timed out.
           assert.deepEqual(
             yield* service.requestSecret(scope, {
               label: "API key",
@@ -2320,7 +2301,6 @@ describe("OrchestratorMcpService provider resolution", () => {
       () =>
         Effect.gen(function* () {
           assert.deepEqual(listing(yield* capabilitiesWith()), [
-            // gpt-4 is a favorite and gpt-3 is the caller's model; legacy gpt-5 is left out.
             { id: codexInstanceId, models: ["gpt-6", "gpt-4", "gpt-3", "my-alpha"], omitted: 1 },
             {
               id: opencodeInstanceId,
@@ -2354,7 +2334,6 @@ describe("OrchestratorMcpService provider resolution", () => {
           models: ["oc/m12", "oc/m01", "oc/m03", "oc/m04", "oc/m05", "oc/m06", "oc/m07", "oc/m08"],
           omitted: 3,
         });
-        // A word naming the provider matches all its models, so legacy ones stay out.
         assert.deepEqual(listing(yield* capabilitiesWith("Codex")), [
           { id: codexInstanceId, models: ["gpt-6", "gpt-4", "gpt-3", "my-alpha"], omitted: 1 },
           { id: opencodeInstanceId, models: [], omitted: 0 },
@@ -3056,7 +3035,6 @@ describe("OrchestratorMcpService provider resolution", () => {
           assert.equal(child.model, selection.model);
           assert.deepEqual(yield* service.createThreads(scope, request), first);
 
-          // The creation receipt exists, but this prompt has not been accepted yet.
           const withPrompt = {
             ...request,
             threads: [{ ...request.threads[0]!, prompt: "Start work." }],
@@ -3093,7 +3071,6 @@ describe("OrchestratorMcpService provider resolution", () => {
           });
           const titled = yield* orchestrator.getThreadProjection(emojiAtLimit.threads[0]!.threadId);
           assert.equal(titled.thread.title, `${"a".repeat(76)}...`);
-          // One commit holds a prompted thread and its run, so no client sees it idle between.
           const promptedCommits = yield* orchestrator
             .streamStoredEventsFrom({ threadId: titled.thread.id })
             .pipe(
@@ -3345,7 +3322,6 @@ describe("OrchestratorMcpService provider resolution", () => {
           })
           .pipe(Effect.forkChild);
         yield* Deferred.await(waiting);
-        // A steered Claude parent cancels the tools/call, which interrupts this fiber.
         yield* Fiber.interrupt(call);
         const parent = yield* orchestrator.getThreadProjection(parentThreadId);
         const task = parent.subagents.find((subagent) => subagent.origin === "app_owned");
@@ -4197,7 +4173,6 @@ describe("OrchestratorMcpService provider resolution", () => {
                             },
                           ]
                         : [],
-                      // Claude ran the requested Opus on Sonnet.
                       providerTurns: [
                         {
                           runAttemptId: "attempt:mcp-restarted-child",
@@ -4401,7 +4376,6 @@ describe("OrchestratorMcpService provider resolution", () => {
 
   it.effect("accepts the inherited options it reports back as a delegate target", () =>
     Effect.gen(function* () {
-      // supaterm_thread_launch keeps a model selection as given, so a thread can hold an option its model lacks.
       const inherited = {
         instanceId: codexInstanceId,
         model: "gpt-5.4",
@@ -4992,7 +4966,6 @@ describe("OrchestratorMcpService thread stop", () => {
     issuedAt: 1,
   };
 
-  // A provider whose turns run until they are interrupted.
   const liveAdapter = (cwd: string): ProviderAdapter.ProviderAdapterV2["Service"] => ({
     instanceId,
     driver,

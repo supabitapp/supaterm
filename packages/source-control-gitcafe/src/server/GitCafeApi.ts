@@ -90,7 +90,6 @@ const credentialFailure = (
       : "failed";
 
 const REDIRECTS = new Set([301, 302, 303, 307, 308]);
-// 307 and 308 keep the method and body; the others only safely repeat a read.
 const METHOD_PRESERVING = new Set([307, 308]);
 
 const redirectTarget = (
@@ -128,7 +127,6 @@ export const make = Effect.gen(function* () {
         detail: fields.detail,
         ...(fields.cause === undefined ? {} : { cause: fields.cause }),
       });
-    // Remote URLs must not send tokens outside GitCafe's hosts.
     const host = GitCafeHosts.gitCafeHost(input.host);
     if (host === null)
       return yield* fail({
@@ -163,9 +161,7 @@ export const make = Effect.gen(function* () {
               : base.pipe(HttpClientRequest.bodyJsonUnsafe(input.body)),
           )
           .pipe(
-            // Client spans expose query strings containing branch names.
             Effect.provideService(HttpClient.TracerDisabledWhen, () => true),
-            // fetch would carry the bearer token to any redirect target.
             Effect.provideService(FetchHttpClient.RequestInit, NO_REDIRECT),
           );
         return {
@@ -180,8 +176,6 @@ export const make = Effect.gen(function* () {
         ),
       );
     };
-    // A renumbered pull request (provisional number replaced by the synced GitHub one)
-    // answers with a redirect; follow it only within this host's API.
     let url = `${origin}/api${input.path}`;
     let response = yield* send(url);
     for (let hop = 0; hop < MAX_REDIRECTS; hop++) {
@@ -193,7 +187,6 @@ export const make = Effect.gen(function* () {
     const { status, text } = response;
     yield* Effect.annotateCurrentSpan({ "http.response.status_code": status });
     if (status >= 200 && status < 300) return text;
-    // The source may hold a newer token than the one that was refused.
     if (status === 401) yield* credentials.invalidate(host);
     const problem = Option.getOrUndefined(decodeProblem(text));
     return yield* fail({

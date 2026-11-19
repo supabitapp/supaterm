@@ -30,11 +30,8 @@ import {
   type WorkspaceSelectionCheck,
 } from "./workspace-tab-navigation";
 
-// Only iOS columns reopen a remembered page; Android always opens a tab on its list.
 const REMEMBERS = Platform.OS === "ios";
 
-// Read synchronously when a tab opens, so it lives in memory and is saved when the app leaves
-// the foreground rather than on every chat switch.
 let selections: WorkspaceSelections = {};
 let saved = selections;
 let hydration: Promise<void> | null = null;
@@ -42,7 +39,6 @@ let hydration: Promise<void> | null = null;
 function save() {
   const writing = selections;
   if (saved === writing) return;
-  // Marked saved only once written, so a failed write is retried on the next background.
   void savePreferencesPatch({ workspaceSelections: writing })
     .then(() => {
       saved = writing;
@@ -50,8 +46,6 @@ function save() {
     .catch(() => undefined);
 }
 
-// Route keys only name routes of the session that wrote them; a saved one would make a tab rebuild
-// its page under a stale key, which UIKit animates as a pop and a push.
 function withoutRouteKeys(saved: WorkspaceSelections | undefined): WorkspaceSelections {
   const omitKey = <Selection extends { readonly key?: string }>({ key: _, ...rest }: Selection) =>
     rest;
@@ -144,7 +138,6 @@ export async function launchWorkspaceURL(): Promise<string | null> {
   const metrics = firstNativeLayoutMetrics(NATIVE_METRICS_TIMEOUT_MS);
   await hydrateWorkspaceSelections();
   const thread = selections.threads;
-  // Read the chat's cached copy while the layout metrics are still on their way.
   if (thread) {
     startOpeningEnvironmentThread(
       thread.environmentId as EnvironmentId,
@@ -153,7 +146,6 @@ export async function launchWorkspaceURL(): Promise<string | null> {
   }
   await metrics;
   if (!thread || !workspaceHasColumns() || !workspaceSelectionCheck.thread(thread)) return null;
-  // createURL runs encodeURI over its path, which would encode each segment a second time.
   return `${Linking.createURL("/")}threads/${encodeURIComponent(thread.environmentId)}/${encodeURIComponent(thread.threadId)}`;
 }
 

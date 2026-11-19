@@ -51,7 +51,6 @@ interface CredentialRecord {
   readonly tokenHash: string;
   readonly scope: McpInvocationContext.McpThreadInvocationScope;
   readonly lastAlive: AliveMark;
-  /** Set when a request finds the token idle; only `touch` clears it, whatever the clocks do. */
   readonly expired: boolean;
 }
 
@@ -65,11 +64,6 @@ export interface McpSessionRegistryOptions {
   readonly now?: () => number;
 }
 
-/**
- * `/mcp` is outside environment auth, so idle tokens stop authenticating.
- * Keep expired records until explicit revocation: a trusted provider turn can
- * refresh the token its subprocess still holds; MCP requests cannot.
- */
 const DEFAULT_LIVENESS_WINDOW_MS = 24 * 60 * 60 * 1_000;
 
 const bytesToHex = (bytes: Uint8Array): string =>
@@ -77,8 +71,6 @@ const bytesToHex = (bytes: Uint8Array): string =>
 
 const tokenFromBytes = (bytes: Uint8Array): string => Buffer.from(bytes).toString("base64url");
 
-// The larger elapsed reading wins: stepping the wall clock back cannot extend a token,
-// and wall time that passes while the host sleeps still counts.
 const idleMs = (since: AliveMark, now: AliveMark): number =>
   Math.max(now.wallMs - since.wallMs, now.monotonicMs - since.monotonicMs);
 

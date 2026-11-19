@@ -21,7 +21,6 @@ export function assertKiroForkFromTurnOutput(
   assertSemanticProjectionIntegrity(target);
   assert.equal(target.contextTransfers[0]?.resolution?.strategy, "native_fork");
 
-  // Kiro forks at the first prompt's `userMessageId`, so its reply comes along and the second turn doesn't.
   const inbound = transcript.entries.flatMap((entry) =>
     entry.type === "emit_inbound" ? [entry.frame] : [],
   );

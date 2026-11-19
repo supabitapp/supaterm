@@ -30,7 +30,6 @@ export const azureCliInstall = (
     INSTALLERS_BY_LAUNCHER_DIRECTORY[path.basename(launcherDirectory).toLowerCase()];
   if (installer === undefined) return undefined;
   const install = path.dirname(launcherDirectory);
-  // Another tool's `bin\az.cmd` beside a `python.exe` is not the CLI; the CLI ships its own packages.
   const cliPackage = path.join(install, "Lib", "site-packages", "azure", "cli");
   if (!pathExists(cliPackage)) return undefined;
   const interpreter = path.join(install, "python.exe");

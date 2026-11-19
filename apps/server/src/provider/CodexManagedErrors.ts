@@ -89,7 +89,6 @@ export function classifyCodexManagedError(value: unknown) {
   const code =
     sharingCode(error) ??
     messages.map(sharingCode).find((code) => code !== undefined) ??
-    // Codex can stream ChatGPT's sharing-limit prose without its code.
     (messages.some((message) =>
       message.includes("has reached their Subscription Sharing usage limit"),
     )

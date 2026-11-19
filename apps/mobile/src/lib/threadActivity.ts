@@ -340,7 +340,6 @@ export function workEntryRowDisplay(
 
 type ThreadFeedActivityGroup = Extract<ThreadFeedEntry, { readonly type: "activity-group" }>;
 
-// Immutable source rows let retained history keep its identities while the active item streams.
 const projectedEntriesCache = new WeakMap<
   OrchestrationV2ProjectedTurnItem,
   {
@@ -890,10 +889,6 @@ function isEmptyMessage(entry: RawThreadFeedEntry): boolean {
   );
 }
 
-/**
- * `onRestart` hears each entry after which no group is open, with the grouped
- * length so far: the entries before it group the same whatever follows.
- */
 function groupAdjacentActivities(
   entries: ReadonlyArray<RawThreadFeedEntry>,
   childrenByRun: ReadonlyMap<RunId, ReadonlySet<string>>,
@@ -1077,7 +1072,6 @@ export function messageFoldRunId(
       const runId = entry.message.runId ?? runlessKey;
       const steerId = runId === null ? undefined : lastSteerIdByRunId.get(runId);
       if (runId === null || steerId === undefined) return runId;
-      // Tool visibility can drop all output before the steer, leaving no split.
       const steerKey = steerFoldRunId(runId, steerId);
       return presented.some((row) => row.type === "run-fold" && row.runId === steerKey)
         ? steerKey
@@ -1153,7 +1147,6 @@ function deriveThreadFeedRunFolds(
     {
       entries: ThreadFeedEntry[];
       startBoundary: string | null;
-      /** Each steer after the run has output starts a segment at this index into `entries`. */
       steerSegments: Array<{ startIndex: number; steer: ThreadFeedEntry }>;
     }
   >();
@@ -1167,7 +1160,6 @@ function deriveThreadFeedRunFolds(
           ? groupsByRunId.get(entry.message.runId)
           : undefined;
       if (steerGroup && steerGroup.entries.length > 0) {
-        // Back-to-back steers split once, after the last of them.
         if (steerGroup.steerSegments.at(-1)?.startIndex === steerGroup.entries.length) {
           steerGroup.steerSegments.pop();
         }
@@ -1180,9 +1172,6 @@ function deriveThreadFeedRunFolds(
     }
     const ownRunId = feedEntryFoldRunId(entry, runlessKey);
     if (!ownRunId) continue;
-    // Resuming a subagent moves its item to the resuming run, but the item
-    // keeps its place in the turn that started it. It folds with that turn,
-    // so the later run's fold still opens under its own prompt.
     const runId =
       responseKey !== null && (promptIndexByRunId.get(ownRunId) ?? -1) > index
         ? responseKey
@@ -1225,7 +1214,6 @@ function deriveThreadFeedRunFolds(
       continue;
     }
     const terminalAssistantId = terminalAssistantMessageIdByRun.get(runId);
-    // Folded dividers lose their place in the turn, so only the latest stays visible.
     const visibleCompactionId = group.entries.findLast(
       (entry) => entry.type === "activity-group" && isContextCompactionActivityGroup(entry),
     )?.id;
@@ -1276,8 +1264,6 @@ function deriveThreadFeedRunFolds(
       : duration
         ? `Worked for ${duration}`
         : "Worked";
-    // The top row keeps the whole turn's time. Work after a steer folds under
-    // its own row below that steer, keyed apart so each segment opens alone.
     const segments = [
       {
         runId,
@@ -1403,7 +1389,6 @@ function latestRunsEqual(left: ThreadFeedLatestRun | null, right: ThreadFeedLate
   );
 }
 
-/** Rows a fold leaves in view; the live fold skips them too, so settling keeps its place. */
 function staysOutOfFold(entry: ThreadFeedEntry): boolean {
   return (
     entry.type === "html-render" ||
@@ -1416,8 +1401,6 @@ function staysOutOfFold(entry: ThreadFeedEntry): boolean {
           activity.workEntry.questionAnswer !== undefined ||
           activity.projectedItem.item.type === "notification" ||
           activity.projectedItem.item.type === "handoff" ||
-          // A child still working outlives its settled launching run;
-          // its group stays visible while any member is live.
           isLiveSubagentTurnItem(activity.projectedItem.item),
       ))
   );
@@ -1431,12 +1414,6 @@ function isUserMessageEntry(entry: ThreadFeedEntry | undefined): boolean {
   return entry?.type === "message" && entry.message.role === "user";
 }
 
-/**
- * A user message starts every fold and is never hidden or grouped, so the
- * rows before it depend only on the entries before it, their runs, and the
- * shared inputs. Returns the user message entry to restart from, or null to
- * present the whole feed.
- */
 function presentationRestart(
   previous: ThreadFeedPresentationBuild | null,
   feed: ReadonlyArray<ThreadFeedEntry>,
@@ -1526,9 +1503,6 @@ export function deriveThreadFeedPresentation(
   const failedRunIds = failedFeedRunIds(sourceFeed, latestRun);
   const activeTailGroup = sourceFeed.at(-1);
   const activeRunId = inProgressRunId(latestRun);
-  // A bare `/compact` turn is the compaction itself: its compaction row stands in for the prompt
-  // and the live activity row. An answered "compact before continuing?" question folds into the
-  // compaction it asked for.
   const compactionCommandRunIds = new Set<RunId>();
   const compactionItemRunIds = new Set<RunId>();
   for (const entry of feed) {
@@ -1559,8 +1533,6 @@ export function deriveThreadFeedPresentation(
       for (const entryId of fold.hiddenEntryIds) collapsedEntryIds.add(entryId);
     }
   }
-  // The working run's fold row shows its live timer where "Worked for" lands once it settles.
-  // Runless work folds under its prompt's key once it settles, so the live row takes that key.
   const runlessPrompt =
     activeRunId === null && runlessWorkActive
       ? sourceFeed.findLast((entry) => isUserMessageEntry(entry) && feedEntryRunId(entry) === null)
@@ -1575,7 +1547,6 @@ export function deriveThreadFeedPresentation(
       ? liveRunFoldRow(liveRunId, activeWorkStartedAt)
       : null;
   let liveFoldPlaced = false;
-  // Earlier turns can hold the run's own items (a subagent it continued), so wait for its prompt.
   let liveFoldReady =
     liveFold !== null &&
     activeRunId !== null &&
@@ -1809,7 +1780,6 @@ function isWorkLogFeedRow(row: ThreadFeedEntry | undefined): boolean {
 
 export const LIVE_ACTIVITY_ROW_ID = "live-activity-row";
 
-/** Reads the feed before tool visibility filters it, so hidden newer parent work still counts. */
 function runningSubagentsAtRunTail(feed: ReadonlyArray<ThreadFeedEntry>, runId: RunId): number {
   let running = 0;
   for (let index = feed.length - 1; index >= 0; index -= 1) {
@@ -2166,8 +2136,6 @@ function setsEqual<T>(left: ReadonlySet<T>, right: ReadonlySet<T>): boolean {
   return true;
 }
 
-// Summaries are re-derived whenever messages change, including streamed text,
-// so a new array often holds the same checkpoints.
 function checkpointSummariesEqual(
   left: ReadonlyArray<ThreadCheckpointSummary> | undefined,
   right: ReadonlyArray<ThreadCheckpointSummary> | undefined,
@@ -2210,7 +2178,6 @@ function setMapsEqual<K, V>(
   return true;
 }
 
-/** Index of the first entry that differs, or the shorter length when one extends the other. */
 function firstChangedIndex<T>(previous: ReadonlyArray<T>, next: ReadonlyArray<T>): number {
   const limit = Math.min(previous.length, next.length);
   let index = 0;
@@ -2249,9 +2216,6 @@ export function buildThreadFeed(
     }
     return null;
   };
-  // Thread-wide facts that change rows anywhere in the feed. A cached prefix
-  // is reused only while these match the build that produced it.
-  // An answer that started a later run stays a normal message at that run's position.
   const foldedAnswerRunIdByMessageId = new Map<string, RunId | null>();
   const delegatedChildrenByRun = new Map<RunId, Set<string>>();
   for (const { item } of visibleTurnItems) {
@@ -2288,8 +2252,6 @@ export function buildThreadFeed(
 
   const entries: RawThreadFeedEntry[] = [];
   const entryRows: number[] = [];
-  // A stopped compaction's own row already says it stopped. A `/compact` run stopped
-  // before its provider started has no such row, so it keeps the interrupted one.
   const compactPromptRunIds = new Set<RunId>();
   const compactedRunIds = new Set<RunId>();
   for (const { item } of visibleTurnItems) {
@@ -2410,7 +2372,6 @@ export function buildThreadFeed(
     const rowEntries: RawThreadFeedEntry[] = [
       { type: "activity", id: activity.id, createdAt, runId: item.runId, activity },
     ];
-    // The card follows its tool activity: a feed restart resumes after a row's last entry.
     const app = item.type === "dynamic_tool" ? mcpAppFromToolItem(item) : undefined;
     if (app) {
       rowEntries.push({
@@ -2481,7 +2442,6 @@ export function buildThreadFeed(
       return { ...entry, message: { ...entry.message, checkpointSummary } };
     }),
     delegatedChildrenByRun,
-    // Anchored messages shift entries away from their rows; such a build is not reused.
     anchoredMessages.length > 0
       ? undefined
       : (entryIndex, groupedLength) =>

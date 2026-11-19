@@ -34,8 +34,6 @@ function sessionStateAtomFor(environmentId: EnvironmentId | null) {
     : environmentSession.sessionStateAtom(environmentId);
 }
 
-// Both hooks select a boolean: every revalidation emits a new result, and most consumers are
-// list rows.
 export function useEnvironmentScope(
   environmentId: EnvironmentId | null,
   scope: AuthEnvironmentScope,

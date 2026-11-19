@@ -25,10 +25,6 @@ import {
   windowsToWslPathImpl,
 } from "./DesktopWslEnvironment.ts";
 
-// The install script only fails the way this file cares about when a real shell
-// runs it, so find one that has the tools it needs: bash directly on Linux, and
-// the WSL distro on a Windows dev box, where Git Bash ships no flock. Anywhere
-// else the executed suite skips and the generated-text assertions stand alone.
 const REQUIRED_SHELL_TOOLS = ["flock", "sha256sum", "tar", "mktemp"] as const;
 
 const posixShellRunner = (() => {
@@ -52,7 +48,6 @@ const posixShellRunner = (() => {
 
 const runShell = (script: string) => {
   if (posixShellRunner === null) throw new Error("no POSIX shell runner available");
-  // Pass the script on stdin, as production does, to avoid matching its own /proc scan.
   const result = NodeChildProcess.spawnSync(
     posixShellRunner.file,
     [...posixShellRunner.args, "-s"],
@@ -66,7 +61,6 @@ const sh = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 const awaitHolder = (condition: string) =>
   `i=0; until ${condition}; do i=$((i + 1)); [ "$i" -lt 500 ] || exit 1; sleep 0.01; done`;
 
-// Use runtime-entry argv[0] for /proc detection; an open pipe keeps it alive only while this script runs.
 const holdRuntimeBusy = (entry: string) =>
   [
     `exec 7> >(exec -a ${entry} cat >/dev/null 2>&1)`,
@@ -151,7 +145,6 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
     const archivePath = `${work}/wsl-runtime.tar.gz`;
     const archiveSha = readField(result.stdout, "archiveSha");
     const runtimeId = `sha256-${archiveSha}`;
-    // WSL does not inherit HOME; embed the fixture's override in the script.
     const installScript = (archive = archivePath, sha = archiveSha) =>
       [
         `HOME=${sh(`${work}/home`)}`,
@@ -314,7 +307,6 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         `cat > "$work/install.sh" <<'SUPATERM_INSTALL_SCRIPT'`,
         fixture.installScript(),
         "SUPATERM_INSTALL_SCRIPT",
-        // Keep runtime roots out of both racers' argv so their /proc scans cannot match themselves.
         'sh "$work/install.sh" > "$work/first.out" 2>&1 &',
         "first=$!",
         'sh "$work/install.sh" > "$work/second.out" 2>&1 &',
@@ -403,9 +395,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
     expect(selected.status, `${selected.stdout}\n${selected.stderr}`).toBe(0);
   });
 
-  // Runs the distro side on the local bash, so a Windows dev box using the wsl.exe runner skips it.
   describe.skipIf(posixShellRunner?.file !== "bash")("prepareRuntime through wsl.exe", () => {
-    // Emulates `wsl.exe [-d <distro>] [--cd <dir>] [--|--exec] <argv>` in a distro with automount off.
     const layerFakeWslExe = (home: string) =>
       Layer.effect(
         ChildProcessSpawner.ChildProcessSpawner,
@@ -471,7 +461,6 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
       const fixture = createFixture();
       return Effect.gen(function* () {
         const wsl = yield* DesktopWslEnvironment;
-        // The archive's Windows path; with no drives mounted, wslpath cannot map it into the distro.
         const translated = yield* wsl.windowsToWslPath("Ubuntu", fixture.archivePath);
         expect(translated._tag).toBe("None");
 

@@ -284,7 +284,6 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
       const destDir = yield* fs.makeTempDirectoryScoped({ prefix: "migrate-dev-db-family-dest-" });
       const source = yield* createFixtureSource(sourceDir);
 
-      // stopped-thread and its fork are 2 threads; done-thread is 1.
       const result = yield* runMigrateDevDb(
         { baseDir: destDir, source, projects: 5, threadsPerProject: 1 },
         { sharedHome: sourceDir },
@@ -312,8 +311,6 @@ it.layer(NodeServices.layer)("migrate-dev-db", (it) => {
         prefix: "migrate-dev-db-history-dest-",
       });
       const source = yield* createFixtureSource(sourceDir);
-      // A source from an older build: its own migration ledger, a table this
-      // checkout no longer creates, and a column this checkout does not have.
       yield* withDatabase(
         source,
         Effect.gen(function* () {

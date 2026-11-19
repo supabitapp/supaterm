@@ -1,8 +1,5 @@
 import type { ServerSelfUpdateOutcome } from "@supaterm/contracts";
 
-// Protocol 4 launchers coordinate selection writes and reconcile the unit. A remote update
-// replaces only the child, so an installed protocol-3 launcher stays until a local update or
-// service install restarts the service.
 export const SERVICE_LAUNCHER_PROTOCOL = 4 as const;
 /** Launchers this runtime runs under. Protocol 3 has the same IPC and durable format, and
     refusing it stops every remote update until someone opens a shell on the host. */
@@ -214,7 +211,6 @@ export function decodeServiceState(value: unknown): ServiceState | undefined {
   if (!isRecord(value)) return undefined;
   const update = value.update === undefined ? undefined : decodeServiceUpdate(value.update);
   if (
-    // A protocol-3 installer can select a protocol-4 runtime.
     !isSupportedLauncherProtocol(value.protocol) ||
     typeof value.activeVersion !== "string" ||
     !isExactServiceVersion(value.activeVersion) ||

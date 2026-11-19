@@ -77,7 +77,6 @@ export function PullRequestDetailTabBar<Tab extends string>({
   inert?: boolean;
   children?: ReactNode;
 }) {
-  // A pointer passing over a tab is not intent; it must rest like a list row does.
   const pointerIntent = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- A rest timer still pending when the bar unmounts must not read for a closed panel.
   useEffect(() => () => clearTimeout(pointerIntent.current), []);

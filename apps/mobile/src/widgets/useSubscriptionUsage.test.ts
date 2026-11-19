@@ -106,19 +106,16 @@ describe("installSubscriptionUsageRefresh", () => {
       ]),
     );
     registry.set(shellAtom(connected), { status: "live", error: Option.none() });
-    // A shell that failed never goes live; its quotas still refresh.
     registry.set(shellAtom(failed), { status: "cached", error: Option.some("Shell failed") });
 
     const dispose = installSubscriptionUsageRefresh();
     registry.set(catalogAtom, { isReady: true });
-    // Backgrounded: nothing refreshes yet.
     expect(fixture.refreshed).toEqual([]);
 
     fixture.appState = "active";
     for (const listener of fixture.appStateListeners) listener();
     expect(fixture.refreshed).toEqual([connected, failed]);
 
-    // The refresh waits for the thread list, so it never competes with it on a cold start.
     registry.set(shellAtom(syncing), { status: "live", error: Option.none() });
     expect(fixture.refreshed).toEqual([connected, failed, syncing]);
 

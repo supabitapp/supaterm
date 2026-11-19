@@ -83,10 +83,6 @@ const node = (number: number, headRefName: string, owner = "acme") => ({
   headRepositoryOwner: { __typename: "User", login: owner },
 });
 
-/**
- * One GraphQL request as the fake GitHub saw it. An aliased batch is split back into its
- * lookups, each with its own variables, in order.
- */
 interface GraphQlCall {
   readonly host: string;
   readonly operationName: string;
@@ -94,13 +90,8 @@ interface GraphQlCall {
   readonly lookups: ReadonlyArray<Readonly<Record<string, unknown>>>;
 }
 
-/**
- * What GitHub answers for one lookup: the `repository` it reads, or a whole HTTP response for the
- * request (a refusal, a rate limit).
- */
 type GraphQlRespond = (lookup: Readonly<Record<string, unknown>>, call: GraphQlCall) => unknown;
 
-/** GitHub's GraphQL endpoint for the generated reads: answers each lookup with `respond`. */
 function graphQlHttp(respond: GraphQlRespond, calls: Array<GraphQlCall>) {
   return HttpClient.make((request) =>
     Effect.sync(() => {
@@ -156,7 +147,6 @@ function harness(input: {
   readonly remotes: string;
   readonly api?: Partial<GitHubRest.GitHubRest["Service"]>;
   readonly graphql?: GraphQlRespond;
-  /** The credential a GraphQL read is sent with; github.com's token by default. */
   readonly credential?: (
     host: string,
   ) => Effect.Effect<
@@ -688,7 +678,6 @@ describe("GitHubSourceControlProvider.checkoutChangeRequest", () => {
   });
 
   it.effect("adds a fork remote with the protocol of the URL origin fetches from", () => {
-    // `git remote -v` shows origin's SSH `insteadOf` rewrite; config holds HTTPS, then an SSH push URL.
     const { layer, git } = harness({
       remotes: [
         "origin\tgit@github.com:acme/web.git (fetch)",

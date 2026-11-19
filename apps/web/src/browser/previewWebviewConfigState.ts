@@ -57,7 +57,6 @@ const loadPreviewWebviewConfig = (
   });
 };
 
-// Atom.family needs a primitive key; keep profile last so delimiter-containing ids round-trip.
 const CONFIG_KEY_DELIMITER = "\u0000";
 
 const configKey = (environmentId: EnvironmentId, profileId: string | undefined): string =>

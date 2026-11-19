@@ -75,19 +75,16 @@ export const pruneRuntimesOnStart = Effect.fn("cloud.server_self_update.prune_on
     const platform = yield* HostProcess.Platform;
     const executablePath = yield* HostProcess.ExecutablePath;
     const { entryPath } = pinnedRuntimePaths(path, input.baseDir, packageJson.version, platform);
-    // The executable path is resolved, so it names the real path of a symlinked Supaterm home.
     const realEntryPath = yield* fs.realPath(entryPath).pipe(Effect.orElseSucceed(() => entryPath));
     if (!input.managed && executablePath !== entryPath && executablePath !== realEntryPath) {
       return [];
     }
     const unitPath = yield* bootServiceUnitPath();
-    // A stopped service's unit still names the launcher runtime it will start.
     const unit =
       unitPath === undefined
         ? Option.none<string>()
         : yield* fs.readFileString(unitPath).pipe(Effect.option);
     const program = Option.flatMapNullishOr(unit, bootServiceProgramOf);
-    // The unit may name it through another spelling of a symlinked Supaterm home.
     const references = Option.isNone(program)
       ? []
       : [
@@ -178,7 +175,6 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
         "This server is managed by the Supaterm desktop app on its machine; update the desktop app to update it.",
       );
     }
-    // The target must accept the launcher that will run it, which can be older than this server.
     const launcherProtocol = launcher.protocol;
     if (capability === null || launcherProtocol === undefined) {
       return yield* failWith(
@@ -249,8 +245,6 @@ export const make = Effect.fn("cloud.server_self_update.make")(function* () {
               error,
             ),
           ),
-          // The launcher stops this server next; one from before its serving lock holds nothing
-          // until the new server starts, so this marker is what an SSH launch waits on.
           Effect.tap(() =>
             DesktopUpdateMarker.publish(
               path.join(serverConfig.baseDir, "runtime", DESKTOP_UPDATE_IN_PROGRESS_MARKER_FILE),

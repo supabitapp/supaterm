@@ -16,7 +16,6 @@ import * as Schema from "effect/Schema";
 import { antigravityManagedPath, antigravityProfileRoot } from "./AntigravityProfilePaths.ts";
 import { boundAntigravityToolText, isCutAntigravityToolText } from "./AntigravityProtocol.ts";
 
-// Field numbers from the runtime's trajectory protos (exa.cortex_pb).
 const STEP_METADATA = 5;
 const METADATA_TOOL_CALL = 4;
 const STEP_PLANNER_RESPONSE = 20;
@@ -26,7 +25,6 @@ const INVOKE_SPECS = 9;
 const INVOKE_RESULTS = 10;
 const INVOKE_SUBAGENT_STEP_TYPE = 127;
 
-// One open reads at most this much; past any bound the batch view stays as it was.
 const MAX_STEP_BYTES = 1024 * 1024;
 const MAX_INVOKE_ROWS = 200;
 const MAX_SCAN_BYTES = 8 * 1024 * 1024;
@@ -74,7 +72,6 @@ export function describeAntigravitySubagentLaunches(
       };
 }
 
-/** Length-delimited fields only; varints and fixed values are skipped. */
 function protoFields(bytes: Uint8Array): ReadonlyArray<readonly [number, Uint8Array]> {
   const fields: Array<readonly [number, Uint8Array]> = [];
   let offset = 0;
@@ -106,7 +103,6 @@ function protoFields(bytes: Uint8Array): ReadonlyArray<readonly [number, Uint8Ar
   return fields;
 }
 
-// Keep a leading byte order mark: Supaterm stores launch text with it.
 const textDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const messages = (bytes: Uint8Array, field: number) =>
   protoFields(bytes).flatMap(([number, value]) => (number === field ? [value] : []));
@@ -125,7 +121,6 @@ interface InvokeRecord {
 
 const NATIVE_ID = /^[A-Za-z0-9-]{1,64}$/;
 
-/** Undefined for steps this reader cannot decode, so they never count as proof. */
 const safely =
   <A>(decode: (payload: Uint8Array) => A) =>
   (payload: Uint8Array): A | undefined => {
@@ -187,11 +182,6 @@ const plannerCallIdsAt = (database: NodeSqlite.DatabaseSync, plannerIdx: number)
   return planner === undefined ? undefined : plannerInvokeCallIds(planner);
 };
 
-/**
- * Auto-approved calls carry `<sessionId>:<plannerStep>`; the record with that planner call's id
- * is the proof. Permission prompts carry a random id, so the launch text must match one record
- * no auto-approved sibling claims, and no sibling may share the text.
- */
 function findInvokeRecord(
   database: NodeSqlite.DatabaseSync,
   input: {
@@ -211,12 +201,10 @@ function findInvokeRecord(
     const callIds = plannerCallIdsAt(database, plannerIdx) ?? [];
     const [callId] = callIds;
     if (callIds.length !== 1) return undefined;
-    // The record follows the planner step that issued the call.
     let rows = 0;
     let bytes = 0;
     for (const row of database
       .prepare(
-        // SQLite returns only in-bound payloads, so an oversized row never reaches this process.
         "SELECT length(step_payload) AS size, CASE WHEN length(step_payload) <= ? THEN step_payload END AS step_payload FROM steps WHERE step_type = ? AND step_format = 0 AND idx > ? ORDER BY idx",
       )
       .iterate(MAX_STEP_BYTES, INVOKE_SUBAGENT_STEP_TYPE, plannerIdx)) {
@@ -252,8 +240,6 @@ function findInvokeRecord(
   const claimed = new Set<string>();
   for (const sibling of input.siblings) {
     const idx = plannerIdxOf(sibling.nativeTaskId);
-    // A sibling whose launch text is missing, or cut under the same roles, or whose planner step
-    // is unreadable, cannot be ruled out.
     if (idx === undefined) {
       if (
         sibling.title === ANTIGRAVITY_SUBAGENT_BATCH_TITLE ||
@@ -275,10 +261,8 @@ function findInvokeRecord(
     .iterate(INVOKE_SUBAGENT_STEP_TYPE)) {
     const payload = payloadOf(row);
     const record = payload === undefined ? undefined : decodeInvokeRecord(payload);
-    // An unreadable record could be an identical launch, so uniqueness is unproven.
     if (record === undefined) return undefined;
     if (record.toolCallId !== undefined && claimed.has(record.toolCallId)) continue;
-    // Supaterm stored the launch from the bounded tool payload, so bound the record the same way.
     const described = describeAntigravitySubagentLaunches(
       record.launches.map((launch) => ({
         role: boundAntigravityToolText(launch.role),
@@ -310,7 +294,6 @@ const TranscriptLine = Schema.Struct({
 });
 const decodeTranscriptLine = Schema.decodeUnknownOption(Schema.fromJsonString(TranscriptLine));
 
-// The runtime records each tool argument value as JSON text.
 const decodeArgument = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown));
 const toolArguments = (args: unknown) =>
   Predicate.isObject(args)
@@ -325,7 +308,6 @@ const toolArguments = (args: unknown) =>
 const capText = (value: string, limit: number) =>
   value.length <= limit ? value : `${value.slice(0, limit)}…`;
 
-/** Skips the runtime's opening envelope around the launch prompt the view already shows. */
 function transcriptSteps(
   contents: string,
   prompt: string,
@@ -359,7 +341,6 @@ function transcriptSteps(
   );
 }
 
-/** Reads the tail of the transcript at the named child's own unlinked profile path. */
 async function readChildTranscript(
   profileRoot: string,
   child: InvokeRecord["children"][number],
@@ -400,7 +381,6 @@ async function readChildTranscript(
     const { bytesRead } = await handle.read(buffer, 0, length, stat.size - length);
     const truncated = stat.size > length;
     let contents = buffer.subarray(0, bytesRead).toString("utf8");
-    // A tail read starts mid-line.
     if (truncated) contents = contents.slice(contents.indexOf("\n") + 1);
     return { steps: transcriptSteps(contents, prompt), truncated };
   } finally {
@@ -450,7 +430,6 @@ export const readAntigravityChildWork = Effect.fn("readAntigravityChildWork")(fu
       }
       if (record === undefined) return [];
       const { launches, children } = record;
-      // One budget for the whole batch, so the response stays small however many children ran.
       const byteCap = Math.min(
         TRANSCRIPT_BYTE_CAP,
         Math.floor(BATCH_TRANSCRIPT_BYTES / Math.max(1, children.length)),

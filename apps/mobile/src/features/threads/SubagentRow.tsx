@@ -135,7 +135,6 @@ function SubagentMetadata(props: {
         size={12}
       />
       <Text
-        // The provider icon is unlabeled, so spoken output always names the instance.
         accessibilityLabel={instance ? `${modelText}, ${instance.displayName}` : modelText}
         className="min-w-0 shrink text-xs text-foreground-muted"
         numberOfLines={1}
@@ -143,7 +142,6 @@ function SubagentMetadata(props: {
         {instance?.showBadge ? `${modelText} · ${instance.displayName}` : modelText}
       </Text>
       {workspace.map(({ label, value }) => (
-        // Preserve the label against flattening without making it a separate accessibility stop.
         <View
           key={label}
           collapsable={false}

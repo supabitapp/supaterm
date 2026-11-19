@@ -48,8 +48,6 @@ const { diffAtom, pagedDiffAtom } = await vi.hoisted(async () => {
     "page-2": { patch: filePatch("late.test.ts"), truncated: false, nextCursor: null },
   };
   return {
-    // An environment query whose refetch returns equal content hands back the previous value
-    // itself, so a refresh publishes a new result around the very same page.
     diffAtom: Atom.make(() => AsyncResult.success(firstPage)),
     pagedDiffAtom: Atom.family((cursor: string) =>
       Atom.make(() => AsyncResult.success(pages[cursor]!)),
@@ -288,7 +286,6 @@ function pagedContainer() {
   return container;
 }
 
-// Rows are virtualized, so a header far down is not rendered until the view scrolls to it.
 async function expectFileHeaderShown(
   screen: Awaited<ReturnType<typeof render>>,
   container: HTMLElement,
@@ -333,7 +330,6 @@ it("pages forward to a file asked for that is not loaded yet, then scrolls to it
   await expectFileHeaderShown(screen, container, "late.test.ts");
   await expect.element(screen.getByText("three()", { exact: true })).toBeVisible();
   await vi.waitFor(() => expect(settled).toHaveBeenCalledWith(url));
-  // A settled link keeps its test file past the filter, and a later click reveals it again.
   await screen.rerender(tab(0, { path: "early-0.ts", nonce: 1 }));
   await expectFileHeaderShown(screen, container, "early-0.ts");
   await screen.rerender(tab(0, { path: "early-0.ts", nonce: 1 }, url, settled));
@@ -344,7 +340,6 @@ it("never requests the diff of a selected commit the pull request no longer has"
   setup({ paged: false });
   const container = document.createElement("div");
   container.className = "flex h-[700px] w-[900px]";
-  // The timeline can open a commit that a force-push removed from the pull request.
   await using screen = await render(
     <PullRequestCodeTab
       scrollerRef={() => {}}
@@ -401,7 +396,6 @@ it("answers a commit's diff link only once that commit's diff is shown", async (
   await using screen = await render(scoped(null), { container });
   await expect.element(screen.getByText("1 file", { exact: true })).toBeVisible();
 
-  // The panel selects the link's commit after this tab has already seen the link.
   await screen.rerender(scoped(null, url));
   expect(settled).not.toHaveBeenCalled();
   await screen.rerender(scoped(oid, url));
@@ -480,20 +474,17 @@ it("hides a resolved conversation behind avatars on its line until they are clic
   await screen.getByRole("button", { name: "Reply", exact: true }).click();
   await reply().fill("Unsent");
 
-  // Hidden conversations stay mounted, so the unsent reply is still there.
   await marker.click();
   await expect.element(card("Resolved")).not.toBeInTheDocument();
   await marker.click();
   await expect.element(reply()).toHaveValue("Unsent");
   await marker.click();
 
-  // Seen open and then resolved, it stays until the avatars are clicked.
   await screen.rerender(withThread(false));
   await expect.element(card("Open")).toBeVisible();
   await screen.rerender(withThread(true));
   await expect.element(card("Resolved")).toBeVisible();
 
-  // Stacked view draws a context row once, so both sides' conversations share the avatars.
   await screen.rerender(withThread(true, true));
   await expect
     .element(screen.getByRole("button", { name: "2 resolved conversations" }))

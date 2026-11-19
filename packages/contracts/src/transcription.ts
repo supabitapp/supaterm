@@ -47,9 +47,7 @@ export function automaticTranscriptionProvider<
 }
 
 const AudioAttachmentId = TrimmedNonEmptyString.check(Schema.isMaxLength(256));
-/** BCP 47 tag. Omitted means the backend's default. */
 const TranscriptionLanguage = TrimmedNonEmptyString.check(Schema.isMaxLength(35));
-/** Biases recognition toward the project's and branch's names. */
 const TranscriptionContext = Schema.Struct({
   projectId: Schema.optionalKey(ProjectId),
   threadId: Schema.optionalKey(ThreadId),

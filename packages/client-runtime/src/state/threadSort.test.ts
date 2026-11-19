@@ -78,7 +78,6 @@ describe("sortDoneThreads", () => {
       done({
         id: "done-first",
         doneAt: "2026-03-09T10:00:00.000Z",
-        // Created/active later than the other thread: mark done time must win.
         latestUserMessageAt: "2026-03-09T09:59:00.000Z",
       }),
       done({

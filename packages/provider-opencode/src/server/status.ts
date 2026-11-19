@@ -79,7 +79,6 @@ function formatOpenCodeProbeError(input: {
   const lower = detail?.toLowerCase() ?? "";
 
   if (input.isExternalServer) {
-    // Bare auth-code digits can be part of the endpoint's port or path.
     if (
       /(?:^|\s)(?:status(?:\s+code)?(?:\s*[:=]\s*|\s+)|http(?:\/\d(?:\.\d)?)?\s+)(?:401|403)\b/.test(
         lower,
@@ -144,7 +143,6 @@ function formatOpenCodeProbeError(input: {
   };
 }
 
-// The status check owns the span; keep handled failures visible without adding another span.
 const logDiscoveryFailure = Effect.fnUntraced(function* (input: {
   readonly phase: "version" | "models";
   readonly isExternalServer: boolean;
@@ -220,11 +218,6 @@ interface OpenCodeRelease {
   readonly deprecated?: boolean | undefined;
 }
 
-/**
- * OpenCode catalogs keep every release of a family, such as Claude Opus 4.5
- * through 5.5. Only the newest active release of each family within a
- * sub-provider stays current; older releases and deprecated models are legacy.
- */
 function markOpenCodeLegacy(
   entries: ReadonlyArray<{
     readonly model: ServerProviderModel;
@@ -304,7 +297,6 @@ export interface OpenCode2Model extends OpenCodeRelease {
   readonly variants: ReadonlyArray<{ readonly id: string }>;
 }
 
-// Sub-provider names distinguish overlapping catalog entries.
 function subProviderLabelFor(input: {
   readonly providerID: string;
   readonly providerName?: string;
@@ -329,7 +321,6 @@ const catalogFingerprint = (models: ReadonlyArray<OpenCode2Model>) =>
     .toSorted()
     .join("\n");
 
-// A cold OpenCode 2.2.5 503s model reads for about a minute while its location plugins activate.
 const PLUGIN_ACTIVATION_DEADLINE = "2 minutes";
 
 const isServiceUnavailable = Schema.is(ServiceUnavailableError);
@@ -338,7 +329,6 @@ const isActivatingPlugins = (error: unknown): boolean =>
     ? isActivatingPlugins(error.cause)
     : isServiceUnavailable(error) && error.service === "plugin";
 
-/** A cold server can list a partial catalog; two agreeing reads reduce that startup race. */
 const settleOpenCode2Catalog = <E>(
   list: Effect.Effect<ReadonlyArray<OpenCode2Model>, E>,
   first?: ReadonlyArray<OpenCode2Model>,
@@ -375,8 +365,6 @@ export const makeOpenCode2ModelLoader = <E>(
           }),
         ),
       );
-      // The first read can include a cold server start, so only settling shares the budget.
-      // Each retry borrows the managed server, so retries well inside its idle TTL keep it alive.
       return tracked.pipe(
         Effect.retry({ while: isActivatingPlugins, schedule: Schedule.spaced("1 second") }),
         Effect.timeoutOption(PLUGIN_ACTIVATION_DEADLINE),
@@ -487,7 +475,6 @@ export function openCode2CommandsToServerProviderSlashCommands(
   return slashCommands;
 }
 
-// OpenCode has no reviewer; Auto asks like Supervised.
 const OPENCODE_2_PRESENTATION = {
   ...OPENCODE_PRESENTATION,
   showInteractionModeToggle: true,

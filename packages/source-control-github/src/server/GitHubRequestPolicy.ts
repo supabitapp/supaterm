@@ -15,7 +15,6 @@ import * as GitHubCredentials from "./GitHubCredentials.ts";
 import * as GitHubQuota from "./GitHubQuota.ts";
 
 const DEFAULT_TIMEOUT = Duration.seconds(30);
-/** GitHub's secondary limits penalize concurrent bursts. */
 const CONCURRENCY = 8;
 const REQUEST_HEADERS = { "x-github-api-version": "2022-11-28", "user-agent": "supaterm" };
 
@@ -253,7 +252,6 @@ export const make = Effect.gen(function* () {
     return { token: held.token, fingerprint: held.fingerprint, source: held.source };
   });
 
-  // The REST/GraphQL transport span owns request and quota metadata.
   const request: GitHubRequestPolicy["Service"]["request"] = Effect.fnUntraced(function* <A, E, R>(
     input: GitHubRequest,
     send: (
@@ -269,11 +267,8 @@ export const make = Effect.gen(function* () {
     });
     const { token, fingerprint, source } = yield* credential(host);
     const scope = yield* SourceControlRateLimit.CredentialScope;
-    // A refusal pauses the whole host, whichever quota it spent: the key PullRequestService
-    // records its own backoff under.
     const key = { provider: SourceControlProviderKind.make("github"), host };
 
-    // Settlement annotates the request span with status and rate-limit attributes.
     const settle = Effect.fnUntraced(function* (lease: number, answer: GitHubAnswer<A>) {
       yield* quota.observe(host, answer.headers);
       yield* Effect.annotateCurrentSpan({
@@ -297,7 +292,6 @@ export const make = Effect.gen(function* () {
           });
         }
         case "Unauthorized":
-          // The source may hold a newer token than the one that was refused.
           yield* credentials.invalidate(host);
           return yield* new GitHubApiAuthenticationError(context);
         case "NotFound":
@@ -326,8 +320,6 @@ export const make = Effect.gen(function* () {
             }),
           ),
         );
-      // One deadline covers the headers and the body: a host that answers headers and then
-      // stalls must not hold a shared slot for undici's own five-minute body timeout.
       const answer = yield* send(
         { ...REQUEST_HEADERS, authorization: `Bearer ${Redacted.value(token)}` },
         source,
@@ -340,7 +332,6 @@ export const make = Effect.gen(function* () {
       );
       return yield* settle(lease, answer);
     });
-    // The rate-limit scope follows the credential, so a pause on one account never blocks another.
     return yield* slots
       .withPermit(run)
       .pipe(Effect.provideService(SourceControlRateLimit.CredentialScope, scope || fingerprint));

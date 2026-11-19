@@ -67,10 +67,6 @@ export async function loadLocalAttachmentPreview(
   }
 }
 
-/**
- * Keyed by file identity only: a metadata update on the same draft must not
- * dispose the lease of a file a viewer is still showing.
- */
 class LocalAttachmentPreviewKey implements Equal.Equal {
   constructor(readonly attachment: FileBackedComposerAttachment) {}
   [Equal.symbol](that: unknown): boolean {
@@ -87,8 +83,6 @@ class LocalAttachmentPreviewKey implements Equal.Equal {
 
 const localAttachmentPreviewFamily = Atom.family((key: LocalAttachmentPreviewKey) =>
   Atom.make(
-    // The lease lives as long as the atom: unmounting the last reader (or a
-    // refresh) closes the scope and releases the file.
     Effect.acquireRelease(
       Effect.tryPromise({
         try: (signal) => loadLocalAttachmentPreview(key.attachment, signal),
@@ -121,7 +115,6 @@ export function localAttachmentPreviewState(
   result: AsyncResult.AsyncResult<AttachmentPreviewFile, Error>,
 ): LocalAttachmentPreviewState {
   return {
-    // A refresh has already released the previous lease while it reacquires.
     uri: result._tag === "Success" && !result.waiting ? result.value.uri : null,
     error: result._tag === "Failure" ? Option.getOrNull(AsyncResult.error(result)) : null,
   };

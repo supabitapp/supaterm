@@ -67,7 +67,6 @@ function sendMessageToolUseIds(transcript: ProviderReplayTranscript): ReadonlyAr
   });
 }
 
-// SendMessage resumes reusing task ids, with task_started under its own tool_use_id.
 function assertRecordedResumeShape(transcript: ProviderReplayTranscript) {
   const agentAStarts = transcript.entries.flatMap((entry) =>
     entry.type === "emit_inbound" &&

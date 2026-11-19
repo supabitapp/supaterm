@@ -22,7 +22,6 @@ export interface PullRequestFilesViewedView {
 }
 
 const NO_OVERLAY = new Map<string, boolean>();
-// Without this a change request that cannot record views would still be handed a scope handle.
 const DISABLED_SCOPE = {
   subscribe: () => () => {},
   getSnapshot: () => NO_OVERLAY,
@@ -39,7 +38,6 @@ export function usePullRequestFilesViewed(options: {
     enabled ? pullRequestEnvironment.filesViewed({ environmentId, input: reference }) : null,
   );
   const states = toFileViewedStates(query.data);
-  // Stable per scope: `setViewed` is handed to every file header the viewer draws.
   const scope = enabled ? filesViewedScope({ environmentId, reference }) : DISABLED_SCOPE;
   const overlay = useSyncExternalStore(scope.subscribe, scope.getSnapshot);
 

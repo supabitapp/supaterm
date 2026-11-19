@@ -40,7 +40,6 @@ export function GlobalVoiceInputControl(props: { readonly children: ReactNode })
   const visible =
     presentation.statusLabel !== null &&
     !(voice.ownerKey && voice.focusedOwners.has(voice.ownerKey));
-  // A pill that reappears starts collapsed.
   if (!visible && expanded) setExpanded(false);
   const pill = visible ? (
     <EdgeDictationPill expanded={expanded} onExpandedChange={setExpanded} />

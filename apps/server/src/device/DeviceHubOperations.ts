@@ -16,12 +16,9 @@ import type { DeviceHostReady, DeviceOperations, HostDevice } from "./DeviceHost
 const BOOT_TIMEOUT = Duration.minutes(3);
 const SCREENSHOT_TIMEOUT = Duration.seconds(20);
 const IOS_RUNTIME_PREFIX = "com.apple.CoreSimulator.SimRuntime.iOS-";
-// Let the hub's 30 s simctl timeout report its cause first.
 const LIST_TIMEOUT_SECONDS = 40;
-// expo-device-hub 0.19.1 reports a failed simulator listing only as text; its error ids are hashes.
 const SIMULATOR_LIST_FAILED =
   /^\[apple-utils\] (?:Failed to (?:run `xcrun simctl list devices|parse JSON output:|list devices:)|`xcrun simctl list devices --json` did not respond within )/;
-// The hub passes numeric display IDs that Xcode 26 rejects; iOS 27 needs them for multiple displays.
 const runsOnXcode26Runtime = (version: string) => Number(/^iOS (\d+)/.exec(version)?.[1]) <= 26;
 const DEFAULT_DISPLAY_SCREENSHOT = `f=$(mktemp -t supaterm-screenshot) || exit 1
 trap 'rm -f "$f"' 0
@@ -68,12 +65,9 @@ const HubActionResult = Schema.Struct({
   ),
 });
 
-// Hub diagnostics can carry a whole stderr dump.
 const boundDiagnostics = (text: string) =>
   text.length > 2_000 ? `${text.slice(0, 1_999)}…` : text;
 
-// The hub's `error` is a util.inspect of Node's exec error; the stack and the
-// inspected fields follow the first frame, so keep the lines before it.
 const errorHead = (error: string) => {
   const lines = error.split(/\r?\n/);
   const firstFrame = lines.findIndex((line) => /^\s+at /.test(line));
@@ -199,8 +193,6 @@ export const makeDeviceHubOperations = (options: {
       ),
     );
 
-  // Booting alone does not attach a serve-sim helper; the grid start does both
-  // and is idempotent for a booted simulator.
   const attachIosStream = (udid: string, operation: string) =>
     postJson(`${vendorPrefix("ios")}/grid/api/start`, { udid }, operation).pipe(
       Effect.flatMap((request) => hubJson(request, HubActionResult, "attach stream", BOOT_TIMEOUT)),
@@ -257,9 +249,7 @@ export const makeDeviceHubOperations = (options: {
     }
     const warnings = hubList.errors?.filter(
       (error) =>
-        // The host summary already explains a missing Android SDK; the hub's failed probes are noise.
         !(!supplemental.available.has("android") && error.message.startsWith("[android-utils] ")) &&
-        // CoreSimulator can retain deleted devices; their optional usage timestamps are absent.
         !(
           error.message.startsWith("[apple-utils] Failed to read CoreSimulator plist at ") &&
           /\/CoreSimulator\/Devices\/[^/]+\/device\.plist:$/.test(error.message) &&
@@ -273,7 +263,6 @@ export const makeDeviceHubOperations = (options: {
       }) ?? [];
     if (supplemental.ios.detail) details.push(supplemental.ios.detail);
     if (supplemental.android.detail) details.push(supplemental.android.detail);
-    // The supplemental simctl listing covers simulators the hub failed to list.
     const simulatorsUnlisted =
       hubList.simulators.length === 0 &&
       (!supplemental.available.has("ios") || supplemental.ios.detail !== undefined) &&
@@ -293,7 +282,6 @@ export const makeDeviceHubOperations = (options: {
       "boot",
     ).pipe(Effect.flatMap((request) => hubJson(request, HubActionResult, "boot", BOOT_TIMEOUT)));
     if (!result.ok) {
-      // Keep the hub's launch command and nested failure available to agents for recovery.
       const diagnostics = [
         result.error,
         ...(result.errors ?? []).flatMap((error) => [error.message, error.error]),
@@ -340,10 +328,6 @@ export const makeDeviceHubOperations = (options: {
                 ),
           ),
         );
-      // serve-sim's shutdown closes its in-process capture session before it
-      // runs `simctl shutdown`; the hub's generic shutdown can leave that
-      // session cached across a reboot. serve-sim runs simctl bare, though, so
-      // a simulator that is already off fails there.
       yield* device.platform === "ios"
         ? postShutdown(`${vendorPrefix("ios")}/grid/api/shutdown`, { udid: device.id }).pipe(
             Effect.catch((cause) =>

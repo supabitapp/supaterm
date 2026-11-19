@@ -48,7 +48,6 @@ it.each(["GLIBC_PRIVATE", "GLIBC_ABI_UNKNOWN"])("rejects unhandled requirement %
   ).toThrow(name);
 });
 
-// Minimal ELF64 with a linked string table and a version NEEDS section, for both release CPUs.
 function elfFixture(machine: number, version: string): Buffer {
   const strings = Buffer.from(`\0libc.so.6\0GLIBC_${version}\0`);
   const names = Buffer.from("\0.shstrtab\0.dynstr\0.gnu.version_r\0");

@@ -94,7 +94,6 @@ it("pins the highlighted project with the thread pin shortcut", async () => {
   await userEvent.hover(beta);
   const row = beta.element() as HTMLElement;
   row.focus();
-  // The chat's pin shortcut steps aside for this list.
   expect(isInOpenProjectList(row)).toBe(true);
   const mod = isMacPlatform(navigator.platform) ? "Meta" : "Control";
   await userEvent.keyboard(`{${mod}>}{Shift>}p{/Shift}{/${mod}}`);

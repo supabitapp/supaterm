@@ -83,7 +83,6 @@ export class IncomingShareInbox {
         return persisted;
       }
 
-      // Payload-derived ids reuse the inbox item after a crash between durable write and native acknowledgement.
       const shareId = await this.dependencies.idForPayloads(payloads);
       if (loaded.some((draft) => draft.id === shareId)) {
         if (this.dependencies.cleanupReplayedPayloads) {
@@ -107,7 +106,6 @@ export class IncomingShareInbox {
         );
       }
 
-      // Persist before clearing the native handoff so termination always leaves a recoverable copy.
       try {
         await this.dependencies.writeDraft(draft);
       } catch (error) {
@@ -124,7 +122,6 @@ export class IncomingShareInbox {
 
   consume(shareId: string): Promise<ReadonlyArray<IncomingShareDraft>> {
     return this.runExclusive(async () => {
-      // Identical content can be shared intentionally; only stable payload-derived ids identify retries.
       await this.dependencies.removeDraft(shareId);
       return sortAndDedupeIncomingShares(await this.dependencies.loadDrafts());
     });

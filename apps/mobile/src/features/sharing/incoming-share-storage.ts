@@ -86,10 +86,8 @@ export async function writeIncomingShareDraft(draft: IncomingShareDraft): Promis
     const file = await getFile(draft.id);
     const backup = await getFile(draft.id, ".bak");
     const temp = await getFile(draft.id, ".tmp");
-    // Inbox mutations are serialized, so each share can reuse its staging path.
     temp.create({ intermediates: true, overwrite: true });
     await temp.write(JSON.stringify(draft));
-    // Expo can remove or partially copy the destination before a move fails.
     if (file.exists) {
       const saved = await readSavedDraft(file).catch(() => undefined);
       if (!saved || saved.file === file) file.copySync(backup, { overwrite: true });
@@ -97,9 +95,7 @@ export async function writeIncomingShareDraft(draft: IncomingShareDraft): Promis
     temp.moveSync(file, { overwrite: true });
     try {
       if (backup.exists) backup.delete();
-    } catch {
-      // The installed JSON is authoritative even if backup cleanup fails.
-    }
+    } catch {}
   } catch (cause) {
     throw new IncomingShareStorageError({ operation: "write", shareId: draft.id, cause });
   }
@@ -107,7 +103,6 @@ export async function writeIncomingShareDraft(draft: IncomingShareDraft): Promis
 
 export async function removeIncomingShareDraft(shareId: string): Promise<void> {
   try {
-    // Delete the backup first so a failed removal cannot resurrect a consumed share.
     for (const suffix of [".tmp", ".bak", ""]) {
       const file = await getFile(shareId, suffix);
       if (file.exists) file.delete();

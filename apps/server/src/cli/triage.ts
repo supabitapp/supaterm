@@ -1,8 +1,3 @@
-/**
- * `supaterm triage` hands a misbehaving install to the user's own coding agent. It stays thin:
- * machine facts go to `context.md` and the agent starts with the `triagePrompt.ts` playbook,
- * its own permission prompts gating what it runs. Without an agent CLI both are left on disk.
- */
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeChildProcess from "node:child_process";
 import * as NodeOS from "node:os";
@@ -121,15 +116,12 @@ const runInteractiveSession = (input: {
   Effect.callback<number, TriageAgentSpawnError>((resume) => {
     const child = NodeChildProcess.spawn(input.command, [...input.args], {
       cwd: input.cwd,
-      // The agent reads the user's terminal; under the desktop app's Windows
-      // launcher that is the reopened console, not the (missing) inherited stdin.
       stdio: [interactiveStdin(), "inherit", "inherit"],
       shell: input.shell,
     });
     child.once("error", (cause) =>
       resume(Effect.fail(new TriageAgentSpawnError({ command: input.command, cause }))),
     );
-    // Signal death has no exit code; report failure rather than success.
     child.once("exit", (code, signal) => resume(Effect.succeed(code ?? (signal === null ? 0 : 1))));
   });
 
@@ -170,7 +162,6 @@ export const triageCommand = Command.make("triage", {
   ),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
-      // Triage is a user-facing feature: always the userdata state, never dev.
       const explicitBaseDir = Option.getOrUndefined(flags.baseDir);
       const envHome = yield* Config.String("SUPATERM_HOME").pipe(Config.option);
       const baseDir = yield* resolveBaseDir(explicitBaseDir ?? Option.getOrUndefined(envHome));
@@ -219,18 +210,12 @@ export const triageCommand = Command.make("triage", {
       } else if (installed.length === 1) {
         selected = installed[0];
       } else if (installed.length > 1) {
-        // Both streams must be terminals: with stdout redirected the picker
-        // prompt is invisible and the command would hang waiting on it.
         if (!process.stdin.isTTY || !process.stdout.isTTY) {
           return yield* new TriageAgentChoiceRequiredError();
         }
         selected = yield* pickAgent(installed);
       }
 
-      // The agent is launched with a one-line pointer at it: Windows `.cmd`
-      // shims run through cmd.exe, which cannot carry the multiline playbook as
-      // an argv string, and with no agent installed the same file is the
-      // paste-anywhere fallback.
       const { sessionDir, promptFilePath } = session;
 
       if (selected === undefined) {

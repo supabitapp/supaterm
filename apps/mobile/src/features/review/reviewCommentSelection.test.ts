@@ -284,7 +284,6 @@ describe("review comment selection store", () => {
 
   it("reads as empty when the section disappears and comes back over a different diff", () => {
     setReviewCommentTarget(scope, target);
-    // The working tree went clean, so the default showed; the section later returns.
     const returned = reviewCommentSelectionScope(1, "env:thread", {
       ...changes,
       content: "hash-2",

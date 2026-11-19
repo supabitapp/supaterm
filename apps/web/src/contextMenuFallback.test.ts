@@ -247,9 +247,7 @@ describe("showContextMenuFallback", () => {
   });
 
   it.each([
-    // Flips left of the parent menu instead of being clamped over it.
     { innerWidth: 400, triggerLeft: 200, submenuLeft: 16 },
-    // Neither side fits; the right has more room, so it stays there, clamped.
     { innerWidth: 300, triggerLeft: 4, submenuLeft: 116 },
   ])(
     "places an overflowing submenu on the side with more room ($innerWidth)",

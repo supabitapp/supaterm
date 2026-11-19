@@ -82,7 +82,6 @@ describe("tool image output parsing", () => {
   it.each(["array", "content", "structured"] as const)(
     "keeps markers for images beyond the served positions in %s output",
     (shape) => {
-      // Detail responses retain image metadata after the server strips image bytes.
       const image = { type: "image", mimeType: "image/png" };
       const blocks = Array.from({ length: 8 }, () => ({ ...image }));
       const wrap = (content: unknown[]) =>

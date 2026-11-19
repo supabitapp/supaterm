@@ -1,7 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off globalConsole:off
-// Launches a packaged desktop app against a seeded Supaterm home, opens a thread, and checks its
-// messages render. Release jobs run it so a build whose backend or bundle cannot start fails
-// before it is published.
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -9,8 +6,6 @@ import * as NodeTimersPromises from "node:timers/promises";
 import * as NodeUtil from "node:util";
 import { _electron, type ElectronApplication } from "playwright-core";
 
-// Written once by apps/server/scripts/desktop-launch-fixture.ts and kept old on purpose: the packaged
-// server must migrate it forward, as it does for every upgrading user.
 const FIXTURE_DB = NodePath.join(import.meta.dirname, "fixtures/desktop-launch/statev2.sqlite");
 const THREAD_TITLE = "Release launch check";
 const THREAD_MESSAGE = "The release opens and shows this thread.";
@@ -37,10 +32,7 @@ let app: ElectronApplication | undefined;
 try {
   app = await _electron.launch({
     executablePath: executable,
-    // Linux CI runners do not allow the Chromium sandbox's user namespaces.
     args: ["--no-sandbox"],
-    // HOME stays real: on macOS a fake HOME has no login keychain, and safeStorage blocks the
-    // main process on a keychain dialog. macOS keeps its Electron profile in the runner's HOME.
     env: {
       ...process.env,
       XDG_CONFIG_HOME: NodePath.join(home, ".config"),
@@ -50,8 +42,6 @@ try {
     },
     timeout: STEP_TIMEOUT_MS,
   });
-  // A backend that never starts leaves no window, or only the "could not start" window, so the
-  // thread wait below fails either way and its screenshot shows the startup error.
   step = "waiting for the first window";
   const page = await app.firstWindow({ timeout: STEP_TIMEOUT_MS });
   try {
@@ -85,8 +75,6 @@ try {
   process.exitCode = 1;
 } finally {
   if (app) {
-    // A hung app never finishes closing; kill it so the job does not wait for its timeout.
-    // Playwright drops the process handle once the app closes, so read it first.
     const child = app.process();
     const closed = app.close().catch(() => {});
     await Promise.race([closed, NodeTimersPromises.setTimeout(10_000, undefined, { ref: false })]);

@@ -99,11 +99,9 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   onDismiss: (requestId: RuntimeRequestId) => void;
   timerDeadline: string | null;
 }) {
-  // Message-mode requests remain answerable after their provider turn ends.
   const canRespond = prompt.responseCapability !== "not_resumable";
   const responseDisabled = disabled || isResponding || !canRespond;
   const autoAdvanceTimerRef = useRef<number | null>(null);
-  // The auto-advance timer fires after the render that armed it.
   const advance = useStableCallback(onAdvance);
   const [optimisticSingleSelect, setOptimisticSingleSelect] = useState<{
     questionId: string;
@@ -111,11 +109,9 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   } | null>(null);
   const [collapsedQuestionId, setCollapsedQuestionId] = useState<string | null>(null);
   const [summaryFadesIn, setSummaryFadesIn] = useState(false);
-  // The active question keys the shortcut listener, so it must keep its identity across renders.
   const progress = derivePendingUserInputProgress(prompt.questions, answers, questionIndex);
   const activeQuestion = progress.activeQuestion;
   const customAnswerActive = progress.customAnswer.trim().length > 0;
-  // Read here, before the hooks below, so the compiler can keep `activeQuestion` cached.
   const draftSelectedOptions = activeQuestion?.options.map(
     (option) =>
       !customAnswerActive && progress.selectedOptionValues.includes(option.value ?? option.label),
@@ -133,7 +129,6 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
     setOptimisticSingleSelect(null);
   }
 
-  // A delayed answer only advances its own question, while permission remains granted.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the auto-advance timer when the question changes, input is disabled, or the panel unmounts
   useEffect(() => {
     const clearAutoAdvance = () => {
@@ -331,7 +326,6 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
                   (disabled || isResponding) && "opacity-50 cursor-not-allowed",
                   !disabled && !isResponding && "cursor-pointer",
                 );
-                // The h-5 slots match the label's line box, so the indicator and shortcut stay on its first line.
                 const content = (
                   <>
                     <span className="pointer-events-none flex h-5 shrink-0 items-center">
@@ -361,7 +355,6 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
                     ) : null}
                   </>
                 );
-                // The preview sits outside the button: it can hold links, and a click on a single-select option advances.
                 return (
                   <div key={`${activeQuestion.id}:${optionValue}`}>
                     <button
@@ -395,8 +388,6 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   );
 });
 
-// Drawn with ui/radio-group's look instead of using its Radio: Radio only checks inside a
-// RadioGroup, whose arrow keys select options and would trip the single-select auto-advance.
 function OptionRadio({ checked }: { checked: boolean }) {
   return (
     <span

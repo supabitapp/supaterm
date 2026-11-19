@@ -26,7 +26,6 @@ import * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
 import { v2ThreadShell } from "./orchestrationV2TestFixtures.ts";
 import { LIVE_SHELL_SNAPSHOT, PREPARED, TARGET, session } from "./shellSyncTestFixtures.ts";
 
-// A server that names its shell flags in the descriptor.
 const FAMILY_DESCRIPTOR = {
   serverVersion: "1.0.0",
   capabilities: { shellThreadFamilies: true, shellOlderDone: true },
@@ -36,10 +35,8 @@ describe("resuming the shell on a new connection", () => {
   const makeHarness = Effect.fnUntraced(function* (options?: {
     readonly cached?: OrchestrationV2ShellSnapshot;
     readonly cachedOrigin?: Persistence.ShellCacheOrigin;
-    // A prepared connection whose descriptor names the shell flags, before any session exists.
     readonly early?: {
       readonly serverResumes: boolean;
-      // Each load waits for one `releaseLoads`.
       readonly holdLoads?: boolean;
     };
   }) {
@@ -99,7 +96,6 @@ describe("resuming the shell on a new connection", () => {
       clearVcsRefs: () => Effect.void,
       clear: () => Effect.void,
     });
-    // Each HTTP load returns a fresh authoritative snapshot at 10, 20, 30, ...
     const snapshotLoader = ShellSnapshotLoader.ShellSnapshotLoader.of({
       load: (_prepared, loadOption = {}) =>
         Queue.offer(loadOptions, loadOption).pipe(
@@ -128,7 +124,6 @@ describe("resuming the shell on a new connection", () => {
       ),
     );
 
-    /** Connects a new session to a server run, and resolves once the client subscribed. */
     const connect = Effect.fnUntraced(function* (
       generation: string | undefined,
       flags: { readonly shellThreadFamilies?: boolean; readonly shellOlderDone?: boolean } = {},
@@ -320,7 +315,6 @@ describe("resuming the shell on a new connection", () => {
       subscribes: { afterSequence: 10, knownProjectIdentities: "identities-1" },
     },
     {
-      // The server can replay, but only the config says the rows are from another server run.
       label: "rows from an earlier server run",
       origin: { ...RUN_1_ORIGIN, ...FAMILY_OMISSIONS },
       serverResumes: true,
@@ -330,7 +324,6 @@ describe("resuming the shell on a new connection", () => {
       subscribes: { afterSequence: 20, knownProjectIdentities: "identities-2" },
     },
     {
-      // The rows loaded with the descriptor's omissions are replaced, never kept.
       label: "a live config with other omissions",
       origin: undefined,
       serverResumes: false,
@@ -351,7 +344,6 @@ describe("resuming the shell on a new connection", () => {
         });
         expect(yield* Queue.take(harness.loadOptions)).toEqual(loads[0]);
         if (!serverResumes) {
-          // The rows are on screen before a socket exists, and are not live yet.
           const early = Option.getOrThrow(yield* harness.awaitSequence(10));
           expect(early.status).not.toBe("live");
           expect(early.generation).toBeGreaterThan(0);
@@ -414,7 +406,6 @@ describe("resuming the shell on a new connection", () => {
       yield* Queue.offerAll(first.events, [harness.update(12), { kind: "synchronized" }]);
       yield* harness.awaitSequence(12);
 
-      // The late answer would be an older snapshot. It must not replace the rows the socket moved on.
       yield* harness.releaseLoads;
       yield* TestClock.adjust("1 millis");
       expect(yield* Ref.get(harness.loaderCalls)).toBe(0);
@@ -437,7 +428,6 @@ describe("resuming the shell on a new connection", () => {
       expect(first.httpSnapshotFallback).toBe(true);
       expect(yield* Ref.get(harness.loaderCalls)).toBe(0);
       yield* Queue.offer(first.events, { kind: "synchronized" });
-      // Thread families, older threads, and search wait for a nonzero generation.
       expect(Option.getOrThrow(yield* harness.awaitLive).generation).toBeGreaterThan(0);
     }),
   );
@@ -498,7 +488,6 @@ describe("resuming the shell on a new connection", () => {
       yield* Queue.offer(coldResume.events, { kind: "synchronized" });
       yield* harness.awaitLive;
 
-      // A new session resumes the in-memory shell and falls back the same way.
       const warmResume = yield* harness.connect("run-1");
       expect(warmResume.afterSequence).toBe(10);
       expect(warmResume.httpSnapshotFallback).toBe(true);
@@ -528,7 +517,6 @@ describe("resuming the shell on a new connection", () => {
       yield* Queue.offerAll(first.events, [harness.update(12), { kind: "synchronized" }]);
       yield* harness.awaitLive;
 
-      // Another server process answers for the same environment, then drops before completing.
       const other = yield* harness.connect("run-2");
       expect(other.afterSequence).toBe(20);
 
@@ -547,7 +535,6 @@ describe("resuming the shell on a new connection", () => {
 
       const second = yield* harness.connect("run-1");
       expect(second.afterSequence).toBe(12);
-      // The connection drops partway through catching up, before `synchronized`.
       yield* Queue.offer(second.events, harness.update(14));
       yield* harness.awaitSequence(14);
 
@@ -595,7 +582,6 @@ describe("resuming the shell on a new connection", () => {
       yield* Queue.offerAll(second.events, [{ kind: "synchronized" }, harness.update(21)]);
       yield* harness.awaitSequence(21);
 
-      // The reload took a fresh snapshot, so the next session resumes again.
       const third = yield* harness.connect("run-1");
       expect(third.afterSequence).toBe(21);
       expect(yield* Ref.get(harness.loaderCalls)).toBe(2);
@@ -622,7 +608,6 @@ describe("resuming the shell on a new connection", () => {
       const first = yield* harness.connect("run-1");
       yield* Queue.offerAll(first.events, [harness.update(12), { kind: "synchronized" }]);
       yield* harness.awaitLive;
-      // The throttled writer waits on the test clock, so nothing is saved yet.
       expect(yield* SubscriptionRef.get(harness.saves)).toEqual([]);
 
       yield* PubSub.publish(harness.wakeups, "application-background");

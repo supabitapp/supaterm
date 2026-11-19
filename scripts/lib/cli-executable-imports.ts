@@ -23,7 +23,6 @@ export function findEsmImportsOfExternalPackages(source: string): ReadonlyArray<
           : undefined;
     if (specifierNode && ts.isStringLiteralLike(specifierNode)) {
       const specifier = specifierNode.text;
-      // Optional Bun imports are runtime builtins; static Bun imports still fail under Node.
       const runtimeBuiltin =
         NodeModule.isBuiltin(specifier) || (dynamic && specifier.startsWith("bun:"));
       if (!runtimeBuiltin && !specifier.startsWith("./") && !specifier.startsWith("../")) {

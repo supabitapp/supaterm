@@ -1,4 +1,3 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import type { XlsxAnchor } from "@betteroffice/xlsx";
 import {
   selectionAt,
@@ -29,7 +28,6 @@ export function anchorRange(anchor: XlsxAnchor): CellRange[] {
 
 /** An A1 cell or range, such as "B2" or "A1:F20"; undefined for anything else. */
 export function parseRange(a1: string): CellRange | undefined {
-  // A lone cell is its own last corner; an empty one, as in "A1:", names no range.
   const corners = a1.split(":");
   const first = parseCell(corners[0] ?? "");
   const last = corners.length === 1 ? first : parseCell(corners[1] ?? "");
@@ -64,8 +62,6 @@ export function coverMerges(range: CellRange, merges: readonly CellRange[]): Cel
     grown = next;
   }
 
-  // Each overlap inequality becomes true only once as the selection grows. Sweep sorted
-  // edges so a chain of merges cannot force repeated full scans or recursive stack growth.
   const sweeps = (
     [
       { mergeEdge: "top", rangeEdge: "bottom", direction: 1 },
@@ -212,7 +208,6 @@ function parseCell(a1: string): CellAddr | undefined {
   return { row, col };
 }
 
-/** A column's zero-based index from its letters; NaN for anything but one to three letters. */
 function columnIndex(letters: string) {
   if (!/^[A-Z]{1,3}$/i.test(letters)) return Number.NaN;
 
@@ -224,7 +219,6 @@ function columnIndex(letters: string) {
   );
 }
 
-/** Where a move along one axis lands once past any hidden span it ended in. */
 function clear(from: number, to: number, spans: readonly Span[], last: number): number {
   const span = spans.find((candidate) => to >= candidate.start && to <= candidate.end);
 
@@ -237,7 +231,6 @@ function clear(from: number, to: number, spans: readonly Span[], last: number): 
   return clear(from, next, spans, last);
 }
 
-/** One step along an axis: past the merge's far edge in the direction of the move, or where it was. */
 function past(from: number, to: number, low: number, high: number) {
   if (to > from) return high + 1;
 

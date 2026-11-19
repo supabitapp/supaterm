@@ -3,8 +3,6 @@ import type { MessagesTimelineRow } from "./MessagesTimeline.logic";
 import type { RememberedTimelinePosition } from "./timelineScrollAnchoring";
 import type { TimelineViewport } from "./timelineViewport";
 
-// A streaming reply moves the end every frame, so the target may never hold
-// still. Past this many frames the list's own end maintenance takes over.
 const SETTLE_MAX_FRAMES = 60;
 
 /**
@@ -77,14 +75,12 @@ export function startTimelinePositionRestore({
   readonly onPositioned: (identity: string) => void;
 }): () => void {
   if (citationPending) {
-    // The citation scroll owns positioning once the list has mounted.
     onPositioned(listIdentityKey);
     return () => {};
   }
   let cancelled = false;
   const rows = list.getState().data as ReadonlyArray<MessagesTimelineRow>;
   const index = position ? rows.findIndex((row) => row.id === position.rowId) : -1;
-  // Reading history or finding: follow lets go before the restore claims the viewport.
   if (position?.atEnd === false || releaseForFind) viewport.navigate({ releasesFollow: true });
   const releaseScrollHold = viewport.holdProgrammaticScroll();
   const stop = () => {
@@ -112,8 +108,7 @@ export function startTimelinePositionRestore({
             viewOffset: -position.offsetWithinRow,
           })
         : list.scrollToOffset({ offset: position.scrollOffset, animated: false })
-      : // initialScrollAtEnd measured this target; scrollToEnd would replace it with an estimate.
-        listOpenedOn === listIdentityKey
+      : listOpenedOn === listIdentityKey
         ? undefined
         : list.scrollToEnd({ animated: false });
   const settlesAtEnd = position?.atEnd !== false && scrolling !== undefined;
@@ -122,7 +117,6 @@ export function startTimelinePositionRestore({
     if (settlesAtEnd) {
       await settleListScroll(list, measuredEndOffset, () => cancelled);
     } else if (position?.atEnd === false && index >= 0) {
-      // Keep the saved row mounted until its measured position and the DOM agree.
       await settleListScroll(
         list,
         (element) => {

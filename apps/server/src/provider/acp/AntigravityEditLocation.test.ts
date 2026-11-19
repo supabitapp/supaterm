@@ -35,7 +35,6 @@ describe("antigravityEditPatch", () => {
           },
         ],
       },
-      // Like the runtime, a present PascalCase value wins, and a 0 line means unspecified.
       { ...replace, target_content: "const other = 15;", StartLine: 5, EndLine: 0 },
     ]) {
       expect(antigravityEditPatch({ path, rawInput, readPreEditFile })).toBe(expected);
@@ -45,7 +44,6 @@ describe("antigravityEditPatch", () => {
         antigravityEditPatch({ path, rawInput, locations: [{ path, line: 5 }], readPreEditFile }),
       ).toBe(expected);
     }
-    // A hunk replaces whole lines, so a match inside a line is not a placement.
     expect(
       antigravityEditPatch({
         path,
@@ -53,7 +51,6 @@ describe("antigravityEditPatch", () => {
         readPreEditFile,
       }),
     ).toMatch(/ snippet, line unknown$/m);
-    // The range start is not the target's line: without the file, or outside the range, it stays unplaced.
     const snippet = `${header}@@ -1,1 +1,1 @@ snippet, line unknown\n-const target = 10;\n+const target = 100;\n`;
     expect(
       antigravityEditPatch({ path, rawInput: { ...replace, StartLine: 5, EndLine: 20 } }),
@@ -76,7 +73,6 @@ describe("antigravityEditPatch", () => {
     expect(antigravityEditPatch({ path, rawInput: replace, readPreEditFile: () => crlf })).toBe(
       expected,
     );
-    // A target written with CRLF previews the same lines, without carriage returns.
     expect(
       antigravityEditPatch({
         path,
@@ -87,7 +83,6 @@ describe("antigravityEditPatch", () => {
         readPreEditFile: () => crlf,
       }),
     ).toBe(expected);
-    // A change to the line ending alone has no LF hunk to place.
     const endingOnly = {
       TargetContent: "const target = 10;\r\n",
       ReplacementContent: "const target = 10;\n",
@@ -97,7 +92,6 @@ describe("antigravityEditPatch", () => {
         ANTIGRAVITY_EDIT_DIFF_OMITTED,
       );
     }
-    // A multi-line target written with LF still finds its lines in a CRLF file.
     expect(
       antigravityEditPatch({
         path,
@@ -111,12 +105,10 @@ describe("antigravityEditPatch", () => {
   });
 
   it("omits the preview when a chunk adds or removes a line break at its end", () => {
-    // Whether that splits or joins lines depends on what follows the match.
     for (const [TargetContent, ReplacementContent] of [
       ["const line3 = 3;", "x\n"],
       ["const line3 = 3;\n", "x"],
       ["const line20 = 20;", "x\n"],
-      // Clearing the last line of a file with no final newline removes the line.
       ["const line20 = 20;", ""],
     ]) {
       expect(
@@ -204,7 +196,6 @@ describe("antigravityEditPatch", () => {
   it("omits the preview once an edit exceeds the shared diff budget", () => {
     const lines = (prefix: string, count: number) =>
       Array.from({ length: count }, (_, index) => `${prefix} ${index} ${"x".repeat(8)}`).join("\n");
-    // A 7,000-line wholesale replacement, as one chunk.
     expect(
       antigravityEditPatch({
         path,
@@ -215,7 +206,6 @@ describe("antigravityEditPatch", () => {
         },
       }),
     ).toBe(ANTIGRAVITY_EDIT_DIFF_OMITTED);
-    // Chunks that each fit, but not together.
     const chunk = (start: number) => ({
       TargetContent: lines(`old-${start}`, 300),
       ReplacementContent: lines(`new-${start}`, 300),
@@ -227,7 +217,6 @@ describe("antigravityEditPatch", () => {
         rawInput: { ReplacementChunks: [chunk(1), chunk(1_000)] },
       }),
     ).toBe(ANTIGRAVITY_EDIT_DIFF_OMITTED);
-    // Text over the size limit is not diffed at all.
     expect(
       antigravityEditPatch({
         path,

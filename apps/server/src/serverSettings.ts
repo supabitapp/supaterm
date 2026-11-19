@@ -57,18 +57,11 @@ const decodeServerSettings = Schema.decodeUnknownEffect(ServerSettings);
 const textEncoder = new TextEncoder();
 const textDecoder = new TextDecoder();
 
-/**
- * Old settings files can hold both flags with conflicting values; an explicit false on either
- * side wins so a user's disable is never silently undone.
- */
 const foldProviderInstanceEnabledFlags = (settings: ServerSettings): ServerSettings => {
   let changed = false;
   const providerInstances: Record<string, ProviderInstanceConfig> = {};
   for (const [instanceId, instance] of Object.entries(settings.providerInstances)) {
     const config = instance.config;
-    // Only fold boolean flags: a malformed `enabled` (e.g. `"false"`) must
-    // stay in the blob so driver schema validation flags it instead of the
-    // fold silently repairing the config.
     if (
       config === null ||
       typeof config !== "object" ||
@@ -337,11 +330,6 @@ interface LegacyProjectSettingsRow {
   readonly scripts: string;
 }
 
-/**
- * One-time fold of the settings columns on the project aggregate into
- * `projectSettingsOverrides`. Keys already present in the generic record win. Marked with
- * `projectSettingsFolded` so a later reset in the UI survives restarts.
- */
 function foldLegacyProjectSettings(
   settings: ServerSettings,
   rows: ReadonlyArray<LegacyProjectSettingsRow>,
@@ -489,7 +477,6 @@ const make = Effect.gen(function* () {
         settings = {
           ...settings,
           continueThreadsAfterServerUpdate: false,
-          // An unreadable file may hold a longer retention; never prune usage on a guess.
           usageHistoryRetentionDays: "unlimited",
           publicRelayEnabled:
             metadata._tag === "Success" && metadata.value.publicRelayEnabled === true,
@@ -589,9 +576,6 @@ const make = Effect.gen(function* () {
     },
   );
 
-  // Background sweeps read settings every few seconds; reading secret files each time is wasted.
-  // Every secret write rewrites the settings file, so a new cached object implies fresh secrets.
-  // A read that overlaps a secret write may see files a rollback then restores, so it is not kept.
   let materialized: { readonly source: ServerSettings; readonly value: ServerSettings } | null =
     null;
   let secretWriteGeneration = 0;
@@ -642,7 +626,6 @@ const make = Effect.gen(function* () {
 
   const persistSettingsSecrets = (current: ServerSettings, next: ServerSettings) =>
     Effect.sync(() => {
-      // Only sensitive rows own a stored secret; a plain duplicate must not hide one from cleanup.
       const previous = new Map<string, SettingsSecret>();
       const inlineValues = new Map<string, string>();
       mapSettingsSecrets(current, (secret) => {
@@ -694,7 +677,6 @@ const make = Effect.gen(function* () {
         changes.push({ ...metadata, kind: "write", value: textEncoder.encode(secret.value) });
         return { value: "", redacted: true };
       });
-      // A legacy inline value only moves to the store when no row in this save replaces it.
       for (const [secretName, change] of inlineWrites) {
         if (!writtenSecretNames.has(secretName)) changes.push(change);
       }
@@ -715,7 +697,6 @@ const make = Effect.gen(function* () {
       }
       return {
         settings,
-        // A redacted row still claims its stored secret, so a duplicate row must not remove it.
         changes: changes.filter(
           (change) => change.kind === "write" || !keptSecretNames.has(change.secretName),
         ),
@@ -772,7 +753,6 @@ const make = Effect.gen(function* () {
                 }),
             ),
           );
-          // A store operation may mutate before reporting an error (for example chmod after rename).
           applied.push({ ...change, previousValue });
           yield* (
             change.kind === "write"
@@ -881,9 +861,6 @@ const make = Effect.gen(function* () {
 
     const revalidateAndEmitSafely = revalidateAndEmit.pipe(Effect.ignoreCause({ log: true }));
 
-    // A symlinked settings file is rewritten in its destination's directory,
-    // which a watch on the link's directory never sees. The link is resolved
-    // again whenever it changes, so repointing it moves the watch along.
     const watchLinkTarget = Effect.gen(function* () {
       const linkTargetPath = yield* resolveSymlinkTarget(settingsPath).pipe(
         Effect.provideService(FileSystem.FileSystem, fs),
@@ -911,8 +888,6 @@ const make = Effect.gen(function* () {
       ),
     );
 
-    // Editors emit multiple events per save (truncate, write, rename) and
-    // `fs.watch` can fire before the content has been flushed to disk.
     const debouncedSettingsEvents = Stream.merge(
       watchFileChanges(settingsPath),
       linkTargetEvents,

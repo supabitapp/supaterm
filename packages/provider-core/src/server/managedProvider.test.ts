@@ -546,14 +546,10 @@ describe("makeManagedServerProvider", () => {
         yield* Effect.yieldNow;
         yield* Deferred.succeed(releaseInitialCheck, undefined);
 
-        // The first change fails its provider check; the failed application never
-        // advances the stored settings, so the same change still differs next time.
         yield* PubSub.publish(settingsChanges, { enabled: false });
         yield* Effect.yieldNow;
         assert.strictEqual(yield* Ref.get(checkCalls), 2);
 
-        // The subscription must survive that failure and retry on the next change;
-        // on main the dead consumer never starts the third check and this times out.
         yield* PubSub.publish(settingsChanges, { enabled: false });
         yield* Deferred.await(thirdCheckStarted);
         assert.strictEqual(yield* Ref.get(checkCalls), 3);
@@ -596,7 +592,6 @@ describe("makeManagedServerProvider", () => {
               return previous.enabled !== next.enabled;
             },
             initialSnapshot: () => Effect.succeed(initialSnapshot),
-            // The credential is fixed (e.g. `codex login`) after the first, failed probe.
             checkProvider: Deferred.await(releaseInitialCheck).pipe(
               Effect.andThen(Ref.updateAndGet(checkCalls, (count) => count + 1)),
               Effect.map((count) => (count === 1 ? unauthenticatedSnapshot : refreshedSnapshot)),
@@ -613,8 +608,6 @@ describe("makeManagedServerProvider", () => {
           yield* Fiber.join(initialProbe);
           assert.deepStrictEqual(yield* provider.getSnapshot, unauthenticatedSnapshot);
 
-          // A settings apply that does not touch this provider's settings, then a marker:
-          // the consumer is sequential, so the first apply has finished once the marker is seen.
           yield* PubSub.publish(settingsChanges, { enabled: true, revision: 1 });
           yield* PubSub.publish(settingsChanges, { enabled: true, revision: 2 });
           yield* Deferred.await(markerApplied);

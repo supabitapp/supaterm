@@ -11,7 +11,6 @@ import {
 
 export const ThreadListFilters = memo(function ThreadListFilters(props: HomeListFilterMenuInput) {
   const filters = buildHomeListFilterMenu(props).items.filter((item) => item.type === "submenu");
-  // The scroller bleeds through the primary column's list padding so pills start where row content does.
   const gutter = use(NativePrimaryColumnContext) ? 8 : 0;
   return (
     <ScrollView

@@ -39,7 +39,6 @@ export interface PullRequestWatchReport {
 const isFailedCheck = (check: PullRequestCheck) =>
   check.status === "failure" || check.status === "cancelled";
 
-// A GitHub Actions job's URL extends its workflow run's URL; their names need not match.
 const workflowRunOf = (url: string | null) => url?.match(/^.*\/actions\/runs\/\d+/)?.[0] ?? null;
 const approvalKey = (check: PullRequestCheck) => workflowRunOf(check.url) ?? check.name;
 
@@ -60,22 +59,17 @@ export function evaluatePullRequestWatch(
   now: number,
 ): PullRequestWatchReport {
   const changes: Array<PullRequestWatchChange> = [];
-  // A read without a head says nothing about pushes, so it keeps the last known one.
   const headSha = detail.headSha ?? watch.headSha;
   const headMoved = watch.headSha !== null && headSha !== watch.headSha;
   const checksBaseline = watch.awaitingBaseline !== undefined && !headMoved;
 
-  // Hosts can return no checks on read failure; preserve prior state.
   let failedChecks = headMoved ? [] : watch.failedChecks;
   let passed = headMoved ? false : watch.passed;
   let passedChecks = headMoved ? [] : watch.passedChecks;
   let owedChecks = headMoved ? [] : (watch.owedChecks ?? []);
   let awaitingApproval = headMoved ? [] : (watch.awaitingApproval ?? []);
   let approvalAnnounced = headMoved ? false : (watch.approvalAnnounced ?? false);
-  // A watch with no answer (saved before the field, or since a push) waits only while the clock
-  // below runs.
   let checksPending = headMoved ? false : (watch.checksPending ?? watch.checksAwaitedSince != null);
-  // An unavailable approval read cannot establish success or that no checks exist.
   const unread = detail.checks.some((check) => check.placeholder === true);
   const checks = detail.checks.filter((check) => check.placeholder !== true);
   const failed = checks.filter(isFailedCheck);
@@ -83,9 +77,7 @@ export function evaluatePullRequestWatch(
   const pending = checks.filter((check) => check.status === "pending").map((check) => check.name);
   const newlyFailed = failed.filter((check) => !failedChecks.includes(check.name));
   if (checks.length > 0) {
-    // A run awaiting approval waits on a person, like a review, so only running checks count.
     checksPending = pending.length > 0;
-    // Approval reads can omit gated runs. Keep each hold until its jobs finish.
     const awaitingNow = [...new Set(awaiting.map(approvalKey))];
     const nameUnfinished = (name: string) => {
       const matching = checks.filter((check) => check.name === name);
@@ -94,8 +86,6 @@ export function evaluatePullRequestWatch(
         matching.some((check) => check.status === "pending" || check.status === "action-required")
       );
     };
-    // GitHub deduplicates jobs across runs, so a visible pending job may hide one in an awaited run.
-    // A pending check without a URL could be such a job; one with another host's URL cannot.
     const jobsPending = checks.some(
       (check) =>
         check.status === "pending" && (check.url === null || workflowRunOf(check.url) !== null),
@@ -116,7 +106,6 @@ export function evaluatePullRequestWatch(
       ),
     ];
 
-    // Without this the agent keeps waiting for checks that already ran.
     if (!checksBaseline && newlyFailed.length > 0) {
       changes.push(
         pending.length === 0 && awaitingApproval.length === 0
@@ -138,7 +127,6 @@ export function evaluatePullRequestWatch(
   if (checks.length > 0 && !(unread && passedNow)) {
     const gateNames = gate.map((check) => check.name);
     const told = passed && passedChecks.length === 0 ? gateNames : passedChecks;
-    // Required checks can finish between sweeps; detect new names. With no required checks, ignore advisory gate growth.
     const gateGrew = required.length > 0 && gateNames.some((name) => !told.includes(name));
     const gatePassed = passedNow && (!passed || gateGrew);
     if (gatePassed && !checksBaseline) {
@@ -149,8 +137,6 @@ export function evaluatePullRequestWatch(
         pending,
       });
     }
-    // Checks still running at a check wake are owed one more once all finish, so later advisory
-    // churn never wakes. A failing owed check waits for its rerun; other failures were reported.
     const settled =
       pending.length === 0 &&
       awaitingApproval.length === 0 &&
@@ -171,9 +157,6 @@ export function evaluatePullRequestWatch(
     passedChecks = passedNow ? gateNames : [];
   }
 
-  // Only a head never read with checks waits for them; a legacy watch's clock starts at its next
-  // push. CI can register late on any host, so every host waits, but running out of time is news
-  // only where a host always reports checks: elsewhere an empty list can mean there are none.
   const awaitedBefore =
     headMoved || watch.awaitingBaseline === "all"
       ? DateTime.formatIso(DateTime.makeUnsafe(now))
@@ -193,7 +176,6 @@ export function evaluatePullRequestWatch(
   const own = (detail.viewer ?? detail.author?.login)?.toLowerCase();
   const through = Date.parse(watch.remarksThrough);
   const activeAt = (remark: PullRequestComment) => remark.editedAt ?? remark.createdAt;
-  // Hosts can stamp remarks to the second, so remarks at the boundary time are told apart by ID.
   const fresh = (remarks ?? []).filter((remark) => {
     const at = Date.parse(activeAt(remark));
     return (
@@ -210,7 +192,6 @@ export function evaluatePullRequestWatch(
     ...atLatest.map((remark) => remark.id),
   ];
 
-  // Like a failed check, a conflict or rebase a push did not resolve is news for the new head.
   const toldConflict = !headMoved && watch.conflicting;
   if (watch.awaitingBaseline !== "all" && detail.mergeability === "conflicting" && !toldConflict) {
     changes.push({ kind: "conflicting" });
@@ -220,17 +201,12 @@ export function evaluatePullRequestWatch(
     changes.push({ kind: "needs-rebase" });
   }
   const rebaseRequired = detail.rebaseRequired ?? watch.rebaseRequired;
-  // "unknown" is a host still computing after a push; only a clean answer clears a conflict.
   const conflicting =
     detail.mergeability === "unknown" ? toldConflict : detail.mergeability === "conflicting";
 
-  // The queue's checks run on a commit of its own, so its head can stay green after the queue
-  // drops it. After the first read, IDs avoid comparing the server clock with the host clock.
-  // The initial read uses whole seconds to exclude historical removals.
   const removal = detail.mergeQueueRemoval;
   if (
     removal !== undefined &&
-    // Merging also records a removal, up to a second before the pull request reads as merged.
     removal.reason !== "merged" &&
     removal.id !== watch.mergeQueueRemovalId &&
     (watch.mergeQueueRemovalId !== undefined ||
@@ -238,7 +214,6 @@ export function evaluatePullRequestWatch(
   ) {
     changes.push({ kind: "merge-queue-removed", reason: removal.reason });
   }
-  // Null records an empty baseline; historical IDs are saved without waking the watch.
   const mergeQueueRemovalId = removal?.id ?? watch.mergeQueueRemovalId ?? null;
 
   const commentsOnly = changes.length > 0 && changes.every((change) => change.kind === "remarks");
@@ -261,7 +236,6 @@ export function evaluatePullRequestWatch(
       rebaseRequired,
       mergeQueueRemovalId,
       wakes,
-      // Only a read that cannot be trusted to show the checks leaves the baseline to the next one.
       ...(checksBaseline &&
         (unread || (detail.headSha === undefined && checks.length === 0)) && {
           awaitingBaseline: "checks" as const,
@@ -273,12 +247,8 @@ export function evaluatePullRequestWatch(
   };
 }
 
-// GitHub renders these, so in a remark's prose they are presentation, not what the reviewer said.
-// Lowercase only: `Promise<T>` is a type argument.
 const TAG_NAMES =
   "a|abbr|b|blockquote|br|caption|cite|code|dd|del|details|div|dl|dt|em|h[1-6]|hr|i|img|ins|kbd|li|mark|ol|p|picture|pre|q|s|samp|small|source|span|strike|strong|sub|summary|sup|table|tbody|td|tfoot|th|thead|tr|tt|ul|var";
-// A code span comes first so its tags stay literal; it cannot cross a blank line. A tag stops at
-// the next `<`, which keeps unclosed openers from rescanning the rest of the body.
 const PROSE_MARKUP = new RegExp(
   "(?<!`)(?<ticks>`+)(?!`)(?:(?!\\n[ \\t\\r]*\\n)[\\s\\S])*?(?<!`)\\k<ticks>(?!`)" +
     `|<(?<closing>/?)(?<name>${TAG_NAMES})(?=[\\s/>])(?:[^<>"']|"[^"]*"|'[^']*')*>`,
@@ -286,7 +256,6 @@ const PROSE_MARKUP = new RegExp(
 );
 
 function withoutTags(prose: string): string {
-  // An opener glued to an identifier is a type argument (`Vec<code>`); it and its closer stay.
   const kept = new Map<string, number>();
   let text = "";
   let from = 0;
@@ -309,7 +278,6 @@ function withoutTags(prose: string): string {
   return text + prose.slice(from);
 }
 
-// Drops HTML tags from Markdown prose. Fenced and indented code blocks pass through untouched.
 function withoutMarkup(body: string): string {
   const parts: Array<string> = [];
   let prose: Array<string> = [];
@@ -335,7 +303,6 @@ function withoutMarkup(body: string): string {
       fence = opener[1];
       code(line);
     } else if (!afterText && /^(?: {4}| {0,3}\t)\s*\S/.test(line)) {
-      // Indented code needs a blank line before it; after text the indent is a continuation.
       code(line);
     } else {
       prose.push(line);
@@ -351,7 +318,6 @@ function snippet(body: string): string {
     .replaceAll(/\s+/g, " ")
     .trim();
   if (text.length <= SNIPPET_LENGTH) return text;
-  // Half an emoji serializes to a lone surrogate escape, which provider JSON parsers reject.
   const last = text.charCodeAt(SNIPPET_LENGTH - 4);
   const end = last >= 0xd800 && last <= 0xdbff ? SNIPPET_LENGTH - 4 : SNIPPET_LENGTH - 3;
   return `${text.slice(0, end)}...`;

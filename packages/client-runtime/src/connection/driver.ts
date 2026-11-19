@@ -44,7 +44,6 @@ export type ConnectionDriverProgress =
       readonly prepared: PreparedConnection;
     }
   | {
-      // The socket opened; the stage stays synchronizing until the first snapshot.
       readonly stage: "synchronizing";
       readonly prepared: PreparedConnection;
       readonly transportOpened: true;
@@ -95,7 +94,6 @@ export type RoutePreflight = PreparedRoute | "refused" | "unprepared" | "silent"
 export const ROUTE_CHECK_TIMEOUT_MS = 2_500;
 /** How long a connection attempt keeps listening for a route that missed the first check. */
 export const LATE_ROUTE_CHECK_TIMEOUT_MS = 15_000;
-/** How long a route has to resolve credentials and open its session. */
 const ROUTE_SETUP_TIMEOUT_MS = 15_000;
 /**
  * How long a route that opened its session waits for the first config
@@ -104,9 +102,6 @@ const ROUTE_SETUP_TIMEOUT_MS = 15_000;
  */
 export const ROUTE_SNAPSHOT_TIMEOUT_MS = 75_000;
 const ROUTE_PREFERENCE_WAIT_MS = 250;
-// Preferred routes share one head start, so a fallback does not wait the full
-// check timeout for a LAN the device has already left. A route that misses it
-// connects over a fallback, then upgrades with a later reconnect.
 const ROUTE_CHECK_HEAD_START_MS = 500;
 const PREFLIGHT_VALIDITY_NANOS = 10_000_000_000n;
 
@@ -137,12 +132,6 @@ export class ConnectionDriver extends Context.Service<
   }
 >()("@supaterm/client-runtime/connection/driver/ConnectionDriver") {}
 
-/**
- * How well a failure explains why no route connected. A route whose host or
- * relay answered with a reason, such as an offline host, explains more than
- * one that never answered, and a transient failure is reported over a blocked
- * one so the connection keeps retrying.
- */
 const TRANSIENT_FAILURE_RANK: Record<ConnectionTransientReason, number> = {
   network: 1,
   timeout: 1,
@@ -176,8 +165,6 @@ export const connectOverRoutes = Effect.fn("ConnectionDriver.connectOverRoutes")
   connectRoute: ConnectRoute<R>,
   reportProgress: ReportProgress = ignoreProgress,
 ) {
-  // Checks, and the relay tunnels they lease, end with route selection.
-  // Connecting over a relay resolves its origin, which retains its tunnel.
   const connectionScope = yield* Scope.Scope;
   return yield* selectAndConnect(
     entry,
@@ -221,7 +208,6 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
   );
   let failure: ConnectionAttemptError | undefined;
   const refusedRouteIds: Array<string> = [];
-  // Each route gets its own scope so a half-open session closes before the next try.
   const attempt = Effect.fnUntraced(function* (route: ConnectionRoute) {
     const routeScope = yield* Scope.fork(connectionScope);
     const timeout = (duration: number) =>
@@ -235,8 +221,6 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
             }),
           ),
       });
-    // The desktop bounds SSH preparation, which may download a server
-    // release; the supervisor times the rest of an SSH route.
     const setup =
       connectionRouteKind(route) === "ssh"
         ? connectRoute(route)
@@ -260,13 +244,11 @@ const selectAndConnect = Effect.fnUntraced(function* <R>(
       Effect.result,
     );
     if (result._tag === "Success") return Option.some({ ...result.success, refusedRouteIds });
-    // An incompatible server is the same server on every route.
     if (result.failure.reason === "unsupported") return yield* result.failure;
     if (isHostCredentialRefusal(result.failure))
       refusedRouteIds.push(connectionRouteId(route.target));
     if (failure === undefined || failureRank(result.failure) > failureRank(failure))
       failure = result.failure;
-    // The failed route may have opened its socket; the next route starts over.
     yield* reportProgress({ stage: "preparing" });
     return Option.none();
   });
@@ -347,8 +329,6 @@ export const make = Effect.gen(function* () {
     RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization,
   );
 
-  // The descriptor is public, so this sends no credential to whatever
-  // answers at a saved LAN address on a different network.
   const checkDescriptor = <E, R>(
     httpBaseUrl: Effect.Effect<string, E, R>,
     environmentId: string,
@@ -359,8 +339,6 @@ export const make = Effect.gen(function* () {
       Effect.flatMap((resolved) =>
         fetchRemoteEnvironmentDescriptor({ httpBaseUrl: resolved, timeoutMs }).pipe(
           Effect.option,
-          // The connect this check leads to skips its own read. Every answer, even a
-          // failure, replaces what an older check remembered.
           Effect.tap((descriptor) =>
             Option.isSome(remote)
               ? remote.value.rememberCheckedDescriptor(resolved, descriptor, keepsItsHost(resolved))
@@ -378,7 +356,6 @@ export const make = Effect.gen(function* () {
         orElse: () => Effect.succeed<RouteCheck>("silent"),
       }),
       Effect.orElseSucceed((): RouteCheck => "silent"),
-      // A cached descriptor would answer for a host that cannot be reached.
       Effect.provideService(FetchHttpClient.RequestInit, { cache: "no-store" }),
       Effect.provideService(HttpClient.HttpClient, httpClient),
     );
@@ -390,7 +367,6 @@ export const make = Effect.gen(function* () {
       leaseRouteOrigin(route, httpBaseUrl),
       entry.target.environmentId,
       timeoutMs,
-      // A relay tunnel's plain http origin is not the route's own address.
       (resolved) =>
         resolved.startsWith("https:") || (resolved === httpBaseUrl && routeKeepsItsHost(route)),
     ).pipe(
@@ -400,8 +376,6 @@ export const make = Effect.gen(function* () {
     );
   };
 
-  // A relay session's httpBaseUrl is already its tunnel's origin, so the request
-  // takes the session's own path to the host.
   const checkHost = (prepared: PreparedConnection) =>
     checkDescriptor(
       Effect.succeed(prepared.httpBaseUrl),

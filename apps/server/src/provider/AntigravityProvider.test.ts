@@ -169,7 +169,6 @@ const makeHarness = Effect.fn("makeAntigravityProviderHarness")(function* (
     Effect.andThen(initialUpdate),
     Effect.asVoid,
   );
-  // Subscribe before the trigger; yield the returned pull to await the publish.
   const nextPublish = (predicate: (snapshot: ServerProvider) => boolean) =>
     Stream.toPull(provider.snapshot.streamChanges.pipe(Stream.filter(predicate))).pipe(
       Effect.map((pull) => pull.pipe(Effect.map((snapshots) => snapshots[0]))),
@@ -348,7 +347,6 @@ it.layer(layerTest)("Antigravity provider snapshots", (it) => {
     Effect.gen(function* () {
       const harness = yield* makeHarness();
       yield* harness.initialize;
-      // Antigravity has no automatic review; the shared ACP policy would approve every request.
       expect((yield* harness.provider.snapshot.getSnapshot).supportedRuntimeModes).toEqual([
         "approval-required",
         "auto-accept-edits",
@@ -682,7 +680,6 @@ it.layer(layerTest)("Antigravity provider snapshots", (it) => {
         const published = yield* harness.nextPublish((snapshot) => !!snapshot.usageLimits);
         yield* harness.initialize;
         expect((yield* published)?.usageLimits).toEqual(limits);
-        // The second health check is the one the failed background read triggers.
         const checks = yield* Ref.make(0);
         const failedReadApplied = yield* Deferred.make<void>();
         yield* Ref.set(
@@ -790,7 +787,6 @@ it.layer(layerTest)("Antigravity provider snapshots", (it) => {
       yield* harness.provider.onSignedIn;
       yield* harness.provider.onSessionStarted(started);
       expect((yield* published)?.usageLimits).toEqual(newLimits);
-      // Switching again must not republish the previous account's limits, even if the read fails.
       const failed = {
         checkedAt: "2026-10-09T12:02:00.000Z",
         windows: [],

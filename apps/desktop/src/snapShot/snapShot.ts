@@ -465,7 +465,6 @@ export function findAccessibleWindow<
 ): T | undefined {
   const normalizeTitle = (value: string) => {
     const title = value.trim();
-    // Terminal apps can animate a leading CLI spinner between capture and AT-SPI lookup.
     return matchMode === "wayland" ? title.replace(/^[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏](?:\s+|$)/u, "") : title;
   };
   const titles = new Set(
@@ -474,7 +473,6 @@ export function findAccessibleWindow<
       return normalized ? [normalized] : [];
     }),
   );
-  // Wayland accessibility providers can expose window size without a screen position.
   const boundsKeys =
     matchMode === "wayland"
       ? (["width", "height"] as const)
@@ -503,7 +501,6 @@ export function findAccessibleWindow<
     const browserMatch = findBrowserTitleMatch(windows, titles, captured, matchMode, matchesBounds);
     if (browserMatch) return browserMatch;
   }
-  // GTK4 frames may be unnamed; accept only a PID-scoped unique bounds match, never size alone.
   if (!options.allowUntitledUniqueBounds) return undefined;
   const boundsMatches = windows.filter(
     (window) => normalizeTitle(window.name ?? "") === "" && matchesBounds(window),
@@ -511,7 +508,6 @@ export function findAccessibleWindow<
   return boundsMatches.length === 1 ? boundsMatches[0] : undefined;
 }
 
-// Chrome's macOS AX title can append the browser and profile to the captured page title.
 function findBrowserTitleMatch<T extends { readonly name?: string | null }>(
   windows: readonly T[],
   titles: ReadonlySet<string>,
@@ -542,7 +538,6 @@ function findBrowserTitleMatch<T extends { readonly name?: string | null }>(
   return browserMatches.length === 1 ? browserMatches[0] : undefined;
 }
 
-// Keyed by the lowercase tokens parseKeybindingShortcut stores; Electron has no `ArrowUp` token.
 const ELECTRON_KEY_NAMES: Readonly<Record<string, string>> = {
   " ": "Space",
   "+": "Plus",

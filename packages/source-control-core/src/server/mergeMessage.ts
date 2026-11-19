@@ -35,7 +35,6 @@ export function removeAgentCredits(message: string): string {
     if (fence !== undefined) return true;
     const text = line.trim().replace(/^(?:[-*]\s+)/, "");
     const author = /^co-authored-by:\s*(.*?)\s*<([^<>]+)>\s*$/i.exec(text);
-    // GitHub's generic noreply address is also used by people; require Copilot's name.
     const email = author?.[2]?.toLowerCase();
     const agentAuthor =
       email !== undefined &&

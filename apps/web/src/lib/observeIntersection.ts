@@ -23,7 +23,6 @@ interface SharedObserver {
   readonly targets: Map<Element, Target>;
 }
 
-// One observer per root and distinct option set.
 const viewportObservers = new Map<string, SharedObserver>();
 const elementRootObservers = new WeakMap<Element, Map<string, SharedObserver>>();
 
@@ -33,7 +32,6 @@ function deliver(shared: SharedObserver, entries: readonly IntersectionObserverE
     if (!target) continue;
     let recipients = target.subscriptions;
     if (target.waiting) {
-      // Re-observing for a new subscriber redelivers an unchanged state to everyone else too.
       if (target.last?.isIntersecting === entry.isIntersecting) recipients = target.waiting;
       target.waiting = null;
     }

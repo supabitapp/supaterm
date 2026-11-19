@@ -89,7 +89,6 @@ it("starts a side chat with the mode and model the parent's composer shows", asy
     }),
   );
 
-  // A model the send would refuse does not start a side chat either.
   vi.clearAllMocks();
   state.serverConfig = {
     providers: [{ instanceId: "codex", driver: "codex", enabled: false }],

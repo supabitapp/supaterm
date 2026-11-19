@@ -844,7 +844,6 @@ it("matches full structure comparisons across streamed, batched, and reordered u
     const previous = projections.at(-1)!;
     const next = replaceItem(previous, item);
     consecutive.push(sameThreadStructure(previous, next));
-    // All earlier snapshots include readers that skip one or several updates in a batch.
     for (const before of projections) {
       expect(sameThreadStructure(before, next)).toBe(
         sameThreadStructure(withoutHints(before), withoutHints(next)),
@@ -853,7 +852,6 @@ it("matches full structure comparisons across streamed, batched, and reordered u
     projections.push(next);
   }
 
-  // A resumed snapshot can reuse item ids while changing a different row.
   const snapshot = withoutHints(projections[1]!);
   const resumed = replaceItem(snapshot, { ...reasoning, title: "Restored reasoning" });
   const sibling = replaceItem(initial, { ...message, text: "Another stream" });

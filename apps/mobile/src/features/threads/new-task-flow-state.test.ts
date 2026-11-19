@@ -24,7 +24,6 @@ describe("new task flow state", () => {
     const flowA = newTaskFlowKey(routeA)!;
     const flowB = newTaskFlowKey(routeB)!;
 
-    // A's flow outlives its subscriber while B is pushed above it.
     const unmountA = appAtomRegistry.mount(newTaskFlowStateAtom(flowA));
     updateNewTaskFlowState(flowA, { projectKey: "env:project-a", draftKey: "draft-a" });
     unmountA();
@@ -37,7 +36,6 @@ describe("new task flow state", () => {
       draftKey: "draft-a",
     });
 
-    // Popping B returns to A with its state intact.
     unmountB();
     pruneNewTaskFlowStates({ routes: [{ key: "home", name: "Home" }, routeA] });
     expect(readNewTaskFlowState(flowA).projectKey).toBe("env:project-a");

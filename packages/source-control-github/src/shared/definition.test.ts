@@ -68,7 +68,6 @@ describe("GitHub change request URLs", () => {
     ).toBe("https://github.com/pull/1/pull/43");
   });
 
-  // regression: #8507 the browser fallback must not open a bogus URL
   it("builds nothing from an invalid repository, number, or host", () => {
     for (const [host, repository, number] of [
       ["github.com", "acme", 1],

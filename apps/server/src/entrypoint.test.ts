@@ -14,7 +14,6 @@ const makeTempDir = () =>
 
 describe("isEntrypoint", () => {
   it("matches the entrypoint path when the runtime has no import.meta.main", () => {
-    // Node 22.16, 22.17 and 23.11 are inside `engines.node` but leave it undefined.
     const dir = makeTempDir();
     const entry = NodePath.join(dir, "bin.mjs");
     NodeFS.writeFileSync(entry, "");
@@ -37,7 +36,6 @@ describe("isEntrypoint", () => {
       NodeFS.writeFileSync(real, "");
       NodeFS.symlinkSync(real, link);
 
-      // macOS temp directories can be symlinks; Node resolves module URLs to real paths.
       expect(
         isEntrypoint({
           moduleUrl: NodeURL.pathToFileURL(NodeFS.realpathSync(real)).href,

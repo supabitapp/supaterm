@@ -69,8 +69,6 @@ function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextM
       continue;
     }
 
-    // Header items are decorative section labels for the web fallback only —
-    // Electron's native menu has no equivalent affordance, so we skip them.
     if (sourceItem.header === true) {
       continue;
     }
@@ -102,9 +100,6 @@ function normalizeContextMenuItems(source: readonly ContextMenuItem[]): ContextM
   return normalizedItems;
 }
 
-// Renderer positions arrive in CSS pixels; popup() expects window points, so
-// page zoom must be factored in or menus drift proportionally to their
-// distance from the window origin.
 const normalizePosition = (
   position: Option.Option<ElectronMenuPosition>,
   zoomFactor: number,

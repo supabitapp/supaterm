@@ -184,7 +184,6 @@ describe("ConnectionResolver", () => {
         socketUrl: "ws://127.0.0.1:3777/ws?orchestrationProtocol=2",
         httpAuthorization: null,
         target,
-        // The shell reads the server's build and shell flags here before the socket opens.
         descriptor: {
           environmentId: ENVIRONMENT_ID,
           label: "Compatible environment",
@@ -213,7 +212,6 @@ describe("ConnectionResolver", () => {
       });
       const layerBroker = yield* makeDependencies({
         credentials: [["ssh-1", new BearerConnectionCredential({ token: "revoked-token" })]],
-        // The host accepts only the token it paired last; anything else pairs again.
         prepareSsh: (input) =>
           Ref.update(offeredTokens, (tokens) => [...tokens, input.bearerToken]).pipe(
             Effect.as({

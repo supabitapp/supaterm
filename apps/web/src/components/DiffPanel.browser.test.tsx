@@ -102,7 +102,6 @@ vi.mock("~/state/use-atom-command", () => ({ useAtomCommand: () => async () => {
 vi.mock("~/editorPreferences", () => ({ useOpenInPreferredEditor: () => async () => {} }));
 vi.mock("~/fileContextMenu", () => ({ useFileContextMenuHandler: () => () => {} }));
 vi.mock("~/browser/useOpenLink", () => ({ useOpenLink: () => async () => {} }));
-// Comment annotations carry voice input, whose thread outbox needs the unmocked server state.
 vi.mock("./diffs/DiffCommentAnnotation", () => ({ DiffCommentAnnotation: () => null }));
 vi.mock("./diffs/DiffFileTree", () => ({ DiffFileTree: () => null }));
 vi.mock("./DiffFilePathCopyButton", () => ({ DiffFilePathCopyButton: () => null }));
@@ -352,7 +351,6 @@ it("says a turn diff cut off at the server's size limit is incomplete", async ()
     .toBeVisible();
 });
 
-// Paths as git's numstat reports them; the parsed patch keeps their edge whitespace.
 it.each([
   { path: " leading.ts", name: " leading.ts" },
   { path: "src/trailing.ts ", name: "src/trailing.ts " },
@@ -388,14 +386,12 @@ it.each([
 
 it("opens a file from a tool call's diff by the path its agent recorded", async () => {
   using context = setup("origin/orphan");
-  // A local thread in a project that is the repository's apps/web folder.
   state.thread = { ...state.thread!, worktreePath: null };
   state.project = { workspaceRoot: "/repo/apps/web", repositoryIdentity: { rootPath: "/repo" } };
   const status = AsyncResult.getOrThrow(context.registry.get(state.status));
   state.status = Atom.make(
     AsyncResult.success({ ...status, workingTree: { ...status.workingTree, rootPath: "/repo" } }),
   );
-  // Claude's Edit can record a path relative to the workspace, unlike the repository's diffs.
   state.toolCallItem = {
     type: "file_change",
     fileName: "src/a.ts",

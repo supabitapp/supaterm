@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// The `supaterm` npm package. Downloads this version's CLI archive from the GitHub
-// Release into <Supaterm home>/runtime/versions/<version> (the folder the install
-// scripts and `supaterm update` use), verifies it against the release's SHA256SUMS,
-// then runs it.
 import { spawn, spawnSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -14,7 +10,6 @@ const { version } = JSON.parse(
 );
 
 const SUPPORTED = ["darwin-arm64", "linux-arm64", "linux-x64", "win32-arm64", "win32-x64"];
-// Well inside launchd's 20 s ExitTimeOut, which SIGKILLs only the launcher and orphans the runtime.
 const TERMINATE_GRACE_MS = 5_000;
 
 function supatermHome() {
@@ -48,7 +43,6 @@ async function get(url) {
   return response;
 }
 
-/** Downloads `url` to `file` and returns its sha256, showing progress on a terminal. */
 async function download(url, file) {
   const response = await get(url);
   const total = Number(response.headers.get("content-length")) || 0;
@@ -62,7 +56,6 @@ async function download(url, file) {
       hash.update(chunk);
       fs.writeSync(out, chunk);
       received += chunk.byteLength;
-      // Redraw once per percent (or per MB without a length), not per chunk.
       const step = total ? Math.floor((received * 100) / total) : Math.floor(received / 1048576);
       if (tty && step !== shown) {
         shown = step;
@@ -93,8 +86,6 @@ async function install(dir, key) {
     .find((m) => m && m[2] === archive);
   if (!line) throw new Error(`${archive} is not listed in the release's SHA256SUMS`);
 
-  // Extract beside the final folder and rename it into place, so an
-  // interrupted download never leaves a half-installed version behind.
   fs.mkdirSync(path.dirname(dir), { recursive: true });
   const staging = fs.mkdtempSync(`${dir}.staging-`);
   try {
@@ -102,7 +93,6 @@ async function install(dir, key) {
     if ((await download(`${base}/v${version}/${archive}`, file)) !== line[1].toLowerCase()) {
       throw new Error(`checksum mismatch for ${archive}`);
     }
-    // Windows' own tar.exe reads zip; a Git-for-Windows tar on PATH cannot.
     const tar =
       process.platform === "win32" ? `${process.env.SystemRoot}\\System32\\tar.exe` : "tar";
     const extract = spawnSync(tar, ["-xf", file, "-C", staging, "--strip-components=1"], {
@@ -143,11 +133,6 @@ const isComplete = (dir) => {
   }
 };
 
-/**
- * Rename never replaces an existing folder, so a complete install another launcher (or
- * `supaterm update`) published first is kept, never deleted from under a running process. Only a
- * folder without the completion marker, left by an interrupted installer, is cleared and retried.
- */
 function publish(staging, dir) {
   try {
     fs.renameSync(staging, dir);
@@ -168,10 +153,7 @@ function publish(staging, dir) {
   }
   const stale = `${staging}.stale`;
   try {
-    // A peer may have published between our marker check and taking the lock.
     if (isComplete(dir)) return;
-    // Move it aside rather than deleting in place: once the folder is empty, a
-    // peer's first rename can land in it.
     fs.renameSync(dir, stale);
     try {
       fs.renameSync(staging, dir);
@@ -195,16 +177,12 @@ async function main() {
   const dir = path.join(supatermHome(), "runtime", "versions", version);
   if (!isComplete(dir)) await install(dir, key);
 
-  // A service launcher talks to its server over IPC; pass that channel and
-  // signals through. In a terminal, Ctrl-C already reaches the child directly,
-  // so forwarding SIGINT too would deliver it twice.
   const ipc = process.send !== undefined;
   const child = spawn(
     path.join(dir, process.platform === "win32" ? "supaterm.exe" : "supaterm"),
     process.argv.slice(2),
     {
       stdio: ipc ? ["inherit", "inherit", "inherit", "ipc"] : "inherit",
-      // The executable lives in the Supaterm home, so this is how it knows npm launched it.
       env: { ...process.env, SUPATERM_NPM_LAUNCHER_PATH: import.meta.filename },
     },
   );
@@ -227,7 +205,6 @@ async function main() {
   );
 }
 
-/** SIGKILL the runtime and its providers, which a runtime stuck on shutdown never stops. */
 function killTree(child) {
   const pids = [child.pid];
   if (process.platform !== "win32") {

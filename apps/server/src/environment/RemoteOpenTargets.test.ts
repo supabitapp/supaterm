@@ -167,7 +167,6 @@ describe("RemoteOpenTargets", () => {
       const targets = yield* resolveTargets({
         sshd: { ipv4: true, ipv6: false },
         tailscale: {
-          // After `tailscale down`, status still exits 0 and keeps Self from the last netmap.
           status: {
             exitCode: 0,
             stdout: JSON.stringify({

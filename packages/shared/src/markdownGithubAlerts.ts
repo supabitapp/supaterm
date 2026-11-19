@@ -20,7 +20,6 @@ function readGithubAlert(node: MarkdownAstNode): void {
   if (!match?.[1]) return;
 
   const remainder = text.value.slice(match[0].length);
-  // An empty remainder may have next-line sibling content; preserve whether the marker ended its line.
   const markerEndsItsLine = match[0].endsWith("\n");
   if (remainder.length > 0) {
     text.value = remainder;

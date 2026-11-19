@@ -21,7 +21,6 @@ interface PcmRecorderModule extends NativeModule<PcmRecorderEvents> {
   record(maxDurationMs: number): void;
   stop(): Promise<{ readonly uri: string; readonly durationMs: number } | null>;
   getStatus(): VoiceRecordingState | null;
-  /** iOS only: the session's inputs, so the preferred microphone can be chosen. */
   getAvailableInputs?(): ReadonlyArray<VoiceRecordingInput>;
   setInput?(uid: string): void;
   release(): void;
@@ -57,7 +56,6 @@ function createRecorder(
     },
     async stop() {
       const stopped = await native.stop();
-      // The last frames cross the bridge apart from stop's reply; a stream must hold all of them.
       const bytes = stopped === null ? 0 : Math.floor(stopped.durationMs * PCM_BYTES_PER_MS);
       if (frameListeners === 0 || deliveredBytes >= bytes) return;
       await new Promise<void>((resolve) => {
@@ -71,7 +69,6 @@ function createRecorder(
       native.addListener("onStatus", (status) => {
         if (status.url === uri) listener(status);
       }),
-    // Native only emits frames while this listens, so an environment that can't stream pays nothing.
     addFrameListener: (listener) => {
       frameListeners += 1;
       const subscription = native.addListener("onFrames", (frames) => {

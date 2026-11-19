@@ -7,7 +7,6 @@ import { ChildProcessSpawner } from "effect/process";
 
 import * as PreviewBrowserHost from "./PreviewBrowserHost.ts";
 
-// What `ldd` printed for the pinned headless shell in a bare debian:trixie-slim container.
 const LDD_IN_BARE_DEBIAN = `\tlinux-vdso.so.1 (0x00007ffd2d1f8000)
 \tlibdl.so.2 => /lib/x86_64-linux-gnu/libdl.so.2 (0x00007f0c1b6a1000)
 \tlibglib-2.0.so.0 => not found

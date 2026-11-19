@@ -155,7 +155,6 @@ export function SavedBackendListRow({
   const routeCount = connectionRoutes(environment.entry).length;
   const subtitleText = [
     environmentTransportLabel(environment),
-    // The headline below names the failure in full.
     diagnosis ? null : resumingServerUpdate ? "Restarting" : status.text,
     enabled && versionMismatch ? serverVersion : null,
   ]
@@ -206,8 +205,6 @@ export function SavedBackendListRow({
       subtitle={
         <span className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
           <Tooltip>
-            {/* The status can change while the tooltip is open, and base-ui only
-                re-measures the popup when the trigger's payload changes. */}
             <TooltipTrigger
               payload={statusTooltip}
               render={

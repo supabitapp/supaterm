@@ -44,7 +44,6 @@ export function PullRequestLabelsScreen({ route }: StaticScreenProps<PullRequest
     canWrite &&
     pr?.capabilities.labels === true &&
     pr.viewerPermissions.labels !== false;
-  // Name the first thing in the way, so the notice says what would actually fix it.
   const readOnlyReason =
     !pr || allowed
       ? null
@@ -60,7 +59,6 @@ export function PullRequestLabelsScreen({ route }: StaticScreenProps<PullRequest
   const [query, setQuery] = useState("");
   const [draft, setDraft] = useState(emptySelection<PullRequestLabelCandidate>);
   const needle = query.trim().toLowerCase();
-  // Host order, not applied-first: re-sorting on toggle would move the row out from under a tap.
   const candidates = (result.data?.candidates ?? []).filter((candidate) =>
     `${candidate.name} ${candidate.description ?? ""}`.toLowerCase().includes(needle),
   );
@@ -94,7 +92,6 @@ export function PullRequestLabelsScreen({ route }: StaticScreenProps<PullRequest
         const send = async (labels: ReadonlyArray<PullRequestLabelCandidate>, applied: boolean) => {
           for (const batch of changeBatches(labels)) await sendBatch(batch, applied);
         };
-        // Adding first keeps the Labels row from showing empty between the two writes.
         void send(add, true).then(() => send(remove, false));
       }),
     [navigation, draft, latest, setLabels, target],
@@ -135,7 +132,6 @@ export function PullRequestLabelsScreen({ route }: StaticScreenProps<PullRequest
               title={item.name}
               {...(item.description ? { subtitle: item.description } : {})}
               role="checkbox"
-              // Sent when the sheet closes; a failure puts the host's answer back.
               selected={isSelected(draft, item.name, item.isApplied)}
               disabled={!allowed}
               isFirst={index === 0}

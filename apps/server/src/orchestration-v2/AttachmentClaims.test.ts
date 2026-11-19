@@ -213,7 +213,6 @@ describe("AttachmentClaims", () => {
 
       const copyArgs = yield* Deferred.make<readonly [string, string]>();
       const copyDone = yield* Deferred.make<void>();
-      // fs.copyFile cannot be cancelled; its separate writer must finish after the awaiting effect is interrupted.
       const gatedFileSystem = Object.create(fileSystem, {
         copyFile: {
           value: (from: string, to: string) =>

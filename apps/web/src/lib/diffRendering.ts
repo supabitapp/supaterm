@@ -3,7 +3,6 @@ import { parseDiffFromFile } from "@pierre/diffs";
 import type { FileDiffMetadata } from "@pierre/diffs/types";
 import { READABLE_LIGHT_THEME_NAME } from "./readableSyntaxTheme";
 
-// Light mode uses a darker pierre-light so syntax stays readable on every code surface.
 const DIFF_THEME_NAMES = {
   light: READABLE_LIGHT_THEME_NAME,
   dark: "pierre-dark",
@@ -213,7 +212,6 @@ function hashFileDiffPart(hash: number, value: string | number | boolean | undef
   return fnv1a32(serialized, withLength);
 }
 
-// Pierre's whole-patch cache key would repaint every file when one changes.
 export function buildFileDiffContentVersion(fileDiff: FileDiffMetadata): number {
   let hash = FNV_OFFSET_BASIS_32;
   const append = (value: string | number | boolean | undefined) => {

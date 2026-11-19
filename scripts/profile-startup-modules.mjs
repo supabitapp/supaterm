@@ -52,7 +52,6 @@ export function profileStartupModules(session, events, threadId) {
         const directive = /^(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*')\s*;/.exec(
           source.slice(offset),
         );
-        // Leave ambiguous semicolon-free prologues untouched rather than changing strict-mode semantics.
         if (!directive) return undefined;
         offset += directive[0].length;
       }
@@ -140,7 +139,6 @@ export function profileStartupModules(session, events, threadId) {
   NodeModule.default[registryKey] = registry;
 
   session.post("Debugger.enable");
-  // One pause obtains the live loader; subsequent measurements use synchronous method boundaries.
   const source = process.binding("natives")["internal/modules/esm/module_job"].split("\n");
   const classLine = source.findIndex((line) => line.includes("class ModuleJob extends"));
   const lineNumber = source.findIndex(
@@ -229,7 +227,6 @@ export function profileStartupModules(session, events, threadId) {
       if (typeof source !== "string" && ArrayBuffer.isView(source))
         source = Buffer.from(source.buffer, source.byteOffset, source.byteLength).toString("utf8");
       if (typeof source === "string" && (format === "module" || format === "module-typescript")) {
-        // A module-local globalThis binding would put the injected access in its temporal dead zone.
         if (!/\b(?:const|let|var|class|function|as)\s+globalThis\b/.test(source)) {
           source =
             inject(source, `globalThis.${registryKey}?.begin(import.meta.url);`, false) +

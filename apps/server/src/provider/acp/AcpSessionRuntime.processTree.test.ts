@@ -85,9 +85,6 @@ describe("terminatePosixOwnedProcessTree", () => {
       const scratchRoot = NodePath.join(process.cwd(), "tmp");
       NodeFS.mkdirSync(scratchRoot, { recursive: true });
       const parent = NodeFS.mkdtempSync(NodePath.join(scratchRoot, "acp-cgroup-stale-siblings-"));
-      // Temp dirs are not cgroupfs: rmdir fails when control files exist, so the
-      // test injects populated/remove while still exercising the real selection
-      // and path-safety logic against a real parent directory tree.
       const populatedByPath = new Map<string, "0" | "1">();
       const writeSibling = (name: string, populated: "0" | "1" | null) => {
         const path = NodePath.join(parent, name);
@@ -161,8 +158,6 @@ describe("terminatePosixOwnedProcessTree", () => {
       expect(AcpSessionRuntime.resolveLinuxCgroupTargetCommand("grok", scratch, { PATH: "" })).toBe(
         bareGrok,
       );
-      // Undefined PATH uses Node's default search path (/usr/bin:/bin), not cwd alone
-      // (bareGrok lives only in cwd / PATH=scratch).
       expect(
         AcpSessionRuntime.resolveLinuxCgroupTargetCommand("grok", scratch, { PATH: undefined }),
       ).toBeUndefined();
@@ -420,8 +415,6 @@ describe("terminatePosixOwnedProcessTree", () => {
 
   it.live("rotates more than 64 live parents without scanning retained tombstones", () =>
     Effect.gen(function* () {
-      // The server fixture's process group is the runner's real pid, so a synthetic
-      // parent sharing it would be skipped as the server's own group.
       const parentPidBase = process.pid < 500_000 ? 500_000 : 1_000;
       const parents = Array.from({ length: 130 }, (_, index) =>
         identity(parentPidBase + index, 100, parentPidBase + index, parentPidBase + index),
@@ -636,7 +629,6 @@ describe("terminatePosixOwnedProcessTree", () => {
       const fixture = makeController({
         processes: [server(), root, zombieChild],
         onProcess: (processes, pid) => {
-          // Kill leaves a zombie with the same pid/starttime until reaped.
           const current = processes.get(pid);
           if (current === undefined) return;
           processes.set(pid, { ...current, state: "Z" });
@@ -647,7 +639,6 @@ describe("terminatePosixOwnedProcessTree", () => {
         grace: 0,
         rootPid: 100,
       });
-      // Zombies remain visible but must not fail residual teardown.
       expect(fixture.processes.get(100)?.state).toBe("Z");
       expect(fixture.processes.get(110)?.state).toBe("Z");
     }),
@@ -824,7 +815,6 @@ describe("terminatePosixOwnedProcessTree", () => {
     () => {
       const fs = NodeModule.createRequire(import.meta.url)("node:fs") as typeof NodeFS;
       const realReaddirSync = fs.readdirSync;
-      // Node lstat()s a dirent of unknown type; a process that exits meanwhile makes it throw.
       fs.readdirSync = ((path: NodeFS.PathLike, options?: unknown) => {
         if (path === "/proc" && typeof options === "object" && options !== null) {
           throw Object.assign(new Error("ENOENT: no such file or directory, lstat '/proc/4563'"), {

@@ -9,7 +9,6 @@ export const make = Effect.fn("ProviderCredentialStore.make")(function* (
 ) {
   const secrets = yield* ServerSecretStore.ServerSecretStore;
   const digest = yield* Digest.Digest;
-  // Hash the tuple so arbitrary bindings cannot escape or exceed a filename.
   const bindingHash = yield* digest
     .digest(Digest.sha256, new TextEncoder().encode(`${driver.length}:${driver}${bindingId}`))
     .pipe(Effect.map(Hex.encode), Effect.orDie);

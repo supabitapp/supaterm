@@ -125,9 +125,6 @@ import { MiddleTruncate } from "../ui/middle-truncate";
 import { useThreadHasUnsentDraft } from "../../composerDraftStore";
 import { isImeComposing } from "~/lib/imeComposition";
 
-// The fields thread rows show. Provider status pushes refresh `checkedAt`,
-// status and auth on every provider; leaving those out keeps each
-// environment's map, and every memoized row, stable across them.
 export type SidebarProviderEntry = Pick<
   ProviderInstanceEntry,
   | "instanceId"
@@ -145,8 +142,6 @@ function compactSidebarTimeLabel(label: string): string {
   return label.endsWith(" ago") ? label.slice(0, -4) : label;
 }
 
-// Subscribes to the minute tick itself, so the label keeps counting while the
-// memoized row stays cached on its thread.
 function CompactRelativeTimeLabel(props: { timestamp: string | null }) {
   const nowMinute = useNowMinute();
   return props.timestamp === null
@@ -156,8 +151,6 @@ function CompactRelativeTimeLabel(props: { timestamp: string | null }) {
       );
 }
 
-// An overlay rather than an inline slot so the hint never displaces the status label or shifts
-// layout; pointer-events-none so it never swallows clicks on the buttons it overlaps.
 function JumpHintBadge(props: { label: string }) {
   return (
     <span
@@ -170,7 +163,6 @@ function JumpHintBadge(props: { label: string }) {
   );
 }
 
-// Only the time label subscribes to the shared minute clock.
 function SidebarRelativeTime({
   timestamp,
   className,
@@ -190,7 +182,6 @@ function SidebarRelativeTime({
   );
 }
 
-// The elapsed label ticks independently so the row and its queries stay idle.
 function WorkingDuration(props: { environmentId: EnvironmentId; startedAt: string | null }) {
   const startedMs = props.startedAt !== null ? Date.parse(props.startedAt) : Number.NaN;
   if (Number.isNaN(startedMs)) return null;
@@ -448,13 +439,8 @@ type SortableThreadRowBag = Pick<
   "listeners" | "setNodeRef" | "transform" | "transition" | "isDragging"
 >;
 
-// useSortable memoizes on its `disabled` object, so a fresh one per render
-// re-renders every row and marker on each sidebar update.
 const SIDEBAR_SORTABLE_DRAG_ENABLED = { draggable: false } as const;
 
-// Takes the row's props rather than a render function: a closure from the
-// sidebar body is new on every sidebar render, which rebuilt the bag and
-// re-rendered every memoized row with it.
 export function SortableThreadRow(
   props: Omit<SidebarThreadRowProps, "sortable"> & {
     sortableId: string;
@@ -475,8 +461,6 @@ export function SortableThreadRow(
         : SIDEBAR_SORTABLE_DRAG_ENABLED,
     animateLayoutChanges: animateSidebarLayoutChanges,
   });
-  // dnd-kit memoizes each field but not the bag, so the memoized row would
-  // rerender on every shell update without this.
   const bag = {
     listeners,
     setNodeRef,
@@ -484,12 +468,9 @@ export function SortableThreadRow(
     transition: contextDrag && isDragging ? "transform 150ms ease-out" : transition,
     isDragging: isDragging && !contextDrag,
   };
-  // The sidebar arranges rows from quiet shells, which hold still while a
-  // thread streams; reading the live shell here re-renders only this row.
   const liveThread = useSidebarThreadShell(
     scopeThreadRef(rowProps.thread.environmentId, rowProps.thread.id),
   );
-  // A runtime on the arranged copy but not the run-less live shell is the list's launch overlay.
   const thread =
     liveThread === null
       ? rowProps.thread
@@ -499,7 +480,6 @@ export function SortableThreadRow(
   return <SidebarThreadRow {...rowProps} thread={thread} sortable={bag} />;
 }
 
-// The pen identifies unsent work on both draft sessions and existing threads.
 export const draftPenClassName = "size-3 shrink-0 text-warning-foreground";
 
 export function SidebarDraftDiscardButton(props: {
@@ -567,13 +547,9 @@ const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
 type SidebarThreadRowProps = {
   thread: SidebarThreadSummary;
   navigationParent?: string | undefined;
-  // Done rows reopen, snoozed rows wake, and active rows become done.
   variantAction: SidebarSweepAction;
-  // False on environments whose server predates thread.mark-done/reopen:
-  // the lifecycle affordances hide entirely rather than fail on click.
   markDoneSupported: boolean;
   snoozeSupported: boolean;
-  // Hide unsupported actions on environments with older servers.
   pinningSupported: boolean;
   isPinned: boolean;
   sortable?: SortableThreadRowBag | undefined;
@@ -583,15 +559,12 @@ type SidebarThreadRowProps = {
   snoozeWakeLabelText: string | null;
   wokeAt: string | null;
   isActive: boolean;
-  // Set on the active row only; scrolls it into view when a reveal is owed.
   revealRef?: ((row: HTMLElement, threadKey: string) => (() => void) | undefined) | undefined;
   /** Open in a chat pane that is not focused. */
   inOtherPane: boolean;
-  // The pin and mark-done shortcuts act on the active thread, so only its row receives them.
   pinShortcut: string | null;
   doneShortcut: string | null;
   isRouteThread: boolean;
-  // Read at click time; a prop would re-render every row on entering or leaving a thread route.
   readOpensPullRequestsInRightPanel: () => boolean;
   jumpLabel: string | null;
   currentEnvironmentId: string | null;
@@ -631,14 +604,12 @@ type SidebarThreadRowProps = {
   onFileDropThreads?: ((threadRef: ScopedThreadRef, files: File[]) => void) | undefined;
 };
 
-// Mounted only while renaming, so each rename starts uncommitted.
 function ThreadRenameInput(props: {
   title: string;
   onTitleChange: (title: string) => void;
   onCommit: () => void;
   onCancel: () => void;
 }) {
-  // Enter and Escape blur the input as it unmounts; that blur must not commit again.
   const settledRef = useRef(false);
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
     event.stopPropagation();
@@ -763,14 +734,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const pr = linkedPullRequestStatus?.pr ?? null;
   const currentLinkedPr = resolveThreadCurrentPullRequestLink(thread.pullRequests);
 
-  // Never-visited threads count as read so historical threads do not light up
-  // as unread on first load.
   const isUnread = hasUnseenCompletion({ ...thread, lastVisitedAt });
   const status = resolveSidebarRowStatus({ ...thread, lastVisitedAt });
   const showDuration = environmentConnected && shouldShowSidebarV2Duration(status);
-  // A woken thread keeps its static sort position, so the pill carries the signal and clears only
-  // when the user re-engages; timer wakes survive a mere visit. An unparseable visit timestamp
-  // counts as never-visited, so corrupt local data cannot eat the wake signal.
   const lastVisitedDate = lastVisitedAt === undefined ? null : parseTimestampDate(lastVisitedAt);
   const wokeAtDate = props.wokeAt === null ? null : parseTimestampDate(props.wokeAt);
   const isWoke =
@@ -789,9 +755,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     isActive: props.isActive,
     isSelected,
   });
-  // Status hues follow the system-wide convention set by sidebar v1 and the
-  // mobile widgets (amber approval, indigo input, sky working) so a thread
-  // reads the same color everywhere it surfaces.
   const topStatusKind = resolveSidebarV2TopStatus({
     environmentConnected,
     status,
@@ -1002,9 +965,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const handlePin = () => onPin(threadRef);
   const handleSnoozePreset = (preset: Pick<SnoozePreset, "snoozedUntil">) =>
     onSnooze(threadRef, preset);
-  // The React Compiler caches render results on their inputs, so a clock read
-  // here would stay frozen until `thread` changes and a queued-turn gate would
-  // never reopen. The gate's clock is state, reset with the thread.
   const [snoozeGateClock, setSnoozeGateClock] = useState(() => ({
     thread,
     now: new Date().toISOString(),
@@ -1017,8 +977,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
   const snoozeGateExpiryMs = hasQueuedTurnStart(thread, { now: snoozeGateNow })
     ? Date.parse(thread.latestUserMessageAt ?? "") + QUEUED_TURN_START_GRACE_MS
     : Number.NaN;
-  // A gate still closed past its expiry is held by runtime status, not time,
-  // so no clock tick can open it.
   const snoozeGateOpensAt =
     Number.isFinite(snoozeGateExpiryMs) && snoozeGateExpiryMs > Date.parse(snoozeGateNow)
       ? snoozeGateExpiryMs + 50
@@ -1031,7 +989,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     canOperateThread && !isParked && snoozeSupported && canSnooze(thread, { now: snoozeGateNow });
   const [snoozeMenuOpenRaw, setSnoozeMenuOpen] = useState(false);
   const snoozeMenuOpen = snoozeMenuOpenRaw && showSnoozeButton;
-  // A newly blocked thread unmounts the menu without an onOpenChange callback.
   if (!showSnoozeButton && snoozeMenuOpenRaw) setSnoozeMenuOpen(false);
   const handlePrClick = (event: ReactMouseEvent<HTMLElement>, targetUrl?: string) => {
     const url = targetUrl ?? pr?.url ?? currentLinkedPr?.url;
@@ -1043,10 +1000,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     }
   };
 
-  // All sidebar rows share one surface model. Live threads used to look
-  // like elevated cards while done threads were plain rows, leaving neither
-  // a useful hierarchy nor a reliable hover cue. Status now lives in the row
-  // content; surface is reserved for interaction (hover, multi-select, route).
   const rowSurfaceClassName = cn(
     "group/sidebar-row relative w-full cursor-pointer overflow-hidden rounded-md text-left outline-none select-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
     variantAction === "reopen" &&
@@ -1077,8 +1030,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
         style: {
           transform: CSS.Translate.toString(sortable.transform),
           transition: sortable.transition,
-          // A zero-height boundary also makes dnd-kit scale the source to
-          // zero. Only projected peers use scaleY as a visibility sentinel.
           visibility:
             !sortable.isDragging && sortable.transform?.scaleY === 0
               ? ("hidden" as const)
@@ -1175,11 +1126,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       onThreadActivate={onThreadActivate}
     />
   );
-  // Jump hints sit over the row's trailing edge. Keep the status metadata's
-  // measured space, but remove it visually so the hint is easy to scan.
   const jumpHintIndicatorsClassName = props.jumpLabel !== null ? "invisible" : undefined;
-  // Same pen the new-thread draft rows use, so both kinds of unsent
-  // work read the same way in the list.
   const draftIndicator = hasUnsentDraft ? (
     <Tooltip>
       <TooltipTrigger
@@ -1250,8 +1197,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               />
             }
           >
-            {/* Done history recedes: dimmed favicon at rest, restored on
-              hover so the tail stays scannable when you're hunting. */}
             <span
               className={cn(
                 "flex shrink-0 items-center transition-opacity",
@@ -1272,7 +1217,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 Regenerating title
               </span>
             ) : null}
-            {/* Keep PR badges and wake notifications visible when the parked action replaces the time. */}
             <span className={cn("contents", jumpHintIndicatorsClassName)}>{prBadge}</span>
             {sortable?.isDragging ? (
               dragDestination
@@ -1302,8 +1246,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       {props.snoozeWakeLabelText}
                     </span>
                   ) : isWoke ? (
-                    // A wake can land straight in the done tail (e.g. PR
-                    // merged while snoozed); the signal must survive the trip.
                     <Tooltip>
                       <TooltipTrigger
                         render={
@@ -1322,7 +1264,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     </Tooltip>
                   ) : (
                     <span className="text-xs">
-                      {/* Done rows read how long ago the thread wrapped up, matching their sort key. */}
                       <CompactRelativeTimeLabel
                         timestamp={
                           variantAction === "reopen"
@@ -1440,12 +1381,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   ) : null}
                 </span>
               ) : null}
-              {/* Left of the status slot, the pin would slide when hover swaps the
-                label for the wider row controls. */}
               {pinIndicator}
               {title}
-              {/* Both layers reserve the same slot so hover and keyboard focus
-                  replace the status without shifting the title or branch. */}
               <span
                 className={cn(
                   "group/sidebar-status-slot grid h-5 shrink-0 items-center text-xs",
@@ -1469,9 +1406,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   ) : null}
                   {topStatus && (showDuration || topStatusKind === "connecting") ? (
                     <span className={cn("whitespace-nowrap", topStatus.className)}>
-                      {/* Not a live region: a collapsed sidebar is inert, so
-                        BackgroundThreadAnnouncer and each pane's timeline speak
-                        status changes instead. */}
                       {topStatus.label}
                       {showDuration ? (
                         <span aria-hidden>

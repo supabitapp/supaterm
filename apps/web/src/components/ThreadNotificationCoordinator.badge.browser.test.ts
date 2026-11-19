@@ -46,7 +46,6 @@ vi.mock(import("../state/presentation"), async (original) => {
     ...actual,
     environmentSummaries: {
       ...actual.environmentSummaries,
-      // Read lazily: the factory runs before this module's own bindings exist.
       get environmentIdsAtom() {
         return environmentIdsAtom as never;
       },
@@ -173,8 +172,6 @@ function shell(overrides: Partial<typeof thread> = {}, ...others: Partial<typeof
     }),
   };
 }
-// The mocked modules read `state` and the focus flags, so every test resets them before
-// starting the service.
 function setup() {
   vi.clearAllMocks();
   const stack = new AsyncDisposableStack();
@@ -328,7 +325,6 @@ it.each([false, true])(
     await vi.advanceTimersByTimeAsync(WORKING_EXIT_GRACE_MS);
     expect(titles()).toEqual(["Thread completed"]);
 
-    // The adapter drains the roster before the final wake starts.
     state.shells.set("one", watching("wake", "completed", "2026-09-13T07:00:09.000Z", true, []));
     if (disconnect) {
       state.shells.set("one", {

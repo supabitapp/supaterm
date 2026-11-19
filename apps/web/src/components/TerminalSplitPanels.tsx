@@ -13,7 +13,6 @@ import {
   type ThreadTerminalGroup,
 } from "../types";
 
-/** Keeps a pane from collapsing while a full group still fits the narrowest chat column and drawer. */
 const TERMINAL_SPLIT_MIN_SIZE = { horizontal: 48, vertical: 40 } as const;
 
 function mapLayoutKeys(

@@ -22,9 +22,7 @@ import { createEnvironmentQueryAtomFamily, selectEnvironmentQueryData } from "./
 import type { EnvironmentShellState } from "./shell.ts";
 import { threadFamilyRead } from "./threadFamilies.ts";
 
-// Rows per page of older done threads: one "Show more" step of the Done shelf.
 const OLDER_DONE_PAGE_SIZE = 25;
-// A burst of changes (a PR sync touching many old threads) costs one count read.
 const COUNT_REREAD_DELAY = "500 millis";
 
 /** Where an environment's shell cut done threads, and how many are older per project. */
@@ -102,7 +100,6 @@ export function olderDoneCountKey(
   return `${lastRemoval}|${rows.sort().join(",")}`;
 }
 
-/** Whether a row sits at or above a page cursor in the server's order (done time desc, id asc). */
 function atOrAboveCursor(
   thread: Pick<OrchestrationV2ThreadShell, "id" | "doneAt">,
   cursor: OrchestrationV2OlderDoneCursor,
@@ -128,7 +125,6 @@ export function doneShelfFrontier(
   for (const { older, pages } of environments) {
     if (older === null || pages.frontier === null || pages.status === "failed") continue;
     const frontier = pages.frontier;
-    // On a done-time tie, a cursor with an id stops above one without, and a smaller id higher.
     if (
       highest === null ||
       frontier.doneAt > highest.doneAt ||
@@ -234,7 +230,6 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
   const countReadAtom = createEnvironmentQueryAtomFamily(runtime, {
     label: "environment-data:orchestration:older-done-counts",
     staleTimeMs: Number.POSITIVE_INFINITY,
-    // A newer key unmounts this read; with no idle time its wait is interrupted before the RPC.
     idleTtlMs: 0,
     execute: Effect.fn("OlderDoneThreads.readCounts")(function* (input: {
       readonly generation: number;
@@ -252,8 +247,6 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
   const pageReadAtom = createEnvironmentQueryAtomFamily(runtime, {
     label: "environment-data:orchestration:older-done-page",
     staleTimeMs: Number.POSITIVE_INFINITY,
-    // A collapsed shelf keeps no read alive, as an idle one runs again when a reconnect replaces
-    // the session.
     idleTtlMs: 0,
     execute: Effect.fn("OlderDoneThreads.readPage")(function* (input: {
       readonly generation: number;
@@ -273,7 +266,6 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
 
   const olderDoneAtom = Atom.family((environmentId: EnvironmentId) => {
     let generation = -1;
-    // The key of the first state seen this generation, when that state is the snapshot itself.
     let snapshotKey: string | null = null;
     let keyInputs: { readonly threads: unknown; readonly removedAt: unknown } | null = null;
     let key = "";
@@ -292,7 +284,6 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
           counts: countsOf(cut),
         };
       }
-      // Most shell updates move only the cursor; the key needs new rows or removals.
       if (keyInputs?.threads !== snapshot.threads || keyInputs.removedAt !== state.removedAt) {
         keyInputs = { threads: snapshot.threads, removedAt: state.removedAt };
         key = olderDoneCountKey(snapshot.threads, fromSnapshot.beforeMs, state.removedAt);
@@ -302,7 +293,6 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
         snapshotKey = snapshot.snapshotSequence === cut.asOfSequence ? key : null;
         lastRead = null;
       }
-      // Generation 0 is a cached shell: no reads until this session's first snapshot.
       if (key === snapshotKey || state.generation === 0) return fromSnapshot;
       const read = selectEnvironmentQueryData(
         get(
@@ -348,8 +338,6 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
     return Atom.make((get) => {
       const state = shellStateValue(get(shellStateAtom(environmentId)));
       const cut = state === null ? undefined : Option.getOrNull(state.snapshot)?.olderDone;
-      // A cached shell (an environment not connected yet, or offline) must not hold the shelf
-      // back for other environments, so it lists what it holds until its first snapshot.
       if (state === null || cut === undefined || state.generation === 0) return keep(NO_PAGES);
       let frontier: OrchestrationV2OlderDoneCursor = { doneAt: cut.before };
       if (pages === 0) return keep({ reads: [], frontier, status: "ready" });
@@ -404,8 +392,6 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
       return yield* request(ORCHESTRATION_V2_WS_METHODS.searchThreads, input.search);
     }),
   });
-  // Keyed by shell generation like pages: rows read before a new snapshot do not merge, so the
-  // search reads them again.
   const searchAtom = Atom.family((key: string) => {
     const [environmentId, search] = JSON.parse(key) as [
       EnvironmentId,
@@ -413,15 +399,12 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
     ];
     return Atom.make((get) => {
       const generation = get(searchGenerationAtom(environmentId));
-      // Nothing is read before this session's first snapshot, which would drop the rows. It shows
-      // as loading only while that snapshot is on its way, so an offline environment never spins.
       return typeof generation === "number"
         ? get(searchReadAtom({ environmentId, input: { generation, search } }))
         : AsyncResult.initial(generation === "waiting");
     }).pipe(Atom.withLabel(`environment-older-done-search:${key}`));
   });
 
-  // One read for a shelf that spans environments: each one's cut, counts and pages.
   const shelfAtom = Atom.family((key: string) => {
     const entries = JSON.parse(key) as ReadonlyArray<readonly [string, string]>;
     let previous: ReadonlyMap<EnvironmentId, OlderDoneShelfEnvironment> = new Map();
@@ -440,7 +423,6 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
     }).pipe(Atom.withLabel(`environment-older-done-shelf:${key}`));
   });
 
-  /** Reads a failed page again (a no-op when none failed); the pages after it follow. */
   const retryPages = (
     registry: AtomRegistry.AtomRegistry,
     scope: OlderDoneScope,
@@ -462,9 +444,7 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
   };
 
   return {
-    /** The environment's cut and current counts, or null when its shell keeps every done thread. */
     olderDoneAtom,
-    /** Each scope's cut, counts and first `pages` pages. */
     shelfAtom: (
       scopes: ReadonlyArray<{ readonly scope: OlderDoneScope; readonly pages: number }>,
     ) =>
@@ -474,12 +454,9 @@ export function createOlderDoneThreadAtoms<R, ER, E>(
         ),
       ),
     retryPages,
-    /** The first `pages` pages below the cut for one scope, read in order. */
     pagesAtom: (scope: OlderDoneScope, pages: number) => pagesAtom(pagesKey(scope, pages)),
-    /** Their rows, for `createThreadFamilyAtoms(...).mountRows`, under `rowsKey`. */
     pageRowsAtom: (scope: OlderDoneScope, pages: number) => pageRowsAtom(pagesKey(scope, pages)),
     rowsKey: (scope: OlderDoneScope, pages: number) => `older-done:${pagesKey(scope, pages)}`,
-    /** `orchestration.searchThreads` for a search that asks for older done rows. */
     searchAtom: (environmentId: EnvironmentId, search: OrchestrationV2SearchThreadsInput) =>
       searchAtom(JSON.stringify([environmentId, search])),
   };

@@ -82,7 +82,6 @@ export class BoltComputerSim {
   /** Seconds since it switched on, and since the state last changed. */
   age = 0;
   since = 0;
-  /** How long the previous state had been showing when it changed. */
   private previousSince = 0;
   pose: Pose = { yaw: 0, pitch: 0, roll: 0, lift: 0, sx: 1, sy: 1 };
   /** The pointer relative to the housing's centre in CSS px, or null when away. */
@@ -97,9 +96,7 @@ export class BoltComputerSim {
   private reactedAt = Number.NEGATIVE_INFINITY;
   private nextHop = 6;
 
-  /** The age after which a looping state may stop at its next still moment, as idle does. */
   private readonly restAt: number;
-  /** Error's head shake goes straight onto the pose, so resting springs don't mean it is still. */
   private shaking = false;
 
   constructor(seed: number, state: BoltComputerState = "idle", restAt = Number.POSITIVE_INFINITY) {
@@ -168,10 +165,7 @@ export class BoltComputerSim {
   }
 
   update(dt: number) {
-    // A zero-length step still aims the springs, so a wake whose first frame
-    // has no elapsed time is not mistaken for rest.
     if (!(dt >= 0)) return;
-    // Small steps keep the springs stable on a slow frame.
     const steps = Math.max(1, Math.ceil(dt * 120));
     for (let i = 0; i < steps; i++) this.step(dt / steps);
   }
@@ -244,7 +238,6 @@ export class BoltComputerSim {
       } else {
         const ap = (j.age - CROUCH) / j.air;
         if (ap < 1) {
-          // Leaving the ground springs up into a stretch.
           if (ap < 0.06 && this.squash.x > 0.05) this.squash.v = -1.8;
           lift = 4 * j.height * ap * (1 - ap);
           spin = j.spin * Math.PI * 2 * easeInOut(clamp(ap * 1.08, 0, 1));

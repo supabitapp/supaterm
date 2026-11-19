@@ -1,6 +1,5 @@
 import type { SourceControlIcon } from "@supaterm/source-control-core/shared/definition";
 
-// The view box starts at -6 to move the mark 6 units in, as the published artwork's group does.
 export const icon: SourceControlIcon = {
   viewBox: "-6 -6 212 212",
   paths: [

@@ -262,7 +262,6 @@ export function ComposerActionButton(props: {
   readonly icon: ComponentProps<typeof SymbolView>["name"];
   readonly onPress: () => void;
   readonly variant?: "primary" | "danger";
-  // Menu injects onLongPress on Android and onTouchStart/onPress on iOS.
   readonly onLongPress?: PressableProps["onLongPress"];
   readonly onTouchStart?: PressableProps["onTouchStart"];
 }) {
@@ -292,8 +291,6 @@ export function ComposerActionButton(props: {
               : "bg-primary",
         )}
       >
-        {/* Fade the icon as one layer: a translucent tint, or opacity on an Android
-            Phosphor icon (which copies it onto every path), stacks where the SVG strokes overlap. */}
         <View
           className={fadeIcon ? "opacity-38" : undefined}
           needsOffscreenAlphaCompositing={fadeIcon}

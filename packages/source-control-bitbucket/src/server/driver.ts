@@ -12,7 +12,6 @@ import * as BitbucketPullRequestApi from "./BitbucketPullRequestApi.ts";
 import * as BitbucketPullRequestProvider from "./BitbucketPullRequestProvider.ts";
 import * as BitbucketSourceControlProvider from "./BitbucketSourceControlProvider.ts";
 
-// Every setting the API reads from the environment is optional, so reading them cannot fail.
 const services = BitbucketPullRequestApi.layer.pipe(
   Layer.provideMerge(BitbucketApi.layer),
   Layer.orDie,

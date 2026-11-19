@@ -13,9 +13,6 @@ export function parseFileUrlHref(
   href: string,
   localHostname?: string,
 ): { readonly path: string; readonly hash: string } | null {
-  // Chromium on Windows parses any one-letter scheme as a drive letter
-  // (`new URL("d:x")` is `file:///D:/x`), so the protocol check alone would turn
-  // such links into file links only on Windows.
   if (!href.trim().toLowerCase().startsWith("file:")) return null;
   try {
     const parsed = new URL(href);
@@ -26,9 +23,7 @@ export function parseFileUrlHref(
     if (host && localHostname) {
       try {
         localHost = new URL(`file://${encodeURIComponent(localHostname)}/`).hostname;
-      } catch {
-        // System hostnames need not be valid URL authorities; they cannot match a file URI.
-      }
+      } catch {}
     }
     const uncHostname = host === "localhost" || host === localHost ? "" : parsed.hostname;
     const path = uncHostname

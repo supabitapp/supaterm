@@ -1,7 +1,3 @@
-/**
- * Pi state (sessions, settings, extensions, auth) lives in the user's own
- * `~/.pi/agent`, so continuation identity uses the default instance grouping.
- */
 import { expandHomePath } from "@supaterm/provider-core/server/pathExpansion";
 import { ProviderDriverKind, type ServerProvider } from "@supaterm/contracts";
 import { PiSettings } from "../settings.ts";
@@ -102,7 +98,6 @@ export const PiDriver: ProviderDriver<PiSettings, PiDriverEnv, Path.Path> = {
     const httpClient = yield* HttpClient.HttpClient;
     const latestVersions = yield* ProviderLatestVersions.ProviderLatestVersions;
     const host = yield* ProviderHost.ProviderHost;
-    // Pi runs extensions' session_start in its cwd; the server's cwd is $HOME on packaged desktop.
     const probeCwd = pathService.join(host.paths.providerStatusCacheDir, "pi-status-probe");
     const processEnv = yield* mergeProviderInstanceEnvironment(environment);
     const homeDirectory = yield* HostProcess.HomeDirectory;

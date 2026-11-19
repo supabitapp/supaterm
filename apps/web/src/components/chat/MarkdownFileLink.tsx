@@ -217,7 +217,6 @@ export const MarkdownFileLink = memo(function MarkdownFileLink({
     }
 
     const value = resolveValue().then((text) => formatFilePathForClipboard(text, targetPath));
-    // Start the write before workspace lookup finishes so Safari retains the user gesture.
     const write =
       typeof navigator.clipboard.write === "function" && typeof ClipboardItem !== "undefined"
         ? navigator.clipboard.write([

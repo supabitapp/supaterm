@@ -24,7 +24,6 @@ import { openCodeUsageReader, readOpenCodeUsage } from "./usage.ts";
 
 const readerWorkers = vi.hoisted(() => ({ started: 0, enabled: false }));
 
-// Statement spies only see the main thread, so reader workers fail to start unless a test enables them.
 vi.mock("node:worker_threads", async (importOriginal) => {
   const actual = await importOriginal<typeof NodeWorkerThreads>();
   class ReaderWorker extends actual.Worker {
@@ -251,7 +250,6 @@ describe("readOpenCodeUsage", () => {
         repeated.files.flatMap((file) => file.records).map((record) => record.dedupeKey),
         ["opencode:a", "opencode:b", "opencode:c"],
       );
-      // An unchanged database must not have its message bodies read and parsed again.
       assert.strictEqual(bodyReads, 0);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
@@ -284,7 +282,6 @@ describe("readOpenCodeUsage", () => {
       yield* write("replacement.db", 900);
       yield* fileSystem.rename(path.join(dir, "replacement.db"), path.join(dir, "opencode.db"));
       assert.strictEqual(yield* input, 900);
-      // A backup restored in place keeps the inode and birth time, like `cp -p`.
       yield* write("backup.db", 500);
       yield* fileSystem.copyFile(path.join(dir, "backup.db"), path.join(dir, "opencode.db"));
       yield* fileSystem.utimes(path.join(dir, "opencode.db"), 0, 0);
@@ -361,7 +358,6 @@ describe("readOpenCodeUsage", () => {
         ["opencode:msg-2"],
       );
       assert.isAbove(Number((yield* fileSystem.stat(path.join(dir, "opencode.db-wal"))).size), 0);
-      // A large database must not be read on the server's event loop.
       assert.isAbove(readerWorkers.started, 0);
       assert.strictEqual(mainThreadBodyReads, 0);
     }).pipe(Effect.provide(NodeServices.layer)),
@@ -370,7 +366,6 @@ describe("readOpenCodeUsage", () => {
   it.effect("counts an OpenCode reply once across the sessions forked from it", () =>
     Effect.gen(function* () {
       const { dir, db } = yield* recordedForkDatabase(openCodeForkSessions);
-      // A reply sent after the second fork is a new provider request.
       yield* db.unsafe(
         "INSERT INTO session_message (id, session_id, type, seq, time_created, time_updated, data) VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
@@ -427,7 +422,6 @@ describe("readOpenCodeUsage", () => {
         (message) => message.id === openCodeForkSourceAssistantId,
       )!;
       yield* insert("msg_siblingcopy_2", sibling.id, copied.seq, copied.time_created, copied.data);
-      // Sibling forks send identical replies at the same seq and millisecond.
       const created = 1792620090000;
       const reply = JSON.stringify({ ...JSON.parse(copied.data), time: { created } });
       yield* insert("msg_forkreply000000000000003", fork.id, 3, created, reply);
@@ -439,7 +433,6 @@ describe("readOpenCodeUsage", () => {
         [source.id, fork.id, sibling.id],
       );
 
-      // Deleting the source leaves the first fork holding the only copy.
       yield* db.unsafe("DELETE FROM session_message WHERE session_id = ?", [source.id]);
       yield* db.unsafe("DELETE FROM session_v2 WHERE id = ?", [source.id]);
       const remaining = (yield* readOpenCodeUsage(dir, 0)).files.flatMap((file) => file.records);

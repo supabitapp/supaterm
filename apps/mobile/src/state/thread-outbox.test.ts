@@ -577,7 +577,6 @@ describe("thread outbox", () => {
     registry.dispose();
   });
 
-  // regression: #29729 Cursor runs its own Fast default when the turn carries no fastMode
   it("sends the Fast off the picker shows for a model without a Fast selection", () => {
     const cursor = { instanceId: ProviderInstanceId.make("cursor"), model: "composer-2.5" };
     const providers = [
@@ -948,7 +947,6 @@ describe("thread outbox", () => {
     });
     await manager.enqueue(message);
 
-    // Two attachments finishing together each record their upload on the same message.
     const results = await Promise.all([
       manager.amend(message.messageId, (current) => ({ ...current, text: `${current.text} a` })),
       manager.amend(message.messageId, (current) => ({ ...current, text: `${current.text} b` })),

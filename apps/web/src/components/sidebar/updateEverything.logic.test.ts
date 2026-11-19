@@ -106,7 +106,6 @@ describe("collectChannelSwitchTargets", () => {
   const NIGHTLY = "0.1.4-nightly.20261027.3796";
   const OLD_NIGHTLY = "0.1.3-nightly.20261001.3500";
   const NEWER_NIGHTLY = "0.1.4-nightly.20261020.3700";
-  // What each server reports as its database's highest migration.
   const host = (
     base: UpdateEverythingMachine,
     databaseMigration: number | undefined,
@@ -129,7 +128,6 @@ describe("collectChannelSwitchTargets", () => {
       [
         host(machine("this-app", NIGHTLY, "desktop-managed", { hostedByThisApp: true }), 72),
         host(machine("old-service", OLD_NIGHTLY, "boot-service"), 69),
-        // Service launchers refuse older versions, even when the database allows it.
         host(machine("newer-service", NEWER_NIGHTLY, "boot-service"), 69),
         host(machine("linux-desktop", OLD_NIGHTLY, "desktop-managed"), 69),
         host(machine("new-service", NIGHTLY, "boot-service"), 72),
@@ -138,7 +136,6 @@ describe("collectChannelSwitchTargets", () => {
         host(machine("preview", "0.1.3-preview.20261026.3702", "boot-service"), 69),
         host(machine("stable", "0.1.3", "boot-service"), 69),
         host(machine("stable-desktop", "0.1.2", "desktop-managed"), 68),
-        // Already current, but its saved track may still say Nightly.
         host(machine("current-desktop", "0.1.3", "desktop-managed"), 69, "darwin"),
       ],
       stable,
@@ -175,7 +172,6 @@ describe("collectChannelSwitchTargets", () => {
     const { targets, skipped } = collectChannelSwitchTargets(
       [
         host(machine("service", "0.1.2", "boot-service"), 70),
-        // A Stable tag built a migration the latest Nightly does not have yet.
         host(machine("ahead", "0.1.3", "boot-service"), 73),
         machine("old-desktop", "0.1.2", "desktop-managed", {
           serverConfig: {
@@ -211,7 +207,6 @@ describe("localSwitchBlockReason", () => {
 
     const windows = { connected: true, databaseMigration: 69 };
     expect(localSwitchBlockReason(nightly, stable, [windows], 1, true)).toBeNull();
-    // A WSL server's newer migration blocks the reinstall that would restart it.
     expect(
       localSwitchBlockReason(
         nightly,
@@ -221,11 +216,9 @@ describe("localSwitchBlockReason", () => {
         true,
       ),
     ).toContain("does not support yet");
-    // A WSL backend still starting has no client entry, so its database is unchecked.
     expect(localSwitchBlockReason(nightly, stable, [windows], 2, true)).toBe(
       "its server is not connected, so its database cannot be checked",
     );
-    // A cached head from a disconnected server proves nothing.
     expect(
       localSwitchBlockReason(
         nightly,
@@ -236,7 +229,6 @@ describe("localSwitchBlockReason", () => {
       ),
     ).toBe("its server is not connected, so its database cannot be checked");
     expect(localSwitchBlockReason("0.1.3", stable, [], 1, true)).toBeNull();
-    // A primary backend still starting has no entry or bootstrap yet, unless Local environment is off.
     expect(localSwitchBlockReason(nightly, stable, [], 0, true)).toBe(
       "its server is not connected, so its database cannot be checked",
     );

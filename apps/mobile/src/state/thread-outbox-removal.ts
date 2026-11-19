@@ -54,7 +54,6 @@ async function cleanUpRemovedMessages(
       await flushComposerDrafts();
     }
   } catch (error) {
-    // Removal is already durable; retain files and report secondary cleanup failure without changing success.
     console.warn("[thread-outbox] failed to clean up removed pending task drafts", error);
     return;
   }
@@ -72,7 +71,6 @@ export async function removeThreadOutboxMessage(
   if (removed === null) {
     return false;
   }
-  // Clean the removed payload; accepted updates may contain files absent from the caller's snapshot.
   await cleanUpRemovedMessages([removed]);
   return true;
 }
@@ -92,8 +90,6 @@ export async function removePendingThreadCreation(
   if (!(await removeThreadOutboxMessage(creation, undefined, canRemove))) return false;
   for (const message of queue) {
     if (message.creation !== undefined) continue;
-    // The drain drops leftovers once the shell is live; this keeps them from
-    // lingering while offline.
     await removeThreadOutboxMessage(message).catch((error: unknown) => {
       console.warn("[thread-outbox] failed to remove a deleted task's follow-up", error);
     });
@@ -102,7 +98,6 @@ export async function removePendingThreadCreation(
 }
 
 export async function clearThreadOutboxEnvironment(environmentId: EnvironmentId): Promise<void> {
-  // Use the actual removed set, including persisted messages missed by an earlier failed hydration.
   const removed = await threadOutboxManager.clearEnvironment(environmentId);
   await cleanUpRemovedMessages(removed);
 }

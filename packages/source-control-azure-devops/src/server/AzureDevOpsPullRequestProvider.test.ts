@@ -50,7 +50,6 @@ function change(
   return { path, oldPath: path, changeKind, objectId: "8f80", originalObjectId: "0ca4" };
 }
 
-/** A batch that returns nothing, so every file takes the per-file read. */
 const NO_BLOBS = { readBlobs: () => Effect.succeed(new Map()) };
 
 function side(prefix: string, lines: number, width: number): string {
@@ -91,7 +90,6 @@ const readSlice = (input: {
               reads.push(item.path);
               inFlight += 1;
               peakInFlight = Math.max(peakInFlight, inFlight);
-              // Yield like a subprocess to exercise concurrency.
               const answersAfter = input.paths.length - input.paths.indexOf(item.path);
               for (let turn = 0; turn < answersAfter; turn += 1) yield* Effect.yieldNow;
               inFlight -= 1;
@@ -224,7 +222,6 @@ describe("getChangeRequest", () => {
         );
         const input = { cwd: "/w", repository: "acme/web", host: "dev.azure.com", number: 7 };
 
-        // Clients request detail and conversation together; both start before the read returns.
         const detail = yield* Effect.forkChild(provider.getChangeRequest(input), {
           startImmediately: true,
         });
@@ -324,7 +321,6 @@ describe("getDiff reads", () => {
               Effect.gen(function* () {
                 inFlight += 1;
                 peakInFlight = Math.max(peakInFlight, inFlight);
-                // Yield like a subprocess to exercise concurrency.
                 yield* Effect.yieldNow;
                 yield* Effect.yieldNow;
                 inFlight -= 1;
@@ -367,7 +363,6 @@ describe("getDiff reads", () => {
             readBlobs: (input) =>
               Effect.sync(() => {
                 batches.push(input.objectIds);
-                // Azure left one side of b.ts out, as it does for a file only it can decode.
                 return new Map(
                   input.objectIds
                     .filter((id) => id !== "B.TS-OLD")
@@ -420,8 +415,6 @@ describe("getDiff reads", () => {
   it.effect("starts a new blob batch where the last one's files run out", () =>
     Effect.gen(function* () {
       const paths = Array.from({ length: BLOB_BATCH_FILES + 3 }, (_, at) => `f${at}.ts`);
-      // Added lines that bring the slice near its edit budget by file 96, so the read batches
-      // there narrow to 3 and the one from file 99 would reach past the blob batch.
       const added = (at: number) => (at < 60 ? 41 : at < 96 ? 40 : at < 99 ? 0 : 10);
       const batchSizes: number[] = [];
       let fileReads = 0;

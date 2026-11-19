@@ -78,12 +78,10 @@ it("forgets native Back when a full-screen presentation covers the top card", ()
       ),
     );
 
-    // A presentation covers the thread: nothing in the stack appears beneath it.
     fire("thread", "onWillDisappear");
     fire("thread", "onDidDisappear");
     expect(onNativePopChange).toHaveBeenLastCalledWith(null);
 
-    // Native Back reveals Home, so the thread stays the card being popped.
     fire("thread", "onWillDisappear");
     fire("home", "onWillAppear");
     fire("thread", "onDidDisappear");

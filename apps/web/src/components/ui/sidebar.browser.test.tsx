@@ -27,7 +27,7 @@ function Harness() {
 describe("Sidebar", () => {
   it("hands focus to the outside trigger when it collapses around the focused control", async () => {
     await page.viewport(1280, 800);
-    await using screen = await render(<Harness />, { router: false /* no routes involved */ });
+    await using screen = await render(<Harness />, { router: false });
 
     await userEvent.click(screen.getByRole("button", { name: "Collapse" }));
 
@@ -39,7 +39,7 @@ describe("Sidebar", () => {
 
   it("toggles from the trigger and reopens without inert", async () => {
     await page.viewport(1280, 800);
-    await using screen = await render(<Harness />, { router: false /* no routes involved */ });
+    await using screen = await render(<Harness />, { router: false });
     const sidebar = screen.container.querySelector<HTMLElement>('[data-slot="sidebar"]')!;
     const trigger = screen.container.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]')!;
 
@@ -60,7 +60,7 @@ describe("Sidebar", () => {
           <SidebarTrigger />
         </SidebarInsetPanel>
       </SidebarProvider>,
-      { router: false /* no routes involved */ },
+      { router: false },
     );
     const sidebar = screen.container.querySelector<HTMLElement>('[data-slot="sidebar"]')!;
     const trigger = screen.container.querySelector<HTMLElement>('[data-slot="sidebar-trigger"]')!;
@@ -104,19 +104,19 @@ it("restores collapsed and expanded desktop state after remounting", async () =>
     </SidebarProvider>
   );
   {
-    await using screen = await render(layout(), { router: false /* no routes involved */ });
+    await using screen = await render(layout(), { router: false });
     const trigger = screen.getByRole("button", { name: "Toggle Sidebar" });
     await expect.element(trigger).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(trigger);
     await expect.element(trigger).toHaveAttribute("aria-pressed", "false");
   }
   {
-    await using screen = await render(layout(), { router: false /* no routes involved */ });
+    await using screen = await render(layout(), { router: false });
     const trigger = screen.getByRole("button", { name: "Toggle Sidebar" });
     await expect.element(trigger).toHaveAttribute("aria-pressed", "false");
     await userEvent.click(trigger);
   }
-  await using screen = await render(layout(), { router: false /* no routes involved */ });
+  await using screen = await render(layout(), { router: false });
   await expect
     .element(screen.getByRole("button", { name: "Toggle Sidebar" }))
     .toHaveAttribute("aria-pressed", "true");
@@ -132,7 +132,7 @@ it("keeps the mobile sheet closed and leaves the saved desktop state alone", asy
       <SidebarProvider storageKey={storageKey}>
         <SidebarTrigger />
       </SidebarProvider>,
-      { router: false /* no routes involved */ },
+      { router: false },
     );
     const trigger = screen.getByRole("button", { name: "Toggle Sidebar" });
     await expect.element(trigger).toHaveAttribute("aria-pressed", "false");
@@ -144,7 +144,7 @@ it("keeps the mobile sheet closed and leaves the saved desktop state alone", asy
     <SidebarProvider storageKey={storageKey}>
       <SidebarTrigger />
     </SidebarProvider>,
-    { router: false /* no routes involved */ },
+    { router: false },
   );
   await expect
     .element(screen.getByRole("button", { name: "Toggle Sidebar" }))
@@ -167,10 +167,9 @@ it("keeps closed mobile sheet contents mounted and reports the sheet only while 
       <SidebarTrigger />
       <MobileSheetMountedProbe />
     </SidebarProvider>,
-    { router: false /* no routes involved */ },
+    { router: false },
   );
   const sheetMounted = screen.getByLabelText("Sheet mounted");
-  // Window shortcuts registered by sidebar children only work while they stay mounted.
   expect(document.querySelector('[data-mobile="true"]')?.textContent).toContain("Sheet contents");
   await expect.element(sheetMounted).toHaveTextContent("false");
 

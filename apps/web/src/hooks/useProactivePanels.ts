@@ -16,7 +16,6 @@ import {
   shouldRetargetThreadPullRequestPanel,
 } from "../components/ChatView.logic";
 
-// Settings and drafts unmount ChatView; remember links until the page reloads.
 const observedThreadPullRequests = new Map<string, ThreadLinkedPullRequest | null>();
 
 /**
@@ -26,7 +25,6 @@ const observedThreadPullRequests = new Map<string, ThreadLinkedPullRequest | nul
  * observeProactivePanelUserChoice.
  */
 export function useProactivePanels(input: {
-  // Null for drafts and while the thread is unavailable.
   readonly threadRef: ScopedThreadRef | null;
   readonly enabled: boolean;
   readonly settingsHydrated: boolean;
@@ -89,7 +87,6 @@ export function useProactivePanels(input: {
     } = observation;
     const openSurface = selectActiveRightPanelSurface(panels.byThreadKey, threadRef);
     const previousPullRequest = observedThreadPullRequests.get(threadKey) ?? null;
-    // A missing link during loading must not erase the last observed one.
     if (linkedThreadPullRequest !== null || !threadDetailLoading) {
       observedThreadPullRequests.set(threadKey, linkedThreadPullRequest);
     }

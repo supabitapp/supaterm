@@ -36,7 +36,6 @@ const TRANSITIONS: Readonly<
   attaching: { attached: "consuming", failed: "failed" },
   consuming: { consumed: "done", failed: "failed" },
   done: {},
-  // "start" from failed is a retry.
   failed: { start: "reserving", cancel: "cancelling" },
   cancelling: { cancelled: "cancelled", cancelFailed: "failed" },
   cancelled: {},
@@ -110,14 +109,10 @@ interface Entry {
   readonly target: ShareImportTarget;
   phase: ShareImportPhase;
   readonly controller: AbortController;
-  /** Set when another draft of the same route took over before this import finished. */
   superseded: boolean;
-  /** Set when the route left while a failed import still waits for retry or cancel. */
   detached: boolean;
   run: Promise<void>;
-  /** The draft before the first attempt merged into it; cancel restores it. */
   backup: ComposerDraft | null;
-  /** The draft as the last merge published it; cancel undoes against it. */
   merged: ComposerDraft | null;
   reservedFor: IncomingShareDestination | null;
   consumed: boolean;
@@ -149,9 +144,6 @@ interface ImportedShare {
  */
 export function makeIncomingShareImports(deps: ShareImportDeps) {
   const entries = new Map<string, Entry>();
-  // Shares each route already moved into a draft. Sending clears the draft's
-  // import receipt a frame before the route leaves, so the route needs its
-  // own record to tell "imported" from "vanished".
   const importedAtom = Atom.make<ReadonlyArray<ImportedShare>>([]).pipe(
     Atom.keepAlive,
     Atom.withLabel("mobile:incoming-share-imported"),
@@ -163,8 +155,6 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
       ),
     ).pipe(Atom.withLabel("mobile:incoming-share-imported:route")),
   );
-  // One flow key per running attempt, abandoned ones included: an abandoned
-  // attempt can still be inside a draft write when the screen's target goes away.
   const runningAtom = Atom.make<ReadonlyArray<string>>([]).pipe(
     Atom.keepAlive,
     Atom.withLabel("mobile:incoming-share-import-running"),
@@ -176,7 +166,6 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
   );
 
   function notify(entry: Entry): void {
-    // Listeners rebuild their node, which re-registers them; iterate a copy.
     for (const listener of Array.from(entry.listeners)) listener();
   }
 
@@ -194,9 +183,6 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
   async function runImport(key: string, entry: Entry): Promise<void> {
     const { signal } = entry.controller;
     const { shareId, destination, draftKey } = entry.target;
-    // A phase atom node of a superseded import may still be cached; rebuilding
-    // it lets a route that switches back start over instead of showing the
-    // abandoned import's last phase.
     const stopped = () => {
       if (!signal.aborted) return false;
       if (entry.superseded) notify(entry);
@@ -205,8 +191,6 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
     try {
       await deps.reserve(shareId, destination);
       entry.reservedFor = destination;
-      // The durable reservation makes an interrupted transfer resume only in
-      // this project instead of copying into a second project draft.
       if (stopped()) return;
       advance(entry, "reserved");
       const share = deps.getShare(shareId);
@@ -224,17 +208,12 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
           sourceShareId: shareId,
         }));
       } finally {
-        // The merge publishes before it persists, so read it back even when
-        // persisting rejects.
         entry.merged = deps.readDraft(draftKey);
       }
       if (stopped()) return;
       advance(entry, "attached");
       await deps.consume(shareId);
       entry.consumed = true;
-      // The consumed inbox draft was the last owner of files that never made
-      // it into the composer draft (unsupported server, oversize, limit
-      // skips). Release them even when the route left meanwhile.
       const retainedIds = new Set(
         deps.readDraft(draftKey).attachments.map((attachment) => attachment.id),
       );
@@ -284,8 +263,6 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
     const key = keyOf(target);
     const existing = entries.get(key);
     if (existing) return existing;
-    // A route imports into one draft at a time; a superseded import stops at
-    // its next step and no longer reports failures.
     for (const [otherKey, other] of entries) {
       if (other.target.flowKey === target.flowKey && isShareImportInFlight(other.phase)) {
         other.superseded = true;
@@ -317,19 +294,11 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
     if (!entry || entry.phase !== "failed") return;
     const { draftKey, shareId } = entry.target;
     advance(entry, "cancel");
-    // Cancelling finishes even if the route leaves meanwhile: it only undoes
-    // durable writes this import made.
     try {
       if (entry.needsRestore && entry.backup) {
-        // The draft can change while a failed import waits for an answer, by the
-        // user or an upload finishing, and a retried undo runs after its own
-        // publish. Undoing against the merged draft keeps those changes.
         const merged = entry.merged ?? entry.backup;
         await deps.undoMerge(draftKey, entry.backup, merged);
         entry.needsRestore = false;
-        // Sweep the share's merged-in files only once the inbox entry was
-        // consumed: before that, the inbox still owns them for a later import.
-        // The sweep skips files a draft still holds.
         if (entry.consumed) deps.releaseUnusedAttachments(merged.attachments);
       }
       if (entry.reservedFor) {
@@ -355,16 +324,10 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
         return entry.phase;
       }).pipe(Atom.withLabel("mobile:incoming-share-import")),
     ),
-    /**
-     * Whether an import for this route is still running, including one whose
-     * target the screen no longer renders.
-     */
     inFlightAtom: isRunningAtom,
-    /** Resolves once the target's current attempt stops. */
     settled(target: ShareImportTarget): Promise<void> {
       return entries.get(keyOf(target))?.run ?? Promise.resolve();
     },
-    /** Whether this route already moved the share into one of its drafts. */
     importedAtom(flowKey: string, shareId: string) {
       return isImportedAtom(JSON.stringify([flowKey, shareId]));
     },
@@ -375,11 +338,6 @@ export function makeIncomingShareImports(deps: ShareImportDeps) {
       begin(key, entry);
     },
     cancel,
-    /**
-     * Abandons the imports of draft routes that are no longer on the stack.
-     * A failed import keeps its retry and cancel until the user answers.
-     * Resolves once the abandoned imports have stopped.
-     */
     prune(liveFlowKeys: ReadonlySet<string>): Promise<void> {
       const stopping: Array<Promise<void>> = [];
       for (const [key, entry] of entries) {

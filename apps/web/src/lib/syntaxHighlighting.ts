@@ -10,7 +10,6 @@ import {
 
 import { resolveDiffThemeName } from "./diffRendering";
 
-// Highlights has no lexer for these dialects, so they use their base language's.
 setCustomExtension("luau", "lua");
 setCustomExtension("xsl", "xml");
 setCustomExtension("xslt", "xml");

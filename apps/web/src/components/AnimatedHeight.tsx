@@ -142,8 +142,6 @@ function KeyedHeight({
 }) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  // The layout effect below runs after the new content is in the DOM, so the
-  // starting height comes from the last observed size.
   const lastHeightRef = useRef<number | null>(null);
   const animationRef = useRef<Animation | null>(null);
   const animatedKeyRef = useRef(animateKey);

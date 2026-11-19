@@ -21,7 +21,6 @@ const CLAUDE_VOICE_LANGUAGES = [
   "ko",
 ];
 
-/** Whisper's languages under 50% word error rate; the server accepts any other ISO 639 code. */
 const CODEX_VOICE_LANGUAGES = [
   ...CLAUDE_VOICE_LANGUAGES,
   "af",

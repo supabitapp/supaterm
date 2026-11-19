@@ -46,8 +46,6 @@ describe("clearBrowserProfileData with server browsers", () => {
   });
 });
 
-// Mirrors `BrowserImportFailedError.message`, which IPC flattens to a string
-// before the renderer sees it.
 const failure = (reason: string) => ({
   message: `Importing cookies from safari failed: ${reason}.`,
 });

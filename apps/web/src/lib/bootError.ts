@@ -18,7 +18,6 @@ const COPY_BLOCKED = "Copy was blocked. The text is selected so you can copy it 
 const UPDATE_DOWNLOAD_FAILED = "The update download failed. Try Download update again.";
 const UPDATE_INSTALL_FAILED = "The update install failed. Try Restart to update again.";
 
-/** The Windows launcher is a `.cmd` run from PowerShell, which needs `&` to run a quoted path. */
 function launcherCommand(launcherPath: string) {
   if (launcherPath.endsWith(".cmd")) {
     return /^[\w:\\.-]+$/.test(launcherPath)
@@ -34,7 +33,6 @@ function launcherCommand(launcherPath: string) {
 export async function resolveTriageCommand(bridge: DesktopBridge | undefined) {
   try {
     const state = await bridge?.cliCommand.getState();
-    // Windows reports onPath from its PATH entry alone; only an existing launcher proves it runs.
     if (state?.launcherPath) {
       return state.onPath ? "supaterm triage" : `${launcherCommand(state.launcherPath)} triage`;
     }
@@ -69,7 +67,6 @@ function safeString(value: unknown) {
 function describeOne(value: unknown) {
   if (value instanceof Error) {
     const header = value.message ? `${value.name}: ${value.message}` : value.name;
-    // V8 stacks start with the header; Safari and Firefox stacks do not.
     const stack = typeof value.stack === "string" ? value.stack : "";
     return stack === header || stack.startsWith(`${header}\n`)
       ? stack
@@ -83,7 +80,6 @@ function describeOne(value: unknown) {
   }
 }
 
-/** Hosts can name private machines, and pairing tokens live in query strings and hashes. */
 function redact(text: string) {
   return text
     .replace(/\b[a-z][\w+.-]*:\/\/[^\s/?#'"()]+/gi, "")
@@ -147,7 +143,6 @@ function readEnvironment(bridge: DesktopBridge | undefined): BootErrorEnvironmen
   };
 }
 
-/** Opens More options by default when startup already failed in this tab a moment ago. */
 function isRepeatFailure(now: number) {
   try {
     const previous = Number(sessionStorage.getItem(LAST_FAILURE_KEY));
@@ -158,7 +153,6 @@ function isRepeatFailure(now: number) {
   }
 }
 
-// The boot screen renders before React, so it takes the icons as SVG markup.
 const icon = (node: IconNode) =>
   `<svg width="14" height="14" viewBox="0 0 24 24" ${ICON_SVG_ROOT_ATTRIBUTES} aria-hidden="true">${iconSvgElements(node)}</svg>`;
 const COPY_ICON = icon(Copy);
@@ -190,7 +184,6 @@ function copySelection() {
   }
 }
 
-/** Plain http has no Clipboard API, but the legacy copy command still works on a selection. */
 function copyText(target: HTMLElement, onCopied: () => void, onBlocked: (hint: string) => void) {
   const fallback = () => {
     selectContents(target);
@@ -214,7 +207,6 @@ function mountUpdateButton(
   const render = (state: DesktopUpdateState) => {
     action = updateActionFor(state);
     button.hidden = action === null;
-    // aria-disabled keeps keyboard focus on the button while the download runs.
     button.setAttribute("aria-disabled", String(action?.kind === "downloading"));
     if (action?.kind === "download") button.textContent = "Download update";
     if (action?.kind === "downloading")
@@ -244,7 +236,6 @@ function mountUpdateButton(
       (error: unknown) => console.warn("Could not update Supaterm.", error),
     );
   });
-  // A pushed state is newer than the initial read, so the read must not overwrite it.
   let pushed = false;
   try {
     bridge.onUpdateState((state) => {
@@ -271,7 +262,6 @@ export function showBootError(error: unknown) {
 
   const status = element("span", { className: "boot-error-sr" });
   status.setAttribute("aria-live", "polite");
-  // Clearing first makes screen readers announce a repeated message.
   let announcement: ReturnType<typeof setTimeout> | undefined;
   const announce = (text: string) => {
     clearTimeout(announcement);

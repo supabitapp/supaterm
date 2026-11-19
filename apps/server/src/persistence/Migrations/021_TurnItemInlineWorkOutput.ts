@@ -4,8 +4,6 @@ import * as SqlClient from "effect/sql/SqlClient";
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
-  // Thread windows read this flag for every row; scanning payloads on each read
-  // dominated thread open. Keep the predicate in step with ProjectionStore.
   yield* sql`
     ALTER TABLE orchestration_v2_projection_turn_items
     ADD COLUMN inline_work_output INTEGER NOT NULL DEFAULT 0

@@ -293,7 +293,6 @@ const EMPTY_BROWSE_ENTRIES: FilesystemBrowseResult["entries"] = [];
 const ADD_PROJECT_ENTRY_GROUP = "add-project";
 const NEW_THREAD_IN_GROUP = "projects";
 
-/** The submenu an open intent starts in; its groups resolve while rendering. */
 function openIntentView(intent: CommandPaletteOpenIntent | null): CommandPaletteView | null {
   switch (intent?.kind) {
     case "add-project":
@@ -338,7 +337,6 @@ export function CommandPalette({ children }: { children: ReactNode }) {
             dispatchCommandPalette({ _tag: "BackToCommand" });
             return;
           }
-          // Dismissed without picking anything: a pending "open beside" request lapses too.
           if (!open) useChatPaneStore.getState().cancelOpenToSide();
           setOpen(open);
         }}
@@ -390,7 +388,6 @@ function CommandPaletteDialog(props: {
         const returnFocus = getCommandPaletteReturnFocus();
         if (returnFocus === false) return false;
         const composer = composerHandleRef?.current;
-        // Behind the Settings modal the composer is inert and cannot take focus.
         if (!composer || document.querySelector("[data-app-modal]")) return returnFocus;
         composer.focusAtEnd();
         return false;
@@ -430,8 +427,6 @@ function OpenCommandPaletteDialog(props: {
   const pathname = useLocation({ select: (location) => location.pathname });
   const composerHandleRef = useComposerHandleContext();
   const { openChildSearch, setOpen } = props;
-  // Keyed by palette session: the intent and restored search only seed this
-  // mount, and closing must not change what the closing palette shows.
   const [initialSearch] = useState(
     () =>
       props.initialContext ?? {
@@ -452,7 +447,6 @@ function OpenCommandPaletteDialog(props: {
   const isActionsOnly = deferredQuery.startsWith(">");
   const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
   const resultListRef = useRef<LegendListRef | null>(null);
-  // Entering or leaving browse mode remounts the input; carry the caret across it.
   const remountSelectionRef = useRef<PendingInputSelection | null>(null);
   const clientSettings = useClientSettings(selectCommandPaletteClientSettings);
   const createProject = useAtomCommand(projectEnvironment.create, {
@@ -548,7 +542,6 @@ function OpenCommandPaletteDialog(props: {
     if (activeThreadReferenceCopyTarget === null) return;
     await copyThreadReference(activeThreadReferenceCopyTarget);
   };
-  // Side chats and subagents open inside their parent, so opening a project never lands on one.
   const threads = useThreadShells().filter((thread) => !isSidebarHiddenThread(thread));
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const providersByEnvironment = useEnvironmentProviders();
@@ -570,7 +563,6 @@ function OpenCommandPaletteDialog(props: {
   const [newProjectPublishKind, setNewProjectPublishKind] =
     useState<SourceControlProviderKind | null>(null);
   const [isCreatingNewProject, setIsCreatingNewProject] = useState(false);
-  // State lags a render behind, so a repeated Enter could start a second create.
   const newProjectSubmittingRef = useRef(false);
   const createNewProject = useNewProject();
   const cloneLookupGeneration = useRef(0);
@@ -599,8 +591,6 @@ function OpenCommandPaletteDialog(props: {
     ]),
   );
   const { canPinProjectGroup, toggleProjectGroupPin } = useProjectPin();
-  // A row's target record can change when another machine's copy loads, so the kept
-  // order follows the project group instead.
   const rowOrderKey = (prefix: string) => (item: CommandPaletteActionItem) =>
     projectGroupByTargetKey.get(item.value.slice(prefix.length + 1))?.projectKey ?? item.value;
   const projectPin = (project: CommandPaletteProject) => {
@@ -662,10 +652,6 @@ function OpenCommandPaletteDialog(props: {
     environments.find((environment) => environment.environmentId === browseEnvironmentId) ?? null;
   const browseEnvironmentIsDesktopLocal =
     browseEnvironment !== null && isDesktopLocalConnectionTarget(browseEnvironment.entry.target);
-  // Map the browsed desktop-local env to its desktop pool instance id (e.g.
-  // "wsl:ubuntu"). The catalog environmentId is descriptor-derived and won't
-  // route on the desktop side; pickFolder only recognizes the pool id, which
-  // the bootstrap list exposes.
   const browseDesktopInstanceId = (() => {
     if (!browseEnvironmentIsDesktopLocal || browseEnvironment === null) {
       return null;
@@ -813,7 +799,6 @@ function OpenCommandPaletteDialog(props: {
   useEffect(
     () => () => {
       browseNavigation.invalidate();
-      // A replaced or closed session must not report its in-flight lookup.
       cloneLookupGeneration.current += 1;
     },
     [browseNavigation],
@@ -858,7 +843,6 @@ function OpenCommandPaletteDialog(props: {
     await handleNewThread(scopeProjectRef(project.environmentId, project.id));
   };
 
-  // Pinning from a row keeps rows in place while the palette is open.
   const projectSearchItems = useOrderWhileOpen(
     buildProjectSearchItems({
       projects: pickerProjects,
@@ -932,7 +916,6 @@ function OpenCommandPaletteDialog(props: {
     rowOrderKey("new-thread-in"),
     true,
   );
-  // Root search suggestions copy these numbers; the picker renumbers its shown rows below.
   const projectJumpItems = new Map(
     enumerateCommandPaletteItems(
       openingOrderThreadItems.filter((item) => item.value !== NEW_THREAD_NO_PROJECT_VALUE),
@@ -948,8 +931,6 @@ function OpenCommandPaletteDialog(props: {
     now: searchNow,
     isSearchPending: isThreadSearchPending,
   } = useCommandPaletteThreadItems({ activeThread: activeThread ?? null, threadSearchQuery });
-  // Recent means used recently: written in or opened, whichever is later. The
-  // open thread would always lead that list, so it is left out.
   const activeThreadValue = activeThread
     ? `thread:${activeThread.environmentId}:${activeThread.id}`
     : null;
@@ -984,7 +965,6 @@ function OpenCommandPaletteDialog(props: {
   function handleQueryChange(nextQuery: string, source: EventTarget | null): void {
     browseNavigation.invalidate();
     const resolvedQuery = canBrowsePaths ? resolvePastedPath(query, nextQuery) : nextQuery;
-    // A rewritten paste has no matching offsets, so its caret lands at the end.
     if (
       source instanceof HTMLInputElement &&
       resolvedQuery === nextQuery &&
@@ -1260,8 +1240,6 @@ function OpenCommandPaletteDialog(props: {
     }
   };
 
-  // The view an "Add project" intent opens to follows the environments as they
-  // connect, so it resolves here instead of being fixed when the palette opened.
   const addProjectEntryGroups = (): ReadonlyArray<CommandPaletteGroup> => {
     switch (addProjectEntry.kind) {
       case "connect-environment":
@@ -1663,7 +1641,6 @@ function OpenCommandPaletteDialog(props: {
     const { items, run } = threadActions(activeThread);
     actionItems.push(
       ...buildThreadPaletteItems(items, run).filter(
-        // Without a pull request, the copy-reference command above already copies the thread ID.
         (item) =>
           item.value !== "action:thread:copy-thread-id" ||
           activeThreadReferenceCopyTarget?.kind !== "thread",
@@ -1848,7 +1825,6 @@ function OpenCommandPaletteDialog(props: {
     },
   });
 
-  // Every group, so an archived project's thread still opens its own settings.
   const currentProjectGroup =
     (contextualProjectRef
       ? projectGroups.find((group) =>
@@ -1905,8 +1881,6 @@ function OpenCommandPaletteDialog(props: {
   }
 
   const rootGroups = buildRootGroups({ actionItems, recentThreadItems });
-  // Every setting goes to the palette's own matcher, so settings get the same
-  // word starts and typo tolerance as threads.
   const settingsSearchItems: CommandPaletteActionItem[] = settingsForThisPlatform(
     availableSettingsSearchItems,
   ).map((item) => ({
@@ -1943,7 +1917,6 @@ function OpenCommandPaletteDialog(props: {
               {
                 value: NEW_THREAD_IN_GROUP,
                 label: "Projects",
-                // Every project archived and no "No project" home leaves only adding one.
                 items: projectThreadItems.length > 0 ? projectThreadItems : [addProjectAction],
               },
             ]
@@ -1986,7 +1959,6 @@ function OpenCommandPaletteDialog(props: {
     threadMessageItems: isLinkedThreadSearch ? [] : threadMessageItems,
     now: searchNow,
   });
-  // Jump shortcuts number the project rows as shown, so a pin cannot move a number to another row.
   const filteredGroups = searchedGroups.map((group) => {
     if (group.value !== NEW_THREAD_IN_GROUP) return group;
     const jumpItems = new Map(
@@ -2053,7 +2025,6 @@ function OpenCommandPaletteDialog(props: {
       cwd,
     );
     if (existing) {
-      // Adding an archived project's folder again brings the project back.
       if (existing.archivedAt != null) {
         void updateProject({
           environmentId: existing.environmentId,
@@ -2182,7 +2153,6 @@ function OpenCommandPaletteDialog(props: {
     );
     newProjectSubmittingRef.current = false;
     setIsCreatingNewProject(false);
-    // Same outcome as the old try/finally: the rejection still surfaces to the caller.
     if (created._tag === "Failure") throw squashAtomCommandFailure(created);
     if (created.value) setOpen(false);
   }
@@ -2683,7 +2653,6 @@ function OpenCommandPaletteDialog(props: {
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
     if (event.key === "Enter" && isImeComposing(event)) {
-      // Confirming an IME candidate must not submit a path or select a row.
       (event as typeof event & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
       return;
     }
@@ -2704,7 +2673,6 @@ function OpenCommandPaletteDialog(props: {
         return;
       }
     }
-    // Global new-thread handlers ignore shortcuts while the palette is open.
     const isJump = threadJumpIndexFromCommand(command ?? "") !== null;
     const isNewThread =
       !event.nativeEvent.isComposing &&
@@ -2774,11 +2742,9 @@ function OpenCommandPaletteDialog(props: {
       newProjectFlow !== null &&
       event.key === "Enter" &&
       (!hasHighlightedNewProjectItem || isPrimaryModifierPressed(event)) &&
-      // Enter that confirms an IME composition is part of typing the name.
       !event.nativeEvent.isComposing &&
       event.keyCode !== 229
     ) {
-      // Base UI would otherwise also click the highlighted row.
       (event as typeof event & { preventBaseUIHandler?: () => void }).preventBaseUIHandler?.();
       event.preventDefault();
       void submitNewProject();
@@ -2806,7 +2772,6 @@ function OpenCommandPaletteDialog(props: {
       return;
     }
 
-    // Alt+Enter opens the highlighted thread beside the focused chat pane.
     if (
       event.key === "Enter" &&
       event.altKey &&
@@ -2853,8 +2818,6 @@ function OpenCommandPaletteDialog(props: {
       return;
     }
 
-    // Base UI clicks the highlighted row on Enter, which does nothing once the
-    // virtualized list has unmounted it, so run the tracked highlight directly.
     if (event.key === "Enter" && !event.nativeEvent.isComposing && event.keyCode !== 229) {
       const highlightedItem = findHighlightedCommandPaletteItem(
         displayedGroups,
@@ -2896,8 +2859,6 @@ function OpenCommandPaletteDialog(props: {
         );
       })
       .finally(() => {
-        // A request to open beside the focused pane belongs to this pick. If the pick did not
-        // open a thread, it lapses rather than splitting some later navigation.
         requestAnimationFrame(() => {
           if (openToSide !== null && useChatPaneStore.getState().openToSide === openToSide) {
             useChatPaneStore.getState().cancelOpenToSide();
@@ -2923,10 +2884,6 @@ function OpenCommandPaletteDialog(props: {
         browseEnvironmentId === primaryEnvironmentId && browseEnvironmentPlatform === "Linux"
           ? ((await window.desktopBridge?.getWslState().catch(() => null)) ?? null)
           : null;
-      // A WSL-only primary has no secondary bootstrap, so resolve its instance
-      // id from desktop settings. Windows and combo-mode primaries still omit
-      // the target to preserve the native primary picker. The desktop converts
-      // a WSL UNC selection back to a Linux path before returning.
       const pickerTargetEnvironmentId = resolveProjectPickerTarget({
         browseEnvironmentId,
         primaryEnvironmentId,
@@ -3112,8 +3069,6 @@ function OpenCommandPaletteDialog(props: {
       {`Open in ${fileManagerName}`}
     </CommandFooterAction>
   ) : isThreadSearchPending && !isLinkedThreadSearch && !isBrowsing ? (
-    // In the footer, so the list keeps its height while message results may
-    // still arrive below it.
     <span className="text-muted-foreground text-xs">Searching messages…</span>
   ) : null;
 

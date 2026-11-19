@@ -16,7 +16,6 @@ const projectColorsAtom = Atom.make((get) =>
   ),
 ).pipe(Atom.withLabel("project-colors"));
 
-// Keyed per project so a tile only re-renders when its own color changes.
 const projectColorAtom = Atom.family((colorKey: string) =>
   Atom.make((get) => get(projectColorsAtom).get(colorKey) ?? preferredProjectColor(colorKey)).pipe(
     Atom.withLabel(`project-color:${colorKey}`),

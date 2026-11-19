@@ -69,7 +69,6 @@ function CustomSnoozeDialog() {
   const [error, setError] = useState<string | null>(null);
   const input: CustomSnoozeInput =
     mode === "date" ? { mode, date: localSnoozeDate(date), time } : { mode, amount, unit };
-  // The minute clock moves the calendar's first selectable day past midnight while it stays open.
   const nowMinuteMs = useNowMinuteMs();
   const startOfToday = new Date(nowMinuteMs);
   startOfToday.setHours(0, 0, 0, 0);

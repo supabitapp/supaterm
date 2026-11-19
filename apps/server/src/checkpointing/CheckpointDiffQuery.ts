@@ -27,7 +27,6 @@ import {
 import * as CheckpointStore from "./CheckpointStore.ts";
 import { isGitImport, parseTurnDiffFilesFromNumstat, type TurnDiffFileSummary } from "./Diffs.ts";
 
-// Windows limits a command line to 32,767 characters. Leave room for the rest of git's arguments.
 const MAX_PATHSPEC_CHARS = 24_000;
 
 function batchFilePaths(files: ReadonlyArray<TurnDiffFileSummary>) {
@@ -163,8 +162,6 @@ export const make = Effect.gen(function* () {
         });
       }
 
-      // Capture compares against the preceding scope ordinal, even when that
-      // checkpoint belongs to a stopped run or has no run.
       const parentCheckpoint =
         input.fromTurnCount === input.toTurnCount - 1
           ? projection.checkpoints.find(
@@ -220,7 +217,6 @@ export const make = Effect.gen(function* () {
               Effect.orElseSucceed(() => []),
             );
       const retainedFiles = files.filter((file) => !isGitImport(file, authoredPaths));
-      // Select retained paths before generating a patch, so imported bulk cannot exhaust its output limit.
       const pathBatches =
         retainedFiles.length === files.length ? [undefined] : batchFilePaths(retainedFiles);
       let diff = "";
@@ -230,15 +226,12 @@ export const make = Effect.gen(function* () {
           .diffCheckpoints({
             ...comparison,
             ...(filePaths === undefined ? {} : { filePaths }),
-            // One extra byte distinguishes an exact fit from a truncated patch.
             maxOutputBytes: remainingBytes + 1,
           })
           .pipe(Effect.withSpan("checkpoint.turnDiff.diffCheckpoints"));
         const patchBytes = Buffer.byteLength(patch);
         diff += patch;
         if (patchBytes > remainingBytes) {
-          // Reserve marker space only on overflow, which may trim an earlier batch.
-          // Streaming decode drops an incomplete final UTF-8 character at the byte boundary.
           diff =
             new TextDecoder().decode(
               Buffer.from(diff).subarray(

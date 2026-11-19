@@ -38,7 +38,6 @@ const citation = {
   suffix: "",
 };
 
-// The mocked source observer is shared, so every test starts by resetting it.
 function setup() {
   mocks.observeSource.mockReset().mockReturnValue(mocks.dispose);
   mocks.dispose.mockClear();
@@ -173,8 +172,6 @@ describe("citation comment popup position", () => {
     message.style.width = "240px";
     const pre = document.createElement("pre");
     const code = document.createElement("code");
-    // Highlighted code is split into token spans, so the range's last client rect
-    // covers only the final token, wholly inside the hidden overflow.
     for (let index = 0; index < 40; index += 1) {
       const token = document.createElement("span");
       token.textContent = `token${index} `;
@@ -200,8 +197,6 @@ describe("citation comment popup position", () => {
     );
     const popup = () => document.querySelector<HTMLElement>('[data-slot="popover-popup"]');
     await vi.waitFor(() => expect(popup()?.getBoundingClientRect().width).toBeGreaterThan(0));
-    // Typing scrolls ancestors to reveal the caret, which shifts the whole app
-    // sideways when the box is off screen.
     await userEvent.keyboard("note");
 
     expect(textarea()?.value).toBe("note");

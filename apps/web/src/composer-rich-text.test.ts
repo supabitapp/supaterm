@@ -54,7 +54,6 @@ describe("composer rich text markdown", () => {
     ]);
   });
 
-  // regression: #25180 underscores in URLs and paths were read as emphasis
   it("keeps underscores inside URLs, paths, and filenames literal", () => {
     for (const text of [
       "Read https://example.com/_handle_/status/1 and open src/__test__.tsx",

@@ -150,7 +150,6 @@ it.effect("advertises standalone branch deletion for source repository writers",
   }),
 );
 
-// v26.10.1 clients reject a whole pull request payload over one action they do not know.
 const V26_10_1_LISTED_ACTIONS: ReadonlySet<string> = new Set([
   "merge",
   "ready",
@@ -543,7 +542,6 @@ it.effect("adds unstarted same-repository workflow runs as pending, not as appro
         revalidateChecks: (_input, read) => read,
         getPullRequestDetail: () =>
           Effect.succeed({ ...openDetail, isCrossRepository: false, checks: sameRepositoryChecks }),
-        // Run 201 is represented by its running job; run 202 is queued before any job exists.
         listUnfinishedWorkflowRuns: () =>
           Effect.succeed([
             { id: 201, name: "Lint", url: "https://github.com/acme/web/actions/runs/201" },
@@ -979,7 +977,6 @@ describe("listChangeRequestsAcross", () => {
   type Search = Parameters<
     GitHubPullRequestApi.GitHubPullRequestApi["Service"]["searchPullRequests"]
   >[0];
-  // Pages answer in turn; a one-repository check for any pull request answers from `covered`.
   const providerAnswering = (input: {
     readonly pages: Array<GitHubPullRequestApi.GitHubPullRequestSearchBatch>;
     readonly covered?: (repository: string) => boolean;
@@ -1108,7 +1105,6 @@ describe("listChangeRequestsAcross", () => {
                 if (search.involvement === "involved") {
                   return Effect.succeed({ items: [asked, older], truncated: false });
                 }
-                // Cut short, it vouches for no silent repository, yet `vim/vim` stays resolved.
                 if (search.involvement === "reviewing") {
                   return Effect.succeed({ items: [asked], truncated: true });
                 }
@@ -1134,7 +1130,6 @@ describe("listChangeRequestsAcross", () => {
           involved: ["neovim/neovim", "vim/vim"],
           reviewing: ["neovim/neovim", "vim/vim"],
         });
-        // Once, and nothing older than where the latest cut-short search stopped.
         expect(page.items.map((item) => [item.repository, item.number])).toEqual([
           ["neovim/neovim", 1],
         ]);

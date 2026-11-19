@@ -167,7 +167,6 @@ export function lastRunLabel(
     case "failed":
       return "Couldn't send";
     case "succeeded":
-      // Past-only: a run that finished after the last clock tick reads "just now".
       return task.lastRunAt ? `Sent ${formatRelativeTimeLabel(task.lastRunAt, now)}` : "Sent";
   }
 }
@@ -218,7 +217,6 @@ export function scheduleDraftErrors(draft: DraftState) {
   const runAt = new Date(draft.runAt);
   if (Number.isNaN(runAt.getTime()))
     return [{ title: "Invalid run time", description: "Pick a date and time." }];
-  // A time skipped by a daylight saving change parses to a different clock time.
   if (toDateTimeLocalValue(runAt) !== draft.runAt)
     return [
       { title: "Invalid run time", description: "That time does not exist in your time zone." },
@@ -232,8 +230,6 @@ export function scheduleFromDraft(draft: DraftState): ScheduledTaskSchedule | nu
     const saved = draft.savedRunAt ? new Date(draft.savedRunAt) : null;
     if (saved !== null && toDateTimeLocalValue(saved) === draft.runAt)
       return { type: "once", runAt: draft.savedRunAt };
-    // A `datetime-local` value has no offset. In an hour that repeats when clocks go
-    // back, keep the saved time's offset; otherwise Date reads it as local time.
     const withSavedOffset =
       saved === null
         ? null
@@ -272,7 +268,6 @@ export function taskToDraft(task: ScheduledTask): DraftState {
     scheduleMode: schedule.type === "fixed_time" ? "fixed" : schedule.type,
     intervalMinutes:
       schedule.type === "interval" ? String(Math.max(1, schedule.everyMs / 60_000)) : "15",
-    // A time input shows nothing for an unpadded hour such as 9:05, which agents may save.
     timeOfDay: schedule.type === "fixed_time" ? schedule.timeOfDay.padStart(5, "0") : "09:00",
     runAt: schedule.type === "once" ? toDateTimeLocalValue(new Date(schedule.runAt)) : "",
     savedRunAt: schedule.type === "once" ? schedule.runAt : "",

@@ -61,8 +61,6 @@ function PopoverPopup({
   width?: keyof typeof popoverPopupWidthClassName;
   touchBackdrop?: boolean;
 }) {
-  // Viewport rekeys its children when the active trigger clears on close. Persistent
-  // single-trigger forms need a stable container to retain drafts and submit guards.
   const Viewport = keepMounted ? "div" : PopoverPrimitive.Viewport;
   return (
     <PopoverPrimitive.Portal keepMounted={keepMounted}>
@@ -81,9 +79,7 @@ function PopoverPopup({
         className={cn(
           "h-(--positioner-height) max-h-(--available-height) w-(--positioner-width) max-w-(--available-width) transition-transform data-instant:transition-none motion-reduce:transition-none",
           variant === "panel"
-            ? // The card inside is the panel width, or the anchor less 12px per side; the viewport
-              // pads it by --spacing(2) per side.
-              "z-(--z-sheet) w-[min(calc(var(--thread-details-panel-width)+--spacing(4)),calc(var(--anchor-width)---spacing(2)))] transition-none"
+            ? "z-(--z-sheet) w-[min(calc(var(--thread-details-panel-width)+--spacing(4)),calc(var(--anchor-width)---spacing(2)))] transition-none"
             : "z-[130]",
         )}
         data-slot="popover-positioner"
@@ -96,9 +92,7 @@ function PopoverPopup({
             "relative flex h-(--popup-height,auto) w-(--popup-width,auto) origin-(--transform-origin) rounded-lg text-popover-foreground outline-none transition-[width,height,scale,opacity] before:pointer-events-none before:absolute before:inset-0 before:rounded-[calc(var(--radius-lg)-1px)] before:shadow-[0_1px_--theme(--color-black/4%)] has-data-[slot=calendar]:rounded-xl has-data-[slot=calendar]:before:rounded-[calc(var(--radius-xl)-1px)] dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             POPUP_MOTION_CLASS,
             variant !== "panel" && "dropdown-glass",
-            // Without it, Chromium re-snaps text after the scale-in at fractional zoom, so hovered rows jump a pixel.
             "will-change-[scale]",
-            // Electron drag hit-testing ignores z-index; popups over a drag region would swallow hover.
             "[-webkit-app-region:no-drag]",
             tooltipStyle &&
               "w-fit rounded-md text-xs shadow-md/5 before:rounded-[calc(var(--radius-md)-1px)]",

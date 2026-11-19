@@ -51,7 +51,6 @@ const STUB_BROWSER_DEFAULTS = {
   profileId: DEFAULT_BROWSER_PROFILE_ID,
 };
 
-// The desktop bridge only exists inside Electron; the view reads it once at import.
 vi.mock(import("./previewBridge"), async (original) => ({
   ...(await original()),
   previewBridge: {
@@ -171,7 +170,6 @@ vi.mock(import("~/browser/previewRuntime"), async (original) => ({
 }));
 
 vi.mock(import("~/browser/browserViewportActions"), { spy: true });
-// The real surface opens a preview stream to the server; only its box matters here.
 vi.mock(import("~/browser/ServerBrowserSurface"), async (original) => ({
   ...(await original()),
   ServerBrowserSurface: ((props: { className?: string }) => (
@@ -221,8 +219,6 @@ function annotation(id: string, screenshot: unknown = null) {
   };
 }
 
-// The mocked modules and stores are shared by the whole file, so every test starts by
-// resetting them.
 function setup() {
   vi.clearAllMocks();
   mocks.readEnvironmentScope.mockReset().mockReturnValue(true);

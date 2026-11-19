@@ -6,7 +6,6 @@ export async function readFilePreviewResponse(
   signal: AbortSignal,
 ) {
   if (!response.ok) {
-    // A streamed error body holds the connection open until GC otherwise.
     void response.body?.cancel().catch(() => undefined);
     throw new Error("The file could not be loaded. Reconnect and try again.");
   }

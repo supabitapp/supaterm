@@ -24,8 +24,6 @@ import {
 
 const MAX_PULL_REQUEST_SNAPSHOTS = 500;
 
-// One bounded cache survives row virtualization (the summary query is dropped once idle) without
-// retaining one live atom for every pull request ever seen.
 const pullRequestSnapshotsAtom = Atom.make<ReadonlyMap<string, PullRequestSummary>>(new Map()).pipe(
   Atom.keepAlive,
   Atom.withLabel("mobile:thread-pr-snapshots"),
@@ -87,7 +85,6 @@ export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentatio
     [thread.pullRequests, thread.branchPullRequest],
   );
   const key = pullRequestRef === null ? null : snapshotKey(thread.environmentId, pullRequestRef);
-  // Select this row's entry so answers for other pull requests do not re-render it.
   const snapshot = useAtomValue(pullRequestSnapshotsAtom, (current) =>
     key === null ? undefined : current.get(key),
   );
@@ -104,7 +101,6 @@ export function useThreadPr(thread: EnvironmentThreadShell): ThreadPrPresentatio
         }),
   );
   const summary = pullRequestRef === null ? undefined : (pullRequestSummary.data ?? snapshot);
-  // Rows pass `pr` into callbacks; a fresh object per render would invalidate them.
   const summaryPresentation =
     summary === undefined
       ? null

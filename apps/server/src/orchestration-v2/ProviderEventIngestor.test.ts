@@ -104,7 +104,6 @@ const makeLayerTest = <E>(
   );
 const layerTest = makeLayerTest(layerTestEventSink);
 
-// EventSink reports a lock that outlasted busy_timeout at BEGIN IMMEDIATE this way.
 const lockTimeout = new EventSink.EventSinkWriteError({
   eventCount: 1,
   cause: new SqlError.SqlError({ reason: new SqlError.LockTimeoutError({ cause: null }) }),
@@ -114,7 +113,6 @@ const constraintFailure = new EventSink.EventSinkWriteError({
   cause: new SqlError.SqlError({ reason: new SqlError.ConstraintError({ cause: null }) }),
 });
 
-/** The ingestor's next sink writes of `events` fail with `errors`, in order; the rest go through. */
 const layerFailingWrites = (
   errors: ReadonlyArray<EventSink.EventSinkWriteError>,
   matches: (events: ReadonlyArray<OrchestrationV2DomainEvent>) => boolean = () => true,
@@ -2323,7 +2321,6 @@ layer("ProviderEventIngestorV2", (it) => {
         reportedSelection,
       );
     }).pipe(
-      // Fresh: the shared test layer has already built the ingestor this replaces.
       Effect.provide(
         Layer.fresh(
           layerFailingWrites([lockTimeout, lockTimeout], (events) =>
@@ -2380,7 +2377,6 @@ const ingestCompletedProviderTurn = (
     return { exit, providerTurnId, persisted: projection.providerTurns.map((turn) => turn.id) };
   });
 
-// Neither guard matches a stored run, so a guarded write correctly commits nothing.
 const runId = RunId.make("run:locked");
 const activeAttemptId = RunAttemptId.make("attempt:locked");
 it.effect.each([
@@ -2408,7 +2404,6 @@ it.effect.each([
   }).pipe(Effect.provide(layerFailingWrites([lockTimeout, lockTimeout]))),
 );
 
-// The write after the queued errors would succeed, so failing proves the retries stopped.
 it.effect.each([
   { failure: "stays locked", errors: [lockTimeout, lockTimeout, lockTimeout] },
   { failure: "fails for another reason", errors: [constraintFailure] },

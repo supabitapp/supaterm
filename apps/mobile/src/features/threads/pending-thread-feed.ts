@@ -19,8 +19,6 @@ export type PendingThreadFeedEntry = ThreadFeedEntry & {
   readonly draftAttachments?: ReadonlyArray<DraftComposerAttachment>;
 };
 
-// An acknowledged row stops being pending once the thread catches up to it,
-// even when the feed hides that message (a rolled-back or cancelled run).
 export function selectPendingAcknowledgedMessages(
   acknowledged: ReadonlyArray<AcknowledgedThreadMessage>,
   thread: {
@@ -193,9 +191,7 @@ export function createPendingTurnAppender() {
       last.message.role !== "user" ||
       last.pendingMessage === undefined ||
       last.pendingMessage.creation !== undefined ||
-      // A held message waits for the user and shows its own "Not sent" line.
       last.pendingMessage.failure !== undefined ||
-      // Offline or between retries nothing is sending it; it keeps its "Pending" line.
       (!last.acknowledged && last.pendingMessage.messageId !== options.dispatchingMessageId) ||
       isCompactionCommandMessage(last.message) ||
       feed.some(

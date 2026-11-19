@@ -19,7 +19,6 @@ import * as ProjectionMaintenance from "../orchestration-v2/ProjectionMaintenanc
 import * as DatabaseMaintenance from "./DatabaseMaintenance.ts";
 import { forkParked } from "../serverActivation.ts";
 
-// Bound each reclaim pass to one minute of churn.
 const RECLAIM_PAGES_PER_PASS = 1024;
 const COMPACTION_INTERVAL = Duration.hours(6);
 
@@ -43,7 +42,6 @@ export const ServerRestart = Context.Reference<Effect.Effect<void> | null>(
 
 const formatGiB = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GiB`;
 
-// Deleted events have newer retained replacements; old cursors replay to the same state.
 const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
@@ -57,16 +55,13 @@ const make = Effect.gen(function* () {
     yield* fs.readFileString(reclaimFiles.failure).pipe(Effect.option),
   );
 
-  // The notice shows host-shell quoting verbatim; desktop needs its launcher because supaterm is absent from PATH.
   const { command: compactCommand } = yield* resolveHostCliCommand("doctor", [
     "--base-dir",
     config.baseDir,
   ]);
-  // doctor --base-dir targets userdata, not implicit dev homes; suppress status to avoid touching the live install.
   const doctorTargetsThisDatabase =
     path.resolve(config.dbPath) ===
     path.resolve(config.baseDir, "userdata", path.basename(config.dbPath));
-  // Only VACUUM changes these, and doctor refuses to VACUUM while a server has the database open.
   let layout:
     | {
         readonly pageSize: number;
@@ -110,7 +105,6 @@ const make = Effect.gen(function* () {
       canReclaim: restart !== null,
       ...(reclaimFailure === undefined ? {} : { reclaimFailure }),
     };
-    // Every set reaches each open Storage page; most passes change nothing.
     if (!Equal.equals(yield* SubscriptionRef.get(statusRef), next)) {
       yield* SubscriptionRef.set(statusRef, next);
     }
@@ -122,7 +116,6 @@ const make = Effect.gen(function* () {
     let page = 0;
     return Effect.gen(function* () {
       if (!(yield* readLayout).incrementalVacuum) return;
-      // The driver steps once per statement; incremental_vacuum frees one page per step. Yield between pages.
       for (; page < RECLAIM_PAGES_PER_PASS; page++) {
         const free = yield* sql<{ readonly freelist_count: number }>`PRAGMA freelist_count`;
         if ((free[0]?.freelist_count ?? 0) === 0) break;
@@ -132,21 +125,17 @@ const make = Effect.gen(function* () {
     }).pipe(
       Effect.ensuring(Effect.suspend(() => Effect.annotateCurrentSpan("db.reclaimed_pages", page))),
       Effect.catch((cause) => Effect.logWarning("Database space reclamation failed", { cause })),
-      // The pass owns the span; tracing each page's two PRAGMAs floods the server trace.
       Effect.withTracerEnabled(false),
       Effect.withSpan("DatabaseStorage.reclaim"),
     );
   });
 
-  // Even a pass that deletes nothing scans the event store. Persist completion
-  // so restarting does not trigger another scan before the six-hour interval.
   const compactedAtPath = path.join(path.dirname(config.dbPath), "compacted-at");
   const compact = Effect.gen(function* () {
     let sliceStarted = yield* Clock.monotonicTimeNanos;
     const betweenPages = Effect.gen(function* () {
       const elapsed = (yield* Clock.monotonicTimeNanos) - sliceStarted;
       if (elapsed < 25_000_000n) return;
-      // Keep background maintenance at 10% duty, including pages that exceed the budget.
       yield* Effect.sleep((Number(elapsed) / 1_000_000) * 9);
       sliceStarted = yield* Clock.monotonicTimeNanos;
     });
@@ -198,7 +187,6 @@ const make = Effect.gen(function* () {
         reason: `Stop Supaterm on this machine, then run: ${compactCommand}`,
       });
     }
-    // Only databases without automatic shrinking need it; a stale dialog can ask after another client's repair.
     if ((yield* readLayout).autoVacuum !== 0) {
       return yield* new DatabaseReclaimError({
         reason: "This database already shrinks on its own. Nothing to reclaim.",
@@ -221,12 +209,10 @@ const make = Effect.gen(function* () {
     reclaimFailure = undefined;
     yield* publishStatus;
     const requestedAt = yield* Clock.currentTimeMillis;
-    // One step: a request interrupted between them would repair on some unrelated later exit.
     yield* Effect.uninterruptible(
-      fs.writeFileString(reclaimFiles.request, String(requestedAt)).pipe(
-        // Reply before stopping: the restart closes this connection.
-        Effect.andThen(restart.pipe(Effect.delay("500 millis"), Effect.forkDetach)),
-      ),
+      fs
+        .writeFileString(reclaimFiles.request, String(requestedAt))
+        .pipe(Effect.andThen(restart.pipe(Effect.delay("500 millis"), Effect.forkDetach))),
     );
     yield* Effect.logInfo("Restarting to reclaim database space");
   }).pipe(

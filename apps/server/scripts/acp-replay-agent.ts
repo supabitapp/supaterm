@@ -51,11 +51,6 @@ const transcript = JSON.parse(
     ? Buffer.from(encodedTranscript ?? "", "base64").toString("utf8")
     : NodeFS.readFileSync(transcriptPath, "utf8"),
 ) as ReplayTranscript;
-/**
- * A recording can span processes: a `runtime_exit` mid-transcript marks where
- * one agent process ended, and a respawned replay agent continues from the
- * cursor the previous one left in the status file.
- */
 function resumedCursor(): number {
   try {
     const previous = JSON.parse(NodeFS.readFileSync(statusPath ?? "", "utf8")) as {
@@ -243,8 +238,6 @@ function inboundMessage(recorded: LogicalFrame): JsonRpcMessage | undefined {
   }
 }
 
-// Supaterm may kill the agent after its last reply. Record the batch, including trailing
-// runtime exits, before publishing any frames.
 function flushInbound(): void {
   const messages: Array<JsonRpcMessage> = [];
   while (!stopped) {
@@ -256,7 +249,6 @@ function flushInbound(): void {
         break;
       }
       cursor += 1;
-      // Frames after a mid-transcript exit belong to the next process.
       if (cursor < transcript.entries.length) break;
       continue;
     }

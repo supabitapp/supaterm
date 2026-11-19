@@ -49,7 +49,6 @@ const zipFixtures = {
     "UEsDBBQAAAAIAAAAIl1zEy/oFAAAABQAAAASAAAAYWd5X2FjcF9zZXJ2ZXIuZXhlS8wryUwvSizLLKlUKCoFcnJTuQBQSwMEFAAAAAgAAAAiXV9yAykQAAAADgAAABkAAABsb2NhbGhhcm5lc3NfZXh0ZXJuYWwuZXhly8lPTsxRyEgsykstLuYCAFBLAQIUAxQAAAAIAAAAIl1zEy/oFAAAABQAAAASAAAAAAAAAAAAAADtgQAAAABhZ3lfYWNwX3NlcnZlci5leGVQSwECFAMUAAAACAAAACJdX3IDKRAAAAAOAAAAGQAAAAAAAAAAAAAA7YFEAAAAbG9jYWxoYXJuZXNzX2V4dGVybmFsLmV4ZVBLBQYAAAAAAgACAIcAAACLAAAAAAA=",
 };
 
-// Linux platform mocks cannot enforce POSIX exec bits on NTFS; use the host platform.
 const hostPlatform: NodeJS.Platform =
   HostProcess.Platform.defaultValue() === "win32" ? "win32" : "linux";
 const completeArchive = Buffer.from(
@@ -338,7 +337,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Antigravity inst
       }),
   );
 
-  // These tar fixtures exercise the POSIX extraction path; Windows downloads one executable.
   it.effect.skipIf(hostPlatform === "win32")(
     "rejects unsafe native tar members before activation",
     () =>
@@ -603,7 +601,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Antigravity inst
 
   it.effect("accepts an encoded Content-Length when the body is compressed", () =>
     Effect.gen(function* () {
-      // dl.google.com reports the gzip-encoded size; byte and hash checks use the decoded stream.
       const { installation, validations } = yield* makeHarness({
         contentLength: completeArchive.byteLength - 1_000,
         contentEncoding: "gzip",
@@ -665,13 +662,11 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Antigravity inst
       }),
   );
 
-  // The runtime's own abort is a real process; Windows has no POSIX sh.
   it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
     "explains that the linux-arm64 runtime needs 4 KiB pages when it aborts on a 16 KiB kernel",
     () =>
       Effect.gen(function* () {
         const realSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-        // Google's linux-arm64 build aborts like this on Asahi and Raspberry Pi 5 kernels.
         const spawner = ChildProcessSpawner.make((command) =>
           ChildProcess.isStandardCommand(command) &&
           String(command.command).endsWith(executableName)
@@ -999,7 +994,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Antigravity inst
       }),
   );
 
-  // A simulated Mac install needs POSIX execute bits, which Windows files lack.
   it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
     "re-signs the Intel Mac runtime ad hoc and records the signed sizes",
     () =>
@@ -1012,7 +1006,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Antigravity inst
               return yield* Effect.die("Unexpected spawn.");
             const args = command.args.map(String);
             signed.push([String(command.command), ...args]);
-            // codesign rewrites the signature, which changes each file's size.
             for (const file of args.slice(3)) {
               yield* fs.writeFileString(file, "signature", { flag: "a" });
             }
@@ -1056,7 +1049,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Antigravity inst
       }),
   );
 
-  // The mocked Linux PATH walk needs POSIX paths; Windows temp paths contain colons.
   it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
     "accepts the agy CLI without a harness sibling but still requires one for other binaries",
     () =>
@@ -1099,7 +1091,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Antigravity inst
           operation: "resolve",
         });
 
-        // Version-manager shims dispatch by their invoked name, so the shim path is what runs.
         const shims = path.join(baseDir, "shims");
         const mise = path.join(baseDir, "mise");
         yield* fs.makeDirectory(shims);
@@ -1124,7 +1115,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("Antigravity inst
       }),
   );
 
-  // The mocked Linux PATH walk needs POSIX paths; Windows temp paths contain colons.
   it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
     "honors explicit paths and reports invalid overrides without falling back",
     () =>

@@ -13,10 +13,6 @@ const addMessage = (messages: Array<string>, message: string) => {
   }
 };
 
-/**
- * Returns false when the chain holds a value with no text to show, so the
- * caller keeps the full logged cause instead of dropping that detail.
- */
 const collectMessages = (value: unknown, depth: number, messages: Array<string>): boolean => {
   if (value === undefined || value === null || depth > MAX_CAUSE_DEPTH) return true;
   if (typeof value === "string") {

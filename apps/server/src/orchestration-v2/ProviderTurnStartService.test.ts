@@ -82,7 +82,6 @@ import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 const isDomainEvent = Schema.is(OrchestrationV2DomainEvent);
 
 const managedWorktreesDir = "/tmp/provider-turn-start-worktrees";
-// fs.realpath applies `..` and `.` before following symlinks.
 const normalize = (target: string) => {
   const parts: Array<string> = [];
   for (const part of target.split("/")) {
@@ -274,7 +273,6 @@ it.each([
     recreated: false,
   },
   {
-    // Left raw on purpose: git follows `link` before applying `..`.
     label: "'..' after a symlink inside the managed folder",
     worktreePath: `${managedWorktreesDir}/project/x/link/../../hooks`,
     realPaths: {
@@ -431,26 +429,15 @@ function makeLocalCommandHarness(input: {
     readonly liveSession?: boolean;
     readonly interruptFailure?: boolean;
     readonly interruptCurrentRun?: boolean;
-    /** Puts the running turn on an attempt a steering restart superseded. */
     readonly supersededTurn?: boolean;
   };
-  /**
-   * A side chat whose context targets this run, an earlier run that failed or was cancelled before
-   * the provider, or an earlier run that delivered it. `nativeForkFrom` plans a native fork of the
-   * parent. `switchedProvider` puts the earlier run and its context on another provider thread.
-   */
   readonly sideChat?: {
     readonly contextRun: "current" | "failed" | "cancelled" | "delivered";
     readonly nativeForkFrom?: "idle" | "busy";
     readonly switchedProvider?: boolean;
     readonly forkWhileSourceActive?: "none" | "stable";
-    /** The provider refuses the native fork. */
     readonly forkFailure?: true;
   };
-  /**
-   * A side chat promoted before this run. `earlierRun` started after the promotion, with `text`,
-   * and `accepted` says whether the provider took its turn.
-   */
   readonly promotedSideChat?: {
     readonly earlierRun?: { readonly text: string; readonly accepted: boolean };
   };
@@ -461,7 +448,6 @@ function makeLocalCommandHarness(input: {
   const rootNodeId = NodeId.make("root-native-account-command");
   const attemptId = RunAttemptId.make("attempt-native-account-command");
   const providerThreadId = ProviderThreadId.make("new-provider-thread");
-  // Side chats, also promoted ones, reach the provider; the rest of the harness runs local commands.
   const startsProviderTurn = input.sideChat !== undefined || input.promotedSideChat !== undefined;
   const providerSessionId = ProviderSessionId.make("new-provider-session");
   const oldProviderThreadId = ProviderThreadId.make("existing-native-provider-thread");
@@ -1024,8 +1010,6 @@ function makeLocalCommandHarness(input: {
         },
       ],
       providerTurns: [
-        // The steered attempt reached the provider once; only the earlier attempt's
-        // turn is still running when the run was interrupted.
         ...(input.previousTurn.supersededTurn === true
           ? [
               {
@@ -1851,7 +1835,6 @@ effectIt.effect("preserves a replacement committed before exhausted start settle
                   yield* Deferred.await(turnIngested);
                   const current = harness.projection();
                   expect(current.runs[0]?.status).toBe("running");
-                  // Steering commits a new attempt while the original start still owns the lane.
                   harness.setProjection({
                     ...current,
                     runs: [
@@ -1985,14 +1968,12 @@ effectIt.effect(
       yield* git(workspaceRoot, ["commit", "-m", "project tip"]);
       const projectTip = yield* git(workspaceRoot, ["rev-parse", "HEAD"]);
       expect(projectTip).not.toBe(threadTip);
-      // Tags must neither hide the thread branch nor select a different recovery tip.
       yield* git(workspaceRoot, ["tag", "feature/restore", projectTip]);
       yield* git(workspaceRoot, ["tag", "project-current", threadTip]);
       yield* git(workspaceRoot, ["tag", "origin/feature/restore", threadTip]);
 
       const expectedTips = {
         retained: { tip: threadTip, file: "thread.txt", upstream: null, base: "" },
-        // A failed removal can leave the folder behind with only dependencies inside.
         leftover: { tip: threadTip, file: "thread.txt", upstream: null, base: "" },
         deleted: { tip: projectTip, file: "project.txt", upstream: null, base: "project-current" },
         pushed: {
@@ -2016,7 +1997,6 @@ effectIt.effect(
         detached: { tip: baseTip, file: null, upstream: null, base: "main" },
         "detached-no-remote": { tip: projectTip, file: "project.txt", upstream: null, base: "" },
       } as const;
-      // Reuse the workflow across turns so recovery cannot select a cached project branch.
       for (const scenario of Object.keys(expectedTips) as Array<keyof typeof expectedTips>) {
         const expected = expectedTips[scenario];
         if (scenario === "pushed") {
@@ -2211,8 +2191,6 @@ effectIt.effect(
       yield* harness.start;
 
       expect(harness.interruptTurn).toHaveBeenCalledOnce();
-      // The steered attempt's turn was already interrupted in the fixture; the
-      // repair this asserts is the running turn left on the superseded attempt.
       const abandoned = harness
         .projection()
         .providerTurns.find((turn) => turn.id === ProviderTurnId.make("previous-provider-turn"));
@@ -2404,7 +2382,6 @@ effectIt.effect.each([
       yield* harness.start;
 
       expect(harness.forkThread).toHaveBeenCalledTimes(forkAttempts ?? (forks ? 1 : 0));
-      // The parent's rolled-back turn is gone from its native conversation.
       expect(
         harness.forkThread.mock.calls[0]?.[0].sourceProviderTurns?.map((turn) => turn.id),
       ).toEqual(forks || forkAttempts ? ["side-chat-parent-turn-1"] : undefined);
@@ -2518,8 +2495,6 @@ effectIt.effect("leaves delegated children to their own runs when the parent sta
 
     yield* harness.start;
 
-    // A delegated child thread has its own run on the shared session; a parent run that also
-    // owns it ingests every one of the child's later items a second time.
     expect(harness.startRootRun.mock.calls[0]?.[0]).toMatchObject({
       relatedThreadIds: [ThreadId.make("thread:provider_native")],
       relatedProviderThreadIds: [ProviderThreadId.make("provider-thread:provider_native")],
@@ -2675,9 +2650,6 @@ effectIt.effect.each(["cleanup-first", "startup-first"])(
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
 );
 
-// regression: #12341 a turn start overlapping a checkpoint restore wrote into the checkout
-// The filesystem is synchronous so the turn start either reaches the provider or parks on the
-// lease before the restore is released; realPath models the symlink alias and missing worktrees.
 effectIt.effect.each([
   {
     overlap: "a project-root thread during a restore of the project checkout",
@@ -2741,8 +2713,6 @@ effectIt.effect.each([
       harness.open.mockImplementation(() =>
         Effect.sync(() => order.push("provider session opened")).pipe(Effect.andThen(open())),
       );
-      // The reservation CheckpointRollbackServiceV2.execute holds around its
-      // isolation check, provider rollback, and git restore of `restorePath`.
       const restore = yield* withCheckpointRestoreReservation(
         fileSystem,
         yield* Path.Path,
@@ -2969,8 +2939,6 @@ effectIt.effect("checks the run's status without loading the thread's history", 
     if (controls === undefined) return;
     expect(yield* controls.shouldStartProviderTurn!()).toBe(true);
     expect(yield* controls.shouldFinalizeRun!()).toBe(true);
-    // Each check needs one run row; the recovery projection reads every run and open turn item.
-    // The one read left is the start's inherited background items snapshot, not a status check.
     expect(
       harness.getRuntimeRecoveryProjection.mock.calls.length,
       "recovery projection reads beyond the inherited background items snapshot",

@@ -66,7 +66,6 @@ describe("pair tailscale local target", () => {
     expect(resolveTailscaleLocalTarget({ ...baseState, devUrl: "http://localhost:5733/" })).toEqual(
       { localPort: 5_733 },
     );
-    // tailscale serve defaults to loopback, so non-loopback dev servers need an explicit target.
     expect(
       resolveTailscaleLocalTarget({ ...baseState, devUrl: "http://192.168.1.10:5733/" }),
     ).toEqual({ localPort: 5_733, localHost: "192.168.1.10" });
@@ -286,13 +285,10 @@ describe("supaterm pair", () => {
       ).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  // The MagicDNS probe fails whenever the host cannot reach its own *.ts.net name,
-  // so it cannot be what decides that the port is free.
   it.effect(
     "leaves another app's Serve route alone when the host cannot reach its MagicDNS URL",
     () =>
       withDescriptorServer((origin) =>
-        // Another live app on loopback; a dead port's route may be taken back.
         withDescriptorServer((otherAppOrigin) =>
           Effect.gen(function* () {
             const fetch = yield* FetchHttpClient.Fetch;
@@ -316,7 +312,6 @@ describe("supaterm pair", () => {
               return Effect.succeed(
                 ChildProcessSpawner.makeHandle({
                   pid: ChildProcessSpawner.ProcessId(1),
-                  // A recorded takeover fails fast instead of waiting out the HTTPS retries.
                   exitCode: Effect.succeed(
                     ChildProcessSpawner.ExitCode(
                       args[0] === "serve" && args[1] !== "status" ? 1 : 0,
@@ -525,7 +520,6 @@ describe("supaterm pair", () => {
     }),
   );
 
-  // Minting opens the server's database with this build's migrations.
   it.effect("refuses a server from another build before opening its database", () =>
     withDescriptorServer((origin) =>
       Effect.gen(function* () {
@@ -581,8 +575,6 @@ describe("supaterm pair", () => {
     ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // regression: minting opens the target database with this checkout's
-  // migrations, so a worktree must never fall back to the live install.
   it.effect("does not fall back to the shared home from a linked worktree", () =>
     withDescriptorServer((origin) =>
       Effect.gen(function* () {
@@ -629,8 +621,6 @@ describe("supaterm pair", () => {
     ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // Without the capability `tailscale serve` blocks on an enablement URL, so
-  // pairing must stop at status instead of spawning it.
   it.effect("explains a tailnet without HTTPS serve instead of running tailscale serve", () =>
     withDescriptorServer((origin) =>
       Effect.gen(function* () {
@@ -683,8 +673,6 @@ describe("supaterm pair", () => {
     ).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // regression: #35517 - the macOS Tailscale apps refuse Serve targets other than
-  // localhost, 127.0.0.1 and ::1, so a specific bind needs an explanation.
   it.effect("names the bind address when Tailscale refuses it as a Serve target", () =>
     Effect.gen(function* () {
       const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-pair-remote-"));
@@ -752,8 +740,6 @@ describe("supaterm pair", () => {
     }).pipe(Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // regression: #37459 - on Linux without an operator, tailscaled refuses Serve config
-  // from a normal user, and the CLI must say how to fix it.
   it.effect("explains the operator fix when Tailscale denies the Serve config", () =>
     Effect.gen(function* () {
       const baseDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-pair-remote-"));
@@ -970,12 +956,10 @@ describe("scripted auth output", () => {
       );
       const attachmentsDir = NodePath.join(baseDir, "userdata", "attachments");
       NodeFS.mkdirSync(attachmentsDir, { recursive: true });
-      // An abandoned upload makes config resolution log that it removed it.
       const abandoned = NodePath.join(attachmentsDir, "abandoned.part");
       NodeFS.writeFileSync(abandoned, "");
       const jan2020Seconds = 1_577_836_800;
       NodeFS.utimesSync(abandoned, jan2020Seconds, jan2020Seconds);
-      // The sweep reads Clock, so a week past the upload's mtime makes it expired.
       yield* TestClock.setTime((jan2020Seconds + 7 * 24 * 60 * 60) * 1000);
 
       const lines = yield* provideCliTestLayers(

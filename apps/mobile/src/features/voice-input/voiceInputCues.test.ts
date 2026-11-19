@@ -40,7 +40,6 @@ vi.mock("expo-audio", () => ({
 }));
 vi.mock("react-native", () => ({ AppState: { currentState: "active" } }));
 vi.hoisted(() => {
-  // Metro resolves asset requires to ids; Node would parse the WAV as JavaScript.
   require.extensions[".wav"] = (module) => {
     module.exports = 1;
   };

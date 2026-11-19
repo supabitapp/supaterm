@@ -4,8 +4,6 @@ import type { LegendListRef } from "@legendapp/list/react";
 import { createRef, type ComponentProps, type ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-// These cases assert the end-follow decisions the timeline hands its list, so the list renders
-// its rows plainly and reports whether it is asked to keep the end in view.
 vi.mock(import("@legendapp/list/react"), async (original) => ({
   ...(await original()),
   LegendList: ((props: {
@@ -139,9 +137,7 @@ describe("MessagesTimeline end-follow", () => {
       anchorVisibleContent.mockClear();
 
       await act(async () => toggle.click());
-      // A close that ends back at the end holds no anchor against it.
       expect(anchorVisibleContent).toHaveBeenCalledTimes(returnsToEnd ? 0 : 1);
-      // A streamed row lands below while the output closes.
       timelineIsAtEnd = false;
       await flushFrames(3);
 
@@ -246,7 +242,6 @@ describe("MessagesTimeline end-follow", () => {
 async function setup() {
   frames.clear();
   let nextFrame = 0;
-  // Frames are stepped by hand so each assertion lands between two paints.
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
     frames.set(++nextFrame, callback);
     return nextFrame;

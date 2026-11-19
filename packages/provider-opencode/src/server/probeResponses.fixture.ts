@@ -8,7 +8,6 @@ interface RecordedResponse {
   readonly body: string;
 }
 
-// Unknown paths serve SPA HTML; content type alone rejects these truncated bodies.
 const SPA_HTML =
   '<!doctype html>\n<html lang="en" style="background-color: var(--v2-background-bg-deep, #fafafa)">\n';
 
@@ -51,7 +50,6 @@ export const OPENCODE_1_RESPONSES = {
     contentType: "application/json",
     body: '{"healthy":true,"version":"1.18.32"}',
   },
-  // 1.x also answers a wrong password with an empty 401 on every path.
   unauthorized: { status: 401, body: "" },
 } satisfies Record<string, RecordedResponse>;
 
@@ -61,7 +59,6 @@ export function replayOpenCodeServer(
   requestedPaths: Array<string> = [],
 ) {
   const answers: Record<string, RecordedResponse | undefined> = responses;
-  // Both versions decode Basic credentials as UTF-8.
   const expected = password
     ? `Basic ${Buffer.from(`opencode:${password}`, "utf8").toString("base64")}`
     : undefined;

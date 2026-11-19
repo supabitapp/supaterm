@@ -66,7 +66,6 @@ function finiteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-// Missing cache rates fall back to input pricing, and a missing 1-hour write rate to the 5-minute one.
 function readTokenRates(
   entry: LiteLlmEntry,
   suffix: string,
@@ -134,7 +133,6 @@ function readSpeedRates(entry: LiteLlmEntry, standard: TokenRates, suffix = ""):
 const CONTEXT_TIER_INPUT_KEY =
   /^input_cost_per_token_above_(\d{1,7})k_tokens(?:_priority|_ultrafast)?$/;
 
-// Fields a tier omits fall back to base rates, so a priority-only tier still prices standard requests at base.
 function readContextTiers(entry: LiteLlmEntry, base: TokenRates): ContextTier[] {
   const thresholds = new Set<string>();
   for (const key of Object.keys(entry)) {
@@ -153,7 +151,6 @@ function readContextTiers(entry: LiteLlmEntry, base: TokenRates): ContextTier[] 
     .toSorted((a, b) => b.thresholdTokens - a.thresholdTokens);
 }
 
-// LiteLLM prefixes for the model makers' own APIs; their price beats a cloud's or reseller's for a bare name.
 const FIRST_PARTY_PROVIDERS = new Set([
   "anthropic",
   "deepseek",
@@ -214,7 +211,6 @@ function sameTokenRates(a: TokenRates | null, b: TokenRates | null): boolean {
   );
 }
 
-// Resellers often omit speed and context tiers, so a missing tier fills from the other entry instead of conflicting.
 function mergeSpeedRates(a: SpeedRates, b: SpeedRates): SpeedRates | null {
   const fast = a.fast ?? b.fast;
   const ultrafast = a.ultrafast ?? b.ultrafast;
@@ -255,7 +251,6 @@ function promptTokens(totals: UsageTokenTotals): number {
   return totals.uncachedInputTokens + totals.cachedInputTokens + totals.cacheCreationTokens;
 }
 
-// A tier without the requested speed keeps the base tier's rate for that speed.
 function ratesAt(rate: ModelRate, speed: UsageSpeed, totals: UsageTokenTotals): TokenRates {
   const prompt = promptTokens(totals);
   const tier = rate.contextTiers.find((tier) => prompt > tier.thresholdTokens)?.rate;
@@ -272,18 +267,15 @@ function bareModelName(key: string): string {
   return slash === -1 ? key : key.slice(slash + 1);
 }
 
-// Only Bedrock's base ID gives a bare alias; its regional (us., eu.) and GovCloud IDs carry markups.
 function bedrockBaseModelName(key: string): string {
   return key.startsWith("anthropic.") ? key.slice("anthropic.".length) : key;
 }
 
-// Price Claude's bracketed context variants at the base tier, the only name the rate table knows.
 function stripVariantSuffix(key: string): string {
   const bracket = key.indexOf("[");
   return bracket === -1 ? key : key.slice(0, bracket);
 }
 
-// Synthetic messages are unbilled; bare family names are generation-ambiguous and remain unpriced.
 const UNPRICEABLE_MODELS = new Set([
   "<synthetic>",
   "synthetic",
@@ -293,7 +285,6 @@ const UNPRICEABLE_MODELS = new Set([
   "fable",
 ]);
 
-// Immutable tables permit caching rates across twice-per-record pricing lookups.
 const resolvedRates = new WeakMap<RateTable, Map<string, ModelRate | null>>();
 
 export function lookupRate(table: RateTable, model: string): ModelRate | null {

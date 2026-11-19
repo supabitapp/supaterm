@@ -4,8 +4,6 @@ import { Atom, type AtomRegistry } from "effect/reactivity";
 
 const EMPTY_TURN_DIFFS = Object.freeze<Readonly<Record<number, string>>>({});
 
-// The last answered diff of each single turn, keyed by its turn count, so review keeps showing
-// turns it already loaded while the environment is disconnected and no turn query is mounted.
 const lastTurnDiffsFamily = Atom.family((key: string) =>
   Atom.make(EMPTY_TURN_DIFFS).pipe(
     Atom.keepAlive,
@@ -26,8 +24,6 @@ export const recordReviewTurnDiffAnswer = (
   registry: AtomRegistry.AtomRegistry,
 ) =>
   Effect.sync(() => {
-    // Review shows one turn with whitespace changes; other ranges and whitespace-ignoring
-    // reads are not what a review section displays.
     if (target.input.ignoreWhitespace === true || value.fromTurnCount !== value.toTurnCount - 1) {
       return;
     }

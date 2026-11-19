@@ -57,7 +57,6 @@ const makeCatalogHarness = Effect.fn("TestCatalog.makeHarness")(function* () {
     }),
   );
   yield* Effect.yieldNow;
-  /** Moves the supervisor to `next`, with a new session object when one is established. */
   const generationAfter = (
     next: SupervisorConnectionState,
     nextSession: Option.Option<RpcSession.RpcSession> = Option.none(),
@@ -78,7 +77,6 @@ describe("environment catalog atoms", () => {
     Effect.gen(function* () {
       const { generation, generationAfter } = yield* makeCatalogHarness();
       const first = generation();
-      // A retry reports the generation it is attempting before it is established.
       expect(
         yield* generationAfter(
           connectionState({ phase: "connecting", stage: "opening", generation: 2, lastFailure }),
@@ -105,7 +103,6 @@ describe("environment catalog atoms", () => {
       yield* generationAfter(
         connectionState({ phase: "backoff", generation: 1, lastFailure, retryAt: 1 }),
       );
-      // Re-pairing or editing a route installs a new supervisor, whose counter starts over.
       yield* generationAfter(connectionState({ phase: "available", generation: 0 }));
       expect(
         yield* generationAfter(

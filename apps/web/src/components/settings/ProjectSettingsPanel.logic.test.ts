@@ -98,7 +98,6 @@ describe("projectGroupTitleNeedsUpdate", () => {
   const folderTitle = { title: "repo" };
   const renamed = { title: "repo", hasCustomTitle: true };
 
-  // regression: #15049 renaming to the default folder title was never saved
   it("saves a title that matches the folder default so the rename is recorded", () => {
     expect(projectGroupTitleNeedsUpdate([folderTitle, folderTitle], "repo", true)).toBe(true);
   });

@@ -9,10 +9,6 @@ import { AppImageUpdater, autoUpdater } from "electron-updater";
 type AutoUpdater = typeof autoUpdater;
 type SpawnLog = (cmd: string, args?: Array<string>, ...rest: Array<unknown>) => Promise<boolean>;
 
-// Electron holds the AppImage runtime's keepalive pipe and some files without O_CLOEXEC; a
-// relaunched AppImage inherits them, so old runtimes and FUSE mounts never exit. bash (AppRun
-// already needs it; dash cannot close multi-digit fds) closes them before exec'ing the AppImage.
-// -p skips BASH_ENV and exported functions in the helper only; the AppImage still receives both.
 const CLOSE_INHERITED_FDS_THEN_EXEC =
   'for fd in /proc/self/fd/*; do fd=${fd##*/}; case $fd in *[!0-9]*|[012]) ;; *) eval "exec $fd>&-" ;; esac; done; exec "$@"';
 

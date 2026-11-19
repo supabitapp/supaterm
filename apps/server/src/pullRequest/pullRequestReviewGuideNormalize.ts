@@ -29,10 +29,6 @@ const hunkRange = (start: string, count: string | undefined): LineRange | null =
   return lines === 0 ? null : { start: Number(start), end: Number(start) + lines - 1 };
 };
 
-/**
- * Git quotes a name holding a tab, quote or backslash, and ends an unquoted name holding a space
- * with a tab, so the first literal tab is never part of what the file is called.
- */
 function headerPath(line: string, prefix: string): string | null {
   const rest = line.slice(4);
   const tab = rest.indexOf("\t");
@@ -45,7 +41,6 @@ export function parseReviewGuideChange(nameOnly: string, patch: string): ReviewG
   const hunks = new Map<string, FileHunks>();
   let oldPath: string | null = null;
   let current: FileHunks | null = null;
-  // Inside a file's hunks a `--- ` or `+++ ` line is a removed or added source line, not a header.
   let inHunks = false;
   for (const line of patch.split("\n")) {
     if (line.startsWith("diff --git ")) {
@@ -97,7 +92,6 @@ function mergeExcerpts(
       other.side === excerpt.side &&
       other.start <= excerpt.end + 1 &&
       excerpt.start <= other.end + 1;
-    // An excerpt can bridge several earlier ones; fold them all into the first.
     const group = merged.filter(touches);
     const first = group[0];
     if (first === undefined) {

@@ -10,7 +10,6 @@ import { loadExpoFileSystem } from "./expoFileSystem";
 
 const SAMPLE_RATE = 16_000;
 const BYTES_PER_SAMPLE = 2;
-// iOS pads the header with a filler chunk so the samples start on a 4 KiB boundary.
 const HEADER_READ_BYTES = 64 * 1024;
 
 export type VoiceRecordingCheck =

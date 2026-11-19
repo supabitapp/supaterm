@@ -92,7 +92,6 @@ const readClaudeSubagentResumeTranscript = Effect.fn("readClaudeSubagentResumeTr
     );
   },
 );
-/** Remove the subagent's first run so restart cancels it after root settlement; resume carries the restart note. */
 const readClaudeCancelledSubagentResumeTranscript = Effect.fn(
   "readClaudeCancelledSubagentResumeTranscript",
 )(function* () {
@@ -120,7 +119,6 @@ const readClaudeCancelledSubagentResumeTranscript = Effect.fn(
     throw new Error("Expected the recorded subagent's first run.");
   }
   const entries = recorded.entries
-    // A CLI exit settles the task; hold at query.open:2 until the crash snapshot instead.
     .filter(
       (_, index) => (index < firstSubagentFrame || index > firstOutcome) && index !== firstExit,
     )
@@ -246,7 +244,6 @@ const runCursorRecovery = Effect.fn("runCursorRecovery")(function* (input: {
         runtimePolicyOverride: { cwd: tempDir },
       },
       harness,
-      // A real restart requeues effects, like checkpoint capture, the first runtime left running.
       { ...options, recoverOnStartup: true },
     ),
   );
@@ -276,7 +273,6 @@ describe("orchestrator replay recovery", () => {
     "resumes a provider-native Codex thread after recreating the orchestrator runtime",
     () =>
       Effect.gen(function* () {
-        // Use a throwaway checkpoint workspace; cold full-repo capture exceeds CI wait budgets.
         const workspace = yield* checkpointWorkspace("provider_thread_resume");
         const transcript = yield* readCodexTranscript(workspace);
         const fs = yield* FileSystem.FileSystem;
@@ -543,7 +539,6 @@ describe("orchestrator replay recovery", () => {
           const result = yield* runOrchestratorV2Scenario(beforeScenario);
           const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
           yield* worker.drain();
-          // Preserve the orphan before scoped teardown settles its provider work.
           const sql = yield* SqlClient.SqlClient;
           yield* sql`VACUUM INTO ${snapshotPath}`;
           return result;

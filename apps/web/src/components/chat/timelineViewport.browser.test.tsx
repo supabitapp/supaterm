@@ -6,7 +6,6 @@ import { attachTimelineViewport } from "./timelineViewport";
 
 describe("attachTimelineViewport", () => {
   it("reports an upward scroll only while input is on an embedded frame", async () => {
-    // A plain scroller; the viewport needs no routes.
     await using screen = await render(
       <div>
         <div data-testid="outside" style={{ height: 40 }} />
@@ -40,7 +39,6 @@ describe("attachTimelineViewport", () => {
     scroll = scrolled();
     timeline.scrollTop -= 100;
     await scroll;
-    // Content that shrinks and grows back in one task clamps scrollTop with no input at all.
     scroll = scrolled();
     timeline.scrollTop = timeline.scrollHeight;
     await scroll;

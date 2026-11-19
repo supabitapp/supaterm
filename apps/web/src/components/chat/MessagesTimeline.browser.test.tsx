@@ -104,8 +104,6 @@ const CREATED_AT = "2026-03-17T19:12:28.000Z";
 type TimelineProps = ComponentProps<typeof MessagesTimeline>;
 type Entry = TimelineProps["timelineEntries"][number];
 
-// The timeline remembers scroll position and open disclosures per thread key,
-// so every render gets a fresh thread.
 function baseProps(): Omit<TimelineProps, "timelineEntries"> {
   return {
     isWorking: false,
@@ -245,7 +243,6 @@ describe("MessagesTimeline work rows", () => {
     onTestFinished(() => {
       renderAsset.url = "about:blank";
     });
-    // The frame loads on its own clock, and a toggle posted before its script runs is lost.
     const listening = new Promise<void>((resolve) => {
       const onMessage = (event: MessageEvent) => {
         if (event.data !== "listening") return;
@@ -290,7 +287,6 @@ describe("MessagesTimeline work rows", () => {
       expect(frame.getBoundingClientRect().top).toBeCloseTo(top, 0);
     });
     frame.contentWindow!.postMessage("toggle", "*");
-    // Closing at the bottom can only clamp the scroll; the frame keeps its place in the content.
     await vi.waitFor(() => {
       expect(frame.clientHeight).toBe(1437);
       expect(contentTop()).toBeCloseTo(anchor, 0);
@@ -301,7 +297,6 @@ describe("MessagesTimeline work rows", () => {
     const props = baseProps();
     const runId = RunId.make("completed-run");
     const container = document.createElement("div");
-    // Keep the heading on screen so Playwright does not scroll it before clicking.
     container.style.cssText =
       "height: min(600px, 100vh); width: 900px; display: flex; flex-direction: column;";
     await using screen = await render(
@@ -318,11 +313,8 @@ describe("MessagesTimeline work rows", () => {
       { container },
     );
     const heading = screen.getByRole("button", { name: /^Worked for/ });
-    // LegendList keeps rows click-through until its initial scroll settles on animation
-    // frames, which the fake clock below would freeze.
     await expect.element(heading).toHaveStyle({ pointerEvents: "auto" });
     const viewport = props.listRef.current!.getScrollableNode()!;
-    // Legend keeps rows transparent and unclickable until its initial scroll settles.
     await vi.waitFor(() => {
       expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
       expect(heading.element().checkVisibility({ opacityProperty: true })).toBe(true);
@@ -592,7 +584,6 @@ describe("MessagesTimeline messages", () => {
   it("keeps the first and last message headings reachable from either end", async () => {
     setup();
     const props = baseProps();
-    // Folded messages at both ends: their headings must not live inside the fold.
     const entries = Array.from({ length: 120 }, (_, index) =>
       index === 0
         ? message("First turn", { scheduledTaskId: TASK_ID }, "turn-0")
@@ -615,7 +606,6 @@ describe("MessagesTimeline messages", () => {
     const headingFor = (text: string) =>
       headings().find((heading) => heading.parentElement?.textContent?.includes(text));
     const viewport = props.listRef.current!.getScrollableNode()!;
-    // A screen reader scrolls the heading it moves to into view.
     const expectHeadingInView = async (text: string, neighbour: string) => {
       await act(() => headingFor(text)!.scrollIntoView({ block: "start" }));
       await vi.waitFor(() => expect(screen.text()).toContain(neighbour));
@@ -627,7 +617,6 @@ describe("MessagesTimeline messages", () => {
 
     await vi.waitFor(() => expect(screen.text()).toContain("Turn 118:"));
     expect(screen.text()).not.toContain("Turn 60:");
-    // Wrapping follows DOM order, so the ends must also sit first and last.
     await vi.waitFor(() => {
       expect(headings()[0]).toBe(headingFor("First turn"));
       expect(headings().at(-1)).toBe(headingFor("Last turn"));
@@ -682,7 +671,6 @@ describe("MessagesTimeline messages", () => {
     const strips = () => [
       ...screen.container.querySelectorAll<HTMLElement>("[data-minimap-strip]"),
     ];
-    // Several final turns share the last screen, so the current turn is not the last one.
     await vi.waitFor(() => {
       expect(viewport.scrollTop).toBeGreaterThan(0);
       expect(viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop).toBeLessThan(2);
@@ -699,11 +687,9 @@ describe("MessagesTimeline messages", () => {
 
     viewport.scrollTop -= 30;
     await vi.waitFor(() => expect(screen.button("Next turn")).not.toBeDisabled());
-    // Legend keeps its initial end anchor until a scroll leaves the end, and re-pins on resize.
     viewport.scrollTop = 0;
     await vi.waitFor(() => expect(strips()[0]?.dataset.inView).toBe("true"));
 
-    // Shrinking a detached viewport moves the bottom away without a scroll event.
     await screen.rerender(
       <MessagesTimeline {...props} timelineEntries={entries} liveFollowEnabled={false} />,
     );
@@ -717,7 +703,6 @@ describe("MessagesTimeline messages", () => {
       expect(screen.button("Next turn")).not.toBeDisabled();
     });
 
-    // So does a footer that grows below a detached bottom.
     viewport.scrollTop = viewport.scrollHeight;
     await vi.waitFor(() => expect(screen.button("Next turn")).toBeDisabled());
     await screen.rerender(
@@ -779,7 +764,6 @@ describe("MessagesTimeline messages", () => {
 
   it("keeps rows in item order after a reload or thread switch, before any timer runs", async () => {
     setup();
-    // NVDA's browse mode keeps the first DOM order it reads, so a timer that sorts rows later is too late.
     using _timers = fakeTimers();
     const thread = (name: string) =>
       Array.from({ length: 120 }, (_, index) =>
@@ -849,7 +833,6 @@ describe("MessagesTimeline messages", () => {
           vi.advanceTimersByTime(16);
         });
       }
-      // Wrapping right after a scroll must still reach the first and last message.
       expect(turnsInDomOrder()[0]).toBe(0);
       expect(turnsInDomOrder().at(-1)).toBe(119);
     };
@@ -899,7 +882,6 @@ describe("MessagesTimeline messages", () => {
       });
       await vi.waitFor(() => expect(strips()[0]?.getAttribute("data-in-view")).toBe("true"));
 
-      // Clicks again while the view has not moved, as a user would.
       for (const id of userIds.slice(1)) {
         const from = turnAtTop();
         await vi.waitFor(async () => {
@@ -1158,10 +1140,8 @@ describe("MessagesTimeline citations", () => {
           citationHistory={{ _tag: "found" }}
         />
       </StrictMode>,
-      // The test router mounts route content without StrictMode's effect replay.
       { router: false },
     );
-    // StrictMode replays effect cleanups on mount; the activation must survive them.
     await vi.waitFor(() =>
       expect(document.querySelector("[data-citation-highlighted]")?.textContent).toContain(
         "the cited answer",
@@ -1290,22 +1270,18 @@ describe("MessagesTimeline citations", () => {
     expect(onCiteAssistantText).toHaveBeenLastCalledWith(...quoteFromRow);
     await expect.element(annotate).not.toBeInTheDocument();
 
-    // From inside the page, Tab reaches the button as it does from the host's own text. The
-    // expanded view is the strict case: the button sits outside the dialog that traps focus.
     await userEvent.click(screen.getByRole("button", { name: "Open full screen" }));
     const expanded = page.getByRole("dialog");
     await select(expanded.getByTitle("Report"));
     await expect.element(annotate).toBeVisible();
     await userEvent.keyboard("{Tab}");
     await expect.element(annotate).toHaveFocus();
-    // Focus leaving the frame is a window focus for the host, which must not hand it on.
     expect(
       shouldRefocusComposerOnWindowFocus(document.activeElement, document.getSelection()),
     ).toBe(false);
     await userEvent.keyboard("{Enter}");
     expect(onCiteAssistantText).toHaveBeenCalledTimes(2);
     expect(onCiteAssistantText).toHaveBeenLastCalledWith(...quoteFromRow);
-    // The expanded view covers the composer, so quoting from it closes it.
     await expect.element(expanded).not.toBeInTheDocument();
   });
 });
@@ -1610,7 +1586,6 @@ describe("MessagesTimeline attachments", () => {
     const props = baseProps();
     await using screen = await renderTimeline(
       [
-        // The first message row is always mounted, so the recordings go in the second.
         message("Start of the thread.", { role: "user" }, "opening"),
         message(
           "Two recordings.",
@@ -1755,9 +1730,6 @@ describe("MessagesTimeline attachments", () => {
 });
 
 describe("MessagesTimeline thread find", () => {
-  // Opening find is navigation; on a list already showing the thread the open
-  // action navigates, so the list itself releases follow only when it starts
-  // showing a thread whose find is already open.
   function renderObserved() {
     const navigations: TimelineNavigation[] = [];
     const base = baseProps();

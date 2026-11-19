@@ -9,7 +9,6 @@ interface OptimisticPreferences {
   readonly versions: Partial<Record<keyof MobilePreferences.Preferences, number>>;
 }
 
-// useAtomSet treats bare functions as AsyncResult updates; wrap preference transforms in payloads.
 type PreferencesUpdate =
   | Partial<MobilePreferences.Preferences>
   | {
@@ -121,7 +120,6 @@ export function createMobilePreferencesState(
           ),
         );
       },
-      // Storage serializes shared-blob updates; keep concurrent invocations alive to prevent cross-field interruption.
       { concurrent: true },
     )
     .pipe(Atom.keepAlive, Atom.withLabel("mobile:preferences:update"));

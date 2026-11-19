@@ -138,7 +138,6 @@ it.effect("coalesces a slow shell subscriber by identity and location in sequenc
     expect(yield* pull).toEqual([initial]);
     yield* Queue.offerAll(input, updates);
     yield* Queue.end(input);
-    // Finish producing the burst while the first batch is still awaiting its ACK.
     yield* Deferred.await(drained);
     expect(yield* pull).toEqual([updates[3], updates[4], updates[7], updates[8], updates[9]]);
   }),
@@ -184,7 +183,6 @@ describe("omitIdleSubagentShells", () => {
       row("background", "root", {
         pendingBackgroundTasks: [{ kind: "subagent" } as never],
       }),
-      // Idle, but a woken grandchild walks through it to reach the root's badge.
       row("middle", "root"),
       row("grandchild", "middle"),
     ];
@@ -363,7 +361,6 @@ describe("shellStreamItemsFromInitialSnapshot", () => {
 describe("composeShellStreamWithEnrichment", () => {
   it.effect("preserves pending repository resolutions while an enrichment ACK is withheld", () =>
     Effect.gen(function* () {
-      // Match ProjectEnrichmentService's sliding notifications and the WS batching path.
       const changes = yield* Effect.acquireRelease(
         PubSub.sliding<{ readonly workspaceRoot: string }>(256),
         PubSub.shutdown,
@@ -392,7 +389,6 @@ describe("composeShellStreamWithEnrichment", () => {
       );
       expect(yield* pull).toMatchObject([{ resolvedRepositoryIdentityRoots: firstRoots }]);
 
-      // The next completion can be batched before the client acknowledges the first.
       yield* PubSub.publish(changes, { workspaceRoot: "/workspace/pending" });
       yield* Effect.yieldNow;
       yield* TestClock.adjust(Duration.millis(25));
@@ -441,7 +437,6 @@ describe("composeShellStreamWithEnrichment", () => {
         }),
       );
       expect(yield* pull).toEqual([initial]);
-      // Let the merge producer run while the client still withholds its ACK.
       yield* Effect.yieldNow;
       yield* Deferred.succeed(update, undefined);
       yield* Deferred.await(closed);

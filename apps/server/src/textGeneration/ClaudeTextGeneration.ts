@@ -49,7 +49,6 @@ const CLAUDE_INVESTIGATION_ALLOWED = [
 const CLAUDE_INVESTIGATION_DENIED = ["Bash(git * --output*)", "Bash(git * -o *)"].join(",");
 
 const NO_SESSION_PERSISTENCE = "--no-session-persistence";
-// Claude Code before 2.0.63 exits with this on stderr; those runs retry without the flag.
 const NO_SESSION_PERSISTENCE_REJECTED = `error: unknown option '${NO_SESSION_PERSISTENCE}'`;
 
 const ClaudeOutputEnvelope = Schema.Struct({
@@ -66,8 +65,6 @@ const decodeClaudeOutput = Schema.decodeEffect(
   Schema.fromJsonString(Schema.Union([ClaudeOutputEnvelope, Schema.Array(ClaudeOutputMessage)])),
 );
 
-// Only `success` results carry `result`; error subtypes such as
-// error_max_structured_output_retries report through `errors` instead.
 const ClaudeErrorResult = Schema.Struct({
   is_error: Schema.Literal(true),
   result: Schema.optionalKey(Schema.String),
@@ -76,10 +73,6 @@ const ClaudeErrorResult = Schema.Struct({
 const isClaudeErrorResult = Schema.is(ClaudeErrorResult);
 const decodeJsonOption = Schema.decodeUnknownOption(Schema.fromJsonString(Schema.Unknown));
 
-/**
- * The error a failed `claude -p --output-format json` run reports on stdout. Stderr may only
- * hold notices from a wrapper around the binary, so the caller prefers this when present.
- */
 function claudeErrorResult(stdout: string): string | undefined {
   const output = Option.getOrUndefined(decodeJsonOption(stdout));
   const messages: ReadonlyArray<unknown> = Array.isArray(output) ? output : [output];
@@ -89,7 +82,6 @@ function claudeErrorResult(stdout: string): string | undefined {
         ? [
             (
               message.result ??
-              // error_during_execution mixes CLI telemetry into the list.
               message.errors?.filter((error) => !error.startsWith("[ede_diagnostic]")).join("\n") ??
               ""
             ).trim(),
@@ -200,7 +192,6 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
     const ultracode = findDescriptor("ultracode")?.currentValue;
     const thinkingDescriptor = findDescriptor("thinking");
     const fastModeDescriptor = findDescriptor("fastMode");
-    // Only a chosen value; otherwise Claude Code's own default applies, as in chat turns.
     const thinking =
       thinkingDescriptor?.type === "boolean"
         ? getModelSelectionBooleanOptionValue(resolvedModelSelection, "thinking")
@@ -262,8 +253,6 @@ export const makeClaudeTextGeneration = Effect.fn("makeClaudeTextGeneration")(fu
           ...(investigate ? ["--setting-sources", "user"] : []),
           "--disable-slash-commands",
           ...(noSessionPersistence ? [NO_SESSION_PERSISTENCE] : []),
-          // Claude refuses this flag next to a managed-mcp.json, which already keeps the
-          // user's own MCP servers out.
           ...(managedMcpConfig ? [] : ["--strict-mcp-config"]),
           "--permission-mode",
           "dontAsk",

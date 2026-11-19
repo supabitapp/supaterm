@@ -150,7 +150,6 @@ describe("isAutoMarkDoneCandidate", () => {
         NOW_MS,
       ),
     ).toBe(true);
-    // A pull request watch whose checks finished holds nothing, yet still keeps the thread.
     expect(
       ThreadDoneService.isAutoMarkDoneCandidate(
         shell({
@@ -289,7 +288,6 @@ describe("resolveAutoMarkDoneAt", () => {
         autoMarkDoneKeepPullRequests: true,
       }),
     ).toBeNull();
-    // The open link outranks a merged lookup, so only inactivity can mark it done.
     expect(
       ThreadDoneService.resolveAutoMarkDoneAt({
         ...input,
@@ -668,8 +666,6 @@ function makeMergedPullRequestLink(): ThreadPullRequestLink {
   };
 }
 
-// GitManager rereads git state on request, and by default whenever its
-// remembered answer is merged or closed.
 function readsFreshGitState(
   options: Parameters<GitManager.GitManager["Service"]["branchPullRequest"]>[1],
 ): boolean {
@@ -688,11 +684,9 @@ interface HarnessOptions {
   readonly existingWorktreePaths?: ReadonlyArray<string>;
   readonly unreadablePaths?: ReadonlyArray<string>;
   readonly onDispatch?: (command: AutoMarkDoneCommand) => Effect.Effect<void>;
-  /** Runs before each done script start; a failure fails that start. */
   readonly onScriptRun?: (
     input: ProjectSetupScriptRunner.ProjectSetupScriptRunnerInput,
   ) => Effect.Effect<void>;
-  /** Runs only when the mark-done command passes its admission guard. */
   readonly onCommandWrite?: (
     input: ProjectSetupScriptRunner.ProjectSetupScriptRunnerInput,
   ) => Effect.Effect<void>;
@@ -700,7 +694,6 @@ interface HarnessOptions {
     input: ProjectSetupScriptRunner.ProjectSetupScriptRunnerInput,
   ) => Effect.Effect<void>;
   readonly onCloseIdle?: () => Effect.Effect<void>;
-  /** Threads `getThread` returns when a `thread.marked-done` event is handled. */
   readonly currentThreads?: ReadonlyArray<OrchestrationV2AppThread>;
   readonly projections?: ProjectionStore.ProjectionStoreV2Shape;
 }
@@ -1069,7 +1062,6 @@ describe("ThreadDoneServiceV2 worker", () => {
           makeThread("unpinned-merged-link", { pullRequests: [makeMergedPullRequestLink()] }),
         ]),
         branchPullRequest: () => Effect.succeed(makeBranchPullRequest("merged")),
-        // Only the merge can mark these threads done, so the branch lookup path is exercised.
         settings: {
           ...DEFAULT_SERVER_SETTINGS,
           sidebarAutoMarkDoneAfterDays: null,
@@ -1083,7 +1075,6 @@ describe("ThreadDoneServiceV2 worker", () => {
         expect((yield* Ref.get(fixture.commands)).map((command) => command.threadId)).toEqual([
           ThreadId.make("unpinned-merged-link"),
         ]);
-        // Pinned threads drop out before any source control lookup.
         expect(yield* Ref.get(fixture.branchCalls)).toEqual([]);
       }).pipe(Effect.provide(fixture.layer));
     }),
@@ -1159,7 +1150,6 @@ describe("ThreadDoneServiceV2 worker", () => {
   it.effect("stops marking the rest of a sweep done once auto mark done is turned off", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(Date.parse(NOW));
-      // Sweeps mark 8 threads done at a time, so the ninth starts after a dispatch turned it off.
       const threads = Array.from({ length: 9 }, (_, index) => makeThread(`idle-${index}`));
       let disable: Effect.Effect<unknown> = Effect.void;
       const fixture = yield* makeHarness({
@@ -1280,7 +1270,6 @@ describe("ThreadDoneServiceV2 worker", () => {
           };
           yield* store.apply(finished);
           yield* fixture.publishEvent(finished);
-          // Cleanup of the following event marks delivery of the run event before draining.
           yield* fixture.publishEvent(doneEvent(marker));
           expect(yield* Queue.take(fixture.closedIdle)).toEqual({ threadId: marker.id });
           yield* service.drain;
@@ -1344,7 +1333,6 @@ describe("ThreadDoneServiceV2 worker", () => {
           yield* startHarness(service, fixture.activation, fixture.snapshotReads);
           expect(yield* Ref.get(fixture.commands)).toEqual([]);
           expect(yield* Ref.get(fixture.branchCalls)).toEqual([]);
-          // Avoid a settings-change sweep: the parent event must trigger the child dispatch.
           yield* Ref.set(fixture.settings, {
             ...DEFAULT_SERVER_SETTINGS,
             sidebarAutoMarkDoneAfterDays: null,
@@ -1479,7 +1467,6 @@ describe("ThreadDoneServiceV2 worker", () => {
                 payload: marker,
               })
               .pipe(
-                // The next event is observed only after the previous handler has finished enqueueing.
                 Effect.andThen(
                   Queue.take(fixture.observedEvents).pipe(
                     Effect.repeat({ until: (seen) => seen === id }),
@@ -1513,7 +1500,6 @@ describe("ThreadDoneServiceV2 worker", () => {
             worktreePath: "/worktrees/linked",
             latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
           }),
-          // A folder that outlived its .git makes git fail with not_a_repository.
           makeThread("emptied-worktree", {
             branch: "emptied",
             worktreePath: "/worktrees/emptied",
@@ -1552,7 +1538,6 @@ describe("ThreadDoneServiceV2 worker", () => {
               worktreePath: "/worktrees/unreadable",
               latestUserMessageAt: DateTime.makeUnsafe("2026-08-27T00:00:00.000Z"),
             }),
-            // A merged linked pull request still needs the branch recheck before marking done.
             makeThread("unreadable-linked-worktree", {
               branch: "feature",
               worktreePath: "/worktrees/unreadable-linked",
@@ -1798,7 +1783,6 @@ describe("ThreadDoneServiceV2 worker", () => {
         yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
         yield* fixture.publishEvent(backgroundEnded(slow.id));
         yield* Deferred.await(slowLookupStarted);
-        // More events for the slow thread coalesce into one more pass, not more sweeps.
         for (let index = 0; index < 9; index++) {
           yield* fixture.publishEvent(backgroundEnded(slow.id));
         }
@@ -1816,7 +1800,6 @@ describe("ThreadDoneServiceV2 worker", () => {
         );
         yield* Deferred.succeed(releaseSlowLookup, undefined);
         yield* reactor.drain;
-        // The startup sweep, the first per-thread sweep, and one coalesced rerun.
         assert.strictEqual(yield* Ref.get(branchLookupCount), 3);
       }).pipe(Effect.provide(fixture.layer));
     }),
@@ -1845,7 +1828,6 @@ describe("ThreadDoneServiceV2 worker", () => {
       const fixture = yield* makeHarness({
         settings: { ...DEFAULT_SERVER_SETTINGS, sidebarAutoMarkDoneOnMerge: true },
         snapshot: makeSnapshot([thread]),
-        // The host already merged it; only a fresh read sees that past the cached open lookup.
         branchPullRequest: (_input, lookupOptions) =>
           Effect.succeed(makeBranchPullRequest(lookupOptions?.refresh ? "merged" : "open")),
         pullRequestSummary: (input, readOptions) =>
@@ -1993,8 +1975,6 @@ describe("ThreadDoneServiceV2 worker", () => {
         yield* reactor.drain;
         assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, 2);
 
-        // An app merge the host completes later sends only a refresh; reads stay on the minute
-        // cadence while the pull request still reads open.
         yield* fixture.publishRefresh;
         for (const expected of [3, 4]) {
           yield* TestClock.adjust("1 minute");
@@ -2101,7 +2081,6 @@ describe("ThreadDoneServiceV2 worker", () => {
           "recent-feature",
         ]);
 
-        // Work ending in the thread reads its branch at once.
         yield* fixture.publishEvent({
           type: "run.background-work-cancelled",
           id: EventId.make("event:old-branch:run-ended"),
@@ -2138,7 +2117,6 @@ describe("ThreadDoneServiceV2 worker", () => {
       yield* Effect.gen(function* () {
         const reactor = yield* ThreadDoneService.ThreadDoneServiceV2;
         yield* startHarness(reactor, fixture.activation, fixture.snapshotReads);
-        // The most recently active first, then the rest in turn, each once.
         assert.deepStrictEqual(yield* branches, ["idle-0", "idle-1", "idle-2", "idle-3"]);
         for (let minute = 1; minute <= 5; minute += 1) {
           yield* TestClock.adjust("1 minute");
@@ -2255,9 +2233,6 @@ describe("ThreadDoneServiceV2 worker", () => {
         ]),
         pullRequestSummary: (input) =>
           Ref.updateAndGet(lookupCount, (count) => count + 1).pipe(
-            // The initial sweep looks up both linked threads; the merge
-            // sweep only looks up the unrelated one, since the merged
-            // thread marks done from the event itself.
             Effect.tap((count) =>
               count === 3 ? Deferred.succeed(mergeLookupStarted, undefined) : Effect.void,
             ),
@@ -2415,8 +2390,6 @@ describe("ThreadDoneServiceV2 terminals", () => {
       yield* Effect.gen(function* () {
         const service = yield* ThreadDoneService.ThreadDoneServiceV2;
         yield* startHarness(service, fixture.activation, fixture.snapshotReads);
-        // Events run in order, so the first run belongs to the second event
-        // only if the shared-worktree child was skipped. Both still close.
         yield* fixture.publishEvent(doneEvent(shared));
         yield* fixture.publishEvent(doneEvent(own));
         assert.deepStrictEqual(yield* Queue.take(fixture.closedIdle), { threadId: shared.id });
@@ -2546,7 +2519,6 @@ describe("ThreadDoneServiceV2 terminals", () => {
       yield* Effect.gen(function* () {
         const service = yield* ThreadDoneService.ThreadDoneServiceV2;
         yield* startHarness(service, fixture.activation, fixture.snapshotReads);
-        // Marking done an already done thread emits the same completion again.
         yield* fixture.publishEvent(doneEvent(repeated));
         yield* fixture.publishEvent(doneEvent(repeated));
         yield* fixture.publishEvent(doneEvent(marker));

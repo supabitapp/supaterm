@@ -31,10 +31,8 @@ const worktree = NodeChildProcess.execFileSync("git", ["rev-parse", "--show-topl
   encoding: "utf8",
 }).trim();
 
-// A linked worktree's .git is a file; the main checkout's is a directory.
 // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone project script has no Effect runtime.
 if (NodeFS.statSync(NodePath.join(worktree, ".git")).isFile() && process.platform !== "win32") {
-  // Devices named `<purpose>__<worktree directory>` belong to this worktree (see test-supaterm-mobile).
   const worktreeName = NodePath.basename(worktree);
   const isOwned = (deviceName: string) => /^.+?__(.+)$/.exec(deviceName)?.[1] === worktreeName;
   deleteIosSimulators(isOwned);

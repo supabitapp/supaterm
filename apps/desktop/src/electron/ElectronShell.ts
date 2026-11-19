@@ -11,7 +11,6 @@ import * as Option from "effect/Option";
 
 import * as Electron from "electron";
 
-// Remote editor deep links and local editor file links must reach the OS handler.
 const SAFE_WEB_PROTOCOLS = new Set(["http:", "https:"]);
 const REMOTE_EDITOR_PROTOCOLS = new Set(
   REMOTE_CAPABLE_EDITOR_IDS.flatMap((id) => {
@@ -20,7 +19,6 @@ const REMOTE_EDITOR_PROTOCOLS = new Set(
   }),
 );
 
-// Zed embeds [user@]host in the path; reject passwords and ports there.
 const ZED_SSH_PATHNAME = /^\/(?:[^/@:]+@)?[^/@:]+\/.*$/;
 
 const isRemoteEditorUrl = (url: URL) =>

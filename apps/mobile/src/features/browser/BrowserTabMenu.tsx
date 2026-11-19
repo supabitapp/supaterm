@@ -156,8 +156,6 @@ export function BrowserTabMenu({
 
   return (
     <Menu
-      // Remount when streaming changes, so an open menu never keeps offering
-      // the other state's actions.
       key={streaming ? "streaming" : "idle"}
       accessible
       accessibilityLabel="Browser tab options"

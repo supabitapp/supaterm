@@ -1,9 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off
 // @effect-diagnostics globalTimers:off
-// The launcher supervises the server child for the boot service and must keep
-// working across server versions, so it stays on Node built-ins with no Effect
-// runtime: it is the one part of the executable that cannot depend on the
-// rest of it being loadable.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
 import type * as NodeFS from "node:fs";
@@ -44,17 +40,10 @@ import {
 } from "./legacyServerOwner.ts";
 
 const HANDOFF_DELAY_MS = 2_000;
-/**
- * Migrations count toward it and can scale with the database: tens of GB on a cold page cache
- * take minutes. A missed window rolls back the database, so the next attempt pays the same cost.
- */
 const PREPARED_TIMEOUT_MS = 30 * 60_000;
 const TERMINATE_GRACE_MS = 5_000;
-// Keep SQLite startup and journaling from turning a full filesystem into a restart loop.
 const MIN_SERVICE_START_FREE_BYTES = 64 * 1024 ** 2;
 const DISK_SPACE_RETRY_MS = 30_000;
-// Matches SERVER_EXIT_CODE_STATE_DIR_OWNED in contracts. The standalone
-// launcher stays independent of the Effect-backed contracts package.
 const STATE_DIR_OWNED_EXIT_CODE = 78;
 const STATE_DIR_OWNER_POLL_MS = 30_000;
 
@@ -95,7 +84,6 @@ export interface ServiceUnit {
   readonly reload: () => Promise<void>;
 }
 
-// The manager's environment can differ from the one it gives services (environment.d).
 async function readSystemdUnitDirectory(): Promise<string | undefined> {
   try {
     const { stdout } = await NodeUtil.promisify(NodeChildProcess.execFile)(
@@ -160,19 +148,11 @@ async function serviceUnitFromEnvironment(
   };
 }
 
-// systemd's ExecStart value, or the plist string before the __service-launcher argument.
-// Only the version segment changes, so quoted or escaped paths stay as rendered.
-// The launch agent's PATH names a versions directory without the executable; leave it.
 const SERVICE_UNIT_PROGRAMS = [
   /^(ExecStart=.*?[\\/]runtime[\\/]versions[\\/])([^\\/\s"]+)([\\/]supaterm)(?=["\s])/m,
   /(<string>[^<]*?[\\/]runtime[\\/]versions[\\/])([^\\/<]+)([\\/]supaterm<\/string>\s*<string>__service-launcher<\/string>)/,
 ] as const;
 
-/**
- * The unit contents with their program pointed at `version`'s runtime. A unit
- * already at that version or a newer one is returned unchanged: `supaterm update`
- * may have repointed it to a later version while this commit was in flight.
- */
 function repointServiceUnit(contents: string, version: string): string {
   for (const program of SERVICE_UNIT_PROGRAMS) {
     const match = program.exec(contents);
@@ -189,10 +169,6 @@ function repointServiceUnit(contents: string, version: string): string {
 const SERVICE_LOG_MAX_BYTES = 10 * 1024 * 1024;
 const SERVICE_LOG_CHECK_INTERVAL_MS = 10 * 60_000;
 
-/**
- * The service manager holds the log open for appending, so it is copied aside and emptied in
- * place rather than renamed. The copy is best effort: on a full disk the truncate frees space.
- */
 async function boundServiceLog(logPath: string): Promise<void> {
   const size = await NodeFSP.stat(logPath).then(
     (stats) => stats.size,
@@ -262,7 +238,6 @@ export async function readServiceEnvironment(
   return environment;
 }
 
-// Opened read-write: Windows refuses to flush a handle without write access.
 async function syncFile(filePath: string): Promise<void> {
   const handle = await NodeFSP.open(filePath, "r+");
   try {
@@ -272,9 +247,6 @@ async function syncFile(filePath: string): Promise<void> {
   }
 }
 
-// Flushes a directory entry so a rename into it survives power loss. Windows
-// has no directory fsync: the handle opens but sync fails with EPERM, and
-// NTFS journals the rename on its own.
 async function syncDirectory(directory: string): Promise<void> {
   const handle = await NodeFSP.open(directory, "r");
   try {
@@ -292,9 +264,6 @@ function runCp(args: ReadonlyArray<string>, signal?: AbortSignal): Promise<boole
   });
 }
 
-/**
- * Node's own clone flag is not used: on macOS `fs.copyFile` falls back to a full copy.
- */
 async function copyDatabaseFile(
   source: string,
   destination: string,
@@ -302,8 +271,6 @@ async function copyDatabaseFile(
 ): Promise<void> {
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone launcher has no Effect runtime.
   const platform = process.platform;
-  // `cp -c` replaces the destination with a new file, which would cut a
-  // hard-linked database off from its other links; copy into it instead.
   const hardLinked =
     platform === "darwin" &&
     ((await NodeFSP.stat(destination).catch(() => undefined))?.nlink ?? 1) > 1;
@@ -319,13 +286,8 @@ async function copyDatabaseFile(
 }
 
 const GIB = 1024 ** 3;
-/**
- * Clones share blocks, but the trial server diverges from them as it writes,
- * migrations included, so a cloned backup still needs room for that churn.
- */
 const CLONED_BACKUP_MIN_HEADROOM_BYTES = GIB;
 const CLONED_BACKUP_HEADROOM_FRACTION = 0.1;
-// While the online backup holds its snapshot, the live WAL and its copy can each reach the server's 128 MiB gate.
 const ONLINE_BACKUP_WAL_HEADROOM_BYTES = 2 * 128 * 1024 ** 2;
 
 async function statDatabaseFiles(dbPath: string): Promise<ReadonlyArray<NodeFS.Stats>> {
@@ -340,12 +302,6 @@ async function statDatabaseFiles(dbPath: string): Promise<ReadonlyArray<NodeFS.S
   return stats;
 }
 
-/**
- * - macOS: `cp -c` clones within one APFS volume and silently copies
- *   anywhere else, so every existing database file must share the backup
- *   directory's device, whose filesystem type must match the system volume's,
- *   which is always APFS.
- */
 async function backupCanClone(dbPath: string, backupRoot: string): Promise<boolean> {
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone launcher has no Effect runtime.
   const platform = process.platform;
@@ -389,8 +345,6 @@ const filesystemBackupSpaceProbe: BackupSpaceProbe = {
   canClone: backupCanClone,
 };
 
-// A killed launcher skips the backup's cleanup, and retries only clear their own update's copy.
-// Update requests are refused while one is pending, so no staging directory is still in use here.
 async function removeAbandonedBackupCopies(backupRoot: string): Promise<void> {
   for (const entry of await NodeFSP.readdir(backupRoot)) {
     if (!entry.endsWith(".staging")) continue;
@@ -428,17 +382,12 @@ export async function databaseBackupBlocker(
   return `Not enough free disk space to back up the database before updating: ${gb(needed)} GB needed, ${gb(free)} GB free. Free up disk space and try again. The server was not stopped.`;
 }
 
-// A child-process copy: closing any descriptor this process opens on the database drops the snapshot's POSIX locks.
 async function copyWithoutOpening(source: string, destination: string): Promise<void> {
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone launcher has no Effect runtime.
   if (process.platform === "win32") return NodeFSP.copyFile(source, destination);
   if (!(await runCp([source, destination]))) throw new Error(`cp ${source} failed.`);
 }
 
-// Copies the main file while the server runs; an open read transaction stops SQLite resetting the WAL,
-// which `finish` copies after the stop and which overrides any page the copy caught mid-checkpoint.
-// `-shm` is left out: its backfill count would make SQLite trust those pages. Past the WAL size gate,
-// a write-heavy server's new writes wait, uncommitted, until the server stops.
 async function startOnlineDatabaseBackup(
   baseDir: string,
   pending: PendingServiceUpdate,
@@ -463,7 +412,6 @@ async function startOnlineDatabaseBackup(
     return undefined;
   };
   let snapshot: InstanceType<typeof NodeSqlite.DatabaseSync> | undefined;
-  // SQLite keeps -wal beside the resolved file, not beside a symlink to it.
   let dbPath = pending.dbPath;
   const release = () => {
     try {
@@ -505,10 +453,6 @@ async function startOnlineDatabaseBackup(
   };
 }
 
-/**
- * A completed backup is never overwritten because a restarted launcher may be looking at
- * database writes from an earlier attempt by the same trial.
- */
 async function backupDatabaseOnce(
   baseDir: string,
   pending: PendingServiceUpdate,
@@ -543,7 +487,6 @@ const restoreMarkerPath = (baseDir: string, updateId: string) =>
 const databaseRestorePending = (baseDir: string, pending: PendingServiceUpdate) =>
   pathExists(restoreMarkerPath(baseDir, pending.id));
 
-/** Mark rollback before changing live files so launcher recovery cannot boot a partial restore. */
 async function markDatabaseRestorePending(backupDir: string): Promise<void> {
   const markerPath = NodePath.join(backupDir, RESTORE_MARKER);
   if (!(await pathExists(markerPath))) {
@@ -557,11 +500,6 @@ async function markDatabaseRestorePending(backupDir: string): Promise<void> {
   }
 }
 
-/**
- * The file a restore writes for `path`: where its symlinks lead, even when the
- * last target is missing, as after a crash between `cp -c` removing a file
- * and cloning over it.
- */
 async function restoreTarget(path: string): Promise<string> {
   let current = path;
   for (let hops = 0; hops < 40; hops++) {
@@ -576,8 +514,6 @@ async function restoreTarget(path: string): Promise<string> {
       throw cause;
     });
     if (link === undefined) return current;
-    // Joined without normalizing: a `..` in the link must follow directory links
-    // the way the filesystem does, not cancel a path segment.
     current = NodePath.isAbsolute(link)
       ? link
       : `${await NodeFSP.realpath(NodePath.dirname(current))}${NodePath.sep}${link}`;
@@ -594,7 +530,6 @@ async function restoreDatabaseBackup(
 
   await markDatabaseRestorePending(backupDir);
   const directories = new Set([NodePath.dirname(pending.dbPath)]);
-  // SQLite keeps -wal and -shm beside the resolved database file, not beside a symlink to it.
   const mainTarget = await restoreTarget(pending.dbPath);
   for (const suffix of DB_FILE_SUFFIXES) {
     const livePath = suffix === "" ? pending.dbPath : `${mainTarget}${suffix}`;
@@ -603,8 +538,6 @@ async function restoreDatabaseBackup(
     }
     const source = databaseBackupFile(backupDir, suffix);
     if (await pathExists(source)) {
-      // A clone replaces its destination, so restore into the file a symlinked
-      // database resolves to and keep the link itself.
       const target = await restoreTarget(livePath);
       await copyDatabaseFile(source, target);
       await syncFile(target);
@@ -630,9 +563,6 @@ export async function readServiceState(filePath: string): Promise<ServiceState> 
   return state;
 }
 
-// An older coordinator can write protocol 2 beside a newer runtime. Adopt
-// only its install record, in memory: rewriting it outside the selection lock
-// could replace state a concurrent install wrote after this read.
 function adoptLegacyServiceState(contents: string): ServiceState | undefined {
   const legacy = parseLegacyServiceState(contents);
   return legacy && { protocol: SERVICE_LAUNCHER_PROTOCOL, activeVersion: legacy.activeVersion };
@@ -723,7 +653,6 @@ async function terminateChild(
   }
 }
 
-// An exclusive SQLite transaction, like the server's owner lock: the OS drops it when the holder dies.
 async function tryAcquireSqliteLock(
   lockPath: string,
   busyTimeoutMs = 0,
@@ -760,8 +689,6 @@ const servingLockPath = (baseDir: string) =>
 export const serviceLauncherIsServing = (baseDir: string): Promise<boolean> =>
   sqliteLockHeld(servingLockPath(baseDir)).catch(() => false);
 
-// Mirror acquireServerOwnership: the lock, then a live pre-lock server-runtime.json owner;
-// leave other failures for server startup to report.
 export async function stateDirOwned(baseDir: string): Promise<boolean> {
   const stateDir = NodePath.join(baseDir, "userdata");
   const lock = await tryAcquireSqliteLock(NodePath.join(stateDir, "server-owner.sqlite")).catch(
@@ -860,9 +787,7 @@ export class Launcher {
     }
   }
 
-  // Advisory: without it an SSH launch may start its own server, as it does beside no service.
   async #claimServing(): Promise<void> {
-    // An SSH launch probes this lock for a moment; wait out that probe.
     this.#servingLock ??= await tryAcquireSqliteLock(servingLockPath(this.#baseDir), 250).catch(
       () => undefined,
     );
@@ -901,10 +826,7 @@ export class Launcher {
     this.#stopSignal.abort();
     this.#clearTimer();
     this.#enqueue(async () => {
-      // Let an update transition already in progress start its replacement
-      // before this queued stop tears it down.
       this.#stopping = true;
-      // An exit-78 transition queued before this one may have started the owner poll.
       this.#clearTimer();
       const child = this.#child?.process;
       this.#child = null;
@@ -950,7 +872,6 @@ export class Launcher {
   async #deferForDiskSpace(retry: () => Promise<void>): Promise<boolean> {
     const reason = await this.#serviceStartDiskSpaceBlocker();
     if (reason === undefined) return false;
-    // A stop during the probe must not arm a retry that outlives it.
     if (this.#stopRequested) return true;
     this.#clearTimer();
     this.#releaseServing();
@@ -977,8 +898,6 @@ export class Launcher {
     const release = await acquireServiceSelectionLock(this.#statePath);
     try {
       const selected = await readServiceState(this.#statePath);
-      // Local installs replace the selection and clear its update record. An old
-      // launcher must not restore its own selection when asked to update again.
       if (
         selected.activeVersion !== this.#state.activeVersion ||
         selected.update?.id !== this.#state.update?.id ||
@@ -995,9 +914,6 @@ export class Launcher {
 
   async #recover(): Promise<void> {
     await this.#claimServing();
-    // A deferred `supaterm update` restart is done once this launcher runs the awaited version,
-    // whoever restarted it. A launcher that came up between the CLI writing the marker and the
-    // new state still runs the old version, so the marker must outlive it.
     const restartPending = restartPendingPath(this.#baseDir);
     try {
       const release = await acquireServiceSelectionLock(this.#statePath);
@@ -1053,7 +969,6 @@ export class Launcher {
     try {
       await backupDatabaseOnce(this.#baseDir, pending, this.#stopSignal.signal);
     } catch {
-      // A stop aborts the copy and leaves the update pending for the next start.
       if (this.#stopRequested) return;
       await this.#returnToPrevious(pending, "failed", "db-backup-failed");
       return;
@@ -1170,8 +1085,6 @@ export class Launcher {
       await reject("The requested target runtime is missing or incomplete.");
       return;
     }
-    // A check that cannot run refuses the update too: the alternative is
-    // stopping the server without knowing whether the backup fits.
     const backupBlocker = await databaseBackupBlocker(
       this.#baseDir,
       message.dbPath,
@@ -1210,7 +1123,6 @@ export class Launcher {
       return;
     }
     this.#timer = undefined;
-    // Anything thrown outside its own fallback still leaves the offline backup to run.
     const finishOnlineBackup = await startOnlineDatabaseBackup(
       this.#baseDir,
       pending,
@@ -1253,15 +1165,12 @@ export class Launcher {
     }
   }
 
-  // Selection is durable before this best-effort unit reconciliation.
   async #repointServiceUnit(version: string): Promise<void> {
     const unit = this.#serviceUnit;
     if (unit === undefined) return;
     try {
       const release = await acquireServiceSelectionLock(unit.path);
       try {
-        // The installer writes state before the unit under this lease. Do not
-        // acquire its state lease here: the installer takes that lease first.
         const selected = await readServiceState(this.#statePath);
         if (
           selected.activeVersion !== this.#state.activeVersion ||
@@ -1280,7 +1189,6 @@ export class Launcher {
         }
         const repointed = repointServiceUnit(contents, version);
         if (repointed !== contents) await replaceFileDurably(unit.path, repointed);
-        // A previous rename may have succeeded before reload failed.
         await unit.reload();
       } finally {
         release();
@@ -1341,10 +1249,6 @@ export class Launcher {
     throw new Error(`Active child exited unexpectedly (${String(code ?? signal ?? "unknown")}).`);
   }
 
-  // Stay idle until the lock frees to avoid supervisor restart loops. A pending update resumes its
-  // trial, since the other owner may have migrated the database past fromVersion. It stays pending
-  // only once its backup is gone, so no later trial, even after a launcher restart, restores it over
-  // the other owner's writes; exit 78 comes before the child opens the database.
   async #idleWhileStateDirOwned(): Promise<void> {
     this.#clearTimer();
     const pending = this.#state.update;
@@ -1368,7 +1272,6 @@ export class Launcher {
       "[service-launcher] Another Supaterm server owns this Supaterm home. This service starts again once it stops.\n",
     );
     this.#stateDirFreeProbes = 0;
-    // The interval also keeps Node alive: signal listeners alone do not.
     this.#timer = setInterval(
       () => this.#enqueue(() => this.#reclaimStateDir()),
       this.#stateDirOwnerPollMs,
@@ -1382,9 +1285,7 @@ export class Launcher {
     }
     if (this.#timer === undefined || this.#child !== null) return;
     const owned = await stateDirOwned(this.#baseDir);
-    // A stop during the probe clears the timer.
     if (this.#timer === undefined) return;
-    // A relaunching desktop app frees the home for a few seconds; leave it that gap.
     this.#stateDirFreeProbes = owned ? 0 : this.#stateDirFreeProbes + 1;
     if (this.#stateDirFreeProbes < 2) return;
     this.#clearTimer();
@@ -1444,7 +1345,6 @@ export async function main(): Promise<void> {
   }
   const serviceUnit = await serviceUnitFromEnvironment();
   let logTimer: NodeJS.Timeout | undefined;
-  // A failed stderr write (ENOSPC on a redirected log) is emitted asynchronously; without a listener it is fatal.
   process.stderr.on("error", () => undefined);
   try {
     const logPath = await serviceLogPath(serviceUnit);

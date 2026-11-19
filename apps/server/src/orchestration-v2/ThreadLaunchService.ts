@@ -62,7 +62,6 @@ import { randomUuidV4 } from "@supaterm/provider-core/server/randomUuid";
 import { DispatchModeLimit } from "./DispatchModeLimit.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 
-// The agent waits for its branch name; a rate-limited provider would hold it for minutes.
 const BRANCH_NAME_TIMEOUT = "20 seconds";
 
 export type ThreadLaunchWorkspaceStrategy =
@@ -280,7 +279,6 @@ const make = Effect.gen(function* () {
   const threads = yield* ThreadManagement.ThreadManagementService;
   const eventSink = yield* EventSink.EventSinkV2;
   const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
-  // A project-folder launch that names no branch records the folder's checkout, as the composer does.
   const launchBranch = (strategy: ThreadLaunchWorkspaceStrategy, workspaceRoot: string) =>
     strategy.type === "root" && strategy.branch === undefined
       ? git.currentBranch(workspaceRoot).pipe(Effect.orElseSucceed(() => null))
@@ -321,7 +319,6 @@ const make = Effect.gen(function* () {
               providerTurnId: null,
               nativeItemRef: null,
               parentItemId: null,
-              // EventSink allocates the real position, after the run's existing items.
               ordinal: 0,
               status: "completed",
               title: "Branch not renamed",
@@ -385,22 +382,18 @@ const make = Effect.gen(function* () {
       ],
       { concurrency: "unbounded" },
     );
-    // launch() turns a Scratch worktree request into a root launch.
     if (isScratch) return;
     if (Option.isSome(receipt) && receipt.value.status === "accepted") return;
     const project = Option.getOrUndefined(projectOption);
     if (project === undefined) return;
     const cwd = project.workspaceRoot;
     const { baseRef, branch } = strategy;
-    // Errors keep their order below: missing repository, then base ref, then branch exists or conflicts.
     const [repositoryRoot, hasBaseCommit, localBranches] = yield* Effect.all(
       [
         git.repositoryRoot(cwd).pipe(Effect.orElseSucceed(() => undefined)),
-        // `:/text` is a commit search, which cannot be asked for a commit type.
         baseRef.startsWith(":")
           ? Effect.succeed(true)
-          : // `git worktree add` reads `-` as the previous checkout.
-            git
+          : git
               .hasCommit({ cwd, refName: baseRef === "-" ? "@{-1}" : baseRef })
               .pipe(Effect.orElseSucceed(() => true)),
         branch !== undefined
@@ -422,15 +415,12 @@ const make = Effect.gen(function* () {
       (yield* Effect.gen(function* () {
         if (strategy.startFromOrigin === true) {
           const remote = yield* git.resolveWorktreeBaseRemote({ cwd, refName: baseRef });
-          // The remote may have deleted the branch; ask it rather than trusting the name.
           if (
             remote !== null &&
             (yield* git.fetchWorktreeBaseCommit({ cwd, refName: baseRef, remote })) !== null
           )
             return true;
         }
-        // `git worktree add` also starts from a remote-tracking branch of that
-        // name; any ref carrying it is reason enough to let Git decide.
         if (yield* git.hasRefNamed({ cwd, refName: baseRef })) return true;
         return !(yield* git.hasCommit({ cwd, refName: "HEAD" }));
       }).pipe(Effect.orElseSucceed(() => true)));
@@ -448,7 +438,6 @@ const make = Effect.gen(function* () {
         projectTitle: project.title,
         branch,
       });
-    // Provisioning flattens temporary names that collide, so only explicit names are refused.
     if (isTemporaryWorktreeBranch(branch)) return;
     const conflictingBranch = localBranches.find(
       (existing) => existing.startsWith(`${branch}/`) || branch.startsWith(`${existing}/`),
@@ -469,19 +458,12 @@ const make = Effect.gen(function* () {
       .getById(projectId)
       .pipe(Effect.orElseSucceed(() => Option.none()));
     if (Option.isNone(project)) return false;
-    // Unlike `git.repositoryRoot`, this fails on a repository Git cannot read, which is not "no repository".
     return yield* checkpointStore.isGitRepository(project.value.workspaceRoot).pipe(
       Effect.map((isRepository) => !isRepository),
       Effect.orElseSucceed(() => false),
     );
   });
 
-  /**
-   * A recorded worktree strategy can outlive the ref it names: tasks saved before
-   * the base followed the repo's default branch kept `"main"`, and a base branch
-   * can be deleted after it was recorded. Re-base on the remote's default branch,
-   * then on the checked-out commit, instead of failing every launch.
-   */
   const worktreeFallbackBase = Effect.fn("ThreadLaunchService.worktreeFallbackBase")(function* (
     cwd: string,
     remoteName: string | null,
@@ -489,7 +471,6 @@ const make = Effect.gen(function* () {
     if (remoteName !== null) {
       const defaultBranch = yield* git.resolveDefaultBranchName(cwd, remoteName);
       if (defaultBranch !== null) {
-        // Fetch freshens the default branch the way the recorded base would have been.
         const remoteBase = yield* git
           .fetchWorktreeBaseCommit({
             cwd,
@@ -506,8 +487,6 @@ const make = Effect.gen(function* () {
             baseRefName: `refs/remotes/${remoteBase.base.remoteRefName}`,
           };
         }
-        // A completed fetch that found no branch means the branch is gone and its
-        // tracking ref is stale; only a failed fetch can fall back to it.
         if (remoteBase.fetchFailed) {
           const trackingRef = `refs/remotes/${remoteName}/${defaultBranch}`;
           if (yield* git.hasCommit({ cwd, refName: trackingRef })) {
@@ -698,15 +677,12 @@ const make = Effect.gen(function* () {
           }
         }
         if (shouldFetch) yield* setupTracker.stageStatus(threadId, "fetch", "done");
-        // `:/text` bases are commit searches, not refs; `hasCommit` treats the appended
-        // `^{commit}` as part of the pattern (same guard as checkWorktreeBase).
         const recordedBaseResolves =
           fetchedBase ||
           startRef.startsWith(":") ||
           (yield* git
             .hasCommit({
               cwd: project.workspaceRoot,
-              // `git worktree add` reads `-` as the previous checkout.
               refName: startRef === "-" ? "@{-1}" : startRef,
             })
             .pipe(Effect.mapError(mapError(input, "provision-worktree", threadId))));
@@ -780,13 +756,11 @@ const make = Effect.gen(function* () {
                     `disabled in ${source}`,
                   ),
                 onSubmoduleLine: (line) => {
-                  // Paths may contain quotes; git closes the path with "': ".
                   const submodulePath = /^\s*Submodule path '(.+)': /.exec(line)?.[1];
                   if (submodulePath !== undefined) {
                     return setupTracker.stage(threadId, "submodules", { detail: submodulePath });
                   }
                   if (parseGitCloneProgressLine(line) === null) return Effect.void;
-                  // Git redraws on every percent; hold the websocket to one update a second.
                   return Effect.flatMap(Clock.currentTimeMillis, (now) => {
                     if (now - submoduleProgressReportedAt < 1000) return Effect.void;
                     submoduleProgressReportedAt = now;
@@ -838,8 +812,6 @@ const make = Effect.gen(function* () {
         yield* setupTracker.stageStatus(threadId, "checkout", "done");
       }
 
-      // A reused worktree is already recorded, and rewriting it could undo
-      // the first attempt's branch rename.
       if (reused === undefined) {
         yield* threads
           .dispatch({
@@ -872,7 +844,6 @@ const make = Effect.gen(function* () {
                 ...(exactName ? { exactName: true } : {}),
               })
               .pipe(
-                // A cancel must see the renamed branch, or its cleanup deletes the old name.
                 Effect.tap((renamed) =>
                   Effect.sync(() => {
                     createdBranch = renamed.branch;
@@ -901,8 +872,6 @@ const make = Effect.gen(function* () {
                     }),
                   ),
                 );
-              // Updating the parent first makes later subagents inherit the new name.
-              // Re-read after each pass for children of subagents updated in that pass.
               const visited = new Set([threadId]);
               while (true) {
                 const snapshot = yield* threads.getShellSnapshot({ worktreePath: worktreeCwd });
@@ -1016,7 +985,6 @@ const make = Effect.gen(function* () {
               )(`Setup script exited with ${completion.exitCode ?? "no exit code"}.`);
           });
           if (setup.async) {
-            // Record the result when the script ends, not after the agent starts.
             const asyncSetup = yield* awaitCompletion.pipe(
               Effect.catchCause((cause) =>
                 setupTracker.stageStatus(
@@ -1038,7 +1006,6 @@ const make = Effect.gen(function* () {
       } else {
         yield* setupTracker.stageStatus(threadId, "setup-script", "skipped");
       }
-      // The agent must start on the branch name the thread will show.
       if (branchRename !== null) yield* Fiber.join(branchRename);
       yield* setupTracker.markUncancellable(threadId);
       yield* setupTracker.stageStatus(threadId, "agent", "running");
@@ -1084,9 +1051,6 @@ const make = Effect.gen(function* () {
             if (branchRename !== null) yield* Fiber.interrupt(branchRename);
             const removedPath = createdWorktreePath;
             const removedBranch = createdBranch;
-            // The thread forgets the worktree only once it is gone; a failed
-            // removal leaves the directory for the user to clean up rather than
-            // reusing a checkout that may be half written.
             yield* git
               .removeWorktree({ cwd: project.workspaceRoot, path: removedPath, force: true })
               .pipe(
@@ -1226,8 +1190,6 @@ const make = Effect.gen(function* () {
 
   const launch: ThreadLaunchService["Service"]["launch"] = Effect.fn("ThreadLaunchService.launch")(
     function* (request) {
-      // Scratch has no Git repository. Normalize before folder allocation so
-      // durable preparation and retries use the thread's own Scratch folder.
       const input: ThreadLaunchInput =
         request.workspaceStrategy.type === "worktree" &&
         (yield* managedFolders.isScratchProject(request.projectId))
@@ -1260,10 +1222,6 @@ const make = Effect.gen(function* () {
         instanceId: input.modelSelection.instanceId,
       });
       return yield* Effect.gen(function* () {
-        // A retried launch has no client-supplied id to replay against, so
-        // recover the thread id its accepted create was recorded under before
-        // allocating another one; a fresh id would only collide with the
-        // recorded receipt.
         const reusableLaunchReceipt =
           input.threadId === undefined &&
           Option.isSome(launchReceipt) &&
@@ -1387,8 +1345,6 @@ const make = Effect.gen(function* () {
         let messageSequence: number | undefined;
         let messageWasAlreadyAccepted = false;
         if (initialMessage !== undefined) {
-          // A new thread's claim carries its first message. A reused thread, or a replayed
-          // claim that carried none, takes it in a command of its own.
           let accepted = claimed;
           if (!claimed.storedEvents.some((stored) => stored.event.type === "run.created")) {
             const messageCommandId = CommandId.make(`${input.commandId}:initial-message`);
@@ -1406,10 +1362,6 @@ const make = Effect.gen(function* () {
                 creationSource: input.creationSource,
               })
               .pipe(
-                // An agent's launch can land on a thread that a replay, or a concurrent
-                // launch with the same key, created with broader modes. The orchestrator
-                // refuses the message under the thread's lock; the user's own clients
-                // launch into their own drafts, whatever modes those hold.
                 input.createdBy === "agent"
                   ? Effect.provideService(DispatchModeLimit, {
                       runtimeMode: input.runtimeMode,
@@ -1419,7 +1371,6 @@ const make = Effect.gen(function* () {
                 Effect.mapError(mapError(input, "dispatch-message", threadId)),
               );
           }
-          // A concurrent retry can read no receipt and still replay the dispatch.
           messageWasAlreadyAccepted ||= accepted.replayed === true;
           messageSequence = accepted.sequence;
           const runCreated = accepted.storedEvents.find(
@@ -1435,7 +1386,6 @@ const make = Effect.gen(function* () {
           }
         }
 
-        // Fork preparation before the full projection read; it is only part of the reply.
         const shouldSchedule = runId === null ? Option.isNone(launchReceipt) : true;
         if (shouldSchedule && (yield* reservePreparation(input.commandId))) {
           yield* Effect.gen(function* () {
@@ -1452,8 +1402,6 @@ const make = Effect.gen(function* () {
               return yield* releasePreparation(input.commandId);
             }
             const boundWorktreePath = current?.thread.worktreePath ?? null;
-            // A retry prepares the worktree the accepted launch asked for, not the
-            // retry's own strategy, whose defaults may resolve differently.
             const accepted = current?.runs.find((run) => run.id === runId)?.workspacePreparation;
             const preparationStrategy: ThreadLaunchWorkspaceStrategy =
               Option.isSome(launchReceipt) &&
@@ -1482,8 +1430,6 @@ const make = Effect.gen(function* () {
         return {
           threadId,
           projection,
-          // An attempt that failed after claiming the thread recorded nothing, so
-          // only a repeat of the final write counts as resumed.
           resumed:
             input.initialMessage === undefined
               ? Option.isSome(launchReceipt) || claimed.replayed === true

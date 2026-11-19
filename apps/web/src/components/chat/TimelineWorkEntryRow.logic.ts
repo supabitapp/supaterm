@@ -197,9 +197,6 @@ export function workEntryIconName(workEntry: TimelineWorkEntry): WorkEntryIconNa
   return workToneIcon(workEntry.tone).iconName;
 }
 
-// Look past the visible label so long destinations and inline delimiters can close.
-// This is bounded lookahead, not document-wide Markdown parity: a closing delimiter
-// or reference definition beyond this prefix remains unresolved by the parser.
 export const THOUGHT_PREVIEW_SOURCE_MAX_LENGTH = 8_192;
 export const THOUGHT_PREVIEW_MAX_LENGTH = 2_048;
 
@@ -217,7 +214,6 @@ export function remarkThoughtPreview(fallback: string) {
     const take = (value: string) => {
       const text = value.slice(0, remaining);
       remaining = text.length < value.length ? 0 : remaining - text.length;
-      // A cut here or at the source limit must not leave half a surrogate pair.
       return text.replace(/[\uD800-\uDBFF]$/, "");
     };
     const append = (value: string) => {

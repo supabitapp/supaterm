@@ -108,7 +108,6 @@ describe("CursorTextGeneration", () => {
 
   it.effect("continues in the temp directory when the SDK cannot sandbox", () =>
     Effect.gen(function* () {
-      // The SDK checks sandbox support lazily, so create succeeds and send rejects.
       cursorSdkMock.create.mockImplementationOnce(async () => ({
         close: cursorSdkMock.close,
         [Symbol.asyncDispose]: async () => {

@@ -26,7 +26,6 @@ function Checkbox({
       data-slot="checkbox"
       {...props}
     >
-      {/* Keep an inner gap in the focus outline. Explicit glyph colors resist row icon-muting rules. */}
       <CheckboxPrimitive.Indicator
         className={indicatorClassName}
         data-slot="checkbox-indicator"
@@ -70,7 +69,6 @@ function Checkbox({
   );
 }
 
-// Checkbox's look without its hidden input, for a row that is itself the button.
 function CheckboxMark({
   checked,
   variant = "default",

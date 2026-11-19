@@ -458,7 +458,6 @@ describe("pull request list answers across a reload", () => {
       { environmentId: remote, input },
       answer([listEntry(3, "2026-07-03T00:00:00Z")]),
     );
-    // The shared repository now belongs to the remote environment, which has not answered yet.
     rememberPullRequestListAnswer(
       storage,
       { environmentId: local, input: { ...input, projectIds: [own] } },

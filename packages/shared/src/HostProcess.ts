@@ -83,7 +83,6 @@ export const IsExecutable = Context.Reference<boolean>(
 export const Addresses = Context.Reference<Effect.Effect<ReadonlySet<string>>>(
   "@supaterm/shared/HostProcess/Addresses",
   {
-    // The enclosing operation owns the span for this inline handler.
     defaultValue: Effect.fnUntraced(function* () {
       const interfaces = Object.values(NodeOS.networkInterfaces())
         .flat()

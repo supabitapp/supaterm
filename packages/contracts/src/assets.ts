@@ -34,7 +34,6 @@ export const AssetResource = Schema.Union([
     threadId: ThreadId,
     path: TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
     disposition: Schema.optionalKey(Schema.Literal("attachment")),
-    // Written relative to the thread's workspace, so only that host's file is meant.
     hostOnly: Schema.optionalKey(Schema.Literal(true)),
   }),
   Schema.TaggedStruct("draft-workspace-file", {
@@ -56,16 +55,11 @@ export const AssetResource = Schema.Union([
   }),
   Schema.TaggedStruct("project-favicon", {
     cwd: TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
-    // Cache-key hint only; the project projection supplies the authoritative path.
     path: Schema.optional(ProjectFaviconPath),
   }),
   Schema.TaggedStruct("native-app-icon", {
     app: NativeAppIconReference,
   }),
-  // Media a change request body points at on its host. A private repository serves these only
-  // to a request that carries a credential, which the client has none of, so the server fetches
-  // them with the credential the host's driver holds for the repository at `cwd`. `repository`
-  // names the change request's repository, which can differ from the checkout at `cwd`.
   Schema.TaggedStruct(SOURCE_CONTROL_MEDIA_ASSET, {
     cwd: TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
     url: TrimmedNonEmptyString.check(Schema.isMaxLength(2048)),
@@ -232,7 +226,6 @@ export class AssetWorkspaceAssetNotFoundError extends Schema.TaggedError<AssetWo
   "AssetWorkspaceAssetNotFoundError",
   {
     resource: AssetResource,
-    // Absolute path after home/workspace resolution; absent on older servers.
     checkedPath: Schema.optionalKey(Schema.String),
   },
 ) {
@@ -315,7 +308,6 @@ export class AssetSigningKeyLoadError extends Schema.TaggedError<AssetSigningKey
   }
 }
 
-// The tag predates the rename and stays: clients on either side of an update decode it.
 export class AssetSourceControlMediaUrlValidationError extends Schema.TaggedError<AssetSourceControlMediaUrlValidationError>()(
   "AssetGitHubMediaUrlValidationError",
   {},

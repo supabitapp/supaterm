@@ -60,7 +60,6 @@ const event = (type: string, data: Record<string, unknown>): ProviderReplayEntry
 });
 const labelled = (entry: ProviderReplayEntry, label: string): ProviderReplayEntry =>
   entry.type === "runtime_exit" ? entry : { ...entry, label };
-/** MCP rules are last-match-wins; allow this thread after denying all Supaterm servers. */
 const mcpRules = (name: string) => [
   { action: "supaterm-*", resource: "*", effect: "deny" },
   { action: `supaterm-thread_${name}_*`, resource: "*", effect: "allow" },
@@ -162,7 +161,6 @@ const answeredPrompt = (text: string): ReadonlyArray<ProviderReplayEntry> => [
   event("session.execution.succeeded", { sessionID: SESSION }),
 ];
 
-/** A `/api/model` entry as 2.0.18 lists it; a known window means no re-read after a turn. */
 const catalogModel = (id: string, name: string) => ({
   id,
   modelID: id,
@@ -850,8 +848,6 @@ describe("OpenCode 2 through the orchestrator", () => {
     "settles a background subagent whose report OpenCode delivers into the launching turn",
     () =>
       Effect.gen(function* () {
-        // OpenCode 2.0.18 can deliver a child report into the parent's still-running execution, which then answers it.
-
         const cwd = yield* checkpointWorkspace("opencode2-background-in-turn");
         const recorded = yield* readProviderReplayTranscript(
           new URL(

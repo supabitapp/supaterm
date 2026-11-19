@@ -28,11 +28,7 @@ export function resolvePendingHandoff(
   selection: ModelSelection | null | undefined,
   providers: ReadonlyArray<ServerProvider>,
 ): HandoffEndpoints | null {
-  // A thread with an empty timeline has nothing to hand off. Any loaded row
-  // counts: paging can leave a window of only tool rows.
   if (!projection?.visibleTurnItems.length) return null;
-  // The handoff row is committed before the provider starts. Use its destination
-  // during startup so the footer does not duplicate the committed handoff.
   const from = projection.runs.findLast(
     (run) =>
       run.status !== "rolled_back" &&
@@ -115,14 +111,12 @@ export function resolveModelSwitchChange(
   return modelChanged || effort ? { modelChanged, effort } : null;
 }
 
-/** The composer's reasoning control for the model; stated values only when the catalog lacks it. */
 function resolveEffort(
   selection: ModelSelection,
   models: ReadonlyArray<ServerProviderModel> | undefined,
 ): { readonly value: string; readonly label: string } | undefined {
   const model = models?.find((candidate) => candidate.slug === selection.model);
   if (model === undefined) {
-    // Pi states its effort as `thinking`; the catalog would otherwise mark it a reasoning control.
     const value = [...REASONING_EFFORT_OPTION_IDS, "thinking"]
       .map((id) => getModelSelectionStringOptionValue(selection, id))
       .find((candidate) => candidate !== undefined);

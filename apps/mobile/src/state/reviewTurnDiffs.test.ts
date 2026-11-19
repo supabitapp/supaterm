@@ -27,7 +27,6 @@ describe("recordReviewTurnDiffAnswer", () => {
       yield* answer(registry, { fromTurnCount: 0, toTurnCount: 1, diff: "turn one" });
       yield* answer(registry, { fromTurnCount: 1, toTurnCount: 2, diff: "turn two" });
 
-      // A disconnected sheet mounts no turn query; every loaded turn still has its diff.
       const cached = registry.get(lastReviewTurnDiffsAtom(environmentId, threadId));
       expect(
         reviewTurnDiffsBySectionId(

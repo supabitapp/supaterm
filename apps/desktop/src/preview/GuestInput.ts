@@ -1,12 +1,9 @@
-// CDP input follows shared window focus; send directly to unfocused guests to avoid typing into the app.
-
 const FOCUS_ROUTED_INPUT = new Set([
   "Input.insertText",
   "Input.dispatchKeyEvent",
   "Input.imeSetComposition",
 ]);
 
-/** Direct input reaches only the main-frame process; insertText crashes when a cross-site frame has focus. */
 const FOCUSED_DOCUMENT = `(() => {
   let doc = document;
   for (;;) {
@@ -17,7 +14,6 @@ const FOCUSED_DOCUMENT = `(() => {
   }
 })()`;
 
-/** Electron runs editing commands only for CDP keys; exclude clipboard commands to preserve the user's clipboard. */
 const EDITING_COMMANDS = new Set(["selectAll", "undo", "redo"]);
 
 const CROSS_SITE_FOCUS_MESSAGE =
@@ -92,10 +88,8 @@ const evaluate = async (debuggee: Electron.Debugger, expression: string) => {
   return reply.result?.value;
 };
 
-/** Host focus shared by the presses in flight in one window, so a later press keeps the field an earlier one saved. */
 const HOST_FOCUS = "globalThis.__supatermPreviewFocus";
 
-/** A CDP pointer press focuses the guest's native view even with focus emulation enabled. */
 const sendPointerPress = async (
   webContents: Electron.WebContents,
   debuggee: Electron.Debugger,
@@ -107,7 +101,6 @@ const sendPointerPress = async (
   if (!host || host.isDestroyed() || webContents.focusedFrame) {
     return debuggee.sendCommand(method, params, sessionId);
   }
-  // Focus in a webview with a press in flight came from that press, so keep the earlier save.
   await host.executeJavaScript(`(() => {
     const state = (${HOST_FOCUS} ??= { saved: null, presses: [] });
     const active = document.activeElement;
@@ -124,7 +117,6 @@ const sendPointerPress = async (
     return await debuggee.sendCommand(method, params, sessionId);
   } finally {
     if (!host.isDestroyed()) {
-      // Membership check: a host reload starts a new state without this press.
       await host.executeJavaScript(`(() => {
         const state = ${HOST_FOCUS};
         const index = state ? state.presses.indexOf(${webContents.id}) : -1;
@@ -143,7 +135,6 @@ const sendPointerPress = async (
 
 const pointerCommands = new WeakMap<Electron.WebContents, Promise<unknown>>();
 
-/** Focus capture crosses processes; later pointer events must not overtake the press. */
 const sendPointerCommand = async (
   webContents: Electron.WebContents,
   debuggee: Electron.Debugger,
@@ -179,7 +170,6 @@ export const sendPageCommand = async (
     return sendPointerCommand(webContents, debuggee, method, params, sessionId);
   }
   if (sessionId !== undefined) return debuggee.sendCommand(method, params, sessionId);
-  // Electron's debugger routes Page.reload on a webview to its embedder window.
   if (method === "Page.reload") {
     if (params["ignoreCache"] === true) webContents.reloadIgnoringCache();
     else webContents.reload();
@@ -204,7 +194,6 @@ export const sendPageCommand = async (
       const commands = Array.isArray(params["commands"])
         ? params["commands"].filter((command) => EDITING_COMMANDS.has(command))
         : [];
-      // Runs after the page handles the keys, so the reply also waits for them.
       await evaluate(
         debuggee,
         `(() => { const doc = ${FOCUSED_DOCUMENT}; for (const name of ${JSON.stringify(commands)}) doc?.execCommand(name); return 0; })()`,

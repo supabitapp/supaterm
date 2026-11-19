@@ -7,7 +7,6 @@ import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as Settings from "../serverSettings.ts";
 
 export function deletedProjectOverridePatch(entry: ProjectSettingsOverrides | undefined) {
-  // Keep cleanup policy for deleted threads; omitting providerInstances would preserve obsolete references in the merge.
   return entry?.worktreeCleanup !== undefined
     ? { worktreeCleanup: entry.worktreeCleanup, providerInstances: {} }
     : null;

@@ -138,8 +138,6 @@ const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
     return;
   }
 
-  // The result dialogs need no main window. Opening one before the backend
-  // answers strands the renderer on a failed auth bootstrap.
   const desktopWindow = yield* DesktopWindow.DesktopWindow;
   yield* desktopWindow.activate;
   yield* checkForUpdatesFromMenu;
@@ -175,10 +173,6 @@ export const make = Effect.gen(function* () {
     const settingsClick = () => {
       runMenuEffect("open-settings", dispatchMenuAction("open-settings"));
     };
-    // Chromium already pastes as plain text for this chord, so the accelerator
-    // needs nothing from the menu: the composer and the terminal each arm
-    // themselves from the same keydown. Routing it through the renderer anyway
-    // lands a second, injected paste and doubles the text.
     const pasteAsTextClick = (
       _item: Electron.MenuItem,
       _window: Electron.BaseWindow | undefined,
@@ -247,7 +241,6 @@ export const make = Effect.gen(function* () {
                 ?.closeDevTools();
             },
           },
-          // Cmd/Ctrl+W belongs to the renderer's tab close; it must never close the window.
           environment.platform === "darwin"
             ? { label: "Close Window", click: (_item, window) => window?.close() }
             : { role: "quit", accelerator: "CmdOrCtrl+Q" },
@@ -339,10 +332,8 @@ export const make = Effect.gen(function* () {
         ],
       },
       {
-        // Electron's default Window submenu adds a Ctrl+W close role off macOS.
         role: "windowMenu",
         submenu: [
-          // The minimize role's Ctrl+M off macOS would take the voice input shortcut.
           environment.platform === "darwin"
             ? { role: "minimize" }
             : { label: "Minimize", click: (_item, window) => window?.minimize() },

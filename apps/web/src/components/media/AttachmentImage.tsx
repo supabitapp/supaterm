@@ -3,7 +3,6 @@ import { isHeicImageFile } from "../../lib/imageCompression";
 
 type AttachmentImageProps = ComponentProps<"img"> & { name: string; mimeType?: string | undefined };
 
-// Keep import expressions outside hooks until React Compiler supports them.
 const loadImageDecoder = () => import("../files/decodeImagePreview");
 
 export function AttachmentImage({ name, mimeType, ...props }: AttachmentImageProps) {
@@ -22,10 +21,8 @@ type DecodeAttempt = { readonly controller: AbortController; objectUrl?: string 
 
 function DecodedImage({ name, mimeType, src, onError, ...props }: AttachmentImageProps) {
   const [previewUrl, setPreviewUrl] = useState<string>();
-  // One decode per mount; the parent keys this component by src.
   const decodeRef = useRef<DecodeAttempt | null>(null);
 
-  // The browser cannot show HEIC or TIFF itself, so its load error starts the decode.
   const decode = (event: SyntheticEvent<HTMLImageElement>) => {
     if (decodeRef.current !== null || !src) return onError?.(event);
     const attempt: DecodeAttempt = { controller: new AbortController() };

@@ -1,4 +1,3 @@
-// Client-supplied worktrees count only under managed folders or when Git lists them for the project.
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
 import * as Context from "effect/Context";
@@ -56,7 +55,6 @@ export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const git = yield* GitVcsDriver.GitVcsDriver;
 
-  // Missing roots keep lexical paths; other resolution failures and filesystem roots grant nothing.
   const resolveRoot = (value: string) => {
     const resolvedPath = path.resolve(value);
     return fileSystem.realPath(resolvedPath).pipe(
@@ -121,7 +119,6 @@ export const make = Effect.gen(function* () {
         return real !== null && listed.includes(real);
       });
       for (const { worktreePath, projectId } of threads) {
-        // Relative paths use server cwd; managed paths still need resolution to reject symlinks elsewhere.
         if (!path.isAbsolute(worktreePath)) continue;
         if (!within(yield* resolveRoot(worktreePath))) continue;
         const lexical = path.resolve(worktreePath);
@@ -137,7 +134,6 @@ export const make = Effect.gen(function* () {
   const assertContains: KnownWorkspaces["Service"]["assertContains"] = Effect.fn(
     "KnownWorkspaces.assertContains",
   )(function* (cwd) {
-    // `..` collapses on the path as named before symlinks resolve, as the write does.
     const realCwd = yield* fileSystem
       .realPath(path.resolve(cwd))
       .pipe(Effect.mapError((cause) => new UnknownWorkspaceError({ cwd, cause })));

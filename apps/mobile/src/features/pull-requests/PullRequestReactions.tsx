@@ -37,13 +37,11 @@ function ReactionPills(props: {
   readonly params: PullRequestParams;
   readonly reactions: ReadonlyArray<PullRequestReaction>;
   readonly canReact: boolean;
-  /** Absent reacts to the change request itself. */
   readonly subjectId?: string;
   readonly onChanged: () => void;
 }) {
   const target = pullRequestTarget(props.params);
   const setReaction = useAtomCommand(composerPullRequests.setReaction, { reportFailure: false });
-  // Keyed by what the host last reported, so a refresh that lands the change drops the overlay.
   const [pending, setPending] = useState({ signature: "", values: EMPTY_PENDING });
   const signature = pullRequestReactionsSignature(props.reactions);
   const values = pending.signature === signature ? pending.values : EMPTY_PENDING;

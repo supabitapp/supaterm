@@ -274,7 +274,6 @@ async function renderComposerImageThumbnail(
   mode: ComposerImageThumbnailMode,
 ): Promise<string | null> {
   if (isHeicImageFile(file) && mode === "square") return prepareHeicImage(file).thumbnail;
-  // Placeholders thumbnail the uncompressed source, which can be big enough to OOM the decode.
   if (!canRecompress() || file.size > MAX_COMPRESSIBLE_SOURCE_BYTES) return null;
   let bitmap: ImageBitmap | undefined;
   try {
@@ -332,7 +331,6 @@ async function encodeWithinBudget(
   const target = createCanvas(width, height);
   if (!target) return null;
 
-  // Probe the codec before drawing; JPEG needs a white matte because it has no alpha.
   const mimeType =
     preferredMimeType ??
     ((await encodeCanvas(target.canvas, QUALITY_STEPS[0], "image/webp"))
@@ -376,7 +374,6 @@ async function reencodeWithinBudget(
   }
 
   try {
-    // Shrink the previous target; using MAX_DIMENSION leaves smaller images unchanged.
     const baseDimension = Math.min(MAX_DIMENSION, Math.max(bitmap.width, bitmap.height));
     let encodeFailed = false;
     for (const dimensionScale of [1, ...FALLBACK_SCALE_STEPS]) {
@@ -508,7 +505,6 @@ const heicPreparations = new WeakMap<
   File,
   { image: Promise<CompressImageFileResult>; thumbnail: Promise<string | null> }
 >();
-// Preparing tiles share full-size decodes, so keep only one HEIC bitmap alive at a time.
 let heicPreparationQueue = Promise.resolve();
 
 function prepareHeicImage(file: File) {

@@ -183,7 +183,6 @@ const checkForUpdatesFromMacMenu = (state: Partial<DesktopUpdateState>) =>
       throw new Error("Expected Check for Updates... menu item to have a click handler.");
     }
 
-    // Every stub completes synchronously, so the menu action has finished when click returns.
     checkForUpdates.click(
       {} as Electron.MenuItem,
       {} as Electron.BrowserWindow,
@@ -289,7 +288,6 @@ describe("DesktopApplicationMenu", () => {
           items.find((item) => item.role === "close"),
           platform,
         );
-        // Electron's default windowMenu submenu includes a close role.
         assert.isUndefined(
           items.find((item) => item.role === "windowMenu" && item.submenu === undefined),
           platform,
@@ -320,7 +318,6 @@ describe("DesktopApplicationMenu", () => {
         allContents.mockReturnValue([appContents as unknown as Electron.WebContents]);
         closeTools?.click?.({} as Electron.MenuItem, undefined, {} as KeyboardEvent);
         assert.equal(appContents.closeDevTools.mock.calls.length, 0);
-        // The minimize role brings CmdOrCtrl+M, which is Ctrl+M off macOS.
         assert.strictEqual(
           items.some((item) => item.role === "minimize"),
           platform === "darwin",
@@ -344,7 +341,6 @@ describe("DesktopApplicationMenu", () => {
           .find((item) => item.role === "quit");
 
         assert.isDefined(quitItem, platform);
-        // Electron gives the quit role no default accelerator on Windows.
         if (platform !== "darwin") {
           assert.strictEqual(quitItem?.accelerator, "CmdOrCtrl+Q", platform);
         }

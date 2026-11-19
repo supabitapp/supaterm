@@ -138,7 +138,6 @@ describe("Expo API", () => {
       expect(error.message).toContain("Expo's API is unreachable");
       expect(JSON.stringify(error)).not.toContain("session-secret");
       expect(error.cause).toBeUndefined();
-      // No answer: a mutation may have run.
       expect(error.rejected).toBe(false);
     }),
   );
@@ -169,8 +168,6 @@ describe("Expo API", () => {
       expect(serverError.message).toBe(
         "Expo could not stop a simulator session: Internal server error",
       );
-      // What Expo answers a refused request with: Apollo's default code, the
-      // user's fault, and null data.
       const expoRefusal = yield* makeExpoApi(
         respond(
           Response.json({
@@ -255,7 +252,6 @@ describe("Expo API", () => {
       )
         .stop("session-1")
         .pipe(Effect.flip);
-      // A message that echoes the credential loses it, and is bounded.
       expect(echoed.message).toContain("Session [redacted] is not yours");
       expect(echoed.message).not.toContain("session-secret");
       expect(echoed.message.length).toBeLessThan(400);
@@ -271,9 +267,6 @@ describe("Expo API", () => {
       )
         .stop("session-1")
         .pipe(Effect.flip);
-      // Expo answered and refused the first three: nothing was done. GraphQL
-      // errors at a server error, a transient, internal or other non-user
-      // error, or errors beside data, may come from a request that ran.
       expect([
         graphQl.rejected,
         rejected.rejected,

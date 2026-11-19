@@ -28,7 +28,6 @@ import type {
 
 export function SubscriptionUsage(props: SubscriptionUsageProps, environment: WidgetEnvironment) {
   "widget";
-  // The widget runtime evaluates this function without the app's module scope.
   const now = Date.now();
   const mode = props.theme?.mode;
   const appearance =
@@ -108,7 +107,6 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
       }));
   });
 
-  // The snapshot keeps a few windows per provider; the rest still count toward "N more".
   const dropped = providers.reduce(
     (sum, provider) =>
       lines.some((line) => line.type === "window" && line.provider === provider.name)
@@ -117,18 +115,15 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
     0,
   );
   const slots = lines.length + (dropped > 0 ? 1 : 0);
-  // Roomy rows when every limit fits, thin bars when they would not.
   const fullRow = 34;
   const compactRow = 20;
   const full = slots * fullRow <= contentHeight;
-  // Glance columns hold at most ten children, the overflow note included.
   const capacity = Math.max(
     1,
     Math.min(9, Math.floor(contentHeight / (full ? fullRow : compactRow))),
   );
   const shown = slots > capacity ? lines.slice(0, capacity - 1) : lines;
   const hidden = lines.length - shown.length + dropped;
-  // Rows share any spare height so short lists do not bunch at the top.
   const rowHeight = Math.min(
     full ? 52 : 28,
     contentHeight / Math.max(1, shown.length + (hidden > 0 ? 1 : 0)),
@@ -240,7 +235,6 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
   const bar = (line: Extract<Line, { type: "window" }>, barWidth: number, barHeight: number) => {
     const fallback: WidgetLimitAccount = { name: line.provider, remaining: line.window.remaining };
     const listed = line.window.accounts ?? [];
-    // Glance rows hold at most ten children: five segments and their gaps.
     const accounts = listed.length > 0 && listed.length <= 5 ? listed : [fallback];
     const gap = 3;
     const segmentWidth = (barWidth - gap * (accounts.length - 1)) / accounts.length;
@@ -328,7 +322,6 @@ export function SubscriptionUsage(props: SubscriptionUsageProps, environment: Wi
   };
 
   return (
-    // Android lacks widgetURL; one card Button routes taps to the app listener opening props.url.
     <Button
       colors={{ containerColor: colors.surface }}
       modifiers={[fillMaxSize()]}

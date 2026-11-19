@@ -86,7 +86,6 @@ function tool(
   return { displayName, labels, icon, summaryAction };
 }
 
-// Codex registers "supaterm-direct" for Supaterm tools kept out of Code Mode.
 const SUPATERM_MCP_SERVER_ALIASES = new Set(["supaterm", "supaterm-direct", "supaterm_direct"]);
 
 const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = {
@@ -419,8 +418,6 @@ function normalizeSupatermMcpToolLabel(value: string): string {
   return value.replace(/\s+(?:complete|completed)\s*$/i, "").trim();
 }
 
-// Timelines resolve every work row's tool name on each update; names repeat across updates.
-// ACP titles can carry whole commands, so long labels are parsed but not kept.
 const toolNameCache = new Map<string, string | null>();
 const TOOL_NAME_CACHE_LIMIT = 10_000;
 const TOOL_NAME_CACHE_MAX_KEY_LENGTH = 256;
@@ -435,11 +432,6 @@ function resolveSupatermMcpToolName(value: string): string | null {
   return name;
 }
 
-/**
- * Agents disagree on the Supaterm tool prefix (`mcp__supaterm__x`, `supaterm.x`, and
- * underscore, colon, slash, dash, or space separators). The match is loose because the
- * display-name inventory is the real gate; unknown tools stay on the generic renderer.
- */
 function parseSupatermMcpToolName(value: string): string | null {
   const label = normalizeSupatermMcpToolLabel(value);
   const mcpMatch = /^mcp__(?<server>.+?)__(?<tool>.+)$/i.exec(label);
@@ -462,9 +454,6 @@ function parseSupatermMcpToolName(value: string): string | null {
   const candidate = /^(?:mcp[-_]{1,2})?supaterm(?:__|[-_.:/ ])(?<tool>.+)$/i.exec(label)?.groups
     ?.tool;
   if (candidate !== undefined && Object.hasOwn(SUPATERM_MCP_TOOLS, candidate)) return candidate;
-  // OpenCode 2 registers one server per thread, `supaterm-<thread>`, and joins
-  // it to the tool with `_`. Thread ids can hold `_` too, so take the longest
-  // known tool name that ends the label.
   if (!/^supaterm-/i.test(label)) return null;
   let longest: string | null = null;
   for (const tool of Object.keys(SUPATERM_MCP_TOOLS)) {
@@ -483,7 +472,6 @@ type SummaryInput = Readonly<Record<string, unknown>>;
 const asSummaryInput = (input: unknown): SummaryInput | undefined =>
   typeof input === "object" && input !== null ? (input as SummaryInput) : undefined;
 
-/** Action tools present each call as the single-purpose tool its action replaced. */
 const ACTION_TOOLS: Readonly<Record<string, (action: string) => string | undefined>> = {
   preview_act: (action) => `preview_${action}`,
   supaterm_queue: (action) => `supaterm_queue_${action}`,
@@ -496,7 +484,6 @@ const ACTION_TOOLS: Readonly<Record<string, (action: string) => string | undefin
     })[action],
 };
 
-/** Tools whose single-purpose counterpart depends on which fields a call sets. */
 const FIELD_TOOLS: Readonly<Record<string, (input: SummaryInput) => string | undefined>> = {
   supaterm_thread_configure: ({ modelSelection }) =>
     modelSelection === undefined ? "supaterm_thread_configuration" : undefined,

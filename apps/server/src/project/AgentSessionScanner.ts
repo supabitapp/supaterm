@@ -74,7 +74,6 @@ const MAX_METADATA_OPERATIONS_PER_SOURCE = MAX_TRANSCRIPTS_PER_SOURCE * 4;
 const MAX_METADATA_RECORDS_PER_SOURCE = 100_000;
 const MAX_METADATA_RECORDS_PER_TRANSCRIPT = 1_000;
 const RECENT_THREAD_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
-// Screenshot-heavy transcripts can reach GiB; select fields while streaming to avoid allocating payloads.
 const MAX_IMPORTED_TRANSCRIPT_BYTES = 4 * 1024 * 1024 * 1024;
 const MAX_IMPORTED_MESSAGES = 200;
 const MAX_IMPORT_HISTORY_BYTES = 32 * 1024 * 1024;
@@ -82,18 +81,9 @@ const MAX_IMPORT_BYTES = 4 * 1024 * 1024 * 1024;
 const MAX_IMPORT_TRANSCRIPTS = 100;
 const MAX_IMPORT_RECORDS = 100_000;
 
-/**
- * open() of a file under macOS privacy protection waits on a consent prompt
- * that a headless server never gets, and a FIFO waits for a writer. Either
- * pins a libuv pool thread that interruption cannot free, so git files of
- * arbitrary transcript cwds are read by a `cat` child we can kill instead.
- */
 const GIT_FILE_READ_DEADLINE = "2 seconds";
 const MAX_GIT_FILE_BYTES = 1024 * 1024;
-// Reads run concurrently, so each phase waits one deadline per batch of this
-// many blocked files rather than one per blocked file.
 const GIT_FILE_READ_CONCURRENCY = 16;
-// A blocked path is skipped for a while, then read again in case it was fixed.
 const BLOCKED_GIT_FILE_RETRY_MS = 5 * 60 * 1000;
 const MAX_BLOCKED_GIT_FILE_PATHS = 1024;
 
@@ -114,7 +104,6 @@ const CodexTurnMetadata = Schema.Struct({
 
 const TranscriptRecord = Schema.Struct({
   type: Schema.optional(Schema.String),
-  // Pi entries form a tree through id/parentId; session_info entries carry its name.
   id: Schema.optional(Schema.String),
   parentId: Schema.optional(Schema.NullOr(Schema.String)),
   name: Schema.optional(Schema.String),
@@ -170,14 +159,11 @@ export const decodeImportedTranscriptPayload = Schema.decodeUnknownOption(
 const decodeCodexHistoryBase = Schema.decodeUnknownOption(
   Schema.Struct({ thread_id: Schema.String, end_byte_offset: Schema.Number }),
 );
-// Original rollouts end in their thread ID, rewound ones in `<thread ID>_<rollout ID>`.
 const CODEX_ROLLOUT_ID_PATTERN =
   /-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:_([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}))?\.jsonl(?:\.zst)?$/i;
-// Codex zstd-compresses older rollouts; their byte limits and offsets count decompressed bytes.
 const COMPRESSED_TRANSCRIPT_SUFFIX = ".jsonl.zst";
 const isCompressedTranscript = (filePath: string) =>
   filePath.endsWith(COMPRESSED_TRANSCRIPT_SUFFIX);
-// Codex records a chat's project only here; moving a chat leaves its rollout cwd unchanged.
 const CODEX_STATE_DATABASE = "state_5.sqlite";
 const decodeCodexSessionIndexEntry = Schema.decodeUnknownOption(
   Schema.fromJsonString(CodexSessionIndexEntry),
@@ -335,7 +321,6 @@ function isHiddenClaudeRecord(record: DecodedTranscriptRecord): boolean {
   return record.isSidechain === true || record.isMeta === true || record.isCompactSummary === true;
 }
 
-// Claude repeats session fields on records that need not be retained.
 interface ClaudeFields {
   readonly sessionId: string | undefined;
   readonly title: string | undefined;
@@ -356,11 +341,8 @@ function foldClaudeFields(fields: ClaudeFields, record: DecodedTranscriptRecord)
   return {
     sessionId: record.sessionId?.trim() || fields.sessionId,
     title: record.aiTitle?.trim() || fields.title,
-    // Claude flushes the AI title after the user's rename; an empty rename clears it.
     customTitle:
       record.customTitle === undefined ? fields.customTitle : record.customTitle.trim() || null,
-    // Claude uses this sentinel for local error responses. It is not a
-    // model ID that can be selected when the imported session resumes.
     model: model && model !== "<synthetic>" ? model : fields.model,
   };
 }
@@ -368,7 +350,6 @@ function foldClaudeFields(fields: ClaudeFields, record: DecodedTranscriptRecord)
 const CODEX_TITLE_PREAMBLE =
   /^(?:\s*(?:<(recommended_plugins|environment_context|user_instructions|INSTRUCTIONS|in-app-browser-context|external_codex_apps_open_page)(?:\s[^>]*)?>[\s\S]*?<\/\1>|# AGENTS\.md instructions\b[^\n]*|## My request for Codex:))+/;
 
-// Codex appends an entry per rename; like Codex, the newest nonempty name wins.
 function parseCodexThreadNames(contents: string): ReadonlyMap<string, string> {
   const names = new Map<string, string>();
   for (const line of contents.split("\n")) {
@@ -379,8 +360,6 @@ function parseCodexThreadNames(contents: string): ReadonlyMap<string, string> {
   return names;
 }
 
-// A rewound paginated Codex thread continues in a new rollout that inherits a
-// byte prefix of the rollout it replaced.
 function codexHistoryBase(records: ReadonlyArray<DecodedTranscriptRecord>) {
   const base = Option.getOrUndefined(
     decodeCodexHistoryBase(
@@ -394,8 +373,6 @@ function codexHistoryBase(records: ReadonlyArray<DecodedTranscriptRecord>) {
     : undefined;
 }
 
-// Agent-started sessions wrap the prompt in a `<wake reason=… current-time=…>`
-// envelope; title them after the prompt inside it.
 const WAKE_ENVELOPE = /^\s*<wake(?:\s[^>]*)?>([\s\S]*?)(?:<\/wake>|$)/;
 
 function deriveTitle(source: AgentSessionSource, text: string): string | undefined {
@@ -406,13 +383,11 @@ function deriveTitle(source: AgentSessionSource, text: string): string | undefin
   return request.trim().split("\n")[0]?.slice(0, 100).trim() || undefined;
 }
 
-// Pi keeps abandoned branches in the file; its active branch runs from the last entry to the root.
 function activePiBranch(
   records: ReadonlyArray<DecodedTranscriptRecord>,
 ): ReadonlyArray<DecodedTranscriptRecord> {
   const entries = records.filter((record) => record.type !== "session");
   const leaf = entries.at(-1);
-  // Version 1 sessions predate the tree and are linear.
   if (leaf?.id === undefined) return entries;
   const byId = new Map(
     entries.flatMap((entry) => (entry.id === undefined ? [] : [[entry.id, entry] as const])),
@@ -462,15 +437,12 @@ function parseAgentSessionRecords(
   droppedMessageCount: number,
 ): AgentSessionThread | "empty" | null {
   const fallbackTimestamp = DateTime.formatIso(DateTime.makeUnsafe(input.lastActiveAtMs));
-  // Claude filenames are session IDs. Codex rollout filenames include extra
-  // timestamp text, so only transcript metadata can provide a resumable ID.
   let providerSessionId =
     input.source === "codex"
       ? ""
       : input.source === "pi"
         ? records.find((record) => record.type === "session")?.id?.trim() || input.fallbackSessionId
         : (claudeFields.sessionId ?? input.fallbackSessionId);
-  // Pi titles a session by its latest session_info on any branch; an empty name clears it.
   const title =
     input.source === "pi"
       ? records.findLast((record) => record.type === "session_info")?.name?.trim() || null
@@ -610,7 +582,6 @@ function parseAgentSessionRecords(
     if (record.type === "event_msg" && record.payload?.type === "user_message") {
       const text = record.payload.message ?? "";
       if (text.trim().length === 0) continue;
-      // Codex can duplicate prompts across formats; remove only matching response copies.
       for (let index = messages.length - 1; index >= 0; index--) {
         const message = messages[index];
         if (message?.role === "assistant") break;
@@ -686,7 +657,6 @@ function shouldRetainDecodedRecord(
   source: AgentSessionSource,
   record: DecodedTranscriptRecord,
 ): boolean {
-  // Any Pi entry can be a link on the active branch.
   if (source === "pi") return true;
   if (source === "claudeAgent") {
     if (isHiddenClaudeRecord(record) || (record.type !== "user" && record.type !== "assistant")) {
@@ -710,14 +680,11 @@ function shouldRetainDecodedRecord(
   );
 }
 
-// The import shows only the first user message and the latest messages, so a
-// long Claude session holds just those and counts the rest as dropped.
 function createClaudeHistoryWindow() {
   const recent: Array<{ readonly record: DecodedTranscriptRecord; readonly bytes: number }> = [];
   let firstUser: DecodedTranscriptRecord | undefined;
   let droppedMessageCount = 0;
   return {
-    // Takes a record shouldRetainDecodedRecord kept; returns the bytes it released.
     push: (record: DecodedTranscriptRecord, bytes: number): number => {
       if (firstUser === undefined && record.type === "user") firstUser = record;
       recent.push({ record, bytes });
@@ -752,7 +719,6 @@ function isSupatermManagedWorktree(
   );
 }
 
-// false stops metadata scanning for an excluded rollout, even if later records contain a cwd.
 function extractCwd(line: string, source: AgentSessionSource): string | null | false {
   let parsed: unknown;
   try {
@@ -809,7 +775,6 @@ type TranscriptIdentity = Pick<
 const fileIdKey = (inode: TranscriptIdentity["inode"]) => (inode === null ? null : String(inode));
 
 function sameTranscriptIdentity(left: TranscriptIdentity, right: TranscriptIdentity): boolean {
-  // Unsafe legacy numbers may already have lost file ID precision.
   if (
     (typeof left.inode === "number" && !Number.isSafeInteger(left.inode)) ||
     (typeof right.inode === "number" && !Number.isSafeInteger(right.inode))
@@ -830,7 +795,6 @@ function sameTranscriptIdentity(left: TranscriptIdentity, right: TranscriptIdent
 export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const processRunner = yield* ProcessRunner.ProcessRunner;
-  // Concurrent client imports must not hold multiple selected-history budgets.
   const importReadLock = yield* Semaphore.make(1);
   const path = yield* Path.Path;
   const serverConfig = yield* ServerConfig.ServerConfig;
@@ -848,7 +812,6 @@ export const make = Effect.gen(function* () {
   const foldWorktreeCase = isWindows;
   const hostEnvironment = yield* HostProcess.Environment;
   const homeDir = yield* HostProcess.HomeDirectory;
-  // `/private/tmp` is what macOS reports for sessions started in `/tmp`.
   const excludedProjectRoots = new Set(
     [homeDir, NodeOS.tmpdir(), "/tmp", "/private/tmp"].map((directory) =>
       normalizeProjectPathForComparison(path.resolve(directory)),
@@ -889,7 +852,6 @@ export const make = Effect.gen(function* () {
     );
     let pending: Array<Uint8Array> = [];
     let done = false;
-    // Untraced: called once per chunk inside the caller's traced read.
     return Effect.fnUntraced(function* (size: number) {
       while (pending.length === 0) {
         if (done) return Option.none<Uint8Array>();
@@ -919,7 +881,6 @@ export const make = Effect.gen(function* () {
     return `path:${normalizeProjectPathForComparison(realPath)}`;
   });
 
-  /** Stats a directory that may be offered as a project, or none when it is missing or excluded. */
   const projectDirectoryStats = Effect.fn("AgentSessionScanner.projectDirectoryStats")(function* (
     directory: string,
   ) {
@@ -929,16 +890,11 @@ export const make = Effect.gen(function* () {
     const realPath = yield* fileSystem
       .realPath(directory)
       .pipe(Effect.orElseSucceed(() => directory));
-    // Symlinks can disguise excluded worktree paths; re-check their targets.
     return isExcludedProjectPath(realPath) ? Option.none() : stats;
   });
 
-  // Paths whose own read outlived the deadline, mapped to when they may be read
-  // again. Without this every later scan would wait out the deadline again for
-  // each phase that touches them.
   const blockedGitFilePaths = new Map<string, number>();
 
-  /** Reads small files without the libuv pool; "" when missing, unreadable or blocked. */
   const readGitFiles = Effect.fn("AgentSessionScanner.readGitFiles")(function* (
     filePaths: ReadonlyArray<string>,
   ) {
@@ -947,7 +903,6 @@ export const make = Effect.gen(function* () {
     const contents = yield* Effect.forEach(
       unique,
       (filePath) => {
-        // No privacy prompts or FIFOs to block open() here.
         if (isWindows) {
           return fileSystem.readFileString(filePath).pipe(Effect.orElseSucceed(() => ""));
         }
@@ -980,7 +935,6 @@ export const make = Effect.gen(function* () {
     return new Map(unique.map((filePath, index) => [filePath, contents[index]!]));
   });
 
-  /** Reads every directory's git identity in three phases of concurrent reads. */
   const readGitIdentities = Effect.fn("AgentSessionScanner.readGitIdentities")(function* (
     directories: ReadonlyArray<string>,
   ) {
@@ -1049,13 +1003,10 @@ export const make = Effect.gen(function* () {
           originUrl === null ? null : sourceControlDefinitions.repositoryKeyFromRemote(originUrl),
         repository: repositoryPathFromRemoteUrl(originUrl),
       };
-      // Bare repositories have no main checkout, so offer their linked worktrees independently.
       if (worktreeGitDir !== null && !isBareGitConfig(configText)) {
         identities.set(directory, {
           _tag: "Worktree",
           gitDir: worktreeGitDir,
-          // Only a common dir named .git sits inside its main checkout, and an
-          // unreadable config can't rule out a bare repository.
           mainCheckout:
             configText.length > 0 && path.basename(gitDir) === ".git" ? path.dirname(gitDir) : null,
           git,
@@ -1067,10 +1018,8 @@ export const make = Effect.gen(function* () {
     return identities;
   });
 
-  /** Maps each directory to the project it counts toward: a linked worktree counts toward its main checkout. */
   const resolveDirectoryProjects = Effect.fn("AgentSessionScanner.resolveDirectoryProjects")(
     function* (resolvedDirectories: ReadonlyArray<string>) {
-      // Stat every directory first so one batch reads all git identities.
       const directories = new Map<string, Option.Option<FileSystem.File.Info>>();
       for (const resolved of resolvedDirectories) {
         if (directories.has(resolved)) continue;
@@ -1254,7 +1203,6 @@ export const make = Effect.gen(function* () {
               const value = reader.finish();
               const decoded = decodeTranscriptValue(value);
               if (Option.isNone(decoded) && source === "pi") {
-                // Pi accepts messages this schema rejects, such as null content; keep their tree links.
                 records.push(...Option.toArray(decodePiEntryLinks(value)));
               } else if (Option.isSome(decoded)) {
                 if (Option.isNone(cwd)) cwd = Option.fromNullOr(extractDecodedCwd(decoded.value));
@@ -1269,7 +1217,6 @@ export const make = Effect.gen(function* () {
                     decoded.value.type === "message" &&
                     !isPiConversationRecord(decoded.value)
                   ) {
-                    // Tool output can dwarf the conversation; keep only the tree links.
                     const { message: _message, ...links } = decoded.value;
                     records.push(links);
                   } else {
@@ -1290,7 +1237,6 @@ export const make = Effect.gen(function* () {
                 Math.min(TRANSCRIPT_PREFIX_BYTES, readBytes - bytesRead),
               );
               if (Option.isNone(next)) {
-                // A compressed rollout's decompressed length is only known at its end.
                 if (compressed && prefix === undefined) break;
                 return null;
               }
@@ -1349,7 +1295,6 @@ export const make = Effect.gen(function* () {
           onNone: () => "",
           onSome: (value) => new TextDecoder().decode(value),
         });
-        // A tail read can start mid-record.
         return parseCodexThreadNames(
           start > 0 ? contents.slice(contents.indexOf("\n") + 1) : contents,
         );
@@ -1382,8 +1327,6 @@ export const make = Effect.gen(function* () {
         operationsRemaining -= 1;
         return listDirectory(directory);
       };
-      // Folder names carry no date, so read the newest folders first: a budget that runs out
-      // then drops the oldest sessions. Dating has its own allowance, apart from the reads.
       let datesRemaining = operationBudget;
       const dated: Array<{ readonly name: string; readonly mtimeMs: number }> = [];
       const undated: Array<string> = [];
@@ -1484,7 +1427,6 @@ export const make = Effect.gen(function* () {
     }).pipe(Effect.orElseSucceed((): ReadonlyMap<string, ReadonlyArray<string>> => new Map()));
   });
 
-  // Only chats left in an excluded folder, such as Codex's scratch folder, take their project's root.
   const projectCwd = (cwd: string, projectRoots: ReadonlyArray<string> | undefined) =>
     projectRoots !== undefined &&
     isExcludedProjectPath(path.resolve(expandHomePath(cwd.trim(), homeDir)))
@@ -1570,7 +1512,6 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  // Pi nests sessions in one directory per cwd, but a custom session directory holds them flat.
   const discoverPiTranscripts = Effect.fn("AgentSessionScanner.discoverPiTranscripts")(function* (
     sessionsDir: string,
     providerInstanceId: ProviderInstanceId,
@@ -1645,9 +1586,6 @@ export const make = Effect.gen(function* () {
     >();
 
     for (const transcript of transcripts) {
-      // Unchanged imported transcripts keep their import cwd, so they never spend the read budget.
-      // Codex is excluded: its first record carries the cwd and the subagent marker, and
-      // rollouts imported before subagents were skipped must still be excluded by it.
       const rolloutCwd =
         (source === "codex"
           ? undefined
@@ -1807,9 +1745,6 @@ export const make = Effect.gen(function* () {
             : yield* discover(home.homePath, home.providerInstanceId, operationBudget),
         );
       }
-      // Budget that small homes left unused goes to the homes that ran out, which rescan with it.
-      // Each takes an even split of what is still unused; a pass in which no home finishes spends
-      // it all, so every repeat has fewer starved homes.
       let unused =
         MAX_DISCOVERY_OPERATIONS_PER_SOURCE -
         discovered.reduce((total, result) => total + result.operationsUsed, 0);
@@ -1909,7 +1844,6 @@ export const make = Effect.gen(function* () {
           : Math.max(existing.lastActiveAtMs, candidate.lastActiveAtMs);
     }
 
-    // Resolve persisted roots too; transcripts may use different symlinks to the same directory.
     const importedProjects = yield* projectStore
       .listShells()
       .pipe(
@@ -1970,13 +1904,11 @@ export const make = Effect.gen(function* () {
     const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
     const cutoffMs = nowMs - RECENT_THREAD_WINDOW_MS;
 
-    // Imports recorded since a budget-truncated collection can free budget for transcripts it cut off.
     if (cachedCandidates === null || cachedCandidates.metadataTruncated) {
       cachedCandidates = yield* collectCandidates();
     }
     const { candidates } = cachedCandidates;
 
-    // The scan counts a linked worktree's sessions toward its main checkout, so import them with it.
     const candidateDirectories = candidates.flatMap((candidate) => {
       const expanded = expandHomePath(candidate.cwd.trim(), homeDir);
       return path.isAbsolute(expanded) ? [path.resolve(expanded)] : [];
@@ -2074,8 +2006,6 @@ export const make = Effect.gen(function* () {
       }
       return paths.get(rolloutId);
     };
-    // Reads the prefixes a rewound rollout inherits, oldest first. Without all of
-    // them the rollout is imported on its own, as before.
     const readCodexHistoryBase = Effect.fn("AgentSessionScanner.readCodexHistoryBase")(function* (
       providerInstanceId: ProviderInstanceId,
       records: ReadonlyArray<DecodedTranscriptRecord>,
@@ -2100,7 +2030,6 @@ export const make = Effect.gen(function* () {
         );
         if (inherited === null) return null;
         historyBytes = inherited.historyBytes;
-        // The rollout's own session_meta names the thread; inherited ones may name a fork parent.
         prefixes.unshift(inherited.records.filter((record) => record.type !== "session_meta"));
         base = codexHistoryBase(inherited.records);
       }
@@ -2186,11 +2115,9 @@ export const make = Effect.gen(function* () {
             snapshot.droppedMessageCount,
           );
           if (parsedThread === "empty") {
-            // null means an unreadable history base, which may hold the conversation.
             if (candidate.source === "codex" && inheritedRecords === null) {
               return Option.some<AgentSessionRecentThread>({ _tag: "Skipped" });
             }
-            // Never recorded as imported, so charging them would starve real sessions every run.
             transcriptsRemaining += 1;
             return Option.none<AgentSessionRecentThread>();
           }

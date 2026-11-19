@@ -4,13 +4,8 @@ import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 
-/** The SDK withholds stdout until tool results; tail task_started files for live output.
- * The private Claude layout can change; failures omit live output and retain the final result. */
-
 const CLAUDE_TASK_OUTPUT_POLL_MS = 250;
-/** Bound discovery when Claude never writes the file. */
 const MAX_LOCATE_ATTEMPTS = 40;
-/** Skip ahead of fast writers; only the tail is displayed. */
 const MAX_READ_BYTES = 256 * 1024;
 
 /** Claude Code's per-user temp root, or none where it has no uid (Windows). */
@@ -22,10 +17,6 @@ export function claudeTaskOutputRoot(
 ): string | undefined {
   const uid = process.getuid?.();
   if (uid === undefined) return undefined;
-  // Claude Code's macOS build falls back to /tmp and ignores the TMPDIR that
-  // launchd always sets. Its other builds use `os.tmpdir()`, which reads these
-  // from the environment it was launched with. A relative value is relative
-  // to Claude's working directory, not this server's.
   const fallback =
     platform === "darwin"
       ? "/tmp"
@@ -102,11 +93,9 @@ export const tailClaudeTaskOutput = Effect.fn("ClaudeTaskOutputTail.tail")(funct
         }),
       ).pipe(Effect.orElseSucceed(() => Option.none<Uint8Array>()));
       if (Option.isSome(bytes)) {
-        // Skipped output must not splice two unrelated lines together.
         const skipped = start > offset;
         let first = 0;
         if (skipped) {
-          // Reset partial UTF-8 bytes, and skip the rest of a code point the cut landed inside.
           decoder = new TextDecoder("utf-8", { fatal: false });
           while (((bytes.value[first] ?? 0) & 0xc0) === 0x80) first += 1;
         }

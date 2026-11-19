@@ -165,8 +165,6 @@ describe("ssh auth", () => {
         ),
       );
 
-      // The first helper write of each round waits for the test, so the second command starts
-      // while the first is still setting up and must not touch the shared files until it is done.
       let gate: { arrived: Deferred.Deferred<void>; release: Deferred.Deferred<void> } | undefined;
       let fileCalls = 0;
       let helperWrites = 0;

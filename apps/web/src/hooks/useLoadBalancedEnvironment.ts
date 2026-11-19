@@ -7,10 +7,8 @@ import { useContext } from "react";
 
 import { serverEnvironment } from "../state/server";
 
-// Mirrors the freshness window in chooseLoadBalancedEnvironment.
 const HOST_RESOURCES_FRESH_MS = 15_000;
 
-// Keyed by content: callers derive the list every render.
 const hostResourcesAtom = Atom.family((environmentIdsKey: string) =>
   Atom.make((get) => {
     const evaluatedAt = Date.now();
@@ -26,7 +24,6 @@ const hostResourcesAtom = Atom.family((environmentIdsKey: string) =>
         failed: result._tag === "Failure",
       };
     });
-    // Re-read when the next fresh snapshot ages out, so a frozen evaluatedAt never selects it.
     const nextExpiry = Math.min(
       ...resources
         .map((resource) => resource.receivedAt + HOST_RESOURCES_FRESH_MS)

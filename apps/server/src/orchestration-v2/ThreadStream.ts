@@ -52,7 +52,6 @@ export function boundedSnapshotResponseFields(input: {
 }) {
   const { bounded } = input;
   const capped = capProjectionCheckpointFilesForWire(bounded.projection);
-  // Dedupe keeps shared items one object, which the compaction's identity check needs.
   const projection = input.dedupeBodies ? dedupeSnapshotBodies(capped) : capped;
   const compactProjection = input.compactTurnItems ? omitLocalVisibleTurnItems(projection) : null;
   return {

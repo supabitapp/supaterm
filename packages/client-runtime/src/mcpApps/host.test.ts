@@ -265,7 +265,6 @@ describe("makeMcpAppHost", () => {
       method: "tools/call",
       params: { name: "delete_everything", arguments: {} },
     });
-    // postMessage's structured clone keeps undefined properties, which JSON cannot carry.
     host.receive({
       jsonrpc: "2.0",
       id: 9,

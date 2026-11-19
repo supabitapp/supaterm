@@ -46,7 +46,6 @@ export const childThreadApprovalsAtom = createChildThreadApprovalsAtom({
   childThreadInputsAtom: environmentThreadShells.childThreadInputsAtom,
   pendingRequestsAtom: environmentThreadDetails.pendingRequestsAtom,
 });
-// A send waits on local storage before startTurn runs; its outbox entry shows the thread meanwhile.
 const sidebarSnapshotAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.make((get) =>
     withOptimisticThreadCreations(

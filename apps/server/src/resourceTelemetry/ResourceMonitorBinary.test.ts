@@ -8,7 +8,6 @@ import * as Path from "effect/Path";
 import * as ServerConfig from "../config.ts";
 import * as ResourceMonitorBinary from "./ResourceMonitorBinary.ts";
 
-// NTFS lacks POSIX exec bits required by this Linux-mocked override check.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
 
 describe("ResourceMonitorBinary", () => {
@@ -112,7 +111,6 @@ describe("ResourceMonitorBinary", () => {
         yield* fileSystem.chmod(binaryPath, 0o755);
 
         const service = yield* ResourceMonitorBinary.make().pipe(
-          // The bundled module lives in dist rather than src/resourceTelemetry.
           Effect.provideService(Path.Path, {
             ...path,
             resolve: (...segments) =>

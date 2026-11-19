@@ -114,14 +114,12 @@ const WORD_SPACELESS_LANGUAGES = new Set(["ja", "zh", "yue", "th", "lo", "km", "
 const isHighSurrogate = (code: number) => code >= 0xd800 && code <= 0xdbff;
 const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
 
-// Where `position` in `before` lands in `text`, placed after anything inserted at it.
 function mapPosition(before: string, text: string, position: number, suffixFirst: boolean) {
   const shared = Math.min(before.length, text.length);
   const matchesFromEnd = (offset: number) =>
     before[before.length - 1 - offset] === text[text.length - 1 - offset];
   let prefix = 0;
   let suffix = 0;
-  // Matching is per UTF-16 unit; never let a boundary split a surrogate pair.
   const scanSuffix = (limit: number) => {
     while (suffix < limit && matchesFromEnd(suffix)) suffix += 1;
     if (suffix > 0 && isLowSurrogate(before.charCodeAt(before.length - suffix))) suffix -= 1;
@@ -151,8 +149,6 @@ export function resolveTranscriptCommit(
   }
 
   const { text } = current;
-  // An edit made while recording (a citation, a paste) is never replaced. The edit's position is
-  // ambiguous over repeated text, so insert after the selection under both extreme alignments.
   const unchanged = text === captured.text;
   const end = unchanged
     ? captured.selection.end
@@ -165,7 +161,6 @@ export function resolveTranscriptCommit(
   const language = locale.split(/[-_]/)[0]?.toLowerCase() ?? "";
   let insertion = replacement;
   if (isEmptySelection && !WORD_SPACELESS_LANGUAGES.has(language)) {
-    // Two code units, so a supplementary-plane letter at the caret still matches.
     const left = text.slice(Math.max(0, start - 2), start);
     const right = text.slice(start, start + 2);
     const leftNeedsBoundary =
@@ -192,7 +187,6 @@ type VoiceInputSession = {
 let activeSession: VoiceInputSession | null = null;
 let activeTranscriptionOperation: Promise<unknown> | null = null;
 
-// Not `Promise.withResolvers`: the web client targets a runtime library without it.
 function deferred(): { readonly promise: Promise<void>; readonly resolve: () => void } {
   let resolve: () => void = () => undefined;
   const promise = new Promise<void>((settle) => {
@@ -391,7 +385,6 @@ export class VoiceInputController {
         this.invalidateOperation();
         this.setState(IDLE_STATE);
         return;
-      // Saving takes a moment and can't be taken back halfway; the queued message can be.
       case "sending":
         return;
     }
@@ -408,7 +401,6 @@ export class VoiceInputController {
   }
 
   appMovedToBackground(): Promise<void> | void {
-    // Android backgrounds the app while its own microphone permission dialog is open.
     if (this.askingPermission) return;
     if (this.state.phase === "preparing") {
       this.invalidateOperation();

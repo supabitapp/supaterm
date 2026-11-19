@@ -45,14 +45,10 @@ import {
   pullRequestWatchMessage,
 } from "./pullRequestWatch.ts";
 
-/** Checks take minutes; faster sweeps waste the account's shared host quota. */
 const SWEEP_MINUTES = 2;
 const READ_FAILURE_LIMIT = 8;
-/** Group reads in flight at once, inside the host's own request limit. */
 const GROUP_READS = 4;
-/** Without fingerprints, reread quiet PRs on snapshot changes or this interval to catch edits. */
 const QUIET_REREAD_MS = 10 * 60_000;
-/** Reread despite unchanged fingerprints; they miss review-thread comment edits. */
 const FINGERPRINT_REREAD_MS = 30 * 60_000;
 
 const isProviderError = Schema.is(PullRequestProviderError);
@@ -106,7 +102,6 @@ interface Wake {
   readonly includesRemarks?: boolean;
 }
 
-/** A wake a pass holds back so each thread gets one for everything the pass found. */
 interface HeldWake {
   readonly groupKey: string;
   readonly target: WatchTarget;
@@ -118,10 +113,6 @@ interface HeldWake {
 
 const watchKey = ({ thread, watch }: WatchTarget) => `${thread.id} ${watch.startedAt}`;
 
-/**
- * Why a watch ended. `stopped` is anything outside this reactor: the agent unwatched, the user
- * pressed Stop, or the thread was marked done, archived, or was deleted between passes.
- */
 type WatchEndReason =
   | "merged"
   | "closed"
@@ -172,8 +163,6 @@ function planRead(
   if (last === undefined || group.targets.some((target) => !last.watches.has(watchKey(target)))) {
     return { detail: true, activity: true };
   }
-  // Nothing on the host changes when the no-checks deadline passes, or when a push to another
-  // branch clears a watch's answer, so either alone prompts a read.
   const checksDue = group.targets.some(
     ({ watch }) =>
       watch.checksPending === undefined ||
@@ -202,7 +191,6 @@ function planRead(
   };
 }
 
-// Lets the orchestrator tell that a push cleared the answer while this read was in flight.
 const checksPendingBeforeOf = ({ watch }: WatchTarget) =>
   watch.checksPending === undefined ? {} : { checksPendingBefore: watch.checksPending };
 
@@ -292,9 +280,7 @@ export const make = Effect.gen(function* () {
     Effect.suspend(() => reportEnd(lifeKey(target), lifeOf(target), reason));
 
   const readFailures = new Map<string, number>();
-  /** The last sweep's groups, whose pull requests get host change feeds. */
   let currentGroups: ReadonlyArray<WatchGroup> = [];
-  // A pass reads watches and records new ones, so passes must not overlap.
   const passes = Semaphore.makeUnsafe(1);
   const lastReads = new Map<string, LastRead>();
   const threadTails = new Map<
@@ -315,10 +301,6 @@ export const make = Effect.gen(function* () {
     number: link.number,
   });
 
-  /**
-   * The orchestrator applies this only while the same watch is on, so a stop or restart
-   * that lands during the host read wins.
-   */
   const record = Effect.fn("PullRequestWatchReactor.record")(function* (
     target: WatchTarget,
     next: ThreadPullRequestWatch | null,
@@ -363,8 +345,6 @@ export const make = Effect.gen(function* () {
       now: number,
       rereadMs: number,
     ) {
-      // Comment cursors cannot account for missing threads. Only finish a truncated read
-      // when the host confirms that every thread was listed.
       if (activity.commentsTruncated && activity.reviewThreadsTruncated !== false) return null;
 
       const visibleThrough = activity.comments.reduce(
@@ -375,8 +355,6 @@ export const make = Effect.gen(function* () {
         (thread) => thread.nextCommentsCursor != null,
       );
       const cached = threadTails.get(key);
-      // All tails share one watermark, so newer visible remarks or a changed thread must
-      // refresh the entire group before any remarks can advance it.
       const reuse =
         cached !== undefined &&
         now - cached.fetchedAt < rereadMs &&
@@ -439,14 +417,12 @@ export const make = Effect.gen(function* () {
       effect.pipe(
         Effect.onExit((exit) =>
           Effect.sync(() => {
-            // A retry must refresh every tail before advancing the shared remark watermark.
             if (Exit.isFailure(exit) || exit.value === null) threadTails.delete(key);
           }),
         ),
       ),
   );
 
-  /** Wakes the current pass found, sent by `sendHeld` once every read of the pass is done. */
   let held: Array<HeldWake> = [];
   const hold = (wake: HeldWake) => Effect.sync(() => void held.push(wake));
 
@@ -517,9 +493,7 @@ export const make = Effect.gen(function* () {
       ([first, ...rest]) =>
         rest.length === 0
           ? sendOne(first!)
-          : // A watch that ended or moved during the pass fails the whole command; each then
-            // goes on its own, as the orchestrator decides for it alone.
-            sendTogether([first!, ...rest]).pipe(
+          : sendTogether([first!, ...rest]).pipe(
               Effect.catchCauseIf(
                 (cause) => !Cause.hasInterruptsOnly(cause),
                 () => Effect.forEach([first!, ...rest], sendOne, { discard: true }),
@@ -604,11 +578,9 @@ export const make = Effect.gen(function* () {
       group.targets.some((target) => !last.watches.has(watchKey(target))) ||
       (fingerprint !== null && last.remarks !== fingerprint.remarks)
     ) {
-      // A new watch or changed host remarks needs a fresh view of every tail.
       threadTails.delete(group.key);
     }
     const reference = referenceOf(group);
-    // Invalidate cached reads before using the newer fingerprint; clients receive no notification.
     if (fingerprint !== null) yield* pullRequests.invalidate({ reference });
     const [detailRead, activityRead] = yield* Effect.all(
       [
@@ -627,7 +599,6 @@ export const make = Effect.gen(function* () {
       lastReads.delete(group.key);
       const reason = providerFailureReason(detailRead.cause);
       if (reason === "rate-limited") return;
-      // Transport and host failures can outlast the failure limit; keep the watch for recovery.
       if (reason === "failed") {
         readFailures.delete(group.key);
         return yield* Effect.failCause(detailRead.cause);
@@ -663,8 +634,6 @@ export const make = Effect.gen(function* () {
       );
     }
 
-    // A failed comments read leaves remarks incomplete, so the next pass reads them again;
-    // checks, head and conflicts from the detail still reach the evaluator.
     if (Exit.isFailure(activityRead)) {
       threadTails.delete(group.key);
       if (providerFailureReason(activityRead.cause) !== "rate-limited") {
@@ -677,7 +646,6 @@ export const make = Effect.gen(function* () {
       ? activityRead.value
       : Option.none<PullRequestActivity>();
 
-    // Never advance the remark watermark past comments an incomplete read could have missed.
     const remarks = Option.isSome(activity)
       ? yield* readRemarks(
           group.key,
@@ -732,8 +700,6 @@ export const make = Effect.gen(function* () {
     });
   });
 
-  /** Every watch, or with `changed`, only that pull request's after its host reported a change. */
-  // The sweep and change reads each name their own span.
   const pass = Effect.fnUntraced(function* (changed: string | undefined) {
     held = [];
     const threads = yield* projections.getThreadsWithPullRequests();
@@ -747,7 +713,6 @@ export const make = Effect.gen(function* () {
     );
     if (changed === undefined) {
       const present = new Set(targets.map(lifeKey));
-      // The orchestrator ends a watch as it records the merge, before this pass can see it.
       const mergedWatches = new Set(
         threads.flatMap((thread) =>
           visibleThreadPullRequests(thread.pullRequests ?? []).flatMap((link) =>
@@ -772,7 +737,6 @@ export const make = Effect.gen(function* () {
         ending.push([target, reason]);
         continue;
       }
-      // Group by project because checkout access differs; one failure must not end another project's watches.
       const key = `${target.thread.projectId} ${threadPullRequestKeyOf(target.link)}`;
       byPullRequest.set(key, [...(byPullRequest.get(key) ?? []), target]);
     }
@@ -801,13 +765,10 @@ export const make = Effect.gen(function* () {
         ),
       { discard: true },
     );
-    // Every fingerprint is asked for at once so the host can batch them, and each group reads
-    // as soon as its own answer lands rather than waiting on the slowest host.
     const reads = yield* Semaphore.make(GROUP_READS);
     yield* Effect.forEach(
       groups,
       (group) =>
-        // The host just reported a change, so a cached fingerprint may predate it.
         (changed === undefined
           ? Effect.void
           : pullRequests.invalidate({ reference: referenceOf(group) })
@@ -815,7 +776,6 @@ export const make = Effect.gen(function* () {
           Effect.andThen(fingerprintOf(group)),
           Effect.tap((fingerprint) => {
             const last = lastReads.get(group.key);
-            // Open pull request views refresh only when the host state moved.
             return changed !== undefined &&
               fingerprint !== null &&
               fingerprint !== "paused" &&
@@ -858,7 +818,6 @@ export const make = Effect.gen(function* () {
   const start: PullRequestWatchReactor["Service"]["start"] = Effect.fn(
     "PullRequestWatchReactor.start",
   )(function* () {
-    // One feed per pull request: the host keeps one subscription per pull request and account.
     const feeds = yield* FiberMap.make<string>();
     const follow = Effect.gen(function* () {
       const wanted = new Map(currentGroups.map((group) => [pullRequestOf(group), group]));
@@ -869,18 +828,14 @@ export const make = Effect.gen(function* () {
         discard: true,
       });
       for (const [pullRequest, group] of wanted) {
-        // An ended feed restarts here, so a host that refused it is asked again each sweep.
         yield* FiberMap.run(feeds, pullRequest, { onlyIfMissing: true })(
           pullRequests.changes(referenceOf(group)).pipe(
-            // A review sends an event per comment; those landing during a read make one more.
             Stream.buffer({ capacity: 1, strategy: "sliding" }),
             Stream.runForEach(() => readOnChange(pullRequest)),
           ),
         );
       }
     });
-    // A watch's first read is its baseline, so it reads now: CI that finishes before the next
-    // sweep would otherwise be taken as old news and never wake the thread.
     yield* forkParked(
       Stream.runForEach(engine.streamDomainEvents, (event) => {
         if (event.type !== "thread.pull-request-synced") return Effect.void;

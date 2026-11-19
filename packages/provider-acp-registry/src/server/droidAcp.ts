@@ -24,8 +24,6 @@ const isDroidQuestion = Schema.is(
 );
 const isDroidCompanion = Schema.is(Schema.Struct({ type: Schema.Literal("string") }));
 
-// Droid pairs each choice with an optional *_other field. The client already
-// offers custom answers, so hide the companion and restore it in the response.
 export const extractDroidElicitationForm: NonNullable<
   AcpAdapterV2Flavor["extractElicitationForm"]
 > = (request) => {
@@ -43,7 +41,6 @@ export const extractDroidElicitationForm: NonNullable<
     }
     questions.push({ id, header: field.title, question: field.description, options });
   }
-  // Recognize only complete forms; leave every other schema to the ACP fallback.
   const requiredIds = new Set(required);
   if (
     questions.length === 0 ||
@@ -63,7 +60,6 @@ export const extractDroidElicitationForm: NonNullable<
         if (question.options.some((option) => option.value === answer)) {
           entries.push([question.id, answer]);
         } else {
-          // Intake appends server attachment references to the selected choice ID.
           const attachmentStart = answer.indexOf("\n\n");
           const selectedOption = question.options.find(
             (option) =>

@@ -74,7 +74,6 @@ const gitOutput = (stdout: string) => ({
 
 function makeLayer(input: {
   readonly response: (request: HttpClientRequest.HttpClientRequest) => Response;
-  /** Holds the answer until it resolves, in place of answering at once. */
   readonly answer?: (response: Response) => Effect.Effect<Response>;
   readonly requestFailure?: (
     request: HttpClientRequest.HttpClientRequest,
@@ -134,7 +133,6 @@ function makeLayer(input: {
       },
     }),
   );
-  // The outer effect resolves the repository; the inner one lists its remotes.
   const resolve = vi.fn((_cwd: string) => Effect.succeed(Effect.suspend(listRemotes)));
 
   const layer = BitbucketApi.layer.pipe(
@@ -266,7 +264,6 @@ it.effect.each([false, true])("honors PR URL repositories, context=%s", (withCon
 });
 
 it.effect("adds a fork remote with the protocol of the URL origin fetches from", () => {
-  // `git remote -v` shows origin's SSH `insteadOf` rewrite; config holds HTTPS, then an SSH push URL.
   const { git, layer } = makeLayer({
     git: {
       execute: () =>
@@ -531,7 +528,6 @@ it.effect("sends a self-hosted Bitbucket remote nowhere unless an API base url i
     const requestedUrls = (setup: ReturnType<typeof makeLayer>) =>
       setup.execute.mock.calls.map(([request]) => request.url).toSorted();
 
-    // A self-hosted remote in the checkout, then a self-hosted context beside a Cloud remote.
     for (const [setup, withContext] of [
       [makeLayer({ response, env: cloudEnv, remoteUrl }), false],
       [makeLayer({ response, env: cloudEnv }), true],
@@ -544,7 +540,6 @@ it.effect("sends a self-hosted Bitbucket remote nowhere unless an API base url i
       );
     }
 
-    // An explicit repository does not let a self-hosted context reach the Cloud API.
     const explicit = makeLayer({ response, env: cloudEnv });
     const cloneUrls = yield* BitbucketApi.BitbucketApi.pipe(
       Effect.flatMap((bitbucket) =>
@@ -737,8 +732,6 @@ it.effect("never puts a saved token that is unsafe for an HTTP header on the wir
     const bitbucket = yield* BitbucketApi.BitbucketApi;
     const settings = yield* TestSourceControlHost.TestSourceControlHostSettings;
 
-    // Fetch would reject this header with an error quoting the token, and that error reaches
-    // clients. The unusable token is ignored, so the environment credential is used instead.
     yield* settings.update({
       sourceControlHosts: { bitbucket: { accessToken: "saved\ntoken" } },
     });
@@ -983,7 +976,6 @@ it.effect("pauses background reads after a 429 until Bitbucket's retry-after pas
 
     yield* Effect.flip(lookup);
     const paused = yield* Effect.flip(lookup);
-    // Keyed by the repository host, where PullRequestService records its own backoff.
     assert.deepInclude(paused, {
       _tag: "SourceControlRateLimitPausedError",
       host: "bitbucket.org",
@@ -991,8 +983,6 @@ it.effect("pauses background reads after a 429 until Bitbucket's retry-after pas
     });
     assert.strictEqual(execute.mock.calls.length, 1);
 
-    // A user waiting on an answer is not held back by the background pause, and their success
-    // does not end it early.
     yield* lookup.pipe(Effect.provideService(SourceControlRateLimit.Interactive, true));
     yield* bitbucket.request({
       method: "POST",

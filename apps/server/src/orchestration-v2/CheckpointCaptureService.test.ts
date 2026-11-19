@@ -477,8 +477,6 @@ it.layer(layerProjectionStoreTest)("CheckpointCaptureServiceV2", (it) => {
     }),
   );
 
-  // A stopped run is captured after it ends; by then the next root run, dispatched or queued, may
-  // have re-created the thread's one root scope with its own node and time.
   it.effect.each([1, 2])(
     "attributes the baselines a late capture materializes to the stopped run %i",
     (ordinal) =>
@@ -916,7 +914,6 @@ it.layer(layerProjectionStoreTest)("CheckpointCaptureServiceV2", (it) => {
       assert.equal(projected.rootNode?.status, "cancelled");
       assert.deepEqual([...projected.preservedCheckpointOrdinals].toSorted(), [0, 1]);
 
-      // A rewind leaves the run's checkpoint stale; the next capture must rebaseline it.
       yield* projectionStore.apply({
         id: EventId.make("event:checkpoint-capture-cancelled:captured-stale"),
         type: "checkpoint.captured",

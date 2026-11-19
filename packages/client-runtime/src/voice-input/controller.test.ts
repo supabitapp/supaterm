@@ -655,7 +655,6 @@ describe("VoiceInputController", () => {
     await next.controller.start();
     expect(next.controller.currentState.error).toContain("already active");
     expect(next.recorder.record).not.toHaveBeenCalled();
-    // A cancelled recording still releases its microphone, but no longer holds the shortcut.
     const discarding = first.controller.interruptRecording();
     expect(voiceInputSessionActive()).toBe(false);
     await discarding;

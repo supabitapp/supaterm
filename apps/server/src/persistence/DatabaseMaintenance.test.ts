@@ -43,7 +43,6 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         });
         const dbPath = path.join(baseDir, "userdata", "statev2.sqlite");
         const files = DatabaseMaintenance.reclaimFiles(path, dbPath);
-        // Compaction checks the projections first, so the database needs built ones.
         yield* Effect.flatMap(
           ProjectionMaintenance.ProjectionMaintenanceV2,
           (projections) => projections.rebuild,
@@ -70,7 +69,6 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
           yield* sql`INSERT INTO retained_data VALUES ('keep')`;
         }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath })));
 
-        // Every server exit runs this; without a request it must leave the database alone.
         yield* DatabaseMaintenance.runRequestedReclaim(dbPath);
         assert.equal(yield* autoVacuum, 0);
 
@@ -125,7 +123,6 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         const maintenance = yield* DatabaseMaintenance.DatabaseMaintenance;
         const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-compact-" });
         const dbPath = path.join(baseDir, "userdata", "statev2.sqlite");
-        // A migrated database created before incremental auto_vacuum, with free pages.
         yield* Effect.flatMap(
           ProjectionMaintenance.ProjectionMaintenanceV2,
           (projections) => projections.rebuild,
@@ -155,7 +152,6 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
               '2026-09-01T00:00:00.000Z', '2026-09-01T00:00:00.000Z', '{"text":"needle"}'
             )
           `;
-          // An index that drifted from its rows, as a renumbering VACUUM would leave it.
           yield* sql`
             INSERT INTO orchestration_v2_message_search (orchestration_v2_message_search)
             VALUES ('delete-all')
@@ -175,7 +171,6 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
           `;
         }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath })));
 
-        // A server that merely has the database open, like an idle one, is enough to refuse.
         const sizeBefore = (yield* fs.stat(dbPath)).size;
         const refused = yield* Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
@@ -201,7 +196,6 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
             Effect.provideService(Statement.CurrentTransformer, record),
             Effect.provideService(Clock.Clock, {
               ...clock,
-              // Exceed the background budget whenever the compactor checks elapsed time.
               monotonicTimeNanos: Effect.sync(() => (activeNanos += 30_000_000n)),
               sleep: (duration) =>
                 Effect.sync(() => {
@@ -215,7 +209,6 @@ it.layer(DatabaseMaintenance.layer.pipe(Layer.provideMerge(NodeServices.layer)))
         const fullFsync = statements.indexOf("PRAGMA checkpoint_fullfsync = ON");
         assert.isAtLeast(fullFsync, 0);
         assert.isBelow(fullFsync, statements.indexOf("VACUUM"));
-        // The 4 MiB of free pages are returned to the filesystem.
         assert.isBelow(result.afterBytes, result.beforeBytes - 3 * 1024 * 1024);
         yield* Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;

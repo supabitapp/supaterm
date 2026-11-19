@@ -220,9 +220,6 @@ export function deriveThreadFromProviderThread(input: {
   );
 }
 
-// Agents quote subagent thread ids back to thread tools, and the native id often
-// nests the parent's encoded ids, so hash it to a short stable id instead. Adapters
-// re-derive child ids on resume, so a child stored under its legacy id keeps it.
 const makeDeriveSubagentThread =
   (legacyThreadIds: ReadonlySet<string>): IdAllocatorV2Derive["subagentThread"] =>
   (input) => {

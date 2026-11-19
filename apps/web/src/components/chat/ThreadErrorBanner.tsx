@@ -82,7 +82,6 @@ export const ThreadErrorBanner = memo(function ThreadErrorBanner({
   onDismiss?: () => void;
 }) {
   const nextBanner = error ? { error, errorClass, errorCode } : null;
-  // usePresence retains by identity, so the banner object changes only with its content.
   const [liveBanner, setLiveBanner] = useState(nextBanner);
   if (
     liveBanner?.error !== nextBanner?.error ||

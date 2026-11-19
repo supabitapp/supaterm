@@ -5,13 +5,10 @@ const { getDefaultConfig } = require("expo/metro-config");
 const { withUniwindConfig } = require("uniwind/metro");
 const extraThemes = require("./generated-uniwind-theme-names.json");
 
-/** @type {import("expo/metro-config").MetroConfig} */
 const config = getDefaultConfig(__dirname);
 const workspaceRoot = path.resolve(__dirname, "../..");
 const expoPackagePath = fs.realpathSync(require.resolve("expo/package.json"));
 const relativeExpoPackagePath = path.relative(workspaceRoot, expoPackagePath);
-// Expo builds lazy chunk URLs relative to the server root, so packages in pnpm's
-// global virtual store get `/../` URLs that normalize to the wrong file.
 if (
   relativeExpoPackagePath.startsWith(`..${path.sep}`) ||
   path.isAbsolute(relativeExpoPackagePath)

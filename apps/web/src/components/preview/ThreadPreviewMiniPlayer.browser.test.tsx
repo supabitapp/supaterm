@@ -94,7 +94,6 @@ it("holds its frame through a source change and stops when the gesture is interr
   const viewId = screen.getByTestId("stream").element().getAttribute("data-view-id")!;
   const portrait = rect();
 
-  // Held without moving while the device rotates: the frame waits for the release.
   await point(handle("northwest"), "pointerdown", portrait.left, portrait.top, 1);
   await act(() =>
     appAtomRegistry.set(deviceStreamScreenAtom(viewId), {
@@ -105,7 +104,6 @@ it("holds its frame through a source change and stops when the gesture is interr
   );
   expect(rect()).toEqual(portrait);
 
-  // The release never arrived, so the next buttonless move ends the gesture where it was held.
   await point(handle("northwest"), "pointermove", portrait.left - 200, portrait.top - 200, 0);
   const landscape = rect();
   expect({ right: landscape.right, bottom: landscape.bottom }).toEqual({

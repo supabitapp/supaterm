@@ -33,8 +33,5 @@ export const homeProjectOrderAtom = Atom.family((projectGroupingMode: SidebarPro
       pinned: scope.pinned,
       archived: scope.archived,
     })),
-  ).pipe(
-    // Thread activity that keeps the order must not re-render the whole list screen.
-    Atom.withEquality(sameProjectOrder),
-  ),
+  ).pipe(Atom.withEquality(sameProjectOrder)),
 );

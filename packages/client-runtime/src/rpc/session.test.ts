@@ -48,8 +48,6 @@ type SocketEvent = {
 };
 type SocketListener = (event: SocketEvent) => void;
 
-// Socket creation and every send notify the waiters, so a wait re-checks exactly when
-// the state it reads changes.
 const socketChangeListeners = new Set<() => void>();
 const notifySocketChange = () => {
   for (const listener of socketChangeListeners) listener();
@@ -322,7 +320,6 @@ describe("RpcSessionFactory", () => {
       const socket = yield* awaitSocket(sockets);
       socket.open();
       const request = yield* awaitRequest(socket);
-      // Multi-byte text, so parts must be sized in UTF-8 bytes and never split a surrogate pair.
       const config = { ...SERVER_CONFIG, cwd: "/" + "é€😀x".repeat(32 * 1024) };
       const frame = encodeJson({
         _tag: "Chunk",
@@ -456,8 +453,6 @@ describe("RpcSessionFactory", () => {
       socket.open();
       yield* completeInitialConfig(socket);
       yield* Fiber.join(readyFiber);
-      // Like the supervisor: the closed session interrupts its streams, and a
-      // stream interrupt must not wait for a socket that is gone.
       const ended = yield* Effect.forkChild(
         Effect.raceFirst(
           Effect.flip(session.closed),
@@ -472,7 +467,6 @@ describe("RpcSessionFactory", () => {
       yield* TestClock.adjust("999 millis");
 
       expect(ended.pollUnsafe()).toBeDefined();
-      // A request made after the close still fails instead of waiting forever.
       const lateProbe = yield* Effect.forkChild(session.probe);
       yield* TestClock.adjust("999 millis");
       expect(lateProbe.pollUnsafe()?._tag).toBe("Failure");
@@ -731,7 +725,6 @@ describe("RpcSessionFactory", () => {
         type: "settingsUpdated",
         payload: { settings: DEFAULT_SERVER_SETTINGS },
       }));
-      // A delta carries no lists; a subscriber that misses it must still get its result.
       const { models: _models, slashCommands: _commands, skills: _skills, ...status } = PROVIDER;
       const providerEvent: ServerConfigStreamEventType = {
         version: 1,

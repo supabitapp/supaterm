@@ -276,7 +276,6 @@ export function buildSidebarProjectPickerEntries(input: {
 
     return [{ group, targetProject, isPreferred }];
   });
-  // The current project leads, even ahead of pinned projects.
   const preferred = entries.find((entry) => entry.isPreferred);
   if (!preferred) return entries;
   return [preferred, ...entries.filter((entry) => entry !== preferred)];

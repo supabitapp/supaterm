@@ -83,6 +83,5 @@ export function decideProviderSessionTransition(input: {
     }
   }
 
-  // Apply interaction mode on the next turn.
   return { type: "reuse" };
 }

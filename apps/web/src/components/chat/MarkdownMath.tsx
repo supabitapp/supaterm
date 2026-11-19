@@ -26,7 +26,6 @@ export const MarkdownMath = memo(function MarkdownMath(props: {
     if (!viewport || !content || props.focusable === false) return;
     const measure = () => setOverflows(viewport.scrollWidth > viewport.clientWidth);
     measure();
-    // Typesetting and streamed TeX can change content width without resizing the viewport.
     return observeResize([viewport, content], measure);
   }, [props.focusable]);
   const scrollable = props.focusable !== false && overflows;

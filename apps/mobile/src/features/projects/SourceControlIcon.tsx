@@ -12,7 +12,6 @@ export function SourceControlIcon(props: {
   readonly color?: string;
   readonly colorClassName?: string;
 }) {
-  // Gradient ids must not collide when one screen shows the same mark more than once.
   const idPrefix = useId().replace(/[^\w-]/gu, "");
   const size = props.size ?? 18;
   const { icon } = props;
@@ -60,8 +59,7 @@ export function SourceControlIcon(props: {
       ) : null}
       {icon.paths.map((path, index) => (
         <Path
-          // Paths repeat with different paints, so their data is not a key.
-          // oxlint-disable-next-line react/no-array-index-key
+          // oxlint-disable-next-line react/no-array-index-key -- Paths repeat with different paints, so their data is not a key.
           key={index}
           d={path.d}
           fill={paint(path.fill)}

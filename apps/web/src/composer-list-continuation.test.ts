@@ -69,7 +69,6 @@ describe("composer list continuation", () => {
 });
 
 describe("composer list indentation", () => {
-  // regression: #17124 Tab must nest a numbered item at its parent's content column
   it.each([
     ["1. parent\n2. child", "1. parent\n   1. child"],
     ["10. parent\n11. child", "10. parent\n    1. child"],

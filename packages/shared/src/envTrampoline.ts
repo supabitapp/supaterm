@@ -8,7 +8,6 @@ let chdirSupport: Promise<boolean> | undefined;
 /** Whether `/usr/bin/env` takes `-C` (GNU coreutils 8.28 and later; BusyBox does not). */
 export const supportsEnvChdir = (): Promise<boolean> =>
   (chdirSupport ??= new Promise((resolve) =>
-    // Run against `/` and absolute paths, so the check itself cannot wait on a mount.
     NodeChildProcess.execFile(ENV, ["-C", "/", "--", "/bin/sh", "-c", ":"], (error) =>
       resolve(error === null),
     ),

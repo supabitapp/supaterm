@@ -4,11 +4,6 @@ import * as NodeTty from "node:tty";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
-/**
- * Electron's Windows launcher has no stdin; Node substitutes a non-console NUL device.
- * Preserve pipes, files, console input, and runs without console output.
- * Explicit `< NUL` is indistinguishable from missing launcher stdin and also reattaches.
- */
 function needsConsoleStdin(input: {
   readonly platform: NodeJS.Platform;
   readonly env: NodeJS.ProcessEnv;
@@ -17,7 +12,6 @@ function needsConsoleStdin(input: {
 }): boolean {
   return (
     input.platform === "win32" &&
-    // Set only by the launcher (DesktopCliShim), never for the desktop backend.
     input.env.SUPATERM_DESKTOP_CLI_LAUNCHER === "1" &&
     input.stdinMissing &&
     input.stdoutIsConsole
@@ -40,7 +34,6 @@ export function attachConsoleStdin(): number | undefined {
     stdinMissing: isMissingInput(0),
     stdoutIsConsole: NodeTty.isatty(1),
   });
-  // The launcher marker must not propagate to child shells or supaterm processes.
   delete process.env.SUPATERM_DESKTOP_CLI_LAUNCHER;
   if (!needed) return undefined;
   let fd: number;
@@ -54,7 +47,6 @@ export function attachConsoleStdin(): number | undefined {
     return undefined;
   }
   const stdin = new NodeTty.ReadStream(fd);
-  // Like Node's built-in stdin, release pending console reads before a child takes over.
   stdin.on("pause", () => {
     const internal = stdin as unknown as {
       _handle?: { reading: boolean; readStop(): void };

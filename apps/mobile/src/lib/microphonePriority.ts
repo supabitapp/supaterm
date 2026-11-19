@@ -2,7 +2,6 @@ const MICROPHONE_KINDS = ["wired", "bluetooth", "builtIn", "carPlay"] as const;
 
 type MicrophoneKind = (typeof MICROPHONE_KINDS)[number];
 
-// A car without CarPlay connects as a Bluetooth headset, so it is a Bluetooth device.
 const KIND_BY_PORT_TYPE: Readonly<Record<string, MicrophoneKind>> = {
   MicrophoneWired: "wired",
   USBAudio: "wired",

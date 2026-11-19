@@ -6,9 +6,6 @@ export function vitePlusCommand(
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Standalone Node tooling has no Effect runtime; tests pass the platform explicitly.
   platform: NodeJS.Platform = process.platform,
 ): [command: string, args: Array<string>] {
-  // Windows cannot spawn the package manager's vp.cmd shim without a shell.
-  // Use Vite+'s exported JS entry with this Node instead, keeping paths and
-  // arguments literal. Resolve here, not from the patch check's temporary cwd.
   if (platform === "win32") {
     return [
       process.execPath,

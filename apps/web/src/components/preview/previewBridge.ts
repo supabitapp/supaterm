@@ -4,7 +4,6 @@ import * as Schema from "effect/Schema";
 
 const decodeCaptureFailure = Schema.decodeUnknownOption(PreviewCaptureFailure);
 
-// Decode here because contextBridge strips custom properties from rejected Errors.
 function unwrapPreviewCaptureResult<A>(result: A | PreviewCaptureFailureEncoded): A {
   const failure = decodeCaptureFailure(result);
   if (Option.isSome(failure)) throw failure.value;

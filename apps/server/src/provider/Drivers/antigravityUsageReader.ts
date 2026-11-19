@@ -78,8 +78,6 @@ const timestamp = (value: Fields) => {
   return seconds > 0 ? seconds * 1000 + Math.floor(numberAt(value, 2) / 1_000_000) : null;
 };
 
-// Offline fallback for records without names. New names are learned from the scanned metadata.
-// Cross-checked against ccusage's Antigravity parser and mrexodia/agent-cost-dashboard.
 const MODEL_IDS: Record<number, string> = {
   246: "gemini-2.5-pro",
   312: "gemini-2.5-flash",
@@ -128,7 +126,6 @@ const MODEL_IDS: Record<number, string> = {
   1419: "gemini-4-argon",
 };
 
-// Effort and routing variants share the base model's price.
 export const antigravityRateModel = (model: string) => {
   const base = model.replace(/-(?:extra-low|low|medium|high|tiered|control|thinking|agent)$/, "");
   return /^gemini-3-flash-(?:agent(?:-[ab])?|[ab])$/.test(model)
@@ -188,7 +185,6 @@ function metadata(bytes: Uint8Array, step: boolean): Metadata {
   const data = step ? root : nested(root, 1);
   const model = step ? nested(data, 24) : data;
   const usage = bytesAt(data, step ? 9 : 4);
-  // Copy the usage bytes: subarrays kept in usages would hold each row's whole blob alive.
   const primaryUsage = usage === undefined ? undefined : fields(usage.slice());
   const usages = primaryUsage === undefined ? [] : [primaryUsage];
   for (const retry of data.get(step ? 28 : 17) ?? []) {
@@ -231,11 +227,6 @@ class AntigravityDatabaseDecodeError extends Schema.TaggedError<AntigravityDatab
   }
 }
 
-/**
- * One statement.all() holds the event loop until every row it returns is in memory, and a
- * generation row carries the conversation's whole context so far, often megabytes, so generations
- * are read one at a time.
- */
 const GENERATION_PAGE_ROWS = 1;
 const STEP_PAGE_ROWS = 64;
 
@@ -260,9 +251,6 @@ const readDatabase = Effect.fn("readDatabase")(function* (
     if (!tables.has("gen_metadata") && !tables.has("steps")) {
       return yield* new AntigravityDatabaseDecodeError({ path });
     }
-    // A rowid seek works whatever the table's indexes. Antigravity declares idx as the INTEGER
-    // PRIMARY KEY, so rowid order is idx order; the sort keeps idx order where rows are stored
-    // otherwise.
     const readMetadata = Effect.fnUntraced(function* (
       query: string,
       pageRows: number,
@@ -279,8 +267,6 @@ const readDatabase = Effect.fn("readDatabase")(function* (
           }>(query, [after, pageRows])
           .pipe(Effect.withTracerEnabled(false));
         for (const row of rows) {
-          // Skipped here rather than in SQL, so a statement never scans past
-          // more than one page of steps that have no metadata.
           if (step && row.data === null) continue;
           const idx = row.idx;
           if (typeof idx !== "number") {
@@ -355,7 +341,6 @@ function usageCandidates(
       for (const [usageIndex, usage] of entry.usages.entries()) {
         const modelId = numberAt(usage, 1) || entry.modelId;
         const generation = source === "step" ? generationModels.get(idx) : undefined;
-        // A retry can use a different model than its enclosing generation or step.
         const matches = (metadata: Metadata) => modelId === 0 || metadata.modelId === modelId;
         const model =
           matches(entry) && entry.model
@@ -529,7 +514,6 @@ export const readAntigravityUsage = Effect.fn("readAntigravityUsage")(function* 
     names.sort((a, b) => a.localeCompare(b));
     for (const name of names) {
       const path = pathService.join(directory, name);
-      // Like a directory listing's entry types: symlinks are neither files nor directories.
       const isLink = Exit.isSuccess(yield* Effect.exit(fileSystem.readLink(path)));
       const type = isLink
         ? "SymbolicLink"

@@ -65,12 +65,6 @@ interface TargetPathAndPosition {
   readonly column: Option.Option<string>;
 }
 
-/**
- * Windows command shims (`code.cmd`) forward arguments through `%*`, which
- * cmd.exe parses a second time after the first escaping layer is gone: a
- * line break ends the command there, and a double quote closes the quoting
- * that keeps `&` or `|` literal. Neither can occur in a Windows path.
- */
 const WINDOWS_SHIM_UNSAFE_ARG_PATTERN = /[\u0000-\u001f\u007f"]/;
 const TARGET_WITH_POSITION_PATTERN = /^(.*?):(\d+)(?::(\d+))?$/;
 const POWERSHELL_ARGUMENTS_PREFIX = [
@@ -81,9 +75,6 @@ const POWERSHELL_ARGUMENTS_PREFIX = [
   "-EncodedCommand",
 ] as const;
 
-// Windows PowerShell started with DETACHED_PROCESS exits 0 without running its
-// command, so native Windows launches through it stay attached. WSL interop
-// PowerShell starts from a Linux process and keeps the detached launch.
 const WINDOWS_POWERSHELL_DETACHED = false;
 
 const DETACHED_IGNORE_STDIO_OPTIONS = {
@@ -170,10 +161,7 @@ function resolveCommandEditorArgs(
     case "direct-path":
       return [positionedTarget];
     case "goto":
-      // An existing folder wins over a position: `build:2026` is a legal folder name.
-      // Without a window flag, VS Code's window settings may replace the user's last active window.
       if (isDirectory) return ["--new-window", target];
-      // VS Code splits every numeric colon segment, including ones inside the filename.
       if (
         position !== undefined &&
         target.split(":").some((segment) => !Number.isNaN(Number(segment)))
@@ -184,11 +172,9 @@ function resolveCommandEditorArgs(
       return Option.match(parsedTarget, {
         onNone: () => [target],
         onSome: ({ path, line, column }) => [
-          // Only positioned targets get the root: a folder target would open as a second project.
           ...(projectRoot === undefined ? [] : [projectRoot]),
           "--line",
           line,
-          // JetBrains IDEs count `--column` from 0; targets count columns from 1.
           ...Option.match(column, {
             onNone: () => [],
             onSome: (value) => ["--column", String(Math.max(0, Number(value) - 1))],
@@ -210,7 +196,6 @@ function encodeUtf16LeBase64(input: string): string {
 }
 
 function escapePowerShellStringLiteral(input: string): string {
-  // PowerShell also recognises typographic apostrophes as single-quote delimiters.
   return `'${input.replace(/['\u2018-\u201b]/g, "$&$&")}'`;
 }
 
@@ -226,10 +211,6 @@ function resolveWslPowerShellPath(): string {
   return "/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe";
 }
 
-// File reveals from WSL resolve PowerShell through the interop PATH rather
-// than the fixed /mnt/c mount: the automount root is configurable, and a
-// PATH-resolved command keeps the advertised capability aligned with the
-// availability check `launchEditor` performs before spawning.
 const WSL_POWERSHELL_COMMAND = "powershell.exe";
 
 function shouldUseWindowsHostFromWsl(
@@ -289,9 +270,6 @@ function fileManagerCommandForPlatform(
   }
 }
 
-// Without an `inode/directory` MIME handler, `xdg-open` fails after the launcher detached, a
-// silent no-op, so the handler is probed. This sits well inside editor discovery's timeout, which
-// degrades to an empty list: a hung `xdg-mime` must cost only the file manager.
 const LINUX_DIRECTORY_HANDLER_PROBE_TIMEOUT = "2 seconds";
 
 const hasUsableLinuxDirectoryHandler = Effect.fn("externalLauncher.hasUsableLinuxDirectoryHandler")(
@@ -344,10 +322,6 @@ const isUsableFileManagerCommand = Effect.fn("externalLauncher.isUsableFileManag
   },
 );
 
-// WSL hosts prefer the Windows Explorer bridge, but interop can exist without
-// `explorer.exe` on PATH (appendWindowsPath=false) or without a distro name
-// while WSLg still provides a working Linux file manager, so they keep the
-// `xdg-open` fallback instead of losing the editor entirely.
 const resolveUsableFileManagerCommand = Effect.fn(
   "externalLauncher.resolveUsableFileManagerCommand",
 )(function* (
@@ -372,10 +346,6 @@ const resolveUsableFileManagerCommand = Effect.fn(
   return undefined;
 });
 
-// Reveal on Windows and WSL spawns PowerShell, not the `explorer` that gates the file-manager
-// editor, so this probes what reveal spawns. Linux "files" relies on the callers' file-manager
-// gate for the directory-handler probe; the WSL fallback re-probes because that gate may have
-// passed through the Explorer bridge instead.
 const fileManagerRevealKindForPlatform = Effect.fn(
   "externalLauncher.fileManagerRevealKindForPlatform",
 )(function* (
@@ -412,9 +382,6 @@ function wslUncFallbackPath(target: string, distroName: string): string {
   return `\\\\wsl.localhost\\${distroName}${relativePath.length > 0 ? `\\${relativePath}` : ""}`;
 }
 
-// wslpath -w is mount-aware, so a drive remapped in /etc/wsl.conf resolves to the
-// real letter and a Linux path resolves to the \\wsl.localhost UNC path. Fall back
-// to the UNC form by hand when wslpath is missing or fails.
 export const resolveWslFileManagerPath = Effect.fn("externalLauncher.resolveWslFileManagerPath")(
   function* (
     target: string,
@@ -509,8 +476,6 @@ const resolveBrowserLaunch = Effect.fn("externalLauncher.resolveBrowserLaunch")(
   return buildBrowserLaunch(target, platform, env);
 });
 
-// Editors and the file manager open on the desktop session, so a boot-started
-// server discovers and launches them with that session's display.
 const readEditorEnv = Effect.fn("externalLauncher.readEditorEnv")(function* () {
   const env = { ...(yield* readBrowserLaunchEnv), ...(yield* readCommandLookupEnv) };
   return hasGraphicalLinuxSession(env) ? env : { ...env, ...(yield* readGraphicalSessionEnv()) };
@@ -569,7 +534,6 @@ const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   const target = input.cwd;
   let position = input.position;
   if (editorDef.id === "zed" && position?.line !== undefined) {
-    // Zed resolves existing paths before positions, so ambiguous spellings must stay literal.
     const collision =
       /:\d+(?=:|$)/.test(target) ||
       (yield* (yield* FileSystem.FileSystem)
@@ -618,7 +582,6 @@ const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   }
 
   if (platform === "win32") {
-    // ShellExecute honours replacement folder handlers that explorer.exe bypasses.
     return {
       ...powerShellFileManagerLaunch(
         target,
@@ -640,13 +603,9 @@ const resolveEditorLaunch = Effect.fn("resolveEditorLaunch")(function* (
   };
 });
 
-// Replacement managers can register under Directory, Drive, or Folder. Explorer
-// needs its /select argument passed verbatim through PowerShell because Node's
-// argument quoting changes how Explorer parses it.
 function buildFileManagerRevealPowerShellSource(target: string, parent: string): string {
   const literal = escapePowerShellStringLiteral(target);
   const folderClass = /^[a-z]:\\$/i.test(parent) ? "Drive" : "Directory";
-  // Explorer's ordinary open/explore handlers may also be explicit defaults.
   return String.raw`$ProgressPreference = 'SilentlyContinue'; $folderVerb = '${folderClass}', 'Folder' | ForEach-Object { $key = "Registry::HKEY_CLASSES_ROOT\$_\shell"; $verb = (Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue).'(default)'; if ($verb -and $verb -ne 'none') { $handler = Get-ItemProperty -LiteralPath "$key\$verb\command" -ErrorAction SilentlyContinue; if ($handler.DelegateExecute -ne '{11dbb47c-a525-400b-9e80-a54615a090c0}' -and $handler.'(default)' -notmatch '^\s*"?(?:[^"]*[\\/])?explorer\.exe(?:["\s]|$)') { $verb } } }; if ($folderVerb) { Invoke-Item -LiteralPath ${escapePowerShellStringLiteral(parent)} } else { Start-Process 'explorer.exe' -ArgumentList ('/select,"' + ${literal} + '"') }`;
 }
 
@@ -700,10 +659,7 @@ const resolveFileManagerRevealLaunch = Effect.fn("resolveFileManagerRevealLaunch
     env.WSL_DISTRO_NAME !== undefined
   ) {
     if (yield* isCommandAvailable(WSL_POWERSHELL_COMMAND, { env })) {
-      // WSL names may contain quotes that Explorer's /select cannot encode.
-      // Open the parent through the shell so replacement managers still apply.
       const path = yield* Path.Path;
-      // .NET path parsing rejects characters that are legal in WSL filenames.
       const [explorerTarget, parent] = yield* Effect.all(
         [
           resolveWslFileManagerPath(target, env.WSL_DISTRO_NAME),
@@ -753,7 +709,6 @@ const tryRevealLinuxItem = Effect.fn("externalLauncher.tryRevealLinuxItem")(
           "/org/freedesktop/FileManager1",
           "--method",
           "org.freedesktop.FileManager1.ShowItems",
-          // File URLs percent-encode the double quotes and backslashes GVariant would interpret.
           `["${uri.href}"]`,
           "",
         ],
@@ -761,7 +716,6 @@ const tryRevealLinuxItem = Effect.fn("externalLauncher.tryRevealLinuxItem")(
           stdin: "ignore",
           stdout: "ignore",
           stderr: "ignore",
-          // Timeout waits for scoped cleanup, even if the helper ignores SIGTERM.
           forceKillAfter: "1 second",
         },
       ),
@@ -776,8 +730,6 @@ const tryRevealLinuxItem = Effect.fn("externalLauncher.tryRevealLinuxItem")(
   }),
 );
 
-// Stock Windows answers "none"; any other verb may be a replacement file manager, which only
-// the PowerShell reveal honors. Reading stdout is about 600 ms faster than spawner.string here.
 const hasStockWindowsFolderVerb = Effect.fn("externalLauncher.hasStockWindowsFolderVerb")(
   function* () {
     const env = yield* readBrowserLaunchEnv;
@@ -800,7 +752,6 @@ const hasStockWindowsFolderVerb = Effect.fn("externalLauncher.hasStockWindowsFol
   Effect.orElseSucceed(() => false),
 );
 
-// Explorer parses /select itself, so it needs the argument verbatim rather than Node's quoting.
 const revealWindowsItem = Effect.fn("externalLauncher.revealWindowsItem")(function* (
   target: string,
 ) {
@@ -824,7 +775,6 @@ const launchEditor = Effect.fn("externalLauncher.launchEditor")(function* (
   input: LaunchEditorInput,
   hasStockFolderVerb: Effect.Effect<boolean>,
 ) {
-  // Clients send `~/` host paths as written, and launches run without a shell to expand them.
   const home = yield* HostProcess.HomeDirectory;
   const cwd = expandHomePath(input.cwd, home);
   const projectRoot =
@@ -852,13 +802,10 @@ const GRAPHICAL_SESSION_ENV_KEYS: ReadonlySet<string> = new Set([
   "XAUTHORITY",
 ]);
 
-// The user manager's environment over D-Bus. `systemctl show-environment` would
-// shell-quote values with spaces as $'...', while this JSON carries them raw.
 const decodeManagerEnvironment = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ data: Schema.Array(Schema.String) })),
 );
 
-// Boot services miss the desktop environment imported later into the systemd user manager.
 const readGraphicalSessionEnv = Effect.fn("externalLauncher.readGraphicalSessionEnv")(
   function* () {
     const hostEnv = yield* HostProcess.Environment;
@@ -1009,7 +956,6 @@ export const make = Effect.gen(function* () {
     EDITOR_DISCOVERY_CACHE_TTL,
   );
 
-  // Forwarders retain the underlying launcher and discovery spans.
   return ExternalLauncher.of({
     resolveAvailableEditors: Effect.fnUntraced(function* () {
       return yield* cachedAvailableEditors;

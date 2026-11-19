@@ -54,7 +54,6 @@ export function parseGitHubAuth(
   const authStatus = parseGitHubAuthStatus(input.stdout);
   const hosts = [...new Set(authStatus.accounts.map((entry) => entry.host))];
   const fallback = findAuthenticatedGitHubAccount(authStatus.accounts);
-  // Lead with the host gh would pick, unless Settings turned it off.
   const orderedHosts = fallback
     ? [fallback.host, ...hosts.filter((host) => host !== fallback.host)]
     : hosts;
@@ -103,8 +102,6 @@ export function parseGitHubAuth(
     };
   }
 
-  // gh gained `auth status --json` in 2.81.0. Older versions reject the flag and exit
-  // non-zero, which reads exactly like a signed-out CLI. Name the real problem instead.
   if (input.exitCode !== 0 && output.includes("unknown flag: --json")) {
     return providerAuth({
       status: "unknown",
@@ -142,7 +139,6 @@ const decodeViewer = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Struct({ login: Schema.String })),
 );
 
-/** The environment variable GitHubCredentials would use for this host, if one is set. */
 function environmentTokenVariable(host: string, environment: NodeJS.ProcessEnv): string | null {
   const token = GitHubCredentials.environmentToken(host, environment);
   if (token === null) return null;
@@ -170,7 +166,6 @@ function discoveryTokenHosts(
         : [],
     )
     .toSorted((left, right) => {
-      // Keep the historical dotcom-first choice when several saved tokens are usable.
       if (left.host === "github.com") return -1;
       if (right.host === "github.com") return 1;
       return left.host.localeCompare(right.host);
@@ -271,7 +266,6 @@ export const make = Effect.gen(function* () {
         if (viewer.failure._tag === "GitHubApiAuthenticationError") {
           firstInvalid ??= candidate;
         } else {
-          // Only a refusal says the token is bad; a network error or pause says nothing.
           firstUnknown ??= { candidate, detail: viewer.failure.message };
         }
       }
@@ -318,7 +312,6 @@ export const make = Effect.gen(function* () {
       const url = URL.parse(context.provider.baseUrl);
       if (!url?.host) return Effect.succeed(null);
       const host = gitHubApiHostForRemote(context.remoteUrl) ?? url.host;
-      // A timeout or keyring failure propagates: the registry does not keep that answer.
       return credentials.get(host).pipe(
         Effect.as(true),
         Effect.catchTags({

@@ -80,10 +80,6 @@ function storedPreferencesOf<E>(result: AsyncResult.AsyncResult<Preferences, E>)
   return AsyncResult.isSuccess(result) ? result.value : null;
 }
 
-/**
- * Material You palettes follow the system wallpaper, which can change while the
- * app is in the background.
- */
 const systemColorPalettesAtom = Atom.make((get): MaterialYouPalettes | null => {
   const initial = readSystemColorPalettes();
   if (!isSystemColorsAvailable) return initial;
@@ -144,10 +140,6 @@ const themeRuntimeStateAtom = Atom.make((get) =>
   ),
 );
 
-// Native appearance and Uniwind text variables are process-global, so the
-// last applied state is too. Setters apply ahead of the preference write so the
-// first frame after a change already uses it; the atom subscription then sees
-// no difference.
 let appliedRuntimeState: MobileThemeRuntimeState | null = null;
 
 function applyThemeRuntime(next: MobileThemeRuntimeState) {
@@ -232,8 +224,6 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
   };
 
   const setThemeIdForAppearance = (appearance: MobileThemeAppearance, value: MobileThemeId) => {
-    // Read at call time: a second pick before the next render must build on
-    // the first one's optimistic write.
     const selected = resolveMobileThemeIds(
       storedPreferencesOf(appAtomRegistry.get(mobilePreferencesAtom)) ?? {},
     );
@@ -250,7 +240,6 @@ export function AppearancePreferencesProvider(props: { readonly children: ReactN
   const setThemeMode = (value: MobileThemeMode) => {
     const current = currentRuntimeState();
 
-    // Clear forced appearance before publishing System so useColorScheme batches the system palette into the preference commit.
     if (value === "system") {
       Appearance.setColorScheme("unspecified");
     }

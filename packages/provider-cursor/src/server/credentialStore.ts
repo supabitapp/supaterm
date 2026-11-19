@@ -43,7 +43,6 @@ export const makeCursorCredentialStore = Effect.fn("makeCursorCredentialStore")(
           ),
         ),
       ),
-    // The SDK can supply undefined optional fields despite its exact optional types.
     save: ({ email, apiKeyExpiresAtMs, ...requiredFields }) =>
       runPromise(
         encodeCredentials({

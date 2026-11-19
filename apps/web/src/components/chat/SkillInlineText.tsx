@@ -54,7 +54,6 @@ export function renderSkillInlineMarkdownChildren(
     if (!isValidElement<{ children?: ReactNode; node?: { tagName?: string } }>(child)) {
       return child;
     }
-    // Custom markdown components replace intrinsic types; check their hast tags.
     const markdownTagName = typeof child.type === "string" ? child.type : child.props.node?.tagName;
     if (markdownTagName === "code" || markdownTagName === "a") {
       return child;

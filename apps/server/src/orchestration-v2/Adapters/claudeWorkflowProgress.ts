@@ -38,7 +38,6 @@ function timestamp(value: unknown): number | undefined {
     : undefined;
 }
 
-/** Cuts provider text to the contract's bound without splitting a surrogate pair. */
 function clip(value: string | undefined): string | undefined {
   if (value === undefined || value.length <= WORKFLOW_TEXT_MAX_LENGTH) return value;
   const last = value.charCodeAt(WORKFLOW_TEXT_MAX_LENGTH - 1);
@@ -52,7 +51,6 @@ function preview(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? clip(value) : undefined;
 }
 
-/** A truncated path names a different file, so an oversized one is dropped. */
 function filePath(value: unknown): string | undefined {
   const candidate = text(value);
   return candidate !== undefined && candidate.length <= WORKFLOW_PATH_MAX_LENGTH
@@ -76,7 +74,6 @@ function parseAgent(entry: unknown): OrchestrationV2WorkflowAgent | null {
   if (index === undefined || label === undefined) return null;
   const reportedState = text(field(entry, "state")) ?? "";
   const startedAt = timestamp(field(entry, "startedAt"));
-  // Claude marks members `start` when scheduled; they only run once a concurrency slot sets startedAt.
   const state =
     reportedState === "start" && startedAt === undefined
       ? "queued"
@@ -97,7 +94,6 @@ function parseAgent(entry: unknown): OrchestrationV2WorkflowAgent | null {
     ...optional("durationMs", count(field(entry, "durationMs"))),
     ...optional("queuedAt", timestamp(field(entry, "queuedAt"))),
     ...optional("startedAt", startedAt),
-    // Execution duration excludes startup waits; terminal progress carries the end instant.
     ...optional(
       "completedAt",
       state === "completed" || state === "failed"
@@ -199,7 +195,6 @@ export function mergeClaudeWorkflowProgress(input: {
   return {
     ...optional("name", clip(input.name) ?? previous?.name),
     ...optional("runHandles", runHandles),
-    // Lowest indexes win so a capped roster keeps the rows already on screen.
     phases: Array.from(phasesByIndex.values())
       .sort((left, right) => left.index - right.index)
       .slice(0, WORKFLOW_MAX_PHASES),

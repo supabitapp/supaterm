@@ -44,7 +44,6 @@ describe("SpawnWorker", () => {
             node("process.stdout.write('ready');process.stdin.resume()"),
           );
           expect(yield* child.stdout.pipe(Stream.take(1), text)).toBe("ready");
-          // The thread that called spawn owns the native process handle.
           expect(process.getActiveResourcesInfo().includes("ProcessWrap")).toBe(onServerThread);
           expect(yield* child.isRunning).toBe(true);
         });
@@ -61,7 +60,6 @@ describe("SpawnWorker", () => {
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const literal = "quote' \" $HOME; * & %PATH%";
-      // macOS hands out tmpdir through the /var symlink; the child reports the real path.
       const cwd = NodeFS.realpathSync(NodeOS.tmpdir());
       const script = `
         const fs = require('node:fs');
@@ -91,7 +89,6 @@ describe("SpawnWorker", () => {
         expect(stderr).toBe("b".repeat(1024 * 1024));
         expect(code).toBe(0);
       }
-      // The launcher threads already exist, so this needs the server's environment at launch time.
       process.env.SPAWN_WORKER_LATE = "set after start";
       const late = yield* spawner.spawn(
         node("process.stdout.write(process.env.SPAWN_WORKER_LATE)"),
@@ -145,8 +142,6 @@ describe("SpawnWorker", () => {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const untilStdin =
         "process.stdout.write('ready');process.stdin.once('data',()=>process.exit(0))";
-      // Workers that own a child stay alive, as beside a running agent, so each round's two
-      // launches land on two warm workers at once.
       yield* Effect.all(
         Array.from({ length: 4 }, () =>
           Effect.gen(function* () {
@@ -195,7 +190,6 @@ describe("SpawnWorker", () => {
       const scoped = yield* Deferred.await(started);
       yield* Fiber.interrupt(running);
       expect(yield* scoped.isRunning).toBe(false);
-      // Direct callers such as the Claude adapter pass an AbortSignal, which cannot cross to a worker.
       const direct = SpawnWorker.spawnPiped(process.execPath, ["-e", "process.stdin.resume()"], {
         signal: AbortSignal.abort(),
       });

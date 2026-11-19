@@ -101,8 +101,6 @@ describe("HtmlRender", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
-  // An agent's page that names a network image sent the Windows user's NTLM
-  // credentials to that host while the page was prepared.
   it.effect("reports network images as unreadable without touching them", () => {
     const touched: Array<string> = [];
     const layerRecordingFileSystem = Layer.effect(
@@ -265,8 +263,6 @@ describe("HtmlRender", () => {
       const html = yield* fileSystem.readFileString(stored ?? "");
       expect(html).toContain('<style id="supaterm-theme">');
       expect(html).toContain("<p>Quarterly revenue</p>");
-      // Antigravity reports the call without its result, so the thread's
-      // provider session keeps the page for one call with these arguments.
       const page = {
         html: `<p>Quarterly revenue</p>${" ".repeat(8_000)}`,
         title: "  Revenue  ",
@@ -299,7 +295,6 @@ describe("HtmlRender", () => {
       const replacement = yield* htmlRender.publish({ threadId, ...page });
       expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toEqual(replacement);
       expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toBe(undefined);
-      // Clearing the thread's MCP session drops the pages it kept.
       yield* htmlRender.publish({ threadId, ...page });
       yield* mcpSessions.clear(threadId);
       expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toBe(undefined);
@@ -365,7 +360,6 @@ describe("HtmlRender", () => {
       yield* fileSystem.writeFileString(page, "<!doctype html><p>linked</p>");
       const hardLinked = path.join(directory, "linked.html");
       yield* fileSystem.link(page, hardLinked);
-      // `mv .env renamed.html` keeps one link and an .html name; only its bytes give it away.
       const renamed = path.join(directory, "renamed.html");
       yield* fileSystem.writeFileString(renamed, "API_KEY=abc123\n");
       const folder = path.join(directory, "folder.html");
@@ -456,7 +450,6 @@ describe("HtmlRender", () => {
     }),
   );
 
-  // Windows reports ENOENT asynchronously for this path instead of throwing ENOTDIR.
   describe.skipIf(HostProcess.Platform.defaultValue() === "win32")(
     "when the browser spawn throws synchronously",
     () => {
@@ -483,11 +476,9 @@ describe("HtmlRender", () => {
     },
   );
 
-  // The fake browser is a shebang script, which Windows cannot execute.
   describe.skipIf(HostProcess.Platform.defaultValue() === "win32")(
     "when the browser cannot be signalled",
     () => {
-      // A browser Supaterm cannot signal, as under AppArmor in an LXC container, must still exit.
       it.live("asks the browser to close when the preview finishes instead of signalling it", () =>
         Effect.gen(function* () {
           const fileSystem = yield* FileSystem.FileSystem;

@@ -2,7 +2,6 @@ import { foldSearchQuery, rankSearchItems, scoreSearchTerms } from "@supaterm/sh
 
 import type { SettingsPageTarget } from "./components/settings-page-targets";
 
-/** What each page holds besides its row's label, so search finds a setting by its own name. */
 const SETTINGS_SEARCH_TERMS = {
   SettingsEnvironments: [
     "servers",

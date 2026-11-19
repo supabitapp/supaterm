@@ -171,7 +171,6 @@ const make = Effect.gen(function* () {
     const metadataEvent = dispatched.storedEvents.find(
       (stored) => stored.event.type === "thread.metadata-updated",
     );
-    // Retries may find stored events compacted away; answer from the projection.
     const thread =
       metadataEvent?.event.type === "thread.metadata-updated"
         ? metadataEvent.event.payload

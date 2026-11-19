@@ -11,7 +11,6 @@ import type { DeviceScreenSize } from "@supaterm/client-runtime/device/stream";
 
 export const PREVIEW_MINI_PLAYER_EDGE_GAP = 12;
 export const PREVIEW_MINI_PLAYER_CORNER_RADIUS = 12;
-// The mini-player shell straddles this webview at 47 and 49: above --z-sheet, under dialogs (50).
 export const PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX = 48;
 const PREVIEW_MINI_PLAYER_DEFAULT_BOX = { width: 320, height: 320 } as const;
 const PREVIEW_MINI_PLAYER_MIN_SIZE = { width: 240, height: 150 } as const;
@@ -305,8 +304,6 @@ export function resizePreviewMiniPlayer(input: {
   const horizontal = east || west;
   const vertical = north || south;
   const aspectRatio = source.width / source.height;
-  // Project onto the aspect-ratio diagonal; dominant-axis switching jumps when axes move in opposite
-  // directions.
   const desired =
     horizontal && vertical
       ? (desiredWidth + desiredHeight / aspectRatio) / (1 + 1 / aspectRatio ** 2)

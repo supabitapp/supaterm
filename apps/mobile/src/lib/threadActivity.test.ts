@@ -397,7 +397,6 @@ it("folds a persisted resume answer into the next compaction in its run", () => 
     completedAt: "2026-06-20T00:00:05.000Z",
   };
   for (const status of ["running", "completed"] as const) {
-    // Rebuild from persisted items, without a live question or prior feed cache.
     const feed = buildThreadFeed([
       projected(userMessage(), 0),
       question,
@@ -1868,7 +1867,6 @@ describe("buildThreadFeed", () => {
       "fold:Working",
       "activity-group",
     ]);
-    // The live timer row becomes the settled fold in place.
     expect(working[4]?.id).toBe(settled[4]?.id);
   });
 
@@ -2871,8 +2869,6 @@ describe("retained v2 feed presentation", () => {
 });
 
 describe("subagent continued by a later turn", () => {
-  // Stored shape: resuming a subagent moves its item to the
-  // resuming run, but the item keeps the ordinal from the turn that started it.
   const run2 = RunId.make("run-2");
   const at = (second: number) => `2026-10-09T10:00:${String(second).padStart(2, "0")}.000Z`;
   const item = (id: string, itemRunId: RunId, ordinal: number, second: number) => ({
@@ -2946,7 +2942,6 @@ describe("subagent continued by a later turn", () => {
       "closing-2",
     ]);
 
-    // While the run works, its fold row already holds that slot with a live timer.
     const live = deriveThreadFeedPresentation(
       feed,
       { runId: run2, status: "running", startedAt: at(30), completedAt: null },
@@ -3373,7 +3368,6 @@ describe("html renders", () => {
       "activity-group",
       "message",
     ]);
-    // A quote from the page cites this item id, which web resolves back to the render.
     expect(expanded[3]).toMatchObject({
       type: "html-render",
       render: page,
@@ -3512,8 +3506,6 @@ describe("streamed feed updates", () => {
     completedAt: null,
   };
   const settled = { ...running, status: "completed" as const, completedAt: at(50) };
-  // Each step is what one streamed event leaves behind, including the edits
-  // that reach back into earlier runs.
   const steps: ReadonlyArray<{
     readonly items: ReadonlyArray<OrchestrationV2TurnItem>;
     readonly latestRun: ThreadFeedLatestRun;
@@ -3570,13 +3562,10 @@ describe("streamed feed updates", () => {
       ],
       latestRun: settled,
     },
-    // The first run's fold above was timed to the late item; dropping it must reach back too.
     {
       items: [...history, reply("a3", 22, runs[2], "Working on it"), shell("s4", 23, runs[2])],
       latestRun: settled,
     },
-    // The latest run resumes a subagent from the first run: the item moves to
-    // the latest run but keeps its place, so it folds with the first run.
     {
       items: [
         ...history.slice(0, 3),
@@ -3599,7 +3588,6 @@ describe("streamed feed updates", () => {
       latestRun: running,
     },
   ];
-  // Like the projection reducer, an unchanged item at an unchanged position keeps its row.
   const rowsByItem = new Map<
     OrchestrationV2TurnItem,
     Map<number, OrchestrationV2ProjectedTurnItem>
@@ -3633,7 +3621,6 @@ describe("streamed feed updates", () => {
     const cache = createThreadFeedCache();
     const streamed = steps.map((step) => present(step, expandedRunIds, cache));
     const fresh = steps.map((step) => present(step, expandedRunIds));
-    // Closures on activities are not part of what a row shows.
     const values = (rows: ReadonlyArray<ThreadFeedEntry>) => JSON.parse(JSON.stringify(rows));
     for (const [index, rows] of streamed.entries()) {
       expect(values(rows), `step ${index}`).toEqual(values(fresh[index]!));

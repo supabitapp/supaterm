@@ -164,7 +164,6 @@ const ensureSshAskpassHelpers = Effect.fn("ssh/auth.ensureSshAskpassHelpers")(fu
   return descriptor.launcherPath;
 });
 
-// Keep setup serialized through cancellation so writes finish before another command uses the helper.
 let defaultSshAskpassRuntimeDirectory: string | undefined;
 const defaultSshAskpassLock = Semaphore.makeUnsafe(1);
 
@@ -247,7 +246,6 @@ export function isSshAuthFailure(error: unknown): boolean {
   );
 }
 
-// A local agent signing failure cannot be remedied by the remote account password.
 export function isSshAgentSigningFailure(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return /sign_and_send_pubkey: signing failed(?: for [^\n]* from agent:|: (?:agent refused operation|communication with agent failed))/u.test(

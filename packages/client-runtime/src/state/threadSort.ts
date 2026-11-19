@@ -71,7 +71,6 @@ export function sortDoneThreads<T extends DoneThreadTimestampInput & { readonly 
     .sort(
       (left, right) =>
         right.timestampMs - left.timestampMs ||
-        // Plain order, as the server pages ties (ids mix upper and lower case).
         (left.thread.id < right.thread.id ? -1 : left.thread.id > right.thread.id ? 1 : 0),
     )
     .map(({ thread }) => thread);
@@ -89,8 +88,6 @@ function getFirstSortableTimestamp(...values: Array<string | null | undefined>):
 }
 
 function getLatestUserMessageTimestamp(thread: ThreadSortInput): number {
-  // Agents also post in the user role; only what the user wrote counts. A thread
-  // the user never wrote in counts from its creation; older servers omit the field.
   if (thread.latestUserAuthoredMessageAt !== undefined) {
     return (
       getFirstSortableTimestamp(
@@ -139,11 +136,6 @@ export function getThreadSortTimestamp(
   return getLatestUserMessageTimestamp(thread);
 }
 
-/**
- * Creation time, re-anchored to reopenedAt when the thread re-entered the active
- * list, so the list stays static between lifecycle transitions while an un-done
- * thread surfaces at the top. Malformed timestamps sink to 0.
- */
 function activeThreadAnchorTimestampMs(thread: {
   readonly createdAt: string;
   readonly reopenedAt?: string | null | undefined;

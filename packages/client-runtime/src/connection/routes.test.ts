@@ -116,8 +116,6 @@ describe("connection routes", () => {
     expect(routeKeepsItsHost(route("https://desk.example.com/", "public"))).toBe(true);
     expect(routeKeepsItsHost(route("https://desk.tail1234.ts.net/", "ts-tls"))).toBe(true);
     expect(routeKeepsItsHost(route("http://127.0.0.1:3773/", "lo"))).toBe(true);
-    // With Tailscale down, a plain http tailnet address can reach another host:
-    // carrier networks use 100.64.0.0/10 too, and nothing proves who answers.
     expect(routeKeepsItsHost(route("http://desk.tail1234.ts.net:3773/", "ts"))).toBe(false);
     expect(routeKeepsItsHost(marked)).toBe(false);
     expect(routeKeepsItsHost(tailnetIp)).toBe(false);

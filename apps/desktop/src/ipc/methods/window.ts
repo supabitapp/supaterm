@@ -183,7 +183,6 @@ export const getLocalEnvironmentBearerToken = DesktopIpc.makeIpcMethod({
   }),
 });
 
-// Ask the distro: its automount root is configurable, so /mnt/<drive> is only the default.
 const windowsPathToWsl = Effect.fn("desktop.ipc.window.windowsPathToWsl")(function* (
   distro: string | null,
   windowsPath: string,
@@ -208,7 +207,6 @@ export const pickFolder = DesktopIpc.makeIpcMethod({
     const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
     const wslEnvironment = yield* DesktopWslEnvironment.DesktopWslEnvironment;
     const settings = yield* appSettings.get;
-    // A picked path only means something to a backend on this machine.
     if (!settings.localEnvironmentEnabled) {
       return null;
     }
@@ -221,9 +219,6 @@ export const pickFolder = DesktopIpc.makeIpcMethod({
       targetId !== undefined &&
       targetId !== PRIMARY_LOCAL_ENVIRONMENT_ID &&
       targetId.startsWith(DesktopWslBackend.WSL_INSTANCE_ID_PREFIX);
-    // Fall back to the persisted wslDistro when the id is the
-    // "wsl:default" sentinel; the orchestrator uses the same fallback
-    // for the actual backend.
     const wslDistro = useWsl ? (wslDistroFromTarget ?? settings.wslDistro) : null;
     const defaultPath = useWsl
       ? Option.fromNullishOr(
@@ -338,7 +333,6 @@ export const openExternal = DesktopIpc.makeIpcMethod({
 
 const READ_MEDIA_MAX_BYTES = 256 * 1024 * 1024;
 
-// The renderer can display media it cannot fetch(); reading here keeps Save and Copy working for it.
 export const readMedia = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.READ_MEDIA_CHANNEL,
   payload: Schema.String,
@@ -355,14 +349,12 @@ export const readMedia = DesktopIpc.makeIpcMethod({
     }
     const session = window.value.webContents.session;
     return yield* Effect.tryPromise(async () => {
-      // Like an <img>, send the session's cookies.
       const response = await session.fetch(url, { credentials: "include" });
       const mimeType = response.headers.get("content-type") ?? "";
       if (!response.ok || !response.body) {
         await response.body?.cancel();
         return { status: response.status, mimeType, data: new Uint8Array() };
       }
-      // The whole body crosses IPC, so stop before a huge file can exhaust main-process memory.
       const chunks: Uint8Array[] = [];
       let size = 0;
       for await (const chunk of response.body) {
@@ -405,7 +397,6 @@ export const openSystemSettings = DesktopIpc.makeIpcMethod({
     if (environment.platform !== "darwin") return false;
     const owner = Electron.BrowserWindow.getFocusedWindow();
     const opened = yield* shell.openSystemSettings(pane);
-    // macOS lists an app under Microphone once it has asked, so there is nothing to drag in.
     if (opened && environment.isPackaged && pane !== "microphone") {
       const permissions = yield* MacPermissions.MacPermissions;
       const isGranted = yield* systemPermissionCheck(pane);
@@ -423,7 +414,6 @@ export const probeRemoteEditors = DesktopIpc.makeIpcMethod({
   result: Schema.Array(EditorId),
   handler: Effect.fn("desktop.ipc.window.probeRemoteEditors")(function* () {
     const env = yield* HostProcess.Environment;
-    // Shared listings stop each editor re-stating every PATH entry x PATHEXT candidate on Windows.
     const resolved = yield* Effect.forEach(
       REMOTE_CAPABLE_EDITOR_IDS,
       (editorId) => {
@@ -505,7 +495,6 @@ const htmlFullscreenState = (window: Electron.BrowserWindow) => {
   if (existing !== undefined) return existing;
   const state = { owned: false, leaving: false };
   window.on("leave-full-screen", () => {
-    // Leaving OS fullscreen any other way, such as F11, hands the window back to the user.
     if (!state.leaving) state.owned = false;
     state.leaving = false;
   });
@@ -513,8 +502,6 @@ const htmlFullscreenState = (window: Electron.BrowserWindow) => {
   return state;
 };
 
-// The main window keeps HTML fullscreen inside itself so preview guests stay in their webview,
-// so the app's own fullscreen elements, such as chat videos, take the screen here.
 export const syncHtmlFullscreen = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.SYNC_HTML_FULLSCREEN_CHANNEL,
   payload: Schema.Boolean,
@@ -533,7 +520,6 @@ export const syncHtmlFullscreen = DesktopIpc.makeIpcMethod({
     const window = main.value;
     const state = htmlFullscreenState(window);
     if (fullscreen) {
-      // macOS reports fullscreen until its exit animation ends, and Electron queues the re-entry.
       if (state.owned || (window.isFullScreen() && !state.leaving)) return;
       state.owned = true;
       window.setFullScreen(true);

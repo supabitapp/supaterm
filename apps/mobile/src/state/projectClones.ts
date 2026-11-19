@@ -19,7 +19,6 @@ const environmentProjectClonesAtom = Atom.family((environmentId: EnvironmentId) 
     const config = get(serverEnvironment.configValueAtom(environmentId));
     if (config == null) return EMPTY_CLONES;
     const result = get(sourceControlEnvironment.projectClones({ environmentId, input: {} }));
-    // On subscription failure, let server dispatch guards decide rather than blocking Start until reconnect.
     if (result._tag === "Failure") return EMPTY_CLONES;
     return AsyncResult.getOrElse(result, () => "pending" as const);
   }).pipe(Atom.withLabel(`mobile-project-clones:${environmentId}`)),

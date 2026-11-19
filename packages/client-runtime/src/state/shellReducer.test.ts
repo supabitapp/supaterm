@@ -431,7 +431,6 @@ describe("applyShellStreamEvents", () => {
     expect(next.archivedThreads).toEqual([]);
     expect(seed.threads).toEqual([a, b, unchanged]);
     expect(seed.archivedThreads).toEqual([archived, oldArchive]);
-    // Identity retention must use the latest project in this batch.
     expect(applyShellStreamEvents(seed, events.slice(0, 14)).projects[0]?.repositoryIdentity).toBe(
       repositoryIdentity,
     );

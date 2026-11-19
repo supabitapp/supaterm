@@ -19,8 +19,6 @@ class SourceHighlightError extends Data.TaggedError("SourceHighlightError")<{
   readonly cause: unknown;
 }> {}
 
-// Highlighting is synchronous, so a cold atom resolves on its first read. The
-// family keeps results for files the user moves between.
 const sourceHighlightFamily = Atom.family((request: SourceHighlightCacheKey) =>
   Atom.make(
     Effect.try({

@@ -528,7 +528,6 @@ it.effect("retains automation and sender attribution while a message waits in th
     assert.equal(message?.scheduledTaskId, scheduledTaskId);
     assert.equal(message?.senderThreadId, senderThreadId);
     assert.equal(message?.text, "Run the audit");
-    // A fresh send queues instead of steering, so it needs no steerable run.
     const fresh = yield* threads.sendToThread({
       projectId,
       commandId: CommandId.make("command:automation:queued-fresh"),
@@ -716,7 +715,6 @@ it.effect("keeps native maintenance commands out of steering and restart message
           attachments: [],
           dispatchMode: { type: scenario.mode, targetRunId: targetRun.id },
         });
-        // A steer sent while a maintenance turn runs waits as a queued follow-up.
         if (scenario.name.startsWith("steer-")) {
           yield* dispatch;
           const queued = (yield* threads.getThreadProjection(launched.threadId)).runs[1];
@@ -883,7 +881,6 @@ it.effect("a rejected initial message leaves no title change and no new thread",
       assert.isEmpty(projection.messages);
       assert.isEmpty(yield* outbox.listByCommandId(CommandId.make(`${commandId}:initial-message`)));
 
-      // The orchestrator refuses this goal command, after the launch's own checks pass.
       const newThreadId = ThreadId.make("thread:launch:rejected-new-thread");
       const rejected = yield* launches
         .launch({
@@ -904,9 +901,6 @@ it.effect("a rejected initial message leaves no title change and no new thread",
   }),
 );
 
-// Stands `projectId` in for a plain folder, not a Git repository, so Git fails
-// there with the error a real one raises. It is the Scratch project unless
-// `scratch` is false.
 function scratchHarness({ scratch = true }: { readonly scratch?: boolean } = {}) {
   const claimed: Array<ThreadId> = [];
   const scratchRoot = project.workspaceRoot;
@@ -929,7 +923,6 @@ function scratchHarness({ scratch = true }: { readonly scratch?: boolean } = {})
         }),
     }),
     git: { repositoryRoot: (cwd) => Effect.succeed(cwd === scratchRoot ? null : cwd) },
-    // The other project is a repository Git cannot read, which must not count as none.
     isGitRepository: (cwd) =>
       cwd === scratchRoot
         ? Effect.succeed(false)
@@ -969,7 +962,6 @@ function scratchHarness({ scratch = true }: { readonly scratch?: boolean } = {})
 
 const worktreeStrategy = { type: "worktree", baseRef: "main", startFromOrigin: true } as const;
 
-/** Settles once preparation releases the run, or fails it. */
 const preparationSettled = (threadId: ThreadId) =>
   Effect.gen(function* () {
     const threads = yield* ThreadManagement.ThreadManagementService;
@@ -1155,7 +1147,6 @@ it.effect("launches a worktree request for Scratch at the root, in its own folde
     );
     const scratch = yield* preparationSettled(launched.threadId);
     assert.equal(scratch.thread.worktreePath, "/scratch/folder-1");
-    // Released past preparation; provider execution is disabled here.
     assert.equal(scratch.runs[0]?.status, "starting");
     assert.deepEqual(scratch.runs[0]?.workspacePreparation, {
       type: "existing_worktree",
@@ -1164,7 +1155,6 @@ it.effect("launches a worktree request for Scratch at the root, in its own folde
     assert.equal(harness.runSetup.mock.calls[0]?.[0]?.worktreePath, "/scratch/folder-1");
     assert.equal(harness.createWorktree.mock.calls.length, 0);
 
-    // A Git project still gets the worktree it asked for.
     const other = yield* launches.launch({
       ...launchInput({
         command: "command:launch:git-worktree",
@@ -1210,7 +1200,6 @@ it.effect("runs a Scratch scheduled task saved with a worktree in its own folder
     const { task } = yield* tasks.upsert(
       scheduledTaskInput("scheduled-task:scratch-stored", projectId),
     );
-    // Tasks saved before Scratch was coerced still hold a worktree strategy.
     yield* sql`
       UPDATE scheduled_tasks
       SET workspace_strategy_json = ${JSON.stringify(worktreeStrategy)}
@@ -1454,7 +1443,6 @@ it.effect("re-bases a stored base that no longer exists on the remote default br
       yield* command(cwd, ["checkout", "--detach"]);
       yield* command(cwd, ["commit", "--allow-empty", "-m", "local only"]);
 
-      // Tasks saved before the base followed the default branch still record "main".
       yield* launchFromBase(harness(), "main");
       assert.equal((yield* command(worktreePath, ["rev-parse", "HEAD"])).stdout.trim(), remoteHead);
     }),
@@ -1484,13 +1472,11 @@ it.effect("skips a stale tracking ref when the remote reports the base branch is
       const staleHead = (yield* command(cwd, ["rev-parse", "HEAD"])).stdout.trim();
       yield* command(cwd, ["commit", "--allow-empty", "-m", "current work"]);
       const betaHead = (yield* command(cwd, ["rev-parse", "HEAD"])).stdout.trim();
-      // The deleted remote branch leaves its tracking ref (and origin/HEAD) behind.
       yield* command(cwd, ["update-ref", "refs/remotes/origin/gone", staleHead]);
       yield* command(cwd, ["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/gone"]);
 
       yield* launchFromBase(
         harness({
-          // A completed fetch that found no branch, as when the branch was deleted.
           fetchWorktreeBaseCommit: () => Effect.succeed(null),
           git: { resolvePrimaryRemoteName: () => Effect.succeed("origin") },
         }),
@@ -1955,7 +1941,6 @@ it.effect("replays a server-allocated launch", () =>
         workspace: { type: "worktree", baseRef: "main" },
       });
       const first = yield* launches.launch(rest);
-      // One commit holds the thread and its first run, so no client sees the thread idle between.
       const launchCommits = yield* threads
         .streamStoredEventsFrom({ threadId: first.threadId })
         .pipe(
@@ -1975,7 +1960,6 @@ it.effect("replays a server-allocated launch", () =>
       assert.equal(first.threadId, retry.threadId);
       assert.isFalse(first.resumed);
       assert.isTrue(retry.resumed);
-      // Clients drop their pending copy once the thread reaches the message's commit.
       assert.isNumber(first.sequence);
       assert.equal(retry.sequence, first.sequence);
       assert.equal(harness.runSetup.mock.calls.length, 1);
@@ -2044,12 +2028,9 @@ it.effect("an agent's launch never starts work above the modes it asks for", () 
   return Effect.gen(function* () {
     const launches = yield* ThreadLaunch.ThreadLaunchService;
     const threads = yield* ThreadManagement.ThreadManagementService;
-    // The first launch, at full access, creates the thread without a message.
     const created = yield* launches.launch(
       launchInput({ command: "command:launch:narrowed-retry", thread: "thread:narrowed" }),
     );
-    // The same key comes back from a narrower agent, now carrying a message,
-    // as a retry or a concurrent launch that lost the create would.
     const failed = yield* launches
       .launch({
         ...launchInput({
@@ -2249,7 +2230,6 @@ it.effect("does not let a failing same-command caller strand a concurrent durabl
 
 it.effect("reports one concurrent same-command launch as new and the rest as resumed", () =>
   Effect.gen(function* () {
-    // Both launches read no receipt before either one claims the thread.
     const arrived = yield* Ref.make(0);
     const bothRead = yield* Deferred.make<void>();
     const harness = makeHarness({
@@ -2895,7 +2875,6 @@ it.effect("starts the agent on the temporary branch when branch naming hangs", (
   Effect.gen(function* () {
     const branchNameStarted = yield* Deferred.make<void>();
     const harness = makeHarness({
-      // A rate-limited provider retries until the CLI's own timeout, minutes later.
       generateBranchName: () =>
         Deferred.succeed(branchNameStarted, undefined).pipe(Effect.andThen(Effect.never)),
     });
@@ -3247,7 +3226,6 @@ it.effect("refuses a new worktree whose explicit branch already exists", () =>
     yield* command(["commit", "--allow-empty", "-m", "initial"]);
     yield* command(["branch", "feature/idle"]);
     yield* command(["branch", temporaryBranch]);
-    // Resolves as `refs/heads/feature/tagged` although no such branch exists.
     yield* command(["tag", "refs/heads/feature/tagged"]);
     yield* command(["worktree", "add", "-b", "feature/taken", `${directory}/taken`]);
     const harness = makeHarness({
@@ -3285,7 +3263,6 @@ it.effect("refuses a new worktree whose explicit branch already exists", () =>
           ["feature/tagged", "accepted"],
         ],
       );
-      // A `:/text` base skips the base check but not the branch check.
       assert.deepEqual(yield* check("feature/taken", ":/initial"), [
         "feature/taken",
         "ThreadLaunchBranchExistsError",

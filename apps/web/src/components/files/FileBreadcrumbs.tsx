@@ -214,7 +214,6 @@ function BreadcrumbMenuContent(props: {
   );
 }
 
-/** The chevron after a folder crumb lists that folder's entries. */
 function FolderContentsMenu(props: FileBreadcrumbsProps & { readonly crumb: FileBreadcrumb }) {
   const [open, setOpen] = useState(false);
   const [directoryPath, setDirectoryPath] = useState(props.crumb.path);
@@ -269,7 +268,6 @@ function FolderContentsMenu(props: FileBreadcrumbsProps & { readonly crumb: File
 
 function FolderBreadcrumb(props: {
   readonly crumb: FileBreadcrumb;
-  /** Below the current folder, kept from where the browser came from. */
   readonly descendant: boolean;
   readonly onNavigate: (path: string) => void;
   readonly projectName: string;

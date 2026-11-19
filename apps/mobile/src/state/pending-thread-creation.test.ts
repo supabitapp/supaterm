@@ -259,7 +259,6 @@ describe("withLaunchingThreads", () => {
   it("reads as working from Send until the thread's first run arrives", () => {
     const launch = (threads: Parameters<typeof withLaunchingThreads>[0]["threads"]) =>
       withLaunchingThreads({ threads, launches: [creation] });
-    // Before the shell arrives, and after the server commits the thread without its run.
     const created = { ...pendingThreadCreationShell(creation)!, title: "Server title" };
     for (const threads of [launch([]), launch([created])]) {
       expect(threads).toHaveLength(1);

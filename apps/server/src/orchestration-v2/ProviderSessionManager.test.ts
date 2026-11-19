@@ -160,7 +160,6 @@ const layerPausingAttachEventSink = (pause: {
 
 const layerBeforeUnchangedWriteEventSink = (
   before: Ref.Ref<Effect.Effect<void>>,
-  // One effect runs before each turn-item write, in order.
   beforeTurnItems: Ref.Ref<ReadonlyArray<Effect.Effect<void>>> | undefined,
 ) =>
   Layer.effect(
@@ -337,8 +336,6 @@ function makeProviderThread(input: {
   };
 }
 
-// A Codex native subagent's provider thread is owned by its child app thread
-// but reachable from the parent's projection through the subagent record.
 const makeNativeChildFixture = Effect.fnUntraced(function* () {
   const idAllocator = yield* IdAllocator.IdAllocatorV2;
   const eventSink = yield* EventSink.EventSinkV2;
@@ -482,7 +479,6 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
       ),
     ),
   );
-  // Register after countClose to wedge teardown before its finalizer, matching a provider stream that never yields.
   const hangClose = Effect.addFinalizer(() =>
     (options.scopeCloseReached === undefined
       ? Effect.void
@@ -1501,7 +1497,6 @@ it.effect(
   () =>
     Effect.gen(function* () {
       const state = yield* Ref.make(emptyState);
-      // Like OpenCode2, a stopped start can still emit turn.terminal later.
       const holdStart = yield* Ref.make(false);
       const startHeld = yield* Deferred.make<void>();
       yield* Effect.gen(function* () {
@@ -1649,7 +1644,6 @@ it.effect("ProviderSessionManagerV2 gives up on a provider that never confirms a
   }),
 );
 
-// A failed start can leave its native thread gone, as when Claude rejects a resume.
 it.effect("ProviderSessionManagerV2 resumes a thread natively again after its start failed", () =>
   Effect.gen(function* () {
     const state = yield* Ref.make(emptyState);
@@ -1789,7 +1783,6 @@ it.effect("ProviderSessionManagerV2 still idles out a session releaseUnlessBusy 
         }),
       );
       assert.isTrue(yield* manager.isLive(providerSessionId));
-      // The stopped run 1 never reports its end.
       yield* TestClock.adjust("2 seconds");
       assert.isFalse(yield* manager.isLive(providerSessionId));
     }).pipe(Effect.provide(layerTest({ state, idleTimeoutMs: 1_000 })));
@@ -1871,8 +1864,6 @@ it.effect(
         assert.isTrue(yield* release(sibling));
         assert.isFalse(yield* manager.isLive(providerSessionId));
 
-        // A turn that starts on a runtime released meanwhile fails instead of running on it;
-        // the attachment check refuses the stale runtime before it can mark a turn busy.
         const startOnReleasedRuntime = Effect.gen(function* () {
           const lateRunId = idAllocator.derive.run({ threadId: stopping, ordinal: 1 });
           return yield* Effect.flip(
@@ -1899,7 +1890,6 @@ it.effect(
         });
         assert.equal((yield* startOnReleasedRuntime)._tag, "ProviderAdapterProtocolError");
 
-        // Nor may it leave its turn busy on a replacement opened under the same id.
         yield* manager.open({
           threadId: sibling,
           providerSessionId,
@@ -2332,7 +2322,6 @@ it.effect("ProviderSessionManagerV2 fails a turn whose provider retry never resu
       });
       const subscription = yield* runtime.subscribeEvents!;
       const published = yield* Queue.unbounded<void>();
-      // The pump updates the stall watch before it publishes a turn item.
       const collected = yield* subscription.events.pipe(
         Stream.tap((event) =>
           event.type === "turn_item.updated" ? Queue.offer(published, undefined) : Effect.void,
@@ -2400,13 +2389,10 @@ it.effect("ProviderSessionManagerV2 fails a turn whose provider retry never resu
             updatedAt: now,
           },
         }).pipe(Effect.andThen(Queue.take(published)));
-      // The stall window is 15 minutes plus the provider's announced retry delay.
       yield* TestClock.adjust("15 minutes");
       assert.equal((yield* Ref.get(state)).interruptCount, 0);
-      // Output on the retry's thread proves the provider is alive, so a new window starts.
       yield* offerOutput(threadId);
       yield* TestClock.adjust("1 minute");
-      // Another thread's output lets the timer start its next wait and does not count.
       yield* offerOutput(ThreadId.make("thread-provider-session-manager-retry-stall-other"));
       yield* TestClock.adjust("15 minutes");
       assert.equal((yield* Ref.get(state)).interruptCount, 0);
@@ -2506,7 +2492,6 @@ it("ProviderSessionManagerV2 counts a delegated task as a wake only while its re
       subagents: [task],
     }),
   );
-  // An interrupted completion wake disposes the cohort, so the result never wakes the thread.
   assert.isFalse(
     ProviderSessionManager.delegatedTaskWillWake({
       thread,
@@ -3167,7 +3152,6 @@ it.effect(
         assert.isDefined(originalToken);
         yield* manager.detach({ providerSessionId: s1, threadId });
 
-        // ACP and OpenCode consume credentials during openSession; predecessor release must not revoke them before entry publication.
         yield* Ref.set(duringOpen, manager.close(s1).pipe(Effect.orDie));
         yield* manager.open({ threadId, providerSessionId: s2, modelSelection, runtimePolicy });
 
@@ -3330,7 +3314,6 @@ const openSessionWithBackgroundCommand = (fixtureName: string) =>
       cutOff: toolCall("cut-off", providerThreads[0]!, "running", now),
       finished: toolCall("finished", providerThreads[0]!, "completed", now),
       otherSession: toolCall("other-session", providerThreads[1]!, "running", now),
-      // Started by a replacement session after the release.
       replacement: toolCall(
         "replacement",
         providerThreads[0]!,
@@ -3354,7 +3337,6 @@ const openSessionWithBackgroundCommand = (fixtureName: string) =>
         });
       });
     yield* Effect.forEach(Object.values(seededToolCalls), writeToolCall);
-    // A background native subagent that outlived its completed run; Claude records no provider thread on it.
     const nativeSubagentRunId = idAllocator.derive.run({ threadId, ordinal: 1 });
     const nativeSubagentId = idAllocator.derive.nodeFromProviderItem({
       driver: CODEX_DRIVER,
@@ -3513,7 +3495,6 @@ it.effect.each(["detach", "stream failure", "provider stop", "early close"] as c
           Exit.isFailure(consumed),
           release !== "provider stop" && release !== "early close",
         );
-        // regression: #22971 only a detach names its thread, so a handoff run can settle on it.
         assert.equal(
           Exit.isFailure(consumed)
             ? (Cause.squash(consumed.cause) as ProviderAdapter.ProviderAdapterEventStreamError)
@@ -3521,7 +3502,6 @@ it.effect.each(["detach", "stream failure", "provider stop", "early close"] as c
             : undefined,
           release === "detach" ? threadId : undefined,
         );
-        // A run ends the work it tracks only when the adapter reported its runtime failing.
         assert.equal(
           Exit.isFailure(consumed)
             ? (Cause.squash(consumed.cause) as ProviderAdapter.ProviderAdapterEventStreamError)
@@ -3539,7 +3519,6 @@ it.effect.each(["detach", "stream failure", "provider stop", "early close"] as c
           otherSession: "running",
           replacement: "running",
         });
-        // regression: #36548 a native subagent the dead process ran stayed running after its run completed
         assert.notInclude(["pending", "running", "waiting"], yield* nativeSubagentStatus);
       });
 
@@ -3598,13 +3577,10 @@ it.effect("ProviderSessionManagerV2 keeps provider updates that land while relea
         writeToolCall,
         toolCallStatus,
       } = yield* openSessionWithBackgroundCommand("provider-session-manager-raced-roster");
-      // Before each of the first four cleanup writes, one of these calls completes late. The
-      // completion must win, and the conflicts must not stop the open calls from being interrupted.
       const lateCompleted = ["late-1", "late-2", "late-3", "late-4"].map((name) => ({
         ...seededToolCalls.cutOff,
         id: TurnItemId.make(`turn-item:${name}`),
       }));
-      // Read after the late calls, so one write for all items would run out of tries first.
       const lastOpen = { ...seededToolCalls.cutOff, id: TurnItemId.make("turn-item:last-open") };
       yield* Effect.forEach([...lateCompleted, lastOpen], writeToolCall);
       const storedLate = {
@@ -3617,14 +3593,9 @@ it.effect("ProviderSessionManagerV2 keeps provider updates that land while relea
       };
       const complete = (item: OrchestrationV2TurnItem) =>
         writeToolCall({ ...item, status: "completed" });
-      // One hook runs before each cleanup write. The first pass writes the cut-off call, the
-      // four late calls and the last open call; the second pass writes the cut-off call again
-      // and the call stored late; the third pass writes the call stored in the clean pass.
       yield* Ref.set(
         beforeTurnItemsWrite,
         [
-          // The cut-off call gets an update that keeps it open, so it needs a second pass, and
-          // the dead session stores one more call.
           complete(lateCompleted[0]!).pipe(
             Effect.andThen(writeToolCall({ ...seededToolCalls.cutOff, title: "late output" })),
             Effect.andThen(writeToolCall(storedLate)),
@@ -3634,7 +3605,6 @@ it.effect("ProviderSessionManagerV2 keeps provider updates that land while relea
           complete(lateCompleted[3]!),
           Effect.void,
           Effect.void,
-          // The second pass has no conflict, but one more call lands during it.
           writeToolCall(storedInCleanPass),
         ].map(Effect.orDie),
       );
@@ -4928,8 +4898,6 @@ it.effect(
               occurredAt: now,
               payload: childProviderThread,
             },
-            // The delegated task record already finished; the child was then sent a
-            // follow-up and is running a later turn of its own.
             {
               id: yield* idAllocator.allocate.event({ threadId: parentThreadId }),
               type: "subagent.updated",
@@ -5078,7 +5046,6 @@ it.effect(
         ) {
           const subscription = yield* failed.runtime.subscribeEvents!;
           yield* Queue.offer(queue!, event);
-          // Observing the exact event ensures the manager has handled it before resuming.
           assert.deepEqual(yield* subscription.events.pipe(Stream.runHead), Option.some(event));
         });
         const countRawResumes = Effect.fnUntraced(function* (cached: typeof failed) {
@@ -5145,8 +5112,6 @@ it.effect(
         yield* manager.detach(parent);
 
         assert.deepEqual((yield* Ref.get(state)).unloadedNativeThreadIds, []);
-        // The child's next turn trusts the manager's loaded cache, so the
-        // native thread must still be loaded for that turn to be heard.
         yield* resumeChild;
         assert.equal((yield* Ref.get(state)).resumeCount, 1);
         assert.isTrue(yield* manager.isLive(parent.providerSessionId));
@@ -5279,7 +5244,6 @@ it.effect.each([
             modelSelection,
             runtimePolicy,
           });
-          // The pump marks the thread idle before subscribers see its terminal.
           const subscription = yield* runtime.subscribeEvents!;
           yield* Queue.offer((yield* Ref.get(state)).eventQueues.get(String(providerSessionId))!, {
             type: "turn.terminal",
@@ -5301,11 +5265,9 @@ it.effect.each([
         assert.equal(yield* Queue.take(unloads), "archive:native-delivered");
         if (archive !== "succeeds") {
           if (archive === "hangs") yield* TestClock.adjust("10 seconds");
-          // An archive that never finished may have left the thread loaded.
           assert.equal(yield* Queue.take(unloads), "unload:native-delivered");
           return;
         }
-        // The pending child stays loaded, and keeps the session open, until its parent takes the result.
         yield* eventSink.write({ events: [deliverPending!] });
         yield* TestClock.adjust("1 second");
         assert.equal(yield* Queue.take(unloads), "archive:native-pending");
@@ -5323,7 +5285,6 @@ it.effect.each([
               : archive === "hangs"
                 ? { archive: Effect.never }
                 : {}),
-            // Another thread's work keeps the shared session open past the children's idle unloads.
             hasPendingBackgroundWork: Effect.succeed(keptOpen),
           }),
         ),
@@ -6093,7 +6054,6 @@ it.effect("ProviderSessionManagerV2 withholds device tools while device support 
   }),
 );
 
-// Device instructions reach delegated children only because their own sessions hold `device`.
 it.effect("ProviderSessionManagerV2 gives a delegated child its project's device access", () =>
   Effect.gen(function* () {
     const child = yield* runBrowserAccessScenario({

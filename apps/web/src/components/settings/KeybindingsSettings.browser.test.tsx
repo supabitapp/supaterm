@@ -45,7 +45,6 @@ vi.mock(import("./SettingsScopeContext"), async (original) => ({
 import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import { KeybindingsSettingsPanel } from "./KeybindingsSettings";
 
-// The modal dialog's inert layer swallows pointer events in this harness, so drive the DOM.
 async function activate(locator: Locator, action: "click" | "focus") {
   await expect.element(locator).toBeVisible();
   (locator.element() as HTMLElement)[action]();

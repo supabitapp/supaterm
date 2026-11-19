@@ -5,7 +5,6 @@
  * every assistant row here describes the same provider request.
  */
 export const openCodeForkSchema = [
-  // Recorded verbatim, except the project foreign key, whose table the reader never reads.
   `CREATE TABLE \`session_v2\` (
     \`id\` text PRIMARY KEY,
     \`project_id\` text NOT NULL,

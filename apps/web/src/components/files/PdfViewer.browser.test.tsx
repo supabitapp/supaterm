@@ -2,9 +2,6 @@ import { expect, it, vi } from "vite-plus/test";
 import { render } from "../../../test/render";
 import "~/index.css";
 
-// Vite serves the worker module through its transform with an inline source map (6.8 MB for
-// a 1.3 MB file), which dominated this test under CPU contention. A blob of the raw file is the
-// same code without the dev-server cost.
 vi.mock(import("pdfjs-dist/build/pdf.worker.min.mjs?url"), async () => {
   const { default: source } = await import("pdfjs-dist/build/pdf.worker.min.mjs?raw");
   return {
@@ -12,7 +9,6 @@ vi.mock(import("pdfjs-dist/build/pdf.worker.min.mjs?url"), async () => {
   };
 });
 
-// Holds one page's Find text until the test opens it, so a scan can be observed mid-flight.
 const findGate = vi.hoisted(() => ({ page: 0, open: () => {}, opened: Promise.resolve() }));
 function setup(page: number) {
   findGate.page = page;
@@ -44,8 +40,6 @@ vi.mock(import("./pdfDocument"), async (importOriginal) => {
 
 import PdfViewer from "./PdfViewer";
 
-// Page 1 is a short banner whose title is drawn in two runs with a font change, so pdf.js
-// splits it into two text spans. Page 2 is a letter page rotated a quarter turn.
 function testPdf(
   pages = [
     {
@@ -88,10 +82,8 @@ it("fits the width, then finds split and rotated text and jumps to its page", as
     await using screen = await render(<PdfViewer src={url} title="Planning PDF" />, {
       container,
     });
-    // The milestone is pdf.js booting its worker and parsing the document, not a frame count.
     await expect.element(screen.getByText("1 / 2 pages"), { timeout: 10_000 }).toBeVisible();
     const region = screen.container.querySelector<HTMLElement>('[role="region"]')!;
-    // Fit width follows the measured viewport, which settles once the scrollbar appears.
     await vi.waitFor(() => {
       const canvas = region.querySelector('canvas[aria-label="Page 1"]')!;
       expect(canvas.getBoundingClientRect().width).toBe(region.clientWidth - 32);
@@ -117,7 +109,6 @@ it("fits the width, then finds split and rotated text and jumps to its page", as
       expect(span).toBeDefined();
       return span!;
     });
-    // The rotated page's text runs top to bottom inside the page, so a selection lands on it.
     const textBounds = rotated.getBoundingClientRect();
     const pageBounds = rotated.closest("[data-pdf-text-layer]")!.getBoundingClientRect();
     expect(textBounds.height).toBeGreaterThan(textBounds.width);

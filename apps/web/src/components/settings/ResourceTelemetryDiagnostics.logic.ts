@@ -18,7 +18,6 @@ export function visibleResourceTelemetryProcesses(
   const hidden = new Set<string>();
   const hideDescendants = (pid: number): void => {
     for (const child of childrenByParent.get(pid) ?? []) {
-      // Depth 0 rows are their own roots, e.g. the server launched by Electron main.
       if (child.depth === 0) continue;
       const key = processIdentityKey(child);
       if (hidden.has(key)) continue;
@@ -63,7 +62,6 @@ export function resourceHistoryCpuScaleMax(
 
 export function formatCpuTime(seconds: number): string {
   const format = (value: number) => value.toFixed(value >= 10 ? 1 : 2).replace(/\.0+$/, "");
-  // Pick the unit after rounding so 59.97 seconds never renders as "60s".
   const shortSeconds = format(seconds);
   if (Number(shortSeconds) < 60) return `${shortSeconds}s`;
   const shortMinutes = format(seconds / 60);
@@ -72,7 +70,6 @@ export function formatCpuTime(seconds: number): string {
 }
 
 export function formatSamplingStatus(intervalMs: number): string {
-  // The server reports 0 while the native monitor is idle and samples only on request.
   if (intervalMs <= 0) return "Sampling on demand";
   if (intervalMs < 1_000) return `Sampling every ${Math.round(intervalMs)} ms`;
   const seconds = intervalMs / 1_000;

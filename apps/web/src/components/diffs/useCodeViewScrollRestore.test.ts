@@ -37,7 +37,6 @@ describe("createCodeViewScrollRestore", () => {
 
     const again = viewer(10_000);
     mount("thread-a", again);
-    // Pierre subtracts the 32px sticky header from an unclamped position target.
     expect(again.scrolls).toEqual([{ type: "position", position: 4032 }]);
   });
 

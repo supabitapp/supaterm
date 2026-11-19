@@ -36,7 +36,6 @@ const AUDIO = (() => {
 const jwt = (claims: Record<string, unknown>) =>
   ["header", Buffer.from(JSON.stringify(claims)).toString("base64url"), "signature"].join(".");
 
-// TestClock starts at 0, so an `exp` in seconds after that is unexpired.
 const FRESH = jwt({ exp: 3_600, "https://api.openai.com/auth": { chatgpt_account_id: "acct" } });
 const ROTATED = jwt({ exp: 7_200, "https://api.openai.com/auth": { chatgpt_account_id: "acct" } });
 const EXPIRED = jwt({ exp: 0 });
@@ -50,7 +49,6 @@ interface SentRequest {
 const boundaryOf = (request: SentRequest | undefined) =>
   request?.contentType?.replace("multipart/form-data; boundary=", "") ?? "";
 
-/** The Codex desktop composer's upload (vCs + SCs in the app's webview bundle). */
 const desktopUpload = (boundary: string, language?: string) =>
   Buffer.concat([
     Buffer.from(
@@ -221,7 +219,6 @@ describe("makeCodexTranscription", () => {
       const refreshes = yield* Ref.make(0);
       const firstRefreshStarted = yield* Deferred.make<void>();
       const releaseFirstRefresh = yield* Deferred.make<void>();
-      // The driver hands every instance on this auth home the same account lock.
       const sharedLock = yield* Semaphore.make(1);
       const makeInstance = makeCodexTranscription({
         authHomePath,

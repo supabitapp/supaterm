@@ -83,7 +83,6 @@ export function PullRequestLabelPicker({
       (name, label) => latest.find((entry) => entry.name === name)?.isApplied ?? label.isApplied,
     );
     setDraft(emptySelection());
-    // Adding first keeps the Labels row from showing empty between the two writes.
     void send(add, true).then(() => send(remove, false));
   };
 

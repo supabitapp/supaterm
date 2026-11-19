@@ -27,7 +27,6 @@ import * as ConnectionResolver from "./resolver.ts";
 import * as EnvironmentRegistry from "./registry.ts";
 import { connectionRoutes, routeEntry, routeHttpBaseUrl, usableRoutes } from "./routes.ts";
 
-// A v1 host restarting into v2 runs migrations before its descriptor answers again.
 const OUTDATED_HOST_RESTART_TIMEOUT = Duration.minutes(4);
 const SOCKET_OPEN_TIMEOUT = "15 seconds";
 
@@ -56,7 +55,6 @@ const reachOutdatedHost = Effect.fn("clientRuntime.connection.reachOutdatedHost"
   return { entry, prepared, descriptor };
 });
 
-// The normal session cannot read config from a host behind the protocol gate.
 export const describeOutdatedHost = (environmentId: EnvironmentId) =>
   reachOutdatedHost(environmentId).pipe(Effect.map(({ descriptor }) => descriptor));
 
@@ -140,7 +138,6 @@ export const updateOutdatedHost = Effect.fn("clientRuntime.connection.updateOutd
                   Effect.exit,
                 );
                 const selfUpdateMethod = capabilities.serverSelfUpdate;
-                // Desktop preparation needs its terminal commit token.
                 const accepted =
                   receivedProgress && selfUpdateMethod === "boot-service"
                     ? { targetVersion: input.targetVersion, method: selfUpdateMethod }
@@ -153,7 +150,6 @@ export const updateOutdatedHost = Effect.fn("clientRuntime.connection.updateOutd
                 );
               })
             : yield* client[WS_METHODS.serverUpdateServer](input).pipe(
-                // Older servers can drop the socket before acknowledging the restart.
                 Effect.catchCauseIf(
                   (cause) =>
                     capabilities.serverSelfUpdate === "boot-service" &&
@@ -170,7 +166,6 @@ export const updateOutdatedHost = Effect.fn("clientRuntime.connection.updateOutd
           updateResult.method === "desktop-app" &&
           updateResult.desktopUpdateToken !== undefined
         ) {
-          // The commit relaunches the desktop app, so a dropped socket is success.
           yield* client[WS_METHODS.serverCommitDesktopUpdate]({
             requestId: updateResult.desktopUpdateToken,
           }).pipe(

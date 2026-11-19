@@ -98,19 +98,13 @@ export {
 
 const DEFAULT_HISTORY_LINE_LIMIT = 5_000;
 const DEFAULT_HISTORY_BYTE_LIMIT = 8 * 1024 * 1024;
-// eCryptfs permits 143-byte names.
 const MAX_HISTORY_FILENAME_BYTES = 143;
 const MAX_HISTORY_CHUNK_LENGTH = 16 * 1024;
 const DEFAULT_PERSIST_DEBOUNCE_MS = 250;
 const DEFAULT_SUBPROCESS_POLL_INTERVAL_MS = 1_000;
 const MAX_SUBPROCESS_POLL_INTERVAL_MS = 60_000;
-// `ps` and WMI can take seconds on a loaded host and their tables are still
-// valid then; the timeout only ends a query that is truly stuck.
 const PROCESS_TABLE_QUERY_TIMEOUT = "15 seconds";
-// closeIdle queries while holding the thread lock, so it keeps a short budget
-// rather than stalling other operations on that thread behind a slow table.
 const CLOSE_IDLE_QUERY_TIMEOUT = { posix: "1 second", win32: "1500 millis" } as const;
-// Discover children started without terminal input or output.
 const QUIET_SUBPROCESS_SNAPSHOT_EVERY_TICKS = 30;
 const DEFAULT_PROCESS_KILL_GRACE_MS = 1_000;
 const DEFAULT_MAX_RETAINED_INACTIVE_SESSIONS = 128;
@@ -331,7 +325,6 @@ interface TerminalGrid {
   readonly rows: number;
 }
 
-/** One client connection attached to a terminal, possibly through several streams. */
 interface TerminalViewer {
   streams: number;
   grid: TerminalGrid | null;
@@ -386,7 +379,6 @@ function normalizeChildCommandName(raw: string, platform: NodeJS.Platform): stri
   ) {
     trimmed = trimmed.slice(1, -1).trim();
   }
-  // Process names and macOS `comm` paths can contain spaces ("Google Chrome").
   const separators = platform === "win32" ? /[\\/]/ : /\//;
   const base = (trimmed.split(separators).at(-1) ?? trimmed).trim();
   const withoutExe =
@@ -564,7 +556,6 @@ const normalizeShellCommand = Effect.fn("terminal.normalizeShellCommand")(functi
   if (trimmed.startsWith("/") && /\s/.test(trimmed)) {
     const fs = yield* FileSystem.FileSystem;
     const ends = [...trimmed.matchAll(/\s+/g)].map((match) => match.index);
-    // Unquoted paths are ambiguous; prefer the longest existing file over flag syntax.
     for (const end of [trimmed.length, ...ends.reverse()]) {
       const candidate = trimmed.slice(0, end);
       const info = yield* fs
@@ -596,7 +587,6 @@ function joinWindowsPath(...parts: ReadonlyArray<string>): string {
     .join("\\");
 }
 
-// PowerShell decodes native output with the console code page (often OEM 437), mangling UTF-8.
 const POWERSHELL_UTF8_SETUP =
   "[Console]::OutputEncoding = $OutputEncoding = [System.Text.UTF8Encoding]::new()";
 
@@ -615,7 +605,6 @@ function shellCandidateFromCommand(
   if (platform !== "win32" && shellName === "zsh") {
     return { shell: command, args: ["-o", "nopromptsp"] };
   }
-  // Login shells load ~/.bash_profile, matching macOS terminal startup.
   if (platform === "darwin" && shellName === "bash") {
     return { shell: command, args: ["-l"] };
   }
@@ -664,7 +653,6 @@ const resolveShellCandidates = Effect.fn("terminal.resolveShellCandidates")(func
   env: NodeJS.ProcessEnv,
   terminalShell: string | undefined,
 ) {
-  // This is an executable path, not a command line; spaces belong to the path.
   const configured = shellCandidateFromCommand(terminalShell?.trim() || null, platform);
   const requested = shellCandidateFromCommand(
     yield* normalizeShellCommand(shellResolver(), platform),
@@ -748,8 +736,6 @@ interface TerminalProcessTableSnapshot {
   readonly commandById: ReadonlyMap<number, string>;
 }
 
-// Idles at least four times as long as the last fallback query took, so a slow
-// process table never keeps the poll loop busy most of the time.
 function subprocessSnapshotPollDelayMs(
   pollIntervalMs: number,
   failureCount: number,
@@ -765,7 +751,6 @@ function parsePosixProcessTable(stdout: string): TerminalProcessTableSnapshot {
   const childrenByParent = new Map<number, number[]>();
   const commandById = new Map<number, string>();
   for (const line of stdout.split(/\r?\n/g)) {
-    // The final comm column can contain spaces; only the first two tokens are structural.
     const match = /^\s*(\d+)\s+(\d+)\s+(.+)$/.exec(line);
     if (!match) continue;
     const pid = Number(match[1]);
@@ -795,7 +780,6 @@ function processTableSnapshotFromProcesses(
   return { childrenByParent, commandById };
 }
 
-// A root with one of these names is still an interactive shell, e.g. after `.bashrc` runs `exec zsh`.
 const INTERACTIVE_SHELL_NAMES = new Set([
   "bash",
   "zsh",
@@ -819,15 +803,12 @@ function deriveSubprocessInspectResult(
   const commandName = (pid: number) =>
     normalizeChildCommandName(snapshot.commandById.get(pid) ?? "", platform);
   const shellName = commandName(terminalPid);
-  // `exec <command>` replaces the shell, leaving the command itself as the root.
   const rootIsCommand =
     platform !== "win32" &&
     shell !== null &&
     shellName !== null &&
     shellName !== normalizeChildCommandName(shell, platform) &&
     !INTERACTIVE_SHELL_NAMES.has(shellName.replace(/^-/, ""));
-  // Async prompt themes fork childless shell helpers that are not user commands;
-  // a foreground job owns the terminal's process group, and an unknown one counts as foreground.
   const childPid = rootIsCommand
     ? terminalPid
     : (snapshot.childrenByParent.get(terminalPid) ?? []).find(
@@ -859,7 +840,6 @@ function deriveSubprocessInspectResult(
   };
 }
 
-// Field 8 of /proc/<pid>/stat is the tty's foreground process group; comm (field 2) may hold spaces or parens.
 function parseProcStatForegroundProcessGroup(stat: string): number | null {
   const tpgid = Number(stat.slice(stat.lastIndexOf(")") + 2).split(" ")[5]);
   return Number.isInteger(tpgid) ? tpgid : null;
@@ -867,7 +847,6 @@ function parseProcStatForegroundProcessGroup(stat: string): number | null {
 
 const POSIX_PS_ABSOLUTE_PATHS = ["/bin/ps", "/usr/bin/ps"] as const;
 
-// Resolve ps once; bare-name spawns repeatedly probe long PATHs during one-second polling.
 const resolvePosixPsCommand = Effect.fn("terminal.resolvePosixPsCommand")(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   for (const candidate of POSIX_PS_ABSOLUTE_PATHS) {
@@ -905,7 +884,6 @@ const posixProcessTableSnapshot = Effect.fn("terminal.posixProcessTableSnapshot"
       ),
     );
   if (result.code !== 0 || result.timedOut || result.stdoutTruncated) {
-    // Reject partial tables; treating them as authoritative would clear process ids and mark terminals idle.
     return yield* new TerminalSubprocessCheckError({
       command: "ps",
       exitCode: result.code,
@@ -984,9 +962,7 @@ export class BoundedTerminalHistory {
   private start = 0;
   private byteLength = 0;
   private lineBreaks = 0;
-  // Reading the old string's tail on each append can force chunk concatenation.
   private lastCodeUnit: number | undefined;
-  // The terminal parser's state at the first retained code unit, which is where a replay starts.
   private sequenceState = TERMINAL_SEQUENCE_GROUND;
   private cachedValue: string | null = "";
   private generation = 0;
@@ -1020,8 +996,6 @@ export class BoundedTerminalHistory {
       firstCode >= 0xdc00 &&
       firstCode <= 0xdfff
     ) {
-      // Joining a split surrogate changes its UTF-8 size from 3 to 4 bytes.
-      // The previous flush may have encoded the lone surrogate as a replacement character.
       this.generation += 1;
       previous.data += text[0];
       previous.byteLength += 1;
@@ -1039,7 +1013,6 @@ export class BoundedTerminalHistory {
         end -= 1;
       }
       const data = text.slice(offset, end);
-      // Detach small chunks from large input strings so evicted prefixes can be collected.
       this.appendChunk(
         text.length > MAX_HISTORY_CHUNK_LENGTH
           ? Buffer.from(data, "utf16le").toString("utf16le")
@@ -1129,7 +1102,6 @@ export class BoundedTerminalHistory {
       }
       this.trimChunk(offset, bytes, lineBreaks);
     }
-    // A cut inside a control sequence would replay the rest of it as text.
     while (this.sequenceState !== TERMINAL_SEQUENCE_GROUND && this.start < this.chunks.length) {
       const first = this.chunks[this.start]!;
       const dropped = first.data.slice(0, terminalSequenceEnd(this.sequenceState, first.data));
@@ -1171,8 +1143,6 @@ export class BoundedTerminalHistory {
       }
       if (remaining === 0) data = tail.toReversed().join("");
     }
-    // Keep the on-disk log bounded while amortizing compaction across new output.
-    // Readers already cap the plain-text tail by bytes and lines.
     const append =
       data !== undefined &&
       previous !== undefined &&
@@ -1199,28 +1169,21 @@ export class BoundedTerminalHistory {
   }
 }
 
-// Pop beyond Ghostty's eight-entry Kitty stacks on both screens before clearing
-// flags. A 1049 round trip preserves the main cursor, text, and scrollback.
 const INHERITED_INPUT_RESET =
   "\u001b[?1049h\u001b[<100u\u001b[=0;1u\u001b[?1049l" +
   "\u001b[?1;9;66;67;1000;1002;1003;1004;1005;1006;1015;2004l" +
   "\u001b[?25;1035;1036h\u001b[<100u\u001b[=0;1u\u001b[>4m";
 
 function neutralizeInheritedHistory(history: string, maxLines: number, maxBytes: number): string {
-  // Scan exactly the cold replay window, reserving the entire longest reset so
-  // neither the server nor the client can trim away the entry after we choose its exit.
   const resetBytes = history.includes("\u001b")
     ? Buffer.byteLength(INHERITED_INPUT_RESET + "\u001b7\u001b[?1049l")
     : 0;
   history = new BoundedTerminalHistory(
-    // The suffix occupies the empty line after a trailing newline, too.
     resetBytes > 0 && history.endsWith("\n") ? maxLines - 1 : maxLines,
     history,
     Math.max(0, maxBytes - resetBytes),
   ).value();
   if (!history.includes("\u001b")) return history;
-  // An unconditional 1049 reset restores a stale saved cursor on the main
-  // screen. The exit must match the inherited screen's cursor-save behavior.
   let alternateScreen: number | undefined;
   for (const match of history.matchAll(/\u001b(?:\[\?([0-9;]+)([hl])|(c))/gu)) {
     if (match[3]) alternateScreen = undefined;
@@ -1231,8 +1194,6 @@ function neutralizeInheritedHistory(history: string, maxLines: number, maxBytes:
       }
     }
   }
-  // A client may trim away the entry, leaving us on main: save its current
-  // cursor before exiting. On alternate this saves only the alternate cursor.
   const leaveAlternateScreen =
     alternateScreen === undefined ? "" : `\u001b7\u001b[?${alternateScreen}l`;
   return history + leaveAlternateScreen + INHERITED_INPUT_RESET;
@@ -1256,22 +1217,18 @@ function shouldStripCsiSequence(body: string, finalByte: string): boolean {
   if (finalByte === "c" && /^[>=0-9;?]*$/.test(body)) {
     return true;
   }
-  // Strip DECRQM/DECRPM query traffic to prevent echoed replies during replay; $ guards preserve setters.
   if ((finalByte === "p" || finalByte === "y") && /^[0-9;?]*\$$/.test(body)) {
     return true;
   }
-  // XTVERSION query (>q). DECSCUSR (space-intermediate q) stays.
   if (finalByte === "q" && /^>[0-9;]*$/.test(body)) {
     return true;
   }
-  // Kitty keyboard protocol query/reply (?u). Restore-cursor (bare u) stays.
   if (finalByte === "u" && body.startsWith("?")) {
     return true;
   }
   return false;
 }
 
-// Strip DECRQSS/XTGETTCAP query traffic; replaying queries triggers fresh replies without visual value.
 function shouldStripDcsSequence(content: string): boolean {
   return /^[01]?[$+][qr]/.test(content);
 }
@@ -1292,18 +1249,12 @@ function stripStringTerminator(value: string): string {
 }
 
 interface C1Effect {
-  /** ESC form of the sequence the code point starts, or "" when it returns to ground. */
   readonly next: string;
-  /** Its 0x9A byte ran DECID, which replies with device attributes. */
   readonly query: boolean;
-  /** What replays its visible effect from ground. */
   readonly safe: string;
 }
 
-// Outside ground and OSC, libghostty parses a code point's UTF-8 bytes one at a time: 0x80-0x9F
-// act as C1 controls, the rest are dropped. Bytes left over after a return to ground print U+FFFD.
 function c1Effect(codePoint: number): C1Effect | undefined {
-  // A lone surrogate is encoded as U+FFFD, whose bytes are all dropped.
   if (codePoint >= 0xd800 && codePoint <= 0xdfff) return undefined;
   let next: string | undefined;
   let query = false;
@@ -1325,15 +1276,12 @@ function c1Effect(codePoint: number): C1Effect | undefined {
     } else if (byte < 0xa0) {
       next = "";
       query = byte === 0x9a;
-      // Any other C1 control but ST runs as ESC plus the byte less 0x40.
       safe = query || byte === 0x9c ? "" : `\u001b${String.fromCharCode(byte - 0x40)}`;
     }
   }
   return next === undefined ? undefined : { next, query, safe };
 }
 
-// BEL ends only OSC; inside DCS, PM and APC it is payload. Non-ASCII is the reverse: libghostty
-// keeps it inside OSC, while a C1 byte in it ends the other strings.
 function findStringEnd(
   input: string,
   start: number,
@@ -1344,7 +1292,6 @@ function findStringEnd(
     if ((isOsc && codePoint === 0x07) || isControlSequenceCancel(codePoint)) {
       return { end: index + 1 };
     }
-    // Like xterm.js, an ESC that does not start ST ends the string and begins the next sequence.
     if (codePoint === 0x1b) {
       if (index + 1 >= input.length) return null;
       return { end: input.charCodeAt(index + 1) === 0x5c ? index + 2 : index };
@@ -1376,14 +1323,12 @@ function findEscapeSequenceEndIndex(input: string, start: number): number | null
   if (cursor >= input.length) {
     return null;
   }
-  // A second ESC restarts the sequence, so leave it for the next pass.
   if (input.charCodeAt(cursor) === 0x1b) {
     return cursor;
   }
   return isEscapeFinalByte(input.charCodeAt(cursor)) ? cursor + 1 : start + 1;
 }
 
-// libghostty prints UTF-8 C1 code points (U+0080-U+009F) as text, so only ESC starts a sequence.
 const HISTORY_SEQUENCE_START = /\u001b/;
 const NEXT_HISTORY_SEQUENCE_START = new RegExp(HISTORY_SEQUENCE_START.source, "g");
 
@@ -1396,11 +1341,9 @@ function sanitizeTerminalHistoryChunk(
   }
 
   const input = `${pendingControlSequence}${data}`;
-  // Only the pending prefix's final ESC can begin a terminator split across chunks.
   const pendingScanStart = Math.max(0, pendingControlSequence.length - 1);
   let visibleText = "";
   let index = 0;
-  // Set when a C1 code point began the sequence at `index`: the ESC form that stands in for it.
   let c1Introducer = "";
 
   const append = (value: string) => {
@@ -1411,7 +1354,6 @@ function sanitizeTerminalHistoryChunk(
     const codePoint = input.charCodeAt(index);
 
     if (c1Introducer.length > 0 || codePoint === 0x1b) {
-      // Empty for a sequence the input introduces itself, which starts with ESC at `index`.
       const prefix = c1Introducer;
       c1Introducer = "";
       const contentStart = prefix.length > 0 ? index : index + 2;
@@ -1422,8 +1364,6 @@ function sanitizeTerminalHistoryChunk(
 
       if (nextCodePoint === 0x5b) {
         let cursor = contentStart;
-        // Inside a CSI Ghostty executes 0x00-0x0F and ignores DEL and 0x10-0x1F, which it would
-        // print in ground state. None join the parameters; only executed ones survive a strip.
         let body = "";
         let executedControls = "";
         while (cursor < input.length) {
@@ -1443,8 +1383,6 @@ function sanitizeTerminalHistoryChunk(
             const end = cursor + (fullCodePoint > 0xffff ? 2 : 1);
             const c1 = c1Effect(fullCodePoint);
             if (c1) {
-              // The CSI ends here undispatched, so it is kept only when the terminal is back in
-              // ground with nothing to answer.
               if (c1.next.length === 0 && !c1.query) {
                 append(prefix + input.slice(index, end));
               } else {
@@ -1457,7 +1395,6 @@ function sanitizeTerminalHistoryChunk(
             cursor = end;
             continue;
           }
-          // An ESC abandons the CSI and starts the next sequence, which may be stripped.
           if (cursorCodePoint === 0x1b) {
             append(executedControls);
             index = cursor;
@@ -1502,7 +1439,6 @@ function sanitizeTerminalHistoryChunk(
             append(prefix + input.slice(index, end));
           }
         } else {
-          // ST stands in for a code point that cannot be replayed as it came.
           const closed = strip ? "" : `${prefix}${input.slice(index, c1.index)}\u009c`;
           append(closed + c1.effect.safe);
           c1Introducer = c1.effect.next;
@@ -1515,7 +1451,6 @@ function sanitizeTerminalHistoryChunk(
       if (escapeSequenceEndIndex === null) {
         return { visibleText, pendingControlSequence: input.slice(index) };
       }
-      // ESC Z (DECID) is the legacy primary device attributes query.
       if (nextCodePoint !== 0x5a) {
         append(input.slice(index, escapeSequenceEndIndex));
       }
@@ -1540,7 +1475,6 @@ function hashId(id: string): string {
   return NodeCrypto.createHash("sha256").update(id).digest("base64url");
 }
 
-// "." is outside the base64url alphabet, so a hashed name can never collide with an encoded one.
 function hashedHistoryThreadPart(threadId: string): string {
   return `terminal_sha256.${hashId(threadId)}`;
 }
@@ -1565,9 +1499,6 @@ function shouldExcludeTerminalEnvKey(key: string): boolean {
 }
 
 const APPIMAGE_RUNTIME_ENV_KEYS = ["APPIMAGE", "APPDIR", "ARGV0", "OWD"] as const;
-// Search-path variables the AppImage runtime points at its temporary mount. Only mount segments
-// are dropped; a variable left with nothing else is removed so consumers fall back to their
-// platform default (gsettings finds the host schemas instead of "No schemas installed").
 const APPIMAGE_PATH_LIKE_ENV_KEYS = [
   "PATH",
   "LD_LIBRARY_PATH",
@@ -1579,7 +1510,6 @@ function isPathSegmentUnderAppDir(segment: string, appDir: string): boolean {
   return segment === appDir || segment.startsWith(`${appDir}/`);
 }
 
-// AppImage mount paths would make PTY tools resolve against the mount instead of the user's system.
 function stripAppImageRuntimeEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   if (env.APPIMAGE === undefined && env.APPDIR === undefined) return env;
 
@@ -1623,8 +1553,6 @@ function createTerminalSpawnEnv(
     }
     spawnEnv[key] = value;
   }
-  // The server inherits its launcher's identity (e.g. Apple_Terminal); shells
-  // and tools inside the integrated terminal should see Supaterm instead.
   spawnEnv.TERM_PROGRAM = "supaterm";
   spawnEnv.TERM_PROGRAM_VERSION = packageJson.version;
   if (runtimeEnv) {
@@ -1795,7 +1723,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const architecture = yield* HostProcess.Architecture;
   const agentScope = yield* AgentScope;
   const resolveExecutable = yield* SpawnExecutableResolution;
-  // Inherit the full environment minus createTerminalSpawnEnv's blocklist; allowlists silently drop user tooling variables.
   const baseEnv = options.env ?? process.env;
   const shellResolver = options.shellResolver ?? (() => defaultShellResolver(platform, baseEnv));
   const processRunner = yield* ProcessRunner.ProcessRunner;
@@ -1817,8 +1744,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       return { ...input, env };
     },
   );
-  // Share one process table per poll; per-terminal scans can exhaust PIDs on busy hosts.
-  // Timed on success and failure so the poll loop can pace the next query.
   const posixPsCommand = platform === "win32" ? undefined : yield* resolvePosixPsCommand();
   const fallbackProcessTableSnapshot = (timeout: Duration.Input) =>
     (posixPsCommand === undefined
@@ -1833,8 +1758,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         queryElapsedMs: Duration.toMillis(elapsed),
       })),
     );
-  // `fallbackTimeout` only bounds the ps/WMI fallback; a native process table
-  // or custom inspector is unaffected.
   const fetchProcessTableSnapshot = (
     fallbackTimeout: Duration.Input,
   ): Effect.Effect<{
@@ -1907,7 +1830,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
               (table): TerminalSubprocessInspector =>
                 (terminalPid, shell) => {
                   const result = deriveSubprocessInspectResult(table, terminalPid, shell, platform);
-                  // Only shell-named childless children are ambiguous; read the foreground group for those alone.
                   if (
                     result.hasRunningSubprocess ||
                     platform === "win32" ||
@@ -1945,13 +1867,11 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
   const workerScope = yield* Scope.make("sequential");
   yield* Effect.addFinalizer(() => Scope.close(workerScope, Exit.void));
 
-  const publishEvent =
-    /* Provider events include streaming deltas; avoid a span for each update. */
-    Effect.fnUntraced(function* (event: TerminalEvent) {
-      for (const listener of terminalEventListeners) {
-        yield* listener(event).pipe(Effect.ignoreCause({ log: true }));
-      }
-    });
+  const publishEvent = Effect.fnUntraced(function* (event: TerminalEvent) {
+    for (const listener of terminalEventListeners) {
+      yield* listener(event).pipe(Effect.ignoreCause({ log: true }));
+    }
+  });
 
   const encodedHistoryPath = (threadId: string, terminalId: string) =>
     path.join(
@@ -1980,8 +1900,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
 
   const historyExists = (filePath: string) => {
     const name = path.basename(filePath);
-    // An oversized old path can itself fail on access. Directory entries also
-    // preserve migration of such histories on filesystems with a larger limit.
     return name.length <= MAX_HISTORY_FILENAME_BYTES
       ? fileSystem.exists(filePath)
       : fileSystem.readDirectory(logsDir).pipe(Effect.map((entries) => entries.includes(name)));
@@ -2010,14 +1928,12 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     const viewer = viewers.get(viewerId);
     if (viewer) {
       viewer.streams += 1;
-      // After a viewer's first size, resizes own it; attach retries resend the original size.
       viewer.grid ??= grid;
     } else {
       viewers.set(viewerId, { streams: 1, grid, answersQueries: false });
     }
   };
 
-  /** Returns whether the viewer left, which can grow the shared grid. */
   const releaseViewer = (sessionKey: string, viewerId: string) => {
     const viewers = terminalViewers.get(sessionKey);
     const viewer = viewers?.get(viewerId);
@@ -2029,7 +1945,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     return true;
   };
 
-  // The first attached viewer to answer a query keeps answering until it detaches.
   const acceptsQueryReply = (sessionKey: string, viewerId: string | undefined) => {
     const viewers = terminalViewers.get(sessionKey);
     const viewer = viewerId === undefined ? undefined : viewers?.get(viewerId);
@@ -2042,7 +1957,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     return true;
   };
 
-  // The smallest attached viewer bounds each axis, so every viewer can draw the whole grid.
   const sharedViewerGrid = (sessionKey: string): TerminalGrid | null => {
     let shared: TerminalGrid | null = null;
     for (const viewer of terminalViewers.get(sessionKey)?.values() ?? []) {
@@ -2057,7 +1971,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     return shared;
   };
 
-  /** Attached viewers own the size; a caller's own size only applies when none has reported one. */
   const withSharedGrid = <
     A extends { readonly cols?: number | undefined; readonly rows?: number | undefined },
   >(
@@ -2068,8 +1981,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     return shared ? { ...input, cols: shared.cols, rows: shared.rows } : input;
   };
 
-  // Renderers draw the PTY grid, so every size change reaches them. It rides on activity
-  // because older clients reject unknown event types.
   const resizeSession = Effect.fnUntraced(function* (
     session: TerminalSessionState,
     process: PtyAdapter.PtyProcess,
@@ -2136,7 +2047,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     fiber: Fiber.Fiber<void, never>,
   ) {
     yield* modifyManagerState((state) => {
-      // Children may finalize before registration; check inside the synchronized update to avoid retaining finished fibers.
       if (fiber.pollUnsafe() !== undefined) {
         return [undefined, state] as const;
       }
@@ -2151,7 +2061,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     threadId: string,
     terminalId: string,
   ) {
-    // Subscribe before SIGTERM to catch immediate exits; Effect.ensuring releases even on interruption, unlike JS finally.
     const exited = Deferred.makeUnsafe<void>();
     const unsubscribeExit = process.onExit(() => {
       Deferred.doneUnsafe(exited, Effect.void);
@@ -2259,8 +2168,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         request.immediate ? undefined : persistedHistory.get(request.history),
       );
       if (update.append && update.data.length === 0) return;
-      // An append may partially succeed before failing. Retry from a full snapshot,
-      // never from an uncertain file offset.
       persistedHistory.delete(request.history);
       yield* fileSystem
         .writeFileString(historyPath(threadId, terminalId), update.data, {
@@ -2314,7 +2221,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     const info = yield* file.stat;
     const limit = BigInt(historyByteLimit);
     const offset = info.size > limit ? info.size - limit : 0n;
-    // The tail can start inside a control sequence; only the bytes before it say which.
     const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
     let sequenceState = TERMINAL_SEQUENCE_GROUND;
     const skipped = new Uint8Array(Math.min(Number(offset), 64 * 1024));
@@ -2337,7 +2243,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     }
     let start = 0;
     if (offset > 0n) {
-      // A tail read can start inside a UTF-8 code point. Skip its remaining bytes.
       while (start < length && ((bytes[start] ?? 0) & 0xc0) === 0x80) start += 1;
     }
     sequenceState = terminalSequenceStateAfter(
@@ -2728,7 +2633,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       );
     }
 
-    // PATH lookup must use the child's working directory, not the server's.
     const lookupEnv =
       platform === "win32"
         ? spawnEnv
@@ -2736,11 +2640,9 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
             ...spawnEnv,
             PATH: (spawnEnv.PATH ?? spawnEnv.Path ?? spawnEnv.path ?? "")
               .split(":")
-              // An empty entry means the working directory, which resolve("") yields.
               .map((entry) => path.resolve(session.cwd, entry.replace(/^"+|"+$/g, "")))
               .join(":"),
           };
-    // POSIX node-pty can return a PTY before exec fails, so validate before accepting a candidate.
     const executable =
       platform !== "win32"
         ? resolveExecutable(
@@ -2847,7 +2749,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
               platform,
               yield* HostProcess.HomeDirectory,
             );
-            // Append managed install directories so agent commands resolve without shadowing user/system tools.
             if (
               options.managedBinaryCacheDir !== undefined &&
               options.managedBinaryToolsDir !== undefined
@@ -2895,7 +2796,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
               session.shell = spawnResult.shell;
               session.pid = processPid;
               session.status = "running";
-              // onExit may replay an exit immediately; accept it before subscribing.
               session.unsubscribeData = spawnResult.process.onData((data) => {
                 if (!enqueueProcessEvent(session, processPid, { type: "output", data })) {
                   return;
@@ -2919,7 +2819,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
               sequence: eventStamp.sequence,
               snapshot: snapshot(session),
             });
-            // Publish startup before draining any events replayed during subscription.
             eventsActivated = true;
             if (session.processEventDrainRunning) runFork(drainProcessEvents(session, processPid));
           }),
@@ -3016,8 +2915,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     }
   });
 
-  // Two unchanged snapshots cover children forked just after the first snapshot.
-  // Process identity prevents a restarted shell from inheriting quiet state.
   let quietSessions = new WeakMap<TerminalSessionState, QuietTerminalSession>();
   let skippedQuietTicks = 0;
   const isQuiet = (session: TerminalSessionState & { pid: number }) => {
@@ -3125,7 +3022,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         liveSession.value.hasRunningSubprocess = next.hasRunningSubprocess;
         liveSession.value.childCommandLabel = nextChildLabel;
         const eventStamp = advanceEventSequence(liveSession.value);
-        // Only this poll's own event may advance the mark without waking it.
         mark += 1;
 
         return [
@@ -3222,7 +3118,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         yield* runKillEscalation(session.process, session.threadId, session.terminalId);
       });
 
-      // Closing workerScope next would interrupt escalations of already stopped terminals.
       yield* Effect.all(
         [
           Effect.forEach(sessions, cleanupSession, { concurrency: "unbounded", discard: true }),
@@ -3461,13 +3356,10 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       const stop = () => {
         terminalEventListeners.delete(listener);
       };
-      // Transfer ownership before an interrupt can discard the returned handle.
       registerCleanup?.(stop);
       return stop;
     });
 
-  // Subscribe after taking the lock so contention cannot accumulate an unbounded replay.
-  // Snapshot listeners run under that lock and must not block.
   const streamSession = (
     input: TerminalObserveInput,
     initial: Effect.Effect<TerminalSessionSnapshot | null, TerminalError>,
@@ -3496,8 +3388,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
             return Effect.void;
           }
 
-          // Fanout can finish after a snapshot that already includes the event.
-          // Keep only its sequence, not its history, until the session changes.
           if (snapshotFloor !== null) {
             if (
               event.type === "started" ||
@@ -3536,7 +3426,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         const attachEvent = terminalEventToAttachEvent(event);
         yield* listener(attachEvent);
       }
-      // The live listener keeps this closure, so release replayed output.
       bufferedEvents.length = 0;
 
       snapshotFloor = initialSnapshot?.sequence ?? null;
@@ -3548,7 +3437,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     );
   };
 
-  /** Retains `viewer` and returns its release, which runs at most once. */
   const retainViewerOnce = (
     input: TerminalObserveInput,
     viewer: string,
@@ -3787,7 +3675,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       viewer.grid = { cols: input.cols, rows: input.rows };
       return yield* applySharedGrid(input.threadId, input.terminalId);
     }
-    // A caller that is not attached cannot override the viewers that are.
     if (sharedViewerGrid(sessionKey)) return;
     const session = yield* getSession(input.threadId, input.terminalId);
     if (Option.isNone(session)) {
@@ -3820,8 +3707,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         );
         session.pendingProcessEventIndex = 0;
         const eventStamp = advanceEventSequence(session);
-        // A drain waits for the key to go idle, which never happens while the shell keeps
-        // printing; every reader of the file flushes it first.
         yield* persistWorker.enqueue(toSessionKey(input.threadId, terminalId), {
           history: session.history,
           immediate: true,
@@ -3871,7 +3756,6 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         const marks = new Map(
           running.map((session) => [session.terminalId, terminalActivityMark(session)]),
         );
-        // Inspect now so commands started after the last poll still protect their terminals.
         const { inspector: inspectorResult } = yield* acquireSubprocessInspector(
           platform === "win32" ? CLOSE_IDLE_QUERY_TIMEOUT.win32 : CLOSE_IDLE_QUERY_TIMEOUT.posix,
         );

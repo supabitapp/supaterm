@@ -375,7 +375,6 @@ export const make = Effect.fn("desktop.sshPasswordPrompts.make")(function* (
             cause,
           }),
       });
-    // However the request ends, the window drops its prompt, so no ended prompt stays on screen.
     const notifySettled = runPresentationOperation("send-prompt-settled", () => {
       if (!window.value.isDestroyed()) {
         window.value.webContents.send(SSH_PASSWORD_PROMPT_SETTLED_CHANNEL, requestId);

@@ -90,7 +90,6 @@ export const makeProviderAuthService = Effect.gen(function* () {
     return instance.auth;
   });
 
-  // Invalidate credentials using session bindings; model selection may already point to another provider.
   const stopSessions = Effect.fn("ProviderAuthService.stopSessions")(function* (
     instanceId: ProviderInstanceId,
     binding: ProviderAuthController["credentialBinding"],

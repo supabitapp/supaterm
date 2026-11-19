@@ -38,7 +38,6 @@ export interface PaneArrangement {
   readonly parkedSideChats: ReadonlyArray<ParkedSideChats>;
 }
 
-// A sent draft is parked as its thread: the draft goes away once the thread takes over.
 function parkedTarget(target: ThreadRouteTarget, draftThread: DraftThread): ThreadRouteTarget {
   const threadRef = target.kind === "draft" ? draftThread(target.draftId) : null;
   return threadRef ? { kind: "server", threadRef } : target;
@@ -60,7 +59,6 @@ function parkSideChats(
   return { layout, parkedSideChats: parkUnder(state.parkedSideChats, pane.target, targets) };
 }
 
-/** Earlier entries go first when they come back, so ones already parked under `parent` follow. */
 function parkUnder(
   parked: ReadonlyArray<ParkedSideChats>,
   parent: ThreadRouteTarget,
@@ -79,7 +77,6 @@ function parkUnder(
   return [entry, ...parked.filter((other) => other !== earlier)].slice(0, MAX_PARKED_SIDE_CHATS);
 }
 
-/** Side chats that do not fit stay parked; one already on screen is tied back to its parent. */
 function restoreSideChats(
   state: PaneArrangement,
   paneId: string,
@@ -186,7 +183,6 @@ export function showSideChatBesideParent(
   return placed && { ...placed, layout: focusPane(placed.layout, parentPane.id) };
 }
 
-/** After the parent's last side chat when there is room, else in that side chat's place. */
 function placeSideChat(
   state: PaneArrangement,
   parentPaneId: string,

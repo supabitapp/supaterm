@@ -4,7 +4,6 @@ import { EnvironmentId, MessageId, NonNegativeInt, ThreadId } from "./baseSchema
 export const ASSISTANT_CITATION_MAX_TEXT_LENGTH = 8_000;
 export const ASSISTANT_CITATION_MAX_COMMENT_LENGTH = 8_000;
 export const ASSISTANT_CITATION_CONTEXT_LENGTH = 32;
-// Provider message IDs nest and re-encode their thread and turn IDs, so they outgrow a few hundred characters.
 export const ASSISTANT_CITATION_MAX_ID_LENGTH = 4_096;
 
 /** Positions are UTF-16 offsets, not Markdown offsets. */

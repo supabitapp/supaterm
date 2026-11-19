@@ -53,7 +53,6 @@ export type BackgroundThreadMemory = ReadonlyMap<string, BackgroundThreadMemoryE
 export function nextBackgroundThreadAnnouncement(
   previous: BackgroundThreadMemory,
   threads: ReadonlyArray<BackgroundThreadSnapshot>,
-  /** Every thread a visible pane shows; each pane announces its own thread. */
   openThreadKeys: ReadonlySet<string>,
 ): { readonly memory: BackgroundThreadMemory; readonly announcement: string | null } {
   const memory = new Map<string, BackgroundThreadMemoryEntry>();
@@ -74,9 +73,6 @@ export function nextBackgroundThreadAnnouncement(
     ) {
       announcements.push(`${THREAD_STATUS_TEXT[thread.request]}: ${thread.title}`);
     }
-    // While another run still works, the latest run's ending (a queued message
-    // cancelled before it started) isn't the thread finishing. The shell then
-    // only reports the latest run, so the working run's own ending stays quiet.
     const anotherRunWorking = thread.activeRunId !== null && thread.activeRunId !== thread.runId;
     if (outcome !== null && thread.runId !== before.settledRunId && !anotherRunWorking) {
       announcements.push(`${outcome}: ${thread.title}`);

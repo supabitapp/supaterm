@@ -98,7 +98,6 @@ describe("ssh config", () => {
           `Host unicode-${index}\n  HostName unicode-${index}.example.com\n`,
         );
       }
-      // OpenSSH's `?` matches one byte, so it never matches a multi-byte line separator.
       yield* fs.writeFileString(
         path.join(sshDir, "single.d", "team\u2028one.conf"),
         "Host single-byte\n  HostName single-byte.example.com\n",

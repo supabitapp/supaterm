@@ -19,31 +19,18 @@ import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 
 const PREVIEW_PARTITION_PREFIX = "persist:supaterm-preview-";
-/**
- * Incognito partitions deliberately omit the `persist:` prefix, which is what
- * makes Chromium keep them in memory and discard them with the process. They
- * still carry the product prefix so `isPartition` can admit them — the
- * `will-attach-webview` gate rejects anything it does not recognise.
- */
 const PREVIEW_EPHEMERAL_PARTITION_PREFIX = "supaterm-preview-ephemeral-";
 const PROFILE_PARTITION_MARKER = "profile-";
 
 export type BrowserSessionPartitionNamespace = "profile";
 
-// `navigator.clipboard.writeText()` needs Electron's `clipboard-sanitized-write`, not the invalid
-// `clipboard-write`. The permission check handler gates it too, so both handlers must allow it or
-// page "Copy" buttons fail with "Write permission denied".
 const ALLOWED_PREVIEW_PERMISSIONS: ReadonlySet<string> = new Set([
   "clipboard-sanitized-write",
   "geolocation",
 
   "fullscreen",
   "pointerLock",
-  // Loopback requests already succeed in Electron 44; permission-aware sign-in widgets query first.
   "loopback-network",
-  // Deliberately NOT local-fonts: preview sessions run untrusted web content,
-  // and silently granting it would hand every page the user's installed-font
-  // fingerprint (and font file bytes via FontData.blob()).
 ]);
 
 const NEVER_EXTERNAL_PROTOCOLS: ReadonlySet<string> = new Set([
@@ -70,7 +57,6 @@ const externalProtocolPromptUrl = (rawUrl: string | undefined): string | null =>
   }
 };
 
-// Teams sends Electron User-Agents to an error page before sign-in. Electron allows one listener per session.
 const TEAMS_URL_PATTERNS = ["https://teams.cloud.microsoft/*", "https://teams.microsoft.com/*"];
 
 const MAX_PROMPT_URL_LENGTH = 300;
@@ -88,21 +74,12 @@ const permissionOrigin = (rawUrl: string | undefined): string | null => {
   }
 };
 
-/**
- * Certificate errors a user may accept for a preview page, with the reason the
- * prompt shows. Every other error keeps Electron's denial.
- */
 const OVERRIDABLE_CERTIFICATE_ERRORS: ReadonlyMap<string, string> = new Map([
   ["net::ERR_CERT_AUTHORITY_INVALID", "No trusted authority issued this certificate."],
   ["net::ERR_CERT_COMMON_NAME_INVALID", "This certificate is not for this address."],
   ["net::ERR_CERT_DATE_INVALID", "This certificate has expired or is not valid yet."],
 ]);
 
-/**
- * A `wss:` socket reaches the same TLS endpoint as the page, so it shares the
- * `https:` origin. It must: a socket is never a main frame, so it could not be
- * approved on its own, and a page's dev-server socket would stay blocked.
- */
 const certificateOrigin = (rawUrl: string): string | null => {
   try {
     const url = new URL(rawUrl);
@@ -125,10 +102,8 @@ const encodeCertificateApprovals = Schema.encodeEffect(CertificateApprovalsJson)
 const certificateApprovalKey = ({ origin, fingerprint, error }: CertificateApproval): string =>
   JSON.stringify([origin, fingerprint, error]);
 
-/** Kept beside the profile's cookies, so it lives and dies with them. */
 const CERTIFICATE_APPROVALS_FILE = "supaterm-certificate-approvals.json";
 
-/** Server-chosen certificate names must not add lines or flood the prompt. */
 const promptCertificateName = (name: string): string => {
   const flat = name.replace(/\s+/g, " ").trim();
   return flat.length > 120 ? `${flat.slice(0, 120)}…` : flat;
@@ -137,12 +112,9 @@ const promptCertificateName = (name: string): string => {
 const promptCertificateDate = (seconds: number): string =>
   DateTime.formatIsoDateUtc(DateTime.makeUnsafe(seconds * 1000));
 
-/** The certificates a user accepted in one preview Session. */
 interface CertificateTrust {
-  /** `null` for an incognito Session, whose approvals end with the process. */
   readonly file: string | null;
   readonly approvals: Map<string, CertificateApproval>;
-  /** Bumped by each revocation, so an answer to an older prompt cannot restore trust. */
   revocations: number;
 }
 
@@ -245,12 +217,6 @@ const selectSessions = (
     ([partition]) => partitions === undefined || partitions.includes(partition),
   );
 
-/**
- * `TextEncoder` replaces a lone UTF-16 surrogate with U+FFFD, so `"p\ud800"`
- * and `"p\ufffd"` would hash to the same partition and share cookies. Those
- * are distinct, supported ids, so lone surrogates are escaped to `\uXXXX`
- * first — and a literal backslash is doubled so the escape cannot be forged.
- */
 const encodeScopeForDigest = (scope: string): Uint8Array =>
   new TextEncoder().encode(
     scope
@@ -277,9 +243,7 @@ export const make = Effect.gen(function* BrowserSessionMake() {
   const path = yield* Path.Path;
   const platform = yield* HostProcess.Platform;
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
-  // One prompt at a time, so a page cannot stack dialogs by looping a deep link.
   let permissionPromptOpen = false;
-  /** Settles with `undefined` when the user gave no answer: another prompt was open or the dialog failed. */
   const promptPermission = (
     requester: WebContents | null,
     prompt: {
@@ -305,7 +269,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
           {
             type: "question",
             buttons: [...prompt.buttons],
-            // Default to deny so an Enter typed into the page cannot accept a prompt it raised.
             defaultId: 1,
             cancelId: 1,
             message: prompt.message,
@@ -321,7 +284,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
         ),
     );
   };
-  /** Electron launches external protocols after granting openExternal; untrusted pages require confirmation. */
   const confirmOpenExternal = (
     requester: WebContents | null,
     rawUrl: string | undefined,
@@ -385,11 +347,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
       yield* encodeCertificateApprovals([...approvals.values()]),
     );
   });
-  /**
-   * Saved before it is trusted, so a failed write cannot leave an approval that
-   * silently ends at restart. Writes share one lock, so a slower write cannot
-   * restore stale data.
-   */
   const rememberCertificate = Effect.fn("BrowserSession.rememberCertificate")(function* (
     trust: CertificateTrust,
     key: string,
@@ -399,23 +356,17 @@ export const make = Effect.gen(function* BrowserSessionMake() {
     if (trust.revocations !== revocations) return false;
     if (trust.file !== null) {
       yield* writeApprovalsFile(trust.file, new Map(trust.approvals).set(key, approval));
-      // A revocation during the write queues its own rewrite behind this one.
       if (trust.revocations !== revocations) return false;
     }
     trust.approvals.set(key, approval);
     return true;
   }, writeCertificateApprovals.withPermits(1));
-  /**
-   * Rewrites the file from memory. Clearing cookies runs this even when memory
-   * is already empty, so retrying after a failed removal still deletes the file.
-   */
   const saveCertificateApprovals = Effect.fn("BrowserSession.saveCertificateApprovals")(function* (
     trust: CertificateTrust,
   ) {
     if (trust.file !== null) yield* writeApprovalsFile(trust.file, trust.approvals);
   }, writeCertificateApprovals.withPermits(1));
 
-  // One prompt at a time; tabs that hit the same certificate wait on it.
   let certificatePrompt: {
     readonly trust: CertificateTrust;
     readonly key: string;
@@ -440,7 +391,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
     }
     const prompt = { trust, key, callbacks: [callback] };
     certificatePrompt = prompt;
-    // A prompt for a tab that closed or moved on would approve a page nobody is waiting for.
     const dismiss = new AbortController();
     const abandon = () => dismiss.abort();
     const navigated = (
@@ -482,8 +432,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
               "Trust it only if you know this certificate belongs to the site. Clearing this browser profile's cookies forgets it.",
             ].join("\n"),
           },
-          // In the reporter's Windows test, a box owned by the host window
-          // blocked all mouse input, its own buttons included, until it closed.
           platform === "win32" ? undefined : previewHostWindow(contents),
         )
         .pipe(
@@ -522,7 +470,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
       isMainFrame: boolean,
     ) => {
       if (contents.isDestroyed()) return;
-      // Sessions this service did not create keep Electron's denial.
       const trust = certificateTrust.get(contents.session);
       const origin = certificateOrigin(url);
       const reason = OVERRIDABLE_CERTIFICATE_ERRORS.get(error);
@@ -533,7 +480,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
         callback(true);
         return;
       }
-      // Only a page navigation asks; a subresource the user has not accepted stays blocked.
       if (!isMainFrame) {
         callback(false);
         return;
@@ -542,7 +488,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
     },
   );
 
-  /** Clearing a profile's cookies also forgets the certificates its user trusted. */
   const revokeCertificates = Effect.fn("BrowserSession.revokeCertificates")(function* (
     partition: string,
     browserSession: Session,
@@ -553,7 +498,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
     trust.revocations += 1;
     trust.approvals.clear();
     const saved = yield* saveCertificateApprovals(trust).pipe(Effect.result);
-    // An open connection already passed its certificate check.
     if (hadApprovals) {
       yield* Effect.tryPromise({
         try: () => browserSession.closeAllConnections(),
@@ -597,7 +541,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
       return Effect.try({
         try: () => {
           const browserSession = session.fromPartition(partition);
-          // Like Chrome, clipboard reads ask once per origin; both answers last for the session.
           const clipboardReadDecisions = new Map<string, boolean>();
           const confirmClipboardRead = (
             requester: WebContents,
@@ -626,9 +569,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
               },
             );
           };
-          // The guest keeps Electron's native User-Agent. Rewriting it in any form, even keeping
-          // the Electron token, makes Cloudflare Turnstile fail with error 600010 and loop the
-          // challenge, so logins behind it never complete.
           browserSession.setPermissionRequestHandler(
             (webContents, permission, callback, details) => {
               if (permission === "openExternal") {
@@ -723,7 +663,6 @@ export const make = Effect.gen(function* BrowserSessionMake() {
                   cause,
                 }),
             }).pipe(Effect.result);
-            // Approvals go even when the storage clear fails, since the user asked to forget them.
             yield* revokeCertificates(partition, browserSession);
             if (Result.isFailure(cleared)) return yield* cleared.failure;
           }),

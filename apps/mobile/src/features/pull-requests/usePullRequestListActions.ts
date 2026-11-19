@@ -66,7 +66,6 @@ export function usePullRequestListActions(
     setBusyKey(scopedPullRequestListKey(entry));
     const result = await settlePromise(async () => {
       const target = pullRequestTarget(params(entry));
-      // List rows do not subscribe to expensive detail reads.
       const response = await executeAtomQuery(registry, composerPullRequests.detail(target), {
         refresh: true,
         reportFailure: false,

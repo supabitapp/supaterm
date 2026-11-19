@@ -72,16 +72,10 @@ export function pdfPageText(
   return items.map((item) => ("str" in item ? item.str + (item.hasEOL ? "\n" : "") : "")).join("");
 }
 
-// A typed straight quote finds a typeset curly one, as pdf.js's own find does.
 function foldQuotes(text: string) {
   return text.replace(/[\u2018-\u201b]/g, "'").replace(/[\u201c-\u201f]/g, '"');
 }
 
-/**
- * Lowercased search text with each whitespace run, line ends included, read as one space, and a
- * hyphen that ends a line between letters dropped, as pdf.js's own find does. `owner` maps each
- * character back to the run it came from.
- */
 function pdfFindText(runs: readonly string[]) {
   const chars = runs.flatMap((run, index) =>
     Array.from(foldQuotes(run.toLowerCase()), (char) => ({ char, run: index })),

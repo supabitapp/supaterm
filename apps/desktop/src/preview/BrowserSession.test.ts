@@ -88,7 +88,6 @@ const selfSignedCertificate = {
   validExpiry: 1_807_056_000,
 } as Electron.Certificate;
 
-/** Raises Electron's `certificate-error` for a preview guest in `browserSession`. */
 const certificateError = (
   browserSession: unknown,
   input: {
@@ -121,7 +120,6 @@ const certificateError = (
   return { guest, event, callback, trusted: Deferred.await(decision) };
 };
 
-/** Answers the certificate prompt with its "Trust…" button. */
 const trustCertificateButton = (options: Electron.MessageBoxOptions): number => {
   const index = (options.buttons ?? []).findIndex((label) => label.startsWith("Trust"));
   assert.notStrictEqual(index, -1, "the certificate prompt should offer to trust");
@@ -140,7 +138,6 @@ describe("BrowserSession", () => {
         clearCache: vi.fn(() => Promise.resolve()),
         clearStorageData: vi.fn(() => Promise.resolve()),
         closeAllConnections: vi.fn(() => Promise.resolve()),
-        // Like Electron, only a `persist:` partition has storage on disk.
         storagePath:
           storage.root !== "" && partition.startsWith("persist:")
             ? `${storage.root}/Partitions/${partition}`
@@ -240,7 +237,6 @@ describe("BrowserSession", () => {
       assert.isDefined(browserSession);
       assert.strictEqual(browserSession.getUserAgent(), nativeUserAgent);
 
-      // Teams redirects Electron to an error page before sign-in; every other host sees the native one.
       const calls = browserSession.webRequest.onBeforeSendHeaders.mock.calls;
       assert.strictEqual(calls.length, 1);
       const [filter, listener] = calls[0] ?? [];
@@ -302,9 +298,6 @@ describe("BrowserSession", () => {
         );
       }
 
-      // `clipboard-write` is not a real Electron permission — the async write API
-      // uses `clipboard-sanitized-write` — so the stale name must not be granted,
-      // and unrelated permissions stay denied.
       for (const permission of [
         "clipboard-write",
         "notifications",
@@ -388,7 +381,6 @@ describe("BrowserSession", () => {
         "https://allowed.test wants to see text and images copied to the clipboard",
       );
       assert.deepStrictEqual(showMessageBox.mock.calls[0]?.[0].buttons, ["Allow", "Block"]);
-      // Enter must not accept a prompt the page raised while the user was typing.
       assert.strictEqual(showMessageBox.mock.calls[0]?.[0].defaultId, 1);
 
       assert.isTrue(yield* readClipboard("https://allowed.test/other"));
@@ -439,11 +431,9 @@ describe("BrowserSession", () => {
       assert.isTrue(yield* first.trusted);
       assert.strictEqual(showMessageBox.mock.calls.length, 1);
 
-      // The approval covers this origin, port, and certificate in this profile.
       const again = certificateError(browserSession, { url: "https://localhost:18443/other" });
       assert.isTrue(yield* again.trusted);
       assert.strictEqual(showMessageBox.mock.calls.length, 1);
-      // Its sockets reach the same TLS endpoint, and cannot ask on their own.
       const socket = certificateError(browserSession, {
         url: "wss://localhost:18443/hmr",
         isMainFrame: false,
@@ -467,7 +457,6 @@ describe("BrowserSession", () => {
       assert.isFalse(yield* renewed.trusted);
       assert.strictEqual(showMessageBox.mock.calls.length, 2);
 
-      // A Session that is not a preview profile keeps Electron's denial.
       const appSession = certificateError({}, { url: "https://localhost:18443/" });
       assert.strictEqual(appSession.event.preventDefault.mock.calls.length, 0);
       assert.strictEqual(appSession.callback.mock.calls.length, 0);
@@ -490,7 +479,6 @@ describe("BrowserSession", () => {
       assert.isTrue(yield* certificateError(browserSession, { url }).trusted);
       assert.strictEqual(showMessageBox.mock.calls.length, 1);
 
-      // A failed storage clear still forgets the approvals the user asked to clear.
       browserSession!.clearStorageData.mockRejectedValueOnce(new Error("disk busy"));
       const failure = yield* browserSessions.clearCookies([partition]).pipe(Effect.flip);
       assert.strictEqual(failure._tag, "BrowserSessionStorageClearError");
@@ -519,7 +507,6 @@ describe("BrowserSession", () => {
       });
       const { persistent, incognito } = yield* approve.pipe(Effect.provide(layer));
 
-      // A restarted app gets fresh Session objects and reads approvals from disk.
       sessions.clear();
       appListeners.clear();
       yield* Effect.gen(function* () {
@@ -587,7 +574,6 @@ describe("BrowserSession", () => {
         (guest: NodeEvents.EventEmitter) => guest.emit("destroyed"),
       ]) {
         showMessageBox.mockReset();
-        // Answering "Trust" as the tab leaves must not approve the certificate.
         showMessageBox.mockImplementation(
           (options) =>
             new Promise((resolve) =>
@@ -608,7 +594,6 @@ describe("BrowserSession", () => {
   it.effect("does not trust a certificate whose approval cannot be saved", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
-      // A file where the profile directory should be makes every write fail.
       const root = yield* fileSystem.makeTempDirectoryScoped();
       yield* fileSystem.writeFileString(`${root}/Partitions`, "");
       storage.root = root;
@@ -622,7 +607,6 @@ describe("BrowserSession", () => {
       showMessageBox.mockImplementation(trustCertificateButton);
       assert.isFalse(yield* certificateError(browserSession, { url }).trusted);
       assert.strictEqual(showErrorBox.mock.calls.length, 1);
-      // Nothing was trusted for this run either, so the next visit asks again.
       showMessageBox.mockReset();
       showMessageBox.mockReturnValue(1);
       assert.isFalse(yield* certificateError(browserSession, { url }).trusted);
@@ -638,7 +622,6 @@ describe("BrowserSession", () => {
       const partition = yield* browserSessions.getPartition("scope-a");
       yield* browserSessions.getSession("scope-a");
       const browserSession = sessions.get(partition);
-      // What a clear whose removal failed leaves behind: memory forgot, the file did not.
       const file = `${browserSession!.storagePath}/supaterm-certificate-approvals.json`;
       yield* fileSystem.makeDirectory(browserSession!.storagePath!, { recursive: true });
       yield* fileSystem.writeFileString(

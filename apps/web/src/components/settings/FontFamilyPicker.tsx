@@ -67,11 +67,6 @@ export function discoverInstalledFonts(): void {
 
 let grantedProbeStarted = false;
 
-/**
- * Electron's default permission handler approves silently (it has no prompt
- * UI), and a browser that granted once reports "granted" on later visits — in
- * both, no user gesture is needed.
- */
 function probeAlreadyGrantedPermission(): void {
   if (grantedProbeStarted || enumerationState.status !== "unknown") return;
   grantedProbeStarted = true;
@@ -106,10 +101,6 @@ export function FontFamilyPicker({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  // Open after mount rather than mounting open: a popup that first renders in
-  // its open state never receives Base UI's entrance style baseline, so the
-  // exit transition on close has no style delta, never fires transitionend,
-  // and the popup lingers on screen forever.
   const openIfRequestedAtMount = useEffectEvent(() => {
     if (initialOpen) setOpen(true);
   });
@@ -217,7 +208,6 @@ export function FontFamilyPicker({
         />
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <ComboboxEmpty>No fonts found.</ComboboxEmpty>
-          {/* Short windows cap the popup; every level down to the list must shrink or rows are clipped unreachably. */}
           <div className="relative flex min-h-0 max-h-72 w-full flex-1 flex-col overflow-hidden">
             <ComboboxListVirtualized className="flex min-h-0 flex-col">
               <LegendList<string>
@@ -225,8 +215,6 @@ export function FontFamilyPicker({
                 data={items}
                 dataKey={query}
                 initialScrollOffset={0}
-                // Base UI selects virtualized rows by index; rerender surviving items when filtering changes
-                // their indices.
                 extraData={extraData}
                 keyExtractor={(item) => item}
                 renderItem={({ item, index }) => renderItem(item, index)}

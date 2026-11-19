@@ -10,7 +10,6 @@ import { CLAUDE_SYNTHETIC_MODEL } from "../provider/Drivers/claudeUsage.ts";
 import { mergeUsageCopies } from "./usageAggregation.ts";
 import { GUARD_LENGTH, type TranscriptParsePosition } from "./usageTranscriptReader.ts";
 
-// Bump when what a transcript parses to changes; entries from another version are dropped.
 const USAGE_SCAN_CACHE_VERSION = 17 as const;
 
 /**
@@ -156,7 +155,6 @@ export function makeScanCacheWriter(): (
     for (const [index, [path, entry]] of entries.entries()) {
       yield `${index === 0 ? "" : ","}${JSON.stringify(path)}:${JSON.stringify(serializeFile(entry, tables))}`;
     }
-    // Encoded after the files, which may have added to the intern tables.
     const tail = JSON.stringify({
       ...extra,
       version: USAGE_SCAN_CACHE_VERSION,
@@ -165,7 +163,6 @@ export function makeScanCacheWriter(): (
     });
     yield `},${tail.slice(1)}`;
   }
-  // Snapshot now: the encoding runs later, while the file is written.
   return (cache, extra) => encode([...cache], extra);
 }
 
@@ -198,7 +195,6 @@ export function decodeScanCache(
   const models = root.models as readonly string[];
   const sessions = root.sessions as readonly string[];
 
-  // Reject entire corrupt entries; partial survivors would appear warm and hide usage until the file changes.
   const decodeRecords = (
     rows: readonly unknown[],
     provider: UsageProviderKind,
@@ -267,8 +263,7 @@ export function decodeScanCache(
         dedupeKey:
           typeof dedupeKey !== "string"
             ? null
-            : // Saved copies of moved transcripts must still match the re-parsed v17 key.
-              provider === "grok" &&
+            : provider === "grok" &&
                 version < 17 &&
                 dedupeKey.endsWith(`:${model}`) &&
                 !dedupeKey.endsWith(`:${timestampMs}:${model}`)
@@ -289,10 +284,6 @@ export function decodeScanCache(
     if (!isRecordArray(entry.r) || !isRecordArray(entry.t)) continue;
     const malformedRecords = entry.mr === undefined ? 0 : entry.mr;
     if (!Number.isSafeInteger(malformedRecords) || malformedRecords < 0) continue;
-    // Position fields feed byte offsets and a Buffer allocation in the reader,
-    // so anything outside their real ranges must reject the entry: a bogus
-    // guard length would otherwise fail every parse of the file, silently
-    // dropping its usage instead of costing the documented cold re-parse.
     if (
       typeof entry.o !== "number" ||
       !Number.isSafeInteger(entry.o) ||
@@ -307,22 +298,13 @@ export function decodeScanCache(
     ) {
       continue;
     }
-    // Keep history for deleted rollouts, but re-parse incompatible reducer state.
-    // v13 adds Claude 1-hour cache writes; v14 uses Codex request ledgers.
-    // v15 repairs skipped Codex requests whose counters rewound; clean v14 entries stay served.
-    // v17 keys Grok turns by time, restoring turns previously dropped as repeats.
     const legacy =
       (entry.p === "claude" && version < 13) ||
       (entry.p === "grok" && version < 17) ||
       (format.state !== undefined &&
         (version < 6 ||
           (entry.p === "codex" && (version < 14 || (version < 15 && malformedRecords > 0)))));
-    // A corrupt state disqualifies the entry: resuming with it would attach
-    // appended usage to the wrong model or replay fork-copied history.
     if (!legacy && !isValidState.get(entry.p)?.(entry.cs)) continue;
-    // Before v16 a Codex baseline can lack the time of its latest move, or carry an older one,
-    // and that time keeps a re-emitted older snapshot from billing twice. A grown file re-parses
-    // whole instead of resuming.
     const resumable = !legacy && !(entry.p === "codex" && version < 16);
 
     const provider = entry.p;

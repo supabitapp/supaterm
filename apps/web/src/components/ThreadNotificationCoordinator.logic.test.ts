@@ -83,7 +83,6 @@ describe("createThreadNotificationGate", () => {
     observe({ attention: "run-1:approval", requestId: null, settled: false, completedAt: null });
     expect(notify.mock.calls).toEqual([["thread", "input"]]);
     vi.advanceTimersByTime(60_000);
-    // The request resolves and the same run reads as completed again.
     observe(completed(1));
     vi.advanceTimersByTime(WORKING_EXIT_GRACE_MS * 2);
     expect(notify.mock.calls).toEqual([["thread", "input"]]);

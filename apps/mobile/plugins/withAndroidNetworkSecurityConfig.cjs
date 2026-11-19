@@ -2,8 +2,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { withAndroidManifest, withDangerousMod } = require("expo/config-plugins");
 
-// Environments behind a private CA installed in the user store must work like they do in Chrome.
-// Android ignores usesCleartextTraffic once a network security config exists, so permit it here.
 const NETWORK_SECURITY_CONFIG = `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
   <base-config cleartextTrafficPermitted="true">

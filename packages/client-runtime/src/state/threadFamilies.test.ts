@@ -102,10 +102,8 @@ describe("createThreadFamilyAtoms", () => {
     const registry = AtomRegistry.make();
     const merged = () => registry.get(families.snapshotAtom(TARGET.environmentId))?.threads;
     registry.mount(families.snapshotAtom(TARGET.environmentId));
-    // A Done shelf page read at sequence 5: the shell's copy wins, a later removal drops a row.
     const page = Atom.make<ReadonlyArray<OrchestrationV2ThreadFamily>>([
       { snapshotSequence: 5, threads: [row("kept", "page copy"), row("old"), row("removed")] },
-      // Read before the latest authoritative snapshot (sequence 4), whose removals it cleared.
       { snapshotSequence: 3, threads: [row("stale-search-row")] },
     ]);
     const release = families.mountRows(registry, TARGET.environmentId, "older-done:page", page);
@@ -192,7 +190,6 @@ describe("createThreadFamilyAtoms", () => {
       const family = families.familyAtom(TARGET.environmentId, parent.id);
       const mergedIds = () =>
         registry.get(families.snapshotAtom(TARGET.environmentId))?.threads.map(({ id }) => id);
-      // Waits for the read to finish either way; the assertions read its outcome.
       const settle = AtomRegistry.getResult(registry, family, { suspendOnWaiting: true }).pipe(
         Effect.ignore,
         Effect.tap(() => Effect.yieldNow),
@@ -200,7 +197,6 @@ describe("createThreadFamilyAtoms", () => {
       registry.mount(families.snapshotAtom(TARGET.environmentId));
       families.mount(registry, TARGET.environmentId, parent.id);
 
-      // A cached shell from before this session's first snapshot reads nothing.
       expect(threadFamilyRead(registry.get(family))).toBe("pending");
       expect(yield* Queue.size(replies)).toBe(0);
 
@@ -210,8 +206,6 @@ describe("createThreadFamilyAtoms", () => {
       expect(threadFamilyRead(registry.get(family))).toBe("settled");
       expect(mergedIds()).toEqual(["parent", "idle-child"]);
 
-      // A new authoritative snapshot never reuses the old read, even while the next one waits
-      // or fails.
       registry.set(shellState, AsyncResult.success(shellAt(2)));
       expect(threadFamilyRead(registry.get(family))).toBe("pending");
       expect(mergedIds()).toEqual(["parent"]);

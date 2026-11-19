@@ -100,7 +100,6 @@ describe("queued message file edits", () => {
       recoverQueuedMessageEdit({ editTarget, threadTarget, originalText: "Original message" }),
     ).toBe("kept");
     expect(store.getComposerDraft(threadTarget)?.prompt).toBe("Original message");
-    // An upload this environment cannot reach comes back as a file to reattach, not a dropped chip.
     const { uploadedAttachmentId: _id, uploadEnvironmentId: _env, ...reattach } = elsewhere;
     expect(store.getComposerDraft(threadTarget)?.files).toEqual([file, reattach]);
     expect(store.getComposerDraft(editTarget)).toBeNull();
@@ -145,7 +144,6 @@ describe("queued message file edits", () => {
     ).toBe("kept");
     expect(store.getComposerDraft(threadTarget)?.prompt).toBe("Original message");
     store.clearComposerContent(threadTarget);
-    // An attachment-only message leaves nothing to put back in the composer.
     expect(
       recoverQueuedMessageEdit({
         editTarget,

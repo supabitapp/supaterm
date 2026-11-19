@@ -135,10 +135,7 @@ export class ServerUpdateTerminalError extends Schema.TaggedError<ServerUpdateTe
   }
 }
 
-// Covers the service launcher's 30-minute trial deadline (PREPARED_TIMEOUT_MS)
-// and a final restart of the previous version when the trial rolls back.
 const SERVER_UPDATE_RESUME_TIMEOUT = Duration.minutes(32);
-// A live host replays its ready on subscribe within a round trip; past this, update without a baseline.
 const SERVER_UPDATE_ACCEPTING_READY_TIMEOUT = Duration.seconds(5);
 
 export function matchesServerUpdateReadyEvent(
@@ -399,8 +396,6 @@ function withFetchedMachineCatalogs(
   let changed = false;
   const providers = projection.config.providers.map((provider) => {
     const catalog = catalogs.find((entry) => entry.instanceId === provider.instanceId);
-    // Only the lists of the live catalog apply. A reply for an older one is dropped, and a
-    // reply that lands before the config names its digest applies when the config does.
     if (
       catalog === undefined ||
       catalog.digest !== provider.catalogDigest ||
@@ -419,7 +414,6 @@ function withFetchedMachineCatalogs(
   return changed ? { ...projection, config: { ...projection.config, providers } } : projection;
 }
 
-// Configs are JSON-shaped. Missing and undefined object fields persist identically.
 function sameCacheValue(previous: unknown, next: unknown): boolean {
   if (previous === next) return true;
   if (
@@ -457,7 +451,6 @@ function sameCacheValue(previous: unknown, next: unknown): boolean {
 export const makeEnvironmentServerConfigState = Effect.fn("EnvironmentServerConfigState.make")(
   function* (
     subscription: ServerConfigSubscriptionOptions,
-    // Merged into the state, so the cache keeps the lists for the next launch and for offline.
     machineCatalogs: Stream.Stream<ReadonlyArray<FetchedMachineCatalog>> = Stream.empty,
   ) {
     const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
@@ -488,8 +481,6 @@ export const makeEnvironmentServerConfigState = Effect.fn("EnvironmentServerConf
     const persist = Effect.fn("EnvironmentServerConfigState.persist")(function* (
       config: ServerConfig,
     ) {
-      // A cached stall would read as a fresh freeze on the next launch, and
-      // serverTime changes every connect, which would rewrite the cache each time.
       const {
         lastEventLoopStall: _stall,
         serverTime: _serverTime,
@@ -541,7 +532,6 @@ export const makeEnvironmentServerConfigState = Effect.fn("EnvironmentServerConf
     type Update = (
       current: Option.Option<ServerConfigProjection>,
     ) => Option.Option<ServerConfigProjection>;
-    // Written and read inside the one update loop below.
     let fetchedCatalogs: ReadonlyArray<FetchedMachineCatalog> = [];
     const configUpdates = subscribe(WS_METHODS.subscribeServerConfig, {
       ...(subscription.environmentThemes === true ? { environmentThemes: true } : {}),
@@ -567,7 +557,6 @@ export const makeEnvironmentServerConfigState = Effect.fn("EnvironmentServerConf
       }),
     );
 
-    // One loop for both sources, so a fetched catalog never overwrites a newer config event.
     yield* Stream.merge(configUpdates, catalogUpdates).pipe(
       Stream.runForEach((update) =>
         Effect.gen(function* () {
@@ -741,16 +730,10 @@ export function resolveServerConfigValue(
   return initialConfig ?? projection?.config ?? null;
 }
 
-/**
- * The provider-wide fields a workspace snapshot builds on. A live session, a sign-out, a
- * /usage-limits change, or a server rescan that changed the skills shows up here, so a snapshot
- * fetched before it no longer applies.
- */
 const snapshotBasis = (provider: ServerProviderEntry | undefined) =>
   provider && {
     enabled: provider.enabled,
     models: provider.models,
-    // The digest stands for the lists, which load with a snapshot and must not unseat it.
     ...(provider.catalogDigest === undefined
       ? { slashCommands: provider.slashCommands, skills: provider.skills }
       : { catalogDigest: provider.catalogDigest }),
@@ -779,7 +762,6 @@ export function withFetchedWorkspaceSnapshots(
   return {
     ...config,
     providers: config.providers.map((provider) => {
-      // A dropped snapshot reads as lost, and the composer fetches it again.
       const own = fetched.filter(
         (entry) =>
           entry.instanceId === provider.instanceId &&
@@ -805,7 +787,6 @@ export function recordFetchedWorkspaceSnapshot(
   const stored = current.find(
     (entry) => entry.instanceId === input.instanceId && entry.snapshot.cwd === input.cwd,
   );
-  // A cached answer from the server would otherwise re-render every config reader.
   if (
     !input.fresh &&
     snapshot &&
@@ -815,7 +796,6 @@ export function recordFetchedWorkspaceSnapshot(
   ) {
     return current;
   }
-  // A fresh scan drops the cwd's snapshots for every provider, as the server does.
   const kept = current.filter(
     (entry) =>
       entry.snapshot.cwd !== input.cwd || (!input.fresh && entry.instanceId !== input.instanceId),
@@ -868,7 +848,6 @@ export function createServerEnvironmentAtoms<R, E>(
             ...(options.providerCatalogDigests === true ? { providerCatalogDigests: true } : {}),
             ...(options.providerStatusDeltas === true ? { providerStatusDeltas: true } : {}),
           },
-          // Scoped to the stream, which restarts with every new session.
           AtomRegistry.toStream(get.registry, fetchedMachineCatalogsAtom(environmentId)),
         ),
       )
@@ -910,7 +889,6 @@ export function createServerEnvironmentAtoms<R, E>(
         get(fetchedWorkspaceSnapshotsAtom(environmentId)),
       );
       if (merged === config) return config;
-      // Keep provider identities stable across config events; the projection already reuses the rest.
       previousProviders = reuseUnchanged(previousProviders, merged.providers);
       return { ...merged, providers: previousProviders };
     }).pipe(Atom.withLabel(`environment-data:server:config:${environmentId}`));
@@ -957,8 +935,6 @@ export function createServerEnvironmentAtoms<R, E>(
         const desktopReconnected = yield* Deferred.make<void>();
         let accepting: { readonly session: RpcSession; readonly at: string } | undefined;
         let acceptedAt: string | undefined;
-        // The baseline only describes the accepting process if the request rides its session,
-        // so the session read here is the one the request is sent on.
         const acceptingSession = currentSession().pipe(
           Effect.tap((session) =>
             Effect.sync(() => {
@@ -992,8 +968,6 @@ export function createServerEnvironmentAtoms<R, E>(
               fromVersion,
               targetVersion,
             });
-            // Only launcher updates carry an updateId. Read before the request so a ready from
-            // after it can never pose as the accepting process.
             if (currentConfig?.environment.capabilities.serverSelfUpdate === "boot-service") {
               accepting = yield* environmentRegistry
                 .followStream(
@@ -1060,7 +1034,6 @@ export function createServerEnvironmentAtoms<R, E>(
                       Effect.exit,
                     );
                   const selfUpdateMethod = currentConfig?.environment.capabilities.serverSelfUpdate;
-                  // Desktop preparation needs its terminal commit token.
                   const accepted =
                     receivedProgress && selfUpdateMethod === "boot-service"
                       ? { targetVersion, method: selfUpdateMethod }
@@ -1091,9 +1064,6 @@ export function createServerEnvironmentAtoms<R, E>(
                     selfUpdateMethod === "boot-service" &&
                     isLegacyUpdateHandoffLoss(exit.cause)
                   ) {
-                    // Older servers can tear down the transport before their
-                    // unary acknowledgement arrives. Treat only that transport
-                    // loss as a handoff, then prove it by waiting for target ready.
                     return { targetVersion, method: selfUpdateMethod };
                   }
                   return yield* Effect.failCause(exit.cause);
@@ -1226,8 +1196,6 @@ export function createServerEnvironmentAtoms<R, E>(
   const usagePricesAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get) => {
       const overrides = get(settingsValueAtom(environmentId))?.usagePriceOverrides ?? {};
-      // Only changed prices should trigger another transcript scan. Settings
-      // snapshots can recreate the same mapping in a different property order.
       return JSON.stringify(
         Object.keys(overrides)
           .sort()
@@ -1256,7 +1224,6 @@ export function createServerEnvironmentAtoms<R, E>(
       ]);
     }).pipe(Atom.withLabel(`environment-data:server:usage-scan-settings:${environmentId}`)),
   );
-  // Settings snapshots rebuild the filter object; only a changed filter should touch the Usage tab.
   const usageModelFilterAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get) => get(settingsValueAtom(environmentId))?.usageModelFilter).pipe(
       Atom.withEquality((a, b) => JSON.stringify(a) === JSON.stringify(b)),
@@ -1290,7 +1257,6 @@ export function createServerEnvironmentAtoms<R, E>(
     tag: WS_METHODS.serverGetDatabaseStorage,
     idleTtlMs: 0,
   });
-  // Keyed by a JSON array of environment ids so one notice can list every machine.
   const databaseCompactionRecommendations = Atom.family((environmentIdsKey: string) => {
     const sources = (JSON.parse(environmentIdsKey) as EnvironmentId[]).map((environmentId) => ({
       environmentId,
@@ -1393,7 +1359,6 @@ export function createServerEnvironmentAtoms<R, E>(
     chatGptHandoffState: createEnvironmentSubscriptionAtomFamily(runtime, {
       label: "environment-data:chatgpt:handoff",
       sensitiveInput: true,
-      // OAuth must not be replayed when the connection recovers.
       subscribe: (input: EnvironmentRpcInput<typeof WS_METHODS.chatGptHandoffSubscribe>) =>
         runStream(WS_METHODS.chatGptHandoffSubscribe, input),
       idleTtlMs: 0,
@@ -1475,10 +1440,6 @@ export function createServerEnvironmentAtoms<R, E>(
       label: "environment-data:server:scheduled-tasks:live",
       tag: WS_METHODS.scheduledTasksSubscribe,
     }),
-    // A cold transcript scan is measured in seconds, so keep the result around
-    // long enough that switching windows or re-rendering does not rescan. With
-    // nothing to show yet, the server's last scan answers first, then a plain
-    // read, then a read that waits for slow sources.
     usageSummary: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:server:usage-summary",
       tag: WS_METHODS.serverGetUsageSummary,
@@ -1505,7 +1466,6 @@ export function createServerEnvironmentAtoms<R, E>(
         if (Option.isSome(previous)) return read;
         return request(WS_METHODS.serverGetUsageSummary, { ...input, provisional: true }).pipe(
           Effect.matchEffect({
-            // The saved answer only speeds things up; without it the plain read still answers.
             onFailure: () => read,
             onSuccess: (saved) =>
               settled(saved) ? Effect.succeed(saved) : emit(saved).pipe(Effect.andThen(read)),
@@ -1528,8 +1488,6 @@ export function createServerEnvironmentAtoms<R, E>(
     searchAcpRegistry: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:server:acp-registry:search",
       tag: WS_METHODS.serverSearchAcpRegistry,
-      // Reopening Add provider reuses recent results. Submitting the same search asks the
-      // server again, which reuses a Registry index fetched in the last five minutes.
       staleTimeMs: 5 * 60_000,
     }),
     configProjection,
@@ -1539,14 +1497,12 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.providerConsumeResetCredit,
       concurrency: {
         mode: "singleFlight",
-        // Both ids are free-form strings; a delimiter could collide.
         key: ({ environmentId, input }) => JSON.stringify([environmentId, input]),
       },
     }),
     refreshProviders: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:refresh-providers",
       tag: WS_METHODS.serverRefreshProviders,
-      // A rescan during the request must leave the stored basis behind the new stamp.
       onStart: ({ environmentId, input }, registry) =>
         registry
           .get(configValueAtom(environmentId))
@@ -1564,7 +1520,6 @@ export function createServerEnvironmentAtoms<R, E>(
           workspaceSnapshotsOnDemand: true,
           ...(options.providerCatalogsOnDemand === true ? { providerCatalogsOnDemand: true } : {}),
           ...(options.omitRefreshedProviders === true ? { omitProviders: true } : {}),
-          // The held lists are stale or missing, so the cwd snapshot brings the current ones.
           ...(provider?.catalogDigest !== undefined &&
           provider.loadedCatalogDigest !== provider.catalogDigest
             ? { machineCatalog: true }
@@ -1742,15 +1697,10 @@ export function createServerEnvironmentAtoms<R, E>(
       scheduler: configScheduler,
       concurrency: configConcurrency,
     }),
-    // Deliberately not on the config lane: run-now blocks until the run is
-    // dispatched, and a slow run must not stall settings/keybinding/provider
-    // mutations (or other scheduled-task edits) queued behind it.
     runScheduledTaskNow: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:scheduled-task:run-now",
       tag: WS_METHODS.scheduledTasksRunNow,
     }),
-    // Off the config lane: answering a card must not queue behind settings
-    // edits. One answer per card at a time.
     answerSecretRequest: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:server:secrets:answer-request",
       tag: WS_METHODS.secretsAnswerRequest,

@@ -98,8 +98,6 @@ const waitForProject = Effect.fn("ProjectServiceTest.waitForProject")(function* 
   projectId: ProjectId,
   predicate: (project: Project) => boolean,
 ) {
-  // Favicon resolution caches its result without publishing a change, so there is no
-  // milestone to await; each scheduler turn lets the background lanes finish.
   // oxlint-disable-next-line supaterm/no-polling-loop-in-tests -- favicon enrichment exposes no change event to await.
   for (let attempt = 0; attempt < 100; attempt += 1) {
     const project = Option.getOrThrow(yield* service.getById(projectId));
@@ -436,7 +434,6 @@ it.layer(layerTest)("ProjectService", (it) => {
         title: "Delete retry",
         workspaceRoot: "/work/delete-retry",
       });
-      // Enrichment landing between the two deletes would change the project the retry reads.
       yield* waitForProject(
         service,
         projectId,
@@ -691,7 +688,6 @@ it.effect("refuses a worktree container as a new project and as a new workspace 
 
     yield* Effect.gen(function* () {
       const service = yield* ProjectService.ProjectService;
-      // As cloned the container is bare; Initialize Git or a config edit clears core.bare.
       for (const coreBare of ["true", "false"]) {
         yield* git(container, "config", "core.bare", coreBare);
         const rejected = yield* service

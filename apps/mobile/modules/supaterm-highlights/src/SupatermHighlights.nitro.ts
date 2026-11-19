@@ -1,6 +1,5 @@
 import type { CustomType, HybridObject } from "react-native-nitro-modules";
 
-// Converted by cpp/SourceText.hpp, which reads the string without Hermes' slow UTF-16 to UTF-8 path.
 type SourceText = CustomType<string, "SourceText", { include: "SourceText.hpp" }>;
 
 export interface SupatermHighlights extends HybridObject<{ ios: "c++"; android: "c++" }> {

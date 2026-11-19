@@ -13,7 +13,6 @@ import * as Stream from "effect/Stream";
 import { ChildProcessSpawner } from "effect/process";
 import { launchOrReuseRemoteServer, type RemoteSupatermRunnerOptions } from "./tunnel.ts";
 
-// Capture exactly the script sent over SSH, then run it with fake remote commands.
 export const captureLauncherFor = Effect.fn("test.captureLauncher")(function* (
   runner: RemoteSupatermRunnerOptions,
 ) {
@@ -75,10 +74,8 @@ export function runLauncher(
     readonly clockJump?: number;
     readonly readyAt?: number;
     readonly initialPort?: number;
-    // A boot service between two servers holds the home with no runtime record yet.
     readonly serviceServing?: boolean;
     readonly allowFailure?: boolean;
-    // The desktop publishes runtime and removes the marker right after the first runtime read.
     readonly publishAfterFirstRuntimeRead?: boolean;
   },
 ) {
@@ -160,7 +157,6 @@ if [ -n "$TEST_CLOCK_JUMP" ] && [ ! -e "$HOME/jumped" ]; then
 fi`,
     );
     executable("nohup", 'printf "%s" "$$" > "$HOME/started-server"');
-    // The test process stands in for a recorded server; report the serve command it would run.
     executable(
       "ps",
       `if [ "$*" = "-ww -o args= -p $TEST_SERVER_PID" ]; then

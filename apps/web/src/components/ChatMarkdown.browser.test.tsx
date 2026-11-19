@@ -38,7 +38,6 @@ vi.mock(import("../state/use-atom-query-runner"), async (original) => ({
     family === filesystemEnvironment.getMetadata ? filesystemMetadata : workspaceSearch) as never,
 }));
 
-// Atoms derived from the server config run in the real registry over a missing config.
 vi.mock(import("../state/server"), async (original) => {
   const actual = await original();
   const { Atom } = await import("effect/reactivity");
@@ -74,7 +73,6 @@ vi.mock(import("../remoteOpen"), async (original) => ({
   ...(await original()),
   useRemoteOpenResolution: () => ({ state: { mode: "local-exec" }, isResolved: true }) as never,
 }));
-// Each test picks the rendered diagram text; the Mermaid worker is not what these tests exercise.
 vi.mock(import("../diagrams/mermaidRenderer"), async (original) => ({
   ...(await original()),
   renderMermaidDiagram: vi.fn(),
@@ -291,10 +289,8 @@ it("highlights a code block's own source when an earlier block of the same lengt
   setup();
   const highlightedText = (container: HTMLElement) =>
     container.querySelector(".chat-markdown-shiki")?.textContent?.trim();
-  // These two lines share a 32-bit FNV-1a hash and a length.
   const first = 'const commitSha = "f36a6d8fe0aa";';
   const second = 'const commitSha = "cb06f8d135b3";';
-  // The block suspends until the shared highlighter loads, which can outlast vi.waitFor on a busy runner.
   await getSyntaxHighlighterPromise("ts");
   {
     await using screen = await renderText(`\`\`\`ts\n${first}\n\`\`\``);
@@ -1016,7 +1012,6 @@ describe("ChatMarkdown copy", () => {
       selection.addRange(range);
       const payload = chatMarkdownClipboardPayload(selection);
       expect(payload?.text).toBe(text);
-      // Rich paste numbers its list from the same start.
       expect(
         new DOMParser()
           .parseFromString(payload!.html, "text/html")
@@ -1103,7 +1098,6 @@ describe("ChatMarkdown thread find", () => {
       </div>
     );
   }
-  // Highlights live in a document-wide registry the rendered tree does not own.
   const clearHighlights = () => ({ [Symbol.dispose]: () => CSS.highlights.clear() });
   const activeHighlights = () =>
     [...(CSS.highlights.get("supaterm-thread-find-active") ?? [])].map((range) =>
@@ -1129,7 +1123,6 @@ describe("ChatMarkdown thread find", () => {
     const diagrams = () => (container.textContent?.match(/Rendered diagram/g) ?? []).length;
 
     await using screen = await render(probe("Needle"), { container });
-    // Diagrams render once the browser reports them in view.
     await vi.waitFor(() => expect(diagrams()).toBe(2));
     await screen.rerender(probe("Alpha"));
     await vi.waitFor(() => expect(diagrams()).toBe(1));

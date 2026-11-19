@@ -142,11 +142,6 @@ function getShortcutContext() {
   };
 }
 
-/**
- * One whole page from the host and no more: every provider asks for one row beyond the page as
- * its "is there more" probe, and GitHub serves a hundred per request — so asking for ninety-nine
- * costs one round trip where a hundred costs two.
- */
 const PAGE_SIZE = 99;
 const MAX_PAGE_SIZE = 500;
 const EMPTY_VIEWERS: PullRequestListResult["viewers"] = {};
@@ -332,13 +327,7 @@ export function PullRequestsPage() {
     key: string;
     size: number;
     cursors: Readonly<Record<string, PullRequestListCursors>> | null;
-    /**
-     * An environment can say it has more without saying where to carry on from — its provider has
-     * no cursor to give — and a continuation naming only the others would strand its rows on the
-     * host forever.
-     */
     regrown: ReadonlyArray<string>;
-    /** The turn refreshes a continuation was read under; a later turn makes its cursors stale. */
     turn: string;
   }>({ key: filterKey, size: PAGE_SIZE, cursors: null, regrown: [], turn: turnRefreshToken });
   const pageSize = page.key === filterKey ? page.size : PAGE_SIZE;
@@ -381,11 +370,6 @@ export function PullRequestsPage() {
   const listTargets = listTargetsFor(environmentQueries);
   const listQuery = usePullRequestHostList(listTargets);
 
-  /**
-   * Kept as its own read rather than remembered from an earlier answer because an answer cannot
-   * say which question it belongs to: mid-switch the text has already changed and the data has
-   * not, and a search's answer would file itself under the workspace.
-   */
   const baselineTargetsFor = (queries: typeof environmentQueries) =>
     queries.map(({ environmentId, projectIds }) => ({
       environmentId,
@@ -436,9 +420,6 @@ export function PullRequestsPage() {
   }));
   const partitionsWanted = search.involvement === "all" && typedQuery.length === 0;
   const partitionTargets = (() => {
-    // The main list goes first. Besides putting the visible rows on screen sooner, it proves
-    // which repositories the host search indexes, so an empty partition does not trigger the
-    // expensive per-repository fallback.
     if (
       !partitionsWanted ||
       baselineQuery.data === null ||
@@ -472,7 +453,6 @@ export function PullRequestsPage() {
     environmentKey: string;
     scope: string;
     query: string;
-    /** The answer this was built from, so a re-render with the same answer leaves it alone. */
     source: MergedPullRequestList | null;
     data: MergedPullRequestList;
     partitions?: PullRequestPartitionsSnapshot;
@@ -509,7 +489,6 @@ export function PullRequestsPage() {
   const detailOverrideTokens = useRef(new Map<string, number | null>());
   const onSpeedAction = useStableCallback(
     ({ entry, action, reply }: PullRequestSpeedActionResult) => {
-      // Some hosts accept a merge before it completes. Without a reply, let the next read say so.
       if (reply !== undefined || action !== "merge") overrideEntry(entry, action, reply);
     },
   );
@@ -596,9 +575,6 @@ export function PullRequestsPage() {
     });
     return entries.length === 0 ? null : { ...loaded.data, entries };
   })();
-  // A grown page is read by the list and nothing else: the baseline always asks for one page, so
-  // a host with no cursor to continue from — where "more" means asking for a longer page — would
-  // have its extra rows thrown away for the ninety-nine the baseline keeps answering with.
   const answered =
     (sentQuery.length === 0 && sentCursors === null && pageSize === PAGE_SIZE
       ? baselineQuery.data
@@ -650,9 +626,6 @@ export function PullRequestsPage() {
     );
   }
 
-  // From this question's own answer, never from the rows being held while it travels: a
-  // continuation is a boundary in one listing, and carrying one across a search would ask the new
-  // question to start where the old one stopped — skipping its newest matches entirely.
   const nextCursors = answered?.nextCursors ?? {};
   const regrown = (answered?.truncatedEnvironments ?? []).filter(
     (environmentId) => nextCursors[environmentId] === undefined,
@@ -692,8 +665,6 @@ export function PullRequestsPage() {
       turn: turnRefreshToken,
     };
   };
-  // Every list read refetches itself when a turn completes, but a continuation would refetch only
-  // its later page and strand the rows before it, so the whole loaded list is asked for again.
   if (sentCursors !== null && page.turn !== turnRefreshToken) setPage(collapsedPage());
 
   const refreshList = (includeRelated = false, actedEnvironmentId?: EnvironmentId) => {
@@ -767,7 +738,6 @@ export function PullRequestsPage() {
     heldPullRequestsBySurface,
   } = pullRequestGroups({
     known: shownEntries,
-    // The baseline was read without typed qualifiers, and rows cannot be checked for `checks:`.
     baseline:
       typedParsed.filters.checks === undefined && baselineQuery.data !== null
         ? shownBaseline
@@ -822,7 +792,6 @@ export function PullRequestsPage() {
   const statsQuery = usePullRequestListStats(statsTargets);
   const statsObserver = useRef<IntersectionObserver | null>(null);
   const statsRows = useRef(new Set<HTMLDivElement>());
-  // Called from a row's ref cleanup, which keeps the render it attached in; this reads the latest.
   const releaseStatsRow = useStableCallback((key: string | undefined) => {
     const visible = visibleStatsKeys.current;
     if (
@@ -839,7 +808,6 @@ export function PullRequestsPage() {
       return batches.length === current.batches.length ? current : { key: current.key, batches };
     });
   });
-  // Every row takes this as its ref, so a new identity would detach and reattach them all.
   const registerStatsRow = useStableCallback((node: HTMLDivElement | null) => {
     if (node === null || typeof IntersectionObserver === "undefined") return;
     statsRows.current.add(node);
@@ -850,7 +818,6 @@ export function PullRequestsPage() {
       releaseStatsRow(node.dataset.pullRequestStatsKey);
     };
   });
-  // Arriving stats must not re-run the effects that ask for them.
   const readStatsProgress = useEffectEvent(() => ({
     statsByRow,
     pending: statsQuery.isPending,
@@ -873,7 +840,6 @@ export function PullRequestsPage() {
       return { key: filterKey, batches: [...batches, ...added] };
     });
   }, [filterKey, entriesByStatsKey, statsPolicy]);
-  // The observer outlives the rows it watches, so it reads the rows held at the time it fires.
   const readStatsRows = useEffectEvent(() => entriesByStatsKey);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- IntersectionObserver on rows requests stats for rows that scroll into view
   useEffect(() => {
@@ -941,8 +907,6 @@ export function PullRequestsPage() {
     setMergedStats(stats);
     setStatsByRow((previous) => mergePullRequestDiffStats(previous, stats));
   }
-  // Stable so a refresh that resumes after awaiting the host compares against the scope on screen
-  // by then, not the one it started from.
   const refreshListAndStats = useStableCallback(
     (
       requestedStatsScope: PullRequestStatsScope = statsScope,
@@ -972,7 +936,6 @@ export function PullRequestsPage() {
   const refreshFromHost = async () => {
     const requestedStatsScope = statsScope;
     setInvalidating(true);
-    // Atom commands settle into results rather than throwing.
     await Promise.all(
       queryEnvironmentIds.map((environmentId) => invalidate({ environmentId, input: {} })),
     );
@@ -1009,7 +972,6 @@ export function PullRequestsPage() {
   const showProvider = hosts.length > 1;
   const [closeSweepKeys, setCloseSweepKeys] = useState<ReadonlySet<string>>(() => new Set());
   const closeSensorRef = useRef<SidebarPointerSensor | null>(null);
-  // A sweep spans many renders; each step reads the rows on screen at that moment.
   const readCloseSweep = useStableCallback(() => ({
     displayGroups,
     closeSweepRows,
@@ -1054,7 +1016,6 @@ export function PullRequestsPage() {
         sweptKeys = resolveSidebarSweepKeys(orderedKeys, originKey, key, canClose);
         setCloseSweepKeys(new Set(sweptKeys));
       };
-      // Only while a sweep runs: Escape ends it, ahead of any other scope that would also take it.
       const releaseEscape = registerCommands(
         {},
         {
@@ -1114,7 +1075,6 @@ export function PullRequestsPage() {
     if (rightPanelState.isOpen) setMaximized((value) => !value);
   };
   const onGuideShown = () => setMaximized(true);
-  // updateSearch leaves selectedUrl out, so a reload does not reveal the link again.
   const consumeLinkedUrl = useEffectEvent(() => updateSearch({}));
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens the URL-linked pull request in the right panel store
   useEffect(() => {
@@ -1452,20 +1412,16 @@ export function PullRequestsPage() {
         }
       />
     ),
-    titlebarControls:
-      // While the panel is closed the strip lives inside the header: a no-drag
-      // descendant beats the header's desktop drag-region, where a floating
-      // sibling loses (app-region hit-testing ignores z-index).
-      pullRequestsSupported ? (
-        rightPanelPresent ? (
-          <span
-            aria-hidden
-            className="pointer-events-none absolute inset-y-0 left-full w-7 [-webkit-app-region:no-drag]"
-          />
-        ) : (
-          openPanelControls
-        )
-      ) : null,
+    titlebarControls: pullRequestsSupported ? (
+      rightPanelPresent ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 left-full w-7 [-webkit-app-region:no-drag]"
+        />
+      ) : (
+        openPanelControls
+      )
+    ) : null,
     rightPanelOpen: rightPanelState.isOpen,
     listBody,
     scrollRef,
@@ -1658,9 +1614,6 @@ export function PullRequestsPage() {
                   refreshToken={detailRefreshToken}
                   tabOnPage
                   onActed={(action, phase = "done", reply) => {
-                    // State-only actions are written onto the row as sent and taken back if the
-                    // host refuses; the rest need fresh reads once done. Look in every held row,
-                    // since a pull request closed from an open list has left the screen.
                     const acted = heldPullRequestsBySurface.get(
                       pullRequestListEntryId(renderedPullRequestSurface),
                     );

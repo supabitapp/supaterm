@@ -87,14 +87,12 @@ function withPopupMenuStyles(config) {
         "textAppearanceSmallPopupMenu",
         "@style/AppPopupMenu.TextAppearance",
       );
-      // Submenu headers read a separate text appearance.
       assignStyleItem(
         appTheme,
         "textAppearancePopupMenuHeader",
         "@style/AppPopupMenu.HeaderTextAppearance",
       );
       assignStyleItem(appTheme, "android:listMenuViewStyle", "@style/AppPopupMenuListMenuView");
-      // Popups may inflate framework or AppCompat CheckBoxes.
       assignStyleItem(appTheme, "android:checkboxStyle", "@style/AppPopupMenuCheckBox");
       assignStyleItem(appTheme, "checkboxStyle", "@style/AppPopupMenuCheckBoxCompat");
     }
@@ -138,7 +136,6 @@ function withPopupMenuStyles(config) {
           { _: "sans-serif", $: { name: "android:fontFamily" } },
         ],
       },
-      // The framework default only carries subMenuArrow.
       {
         $: { name: "AppPopupMenuListMenuView" },
         item: [{ _: "@drawable/popup_menu_submenu_arrow", $: { name: "android:subMenuArrow" } }],
@@ -157,7 +154,6 @@ function withPopupMenuStyles(config) {
         },
         item: [
           { _: "@drawable/popup_menu_check_button", $: { name: "android:button" } },
-          // buttonCompat wins over android:button in AppCompatCheckBox.
           { _: "@drawable/popup_menu_check_button", $: { name: "buttonCompat" } },
         ],
       },

@@ -17,10 +17,6 @@ export interface AnnotationRejection {
   readonly retryable: boolean;
 }
 
-/**
- * A quote's link percent-encodes its text, up to nine characters for one, so a draft can outgrow
- * the limit the editor holds typing to.
- */
 function draftLengthRejection(length: number): AnnotationRejection | null {
   return length <= PROVIDER_SEND_TURN_MAX_INPUT_CHARS
     ? null
@@ -42,7 +38,6 @@ export function addDraftQuote(
   const key = currentComposerDraftKey(draftKey);
   const text = serializeAssistantCitation(citation);
   const target = captureComposerDraftInsertion(key);
-  // The quote replaces the composer's selection and can gain a space on each side.
   const rejection = draftLengthRejection(
     target.text.length - (target.end - target.start) + text.length + 2,
   );
@@ -58,7 +53,6 @@ export function replaceDraftQuote(
 ): AnnotationRejection | null {
   const key = currentComposerDraftKey(draftKey);
   const draft = getComposerDraftSnapshot(key).text;
-  // A queued edit recovered into the thread's draft can sit behind text that was already there.
   const start =
     draft.slice(token.start, token.end) === token.source
       ? token.start

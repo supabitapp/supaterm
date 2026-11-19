@@ -55,7 +55,6 @@ const fakeAppImage = (canMount = true, app = REPORTER) => {
       '[ -n "$APPIMAGE_EXTRACT_AND_RUN" ] && exit 8',
       `echo $$ >'${root}/mounter.pid'`,
       canMount ? `echo '${image}'` : 'echo "Cannot mount AppImage"; exit 1',
-      // Like the FUSE runtime, any of these unmounts. fd 3 reports to the test when it is open.
       "trap 'echo unmounted >&3 2>/dev/null; exit 0' TERM HUP INT",
       "trap 'echo mounted >&3 2>/dev/null' WINCH",
       "while :; do sleep 0.05; done",
@@ -66,7 +65,6 @@ const fakeAppImage = (canMount = true, app = REPORTER) => {
   return { root, image, appImage, shim };
 };
 
-// Stays up after a signal until the test lets it finish, like a server shutting down.
 const SLOW_SERVER = [
   "#!/bin/sh",
   "trap 'echo stopping >&3; read go; echo stopped >&3; exit 0' TERM HUP",
@@ -75,7 +73,6 @@ const SLOW_SERVER = [
   "",
 ].join("\n");
 
-// The launcher mounts only under setsid, which stock macOS and Windows lack; there it extracts instead.
 const hasSetsid = NodeChildProcess.spawnSync("setsid", ["true"]).status === 0;
 
 const lines = (stream: NodeJS.ReadableStream) => {
@@ -118,10 +115,7 @@ describe("renderCliShim", () => {
         await stdout.until((line) => line === "ready");
         mounter = Number(NodeFS.readFileSync(NodePath.join(root, "mounter.pid"), "utf8"));
 
-        // Ctrl-C in a terminal, a closed SSH session, or a service manager signals the whole group.
         process.kill(-child.pid!, signal);
-        // The shell runs pending traps in ascending signal number, and WINCH outnumbers TERM and
-        // HUP, so a mounter that also got the group signal unmounts before it answers this probe.
         process.kill(mounter, "SIGWINCH");
         const mount = await events.until((line) => line === "mounted" || line === "unmounted");
         expect(mount).toBe("mounted");
@@ -151,7 +145,6 @@ describe("renderCliShim", () => {
     );
   });
 
-  // The server skips its compile cache only under APPIMAGE; each mount path is new.
   it("tells the CLI it runs from the mounted AppImage", () => {
     const { appImage, shim } = fakeAppImage();
     const result = run(shim, ["--version"]);

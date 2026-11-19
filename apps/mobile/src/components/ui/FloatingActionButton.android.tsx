@@ -65,7 +65,6 @@ export function FloatingActionButton(props: FloatingActionButtonProps) {
           </Component>
         </NativeThemeHost>
       </View>
-      {/* The RN icon stays outside Compose so it cannot intercept native button taps. */}
       <View
         pointerEvents="none"
         className="absolute inset-y-0 justify-center"

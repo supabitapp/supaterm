@@ -25,8 +25,6 @@ export function useApplyThreadModelPick() {
     const pick = draft.modelSelectionByProvider[draft.activeProvider];
     const thread = registry.get(environmentThreadShells.threadShellAtom(target));
     if (!pick || !thread || store.draftThreadsByThreadKey[scopedThreadKey(target)]) return;
-    // Another instance replaces the live session, which may hold an open question; that pick
-    // still waits for a sent message.
     if (pick.instanceId !== thread.modelSelection.instanceId) return;
     const result = await setModelSelection({
       environmentId: target.environmentId,

@@ -2,23 +2,16 @@ import * as Schema from "effect/Schema";
 
 import { PortSchema, PositiveInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
-// A supervisor must not restart a server refused by the state-directory owner.
 export const SERVER_EXIT_CODE_STATE_DIR_OWNED = 78;
 
 export const DesktopBackendBootstrap = Schema.Struct({
   mode: Schema.Literal("desktop"),
   noBrowser: Schema.Boolean,
   port: PortSchema,
-  // Omitted when the desktop launches the backend inside WSL, since the
-  // Windows-side baseDir maps to /mnt/c/... and the Linux side should use its
-  // own home directory instead.
   supatermHome: Schema.optional(Schema.String),
   host: Schema.String,
   desktopBootstrapToken: Schema.String,
   desktopBootstrapSecret: Schema.String,
-  // Set only when the desktop already merged the user's shell environment into
-  // the environment it hands this backend. Absent means the backend hydrates
-  // PATH itself, which WSL relies on.
   shellEnvironmentPrepared: Schema.optionalKey(Schema.Boolean),
   tailscaleServeEnabled: Schema.Boolean,
   tailscaleServePort: PortSchema,
@@ -27,7 +20,6 @@ export const DesktopBackendBootstrap = Schema.Struct({
   otlpLogsUrl: Schema.optional(Schema.String),
   desktopTelemetryFd: Schema.optionalKey(PositiveInt),
   desktopTelemetryControlFd: Schema.optionalKey(PositiveInt),
-  // Whether the spawning desktop app can install updates when the server requests one.
   desktopAppUpdate: Schema.optionalKey(Schema.Boolean),
   desktopBrowserFd: Schema.optionalKey(PositiveInt),
   desktopBrowserControlFd: Schema.optionalKey(PositiveInt),

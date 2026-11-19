@@ -108,9 +108,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     });
   let loadPromise: Promise<boolean> | null = null;
   let mutationQueue: Promise<void> = Promise.resolve();
-  // Monotonic per-message write counter. Every accepted write (enqueue publish
-  // or update) bumps it, so a writer that captured a revision before slow work
-  // (an attachment upload) is rejected before its stale payload reaches disk.
   const revisions = new Map<MessageId, number>();
   const bumpRevision = (messageId: MessageId): void => {
     revisions.set(messageId, (revisions.get(messageId) ?? 0) + 1);
@@ -131,9 +128,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     options.registry.set(queuedMessagesByThreadKeyAtom, groupMessages(messages));
   };
 
-  // Readable messages can be used after a partial load. Only a complete load
-  // returns true, so cleanup cannot delete files owned by unreadable records.
-  // A later call retries failed reads without replacing live message objects.
   const load = (): Promise<boolean> => {
     if (loadPromise !== null) {
       return loadPromise;
@@ -147,8 +141,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
           !currentIds.has(identify(message).messageId) &&
           !revisions.has(identify(message).messageId),
       );
-      // Accepted edits and removals win over a later disk read. Retaining
-      // current objects also keeps retries from restarting the drain.
       if (recovered.length > 0) setMessages([...recovered, ...current]);
       if (result.errors.length > 0) {
         throw new AggregateError(result.errors, "Some queued messages could not be read.");
@@ -162,10 +154,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     return loadPromise;
   };
 
-  // The queued atom drives the composer's immediate "queued" feedback, so it
-  // is published synchronously; the durable write happens behind it and rolls
-  // the message back out if it fails (durability only matters for crash
-  // recovery, not for the in-session queue).
   const enqueue = (message: Message): Promise<void> => {
     bumpRevision(identify(message).messageId);
     setMessages([
@@ -178,14 +166,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       try {
         await options.storage.write(message);
       } catch (cause) {
-        // Roll back by reference, not messageId: a retry enqueue with the same
-        // id may have optimistically replaced this attempt while the write was
-        // in flight, and its entry must survive this attempt's failure.
         setMessages(currentMessages().filter((candidate) => candidate !== message));
-        // A concurrent update losing its post-write race compensates by
-        // persisting this message's payload before this write settles. When
-        // no same-id entry survives the rollback, drop that disk copy too, or
-        // a restart resurrects a message the queue no longer holds.
         if (
           !currentMessages().some(
             (candidate) => identify(candidate).messageId === identify(message).messageId,
@@ -193,9 +174,7 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
         ) {
           try {
             await options.storage.remove(message);
-          } catch {
-            // Best effort: bootstrap reconciles the queue against storage.
-          }
+          } catch {}
         }
         throw failure("enqueue", cause, message);
       }
@@ -216,9 +195,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       setMessages([...currentMessages(), ...messages]);
     });
 
-  // Browser tabs share durable storage. Read the authoritative snapshot under
-  // the platform's lock; unlike native startup recovery, a deleted row must
-  // disappear and another tab's edit must replace our cached payload.
   const reload = (): Promise<void> =>
     serialize(async () => {
       const result = await options.storage.load();
@@ -251,17 +227,9 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       setMessages(reconciled);
     });
 
-  // Resolves once all pending mutations (including any in-flight enqueue
-  // write) have settled, reporting whether the message is still queued. The
-  // drain awaits this before dispatching so a message whose durable write
-  // later fails can never have been delivered first.
   const confirmQueued = (message: Message): Promise<boolean> =>
     serialize(async () => currentMessages().some((candidate) => candidate === message));
 
-  // A no-op once the message is gone, so a trailing editor flush cannot resurrect it.
-  // `expectedRevision` makes it a compare-and-set, re-checked after the durable write
-  // because an enqueue can publish during it; the winner is then rewritten here, so a
-  // crash before its own write cannot leave stale state on disk.
   const update = (
     message: Message,
     expectedRevision?: number,
@@ -314,9 +282,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       return true;
     });
 
-  // Bookkeeping such as uploaded attachment ids. `change` sees the message as it stands when this
-  // mutation's turn comes, so amendments compose, and the revision stays put, so an edit saved
-  // against it still lands. `null` leaves the message unchanged.
   const amend = (
     messageId: MessageId,
     change: (message: Message) => Message | null,
@@ -340,8 +305,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       } catch (cause) {
         throw failure("update", cause, next);
       }
-      // An enqueue publishes without waiting its turn; when one replaced the message during the
-      // write, it wins and stays durable.
       if ((revisions.get(messageId) ?? 0) !== revision || !currentMessages().includes(current)) {
         const winner = currentMessages().find(
           (candidate) => identify(candidate).messageId === messageId,
@@ -359,9 +322,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       return true;
     });
 
-  // `expectedRevision` keeps an edit accepted after the caller decided to remove queued.
-  // `canRemove` adds a live ownership check for state such as an open editor, which can
-  // change without writing a new message revision.
   const remove = (
     message: Message,
     expectedRevision?: number,
@@ -375,9 +335,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
       if (removalCanceled()) {
         return null;
       }
-      // The live payload may carry attachments an accepted update added after
-      // the caller's snapshot; the caller releases files from what actually
-      // leaves the queue.
       const removed =
         currentMessages().find(
           (candidate) => identify(candidate).messageId === identify(message).messageId,
@@ -388,9 +345,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
         throw failure("remove", cause, message);
       }
       if (removalCanceled()) {
-        // An enqueue or editor lock can win while storage removal is in
-        // flight. Restore the live payload here, before any queued mutation
-        // gets its turn, so this canceled removal is durable on its own.
         const winner = currentMessages().find(
           (candidate) => identify(candidate).messageId === identify(message).messageId,
         );
@@ -408,17 +362,11 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
           (candidate) => identify(candidate).messageId !== identify(message).messageId,
         ),
       );
-      // Tombstone, not delete: a same-id retry restarting at revision 1 would
-      // otherwise match a stale writer's expectedRevision from before the
-      // removal (ABA).
       bumpRevision(identify(message).messageId);
       return removed;
     });
 
   const clearEnvironment = (environmentId: EnvironmentId): Promise<ReadonlyArray<Message>> => {
-    // Enqueues publish before their serialized writes. Capture revisions now,
-    // but wait for earlier mutations before reading messages: a message that
-    // changes after this request must not enter the clear set.
     const revisionsAtRequest = new Map(revisions);
     return serialize(async () => {
       const persisted = await options.storage
@@ -463,8 +411,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
         }),
       );
 
-      // A same-id enqueue can publish while one of the removes above waits.
-      // Put its payload back before the later serialized enqueue write runs.
       await Promise.all(
         candidates.map(async (message) => {
           if (
@@ -505,9 +451,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
         bumpRevision(identify(message).messageId);
       }
       setMessages(reconciledMessages);
-      // The caller releases these messages' attachment files; reporting what
-      // was actually removed keeps the release set honest even when this
-      // function's own load produced the messages.
       return removed;
     });
   };
@@ -523,7 +466,6 @@ export function createThreadOutboxManager<Message extends { readonly createdAt: 
     getSnapshot: currentMessages,
     subscribe: (listener: () => void) => options.registry.subscribe(messagesAtom, listener),
     confirmQueued,
-    /** Current write revision for a queued message; input to update's CAS. */
     revisionOf: (messageId: MessageId): number => revisions.get(messageId) ?? 0,
     update,
     amend,

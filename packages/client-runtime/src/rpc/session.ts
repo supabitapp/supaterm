@@ -171,7 +171,6 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
     ...(options.providerCatalogDigests === true ? { providerCatalogDigests: true } : {}),
     ...(options.providerStatusDeltas === true ? { providerStatusDeltas: true } : {}),
   };
-  // Config state merges the snapshots it fetches back in, so no subscriber needs them broadcast.
   const onDemandSnapshots = (input: ServerConfigSubscriptionInput) => ({
     ...input,
     workspaceSnapshotsOnDemand: true,
@@ -208,8 +207,6 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
         Effect.asVoid,
       ),
     });
-    // The protocol never reopens its socket, so every frame counted here came
-    // from this session's one socket.
     let inboundFrames = 0;
     const countingWebSocketConstructor: typeof webSocketConstructor = (url, options) => {
       const socket = webSocketConstructor(url, options);
@@ -239,9 +236,6 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
         retryPolicy: Schedule.recurs(0),
         onPingTimeout: Ref.set(pingTimedOut, true),
       }).pipe(
-        // Teardown sends an interrupt per open stream, and a write to a closed
-        // socket waits out the client's 1s interrupt timeout before reconnecting.
-        // Requests still go through, so they fail with the protocol error.
         Effect.map((protocol) => ({
           ...protocol,
           send: (clientId, request, transferables) =>
@@ -312,8 +306,6 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
             yield* PubSub.publish(serverConfigUpdates, buffered.value);
           }
           if (event.type === "snapshot") {
-            // Later snapshots may repeat the first one's serverTime. Record
-            // before readiness so the first timers already use its clock.
             if (!(yield* Deferred.isDone(initialConfigDeferred))) {
               const { serverTime } = event.config;
               recordServerClock(connection.environmentId, {
@@ -399,8 +391,6 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
         if (Cause.hasInterruptsOnly(cause)) {
           return Stream.failCause(cause);
         }
-        // The supervisor keeps the original cause. Shared durable consumers
-        // need a transport-shaped failure so they wait for its replacement.
         return Stream.fail(
           new RpcClientError.RpcClientError({
             reason: new RpcClientError.RpcClientDefect({

@@ -17,7 +17,6 @@ import {
 } from "./orchestrationV2.ts";
 import { ProviderInteractionMode, RuntimeMode } from "./providerPolicy.ts";
 
-/** 24-hour "HH:MM" wall-clock time. Mirrors `parseTimeOfDay` on the server. */
 const TimeOfDay = TrimmedNonEmptyString.check(
   Schema.isPattern(/^([01]?\d|2[0-3]):([0-5]\d)$/),
 ).annotate({ description: "Local time as HH:MM, such as 09:30." });
@@ -51,10 +50,8 @@ const ISO_WITH_OFFSET =
 const YEAR_0000 = Date.parse("0000-01-01T00:00:00Z");
 const YEAR_10000 = Date.parse("+010000-01-01T00:00:00Z");
 
-/** Date.parse rolls impossible days like Feb 30 into the next month, so check the day too. */
 function isIsoWithOffset(value: string): boolean {
   const match = ISO_WITH_OFFSET.exec(value);
-  // The server stores UTC, which must stay a four-digit year to decode again.
   const time = Date.parse(value);
   if (!match || !(time >= YEAR_0000 && time < YEAR_10000)) return false;
   const [year, month, day] = [Number(match[1]), Number(match[2]), Number(match[3])];
@@ -63,7 +60,6 @@ function isIsoWithOffset(value: string): boolean {
   return days !== undefined && day >= 1 && day <= days;
 }
 
-// Checked by filter, not pattern, to keep the MCP tool schema small.
 const ScheduledTaskOnceSchedule = Schema.Struct({
   type: Schema.Literal("once"),
   runAt: TrimmedNonEmptyString.check(
@@ -126,8 +122,6 @@ export const ScheduledTaskListInput = Schema.Struct({});
 export type ScheduledTaskListInput = typeof ScheduledTaskListInput.Type;
 
 export const ScheduledTaskListResult = Schema.Struct({
-  // Trigger types grow over time; a client must not lose the whole list over
-  // one task it cannot decode.
   tasks: ForwardCompatibleArray(ScheduledTask),
   /** The server's IANA zone for fixed-time schedules. Absent from older servers. */
   timeZone: Schema.optional(TrimmedNonEmptyString),

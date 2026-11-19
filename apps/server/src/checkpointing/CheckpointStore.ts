@@ -87,7 +87,6 @@ export const make = Effect.gen(function* () {
     return handle.driver.checkpoints satisfies VcsCheckpointOps;
   });
 
-  // The registry reads an unreadable repository as none; ask Git again so that fails here.
   const isGitRepository: CheckpointStore["Service"]["isGitRepository"] = Effect.fn(
     "CheckpointStore.isGitRepository",
   )(function* (cwd) {

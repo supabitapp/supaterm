@@ -75,7 +75,6 @@ const ClosedPaneRecordSchema = Schema.Union([
     target: PaneTargetSchema,
     besidePaneId: Schema.String,
     edge: Schema.Literals(["left", "right", "top", "bottom"]),
-    /** The parent thread of a side chat's pane, to tie it again when it reopens. */
     sideChatOf: Schema.optionalKey(PaneTargetSchema),
     closedAt: Schema.Number,
   }),
@@ -98,11 +97,6 @@ const decodePersistedChatPaneState = Schema.decodeUnknownOption(PersistedChatPan
 
 export type ClosedPaneRecord = typeof ClosedPaneRecordSchema.Type;
 
-/**
- * Reads this tab's own copy first so a reload restores its arrangement, and
- * falls back to the last arrangement any tab saved: a new tab, or a desktop
- * relaunch, which clears session storage. Writes go to both.
- */
 function createPaneStorage(): StateStorage {
   const session = resolveStorage(typeof window !== "undefined" ? window.sessionStorage : undefined);
   const local = resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined);
@@ -111,7 +105,6 @@ function createPaneStorage(): StateStorage {
       const own = session.getItem(name);
       if (typeof own === "string") return own;
       const shared = local.getItem(name);
-      // Seed this tab so a later reload keeps it, even if another tab saves after.
       if (typeof shared === "string") session.setItem(name, shared);
       return shared;
     },
@@ -209,7 +202,6 @@ export const useChatPaneStore = create<ChatPaneState>()(
       parkedSideChats: [],
       historyMode: "replace",
       openToSide: null,
-      // Runs once per navigation, so an armed open-to-side request is used up either way.
       reconcileRoute: (target, workspace, draftThread = () => null) =>
         set((state) => {
           const { layout: current, openToSide: request } = state;
@@ -255,7 +247,6 @@ export const useChatPaneStore = create<ChatPaneState>()(
                   workspace,
                 )
               : null;
-          // Navigating from a side chat moves its parent's pane, which takes the side chat along.
           const focused = focusedPane(current);
           const anchorId = focused.sideChatOf ?? focused.id;
           return {

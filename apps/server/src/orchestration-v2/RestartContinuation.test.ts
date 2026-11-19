@@ -167,7 +167,6 @@ it.effect("recovers an admitted continuation after another crash before provider
     };
     assert.equal(restartContinuationRun(starting, now)?.id, runId);
 
-    // Marked running, but the provider never accepted its prompt.
     const running = {
       ...projection,
       runs: [
@@ -1141,7 +1140,6 @@ it("backs off twice from a continuation the provider never took, then lets it fa
   );
   for (const failureClass of ["usage_limit", "permission_error", "validation_error"])
     assert.isUndefined(continuationStartRetryDelayMs(first, projection(failureClass)));
-  // Once the provider took the prompt, starting again would repeat the turn.
   assert.isUndefined(
     continuationStartRetryDelayMs(
       first,

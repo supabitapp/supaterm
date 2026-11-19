@@ -1,5 +1,3 @@
-/** Shared ranking keeps command palettes and MCP thread search consistent across surfaces. */
-
 import type { OrchestrationV2ThreadOpens } from "@supaterm/contracts";
 
 import { WORKTREE_BRANCH_PREFIX } from "./git.ts";
@@ -10,15 +8,12 @@ const UPPERCASE = /\p{Lu}/u;
 const DIGIT = /\p{N}/u;
 const LETTER = /\p{L}/u;
 const COMBINING_MARKS = /\p{M}/gu;
-// Emoji and other symbols can be searched for, so they start words too.
 const SYMBOL = /\p{So}/u;
 const APOSTROPHE = /['’]/;
 const CURLY_APOSTROPHES = /[\u2018\u2019]/g;
 
 interface SearchField {
-  /** Case- and accent-folded text, one UTF-16 unit per source unit. */
   readonly text: string;
-  /** 1 where a word starts in `text`. */
   readonly wordStarts: Uint8Array;
 }
 
@@ -27,15 +22,10 @@ export interface SearchRange {
   readonly end: number;
 }
 
-// Thread titles, branches, and project names repeat across keystrokes; folding
-// them once keeps a keystroke to plain string scans. Each keystroke reads every
-// field, so the limit must hold all of them or the cache clears every time; a
-// field is a few bytes per character.
 const fieldCache = new Map<string, SearchField>();
 const FIELD_CACHE_LIMIT = 100_000;
 
 function foldCharacter(character: string): string {
-  // A typed straight apostrophe finds a curly one: iOS keyboards type "’".
   return character
     .normalize("NFKD")
     .replace(COMBINING_MARKS, "")
@@ -44,11 +34,6 @@ function foldCharacter(character: string): string {
     .replace(/[‘’]/, "'");
 }
 
-/**
- * `text` with case and accents folded one UTF-16 unit at a time, so offsets
- * and word starts still read from `text` and highlights need no mapping. A
- * letter that folds to more or less than one unit ("ß", "ﬁ") stays as it is.
- */
 function foldInPlace(text: string): string {
   return text
     .replace(/[\u0080-\uffff]/g, (character) => {
@@ -58,7 +43,6 @@ function foldInPlace(text: string): string {
     .toLowerCase();
 }
 
-// Chinese and Japanese text has no spaces, so each ideograph or kana starts a word.
 function isCjk(character: string): boolean {
   const code = character.codePointAt(0)!;
   return (
@@ -69,7 +53,6 @@ function isCjk(character: string): boolean {
   );
 }
 
-// Two Chinese, Japanese, or Korean characters already make a common word.
 function hasCjkWord(token: string): boolean {
   return Array.from(token).some((character) => {
     const code = character.codePointAt(0)!;
@@ -77,18 +60,12 @@ function hasCjkWord(token: string): boolean {
   });
 }
 
-/**
- * Whether `character` starts a word after `previous` and `beforePrevious`
- * ("" at the start): after a non-letter, at a camelCase or digit boundary, or
- * at any Chinese or Japanese character. The one rule for titles and messages.
- */
 function isWordStart(
   beforePrevious: string,
   previous: string,
   character: string,
   next: string,
 ): boolean {
-  // "Julius’s": a possessive or contraction does not start a word.
   const afterApostrophe = APOSTROPHE.test(previous) && ALPHANUMERIC.test(beforePrevious);
   return (
     (ALPHANUMERIC.test(character) || SYMBOL.test(character)) &&
@@ -96,7 +73,6 @@ function isWordStart(
     (previous === "" ||
       !ALPHANUMERIC.test(previous) ||
       (LOWERCASE.test(previous) && UPPERCASE.test(character)) ||
-      // The last capital of an acronym starts the next word: "JSONSchema".
       (UPPERCASE.test(previous) && UPPERCASE.test(character) && LOWERCASE.test(next)) ||
       DIGIT.test(previous) !== DIGIT.test(character) ||
       isCjk(character))
@@ -121,8 +97,6 @@ function foldSearchField(source: string): SearchField {
 function prepareSearchField(source: string): SearchField {
   const cached = fieldCache.get(source);
   if (cached) return cached;
-  // Oldest first out. A read does not re-insert: that would cost more than the
-  // fold it saves, and the limit holds far more fields than a keystroke reads.
   if (fieldCache.size >= FIELD_CACHE_LIMIT) {
     fieldCache.delete(fieldCache.keys().next().value!);
   }
@@ -131,7 +105,6 @@ function prepareSearchField(source: string): SearchField {
   return field;
 }
 
-// Quotes around a pasted query: "fix sidebar".
 const WRAPPING_QUOTES = /^\s*["'`“”‘’]+|["'`“”‘’]+\s*$/g;
 
 /** Folded, whitespace-collapsed query; empty when there is nothing to match. */
@@ -150,8 +123,6 @@ function wordEnd(field: SearchField, index: number): number {
   return end;
 }
 
-// One substitution, insertion, deletion, or swap of neighbours; with
-// `swapOnly`, only a swap.
 function withinOneEdit(left: string, right: string, swapOnly: boolean): boolean {
   if (Math.abs(left.length - right.length) > (swapOnly ? 0 : 1)) return false;
   let index = 0;
@@ -174,25 +145,16 @@ function withinOneEdit(left: string, right: string, swapOnly: boolean): boolean 
 }
 
 const WHOLE_WORD = 1;
-// The bonus for a field equal to the whole query lifts a whole word to this.
 const WHOLE_NAME = 1.5;
 const MID_WORD = 0.3;
 const TYPO = 0.45;
-// Whole words typed together are exact, so they rank with typos and above
-// mid-word hits, though below a match at a word start.
 const JOINED_WORDS = 0.6;
 
 interface TokenMatch extends SearchRange {
   readonly score: number;
-  /** Separate ranges, for words typed together. */
   readonly letters?: ReadonlyArray<SearchRange>;
 }
 
-/**
- * Mid-word hits need four or more characters and `midWord`, so "del" does not find "model".
- * Typos preserve the first letter except for swaps; short tokens allow fewer edits to limit noise.
- * Numbers never match with a typo because different pull request numbers must stay distinct.
- */
 function matchToken(
   field: SearchField,
   token: string,
@@ -208,13 +170,10 @@ function matchToken(
     index !== -1;
     index = field.text.indexOf(token, index + 1)
   ) {
-    // A token that opens with punctuation (".ts") brings its own boundary, as in messages.
     if (
       field.wordStarts[index] ||
       (ownBoundary ??= !ALPHANUMERIC.test(token[0]!) && !SYMBOL.test(token[0]!))
     ) {
-      // Whole when the match ends where a word ends: "t3c" is a prefix of
-      // "supaterm", ".ts" whole in "index.ts" but a prefix in "parser.tsx".
       const end = index + token.length;
       const whole =
         end >= field.text.length ||
@@ -231,33 +190,23 @@ function matchToken(
       best = { score: MID_WORD, start: index, end: index + token.length };
     }
   }
-  // Joined words are exact, so they count without the typo pass: a strong
-  // match elsewhere must not hide "VS Code" for "vscode".
   if ((best === null || best.score <= MID_WORD) && isPrimary) {
     const joined = matchJoinedWords(field, token);
     if (joined) return joined;
   }
   if ((best !== null && best.score > MID_WORD) || !typos || token.length < 3) return best;
-  // Numbers skip typos to keep pull requests distinct. Words with digits ("supaterm") do not.
   if (LETTER.test(token)) {
     for (let index = 0; index < field.text.length; index++) {
       if (!field.wordStarts[index]) continue;
-      // People rarely mistype the first letter, so a typo keeps it, unless it
-      // swaps the first two of a longer word ("ing" is not "nig…").
       const first = field.text[index];
       const firstLetterKept =
         first === token[0] ||
         (token.length > 3 && first === token[1] && field.text[index + 1] === token[0]);
       if (!firstLetterKept) continue;
-      // The whole run, across camelCase joins: "githbu" is "GitHub".
       let runEnd = index + 1;
       while (runEnd < field.text.length && ALPHANUMERIC.test(field.text[runEnd]!)) runEnd++;
       const word = field.text.slice(index, runEnd);
-      // Short tokens forgive a swapped pair or one missing letter ("srv" for
-      // "serv…"); any other edit of a three- or four-letter word matches too
-      // much ("cron" would find every "con…").
       const short = token.length <= 4;
-      // The same length first, so "githbu" highlights all of "GitHub".
       const lengths = short
         ? [token.length, token.length + 1]
         : [token.length, token.length - 1, token.length + 1];
@@ -273,10 +222,6 @@ function matchToken(
   return best;
 }
 
-/**
- * Short words followed by a short prefix are noise inside a title ("inth" in "in thread").
- * Allow them at its start ("t3co"), before three letters ("gomod"), or a whole word ("vscode").
- */
 function matchJoinedWords(field: SearchField, token: string): TokenMatch | null {
   for (
     let start = field.text.indexOf(token[0]!);
@@ -317,41 +262,18 @@ function matchJoinedWords(field: SearchField, token: string): TokenMatch | null 
 
 interface WeightedSearchField {
   readonly value: string;
-  /** `value` folded; set on first use, so fields kept across keystrokes fold once. */
   prepared?: SearchField;
   readonly weight: number;
-  /** Only a whole-word match counts, as for a short query against keywords. */
   readonly wholeWords?: boolean;
-  /**
-   * Only a match at a word start counts, without typos: hidden keywords that
-   * matched loosely would list results the user cannot see why for.
-   */
   readonly keyword?: boolean;
-  /**
-   * Where the thread lives (project, environment): it helps a match, but a
-   * word start there does not make the match strong, so it never turns off
-   * joined words or typos for the titles.
-   */
   readonly context?: boolean;
-  /**
-   * A token of four or more letters may match inside a word here. Only thread
-   * titles allow it: inside a command name or a branch it reads as junk
-   * ("arch" in "Search").
-   */
   readonly midWord?: boolean;
 }
 
 interface SearchFieldsMatch {
-  /** Roughly 0.3 (inside a word) to 1.5 (exact title). */
   readonly quality: number;
-  /**
-   * Every non-filler token has three or more characters and matched a whole word at full
-   * weight, before phrase bonuses. Optional filler words don't count either way.
-   */
   readonly wholeWords: boolean;
-  /** Every token matched at a word start, without a typo. */
   readonly strong: boolean;
-  /** Source ranges matched in the first field, for highlighting. */
   readonly primaryRanges: ReadonlyArray<SearchRange>;
 }
 
@@ -361,7 +283,6 @@ function preparedField(weighted: WeightedSearchField): SearchField {
 
 const FILLER_WORDS = new Set(["a", "an", "and", "for", "in", "of", "on", "the", "to", "with"]);
 
-// Sorted, with overlapping ranges joined.
 function mergeRanges(ranges: ReadonlyArray<SearchRange>): SearchRange[] {
   const merged: SearchRange[] = [];
   for (const range of [...ranges].sort((left, right) => left.start - right.start)) {
@@ -375,7 +296,6 @@ function mergeRanges(ranges: ReadonlyArray<SearchRange>): SearchRange[] {
   return merged;
 }
 
-// A keystroke scores every thread for one query, so its tokens are split once.
 let lastQuery:
   | { readonly query: string; readonly tokens: string[]; readonly fillerOptional: boolean }
   | undefined;
@@ -383,8 +303,6 @@ let lastQuery:
 function queryTokens(normalizedQuery: string) {
   if (lastQuery?.query !== normalizedQuery) {
     const tokens = normalizedQuery.split(" ").filter((token) => token.length > 0);
-    // A phrase-style query ("fix the sidebar") carries filler words a name may
-    // leave out; they count where they match but are not required.
     lastQuery = {
       query: normalizedQuery,
       tokens,
@@ -394,11 +312,6 @@ function queryTokens(normalizedQuery: string) {
   return lastQuery;
 }
 
-/**
- * Every query token must match some field. Quality is the mean of each token's
- * best weighted match, plus a bonus when the first field holds the whole query
- * as a phrase or equals it.
- */
 function matchSearchFields(
   normalizedQuery: string,
   fields: ReadonlyArray<WeightedSearchField>,
@@ -406,7 +319,6 @@ function matchSearchFields(
 ): SearchFieldsMatch | null {
   if (normalizedQuery.length === 0) return null;
   const primary = fields[0]?.value ? preparedField(fields[0]) : undefined;
-  // An empty token would match everywhere, and loop forever in `matchToken`.
   const { tokens, fillerOptional } = queryTokens(normalizedQuery);
   if (tokens.length === 0) return null;
   const primaryRanges: SearchRange[] = [];
@@ -424,7 +336,6 @@ function matchSearchFields(
       const field = preparedField(weighted);
       if (best >= weight && field !== primary && atWordStart) continue;
       const typos = (options?.typos ?? false) && !keyword;
-      // Joined words only count in the name.
       const match = matchToken(field, token, typos, field === primary, midWord ?? false);
       if (match === null || match.score < (wholeWords ? WHOLE_WORD : keyword ? 0.7 : 0)) continue;
       if (field === primary) bestPrimary = match;
@@ -439,7 +350,6 @@ function matchSearchFields(
     if (bestPrimary) primaryRanges.push(...(bestPrimary.letters ?? [bestPrimary]));
     total += best;
     counted += 1;
-    // Optional filler never decides the whole-word tier; a query of only filler never earns it.
     if (FILLER_WORDS.has(token)) notWhole ||= !fillerOptional;
     else notWhole ||= token.length < PICK_PREFIX_MIN_LENGTH || best < WHOLE_WORD;
   }
@@ -456,7 +366,6 @@ function matchSearchFields(
   };
 }
 
-// A two-letter Latin substring of a message is noise rather than a match.
 const MESSAGE_TOKEN_MIN_LENGTH = 3;
 
 /**
@@ -472,7 +381,6 @@ export function messageSearchTokens(query: string): {
 } {
   const tokens = query
     .replace(WRAPPING_QUOTES, "")
-    // The index stores apostrophes straight, as `indexedMessageText` writes them.
     .replace(CURLY_APOSTROPHES, "'")
     .normalize("NFC")
     .toLowerCase()
@@ -505,21 +413,16 @@ export function messagePhrase(query: string): RegExp | null {
     : null;
 }
 
-// Words written together, as typed, rank above the same words apart, as in
-// titles; words near each other rank above words far apart.
 const MESSAGE_PHRASE_BONUS = 0.25;
 const MESSAGE_NEAR_BONUS = 0.1;
-// About what a result row shows.
 const MESSAGE_NEAR_SPAN = 60;
 
 const NON_ASCII = /[\u0080-\uffff]/;
-// A message token shorter than this must start a word: "fts" is not in "drafts".
 const MESSAGE_WORD_START_LENGTH = 4;
 const MESSAGE_PREFIX = 0.8;
 
 function startsWordAt(text: string, index: number): boolean {
   const character = text[index]!;
-  // A token that opens with punctuation (such as ".ts") brings its own boundary.
   if (!ALPHANUMERIC.test(character) && !SYMBOL.test(character)) return true;
   return isWordStart(
     text[index - 2] ?? "",
@@ -529,18 +432,12 @@ function startsWordAt(text: string, index: number): boolean {
   );
 }
 
-// Whether a word ends right before `end` in `text`.
 function endsWordAt(text: string, end: number): boolean {
   return end >= text.length || !ALPHANUMERIC.test(text[end]!) || startsWordAt(text, end);
 }
 
-// A commit SHA or UUID part: seven or more hex characters with a digit.
 const HEX_ID = /^(?=[a-f]*\d)[0-9a-f]{7,}$/i;
 
-// Where `token` best sits in `folded`, a fold of `text`: every place it is a
-// whole word, else a word start, else inside a word. Hits past the start of a
-// hex ID do not count ("cafe" in "7cafe52bb8"), though a pasted SHA prefix
-// does.
 function findMessageToken(
   text: string,
   folded: string,
@@ -549,9 +446,6 @@ function findMessageToken(
 ): { readonly at: ReadonlyArray<number>; readonly quality: number } | null {
   let quality = 0;
   let at: number[] = [];
-  // The letters-and-digits run around the hit, kept for later hits in the
-  // same run: rescanning it per hit is quadratic in a long run ("0000" in a
-  // hex dump).
   let run = { start: 0, end: -1, hex: false };
   for (let index = folded.indexOf(token); index !== -1; index = folded.indexOf(token, index + 1)) {
     if (index + token.length > run.end) {
@@ -600,31 +494,24 @@ export function messageMatcher(query: string): (text: string) => MessageMatch | 
   const { long, short, words } = messageSearchTokens(query);
   const tokens = [...long, ...short].map((token) => ({
     token,
-    // Marks go from the folded token: lowercasing "İ" adds one.
     folded: foldInPlace(token).replace(COMBINING_MARKS, ""),
     nonAscii: NON_ASCII.test(token),
     mustStartWord: Array.from(token).length < MESSAGE_WORD_START_LENGTH,
-    // Too short to search, so it only narrows: grading by it would reorder
-    // results on each keystroke while the next word is typed ("nvme s").
     grades: long.includes(token),
   }));
   const phrase = messagePhrase(query);
-  // Accents typed or left out still read as written together: "cafe open"
-  // in "Café open".
   const foldedPhrase = messagePhrase(
     words.map((word) => foldInPlace(word).replace(COMBINING_MARKS, "")).join(" "),
   );
   const queryNonAscii = NON_ASCII.test(query);
   return (text) => {
     const lower = text.toLowerCase();
-    // "İ" lowercases to two units, which would shift every offset after it.
     const plain = lower.length === text.length ? lower : foldInPlace(text);
     let folded: string | null = null;
     let quality = 1;
     const positions: Array<ReadonlyArray<number>> = [];
     for (const { token, folded: foldedToken, nonAscii, mustStartWord, grades } of tokens) {
       let found = findMessageToken(text, plain, token, tokens.length === 1);
-      // Accents typed or left out: "cafe" finds "Café", also after "cafeteria".
       if (found?.quality !== 1 && foldedToken.length > 0 && (nonAscii || NON_ASCII.test(text))) {
         found = findMessageToken(
           text,
@@ -638,8 +525,6 @@ export function messageMatcher(query: string): (text: string) => MessageMatch | 
       if (grades) quality = Math.min(quality, found.quality);
       positions.push(found.at);
     }
-    // Written together as typed: the snippet starts there. Apostrophes are
-    // straight in the query, and straightening keeps offsets.
     const straight = (value: string) => value.replace(CURLY_APOSTROPHES, "'");
     const together =
       phrase?.exec(straight(plain)) ??
@@ -647,9 +532,6 @@ export function messageMatcher(query: string): (text: string) => MessageMatch | 
         ? foldedPhrase?.exec(straight((folded ??= foldInPlace(text))))
         : null);
     if (together) return { quality: quality + MESSAGE_PHRASE_BONUS, offset: together.index };
-    // Else the shortest stretch that holds every word: the snippet starts
-    // there, so it shows them all, and words close together rank above words
-    // far apart ("lakebed perf").
     const near = shortestSpan(positions);
     return {
       quality:
@@ -661,8 +543,6 @@ export function messageMatcher(query: string): (text: string) => MessageMatch | 
   };
 }
 
-// The shortest stretch of text holding one place of each word, from each
-// word's places in order.
 function shortestSpan(places: ReadonlyArray<ReadonlyArray<number>>): {
   readonly start: number;
   readonly length: number;
@@ -703,14 +583,12 @@ export function findSearchTokenRanges(text: string, query: string): SearchRange[
         (token) =>
           [foldSearchQuery(token), Array.from(token).length < MESSAGE_WORD_START_LENGTH] as const,
       )
-      // Some tokens fold to nothing ("´´´"), which would match everywhere.
       .filter(([token]) => token.length > 0),
   );
   if (tokens.size === 0) return [];
   const field = foldSearchField(text);
   const ranges: SearchRange[] = [];
   for (const [token, needsWordStart] of tokens) {
-    // A token that opens with punctuation brings its own boundary, as in scoring.
     const ownBoundary = !ALPHANUMERIC.test(token[0]!) && !SYMBOL.test(token[0]!);
     for (let index = field.text.indexOf(token); index !== -1;) {
       if (needsWordStart && !ownBoundary && !field.wordStarts[index]) {
@@ -759,7 +637,6 @@ export const SEARCH_RECENCY_HALF_LIFE_MS = 14 * DAY_MS;
  */
 export const THREAD_OPEN_DEDUPE_MS = 10 * 60 * 1000;
 const THREAD_SEARCH_PICK_LIMIT = 3;
-/** Picked queries are stored this long; clients send no more. */
 const THREAD_SEARCH_PICK_MAX_LENGTH = 32;
 
 /**
@@ -789,7 +666,6 @@ export function recordThreadOpen(
   query: string | undefined,
 ): ThreadOpenStats {
   const pick = pickedQuery(query ?? "");
-  // Picks that no longer count are not kept or synced.
   const earlier = (previous?.picks ?? []).filter((entry) => at - entry.at <= PICK_WINDOW_MS);
   const picks = pick
     ? [{ query: pick, at }, ...earlier.filter((entry) => entry.query !== pick)].slice(
@@ -823,14 +699,8 @@ export interface ThreadSearchSubject {
   readonly opens?: ThreadOpenStats | null;
 }
 
-// Use reorders matches of about the same quality but never turns a mid-word
-// hit on a busy thread into a better result than a whole word on a quiet one.
 const USE_BOOST_LIMIT = 2.5;
 
-/**
- * How much use lifts a thread: 1 for a stale, never-opened thread, about 2 for
- * one active today, and up to 2.5 for threads opened often.
- */
 function threadUsageBoost(thread: ThreadSearchSubject, now: number): number {
   const recency = thread.activityAt === null ? 0 : decay(now - thread.activityAt);
   const opens = thread.opens ? thread.opens.score * decay(now - thread.opens.openedAt) : 0;
@@ -839,11 +709,8 @@ function threadUsageBoost(thread: ThreadSearchSubject, now: number): number {
 
 const REFERENCE_PREFIX_MIN = 8;
 
-// A number is never cut short: ".../pull/2288" is not pull request 22889.
 const notCut = (text: string, end: number) => !DIGIT.test(text[end] ?? "");
 
-// IDs and URLs have many word starts, so field matching would let short queries hit every thread.
-// Require a long prefix, or any long part containing a digit. Both are ASCII; lowercasing suffices.
 function matchReference(
   normalizedQuery: string,
   thread: ThreadSearchSubject,
@@ -853,7 +720,6 @@ function matchReference(
   const matches = (reference: string) => {
     const folded = reference.toLowerCase();
     const at = folded.indexOf(normalizedQuery);
-    // A pasted link may go on past the reference: ".../pull/22889/files".
     return anywhere
       ? (at !== -1 && notCut(folded, at + normalizedQuery.length)) ||
           (normalizedQuery.startsWith(folded) && notCut(normalizedQuery, folded.length))
@@ -865,23 +731,16 @@ function matchReference(
     : null;
 }
 
-// Picks expire from the pick time; opening a thread another way must not extend their priority.
-// They reorder word matches within a group, never the groups themselves.
 const PICK_WINDOW_MS = 21 * DAY_MS;
-// The start of a picked query counts from three letters: "n" is too little to
-// go on.
 const PICK_PREFIX_MIN_LENGTH = 3;
 
-/** The latest pick of the thread for this query, while it lasts. */
 function activePick(
   thread: ThreadSearchSubject,
   normalizedQuery: string,
   now: number,
 ): ThreadOpenStats["picks"][number] | undefined {
-  // Stored picks are cut to a length, so compare the query cut the same way.
   const query = pickedQuery(normalizedQuery);
   const prefix = query.length >= PICK_PREFIX_MIN_LENGTH;
-  // The latest exact pick, else the latest pick the query starts.
   let exact: ThreadOpenStats["picks"][number] | undefined;
   let latest: ThreadOpenStats["picks"][number] | undefined;
   for (const pick of thread.opens?.picks ?? []) {
@@ -922,16 +781,10 @@ export interface SearchMatchHint {
   readonly ranges: ReadonlyArray<SearchRange>;
 }
 
-// Most threads' branches start with the app's own worktree prefix ("supaterm/", and
-// "supaterm/" before it, "supaterm-<hex>" when a "supaterm" branch blocks nested refs), so
-// "supaterm connect" would match nearly every thread.
-// Only before more text, so typing "supaterm/" does not empty the list for a keystroke.
 const WORKTREE_BRANCH_PREFIX_PATTERN = new RegExp(
   `^(?:(?:${WORKTREE_BRANCH_PREFIX}|supaterm)/(?=\\S)|${WORKTREE_BRANCH_PREFIX}-(?=[0-9a-f]{8}$))`,
 );
 
-// The flat prefix anywhere in a query, while its hex is still being typed, so
-// "supaterm-abcd" and "connect supaterm-abcd1234" still reach the stripped branch field.
 const FLAT_BRANCH_QUERY_PREFIX_PATTERN = new RegExp(
   `(^| )${WORKTREE_BRANCH_PREFIX}-(?=[0-9a-f]{1,8}(?: |$))`,
   "g",
@@ -941,12 +794,6 @@ function searchableBranch(branch: string | null | undefined): string | null {
   return branch ? branch.replace(WORKTREE_BRANCH_PREFIX_PATTERN, "") : null;
 }
 
-/**
- * The field that explains a match whose title shows none: the first that holds
- * the whole query, else, past the words the project or environment holds, the
- * first that holds the rest ("lakebed perf" in project "lakebed" with the PR
- * title "perf: …").
- */
 function matchHint(
   normalizedQuery: string,
   thread: ThreadSearchSubject,
@@ -982,7 +829,6 @@ function matchHint(
   return rest && rest !== normalizedQuery ? hintFor(rest) : undefined;
 }
 
-// A keystroke scores each thread's fields again, so they are listed once per subject.
 const threadFieldsCache = new WeakMap<ThreadSearchSubject, ReadonlyArray<WeightedSearchField>>();
 
 function threadSearchFields(thread: ThreadSearchSubject): ReadonlyArray<WeightedSearchField> {
@@ -1007,7 +853,6 @@ function threadSearchFields(thread: ThreadSearchSubject): ReadonlyArray<Weighted
 
 let lastFieldQuery: { readonly query: string; readonly fieldQuery: string } | undefined;
 
-// Strip pull request prefixes and the worktree prefix so queries match the stored fields.
 function threadFieldQuery(normalizedQuery: string): string {
   if (lastFieldQuery?.query !== normalizedQuery) {
     lastFieldQuery = {
@@ -1046,10 +891,6 @@ export function scoreThreadSearch(
   const referenceMatch = fieldMatch ? null : matchReference(normalizedQuery, thread);
   const match = fieldMatch ?? referenceMatch;
   if (match === null) return null;
-  // A row whose title shows no match must say why. With several words, one
-  // that cannot (its words spread over unrelated fields) is a coincidence and
-  // is left out; a single word always sits in the field that matched it, so
-  // its hint waits until the row is shown.
   const typos = options?.typos ?? false;
   const titleShowsMatch = match.primaryRanges.length > 0;
   const checkHint = !titleShowsMatch && referenceMatch === null && fieldQuery.includes(" ");
@@ -1066,8 +907,6 @@ export function scoreThreadSearch(
     score: match.quality * threadUsageBoost(thread, now),
     quality: match.quality,
     wholeWords: match.wholeWords,
-    // A thread's whole title never lifts its group over a command or project
-    // of that name: every new thread is titled "New thread" for a while.
     groupQuality: Math.min(match.quality, WHOLE_NAME - 0.01),
     strong: match.strong,
     ranges: match.primaryRanges,
@@ -1082,11 +921,6 @@ export function threadRecentUse(thread: ThreadSearchSubject): number {
   return Math.max(thread.activityAt ?? 0, thread.opens?.openedAt ?? 0);
 }
 
-/**
- * How strongly a thread's messages match among matches of one quality: a
- * thread that keeps using the word outweighs a recent passing mention, as
- * hits count for more than recency or use (21 hits about 5.5, one hit 2).
- */
 function messageMatchWeight(hits: number): number {
   return 1 + Math.log2(1 + hits);
 }
@@ -1115,7 +949,6 @@ export function rankMessageMatches<
       ) {
         return [];
       }
-      // Older servers send no quality; their matches count as words.
       const quality = match.quality ?? 1;
       return [
         {
@@ -1129,7 +962,6 @@ export function rankMessageMatches<
     })
     .sort(
       (left, right) =>
-        // Word matches first; among them a pick, then the closer match.
         Number(right.quality >= MESSAGE_PREFIX) - Number(left.quality >= MESSAGE_PREFIX) ||
         right.pickedAt - left.pickedAt ||
         right.quality - left.quality ||
@@ -1145,7 +977,6 @@ export const PALETTE_MESSAGE_LIMIT = 10;
 /** Next to matching threads, other groups show only their best few rows. */
 export const PALETTE_SECONDARY_LIMIT = 3;
 
-// Whole words and prefixes share a class so "Compact" does not lift settings over "Compaction".
 function matchClass(quality: number): number {
   return quality >= WHOLE_NAME ? 3 : quality >= 0.7 ? 2 : quality >= 0.4 ? 1 : 0;
 }
@@ -1192,12 +1023,8 @@ export function rankSearchGroups<
   return ranked
     .flatMap(({ group, ranked: items }, order) => {
       if (items.length === 0) return [];
-      // Use cannot lift a project-only match above a title match or cross match classes.
-      // Picks reorder word matches, keeping typos and mid-word hits below them.
-      // A longer-query pick must not pass a whole-name match for the current query.
       const wordMatch = (match: M) => Math.min(matchClass(match.quality), 2);
       const exactPickAt = (match: M) => (match.pickedExactly ? (match.pickedAt ?? 0) : 0);
-      // Use reorders whole words or prefixes among themselves, never a prefix above a whole word.
       const wholeWord = (match: M) => Number(match.wholeWords ?? match.quality >= WHOLE_WORD);
       const sorted = [...items].sort(
         (left, right) =>
@@ -1238,8 +1065,6 @@ export interface SearchTermsMatch {
 }
 
 const KEYWORD_QUALITY = 0.65;
-// Below this, keyword prefixes match too much: "co" or "pro" would list most
-// settings. A short query still matches a keyword it equals ("pr").
 const KEYWORD_QUERY_MIN_LENGTH = 4;
 
 /**
@@ -1251,7 +1076,6 @@ export function scoreSearchTerms(
   terms: ReadonlyArray<string>,
   options?: { readonly typos?: boolean },
 ): SearchTermsMatch | null {
-  // Filler words ("the ci") do not make a short query long.
   const meaningful = normalizedQuery
     .split(" ")
     .filter((token) => !FILLER_WORDS.has(token))
@@ -1262,8 +1086,7 @@ export function scoreSearchTerms(
     terms.map((value, index) =>
       index === 0
         ? { value, weight: 1 }
-        : // An alias typed in full ("pr") is deliberate, above a mere name prefix.
-          { value, weight: short ? 0.8 : 0.6, wholeWords: short, keyword: true },
+        : { value, weight: short ? 0.8 : 0.6, wholeWords: short, keyword: true },
     ),
     options,
   );
@@ -1271,9 +1094,6 @@ export function scoreSearchTerms(
     match && {
       score: match.quality,
       quality: match.quality,
-      // Below the word-start class: a match only in hidden keywords must not put
-      // its group above a result whose name matches. Inside the group an exact
-      // alias still beats a name prefix ("pr" lists "Open pull requests" first).
       ...(match.primaryRanges.length > 0
         ? {}
         : { groupQuality: Math.min(match.quality, KEYWORD_QUALITY) }),

@@ -6,7 +6,6 @@ const nativeControls = requireOptionalNativeModule<{
   releaseVideoAudioSession(): Promise<void>;
 }>("SupatermNativeControls");
 
-// Keep the session through seeks, buffering, and brief gaps between players.
 const RELEASE_DELAY_MS = 1_000;
 
 let playingCount = 0;
@@ -16,7 +15,6 @@ function mediaPlaybackStarted(): void {
   playingCount += 1;
 }
 
-/** expo-video never deactivates iOS playback, preventing interrupted apps from resuming. Include audio previews to avoid stopping them. */
 function mediaPlaybackStopped(): void {
   playingCount -= 1;
   if (playingCount > 0 || Platform.OS !== "ios") return;

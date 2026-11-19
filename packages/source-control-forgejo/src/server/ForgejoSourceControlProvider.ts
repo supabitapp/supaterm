@@ -99,7 +99,6 @@ export const makeDiscovery = Effect.gen(function* () {
         logins.find((entry) => entry.default === "true") ||
         logins[0];
       const fj = yield* probeSourceControlProvider({
-        // fj reads the cwd repository even with --host and fails on an unborn branch.
         cwd: yield* HostProcess.HomeDirectory,
         process,
         spec: {
@@ -119,8 +118,7 @@ export const makeDiscovery = Effect.gen(function* () {
                     account: login.user,
                     host: ForgejoCli.parseForgejoRemote(login.url)?.host,
                   })
-                : // fj prints this for transport failures (TLS, connect, DNS), never for a rejected token.
-                  login && result.stderr.includes("error sending request for url")
+                : login && result.stderr.includes("error sending request for url")
                   ? providerAuth({
                       status: "unknown",
                       detail: `Could not reach ${login.url} to verify the fj login.`,
@@ -154,8 +152,6 @@ export const makeDiscovery = Effect.gen(function* () {
         return fj;
       }
       const tea = yield* probeSourceControlProvider({ cwd, process, spec: discovery });
-      // Discovery keeps the install hint only for an absent executable; a slow or broken fj
-      // explains itself better than tea's install advice.
       const fjAbsent = fj.status === "missing" && fj.installHint === discovery.installHint;
       return tea.status === "available" || fjAbsent ? tea : fj;
     }),
@@ -209,7 +205,6 @@ export function repositoryNameFromRemoteUrl(url: string): string | null {
     : path.split("/").slice(-2).join("/");
 }
 
-// Resolve browser URLs from the serving login to handle SSH aliases and mounts.
 const refineRepositoryIdentity: NonNullable<
   SourceControlProvider.SourceControlProvider["Service"]["refineRepositoryIdentity"]
 > = Effect.fn("ForgejoSourceControlProvider.refineRepositoryIdentity")(function* ({
@@ -247,7 +242,6 @@ const refineRepositoryIdentity: NonNullable<
   };
 });
 
-// An SSH remote names an alias rather than the web server, so the login that serves it says which.
 const resolveRemoteWebHost: NonNullable<
   SourceControlProvider.SourceControlProvider["Service"]["resolveRemoteWebHost"]
 > = Effect.fn("ForgejoSourceControlProvider.resolveRemoteWebHost")(function* ({
@@ -285,13 +279,10 @@ const repositoryPath = (repository: string) =>
 type ForgejoPull = typeof ForgejoPullRequestSchema.Type;
 const updatedMillis = (pull: ForgejoPull) =>
   pull.updated_at?.pipe(Option.map(DateTime.toEpochMillis), Option.getOrUndefined);
-// Renaming a fork or deleting a pull request moves nothing in the list, so it is re-read in full.
 const UNFILTERED_PULLS_MAX_AGE_MS = 60 * 60_000;
-/** Every pull request of a repository whose server ignores `head=` (Gitea, Forgejo before 16). */
 interface UnfilteredPulls {
   readonly lock: Semaphore.Semaphore;
   pulls: Map<number, ForgejoPull> | undefined;
-  /** The newest `updated_at` on the list's first page when it was last read. */
   newest: number | undefined;
   scannedAt: number;
 }
@@ -351,8 +342,6 @@ export const make = Effect.gen(function* () {
     );
   });
   const unfilteredPulls = new Map<string, UnfilteredPulls>();
-  // Call holding `state.lock`. The list is sorted newest update first, so after one full read
-  // everything that changed since sits ahead of the first pull request older than `newest`.
   const readUnfilteredPulls = Effect.fn("ForgejoSourceControlProvider.readUnfilteredPulls")(
     function* (
       input: ForgejoCli.ForgejoRepositoryInput,
@@ -381,8 +370,6 @@ export const make = Effect.gen(function* () {
               );
         const updated = items.flatMap((item) => updatedMillis(item) ?? []);
         for (const item of items) pulls.set(item.number, item);
-        // Later pages can hold newer updates than a first page read before them, and a mark past
-        // the first page's would skip the updates that pushed them down.
         if (page === 1 && updated.length > 0) newest = Math.max(...updated);
         if (items.length === 0 || (since !== undefined && updated.some((at) => at < since))) break;
       }
@@ -430,7 +417,6 @@ export const make = Effect.gen(function* () {
               },
               Schema.Array(ForgejoPullRequestSchema),
             );
-            // A deleted head branch keeps its name only in `label`.
             if (items.some((item) => item.head.ref !== branch && item.head.label !== branch)) {
               unfiltered = unfilteredPulls.get(key) ?? {
                 lock: Semaphore.makeUnsafe(1),
@@ -456,8 +442,6 @@ export const make = Effect.gen(function* () {
               Option.getOrElse(Option.map(left.updatedAt, DateTime.toEpochMillis), () => 0) ||
             right.number - left.number,
         );
-        // A deleted pull request leaves the list without moving anything in it, so a remembered
-        // match is read again before it is returned.
         const results: ReturnType<typeof toForgejoChangeRequest>[] = [];
         for (const candidate of candidates) {
           if (results.length >= limit) break;
@@ -477,7 +461,6 @@ export const make = Effect.gen(function* () {
             pulls.delete(candidate.number);
             continue;
           }
-          // Not written back: a refresh may have stored a newer copy while this was read.
           results.push(...matching([current]));
         }
         return results;
@@ -559,7 +542,6 @@ export const make = Effect.gen(function* () {
         const repo = yield* cli.resolveRepository(input);
         const pull = yield* getPull(input);
         if (repo.command === "fj") {
-          // fj checkout cannot target a repository outside the local remotes.
           const urls = yield* request(
             { ...input, path: repositoryPath(repo.repository) },
             RepositorySchema,
@@ -609,7 +591,6 @@ export const make = Effect.gen(function* () {
             ],
           });
         if (input.force) {
-          // Non-commit server input could become git options.
           if (!/^[0-9a-f]{7,64}$/i.test(pull.head.sha))
             return yield* new ForgejoCli.ForgejoCliError({
               command: repo.command ?? "tea",
@@ -617,7 +598,6 @@ export const make = Effect.gen(function* () {
               detail: "Forgejo reported a pull request head that is not a commit.",
               reason: "invalid-response",
             });
-          // tea leaves PR branches stale; `--keep` updates them without discarding dirty files.
           yield* process.run({
             operation: "ForgejoSourceControlProvider.checkoutChangeRequest",
             command: "git",

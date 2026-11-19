@@ -84,7 +84,6 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     return true;
   });
   const runCommand = useEffectEvent((command: KeybindingCommand, invocation: CommandInvocation) => {
-    // Escape belongs to thread find while it is open, whatever else it is bound to.
     if (input.threadFindActive && invocation.event?.key === "Escape") return false;
     const run =
       input.commands[command] ??
@@ -123,7 +122,6 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
   });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the chat's command scopes with the dispatcher for the component's lifetime
   useEffect(() => {
-    // The newest scope runs first, so the terminal-close guard goes ahead of the commands.
     const disposers = [
       registerCommands((command, invocation) => runCommand(command, invocation), {
         capture: true,

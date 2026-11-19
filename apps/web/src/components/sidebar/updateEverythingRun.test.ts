@@ -49,7 +49,6 @@ describe("startDesktopUpdateLaunchNotice", () => {
     const environmentId = EnvironmentId.make("slow-machine");
     const stop = relaunchWhileRestarting(environmentId);
     try {
-      // Lets the registry run its cleanup of unobserved atoms before the UI mounts.
       await vi.advanceTimersByTimeAsync(1_000);
       expect(appAtomRegistry.get(serverEnvironment.updateStateAtom(environmentId))).toMatchObject({
         status: "running",
@@ -88,7 +87,6 @@ describe("startDesktopUpdateLaunchNotice", () => {
     const environmentId = EnvironmentId.make("lost-machine");
     const stateAtom = serverEnvironment.updateStateAtom(environmentId);
     const stop = relaunchWhileRestarting(environmentId);
-    // Observed like the UI does, so the registry cannot reset it by dropping the atom.
     const release = appAtomRegistry.mount(stateAtom);
     try {
       await vi.advanceTimersByTimeAsync(32 * 60 * 1000);

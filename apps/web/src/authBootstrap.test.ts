@@ -225,7 +225,6 @@ describe("resolveInitialServerAuthGateState", () => {
       session: nextSession,
       browserSession: () => Effect.succeed(browserSession(["orchestration:read", "access:write"])),
     });
-    // What FetchHttpClient yields when nothing listens on the backend port.
     const connectionRefused = new HttpClientError.HttpClientError({
       reason: new HttpClientError.TransportError({
         request: HttpClientRequest.get("http://localhost:3773/api/auth/session"),
@@ -376,7 +375,6 @@ describe("resolveInitialServerAuthGateState", () => {
         const requiresAuth = { status: "requires-auth", auth: LOOPBACK_AUTH };
         await expect(resolveInitialServerAuthGateState()).resolves.toEqual(requiresAuth);
 
-        // Token removal synchronously reloads the TanStack auth gate via replaceState.
         const pairingHistoryState = history.location.state;
         const token = takePairingTokenFromUrl();
         expect(history.location.state).toEqual(pairingHistoryState);

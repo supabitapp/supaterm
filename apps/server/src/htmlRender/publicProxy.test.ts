@@ -30,7 +30,6 @@ vi.mock("node:os", async (importOriginal) => {
   };
 });
 
-// Clash and Mihomo answer every name from 198.18.0.0/16 in fake-IP mode.
 const TEST_DNS: Record<string, ReadonlyArray<{ address: string; family: number }>> = {
   "cdn.fake-ip.test": [{ address: "198.18.2.40", family: 4 }],
   "mixed.fake-ip.test": [
@@ -53,7 +52,6 @@ const connectThrough = (proxyPort: number, target: Buffer, version = 5) =>
       socket.write(Buffer.from([5, 1, 0]));
       socket.write(Buffer.concat([Buffer.from([version, 1, 0]), target]));
     });
-    // The proxy may reset a refused connection.
     socket.on("error", () => {});
     let received = Buffer.alloc(0);
     socket.on("data", (chunk) => {

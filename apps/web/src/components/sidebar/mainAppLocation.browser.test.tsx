@@ -43,7 +43,6 @@ function ReturnControls() {
   );
 }
 
-// The tracker records on onResolved, which the router emits only once React commits the page.
 async function done(router: AnyRouter, navigation: Promise<void>) {
   await navigation;
   await vi.waitFor(() =>

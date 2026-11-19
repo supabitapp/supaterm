@@ -56,7 +56,6 @@ function createEditor(value: string, extra: Extensions = []) {
     ],
     content: buildDocJson(value, (name) => ({ label: name, description: null })),
   });
-  // Headless editors need the plugins installed explicitly because there is no mounted view.
   editor.view.updateState(editor.state.reconfigure({ plugins: editor.extensionManager.plugins }));
   editor.view.dispatch(editor.state.tr.setSelection(TextSelection.atEnd(editor.state.doc)));
   onTestFinished(() => editor.destroy());
@@ -270,7 +269,6 @@ describe("composer list normalization", () => {
   });
 
   it("keeps the literal marker that Backspace restores from a list input rule", () => {
-    // Mirrors the composer's `- ` + first character rule; the test editor keeps Tiptap's `- ` rule.
     const dashRule = Extension.create({
       name: "dashRule",
       addInputRules() {

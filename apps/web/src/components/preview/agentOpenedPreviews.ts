@@ -40,7 +40,6 @@ interface RevealOptions {
   readonly sheetLayout: boolean;
 }
 
-/** A sheet would cover the chat, so only an explicit request opens one. */
 const panelOrigin = (options: RevealOptions, force: boolean): PanelOpenOrigin =>
   force || (options.openTarget === "panel" && !options.sheetLayout) ? "agent" : "agent-quiet";
 
@@ -93,12 +92,6 @@ export function followPreviewSessions(threadRef: ScopedThreadRef, state: ThreadP
   if (source?.kind === "browser" && !state.sessions[source.tabId]) miniPlayer.close(threadRef);
 }
 
-/**
- * Server tabs that are new, or carry a new reveal request, since `previous`.
- * Nothing is fresh until the first list has loaded: that list is the baseline,
- * so a reload never reopens previews the user dismissed. A tab this client was
- * closing comes back without a reveal if the close fails.
- */
 function freshlyRevealedServerTabs(
   previous: ThreadPreviewState,
   next: ThreadPreviewState,
@@ -124,7 +117,6 @@ function followThread(threadKey: string, threadRef: ScopedThreadRef): () => void
   return appAtomRegistry.subscribe(atom, (next) => {
     const before = previous;
     previous = next;
-    // Reveals run first so a revealed tab floats before it gains a panel tab.
     const revealed = freshlyRevealedServerTabs(before, next);
     if (revealed.length > 0) revealServerTabs(threadRef, revealed, currentRevealOptions());
     if (before.sessions !== next.sessions || before.listLoaded !== next.listLoaded) {
@@ -133,17 +125,9 @@ function followThread(threadKey: string, threadRef: ScopedThreadRef): () => void
   });
 }
 
-// `openedAt` tells a session apart from one that ended and reopened on the same device while
-// this client was disconnected.
 const sessionKey = (session: DeviceServiceState["sessions"][number]) =>
   `${session.threadId}:${session.hostId}:${session.deviceId}:${session.openedAt}`;
 
-/**
- * Per environment: the device sessions seen in the last snapshot. The first
- * snapshot is a baseline, so persisted tabs restore themselves and existing
- * sessions never resurrect tabs the user closed. Baselines outlive a
- * disconnect, so a device an agent opened during the gap still shows.
- */
 const deviceSessionBaselines = new Map<EnvironmentId, ReadonlySet<string>>();
 
 function hasLiveSession(

@@ -241,7 +241,6 @@ function selected(tab: WorkspaceTab) {
   return workspaceTabsReducer(initialWorkspaceTabsState(), { type: "select", tab });
 }
 
-/** Android calls the newest listener first and stops at the first that handles Back. */
 function pressBack() {
   return [...mocks.backListeners].reverse().some((listener) => listener());
 }

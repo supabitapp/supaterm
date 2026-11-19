@@ -20,7 +20,6 @@ import * as DesktopState from "./DesktopState.ts";
 
 const RELEASES_URL = "https://github.com/supabitapp/supaterm/releases";
 const LAST_STARTED_VERSION_FILE = "desktop-last-started-version";
-// Buttons are plain links to this host; will-navigate cancels them and runs the action.
 const ACTION_ORIGIN = "https://startup-recovery.invalid";
 
 const { logInfo, logWarning } = DesktopObservability.makeComponentLogger(
@@ -51,7 +50,6 @@ export function resolveStartupRecoveryOffer(
   }
   const updateVersion =
     update.downloadedVersion ?? (update.status === "available" ? update.availableVersion : null);
-  // A version that already failed to apply here would loop through install and relaunch.
   if (updateVersion !== null && updateVersion !== update.notAppliedVersion) {
     return { _tag: "Update", version: updateVersion };
   }
@@ -163,7 +161,6 @@ export const listen: Effect.Effect<
   );
 
   const windowRef = yield* Ref.make(Option.none<Electron.BrowserWindow>());
-  // The failure that opened the window; later restarts do not reload its details.
   const failureRef = yield* Ref.make(Option.none<BackendStartupFailure>());
   const renderedHtmlRef = yield* Ref.make("");
   const checkedRef = yield* Ref.make(false);
@@ -199,7 +196,6 @@ export const listen: Effect.Effect<
         if (current._tag !== "Update") return;
         let { downloadedVersion } = yield* updates.getState;
         if (downloadedVersion === null) {
-          // The download re-checks first, so it can fetch a newer build than the one offered.
           const download = yield* updates.download;
           if (!download.completed) return;
           downloadedVersion = download.state.downloadedVersion;
@@ -233,7 +229,6 @@ export const listen: Effect.Effect<
   const show = Effect.fn("desktop.startupRecovery.show")(
     function* () {
       if (yield* Ref.get(quitting)) return;
-      // A visible boot shell still needs recovery if the backend has never started.
       const main = yield* electronWindow.main;
       if (
         backendHasStarted &&
@@ -335,7 +330,6 @@ export const listen: Effect.Effect<
         if (startup._tag !== "Failing") return;
         if (Option.isSome(yield* Ref.get(failureRef))) return;
         yield* Ref.set(failureRef, Option.some({ reason: startup.reason, output: startup.output }));
-        // The backend manager already logs each failure's reason.
         yield* logWarning("primary backend failing to start");
         yield* show();
         if (!(yield* Ref.getAndSet(checkedRef, true))) {
@@ -351,7 +345,6 @@ export const listen: Effect.Effect<
     Effect.forkScoped,
   );
 
-  // macOS keeps running with no windows; the Dock icon must bring the error back.
   yield* electronApp.on("activate", () => {
     runFork(
       Ref.get(failureRef).pipe(

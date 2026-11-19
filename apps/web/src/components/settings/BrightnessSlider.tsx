@@ -17,7 +17,6 @@ export function BrightnessSlider({
     "--settings-slider-progress": `${value}%`,
     "--settings-slider-fill-offset": `${0.5 - value / 100}rem`,
   } as CSSProperties;
-  // Each write reaches the hardware through main, so a drag is saved once, when it ends.
   const commit = () => {
     if (draft === null) return;
     setDraft(null);

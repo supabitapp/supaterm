@@ -27,9 +27,7 @@ const VOICE_PROCESSING = {
   autoGainControl: true,
 } as const;
 
-// Chromium lists these aliases of real inputs; other browsers list the default first.
 const ALIAS_IDS = new Set(["default", "communications"]);
-// Chromium on macOS ends each label with the input's transport type.
 const BLUETOOTH = / \(Bluetooth(?: LE)?\)$/;
 const BUILT_IN = / \(Built-in\)$/;
 const NEVER_STANDS_IN = / \((?:Virtual|Aggregate|AutoAggregate)\)$/;
@@ -124,7 +122,6 @@ function openInput(deviceId: string | null): Promise<MediaStream> {
   });
 }
 
-/** An input that won't open is left out and the rest resolved again, ending at the default. */
 async function openResolved(
   inputs: ReadonlyArray<MicrophoneInput>,
   preference: MicrophonePreference,
@@ -139,7 +136,6 @@ async function openResolved(
   }
 }
 
-// A failed PulseAudio context survives new getUserMedia calls; the desktop app restarts its audio utility.
 async function restartLinuxAudioService(error: unknown): Promise<boolean> {
   if (!LOST_AUDIO_SERVICE_ERRORS.has(errorName(error))) return false;
   const desktop = window.desktopBridge;

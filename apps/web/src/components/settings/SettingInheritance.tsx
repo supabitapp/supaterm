@@ -37,7 +37,6 @@ const WRITING_STYLE_LABELS: Record<string, string> = {
   custom: "Custom instructions",
 };
 
-/** A row backed by several keys explains the first one these values customize. */
 function explainedKey(
   keys: readonly (keyof ServerSettings)[],
   values: { readonly [K in keyof ServerSettings]?: unknown },
@@ -148,7 +147,6 @@ export function settingInheritanceLayers(
       set: source === "supaterm.json",
     });
   }
-  // File-backed defaults come from the resolver, not the schema's decoded null.
   const builtIn = fileBacked
     ? PROJECT_FILE_BACKED_SETTINGS[key].builtIn
     : DEFAULT_SERVER_SETTINGS[key];

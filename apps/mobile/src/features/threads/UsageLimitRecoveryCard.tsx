@@ -49,12 +49,10 @@ export function UsageLimitRecoveryCard({
   const [copied, setCopied] = useState(false);
   const [actionPending, setActionPending] = useState(false);
   const code = thread.runtime?.lastErrorCode;
-  // OpenAI's partner guidelines specify the ChatGPT notice and its action.
   const workspaceLimit = code === CHATGPT_WORKSPACE_USAGE_LIMIT_CODE;
   const chatGptLimit = workspaceLimit || code === CHATGPT_USAGE_LIMIT_CODE;
   if (
     thread.runtime?.status !== "failed" ||
-    // Older servers report ChatGPT sharing limits as provider errors.
     (thread.runtime.lastErrorClass !== "usage_limit" && !chatGptLimit) ||
     !runId
   )
@@ -162,7 +160,6 @@ export function UsageLimitRecoveryCard({
                 : "Usage limit reached. The provider did not report a reset time. Retry manually when your limit is available."}
         </Text>
         {chatGptLimit || canSchedule ? (
-          // The margins cancel the 44pt touch height so the links sit 8pt under the text.
           <View className="-mb-3 -mt-2 flex-row flex-wrap gap-x-4">
             {chatGptLimit ? (
               <RecoveryAction

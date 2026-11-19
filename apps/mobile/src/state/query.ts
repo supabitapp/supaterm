@@ -31,7 +31,6 @@ export function useEnvironmentQuery<A, E>(
   const refresh = useAtomRefresh(selectedAtom);
   return {
     data: AsyncResult.getOrElse(result, () => null),
-    // Data may be structurally shared; only a settled success proves a new response.
     successResult: result._tag === "Success" && !result.waiting ? result : null,
     failure: result._tag === "Failure" ? Cause.squash(result.cause) : null,
     error: result._tag === "Failure" ? formatError(result.cause) : null,

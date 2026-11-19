@@ -22,18 +22,8 @@ import { decodeJsonResult } from "@supaterm/shared/schemaJson";
 
 import { dedupeChecks } from "@supaterm/source-control-core/server/pullRequestChecks";
 
-/**
- * Bitbucket's enums are decoded as plain strings and normalized here, in the same tolerant
- * style as the GitHub and GitLab decoders: a new pull request state or build status must not
- * fail a whole payload.
- */
 const RawUserSchema = Schema.Struct({
-  /**
-   * How Bitbucket addresses an account when a reviewer set is written; the handles it shows are
-   * not accepted there.
-   */
   uuid: Schema.optional(Schema.NullOr(Schema.String)),
-  /** Absent on an app account, which is why `display_name` has to stand in for it. */
   nickname: Schema.optional(Schema.NullOr(Schema.String)),
   display_name: Schema.optional(Schema.NullOr(Schema.String)),
   links: Schema.optional(
@@ -484,7 +474,6 @@ export function decodeCommitsJson(
             : [{ login: rawAuthor, name: rawAuthor, avatarUrl: null }],
     });
   }
-  // Bitbucket lists a pull request's commits newest first; the timeline reads oldest first.
   return Result.succeed({ items: commits.toReversed(), next: trimmed(decoded.success.next) });
 }
 
@@ -506,10 +495,6 @@ export function decodeStatusesJson(
     const status = decodedStatus.value;
     const name = trimmed(status.name) ?? trimmed(status.key);
     if (name === null) continue;
-    // Bitbucket re-uses a status key when a pipeline is run again, so the same check can appear
-    // twice on one page. Nothing decoded here says which copy is newer, so the later one wins,
-    // which is the order Bitbucket writes an update in. The key is kept as the workflow name so
-    // two different pipelines that display the same name are not folded into one.
     checks.push({
       check: {
         name,

@@ -16,8 +16,6 @@ function projectIconNamed(name: string): ProjectIcon {
 
 export const DEFAULT_PROJECT_ICON = projectIconNamed("folder");
 
-// Projects saved Lucide icon names before Supaterm switched icon sets. Names that
-// match a project icon resolve as-is; these are the ones that changed.
 const LEGACY_LUCIDE_NAMES: Readonly<Record<string, string>> = {
   "bar-chart": "chart-column",
   "bar-chart-3": "chart-column",
@@ -79,8 +77,6 @@ interface SavedProjectIcon {
   readonly name: string;
 }
 
-// A saved name this client does not offer, from a newer client or a retired Lucide
-// icon, draws the default icon in the saved color.
 export function resolveProjectIcon(saved: SavedProjectIcon): ProjectIcon {
   const name =
     saved.kind === "lucide" ? (LEGACY_LUCIDE_NAMES[saved.name] ?? saved.name) : saved.name;

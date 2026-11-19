@@ -114,7 +114,6 @@ function makeHarness(reply: (requestNumber: number) => Response | Promise<Respon
   };
 }
 
-// Resolves "settled" instead of hanging when the load finishes without sending another request.
 function nextRequestOrSettled(requests: Queue.Queue<number>, load: Fiber.Fiber<unknown, unknown>) {
   return Effect.raceFirst(
     Queue.take(requests).pipe(Effect.as("sent" as const)),

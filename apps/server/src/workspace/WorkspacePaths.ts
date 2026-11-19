@@ -183,7 +183,6 @@ const make = Effect.gen(function* () {
       }
 
       const absolutePath = path.resolve(input.workspaceRoot, input.relativePath);
-      // Only the host separator becomes `/`: on POSIX `\` is a file name character.
       const relativeToRoot = path
         .relative(input.workspaceRoot, absolutePath)
         .replaceAll(path.sep, "/");

@@ -64,7 +64,6 @@ function button(label: string) {
   return page.getByRole("button", { name: label, exact: true });
 }
 
-// A trusted click, so the page also gets the user activation the link handler requires.
 async function click(label: string) {
   await button(label).click();
 }

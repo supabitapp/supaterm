@@ -27,7 +27,6 @@ const KEEP_ALIVE = '{"type":"KeepAlive"}';
 const CLOSE_STREAM = '{"type":"CloseStream"}';
 const KEEP_ALIVE_INTERVAL = "8 seconds";
 const CONNECT_TIMEOUT = "15 seconds";
-// A 278 s clip sent at once closed 60 s after CloseStream.
 const MIN_DEADLINE_MS = 15_000;
 const MAX_KEYTERMS = 50;
 const MAX_KEYTERM_CHARS = 1_024;
@@ -117,11 +116,6 @@ const failed = (): VoiceStreamStep => ({
   error: new TranscriptionError({ reason: "failed" }),
 });
 
-/**
- * `TranscriptText` replaces the segment in progress and `TranscriptEndpoint`
- * commits it. The CLI stops at the first endpoint after CloseStream, which
- * cuts recordings short, so this waits for the server to close the socket.
- */
 function stepVoiceStream(state: VoiceStreamState, event: VoiceStreamEvent): VoiceStreamStep {
   switch (event._tag) {
     case "Message": {
@@ -182,8 +176,6 @@ function voiceStreamUpgradeError(
 ): TranscriptionError {
   if (headers["cf-mitigated"] !== undefined) return new TranscriptionError({ reason: "blocked" });
   if (status === 401) return new TranscriptionError({ reason: "signedOut" });
-  // Not `signedOut`: a 403 can mean the account has no voice access, and a
-  // sign-in prompt would loop.
   if (status === 403) return new TranscriptionError({ reason: "blocked" });
   if (status === 429) {
     const seconds = Number(headers["retry-after"]);
@@ -197,11 +189,6 @@ function voiceStreamUpgradeError(
   return new TranscriptionError({ reason: "failed" });
 }
 
-/**
- * Claude Code runs on Bun, whose WebSocket writes its own handshake headers first and the
- * caller's after them in byte order. `ws` keeps a header where it first appears, so seeding
- * its names here puts them where Bun does.
- */
 const bunHandshakeHeaders = (url: string, headers: Record<string, string>) => ({
   Host: new URL(url).host,
   Connection: "Upgrade",
@@ -266,7 +253,6 @@ export const streamClaudeTranscription = Effect.fn("ClaudeTranscription.stream")
     if (!isBinary) Queue.offerUnsafe(events, { _tag: "Message", data: data.toString() });
   });
   socket.on("close", (code) => Queue.offerUnsafe(events, { _tag: "Closed", code }));
-  // `ws` reports protocol errors before closing; fail now rather than wait for the deadline.
   socket.on("error", () => Queue.offerUnsafe(events, { _tag: "Closed", code: 1006 }));
   const send = (data: string | Uint8Array) =>
     Effect.callback<void, TranscriptionError>((resume) => {

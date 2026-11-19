@@ -189,7 +189,6 @@ describe("preview guest input", () => {
           { type: "mousePressed", x: 10, y: 10, button: "left" },
         );
       };
-      // A press held open, as by a page's confirm() on mousedown, must not block or win focus.
       const stuck = press(7);
       await stuckPressFocused.promise;
       await press(8);

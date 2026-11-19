@@ -85,7 +85,6 @@ import type {
   ThreadComment,
 } from "./pullRequestReviews.graphql.ts";
 
-/** The parts of an actor the mappings below read, whichever selection it came from. */
 interface ActorFields {
   readonly __typename?: string | undefined;
   readonly login?: string | null | undefined;
@@ -93,10 +92,6 @@ interface ActorFields {
   readonly avatarUrl?: string | null | undefined;
 }
 
-/**
- * A listing row before mapping. Optional where a selection leaves a field out (the search's line
- * counts), and a check rollup reduced to the shape the detail's checks have.
- */
 interface ListItemFields {
   readonly number: number;
   readonly title: string;
@@ -131,7 +126,6 @@ interface ReviewRequestFields {
   readonly name?: string | null | undefined;
 }
 
-/** One reviewer's most recent review: the state is all the verdict needs. */
 interface LatestReviewFields {
   readonly state?: string | null | undefined;
   readonly isMinimized?: boolean | undefined;
@@ -167,7 +161,6 @@ interface PageInfoFields {
   readonly endCursor?: string | null | undefined;
 }
 
-/** The connection's nodes without the nulls GraphQL allows in a list. */
 function nodesOf<A>(
   connection: { readonly nodes?: ReadonlyArray<A | null> | null | undefined } | null | undefined,
 ): ReadonlyArray<A> {
@@ -204,12 +197,6 @@ export function gitHubReactionContent(
   return GITHUB_REACTION_BY_CONTENT[content];
 }
 
-/**
- * The groups GitHub answered with, as the contract carries them. A group with nobody behind it is
- * dropped: GitHub answers with a group per content it knows, including the ones nobody chose. The
- * viewer's own login is left out of `actors` — the page names them "You" instead, and leaving it
- * in would name them twice — but `count` still counts them along with everyone else.
- */
 function toReactions(
   groups: ReadonlyArray<ReactionGroup> | null | undefined,
   viewer: string | null,
@@ -233,7 +220,6 @@ function toReactions(
   return reactions;
 }
 
-/** `GET /repos/{owner}/{repo}/actions/runs`, one page of it. */
 const RawWorkflowRunsSchema = Schema.Struct({
   workflow_runs: Schema.Array(
     Schema.Struct({
@@ -305,7 +291,6 @@ export function isSubjectOfPullRequest(result: PullRequestSubject.Result): boole
   return expected !== null && actual !== null && expected === actual;
 }
 
-/** The body of `POST /repos/{owner}/{repo}/pulls/{number}/reviews`, which sends a review whole. */
 const ReviewSubmissionSchema = Schema.Struct({
   event: Schema.Literals(["COMMENT", "APPROVE", "REQUEST_CHANGES"]),
   body: Schema.String,
@@ -355,7 +340,6 @@ export function buildReviewSubmission(input: {
       const end = gitHubReviewPosition(comment.position);
       const start =
         comment.startPosition === undefined ? null : gitHubReviewPosition(comment.startPosition);
-      // GitHub refuses a start that is the end itself, so a one-line range is sent as one line.
       const ranged = start !== null && (start.line !== end.line || start.side !== end.side);
       return {
         path: comment.path,
@@ -423,19 +407,10 @@ export interface GitHubPullRequestActivity {
   readonly truncated: boolean;
 }
 
-/**
- * GitHub sends an `endCursor` on a page that is also the last one, so the flag is what
- * decides, not the cursor's presence.
- */
 function nextCursorOf(pageInfo: PageInfoFields | null | undefined): string | null {
   return pageInfo?.hasNextPage === true ? trimmed(pageInfo.endCursor) : null;
 }
 
-/**
- * The two halves default oppositely on purpose. An unreported update permission is granted and
- * the host's own refusal explains failures; unknown authorship means "not the author", since it
- * decides what an author may do to their own change.
- */
 function toPullRequestViewerFields(
   raw:
     | {
@@ -460,17 +435,12 @@ function toActor(raw: ActorFields | null | undefined): PullRequestActor | null {
       };
 }
 
-/** A requested team as the reads select it: `org/slug`, with its name and avatar aliased apart. */
 interface RequestedTeamFields {
   readonly combinedSlug?: string | null | undefined;
   readonly teamName?: string | null | undefined;
   readonly teamAvatarUrl?: string | null | undefined;
 }
 
-/**
- * A requested team as a reviewer row. It goes by `org/slug`, the handle GitHub mentions it by.
- * No GitHub login contains a slash, so a team never shares a row or a verdict with a user.
- */
 function toRequestedTeam(raw: object | null | undefined): PullRequestActor | null {
   if (raw == null || !("combinedSlug" in raw)) return null;
   const team = raw as RequestedTeamFields;
@@ -485,13 +455,10 @@ function toCommitActor(raw: {
   readonly login?: string | null | undefined;
   readonly name?: string | null | undefined;
 }): PullRequestActor | null {
-  // An email-linked GitHub account has a login; an unlinked signature only has a name or email.
-  // Keep that signature visible instead of silently turning a co-authored commit into one author.
   const login = trimmed(raw.login) ?? trimmed(raw.name) ?? trimmed(raw.email);
   return login === null ? null : { login, name: trimmed(raw.name), avatarUrl: null };
 }
 
-/** An author off the review read's commits, which names an account by `user.login`. */
 function toGraphqlCommitActor(raw: {
   readonly name?: string | null | undefined;
   readonly avatarUrl?: string | null | undefined;
@@ -561,10 +528,6 @@ export function toPullRequestActionSummary(
   };
 }
 
-/**
- * Prefer GitHub's reviewDecision; only use latest reviews when it is absent (e.g. bot approvals).
- * A review a maintainer hid casts no verdict.
- */
 function toReviewDecisionWithReviews(
   value: string | null | undefined,
   reviews: ReadonlyArray<LatestReviewFields> | undefined,
@@ -621,8 +584,6 @@ function hasTeamReviewRequest(raw: ReadonlyArray<ReviewRequestFields> | undefine
 }
 
 function toCheckStatus(raw: CheckFields): PullRequestCheckStatus {
-  // Commit statuses report a single `state`; check runs report `status` plus a `conclusion`
-  // that only exists once the run has completed.
   const status = raw.status?.trim().toUpperCase();
   if (status !== undefined && status !== "COMPLETED" && status !== "") {
     return "pending";
@@ -649,7 +610,6 @@ function toCheckStatus(raw: CheckFields): PullRequestCheckStatus {
   }
 }
 
-/** What GitHub writes where a run has not reached that moment yet, which is not a time. */
 const UNSET_TIMESTAMP = "0001-01-01T00:00:00Z";
 
 const STILL_RUNNING = "9999-12-31T23:59:59Z";
@@ -659,16 +619,10 @@ function realTimestamp(value: string | null | undefined): string | null {
   return at === null || at === UNSET_TIMESTAMP ? null : at;
 }
 
-/** Only a row the rollup gives no name of any kind, which is not a check anyone can show. */
 function isNamelessCheck(raw: CheckFields): boolean {
   return trimmed(raw.name) === null && trimmed(raw.context) === null;
 }
 
-/**
- * A run that has not finished outranks any finished run of the same check: a workflow triggered
- * by both `push` and `pull_request` runs the check twice on one commit, and the run that
- * finished first must not hide the one still going.
- */
 function toCheckEntries(raw: ReadonlyArray<CheckFields> | null | undefined): ReadonlyArray<{
   readonly check: PullRequestCheck;
   readonly workflowName: string | null;
@@ -732,8 +686,6 @@ interface RemarkFields {
   readonly isMinimized: boolean;
 }
 
-// Hidden (minimized) remarks are left out, as github.com collapses them: a maintainer marked them
-// spam, off-topic, or outdated, and they should not reach readers or agents.
 function toComments(raw: {
   readonly comments: ReadonlyArray<RemarkFields & { readonly createdAt: string }>;
   readonly reviews: ReadonlyArray<
@@ -753,10 +705,6 @@ function toComments(raw: {
       path: null,
       reviewState: null,
     }));
-  // A review with no body is kept only when its state is the event itself — an approval, a
-  // request for changes, a dismissal. GitHub also opens a bodiless `COMMENTED` review as the
-  // container for line comments, and those comments are read from the review threads, so
-  // keeping the container too would show a row with a name and nothing under it.
   const reviews = raw.reviews.flatMap((review): ReadonlyArray<PullRequestComment> => {
     const submittedAt = trimmed(review.submittedAt);
     const reviewState = trimmed(review.state);
@@ -832,7 +780,6 @@ interface DetailFields extends ListItemFields {
   readonly body?: string | undefined;
   readonly changedFiles?: number | undefined;
   readonly closedAt?: string | null | undefined;
-  /** The standing instruction and strategy GitHub will use once its requirements are met. */
   readonly autoMergeRequest?:
     | { readonly mergeMethod?: string | null | undefined }
     | null
@@ -865,11 +812,6 @@ const decodeWorkflowRuns = decodeJsonResult(RawWorkflowRunsSchema);
 const decodeFileEntry = Schema.decodeUnknownExit(RawPullRequestFileSchema);
 const decodeRow = Schema.decodeUnknownExit(PullRequestRow);
 
-/**
- * A listing page whose rows are left undecoded, so `toPullRequestRows` can decode them one at a
- * time: a node that is not a pull request, or one field GitHub changes, is skipped rather than
- * failing the page and blanking every repository at once.
- */
 const LenientRows = Schema.Struct({
   pageInfo: ListingPageInfo,
   nodes: Schema.NullOr(Schema.Array(Schema.Unknown)),
@@ -945,8 +887,6 @@ function toRow(
         latestReviews: nodesOf(node.latestReviews),
         reviewRequests,
         labels: nodesOf(node.labels),
-        // The rollup arrives as one enum. Dressed as a single check here so it is read the same
-        // way the detail's checks are.
         statusCheckRollup: rollupStates(node.commits),
       }),
       ...(stack === undefined ? {} : { stack }),
@@ -955,7 +895,6 @@ function toRow(
   };
 }
 
-/** The head commit's one-word rollup as a nameless check, which `rollupChecksState` reads. */
 function rollupStates(commits: {
   readonly nodes: ReadonlyArray<{
     readonly commit: { readonly statusCheckRollup: { readonly state: string } | null };
@@ -1055,7 +994,6 @@ export function toPullRequestSummary(pr: SummarizedPullRequest): GitHubPullReque
     deletions: pr.deletions,
     changedFiles: pr.changedFiles,
     reviewDecision: toReviewDecisionWithReviews(pr.reviewDecision, nodesOf(pr.latestReviews)),
-    // One enum for the head commit, dressed as a single check like the search row's.
     checksState: rollupChecksState(rollupStates(pr.commits)),
     mergeability: toMergeability(pr.mergeable),
     ...(pr.stack === undefined ? {} : { stack: toStackMembership(pr) ?? null }),
@@ -1070,7 +1008,6 @@ export interface GitHubPullRequestWatchFingerprint {
 type EditedConnection = WatchedPullRequest["comments"] | WatchedPullRequest["reviews"];
 type StateCounts = ReadonlyArray<{ readonly state: string; readonly count: number }> | null;
 
-// An edit only ever moves `lastEditedAt` forward, so the newest one stands for them all.
 const newestEdit = (connection: EditedConnection) =>
   (connection?.nodes ?? []).reduce(
     (newest, node) =>
@@ -1220,7 +1157,6 @@ export function decodeWorkflowRunsJson(
   });
 }
 
-// Approval-gated runs (action_required) are read separately as action-required checks.
 const UNFINISHED_WORKFLOW_RUN_STATUSES = new Set([
   "requested",
   "queued",
@@ -1416,7 +1352,6 @@ export function reviewThreadConversation(
   );
 }
 
-/** Dismissal reasons by the dismissed review's node id. */
 function toDismissalEntries(
   connection: ReviewThreadsPullRequest["reviewDismissals"],
 ): Map<string, string> {
@@ -1461,14 +1396,12 @@ type ReviewThreadsPullRequest = NonNullable<
   NonNullable<ReviewThreads.Result["repository"]>["pullRequest"]
 >;
 
-/** A page of threads and the people commenting on them, whichever query carried it. */
 function toReviewThreadEntries(threads: ReviewThreadPage, viewer: string | null) {
   const threadNodes = nodesOf(threads);
   const entries = threadNodes.flatMap((thread): ReadonlyArray<GitHubReviewThreadEntry> => {
     const path = trimmed(thread.path);
     const id = trimmed(thread.id);
     const loaded = nodesOf(thread.comments);
-    // Hidden comments are left out, as in `toComments`; a thread with none left is dropped.
     const comments = loaded.filter((comment) => !comment.isMinimized);
     if (path === null || id === null || comments.length === 0) return [];
     return [
@@ -1476,8 +1409,6 @@ function toReviewThreadEntries(threads: ReviewThreadPage, viewer: string | null)
         thread: {
           id,
           path,
-          // Null once the thread's line has left the diff, which is exactly when GitHub reports
-          // it outdated. Such a thread is listed rather than pinned to a line it no longer has.
           line: thread.line !== null && thread.line > 0 ? thread.line : null,
           side: thread.diffSide.toUpperCase() === "LEFT" ? "left" : "right",
           isResolved: thread.isResolved,
@@ -1531,7 +1462,6 @@ export function toReviewThreadPage(result: ReviewThreads.Result): GitHubReviewTh
   const requestedReviewers = nodesOf(pullRequest.reviewRequests).map(
     (node): ActorFields | null => node.requestedReviewer,
   );
-  // Someone whose review was hidden is not listed as a reviewer.
   const latestReviews = nodesOf(pullRequest.latestReviews).filter((node) => !node.isMinimized);
   const comments = nodesOf(pullRequest.comments);
   const reviews = nodesOf(pullRequest.reviews);
@@ -1667,7 +1597,6 @@ export function toReviewerCandidates(
     candidates.set(`${slug === null ? "user" : "team"} ${id}`, {
       id,
       kind: slug === null ? "user" : "team",
-      // The same `org/slug` the reviewer row shows, so taking the request back finds that row.
       login: slug === null ? id : (trimmed("combinedSlug" in raw ? raw.combinedSlug : null) ?? id),
       name: trimmed("teamName" in raw ? raw.teamName : "name" in raw ? raw.name : null),
       avatarUrl: trimmed(
@@ -1921,9 +1850,6 @@ function toFilesPatch(entries: ReadonlyArray<unknown>): GitHubPullRequestFilesPa
     const hunks = value.patch ?? "";
     const status = value.status?.trim().toLowerCase();
     if (hunks.length === 0) {
-      // A file with no hunks is still a file that changed: a pure rename has none to give, and
-      // a binary one has none that can be shown. Both are listed, and only the second is a hole
-      // in the patch — leaving them out entirely would drop them from the change altogether.
       const additions = value.additions ?? 0;
       const deletions = value.deletions ?? 0;
       if (additions + deletions > 0) {
@@ -1939,7 +1865,6 @@ function toFilesPatch(entries: ReadonlyArray<unknown>): GitHubPullRequestFilesPa
       ...(status === "removed" ? ["deleted file mode 100644"] : []),
       ...(status === "renamed"
         ? [
-            // The files API has no similarity score; Pierre needs this header to keep the rename.
             `similarity index ${hunks.length > 0 || (value.additions ?? 0) + (value.deletions ?? 0) > 0 ? 0 : 100}%`,
             `rename from ${quoteGitPatchPath(oldPath)}`,
             `rename to ${quoteGitPatchPath(value.filename)}`,

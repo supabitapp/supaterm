@@ -31,7 +31,6 @@ import * as DesktopBackendConfiguration from "./DesktopBackendConfiguration.ts";
 import * as DesktopBackendPool from "./DesktopBackendPool.ts";
 import type { DesktopBackendStartConfig } from "./DesktopBackendManager.ts";
 
-// Models the spawner's release for a backend that ignores SIGTERM, without OS signals.
 const makeFakeBackendProcess = Effect.fn("test.makeFakeBackendProcess")(function* () {
   const started = yield* Deferred.make<void>();
   const exited = yield* Deferred.make<ChildProcessSpawner.ExitCode>();
@@ -287,7 +286,6 @@ const makeUpdateMarkerFixture = () =>
           const exit = Deferred.succeed(exited, ChildProcessSpawner.ExitCode(0)).pipe(
             Effect.asVoid,
           );
-          // Like the real spawner, closing the run's scope ends the process.
           yield* Effect.addFinalizer(() => exit);
           return ChildProcessSpawner.makeHandle({
             pid: ChildProcessSpawner.ProcessId(nextPid++),

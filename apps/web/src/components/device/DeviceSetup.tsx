@@ -54,7 +54,6 @@ export function deviceHubReadiness(state: DeviceServiceState) {
   return { ready, busy };
 }
 
-/** A ready host keeps its devices usable but may still carry a discovery warning. */
 function deviceHostDiagnostics(
   hosts: ReadonlyArray<Pick<DeviceServiceState["hosts"][number], "id" | "label">>,
   hostStatuses: DeviceServiceState["hostStatuses"],

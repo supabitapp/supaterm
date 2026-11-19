@@ -385,7 +385,6 @@ describe("ServerSettings environment icon", () => {
 
 const decodeDeviceHostSettings = Schema.decodeSync(ServerSettings);
 
-// `deviceHosts` as it was decoded before Expo hosts existed: an SSH host needs a target.
 const decodeOlderDeviceHostSettings = Schema.decodeUnknownSync(
   Schema.Struct({
     deviceHosts: Schema.Array(Schema.Struct({ id: Schema.String, target: Schema.String })),
@@ -406,7 +405,6 @@ it("keeps Expo hosts out of the SSH host list servers and clients before Expo ho
 
 it("validates remote device hosts and rejects ambiguous host ids", () => {
   const host = { id: "mini", label: "Mac mini", target: "user@mini", port: 2222 };
-  // Hosts saved before Expo hosts existed have no `kind`; they are SSH hosts.
   expect(decodeDeviceHostSettings({ deviceHosts: [host] }).deviceHosts).toEqual([
     { kind: "ssh", ...host },
   ]);
@@ -456,7 +454,6 @@ describe("branch naming settings", () => {
 describe("ServerSettings project overrides across versions", () => {
   it("sends back an override key from a newer server when an older client edits the entry", () => {
     const projectId = ProjectId.make("project-a");
-    // As an older client reads a newer server's settings, with one key it does not know.
     const entry = decodeServerSettings({
       projectSettingsOverrides: {
         [projectId]: { defaultAutoPull: true, addedByNewerServer: { mode: "kept" } },

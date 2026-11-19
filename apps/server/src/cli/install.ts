@@ -30,7 +30,6 @@ export class CliInstallError extends Schema.TaggedError<CliInstallError>()("CliI
   }
 }
 
-/** `<Supaterm home>/runtime/versions/<version>/supaterm`: the layout the install scripts and npm launcher share. */
 const standaloneRuntime = Effect.gen(function* () {
   const path = yield* Path.Path;
   if (!(yield* HostProcess.IsExecutable)) return Option.none();
@@ -61,13 +60,11 @@ export const installCli = Effect.fn("cli.install.install")(function* () {
     });
   }
   const { executable, versionsDir, runtimeDir } = runtime.value;
-  // cmd.exe expands `%` and reads the shim in the OEM code page, so such a path would not run.
   if (windows && /[%\u0080-\uffff]/.test(executable)) {
     return yield* new CliInstallError({
       reason: `A supaterm.cmd cannot run ${executable}, because the path has % or non-ASCII characters. Keep using npx supaterm.`,
     });
   }
-  // Absolute, so the PATH hint never adds a folder that changes with the working directory.
   const binDir = path.resolve(
     environment.SUPATERM_INSTALL_BIN_DIR?.trim() || path.join(home, ".local", "bin"),
   );
@@ -75,8 +72,6 @@ export const installCli = Effect.fn("cli.install.install")(function* () {
   const link = path.join(binDir, name);
   const failed = (reason: string) => (cause: unknown) => new CliInstallError({ reason, cause });
 
-  // Resolve fully so a link through a symlinked Supaterm home still counts as ours; a dangling one
-  // (a pruned version) falls back to its own text.
   const realVersionsDir = yield* fs
     .realPath(versionsDir)
     .pipe(Effect.orElseSucceed(() => versionsDir));
@@ -86,12 +81,10 @@ export const installCli = Effect.fn("cli.install.install")(function* () {
         Effect.flatMap((target) =>
           fs.realPath(link).pipe(Effect.orElseSucceed(() => path.resolve(binDir, target))),
         ),
-        // Not a link: the script this command and the install scripts write.
         Effect.catch(() => readPosixLauncherTarget(link)),
         Effect.option,
         Effect.map(Option.filter((target) => target !== undefined)),
       );
-  // A dangling symlink is occupied too: writing the shim would follow it.
   const occupied =
     Option.isSome(current) ||
     (yield* fs.exists(link)) ||
@@ -103,7 +96,6 @@ export const installCli = Effect.fn("cli.install.install")(function* () {
       current.value !== undefined &&
       (isVersionExecutable(path, versionsDir, current.value) ||
         isVersionExecutable(path, realVersionsDir, current.value) ||
-        // This home's desktop launcher, which install.sh also replaces.
         current.value === path.join(path.dirname(runtimeDir), "bin", name))
     )
   ) {
@@ -115,7 +107,6 @@ export const installCli = Effect.fn("cli.install.install")(function* () {
   yield* fs
     .makeDirectory(binDir, { recursive: true })
     .pipe(Effect.mapError(failed(`Could not create ${binDir}.`)));
-  // An empty spot is created exclusively, so a file that appears after the check above is kept.
   if (windows) {
     yield* fs
       .writeFileString(link, `@echo off\r\n"${executable}" %*`, occupied ? {} : { flag: "wx" })
@@ -126,7 +117,6 @@ export const installCli = Effect.fn("cli.install.install")(function* () {
     );
   }
 
-  // Pruning keeps what recorded launchers point at; a background service cannot see binDir otherwise.
   const recorded = path.join(
     yield* fs.realPath(binDir).pipe(Effect.orElseSucceed(() => binDir)),
     name,
@@ -142,14 +132,11 @@ export const installCli = Effect.fn("cli.install.install")(function* () {
     ),
   );
 
-  // resolve() drops trailing separators, so `~/.local/bin/` on PATH still matches.
   const normalize = (value: string) =>
     windows ? path.resolve(value).toLowerCase() : path.resolve(value);
   const same = (entry: string) => entry !== "" && normalize(entry) === normalize(binDir);
   const entries = (environment.PATH ?? environment.Path ?? "").split(windows ? ";" : ":");
   const onPath = entries.some(same);
-  // A supaterm earlier on PATH runs instead, and an added folder goes last. Runner caches (npx's own
-  // .bin) are not installs.
   const firstOther = Effect.gen(function* () {
     for (const entry of entries) {
       if (same(entry)) return undefined;
@@ -170,9 +157,7 @@ export const installCli = Effect.fn("cli.install.install")(function* () {
       onPath || shadowedBy !== undefined
         ? undefined
         : windows
-          ? // PowerShell; it covers this window only, since changing the saved PATH would flatten
-            // its %VAR% entries. A `;` would split the folder.
-            binDir.includes(";")
+          ? binDir.includes(";")
             ? undefined
             : `$env:Path += ';${binDir.replaceAll("'", "''")}'`
           : pathSetupCommand({
@@ -217,7 +202,6 @@ export const installCommand = Command.make("install").pipe(
   Command.withHandler(() => installCli().pipe(Effect.flatMap(reportInstalled))),
 );
 
-/** Saying no lasts until the next minor release: `0.2` covers `0.2.5` and `0.2.6-nightly.…`. */
 const minorRelease = (version: string) => version.split(".").slice(0, 2).join(".");
 
 const SKIPPED_ARGUMENTS = new Set([
@@ -227,13 +211,11 @@ const SKIPPED_ARGUMENTS = new Set([
   "--version",
   "-v",
   "--completions",
-  // Scripts and machine-readable output; a prompt would stall them or corrupt their output.
   "--json",
   "--yes",
   "-y",
 ]);
 
-/** The subcommand, past global flags that may come first (two take a value). */
 const topLevelCommand = (args: ReadonlyArray<string>) => {
   for (let index = 0; index < args.length; index++) {
     const arg = args[index]!;
@@ -243,7 +225,6 @@ const topLevelCommand = (args: ReadonlyArray<string>) => {
   return undefined;
 };
 
-/** Agents can run commands in a terminal that nobody answers; no answer counts as no. */
 const PROMPT_TIMEOUT = Duration.seconds(30);
 
 /** `/proc/<pid>/stat` fields after the parenthesized command name: state ppid pgrp session tty_nr tpgid. */
@@ -275,7 +256,6 @@ export const inTerminalForeground = Effect.gen(function* () {
   return isForegroundPs(
     yield* spawner
       .string(
-        // Absolute: under npx, PATH starts with a project's node_modules/.bin.
         ChildProcess.make("/bin/ps", ["-o", "tpgid=,pgid=", "-p", String(process.pid)], {
           stdin: "ignore",
           stderr: "ignore",
@@ -303,9 +283,7 @@ export const offerCliInstall = Effect.fn("cli.install.offer")(function* <E, R, E
   const environment = yield* HostProcess.Environment;
   if (!input.interactive || environment.CI || environment.SUDO_USER) return true;
   if (environment.TERM === "dumb") return true;
-  // `npx --yes` asks for no prompts; npm passes it on to the command as npm_config_yes.
   if (environment.npm_config_yes === "true") return true;
-  // `--json=true` and `-y=true` are the same flags.
   if (input.args.some((arg) => SKIPPED_ARGUMENTS.has(arg.split("=")[0]!))) return true;
   const command = topLevelCommand(input.args);
   if (command === "install" || command === "uninstall") return true;
@@ -314,8 +292,6 @@ export const offerCliInstall = Effect.fn("cli.install.offer")(function* <E, R, E
   if (Option.isNone(runtime)) return true;
   const { runtimeDir } = runtime.value;
 
-  // Any supaterm already installed means no prompt: ours (even when off PATH) or another on PATH.
-  // Runners put their own cache's node_modules/.bin on PATH, so skip those.
   const windows = platform === "win32";
   const names = windows ? ["supaterm.cmd", "supaterm.exe"] : ["supaterm"];
   const launchers = yield* fs

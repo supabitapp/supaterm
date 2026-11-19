@@ -143,8 +143,6 @@ type ProjectScriptEditorProps = {
 
 export function ProjectScriptEditorDialog(props: ProjectScriptEditorProps) {
   const { request, onClose } = props;
-  // The last opened request stays shown while the dialog animates closed. Each
-  // new request mounts a fresh form, which drops the previous request's save.
   const [shown, setShown] = useState<{
     readonly request: ProjectScriptEditorRequest;
     readonly key: number;
@@ -159,7 +157,6 @@ export function ProjectScriptEditorDialog(props: ProjectScriptEditorProps) {
         if (!open) onClose();
       }}
     >
-      {/* The form owns its fields so a keystroke re-renders it, not the dialog chrome. */}
       <DialogPopup>
         {shown ? (
           <ProjectScriptEditorForm key={shown.key} {...props} request={shown.request} />
@@ -197,8 +194,6 @@ function ProjectScriptEditorForm({
   const [validationError, setValidationError] = useState<string | null>(request.error ?? null);
   const [isSaving, setIsSaving] = useState(false);
   const pendingSubmissionRef = useRef<object | null>(null);
-  // A save that settles after this form is replaced must not close or error
-  // the request that replaced it.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drops the pending save on unmount so a late result cannot close or fail the next request
   useEffect(
     () => () => {

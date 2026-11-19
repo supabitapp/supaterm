@@ -53,7 +53,6 @@ export function DeviceDuoViewport(props: {
     if (!pinchRef.current?.active) viewerRef.current?.setHingePreview(props.hingePreview);
   }, [props.hingePreview]);
 
-  // The 3D viewer lives as long as its canvas; later prop changes are pushed into it above.
   const mountViewer = (canvas: HTMLCanvasElement | null) => {
     const host = canvas?.parentElement;
     if (!canvas || !host) return;

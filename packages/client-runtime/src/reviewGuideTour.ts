@@ -139,7 +139,6 @@ export function rowsToPatch(
     const head = group[0]!;
     const oldCount = group.filter((row) => row.oldLine !== null).length;
     const newCount = group.filter((row) => row.newLine !== null).length;
-    // Git names the line before an empty side, so a pure insertion after line 9 is `-9,0`.
     const oldStart = oldCount === 0 ? Math.max(head.oldAt - 1, 0) : head.oldAt;
     const newStart = newCount === 0 ? Math.max(head.newAt - 1, 0) : head.newAt;
     lines.push(`@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`);
@@ -173,7 +172,6 @@ export function excerptExpansionOldContents(
       : prefix.slice(prefix.length - oldBefore);
   const oldRows = rows.flatMap((row) => (row.oldLine === null ? [] : [row.text]));
   const suffix = newLines.slice(before + newCount);
-  // Synthetic context still needs its own line after an old EOF row.
   if (suffix.length > 0 && oldRows.at(-1)?.endsWith("\n") === false) oldRows.push("\n");
   return [...oldPrefix, ...oldRows, ...suffix].join("");
 }

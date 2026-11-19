@@ -23,7 +23,6 @@ describe("applyCommandOutputFrame", () => {
       truncated: false,
       running: true,
     });
-    // The colour opened before the redraw survives it.
     expect(view.output.text).toBe("install\n\u001b[0;32m100%\u001b[0m\n");
     expect(view.running).toBe(true);
   });

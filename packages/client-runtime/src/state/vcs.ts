@@ -44,7 +44,6 @@ import {
 
 export { vcsRefsCacheStateAtom, vcsRefsLiveRevisionAtom } from "./vcsRefInvalidation.ts";
 
-// Share freshness across search and pagination keys, but keep it local to this registry.
 const serverRefsRevisionAtom = Atom.family((_key: string) => Atom.make(0).pipe(Atom.keepAlive));
 
 const OFFLINE_BRANCH_LIST_LIMIT = 100;
@@ -218,7 +217,6 @@ export const makeCachedVcsRefsChanges = Effect.fn("CachedVcsRefsState.makeChange
         ? Stream.empty
         : Stream.fromEffect(
             refresh().pipe(
-              // Session removal can precede switchMap cancelling this refresh.
               Effect.catchTags({ EnvironmentRpcUnavailableError: () => Effect.never }),
               Effect.tapError((error) =>
                 Effect.logWarning("Could not refresh Git refs.").pipe(
@@ -270,11 +268,6 @@ function cachedVcsRefsChanges(
 export function createVcsEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | Persistence.EnvironmentCacheStore | R, E>,
 ) {
-  /**
-   * One flat family on purpose: families hold entries via WeakRef, so a nested
-   * per-environment family can be collected between lookups, dropping every
-   * cached page atom and collapsing paginated ref lists mid-scroll.
-   */
   const listRefsFamily = Atom.family((key: string) => {
     const [environmentId, input] = JSON.parse(key) as [EnvironmentId, VcsListRefsInput];
     return runtime
@@ -311,8 +304,6 @@ export function createVcsEnvironmentAtoms<R, E>(
 
   return {
     listRefs,
-    // An uncached read for decisions that must match the repository now, not
-    // the persisted list a picker renders from.
     readRefs: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:vcs:read-refs",
       tag: WS_METHODS.vcsListRefs,
@@ -358,8 +349,6 @@ export function createVcsEnvironmentAtoms<R, E>(
       concurrency: vcsCommandConcurrency,
       onSettled: refreshRefs,
     }),
-    // Outside the serial queue: it only reads status, and a checkout picked right after opening
-    // the picker must not wait behind that read.
     refreshLocalStatusForPicker: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:vcs:refresh-local-status-for-picker",
       tag: WS_METHODS.vcsRefreshStatus,

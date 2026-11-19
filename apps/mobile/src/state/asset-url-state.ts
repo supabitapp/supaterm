@@ -24,7 +24,6 @@ export function deriveAssetUrlState(input: {
     return input.shared;
   }
   switch (input.connectionPhase) {
-    // available means idle before dialing. A query failure there means disconnected, not missing file.
     case "available":
       return input.shared._tag === "Failure"
         ? { _tag: "Failure", reason: "disconnected" }

@@ -50,8 +50,6 @@ export function QuestionAttachments(props: {
   const drafts = useAtomValue(composerDraftsAtom);
   const focusedRef = useRef(false);
   const onInputFocusChange = props.onInputFocusChange;
-  // The caller keys this component by request and question, so unmounting ends any open
-  // picker's scope.
   const pickerScope = useRef<{ active: boolean }>({ active: false });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens a scope that native picker and paste callbacks check, and closes it on unmount
   useEffect(() => {
@@ -61,15 +59,11 @@ export function QuestionAttachments(props: {
       scope.active = false;
     };
   }, []);
-  // Unmounted inputs never emit onBlur; explicitly release keyboard ownership.
   const releaseFocus = useEffectEvent(() => {
     if (focusedRef.current) onInputFocusChange?.(false);
   });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases keyboard ownership on unmount, since an unmounted native input never emits blur
   useEffect(() => () => releaseFocus(), []);
-  // A controlled value makes Fabric rebuild the native text on every keystroke, which discards
-  // iOS's pending autocorrection. The input owns its text; the only outside write is an option
-  // selection clearing the draft.
   const inputRef = useRef<TextInputInstance>(null);
   const [initialText] = useState(props.value);
   const nativeText = useRef(props.value);
@@ -158,7 +152,6 @@ export function QuestionAttachments(props: {
               maxVideoBytes: capabilities?.fileAttachments?.maxUploadBytes,
             });
       const picked = "files" in result ? result.files : result.attachments;
-      // Resolution on another client clears the reservation while the picker is open.
       if (
         !scope.active ||
         (appAtomRegistry.get(questionAttachmentPreparationAtom)[key] ?? 0) === 0

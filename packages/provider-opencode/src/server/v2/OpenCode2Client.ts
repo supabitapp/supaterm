@@ -19,7 +19,6 @@ import * as HttpClientResponse from "effect/http/HttpClientResponse";
 
 import { readServerUsageLimits } from "./usageLimits.ts";
 
-/** OpenCode 2 accepts only HTTP Basic auth, always with this user name. */
 const OPENCODE_USERNAME = "opencode";
 
 export interface OpenCode2UnreadableTerminal {
@@ -129,7 +128,6 @@ export class OpenCode2Client extends Context.Service<
   }
 >()("@supaterm/provider-opencode/server/v2/OpenCode2Client") {}
 
-// Heartbeats arrive every 10-15 seconds; longer silence means stuck, not idle.
 const SILENT_STREAM_TIMEOUT = "45 seconds";
 const SUBSCRIPTION_TIMEOUT = "10 seconds";
 
@@ -143,7 +141,6 @@ const decodeEnvelope = Schema.decodeUnknownOption(
   ),
 );
 
-// Rejected stream frames can be frequent when the server introduces new event types.
 const undecodable = Effect.fnUntraced(function* (data: string) {
   const envelope = decodeEnvelope(data);
   const type = envelope._tag === "Some" ? envelope.value.type.slice(0, 80) : "<unreadable>";
@@ -173,7 +170,6 @@ const undecodable = Effect.fnUntraced(function* (data: string) {
 });
 
 const readEvents = HttpClient.HttpClient.pipe(
-  // Recovery subscribes before reading history, so its stream may never be consumed.
   Effect.flatMap((client) =>
     HttpClient.withScope(client).get("/api/event", {
       headers: { accept: "text/event-stream" },
@@ -198,7 +194,6 @@ const readEvents = HttpClient.HttpClient.pipe(
   ),
 );
 
-// OpenCode requires UTF-8 Basic credentials; HttpClientRequest.basicAuth uses Latin-1.
 const basicAuthorization = (password: string | Redacted.Redacted) => {
   const plain = Redacted.isRedacted(password) ? Redacted.value(password) : password;
   return `Basic ${Buffer.from(`${OPENCODE_USERNAME}:${plain}`, "utf8").toString("base64")}`;
@@ -206,7 +201,6 @@ const basicAuthorization = (password: string | Redacted.Redacted) => {
 
 const MESSAGE_LIST_URL = /\/api\/session\/[^/?#]+\/message(?:[?#]|$)/;
 
-/** Reads only the page's shape; each message stays opaque for the real schema to judge. */
 const MessagePage = Schema.fromJsonString(
   Schema.StructWithRest(Schema.Struct({ data: Schema.Array(Schema.Unknown) }), [
     Schema.Record(Schema.String, Schema.Unknown),
@@ -228,11 +222,6 @@ const fillCompactionRecent = (message: unknown) =>
     ? { ...message, recent: isLegacyMetadata(message.metadata) ? message.metadata.recent : "" }
     : message;
 
-/**
- * OpenCode 2.1 dropped a compaction's `recent`, which the bundled 2.0.28 schema requires.
- * Migrated pre-2.1 compactions keep it under `metadata.recent`; native 2.1 ones have none.
- * Supaterm never reads it, so fill the gap; every other field still validates downstream.
- */
 const fillCompactionRecents = HttpClient.transformResponse(
   Effect.fnUntraced(function* (
     pending: Effect.Effect<HttpClientResponse.HttpClientResponse, HttpClientError.HttpClientError>,
@@ -248,10 +237,8 @@ const fillCompactionRecents = HttpClient.transformResponse(
     }
     const text = yield* response.text;
     const page = decodePage(text);
-    // The response caches its body, so the untouched one still decodes downstream.
     if (Option.isNone(page)) return response;
     const filled = encodePage({ ...page.value, data: page.value.data.map(fillCompactionRecent) });
-    // The filled body is longer than the one the server measured.
     const { "content-length": _, ...headers } = response.headers;
     return HttpClientResponse.fromWeb(
       request,
@@ -316,7 +303,6 @@ export const make = Effect.gen(function* () {
               if (mime === undefined)
                 return yield* new OpenCode2ImageError({ cause: "Unsupported image format" });
               const relative = paths.relative(directory, path);
-              // OpenCode confines reads to the requested location, including its own temp images.
               const outside =
                 relative === ".." ||
                 relative.startsWith(`..${paths.sep}`) ||

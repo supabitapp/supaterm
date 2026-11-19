@@ -1,6 +1,4 @@
 const SCP_SSH_REMOTE_PATTERN = /^[a-zA-Z0-9._-]+@([^:/]+):/;
-// Git reads `host:path` as SSH too, leaving the user to ssh config. A single letter is a Windows
-// drive and `::` names a remote helper.
 const USERLESS_SCP_SSH_REMOTE_PATTERN = /^([^@:/\\\s]{2,}):(?!:)\/?[^/\s]+(?:\/[^/\s]+)*\/?$/u;
 
 /** Null unless the remote is `host:path`, with no user. */

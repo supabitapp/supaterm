@@ -137,7 +137,6 @@ const fixture = Effect.fn("AntigravityUsageTest.fixture")(function* (
 });
 
 describe("Antigravity subscription limits", () => {
-  // Oracle: the 10:16 UTC payload and its narrow Workaround rule.
   it.effect("omits rolling resets for untouched summary buckets and keeps used Gemini resets", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(DateTime.makeUnsafe("2026-10-21T10:16:04Z")));
@@ -200,7 +199,6 @@ describe("Antigravity subscription limits", () => {
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // Oracle: measure the tolerance from the summary request, after auth.
   it.effect("uses summary request time after authentication for the reset tolerance", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(DateTime.makeUnsafe("2026-10-21T10:16:02Z")));
@@ -221,7 +219,6 @@ describe("Antigravity subscription limits", () => {
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // Oracle: keep descriptions, measured resets, and spent buckets.
   it.effect("keeps summary resets with a description, a distant reset, or no quota left", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(DateTime.makeUnsafe("2026-10-21T10:16:04Z")));
@@ -273,7 +270,6 @@ describe("Antigravity subscription limits", () => {
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // Oracle: the 60-second tolerance applies to both known window lengths.
   it.effect("omits summary resets 59 seconds away but keeps resets 61 seconds away", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(DateTime.makeUnsafe("2026-10-21T10:16:04Z")));
@@ -330,7 +326,6 @@ describe("Antigravity subscription limits", () => {
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // Oracle: workspace sign-ins are metered on cloudcode-pa, so its reading wins even when less used.
   it.effect("reports a business account's quota from the endpoint it is metered on", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(DateTime.makeUnsafe("2026-10-21T10:16:04Z")));
@@ -391,7 +386,6 @@ describe("Antigravity subscription limits", () => {
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // Oracle: model quotas have no evidence for the summary-only rule.
   it.effect("keeps full model fallback resets even at a full window from the request", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(DateTime.makeUnsafe("2026-10-21T10:16:04Z")));
@@ -479,7 +473,6 @@ describe("Antigravity subscription limits", () => {
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
   );
 
-  // Oracle: reported payloads for a personal sign-in, whose runtime meters on the daily endpoint.
   it.effect("reports a personal account's quota from the daily endpoint it is metered on", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(DateTime.toEpochMillis(DateTime.makeUnsafe("2026-11-07T12:00:00Z")));

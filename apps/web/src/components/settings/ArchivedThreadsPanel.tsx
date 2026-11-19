@@ -339,7 +339,6 @@ export function ArchivedThreadsPanel() {
                         if (event.shiftKey) event.preventDefault();
                       }}
                       onClick={(event) => {
-                        // The checkbox and its hidden input select the row themselves.
                         if (
                           event.target instanceof Element &&
                           event.target.closest("[data-slot=checkbox], input")

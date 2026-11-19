@@ -42,8 +42,6 @@ function setup(providers: ServerProvider[]) {
 
 const advance = (ms: number) => act(() => vi.advanceTimersByTime(ms));
 
-// Fake timers move past the exit before any real transitionend can fire, like a skipped or
-// cancelled transition in the app.
 describe("SidebarProviderUpdatePill exit", () => {
   it("replaces a finished update's spinner with success, then dismisses it", async () => {
     setup([provider("running")]);

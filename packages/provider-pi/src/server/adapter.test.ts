@@ -77,7 +77,6 @@ const PI_INSTANCE_ID = ProviderInstanceId.make("pi");
 const THREAD_ID = ThreadId.make("thread-pi-test");
 const SESSION_ID = ProviderSessionId.make("provider-session-pi-test");
 const FAKE_SESSION_FILE = "/fake/.pi/agent/sessions/--workspace--/0001_abc.jsonl";
-/** Deliberately outside the valid pid range so a group-kill can never land. */
 const FAKE_PID = 999_999_999;
 
 const at = (seconds: number) => DateTime.makeUnsafe(seconds * 1000);
@@ -179,19 +178,14 @@ interface FakePi {
   readonly allRequests: () => ReadonlyArray<PiRpcRecord>;
   readonly promptThinkingLevels: ReadonlyArray<string>;
   readonly promptModels: ReadonlyArray<string>;
-  /** Simulates a native extension changing Pi's active selection. */
   readonly changeNatively: (change: {
     readonly model?: string;
     readonly thinking?: string;
   }) => void;
-  /** Supaterm extension's service tier as each prompt was sent; Pi resets it with each session. */
   readonly promptServiceTiers: ReadonlyArray<string | null>;
-  /** Pi reloads extensions without the adapter seeing it, e.g. a user extension's ctx.newSession(). */
   readonly reloadExtensions: (newSessionFile?: string) => void;
-  /** Pi before 0.99 acknowledges prompts without a disposition. */
   readonly omitPromptDisposition: () => void;
   readonly queueStats: (data: unknown) => void;
-  /** Pi before 0.84.4 answers clear_queue as an unknown command. */
   readonly setClearQueue: (
     result:
       | { readonly steering: ReadonlyArray<string>; readonly followUp: ReadonlyArray<string> }
@@ -204,7 +198,6 @@ interface FakePi {
   };
 }
 
-/** Pi omits `model` when none is selected and `sessionName` until one is set. */
 const recordedIdleState = (sessionFile: string) => ({
   thinkingLevel: "high",
   isStreaming: false,
@@ -218,7 +211,6 @@ const recordedIdleState = (sessionFile: string) => ({
   pendingMessageCount: 0,
 });
 
-/** Pi 1.4.0 rejects every prompt while compaction runs, including steers. */
 const PI_COMPACTING_PROMPT_ERROR =
   "Cannot submit a prompt while compaction is in progress. Wait for compaction to finish and retry.";
 
@@ -299,7 +291,6 @@ const makeFakePi: Effect.Effect<FakePi> = Effect.gen(function* () {
           },
         };
       case "set_model":
-        // Pi reapplies the target model's configured thinking default.
         thinkingLevel = "low";
         currentModel = `${String(record["provider"])}/${String(record["modelId"])}`;
         return base;
@@ -665,7 +656,6 @@ describe("PiAdapterV2", () => {
         for (const update of updates) {
           yield* fake.emit({ type: "extension_ui_request", method: "setStatus", ...update });
         }
-        // The following dialog is an observable milestone after the preceding native notifications.
         yield* fake.emit({
           type: "extension_ui_request",
           id: "status-barrier",
@@ -2075,7 +2065,6 @@ describe("PiAdapterV2", () => {
         arg === "--extension" ? [spawn.args[index + 1]] : [],
       );
       assert.isFalse(spawn.args.includes("--no-extensions"));
-      // A thread's long-lived process keeps Pi's startup model refresh unless the user opts out.
       assert.notInclude(spawn.args, "--offline");
       assert.isUndefined(spawn.env.PI_OFFLINE);
       assert.isTrue(extensions.some((path) => path?.endsWith("pi-supaterm-mcp-extension.ts")));
@@ -2113,7 +2102,6 @@ describe("PiAdapterV2", () => {
         assert.notInclude(args, "--no-extensions");
         assert.include(args, "--extension");
 
-        // Startup extensions can hold Pi's first reply past the ordinary request deadline.
         const reading = yield* Deferred.make<void>();
         fake.deferNextState(reading);
         const registering = yield* runtime
@@ -2242,11 +2230,9 @@ describe("PiAdapterV2", () => {
         modelSelection: modelSelection("default"),
         runtimePolicy,
       });
-      // A cleared ref takes the new_session path, which must also run the recovery.
       for (const providerThread of [persisted, { ...persisted, nativeThreadRef: null }]) {
         const failed = yield* makeFakePi;
         const replacement = yield* makeFakePi;
-        // The transport fails stdin and events together; awaiting this orders registration after both.
         const transportDown = yield* Deferred.make<void>();
         let spawnCount = 0;
         const fake = {
@@ -2254,7 +2240,6 @@ describe("PiAdapterV2", () => {
           spawner: ChildProcessSpawner.make((command) => {
             spawnCount++;
             if (spawnCount > 1) return replacement.spawner.spawn(command);
-            // Exits at once so the transport is already down before registration runs.
             return failed.spawner.spawn(command).pipe(
               Effect.map((child) =>
                 ChildProcessSpawner.makeHandle({
@@ -2364,7 +2349,6 @@ describe("PiAdapterV2", () => {
       assert.equal(lastSwitch(), forkFile);
       assert.equal(resumed.nativeThreadRef?.nativeId, forkFile);
 
-      // A cold start may attach only a session recorded in this cwd; others take the fork above.
       for (const thread of [sameCwd, otherCwd]) {
         const coldFake = yield* makeFakePi;
         yield* openRuntime(
@@ -2596,7 +2580,6 @@ describe("PiAdapterV2", () => {
       yield* fake.emit({ type: "agent_settled" });
       yield* takeEvent((event) => event.type === "turn.terminal");
 
-      // A provider registered after the session started, e.g. by an extension reload.
       fake.queueModels([
         { provider: "openrouter", id: "openrouter/auto" },
         { provider: hub, id: "claude-haiku-4-5" },
@@ -2742,7 +2725,6 @@ describe("PiAdapterV2", () => {
       assert.equal(providerThread.nativeThreadRef?.nativeId, FAKE_SESSION_FILE);
       const childFile = "/fake/extension-child.jsonl";
 
-      // An extension command such as /handoff calls ctx.newSession(); later prompts go to its file.
       yield* startTurn(runtime, providerThread, "default", [], "/handoff", undefined, 1);
       yield* fake.takeRequest("prompt");
       fake.reloadExtensions(childFile);
@@ -2760,7 +2742,6 @@ describe("PiAdapterV2", () => {
       );
       yield* takeEvent((event) => event.type === "turn.terminal");
 
-      // The persisted ref is what a later resume passes to switch_session.
       assert.equal(
         idle.type === "provider_thread.updated"
           ? idle.providerThread.nativeThreadRef?.nativeId
@@ -3033,7 +3014,6 @@ describe("PiAdapterV2", () => {
           .filter((request) => request.type === "fork")
           .map((request) => request.entryId);
 
-      // A later prompt cannot stand in for a cancelled turn that ended before it landed.
       forkFake.queueEntries(UNCAPTURED_TURN_TREE);
       const unresolved = yield* forkAtFirst(
         uncapturedTurns(source.id, { startedAt: 60, completedAt: 100 }),
@@ -3064,7 +3044,6 @@ describe("PiAdapterV2", () => {
         modelSelection: modelSelection("default"),
         runtimePolicy,
       });
-      // Turn 2 is still in flight, so it has no end to bound the session-tree search.
       const turns = uncapturedTurns(source.id, { startedAt: 100, completedAt: 200 }).map((turn) =>
         turn.ordinal === 2 ? { ...turn, status: "running" as const, completedAt: null } : turn,
       );
@@ -3093,7 +3072,6 @@ describe("PiAdapterV2", () => {
         .allRequests()
         .filter((request) => request.type === "fork")
         .map((request) => request.entryId);
-      // Pi keeps only the fork entry's ancestors, so u2 (not steer2) drops all of turn 2.
       assert.deepEqual(forkedEntries, ["u2"]);
     }).pipe(Effect.scoped, Effect.provide(layerTest)),
   );
@@ -3176,7 +3154,6 @@ describe("PiAdapterV2", () => {
       assert.equal(caller.node.parentNodeId, caller.node.rootNodeId);
       assert.isNull(caller.item.parentItemId);
 
-      // Pi tags every phase, so an update that arrives before its start still nests.
       const phases = [
         { type: "tool_execution_update", partialResult: { content: [] }, status: "running" },
         { type: "tool_execution_start", args: { path: "a.ts" }, status: "running" },
@@ -3590,7 +3567,6 @@ describe("PiAdapterV2", () => {
       yield* startTurn(runtime, providerThread);
       yield* fake.takeRequest("prompt");
       yield* fake.emit({ type: "agent_start" });
-      // Frames as pi-subagents 0.88.1 sends them for an async `runs.all([alpha, beta])` workflow.
       const step = (key: string, state: string) => ({
         id: key,
         kind: "step",
@@ -3657,7 +3633,6 @@ describe("PiAdapterV2", () => {
           }
           return { statuses: [...statuses.values()].toSorted(), pending };
         });
-      // The launch snapshot precedes the tool result that names the run.
       yield* emitSnapshot("running", "running", "running");
       yield* fake.emit({
         type: "tool_execution_end",
@@ -4205,7 +4180,6 @@ describe("PiAdapterV2", () => {
       assert.deepEqual(forkedEntries(), []);
       assert.equal(missing._tag, "Failure");
 
-      // An adopted wake precedes its Supaterm turn, but follows turn 1 and its steer.
       fake.queueEntries(UNCAPTURED_TURN_TREE);
       yield* rollBackToFirst(uncapturedTurns(providerThread.id));
       assert.deepEqual(forkedEntries(), ["u2"]);
@@ -4254,7 +4228,6 @@ describe("PiAdapterV2", () => {
         leafId: "a3",
       };
 
-      // The adopted wake precedes Supaterm's first turn; its steer must be discarded with it.
       fake.queueEntries(entries);
       yield* rollBackToStart(150);
       assert.deepEqual(forkedEntries(), ["u2"]);
@@ -4289,7 +4262,6 @@ describe("PiAdapterV2", () => {
       });
       const turns = [turn(1, "u1"), turn(2, "u2")];
 
-      // Rollback opens the session the way CheckpointRollbackService does, without resumeThread.
       const fake = yield* makeFakePi;
       const adapter = yield* makeAdapter(fake);
       const runtime = yield* adapter.openSession({
@@ -4484,7 +4456,6 @@ describe("PiAdapterV2", () => {
     }).pipe(Effect.scoped, Effect.provide(layerTest)),
   );
 
-  // A failed compact can respond before starting or after compaction_start/end.
   it.effect.each([
     {
       name: "fails a compact Pi rejects before starting",
@@ -4659,8 +4630,6 @@ describe("PiAdapterV2", () => {
             running.turnItem.status === "running" &&
             running.turnItem.input === "echo hello",
         );
-        // Pi resends the whole output so far every 100 ms; each snapshot item is a stored row.
-        // Past its limit Pi sends only the tail, with the running total in details.truncation.
         for (const [text, totalBytes] of [
           ["hel", undefined],
           ["hello", undefined],
@@ -4998,7 +4967,6 @@ describe("PiAdapterV2", () => {
         type: "tool_execution_start",
         toolCallId: "ask-call",
         toolName: "ask_user_question",
-        // Some models JSON-encode `questions`; the extension decodes it before asking.
         args: {
           questions: JSON.stringify([
             { header: "Deploy", question: "Proceed?", options },
@@ -5022,7 +4990,6 @@ describe("PiAdapterV2", () => {
       }
       const question = decodeUserInputQuestions(event.turnItem.questions)[0];
       assert.equal(question?.question, "Proceed? Only for staging?");
-      // Option lines that differ from the recorded call keep the raw select.
       const unmatchedLines = ["1. Yes — Go", "2. No — Stop here", "3. Type something."];
       yield* fake.emit({
         type: "extension_ui_request",
@@ -5079,7 +5046,6 @@ describe("PiAdapterV2", () => {
           },
         ],
       };
-      // Parallel questionnaires can ask the same question.
       yield* fake.emit({
         type: "tool_execution_start",
         toolCallId: "ask-call",
@@ -5122,11 +5088,8 @@ describe("PiAdapterV2", () => {
         const selectResponse = yield* fake.takeRequest("extension_ui_response");
         assert.equal(selectResponse["value"], "3. Type something.");
       });
-      // The extension reads a bare number sent as the select's value as that option.
       yield* answerWithCustomText("ui-ask", "2");
       yield* answerWithCustomText("ui-ask-parallel", "5");
-      // Parallel dialogs can arrive before the follow-up input, including a multi-select of the
-      // same question, which the extension asks as an input with a non-empty placeholder.
       const multiSelectTitle = `How many replicas?\n\n${lines.join("\n")}\n\nEnter the numbers of all that apply.`;
       yield* fake.emit({
         type: "extension_ui_request",
@@ -5135,7 +5098,6 @@ describe("PiAdapterV2", () => {
         title: multiSelectTitle,
         placeholder: "1,3; custom answer",
       });
-      // Another extension's blank-placeholder input that only shares the question is asked.
       const unrelatedTitle = "How many replicas?\n\nEnter the release note:";
       yield* fake.emit({
         type: "extension_ui_request",
@@ -5167,7 +5129,6 @@ describe("PiAdapterV2", () => {
         const inputResponse = yield* fake.takeRequest("extension_ui_response");
         assert.deepEqual({ id: inputResponse["id"], value: inputResponse["value"] }, { id, value });
       }
-      // An answer staged when the turn ends is dropped, so a later matching input is asked.
       yield* answerWithCustomText("ui-ask-late", "7");
       yield* fake.emit({ type: "agent_end", messages: [], willRetry: false });
       yield* fake.emit({ type: "agent_settled" });
@@ -5416,7 +5377,6 @@ describe("PiAdapterV2", () => {
         });
         const interrupted = boundary !== "settled";
         const atInstall = boundary.startsWith("install-");
-        // Suspend the next start before another turn acquires and releases ownership.
         if (atInstall) fake.deferNextModelSelection();
         let next = atInstall
           ? yield* startTurn(
@@ -5527,7 +5487,6 @@ describe("PiAdapterV2", () => {
             ...(boundary.endsWith("idless") ? {} : { id: firstPrompt["id"] }),
             error: "late command rejection",
           });
-          // Duplicate and unknown IDs cannot consume the remaining old steer.
           for (const id of [firstPrompt["id"], "unknown-prompt"]) {
             yield* fake.emit({ type: "response", id, command: "prompt", success: true });
           }
@@ -6050,7 +6009,6 @@ describe("PiAdapterV2", () => {
       const running = yield* takeEvent(
         (event) => event.type === "turn_item.updated" && event.turnItem.type === "error",
       );
-      // Streamed tool input settles the retry; Pi sends auto_retry_end only after the message ends.
       yield* fake.emit({
         type: "message_update",
         assistantMessageEvent: { type: "toolcall_delta", contentIndex: 0, delta: "{" },
@@ -6246,7 +6204,6 @@ describe("PiAdapterV2", () => {
 
       fake.setCompacting(true);
       yield* fake.emit({ type: "compaction_start", reason: "manual" });
-      // The dialog proves the pump observed compaction_start before the prompt.
       yield* fake.emit({
         type: "extension_ui_request",
         id: "detached-compaction-dialog",
@@ -6263,7 +6220,6 @@ describe("PiAdapterV2", () => {
         undefined,
         2,
       );
-      // Writes go out in order, so this round trip flushes any prompt sent before it.
       yield* runtime.readThreadSnapshot({ providerThread });
       fake.setCompacting(false);
       const compactionEnded = fake.allRequests().length;
@@ -6387,7 +6343,6 @@ describe("PiAdapterV2", () => {
 
         fake.setCompacting(true);
         yield* fake.emit({ type: "compaction_start", reason: "manual" });
-        // The dialog proves the pump observed compaction_start before the prompt.
         yield* fake.emit({
           type: "extension_ui_request",
           id: "held-prompt-dialog",
@@ -6396,7 +6351,6 @@ describe("PiAdapterV2", () => {
         });
         yield* takeEvent((event) => event.type === "runtime_request.updated");
         yield* startTurn(runtime, providerThread, "default", [], "Held prompt", undefined, 2);
-        // Writes go out in order, so this round trip flushes any prompt sent before it.
         yield* runtime.readThreadSnapshot({ providerThread });
         assert.isFalse(
           fake
@@ -6426,7 +6380,6 @@ describe("PiAdapterV2", () => {
             }),
           );
           const abort = yield* fake.takeRequest("abort");
-          // The abort ends compaction before Pi exits; the stopped turn's prompt stays held.
           fake.setCompacting(false);
           yield* fake.emit({
             type: "compaction_end",
@@ -6737,7 +6690,6 @@ describe("PiAdapterV2", () => {
         if (steer.startsWith("compact-queued-")) {
           yield* runtime.steerTurn(steerInput);
           yield* fake.takeRequest("compact");
-          // Put a current probe before a notice in the pump, independent of fork scheduling.
           for (const acknowledged of [false, true]) {
             if (acknowledged) {
               yield* fake.emit({ type: "response", command: "compact", success: true });
@@ -6950,7 +6902,6 @@ describe("PiRpc early process exit", () => {
 });
 
 describe("PiRpc teardown", () => {
-  // Like pi, quits once stdin ends; it survives SIGTERM, so teardown's SIGKILL ends it otherwise.
   const recordShutdownCues = `
 const fs = require("node:fs");
 const note = (cue) => fs.appendFileSync(process.argv[1], cue + "\\n");

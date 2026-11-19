@@ -40,11 +40,6 @@ import type { ActiveShellIndexEntry } from "./ProjectionStore.ts";
 
 type ShellDelta = Extract<OrchestrationV2ShellStreamItem, { readonly sequence: number }>;
 
-/**
- * Whether the changes after a shell cursor can be replayed. The socket resume and the HTTP
- * snapshot's `resumeFrom` ask the same question, so a client the route tells to resume is not
- * refused by the socket.
- */
 const canResumeShellFrom = Effect.fnUntraced(function* (
   events: Pick<
     OrchestrationEventStore.OrchestrationEventStore["Service"],
@@ -165,14 +160,9 @@ type ShellTrimRow = Pick<
   "id" | "projectId" | "lineage" | "doneOverride" | "doneAt"
 >;
 
-/**
- * What a subscriber's trims read across every active row. Computed from full shells or from the
- * store's index, so a snapshot read only for the rows it sends trims the same way.
- */
 interface ShellTrimFacts {
   readonly subagentParentIds: ReadonlySet<string>;
   readonly subagentThreadIds: Set<string>;
-  /** Undefined when no thread is done, so none is older. */
   readonly olderDoneBeforeMs: number | undefined;
   readonly olderDoneCounts: ReadonlyArray<OrchestrationV2OlderDoneCount>;
 }
@@ -196,7 +186,6 @@ function shellTrimFacts(rows: ReadonlyArray<ShellTrimRow>): ShellTrimFacts {
     }
   }
   doneTimes.sort((left, right) => right - left);
-  // With fewer than 25, the oldest one is the cut, so nothing is older.
   const olderDoneBeforeMs = doneTimes[NEWEST_DONE_KEPT - 1] ?? doneTimes.at(-1);
   const counts = new Map<ProjectId, number>();
   if (olderDoneBeforeMs !== undefined) {
@@ -337,10 +326,6 @@ function trimShellSnapshot(
   return { ...base, threads: older.threads, olderDone: older.olderDone };
 }
 
-/**
- * The threads whose shells a trimmed snapshot can contain: a superset of what the trims keep, so
- * trimming the shells read for these ids gives the snapshot trimming every shell would.
- */
 function shellSubscriberThreadIds(
   index: ReadonlyArray<ActiveShellIndexEntry>,
   options: ShellSubscriberOptions,
@@ -445,11 +430,7 @@ export const loadShellSnapshotParts = Effect.fn("ShellStream.loadShellSnapshotPa
   };
 });
 
-// Resume refetches one row per changed project or thread; past this many a
-// single snapshot read is cheaper.
 const SHELL_RESUME_MAX_CHANGED_AGGREGATES = 500;
-// Finding the changed aggregates scans the gap; past this many sequences the
-// result would almost surely exceed the cap, so skip straight to a snapshot.
 const SHELL_RESUME_MAX_SCANNED_SEQUENCES = 1_000_000;
 
 /** What a client at `afterSequence` missed, or none when a snapshot should replace its shell. */
@@ -465,7 +446,6 @@ export const readShellResumeChanges = Effect.fn("ShellStream.readShellResumeChan
   }) => Effect.Effect<ReadonlyArray<ChangedApplicationAggregate>, E>;
 }) {
   const gap = input.highWater - input.afterSequence;
-  // A cursor ahead of this database's head came from another database.
   if (gap < 0 || gap > SHELL_RESUME_MAX_SCANNED_SEQUENCES) return Option.none();
   const changed = yield* input.readChanged({
     afterSequence: input.afterSequence,
@@ -516,8 +496,6 @@ export const loadOlderDoneThreadsPage = Effect.fn("ShellStream.loadOlderDoneThre
   },
 );
 
-// A subagent's secret or link card, or a user message past a link card, starts or ends a wait
-// only the user can answer; dropping these leaves the parent's "Input needed" stale.
 const turnItemCanChangeUserWait = (item: { readonly type: string }) =>
   item.type === "secret_request" || item.type === "link_request" || item.type === "user_message";
 
@@ -535,7 +513,6 @@ export function shouldPublishShellApplicationEvent(
     return true;
   }
   if (event.type === "thread.deleted") {
-    // Replay and the live tail overlap; keep known IDs so late events stay filtered.
     return true;
   }
   if (event.type === "turn-item.updated" && turnItemCanChangeUserWait(event.payload)) {
@@ -611,14 +588,10 @@ export function composeShellStreamWithEnrichment<A, E, R, A2, E2, R2, A3, E3, R3
           ),
         ),
       );
-      // Keep draining the sliding enrichment subscription after each handoff,
-      // as Stream.merge does, while only the budgeted tail waits for an ACK.
       yield* drain(
         input.enrichment.pipe(Stream.runForEachArray((items) => Queue.offer(output, { items }))),
       );
       let previous: Deferred.Deferred<void> | undefined;
-      // Stream.merge pulls ahead after handing off each batch. Wait for the next
-      // downstream pull so shell delivery keeps that batch charged until its RPC ACK.
       return Effect.gen(function* () {
         if (previous) yield* Deferred.succeed(previous, undefined);
         const next = yield* Queue.take(output);

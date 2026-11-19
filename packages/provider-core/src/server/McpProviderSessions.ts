@@ -9,10 +9,8 @@ import * as Ref from "effect/Ref";
 
 import type { McpProviderSessionConfig } from "./mcpSession.ts";
 
-// Other providers may never consume these references.
 const MAX_KEPT_HTML_RENDERS = 64;
 
-// Antigravity truncates long HTML arguments to a marked tail of at most 8,000 characters.
 const BOUNDED_TEXT_MARKER = "[Earlier output truncated]\n\n";
 const KEPT_HTML_END_LENGTH = 8_000;
 
@@ -44,8 +42,6 @@ export class McpProviderSessions extends Context.Service<
       },
       reference: HtmlRenderReference,
     ) => Effect.Effect<void>;
-    // A reported attachment consumes that exact page; otherwise the oldest page for a path, or a
-    // unique inline match.
     readonly takeHtmlRender: (
       threadId: ThreadId,
       input: PageInput,
@@ -68,13 +64,10 @@ const matchingPageIndex = (kept: ReadonlyArray<KeptHtmlRender>, input: PageInput
       : input.height;
   const sameFrame = (page: KeptHtmlRender) => page.title === input.title && page.height === height;
   const path = input.path;
-  // The handler refuses a call with both sources, so it published nothing to recover. Its decoder
-  // reads null as an omitted source.
   if (path !== undefined && path !== null && input.html !== undefined && input.html !== null) {
     return -1;
   }
   if (typeof path === "string" && path.length > 0) {
-    // An edited file is published again under the same path; completions arrive in publish order.
     return kept.findIndex((page) => page.path === path && sameFrame(page));
   }
   const html = input.html;
@@ -96,7 +89,6 @@ const matchingPageIndex = (kept: ReadonlyArray<KeptHtmlRender>, input: PageInput
       ? [index]
       : [],
   );
-  // Identical pages are interchangeable, so repeats are taken in publish order.
   if (matches.length > 1 && matches.every((index) => kept[index]!.htmlHash === htmlHash)) {
     return matches[0]!;
   }
@@ -149,7 +141,6 @@ const make = Effect.gen(function* () {
                 height: input.height,
                 htmlLength: input.html.length,
                 htmlHash: hashHtml(input.html),
-                // Copy the tail so its backing storage cannot retain the entire HTML string.
                 htmlEnd: Buffer.from(input.html.slice(-KEPT_HTML_END_LENGTH), "utf16le").toString(
                   "utf16le",
                 ),

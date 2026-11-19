@@ -43,7 +43,6 @@ const MIB = 1024 * 1024;
 const MAX_IMAGE_BYTES = 10 * MIB;
 const MAX_PAGE_BYTES = 25 * MIB;
 const HTML_FILE_EXTENSION = /\.html?$/i;
-// Like the image check, judge the bytes: a renamed .env or key does not start like a page.
 const HTML_DOCUMENT_START = /^\s*<(?:!doctype\s+html|html)[\s>]/i;
 const formatMib = (bytes: number) => `${(bytes / MIB).toFixed(1)} MiB`;
 
@@ -101,11 +100,8 @@ export class HtmlRenderViewportHeightError extends Schema.TaggedError<HtmlRender
   }
 }
 
-// Check only stylesheets and style attributes, even inside scripts; skip comments whole.
-// Consume unclosed comments, tags, or quotes through EOF to keep both patterns linear.
 const CSS_SOURCE =
   /<!--[\s\S]*?(?:-->|$)|<style\b[^>]*(?:>|$)([\s\S]*?)(?:<\/style\s*>|$)|\sstyle\s*=\s*(?:"([^"]*)(?:"|$)|'([^']*)(?:'|$)|([^\s>]+))/gi;
-// The lookbehind skips base64 runs, such as an inlined image that happens to contain "1vh".
 const VIEWPORT_HEIGHT_UNIT = /(?<![\w.+/])(?:\d+(?:\.\d+)?|\.\d+)[sld]?vh(?![\w-])/i;
 
 const rejectViewportHeight = (html: string) => {
@@ -204,7 +200,6 @@ const findLocalImages = (html: string) =>
     return span ? [{ start: span[0], end: span[1], path: html.slice(span[0], span[1]) }] : [];
   });
 
-// Inside a JS string literal a Windows path's backslashes are escaped.
 const filePathFor = (reference: string) =>
   /^[a-z]:/i.test(reference) ? reference.replaceAll("\\\\", "\\") : reference;
 
@@ -214,7 +209,6 @@ const dataUriPrefix = (path: string) =>
 const latin1 = (bytes: Uint8Array, start: number, end: number) =>
   String.fromCharCode(...bytes.subarray(start, end));
 
-// Validate bytes, not filenames, so renamed files or symlinks cannot inline secrets.
 const isImageBytes = (bytes: Uint8Array) => {
   const head = latin1(bytes, 0, 12);
   if (
@@ -243,7 +237,6 @@ const hasSvgRoot = (text: string) => {
     if (text.startsWith("<?", at)) at = after(text, "?>", at + 2);
     else if (text.startsWith("<!--", at)) at = after(text, "-->", at + 4);
     else if (text.slice(at, at + 9).toLowerCase() === "<!doctype") at = afterDoctype(text, at + 9);
-    // XML names are case-sensitive, and only these characters can end one here.
     else return /^<svg[ \t\r\n/>]/.test(text.slice(at, at + 5));
   }
   return false;
@@ -273,8 +266,6 @@ const inlineLocalImages = Effect.fn("HtmlRender.inlineLocalImages")(function* (h
   const files = yield* Effect.forEach(
     [...new Set(references.map((reference) => reference.path))],
     (path) =>
-      // Statting a network path makes Windows sign in to its host with the
-      // user's NTLM credentials, so one is reported as unreadable instead.
       isNetworkPath(filePathFor(path))
         ? Effect.succeed({ path, size: undefined })
         : fileSystem.stat(filePathFor(path)).pipe(
@@ -306,7 +297,6 @@ const inlineLocalImages = Effect.fn("HtmlRender.inlineLocalImages")(function* (h
   if (pageBytes > MAX_PAGE_BYTES) {
     return yield* new HtmlRenderPageTooLargeError({ sizeBytes: pageBytes });
   }
-  // Files can grow after stat; bound each read and stop when accumulated images cannot fit.
   let readBytes = 0;
   const images = yield* Effect.forEach(
     files.filter((file) => file.size !== undefined),
@@ -380,9 +370,7 @@ const make = Effect.gen(function* () {
     FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
   >();
   const browsers = yield* Semaphore.make(MAX_CONCURRENT_BROWSERS);
-  // Keep Chrome sandboxed unless explicitly disabled; root must opt out to run.
   const noSandbox = PreviewBrowserHost.sandboxDisabled(yield* HostProcess.Environment);
-  // sudo resets the environment, so the command has to name this server's home.
   const setupCommand = yield* resolveRootCliCommand(PreviewBrowserHost.SETUP_SUBCOMMAND, [
     "--base-dir",
     config.baseDir,
@@ -445,21 +433,17 @@ const make = Effect.gen(function* () {
   const readPageFile = Effect.fn("HtmlRender.readPageFile")(function* (filePath: string) {
     const unreadable = new HtmlRenderFileError({ path: filePath });
     if (!path.isAbsolute(filePath) || isNetworkPath(filePath)) return yield* unreadable;
-    // Check the resolved file, so a symlink named .html cannot reach another file.
     const realPath = yield* fileSystem
       .realPath(filePath)
       .pipe(Effect.mapError((cause) => new HtmlRenderFileError({ path: filePath, cause })));
     if (!HTML_FILE_EXTENSION.test(realPath) || (yield* isServerInternalPath(realPath))) {
       return yield* unreadable;
     }
-    // Open without following links and recheck the path, so a link or FIFO swapped in is refused.
     const html = yield* Effect.scoped(
       Effect.gen(function* () {
         const file = yield* openMediaFile(realPath).pipe(
           Effect.mapError((cause) => new HtmlRenderFileError({ path: filePath, cause })),
         );
-        // Unlike client reads, the caller may be sandboxed: a second hard link could give any
-        // file an .html name.
         if (file === null || file.info.nlink !== 1n) return yield* unreadable;
         if (file.info.size > BigInt(MAX_PAGE_BYTES)) {
           return yield* new HtmlRenderFileTooLargeError({
@@ -467,7 +451,6 @@ const make = Effect.gen(function* () {
             sizeBytes: Number(file.info.size),
           });
         }
-        // One read may return fewer bytes, so fill up to the checked size; growth past it is ignored.
         return yield* Effect.tryPromise({
           try: async () => {
             const buffer = Buffer.alloc(Number(file.info.size));
@@ -489,7 +472,6 @@ const make = Effect.gen(function* () {
   const readSource = (input: HtmlRenderSource) =>
     "path" in input ? readPageFile(input.path) : Effect.succeed(input.html);
 
-  // The bootstrap goes in first so its head scan never runs over inlined image data.
   const inline = (html: string) =>
     inlineLocalImages(injectHtmlRenderBootstrap(html)).pipe(Effect.provideContext(services));
 
@@ -511,7 +493,6 @@ const make = Effect.gen(function* () {
   ) {
     const source = yield* readSource(input);
     const html = yield* prepare(source);
-    // The `-html` id suffix makes the asset route serve it as a sandboxed text/html document.
     const attachmentId = createAttachmentId(input.threadId, "html");
     const filePath =
       attachmentId === null
@@ -550,7 +531,6 @@ const make = Effect.gen(function* () {
           )
           .pipe(Effect.as(reference));
       }),
-      // An interrupted publish must leave neither an attachment nor a recoverable reference.
       Effect.onError(() =>
         Effect.all(
           [

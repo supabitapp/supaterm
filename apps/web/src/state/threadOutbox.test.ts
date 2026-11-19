@@ -573,7 +573,6 @@ describe("web thread outbox delivery", () => {
     );
     vi.resetModules();
     harness.run.mockResolvedValue(AsyncResult.success({ sequence: 1 }));
-    // Reconnect after the retry backoff without using timers or polling.
     if (!saved) throw new Error("Expected the retained pending message");
     harness.records.set("message", { ...saved, retryAt: 0 });
     await (await import("./threadOutbox")).webThreadOutbox.drain();

@@ -67,8 +67,6 @@ export const ContextMenuItemSchema: Schema.Codec<ContextMenuItemSchemaType> = Sc
   ),
 });
 
-// Native menus opened from the keyboard select their first item, which is what
-// moves a screen reader into the menu. Electron assumes a mouse unless told.
 export const ContextMenuSource = Schema.Literals(["mouse", "keyboard"]);
 export type ContextMenuSource = typeof ContextMenuSource.Type;
 
@@ -378,10 +376,8 @@ export const DesktopUpdateCheckResultSchema = Schema.Struct({
 export const PRIMARY_LOCAL_ENVIRONMENT_ID = "primary";
 
 export interface DesktopEnvironmentBootstrap {
-  // Stable backend identity used to reopen routed projects.
   id: string;
   label: string;
-  // Actual distro for this run; id stays wsl:default when tracking the default.
   runningDistro?: string | null;
   httpBaseUrl: string | null;
   wsBaseUrl: string | null;
@@ -552,12 +548,10 @@ export const DesktopWslDistroSchema = Schema.Struct({
 
 export interface DesktopWslState {
   enabled: boolean;
-  // null means "track the current WSL default distro".
   distro: string | null;
   available: boolean;
   wslOnly: boolean;
   distros: readonly DesktopWslDistro[];
-  // Always null in wsl-only mode, which falls back to Windows with a dialog.
   preflightError: string | null;
 }
 

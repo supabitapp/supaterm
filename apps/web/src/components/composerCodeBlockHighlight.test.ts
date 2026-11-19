@@ -74,9 +74,7 @@ describe("highlighting edited fences", () => {
     const plugin = editor.extensionManager.plugins.find((candidate) =>
       (candidate as unknown as { key: string }).key.startsWith("composerCodeBlockHighlight"),
     ) as Plugin<DecorationSet>;
-    // A headless editor holds no plugins in its state, so give this one its own.
     let state = EditorState.create({ doc: editor.state.doc, plugins: [plugin] });
-    // Like a real view, every dispatch updates the plugin's view.
     let pluginView: ReturnType<NonNullable<typeof plugin.spec.view>> | undefined;
     const view = {
       get state() {

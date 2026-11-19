@@ -153,7 +153,6 @@ describe("pending timeline messages", () => {
       ...appendPendingThreadMessages([], [], [creation])[0]!,
       pendingMessage: undefined,
     };
-    // Delivered and caught up by sequence, but the server's copy is not projected yet.
     const result = appendAcceptedThreadMessages([synthetic], [], creation);
     expect(result).toHaveLength(1);
     expect(result[0]?.pendingMessage?.attachments).toEqual([video]);
@@ -256,10 +255,7 @@ describe("pending timeline messages", () => {
   });
 
   it("stops showing an acknowledged message once the thread catches up, even when the feed hides it", () => {
-    // A rolled-back or cancelled queued run keeps its message in projection.messages
-    // while its user_message item leaves the visible feed.
     const echoed = pending("rolled-back");
-    // A bounded projection pages an applied message out; it must not come back as pending.
     const pagedOut = { ...pending("paged-out"), sequence: 40 };
     const waiting = { ...pending("waiting"), sequence: 50 };
     const shown = selectPendingAcknowledgedMessages([echoed, pagedOut, waiting], {
@@ -277,7 +273,6 @@ describe("pending timeline messages", () => {
   it("holds the run's rows after a sent message until the run shows", () => {
     const appendTurn = createPendingTurnAppender();
     const sent = appendPendingThreadMessages([], [], [pending("sent")]);
-    // Offline or waiting to retry, the outbox is not sending it, so it keeps its Pending line.
     expect(appendTurn(sent, { zen: false, dispatchingMessageId: null })).toBe(sent);
     const sending = { zen: false, dispatchingMessageId: MessageId.make("sent") };
     const held = appendTurn(sent, sending);
@@ -291,7 +286,6 @@ describe("pending timeline messages", () => {
     expect(
       appendTurn(delivered, { zen: true, dispatchingMessageId: null }).map((entry) => entry.id),
     ).toEqual(["sent", "live-activity-row"]);
-    // A working run already shows its own rows.
     const thinking = {
       type: "thinking",
       runId: null,

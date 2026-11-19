@@ -7,7 +7,6 @@ vi.mock("react-native", () => ({
   Keyboard: { dismiss: () => {} },
   BackHandler: { addEventListener: () => ({ remove: () => {} }) },
 }));
-// React Navigation throws this outside a navigator, as for the Arrange threads sheet.
 vi.mock("@react-navigation/native", () => ({
   useIsFocused: () => {
     throw new Error("Couldn't find a navigation object.");

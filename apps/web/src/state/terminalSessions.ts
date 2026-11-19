@@ -34,7 +34,6 @@ interface TerminalMetadataIndex {
 
 const metadataIndexes = new WeakMap<ReadonlyArray<TerminalSummary>, TerminalMetadataIndex>();
 const sessionsBySummary = new WeakMap<TerminalSummary, Map<EnvironmentId, KnownTerminalSession>>();
-// Reuse held groups without retaining old members when their anchor survives in newer snapshots.
 const groupsByAnchor = new WeakMap<
   TerminalSummary,
   Map<
@@ -134,7 +133,6 @@ const decodeAttachKey = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Tuple([EnvironmentId, TerminalAttachInput])),
 );
 
-// The family key carries the whole launch so an idle atom leaves nothing behind.
 const attachedTerminalSessionFamily = Atom.family((key: string) => {
   const decoded = decodeAttachKey(key);
   if (Option.isNone(decoded)) {
@@ -201,7 +199,6 @@ const decodeKnownSessionsKey = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Tuple([EnvironmentId, Schema.NullOr(ThreadId)])),
 );
 
-// Derived per thread, so a terminal update elsewhere in the environment notifies no one here.
 const knownTerminalSessionsFamily = Atom.family((key: string) => {
   const [environmentId, threadId] = Option.getOrThrow(decodeKnownSessionsKey(key));
   return Atom.make((get) => {

@@ -16,7 +16,6 @@ function collect(node: Nodes, out: Nodes[] = []): Nodes[] {
   return out;
 }
 
-/** Formulas as `[kind, tex]`, in document order. */
 function formulas(markdown: string) {
   return collect(parse(markdown)).flatMap((node) => {
     if (node.type === "math") return [["display", node.value]];
@@ -118,7 +117,6 @@ describe("chat math parsing", () => {
   it("keeps block syntax inside display blocks as TeX", () => {
     expect(formulas("\\[\nx\n- y\n# z\n\\]\nafter")).toEqual([["display", "x\n- y\n# z"]]);
     expect(formulas("> $$\n> x\n> $$")).toEqual([["display", "x"]]);
-    // Same-line content is not a fence; it stays one formula.
     expect(formulas("$$x^2\n+y^2$$")).toEqual([["display", "x^2\n+y^2"]]);
     expect(text("$$E=mc^2")).toBe("$$E=mc^2");
   });

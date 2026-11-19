@@ -32,8 +32,6 @@ const COMPACT_STEP_LABELS: Record<DatabaseMaintenance.DatabaseCompactStep, strin
   checkpoint: "Flushing the write-ahead log",
 };
 
-// Holding the server lock refuses a server launched mid-repair, such as one started over SSH.
-// Lock only: acquireServerOwnership would also refuse the older service doctor just stopped.
 const lockServerHome = Effect.fn("runDoctor.lockServerHome")(function* (paths: {
   readonly dbPath: string;
   readonly serverRuntimeStatePath: string;
@@ -132,8 +130,6 @@ export const runDoctor = Effect.fn("runDoctor")(function* (
         Console.log(`  [${formatElapsed(now - startedAt)}] ${COMPACT_STEP_LABELS[step]}`),
       ),
     );
-  // Report inside the pause: a repair that succeeded is worth knowing about
-  // even when starting the service again fails afterwards.
   yield* service.withStopped(
     lockServerHome(paths).pipe(
       Effect.andThen(maintenance.compact(databasePath, reportStep)),

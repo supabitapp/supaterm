@@ -12,7 +12,6 @@ import {
 } from "../shared.ts";
 
 const AUTH_ERROR_TEXT = "Failed to authenticate. API Error: 401 Invalid authentication credentials";
-// The replay harness points CLAUDE_CONFIG_DIR at a scenario-owned directory.
 const AUTH_FAILURE_PATTERN =
   /^Claude could not authenticate\. For subscription login, run `claude auth login` on this environment's machine from ".+", with CLAUDE_CONFIG_DIR set to ".+claude-config", then start a new thread\. For API-key authentication, check this instance's configured credentials\.$/;
 

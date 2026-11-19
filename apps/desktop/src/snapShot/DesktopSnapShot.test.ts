@@ -1069,7 +1069,6 @@ it.effect.each([
       ...(backend === "niri" ? { accessibilityBoundsReliable: false } : {}),
       ...(backend === "kde" ? { clientBounds: { x: 479, y: 371, width: 700, height: 520 } } : {}),
     };
-    // The captured pixels differ from the compositor's logical window bounds.
     const imageSize = screenshot === "PNG" ? { width: 1400, height: 1040 } : window.bounds;
     const png =
       screenshot === "PNG"

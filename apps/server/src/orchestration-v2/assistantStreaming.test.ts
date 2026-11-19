@@ -33,11 +33,9 @@ it("holds a streamed section heading until its content has a boundary", () => {
 });
 
 type Step =
-  // A snapshot at `at` ms, and the text it delivers at once (null when held back).
   | { readonly at: number; readonly text: string; readonly shows: string | null }
   | { readonly at: number; readonly final: string }
   | { readonly id: string; readonly at: number; readonly text: string; readonly shows: string }
-  // Held snapshots due by `idle` ms, delivered whole.
   | { readonly idle: number; readonly shows: ReadonlyArray<string> }
   | { readonly dueAt: number | null };
 
@@ -105,7 +103,6 @@ it.each<{ readonly name: string; readonly mode?: "turn"; readonly steps: Readonl
       { idle: 1_699, shows: [] },
       { idle: 1_700, shows: ["A\n\nB more"] },
       { idle: 5_000, shows: [] },
-      // Its only boundary is behind what the idle delivery showed.
       { at: 5_100, text: "A\n\nB more and", shows: null },
       { at: 5_200, text: "A\n\nB more and.\n\nC", shows: "A\n\nB more and.\n\n" },
       { at: 5_300, final: "A\n\nB more and.\n\nC." },
@@ -164,7 +161,6 @@ it.each<{ readonly name: string; readonly mode?: "turn"; readonly steps: Readonl
     ],
   },
   {
-    // Rewrites replace delivered text: shorter at once, same length after the throttle.
     name: "provider rewrites and truncation",
     steps: [
       { at: 0, text: "Original long paragraph.\n\n", shows: "Original long paragraph.\n\n" },

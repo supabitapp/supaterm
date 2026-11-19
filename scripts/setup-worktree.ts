@@ -1,8 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - runs before `vp i`, so only Node built-ins exist.
-/**
- * Run by the supaterm.json "Setup Worktree" action. Plain Node keeps one command working in every
- * shell Supaterm spawns (zsh, bash, fish, PowerShell).
- */
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
@@ -15,8 +11,6 @@ if (!projectRoot) {
 }
 const worktree = NodePath.dirname(import.meta.dirname);
 
-// Setup has no one answering install prompts. Leave stdin closed so prompts
-// fail instead of hanging.
 const unattended: NodeChildProcess.StdioOptions = ["ignore", "inherit", "inherit"];
 
 const miseInstall = NodeChildProcess.spawnSync("mise", ["install"], {
@@ -25,9 +19,6 @@ const miseInstall = NodeChildProcess.spawnSync("mise", ["install"], {
 });
 if (miseInstall.status !== 0) process.exit(miseInstall.status ?? 1);
 
-// `-- --yes` passes pnpm's confirmation flag through vp.
-// Install exactly the locked dependencies so setup never rewrites the lockfile.
-// A stale lockfile must fail setup rather than silently resolving a new one.
 const install = NodeChildProcess.spawnSync(
   "mise",
   ["exec", "--", "vp", "i", "--frozen-lockfile", "--", "--yes"],
@@ -35,9 +26,6 @@ const install = NodeChildProcess.spawnSync(
 );
 if (install.status !== 0) process.exit(install.status ?? 1);
 
-// Env files live as real files in the main checkout; worktrees only get
-// symlinks to them. Only a symlink is ever replaced, so a real env file is
-// never deleted, including when this runs in the main checkout itself.
 const ENV_FILES = [".env"];
 for (const file of ENV_FILES) {
   const source = NodePath.join(projectRoot, file);

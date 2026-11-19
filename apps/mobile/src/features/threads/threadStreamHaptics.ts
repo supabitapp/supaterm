@@ -47,11 +47,9 @@ export function shouldTickStreamHaptic(input: {
 const streamHapticsFamily = Atom.family((key: string) => {
   const ref = parseThreadKey(key);
   return Atom.make((get) => {
-    // The first snapshot only seeds the mark: opening a thread mid-stream is silent.
     let seeded = false;
     let previous: StreamingMessageMark | null = null;
     let lastTickAt = 0;
-    // `subscribe`, not `get`: a rebuild per streaming tick would reset the mark.
     get.subscribe(
       environmentThreadDetails.threadAtom(ref),
       (thread) => {
@@ -69,7 +67,6 @@ const streamHapticsFamily = Atom.family((key: string) => {
   }).pipe(Atom.withLabel(`thread-stream-haptics:${key}`));
 });
 
-// A thread without server detail (a draft) has no reply to stream.
 const noStreamHaptics = Atom.make<void>(undefined).pipe(
   Atom.withLabel("thread-stream-haptics:none"),
 );

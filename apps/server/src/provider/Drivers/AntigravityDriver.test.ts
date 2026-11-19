@@ -79,7 +79,6 @@ const makeHarness = Effect.fn("makeAntigravityDriverHarness")(function* (
     name: string,
     options: {
       readonly loginRequired?: boolean;
-      /** `data` of the agent's "Internal error" response to `session/new`. */
       readonly newSessionErrorData?: unknown;
       readonly initialMode?: string;
     } = {},
@@ -390,7 +389,6 @@ it.layer(layerTest)("AntigravityDriver", (it) => {
             .filter((request) => request.method === "initialize")
             .map((request) => request.params?.clientCapabilities),
         ).toEqual([
-          // Two model refreshes, then thread title generation.
           helper,
           helper,
           helper,
@@ -402,7 +400,6 @@ it.layer(layerTest)("AntigravityDriver", (it) => {
           },
         ]);
 
-        // The agy CLI rejects `yolo` and `auto_edit`; it stays in `default` and Supaterm answers its requests.
         h.controls.selected = {
           ...(yield* h.makeExecutable("runtime cli", { initialMode: "auto_edit" })),
           harnessPath: null,

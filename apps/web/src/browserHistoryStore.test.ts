@@ -269,7 +269,6 @@ describe("useBrowserHistoryStore", () => {
     recordVisitForThread(threadRef, "http://a.test/", 1);
     settle("http://a.test/", "Old", "tab_a", threadRef);
     settle("http://a.test/", "New", "tab_a", otherThreadRef);
-    // A resize or a list reconcile replaces the session without a new page load.
     settle("http://a.test/", "Old", "tab_a", threadRef);
     expect(useBrowserHistoryStore.getState().byProjectKey["proj-a"]?.[0]?.title).toBe("New");
   });

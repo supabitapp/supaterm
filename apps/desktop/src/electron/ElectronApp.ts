@@ -113,7 +113,6 @@ const readEnvironmentMachineSymbol = Effect.fn("desktop.readEnvironmentMachineSy
 export function toSystemLocaleTag(identifier: string, hourCycle?: "h12" | "h23"): string {
   const [base = "", keywords = ""] = identifier.split("@");
   const languageTag = base.replace(/_/g, "-");
-  // Intl ignores rg extensions, so the macOS region override must replace the region subtag.
   const region = /(?:^|;)rg=([a-z]{2}|\d{3})zzzz(?:;|$)/i.exec(keywords)?.[1]?.toUpperCase();
   try {
     return new Intl.Locale(languageTag, {
@@ -242,7 +241,6 @@ export const make = ElectronApp.of({
   }),
   setDockIcon: Effect.fn("ElectronApp.setDockIcon")(function (image) {
     return Effect.sync(() => {
-      // Electron's types omit null, but it passes nil to setApplicationIconImage:, which restores the bundle icon.
       Electron.app.dock?.setIcon(image as Electron.NativeImage);
     });
   }),

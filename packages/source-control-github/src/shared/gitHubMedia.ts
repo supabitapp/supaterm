@@ -1,10 +1,5 @@
 import type { SourceControlMediaUrl } from "@supaterm/source-control-core/shared/definition";
 
-/**
- * Only hosts where a credential is what decides the answer belong here. `objects.githubusercontent.com`
- * and the `private-user-images` links GitHub's own HTML carries are already signed and load on their
- * own, and a token does nothing for them once that signature expires.
- */
 const WEB_HOSTS = new Set(["github.com", "www.github.com"]);
 const RAW_HOST = "raw.githubusercontent.com";
 const LFS_HOST = "media.githubusercontent.com";
@@ -16,9 +11,7 @@ export const GITHUB_CREDENTIALED_MEDIA_HOSTS: ReadonlySet<string> = new Set([
 
 const ATTACHMENT_PATH_PATTERN = /^\/user-attachments\/assets\/[\w-]+$/u;
 const LEGACY_ATTACHMENT_PATH_PATTERN = /^\/[^/]+\/[^/]+\/assets\/\d+\/[\w-]+$/u;
-/** `blob` and `raw` both address file bytes; `raw` is the one the token is honoured on. */
 const REPOSITORY_FILE_PATTERN = /^\/([^/]+)\/([^/]+)\/(?:raw|blob)\/(.*[^/])$/u;
-/** GitHub rejects 40-hex branch and tag names, and serves no SHA-256 repositories. */
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{40}$/u;
 
 function fileName(fetchUrl: string): string {
@@ -40,7 +33,6 @@ function media(
   return { fetchUrl, fileName: fileName(fetchUrl), ...extra };
 }
 
-/** A branch or tag can move; a raw file is fixed only when read at a full commit SHA. */
 function rawFile(fetchUrl: string): SourceControlMediaUrl {
   const ref = new URL(fetchUrl).pathname.split("/")[3] ?? "";
   return media(fetchUrl, COMMIT_SHA_PATTERN.test(ref) ? { immutable: true } : {});
@@ -60,7 +52,6 @@ export function gitHubMediaUrl(url: URL): SourceControlMediaUrl | null {
   if (host === RAW_HOST) return rawFile(`https://${host}${url.pathname}${url.search}`);
   if (host === LFS_HOST) return media(`https://${host}${url.pathname}${url.search}`);
   if (!WEB_HOSTS.has(host)) return null;
-  // GitHub links an uploaded video bare, with no extension, and an image as markdown.
   if (ATTACHMENT_PATH_PATTERN.test(url.pathname)) {
     return media(`https://github.com${url.pathname}`, { kind: "video", immutable: true });
   }

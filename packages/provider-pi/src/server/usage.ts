@@ -63,7 +63,6 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type): readonly 
   if (timestampMs === null) return [];
   const source = entry.type === "message" ? entry.message : entry;
   const usage = source.usage;
-  // Auxiliary tool/summary records lack model attribution; match Pi's breakdown.
   const rateModel =
     "model" in source
       ? "responseModel" in source
@@ -73,7 +72,6 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type): readonly 
   const model = "provider" in source ? `${source.provider}/${rateModel}` : "Tools/summaries";
   const outputTokens = tokenCount(usage.output);
   const totals = {
-    // Pi's input/cache counters are already disjoint.
     uncachedInputTokens: tokenCount(usage.input),
     cachedInputTokens: tokenCount(usage.cacheRead),
     cacheCreationTokens: tokenCount(usage.cacheWrite),
@@ -81,7 +79,6 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type): readonly 
     reasoningTokens: Math.min(outputTokens, tokenCount(usage.reasoning)),
   };
   const cost = usage.cost?.total;
-  // Omitted Pi rates default to zero; use shared estimates without positive transcript cost.
   const reportedCostUsd =
     typeof cost === "number" && Number.isFinite(cost) && cost > 0 ? cost : null;
   if (totalTokens(totals) === 0 && reportedCostUsd === null) return [];
@@ -95,7 +92,6 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type): readonly 
       totals,
       reportedCostUsd,
       speed: "standard",
-      // Forks preserve IDs/timestamps; short random IDs need timestamp/model to avoid cross-session collisions.
       dedupeKey: JSON.stringify(["pi", entry.id, entry.timestamp, model]),
     },
   ];
@@ -129,7 +125,6 @@ export const piUsageReader: ProviderUsageReader<PiSettings, Path.Path> = {
   kind: "transcripts",
   provider: "pi",
   format: piUsageFormat,
-  // Pi model IDs are `<provider>/<rate model>`.
   rateModel: (model) => model.slice(model.indexOf("/") + 1),
   directories: Effect.fn("piUsageReader.directories")(function* ({ config, environment }) {
     const path = yield* Path.Path;
@@ -139,7 +134,6 @@ export const piUsageReader: ProviderUsageReader<PiSettings, Path.Path> = {
     const sessionDirArg = config === undefined ? undefined : piLaunchSessionDir(config.launchArgs);
     const launchDir =
       sessionDirArg === undefined ? undefined : expandHomePath(sessionDirArg, launchHome);
-    // --session-dir moves only Supaterm-launched sessions; terminal sessions stay in Pi's own directory.
     return [
       ...(launchDir !== undefined && path.isAbsolute(launchDir)
         ? [{ dir: path.resolve(launchDir) }]

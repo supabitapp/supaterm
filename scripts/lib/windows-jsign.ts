@@ -1,7 +1,3 @@
-// Azure Trusted Signing from a non-Windows host, for electron-builder's
-// `win.signtoolOptions.sign` hook and the CLI archive. jsign reads AZURE_TENANT_ID,
-// AZURE_CLIENT_ID and AZURE_CLIENT_SECRET itself when no --storepass is given.
-
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
@@ -12,9 +8,6 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
-// Upstream failures worth another attempt: Azure's `InternalError` (seen in
-// release runs on both the certificate chain and the sign call), HTTP 429/5xx,
-// and dropped connections. Credential, permission and input errors never match.
 const TRANSIENT_JSIGN_ERROR =
   /\bInternalError - |HTTP Error (?:429|5\d\d)\b|java\.net\.(?:SocketTimeoutException|ConnectException)\b|Connection reset\b/;
 const JSIGN_RETRIES = 3;
@@ -30,7 +23,6 @@ export class JsignFailedError extends Schema.TaggedError<JsignFailedError>()("Js
   }
 }
 
-/** Runs jsign, forwarding its stderr as it arrives and returning a tail of it for classification. */
 const runJsign = Effect.fn("runJsign")(function* (jsign: string, args: ReadonlyArray<string>) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const child = yield* spawner.spawn(
@@ -75,14 +67,10 @@ export const signWithJsign = Effect.fn("signWithJsign")(function* (file: string)
     "http://timestamp.acs.microsoft.com",
     "--tsmode",
     "RFC3161",
-    // jsign appends a nested signature by default; signtool replaces.
     "--replace",
   ];
 
   let attempt = 0;
-  // jsign rewrites its input in place, so each attempt signs a fresh copy and
-  // only a copy jsign finished with replaces the file (same directory, so the
-  // rename is atomic). A failed attempt never touches the original.
   const signCopy = Effect.gen(function* () {
     attempt++;
     const dir = yield* fs.makeTempDirectoryScoped({

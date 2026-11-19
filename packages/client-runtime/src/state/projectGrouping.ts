@@ -107,7 +107,6 @@ function deriveRepositoryScopedKey(
   const canonicalKey = project.repositoryIdentity
     ? repositoryGroupingKeyOf(project.repositoryIdentity)
     : null;
-  // A NUL reserves the scratch key namespace outside valid repository identities.
   if (!canonicalKey || canonicalKey.includes("\0")) {
     return null;
   }
@@ -231,8 +230,6 @@ export function deriveProjectGroupLabel(input: {
     return sharedRepositoryNames[0]!;
   }
 
-  // A whole-repository group is named for the repository, not one member's folder:
-  // clones can disagree on its casing. A subfolder group keeps its own title.
   const representativeIdentity = input.representative.repositoryIdentity;
   if (
     representativeIdentity &&

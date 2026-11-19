@@ -91,7 +91,6 @@ export class DesktopWslEnvironment extends Context.Service<
   DesktopWslEnvironment,
   {
     readonly isAvailable: Effect.Effect<boolean>;
-    // UX-only best effort; health checks need probeDistros to distinguish failures from an empty installation.
     readonly listDistros: Effect.Effect<readonly WslDistro[]>;
     readonly probeDistros: Effect.Effect<readonly WslDistro[], DesktopWslDistroListError>;
     readonly preWarm: (distro: string | null) => Effect.Effect<void>;
@@ -100,7 +99,6 @@ export class DesktopWslEnvironment extends Context.Service<
       windowsPath: string,
     ) => Effect.Effect<Option.Option<string>>;
     readonly getUserHome: (distro: string | null) => Effect.Effect<Option.Option<string>>;
-    // Use the distro IP to avoid unreliable wslhost localhost forwarding.
     readonly getDistroIp: (distro: string | null) => Effect.Effect<Option.Option<string>>;
     readonly prepareRuntime: (
       distro: string | null,
@@ -202,7 +200,6 @@ const runWslProcess = (
         } satisfies ShellResult;
       }
       const handle = spawnResult.handle;
-      // Drain both pipes concurrently to prevent node-gyp output from blocking the child.
       const [stdoutBytes, stderrBytes, exitCode] = yield* Effect.all(
         [Stream.runCollect(handle.stdout), Stream.runCollect(handle.stderr), handle.exitCode],
         { concurrency: "unbounded" },
@@ -228,7 +225,6 @@ const runWslProcess = (
   );
 };
 
-// wsl.exe re-escaping mangles quotes inside bash -lc scripts.
 const runWslShell = (
   distro: string | null,
   bashScript: string,
@@ -262,7 +258,6 @@ const WSL_RUNTIME_SELECTION_GRACE_MINUTES = 5;
 
 const sanitizeWslRuntimeId = (value: string): string => value.replace(/[^A-Za-z0-9._-]/g, "_");
 
-// A null archive path asks for a staging directory to copy the archive into, unless the cache is ready.
 export const buildWslRuntimeInstallScript = (
   linuxArchivePath: string | null,
   runtimeId: string,
@@ -277,7 +272,6 @@ export const buildWslRuntimeInstallScript = (
     "runtime_entry_runs() {",
     '  [ -x "$1/supaterm" ] && "$1/supaterm" --version >/dev/null',
     "}",
-    // Hash the entry to detect a swapped or partially written executable, even if it still runs.
     "runtime_server_entry_digest() {",
     `  sha256sum "$1/supaterm" 2>/dev/null | cut -d ' ' -f 1`,
     "}",
@@ -302,7 +296,6 @@ export const buildWslRuntimeInstallScript = (
   if (linuxArchivePath === null) {
     return [
       ...readyCheck,
-      // The .tmp. name lets pruning collect a stage orphaned by a crash.
       `archive_stage=$(mktemp -d "$runtime_parent/.${safeRuntimeId}.tmp.XXXXXX")`,
       `printf 'archiveStage:%s\\n' "$archive_stage"`,
     ].join("\n");
@@ -314,9 +307,7 @@ export const buildWslRuntimeInstallScript = (
     `  printf 'WSL runtime archive does not match its recorded SHA-256 (expected %s, got %s)\\n' ${shellQuote(archiveSha256)} "$archive_sha" >&2`,
     "  exit 1",
     "fi",
-    // Deletion can remove a live backend's lazy imports; check cmdline before rename preserves its old path.
     "runtime_in_use() {",
-    // Without /proc, assume the runtime may still be in use.
     "  [ -d /proc/1 ] || return 0",
     '  grep -qF -- "$1/" /proc/[0-9]*/cmdline 2>/dev/null',
     "}",
@@ -330,7 +321,6 @@ export const buildWslRuntimeInstallScript = (
     '  rmdir "$runtime_stale"',
     '  if mv -T "$runtime_root" "$runtime_stale" 2>/dev/null; then',
     '    if [ "$runtime_root_in_use" = 1 ]; then',
-    // Renaming keeps the directory's old mtime, so restart the cleanup clock.
     '      touch "$runtime_stale"',
     "    else",
     '      rm -rf "$runtime_stale"',
@@ -364,7 +354,6 @@ export const buildWslRuntimeInstallScript = (
   ].join("\n");
 };
 
-// Two hours exceeds cold-install time while bounding orphan retention.
 const ORPHANED_RUNTIME_SCRATCH_MAX_AGE_MINUTES = 120;
 
 export const buildWslRuntimePruneScript = (runtimeId: string): string => {
@@ -374,11 +363,9 @@ export const buildWslRuntimePruneScript = (runtimeId: string): string => {
     'runtime_parent="$HOME/.supaterm/wsl-runtime"',
     `current_runtime="$runtime_parent/${safeRuntimeId}"`,
     '[ -d "$runtime_parent" ] || exit 0',
-    // Serialize pruning so backends cannot select and delete different previous caches.
     'prune_lock="$runtime_parent/.prune.lock"',
     'exec 8> "$prune_lock"',
     "flock -x 8",
-    // Without /proc, retention cannot distinguish caches used by live backends.
     "[ -d /proc/1 ] || exit 0",
     "runtime_in_use() {",
     '  grep -qF -- "$1/" /proc/[0-9]*/cmdline 2>/dev/null',
@@ -417,7 +404,6 @@ export const buildWslRuntimePruneScript = (runtimeId: string): string => {
   ].join("\n");
 };
 
-// Invalidate trees that pass install checks but fail launch probes, or each launch reuses the broken cache.
 export const buildWslRuntimeInvalidateScript = (runtimeId: string): string => {
   const safeRuntimeId = sanitizeWslRuntimeId(runtimeId);
   return [
@@ -444,7 +430,6 @@ const formatNodePtyProbeFailureReason = (exitCode: number): string | null =>
     ? "WSL support is missing from this Supaterm build: the packaged Linux node-pty binary was not included. Install a build that includes WSL support."
     : null;
 
-// Capture login-shell PATH because the server launches provider CLIs by name.
 const RESOLVED_PATH_LINE = `printf 'resolvedPath:%s\\n' "$PATH"`;
 
 const NODE_PTY_PROBE_SCRIPT = (
@@ -477,8 +462,6 @@ if (!candidates.some((candidate) => fs.existsSync(candidate))) process.exit(${NO
 require("node-pty");
 NODE`;
 
-// Resolve version-managed Node for providers without making runtime readiness depend on it.
-// The install script already ran the staged supaterm, so running it again here only adds a second startup.
 export const buildWslRuntimeProbeScript = () =>
   `bash -lc ${shellQuote(`${buildWslNodeEnvPreamble()}${RESOLVED_PATH_LINE}`)} 2>/dev/null || ${RESOLVED_PATH_LINE}`;
 
@@ -542,7 +525,6 @@ const parseNodeVersion = (stdout: string): string | null => {
   return version ?? null;
 };
 
-// Strip only Windows CR; spaces and apostrophes must survive as one env argument.
 export const parseResolvedPath = (stdout: string): string | null => {
   const prefix = "resolvedPath:";
   const line = stdout.split("\n").find((candidate) => candidate.startsWith(prefix));
@@ -620,8 +602,6 @@ const ensureNodePtyImpl = Effect.fn("DesktopWslEnvironment.ensureNodePtyImpl")(f
   linuxRepoRoot: string,
   options: EnsureWslNodePtyOptions = {},
 ): Effect.fn.Return<EnsureWslNodePtyResult, never, ChildProcessSpawner.ChildProcessSpawner> {
-  // node-pty lives in the apps/server workspace's node_modules; resolve from
-  // there rather than the monorepo root, where Bun's hoist layout omits it.
   const linuxServerDir = `${linuxRepoRoot}/apps/server`;
 
   const probe = yield* runWslShell(
@@ -732,9 +712,6 @@ const ensureNodePtyImpl = Effect.fn("DesktopWslEnvironment.ensureNodePtyImpl")(f
   const report = parseToolchainReport(toolchainCheck.stdout);
 
   if (options.allowBuild !== true) {
-    // Packaged builds ship a prebuilt Linux node-pty, so no compiler, node-gyp,
-    // or network is needed — and we must not nag the user to install build
-    // tools they don't need.
     const nodeOnlyReason = formatMissingToolsReason(
       {
         missingTools: report.missingTools.filter((tool) => tool === "node"),
@@ -825,7 +802,6 @@ const toPrepareWslRuntimeResult = (outcome: WslRuntimeInstallOutcome): PrepareWs
     : { ok: true, linuxAppRoot };
 };
 
-// Without drive mounts (`[automount] enabled=false`) wslpath cannot reach the archive, so copy it in over stdin.
 const installWslRuntimeFromHostCopy = Effect.fn("desktop.wsl.installRuntimeFromHostCopy")(
   function* (
     distro: string | null,
@@ -847,11 +823,9 @@ const installWslRuntimeFromHostCopy = Effect.fn("desktop.wsl.installRuntimeFromH
 
     const copyAndInstall = Effect.gen(function* () {
       const readError = yield* Ref.make(Option.none<PlatformError.PlatformError>());
-      // dd reads fd 0 itself; reopening /dev/stdin fails when WSL relays stdin as a socket.
       const copy = yield* runWslProcess(
         [...buildDistroArgs(distro), "--exec", "dd", `of=${linuxArchivePath}`, "bs=65536"],
         archiveBytes.pipe(
-          // Ending stdin on a read error lets dd exit instead of waiting out the timeout.
           Stream.catch((error) =>
             Stream.drain(Stream.fromEffect(Ref.set(readError, Option.some(error)))),
           ),
@@ -1019,14 +993,12 @@ export const windowsToWslPathImpl = (
   distro: string | null,
   windowsPath: string,
 ): Effect.Effect<Option.Option<string>, never, ChildProcessSpawner.ChildProcessSpawner> => {
-  // wsl.exe interprets backslashes as escape chars; normalize to forward slashes.
   const normalized = windowsPath.replaceAll("\\", "/");
   return Effect.scoped(
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const command = ChildProcess.make(
         "wsl.exe",
-        // --exec skips the distro shell, which would expand `$`, `&` or `;` in folder names.
         [...buildDistroArgs(distro), "--exec", "wslpath", "-u", normalized],
         {
           stdin: "ignore",
@@ -1058,7 +1030,6 @@ const getDistroIpImpl = (
   Effect.scoped(
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-      // WSL2's first hostname -I address is reachable directly from Windows without wslhost forwarding.
       const command = ChildProcess.make(
         "wsl.exe",
         [...buildDistroArgs(distro), "--", "sh", "-c", "hostname -I"],
@@ -1227,7 +1198,6 @@ export const layer = Layer.effect(
     ): Effect.Effect<A, E> =>
       effect.pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
 
-    // Cache availability so synchronous IPC bootstrap can read it without yielding to filesystem I/O.
     const wslAvailable = yield* makeIsAvailable(environment.platform, windir).pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(Path.Path, environment.path),

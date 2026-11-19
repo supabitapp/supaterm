@@ -68,11 +68,6 @@ const summaryReason = (issue: SchemaIssue.Issue): string => {
 const isCatchAllMember = (issue: SchemaIssue.Issue) =>
   "ast" in issue && SchemaAST.resolveTitle(issue.ast) === "other";
 
-/**
- * ACP unions end in a member titled "other" that admits custom and future
- * variants; it fails only because the discriminator names a known variant, so
- * the known variant's issues are the ones reported.
- */
 const schemaIssueSummary = (root: SchemaIssue.Issue): string => {
   const entries = new Set<string>();
   const visit = (issue: SchemaIssue.Issue, path: ReadonlyArray<PropertyKey>): void => {
@@ -246,7 +241,6 @@ export class AcpTransportError extends Schema.TaggedError<AcpTransportError>()(
   override get message() {
     const operation = this.operation ? ` ${this.operation}` : "";
     const method = this.method ? ` for method ${this.method}` : "";
-    // Callers often pass a sentence; strip its period so the message ends with exactly one.
     const detail = this.detail ? `: ${this.detail.replace(/\.$/, "")}` : "";
     return `ACP transport operation${operation} failed${method}${detail}.`;
   }

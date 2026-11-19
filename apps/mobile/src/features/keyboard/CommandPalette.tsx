@@ -90,7 +90,6 @@ const PALETTE_COMMANDS: ReadonlyArray<HardwareKeyboardCommand> = [
   ...THREAD_JUMP_KEYBINDING_COMMANDS,
 ];
 const ROW_HEIGHT = 50;
-// The "In messages" label above the first message match; server results always come last.
 const SECTION_LABEL_HEIGHT = 26;
 
 const ACTION_ICONS: Record<string, AppSymbolName> = {
@@ -177,8 +176,6 @@ function PaletteRow(props: {
                 ))
               : props.item.title}
           </Text>
-          {/* The second line shows the snippet or hint, so keep where the thread
-              lives, unless the hint already names it. */}
           {(props.searchMatch ||
             (props.item.matchHint &&
               props.item.matchHint.label !== "Project" &&
@@ -258,7 +255,6 @@ export function CommandPalette(props: {
   const environments = useWorkspaceEnvironments();
   const { savedConnectionsById } = useSavedRemoteConnections();
   const [query, setQuery] = useState("");
-  // Ranking is relative to when the palette opened, so rows do not reorder as time passes.
   const [now] = useState(() => Date.now());
   const [selection, setSelection] = useState<string | null>(null);
   const [visible, setVisible] = useState(true);
@@ -267,8 +263,6 @@ export function CommandPalette(props: {
   const inputRef = useRef<TextInputInstance>(null);
   const listRef = useRef<LegendListRef>(null);
   const { width, height } = useWindowDimensions();
-  // The palette floats above every column, so it keeps itself inside the window's side insets
-  // and to one side of a book fold.
   const bounds = deriveBottomControlInsets(useNativeLayoutMetrics());
   const searchEnvironmentIds = useMemo(
     () =>
@@ -277,7 +271,6 @@ export function CommandPalette(props: {
         .map((environment) => environment.environmentId),
     [environments],
   );
-  // The palette matches environment names when there are several; older rows must match the same.
   const environmentLabels =
     environments.length > 1
       ? Object.fromEntries(
@@ -298,7 +291,6 @@ export function CommandPalette(props: {
   const draftEnvironmentId =
     useActiveNewTask() === null ? null : (newTaskFlow.selectedProject?.environmentId ?? null);
   const triageEnvironmentId = pickTriageEnvironment({
-    // The route names the machine even before the thread shell loads.
     onScreen: activeThreadRef?.environmentId ?? draftEnvironmentId,
     connected: searchEnvironmentIds,
     supportsTriage: (environmentId) =>
@@ -377,7 +369,6 @@ export function CommandPalette(props: {
         key: "sendFeedback",
         kind: "action",
         title: "Send feedback",
-        // Mobile has no triage hero, so name the machine before it starts.
         detail: `On ${savedConnectionsById[triageEnvironmentId]?.environmentLabel ?? "this machine"}`,
         searchTerms: ["feedback", "report", "bug", "issue", "triage", "debug", "help", "support"],
         run: () => void startTriage(triageEnvironmentId),
@@ -485,7 +476,6 @@ export function CommandPalette(props: {
             project?.title,
             environments.length > 1 ? environment : null,
           ),
-          // Last among threads: picking the thread already open does nothing.
           ...(thread.environmentId === activeThread?.environmentId && thread.id === activeThread.id
             ? { secondary: true }
             : {}),
@@ -496,7 +486,6 @@ export function CommandPalette(props: {
             }),
         };
       });
-    // Recent means used recently: written in or opened, whichever is later.
     threadItems.sort(
       (left, right) =>
         (right.threadSearch ? threadRecentUse(right.threadSearch) : 0) -
@@ -535,7 +524,6 @@ export function CommandPalette(props: {
       { withoutTitleMatches: true },
     ).map(keyOf);
   }, [items, now, query, search.matches]);
-  // Rows already shown keep their places when a slower environment answers.
   const [shownOrder, setShownOrder] = useState<ShownOrder | null>(null);
   const messageOrder = nextShownOrder(
     shownOrder,
@@ -550,7 +538,6 @@ export function CommandPalette(props: {
   );
   const results = useMemo(() => {
     const ranked = filterCommandPaletteItems(items, query, messageMatchKeys, now);
-    // Recent threads leave out the open one, which would always lead them.
     const activeKey = activeThread
       ? scopedThreadKey(activeThread.environmentId, activeThread.id)
       : null;
@@ -563,11 +550,8 @@ export function CommandPalette(props: {
             (candidate) => scopedThreadKey(candidate.environmentId, candidate.id) === item.key,
           )
         : undefined;
-    // A message result opens the thread at that message.
     const messageId = item.fromMessages ? contentMatchByKey.get(item.key)?.messageId : undefined;
     if (messageId) requestThreadMessageJump(item.key, messageId);
-    // A pick sends its open with the query, always, so the server records it;
-    // the thread screen then skips its own open. The open thread is no pick.
     if (thread && !item.secondary) claimThreadOpen(thread.environmentId, thread.id, Date.now());
     if (thread && thread.lastVisitedAt !== undefined && !item.secondary) {
       void visitThread({
@@ -588,13 +572,9 @@ export function CommandPalette(props: {
     results.findIndex((item) => item.key === selection),
   );
   const selectedKey = results[selectedIndex]?.key;
-  // The native list follows the highlighted row. Key presses move it, but so do
-  // live thread updates and late message matches that reorder or drop the
-  // selected row under a kept selection, so no single handler owns the scroll.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the native list to the highlighted row, which key presses and live result updates both move
   useEffect(() => {
     if (selectedIndex === 0) {
-      // Centering before the list measures its height scrolls half the first row out of view.
       listRef.current?.scrollToOffset({ offset: 0, animated: false });
     } else if (selectedKey !== undefined) {
       listRef.current?.scrollToIndex({ index: selectedIndex, animated: false, viewPosition: 0.5 });
@@ -608,7 +588,6 @@ export function CommandPalette(props: {
     dismissFallback.current = null;
     if (dismissed.current) return;
     dismissed.current = true;
-    // Present navigation sheets only after UIKit has dismissed this modal.
     props.onClose();
     pendingAction.current?.();
   };
@@ -625,7 +604,6 @@ export function CommandPalette(props: {
     closing.current = true;
     pendingAction.current = run ?? null;
     setVisible(false);
-    // iOS may drop onDismiss during presentation or competing sheets; a fallback clears stale palette state.
     dismissFallback.current = setTimeout(handleDismissed, 400);
   }
 
@@ -696,8 +674,6 @@ export function CommandPalette(props: {
                     onChangeText={(value) => {
                       setQuery(value);
                       setSelection(null);
-                      // The follow effect stays idle when the top row and its key are unchanged,
-                      // so a touch-scrolled list would otherwise keep its old offset.
                       listRef.current?.scrollToOffset({ offset: 0, animated: false });
                     }}
                     returnKeyType="go"
@@ -731,7 +707,6 @@ export function CommandPalette(props: {
                     {search.isPending ? "Searching…" : "No results"}
                   </Text>
                 }
-                // Message results from slower environments may still arrive below.
                 ListFooterComponent={
                   results.length > 0 && search.isPending && !query.startsWith(">") ? (
                     <Text className="px-5 pt-2 text-xs text-foreground-muted">

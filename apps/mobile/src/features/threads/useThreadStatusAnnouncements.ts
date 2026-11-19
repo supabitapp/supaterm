@@ -32,8 +32,6 @@ export function useThreadStatusAnnouncements({
   /** See isDetailBehindShell. */
   readonly detailBehind: boolean;
 }) {
-  // A retained route stays mounted under the screen above it; it speaks only while shown,
-  // and starts from a silent baseline when it is shown again.
   const focused = useIsFocused();
   const appActive = useAppActive();
   const activeKey = focused && appActive ? threadKey : null;
@@ -63,7 +61,6 @@ export function useThreadStatusAnnouncements({
     });
     const next = nextThreadAnnouncement(previous?.announcement ?? null, activity.snapshot);
     memoryRef.current = { threadKey: activeKey, activity, announcement: next.memory };
-    // Queued, like the web's polite region, so VoiceOver doesn't cut off what it is reading.
     if (next.announcement !== null) {
       AccessibilityInfo.announceForAccessibilityWithOptions(
         subject === null ? next.announcement : `${next.announcement}: ${subject}`,

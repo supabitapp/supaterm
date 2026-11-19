@@ -39,7 +39,6 @@ const UPDATE_CHECK_INTERVAL_MS = 60 * 60_000;
 const UPDATE_CHECK_TIMEOUT = "20 seconds";
 const UPSTREAM_LATEST_URL = "https://registry.npmjs.org/@openai/codex/latest";
 const UPSTREAM_RELEASES_URL = "https://github.com/openai/codex/releases/download";
-// An upstream release has no recorded size; current packages are about 160 MB.
 const UPSTREAM_MAX_ARCHIVE_BYTES = 1024 * 1024 * 1024;
 const Version = Schema.String.check(Schema.isPattern(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/u));
 const ActiveRelease = Schema.Struct({ version: Version });
@@ -206,11 +205,8 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
   let upstream: CodexReleaseAsset | null = null;
   let upstreamCheckedAt: number | null = null;
 
-  // A local Codex is used as is, so only a managed install is ever updated.
   const managedVersion = (current: ProviderInstallState) =>
     current.source === "managed" ? current.installedVersion : null;
-  // What `start` installs next. Clients compare `version` with
-  // `installedVersion` to offer an update.
   const offer = (installedVersion: string | null) => {
     const release = selectManagedRelease(installedVersion, asset, upstream);
     return {
@@ -311,8 +307,6 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
   });
   const isSupported = (version: string) =>
     compatibility(version).pipe(Effect.map((advisory) => advisory?.status === "supported"));
-  // Forgets what the manifest withdrew after it was seen. Managed resolution
-  // refuses a withdrawn install, so the pin replaces it rather than a re-check.
   const keptInstall = Effect.fn("CodexInstallation.keptInstall")(function* (
     installedVersion: string | null,
   ) {
@@ -321,15 +315,12 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
       ? installedVersion
       : null;
   });
-  // npm names the latest stable release; its GitHub release lists the package
-  // checksums, so an upstream update stays SHA-256 verified.
   const lookupUpstream = Effect.gen(function* () {
     if (!asset) return null;
     const latest = yield* http
       .execute(HttpClientRequest.get(UPSTREAM_LATEST_URL))
       .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk));
     const { version } = yield* latest.json.pipe(Effect.flatMap(decodeNpmLatest));
-    // Managed resolution refuses anything else, so offering it would break sessions.
     if (!(yield* isSupported(version))) return null;
     const releaseUrl = `${UPSTREAM_RELEASES_URL}/rust-v${version}`;
     const checksums = yield* http
@@ -349,20 +340,17 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
       archiveBytes: null,
     } satisfies CodexReleaseAsset;
   });
-  // A check already in flight covers concurrent subscribers, including when it fails.
   const checkForUpdate = updateCheckGate
     .withPermitsIfAvailable(1)(
       Effect.gen(function* () {
         const now = yield* Clock.currentTimeMillis;
         if (upstreamCheckedAt === null || now - upstreamCheckedAt >= UPDATE_CHECK_INTERVAL_MS) {
-          // A failed lookup counts too, and keeps whatever release was offered before.
           upstreamCheckedAt = now;
           upstream = yield* lookupUpstream.pipe(
             Effect.timeout(UPDATE_CHECK_TIMEOUT),
             Effect.orElseSucceed(() => upstream),
           );
         }
-        // A running install already published the release it is installing.
         yield* SubscriptionRef.updateEffect(state, (current) =>
           isRunning(current)
             ? Effect.succeed(current)
@@ -431,7 +419,6 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
       );
     return output;
   }, Effect.scoped);
-  // Native Codex needs its adjacent host; launchers resolve their own payloads.
   const hasCodeModeHost = Effect.fn("CodexInstallation.hasCodeModeHost")(
     function* (realExecutablePath: string) {
       if (/^(?:volta-shim|mise|aqua-proxy)(?:\.exe)?$/iu.test(path.basename(realExecutablePath)))
@@ -481,7 +468,6 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
         Effect.provideService(Path.Path, path),
       );
       if (executablePath === null) return null;
-      // Keep launcher symlinks intact: version-manager shims dispatch by their invoked name.
       const realExecutablePath = yield* fs.realPath(executablePath);
       const realManaged = yield* fs.realPath(managedDirectory).pipe(Effect.option);
       if (
@@ -686,7 +672,6 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
             message: "Extracting Codex.",
           }) satisfies ProviderInstallState,
       );
-      // Bare `tar` on Windows can resolve to Git's MSYS tar, which reads `C:\...` as a remote host.
       const tarCommand = cliArchiveTarCommand(platform, environment);
       const entries = (yield* runCommand(tarCommand, ["-tzf", archivePath])).trim().split(/\r?\n/u);
       const types = (yield* runCommand(tarCommand, ["-tvzf", archivePath])).trim().split(/\r?\n/u);
@@ -727,7 +712,6 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
         }),
         { flag: "wx", mode: 0o600 },
       );
-      // Windows Defender or process rundown may retain codex.exe handles briefly after --version exits.
       const renameRuntime = fs.rename(runtime, destination);
       yield* platform === "win32"
         ? renameRuntime.pipe(Effect.retry({ times: 10, schedule: Schedule.spaced("100 millis") }))
@@ -756,8 +740,6 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
       ),
     ),
   );
-  // Nothing newer is known, so "reinstall" re-checks the active runtime rather
-  // than replacing it with an older pinned release.
   const reverify = Effect.fn("CodexInstallation.reverify")(
     function* () {
       const active = yield* readRecord(activePath, ActiveRelease);
@@ -920,7 +902,6 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
   );
 
   yield* Effect.gen(function* () {
-    // Shared-home installs do not refresh parent mtimes; remove only staging directories far older than the 45-minute download cap.
     let canRemove = false;
     if (yield* fs.exists(managedDirectory)) {
       const entries = yield* fs
@@ -939,7 +920,6 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
         if (now - modifiedAt < STAGING_STALE_AFTER_MS) continue;
         yield* fs.remove(target, { recursive: true, force: true }).pipe(Effect.ignore);
       }
-      // Keep the empty root to avoid racing new staging directories; unreadable roots remain removable.
       const remaining = yield* fs.readDirectory(managedDirectory).pipe(Effect.option);
       canRemove = Option.isNone(remaining) || remaining.value.length > 0;
     }
@@ -960,7 +940,6 @@ export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function
           source: "managed",
         }) satisfies ProviderInstallState,
     );
-    // A supported older runtime still resolves, so a raised pin needs its own update.
     if (asset && compareSemverVersions(installed.version, asset.version) < 0)
       yield* start.pipe(Effect.ignore);
   }).pipe(

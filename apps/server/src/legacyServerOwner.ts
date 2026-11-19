@@ -1,5 +1,3 @@
-// Effect-free so the service launcher shares the pre-lock owner identity check with server startup.
-
 export const legacyOwnerStartTimeCommand = (pid: number, platform: NodeJS.Platform) => {
   const windows = platform === "win32";
   return {
@@ -16,7 +14,6 @@ export const legacyOwnerStartTimeCommand = (pid: number, platform: NodeJS.Platfo
   };
 };
 
-// ps reports whole seconds. Unknown identity (no output) stays conservative.
 export const legacyOwnerStartedBeforeRecord = (
   output: string | undefined,
   recordedAt: number,

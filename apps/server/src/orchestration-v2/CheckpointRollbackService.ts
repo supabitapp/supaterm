@@ -150,7 +150,6 @@ export const layer: Layer.Layer<
         checkpoint === undefined ||
         scope === undefined ||
         checkpoint.scopeId !== scope.id ||
-        // Missing snapshots support conversation rewind only.
         (checkpoint.status !== "ready" &&
           !(input.restoreFiles === false && checkpoint.status === "missing"))
       ) {
@@ -232,9 +231,7 @@ export const layer: Layer.Layer<
         });
 
       const { worktreePath, branch } = context.thread;
-      // Recreated only where the server would have made it, as turn start does.
       if (worktreePath != null && branch != null) {
-        // A failed removal can leave the folder without its checkout; only a file restore replaces it.
         const leftover =
           restoreFiles &&
           (yield* fileSystem.exists(worktreePath)) &&
@@ -257,7 +254,6 @@ export const layer: Layer.Layer<
             if (leftover) {
               const checked = yield* isolation;
               if (!checked.isolated) return yield* sharedWorkspace(checked.blockingSideChats);
-              // Set aside, not removed: a checkout that fails puts the folder and its files back.
               yield* Effect.acquireUseRelease(
                 Effect.gen(function* () {
                   const aside = yield* fileSystem.makeTempDirectory({
@@ -323,7 +319,6 @@ export const layer: Layer.Layer<
             }),
       });
 
-      // Rolled-back turns remain in audit history but no longer exist in the provider conversation.
       const rolledBackAttemptIds = new Set(context.rolledBackAttemptIds);
       const providerThreadTurns = context.providerTurns.filter(
         (turn) =>
@@ -418,17 +413,12 @@ export const layer: Layer.Layer<
     });
 
     return CheckpointRollbackServiceV2.of({
-      // The inner execute owns the rollback span; this wrapper selects the workspace lease.
       execute: Effect.fnUntraced(
         function* (input) {
-          // Storage cleanup removes worktrees under the same lease.
           const thread = yield* projections.getThread(input.threadId);
           if (thread.worktreePath === null) return yield* execute(input);
           const worktreePath = path.resolve(thread.worktreePath);
           const rollback = withWorkspaceLease(worktreePath, execute(input));
-          // Shared-workspace restores are rejected and conversation-only rewinds
-          // touch no files; reserving for them would stall turn starts on the
-          // slow provider rollback for nothing.
           yield* input.restoreFiles === false
             ? rollback
             : withCheckpointRestoreReservation(fileSystem, path, worktreePath, rollback);

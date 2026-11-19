@@ -2135,7 +2135,6 @@ it.effect("persists a late image reply before its generation releases ingestion"
 
 it.effect("keeps ingesting while the last stored root snapshot reports pending work", () =>
   Effect.gen(function* () {
-    // The live probe is already idle, as when it reads adapter state ahead of the queued events.
     const consumed = yield* Deferred.make<void>();
     const result = yield* Effect.raceFirst(
       runBackgroundItemScenario(
@@ -2284,7 +2283,6 @@ it.effect.each(["none", "sibling", "grandchild"] as const)(
                 providerThreadId: childProviderThreadId,
               },
             };
-            // A grandchild stays with this run when its parent moves; a sibling was never the child's.
             const other =
               otherPending === "none"
                 ? []
@@ -2333,7 +2331,6 @@ it.effect.each(["none", "sibling", "grandchild"] as const)(
     }),
 );
 
-// The handover event is not this run's, yet it is what settles the run's agent turns.
 it.effect(
   "ends preview activity when a transferred child settles a run kept open by background work",
   () =>
@@ -2965,7 +2962,6 @@ it.effect("settles native subagents when a workspace handoff completes the root 
         session: {
           events: Stream.empty,
           subscribeEvents: Effect.succeed({
-            // The provider event stream stays open: only settled children may end ingestion.
             events: Stream.concat(
               Stream.fromIterable([
                 childThreadCreatedEvent(ids),
@@ -3094,9 +3090,7 @@ it.effect("keeps a Stop that commits while a workspace handoff completes the run
     const { written, finalEvents, committedEffects } = yield* captureRootRunTermination({
       key: "stop-races-workspace-handoff",
       shouldFinalizeRun: () => Effect.succeed(true),
-      // Stop commits after the handoff is detected and before the terminal write.
       hasWorkspaceMoved: () => Ref.set(stopCommitted, true).pipe(Effect.as(true)),
-      // The sink refuses a guarded write once the Stop request is stored.
       beforeTerminalWrite: (request) =>
         Ref.get(stopCommitted).pipe(
           Effect.map((stopped) => !(stopped && request.unlessInterruptRequested !== undefined)),
@@ -3501,7 +3495,6 @@ it.effect.each([
       assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
       assert.isTrue(finalEvents.some((event) => event.type === "run.updated"));
       const durable = (yield* Ref.get(durableTurns)).get(ids.rootProviderTurnId);
-      // A failed interrupt keeps the stored turn running for the next start to retry.
       assert.equal(durable?.status, interrupt === "fails" ? "running" : status);
       assert.deepEqual(durable?.completedAt, interrupt === "fails" ? null : terminalAt);
     }),
@@ -3564,7 +3557,6 @@ it.effect("ends a running root command when the provider stream fails mid-turn",
             ),
           ),
         ),
-      // The dead process cannot take the interrupt either.
       interruptTurn: (input) =>
         Effect.fail(
           new ProviderAdapter.ProviderAdapterInterruptError({
@@ -3615,9 +3607,7 @@ it.effect("keeps a running root command open when a write fails under a live pro
 
 it.effect.each([
   { ended: true },
-  // Supaterm ending the stream proves no dead runtime; Stop settles the work it releases.
   { ended: false, raisedBySupaterm: true },
-  // A Stop that already settled the subagent keeps its result.
   { ended: false, stopped: true },
 ] as const)(
   "ends a subagent that outlived its root when the provider stream fails (%o)",
@@ -3726,7 +3716,6 @@ it.effect("interrupts a provider turn that starts after Stop settled its attempt
       initialProviderTurnId: null,
       shouldFinalizeRun: () => Ref.get(stopped).pipe(Effect.map((value) => !value)),
       shouldStartProviderTurn: () => Ref.get(stopped).pipe(Effect.map((value) => !value)),
-      // Stop commits while the provider accepts the prompt.
       startTurn: () =>
         Ref.set(stopped, true).pipe(Effect.andThen(Deferred.succeed(accepted, undefined))),
       events: () =>
@@ -3767,7 +3756,6 @@ it.effect("interrupts a provider turn that starts after Stop settled its attempt
   }),
 );
 
-// The server browser keeps an agent's tab focused for exactly this span.
 it.effect.each(["completed", "failed"] as const)(
   "reports the thread executing until its %s run's event consumer ends",
   (outcome) =>
@@ -3803,8 +3791,6 @@ it.effect.each(["completed", "failed"] as const)(
     }),
 );
 
-// Background commands keep the consumer alive for the whole session; only the agent's own
-// turn and the children it drives should hold the browser tab focused.
 it.effect.each([
   { name: "ends once the root turn finishes beside background work", openSubagent: false },
   { name: "stays while a run-owned subagent continues", openSubagent: true },
@@ -3949,7 +3935,6 @@ it.effect(
           }),
         afterStart: () =>
           Effect.gen(function* () {
-            // Separate startup, ingestion failure, and eventual storage recovery.
             yield* TestClock.adjust("5 seconds");
             failedAt = yield* DateTime.now;
             yield* Deferred.succeed(failIngestion, undefined);
@@ -4175,7 +4160,6 @@ it.effect.each(["completed", "failed"] as const)(
           };
           return Stream.fromIterable([roster(true), rootTerminalEvent(ids, status), roster(false)]);
         },
-        // The adapter clears its live roster before ingestion reaches the queued clear.
         beforeTerminalWrite: () => Ref.set(pending, false).pipe(Effect.as(true)),
         ingestNormalized: (input) =>
           Ref.update(ingested, (all) => [...all, input.event]).pipe(
@@ -4228,14 +4212,12 @@ function captureRootRunTermination(input: {
   readonly afterStart?: (
     closed: Deferred.Deferred<void>,
   ) => Effect.Effect<void, never, PreviewAgentActivity.PreviewAgentActivity>;
-  /** Changes the stored rows after the provider reported them, as a concurrent Stop does. */
   readonly settleStored?: (
     work: RunExecutionService.UnsettledWork,
   ) => RunExecutionService.UnsettledWork;
 }) {
   return Effect.gen(function* () {
     const ids = backgroundScenarioIds(input.key);
-    // The rows the provider's events stored, which the run reads back when its runtime is lost.
     const stored = {
       subagents: new Map<string, OrchestrationV2Subagent>(),
       nodes: new Map<string, OrchestrationV2ExecutionNode>(),
@@ -4326,7 +4308,6 @@ function captureRootRunTermination(input: {
                 yield* captureFinalEvents(payload.events);
                 return { committed: true, storedEvents: [] };
               }),
-            // Committed only against the row that was read, as the real conditional writes are.
             writeIfSubagentUnchanged: (payload) =>
               stored.subagents.get(payload.expected.id) === payload.expected
                 ? captureFinalEvents(payload.events).pipe(
@@ -4814,7 +4795,6 @@ function runBackgroundItemScenario(
       event: ProviderAdapter.ProviderAdapterV2Event,
       write: { readonly inSharedCommit: boolean },
     ) => Effect.Effect<void>;
-    // Consumes through the real commit coordinator, as the event sink does.
     readonly batched?: boolean;
     readonly keepEventStreamOpen?: boolean;
     readonly hasPendingBackgroundWorkForThread?: (
@@ -4826,7 +4806,6 @@ function runBackgroundItemScenario(
     readonly onSubscribe?: Effect.Effect<void>;
     readonly observe?: (event: ProviderAdapter.ProviderAdapterV2Event) => Effect.Effect<unknown>;
     readonly onEventsConsumed?: Effect.Effect<void>;
-    // Owner-gated root snapshots store nothing, as after a newer run claims the thread.
     readonly providerThreadOwnerLost?: boolean;
     readonly afterEvents?: (
       activity: PreviewAgentActivity.PreviewAgentActivity["Service"],
@@ -4906,7 +4885,6 @@ function runBackgroundItemScenario(
                     `subagent:${event.subagent.status}`,
                   ]);
                 }
-                // Only the count of stored events matters to the run.
                 return event.type === "provider_thread.updated" &&
                   !(
                     options?.providerThreadOwnerLost === true &&
@@ -4915,7 +4893,6 @@ function runBackgroundItemScenario(
                   ? [{} as OrchestrationV2StoredEvent]
                   : [];
               });
-              // A write outside a batch waits for queued snapshots, as the event sink's does.
               return coordinator === undefined ? write : coordinator.barrier(write);
             },
           }),
@@ -5005,7 +4982,6 @@ function runBackgroundItemScenario(
       });
     }).pipe(Effect.provide(layerTest));
 
-    // No timeout: tests advance the TestClock, which would fire it early.
     yield* Deferred.await(ingestionDone);
 
     return yield* Ref.get(observed);
@@ -5062,8 +5038,6 @@ it.effect("keeps a failed root's still-running native children live while the ru
 
 it.effect.each([
   { name: "on time", wakesEarly: false },
-  // Timers run on the monotonic clock, so one can fire while the wall clock still reads a
-  // millisecond before its deadline.
   { name: "before the wall clock reaches the deadline", wakesEarly: true },
 ])("delivers held text while an open-prompt provider idles, waking $name", ({ wakesEarly }) =>
   Effect.gen(function* () {
@@ -5154,18 +5128,15 @@ it.effect.each([
       }),
       Effect.forkChild,
     );
-    // Waking a sleep runs ingestion until it suspends, so an idle write has landed by now.
     const lastShown = Ref.get(delivered).pipe(Effect.map((shown) => shown.at(-1)));
 
     yield* Queue.offerAll(providerEvents, assistantText("First.\n\nWaiting on the build", true));
     yield* Deferred.await(paragraphDelivered);
-    // The provider keeps its prompt open while a backgrounded command runs.
     yield* TestClock.adjust("2 seconds");
     assert.strictEqual(
       yield* lastShown,
       'turn_item.updated:streaming:"First.\\n\\nWaiting on the build"',
     );
-    // The next paragraph's tail still flushes on a later pause.
     yield* Queue.offerAll(
       providerEvents,
       assistantText("First.\n\nWaiting on the build.\n\nRunning", true),
@@ -5182,14 +5153,11 @@ it.effect.each([
       ...assistantText("First.\n\nWaiting on the build.\n\nRunning tests passed.", false),
     ]);
     yield* Deferred.await(blockerStarted);
-    // The appended text comes due while its final snapshots wait behind the blocked write.
     yield* TestClock.adjust("1 second");
     yield* Deferred.succeed(releaseBlocker, undefined);
     yield* Queue.offer(providerEvents, rootTerminalEvent(ids, "completed"));
     yield* Fiber.join(scenario);
 
-    // Snapshots share the batch commit; the idle write commits alone, before it counts as shown.
-    // The final snapshots win over the stale append that came due behind them.
     assert.deepEqual(yield* Ref.get(delivered), [
       `message.updated:streaming:"First.\\n\\n" in commit`,
       `turn_item.updated:streaming:"First.\\n\\n" in commit`,
@@ -5245,7 +5213,6 @@ const isHeldChildSnapshot = (event: ProviderAdapter.ProviderAdapterV2Event) =>
   "text" in event.turnItem &&
   event.turnItem.text === heldChildText;
 
-// Feeds a held child snapshot, then waits until ingestion has read past it.
 const holdChildSnapshot = Effect.fn(function* (
   ids: BackgroundScenarioIds,
   events: Queue.Enqueue<ProviderAdapter.ProviderAdapterV2Event, Cause.Done>,
@@ -5323,7 +5290,6 @@ it.effect.each([
     }).pipe(Effect.forkChild);
 
     yield* holdChildSnapshot(ids, events, subagentIngested);
-    // The root ends mid-paragraph: its tail is held, and the run settles without it.
     yield* Queue.offer(
       events,
       streamedMessageEvent({
@@ -5353,7 +5319,6 @@ it.effect.each([
       "turn_item:running",
       "subagent:completed",
     ]);
-    // A streaming write after the run finished would reopen the root's message.
     assert.deepEqual(yield* Ref.get(rootWrites), ["Root.\n\n"]);
   }),
 );
@@ -5424,7 +5389,6 @@ it.effect("drops a child's held text once the child is handed to another run", (
       handoff.type === "subagent.updated"
         ? { ...handoff, subagent: { ...handoff.subagent, runId: RunId.make(`run:${key}:next`) } }
         : handoff,
-      // Due in the same flush as the child's text, after it.
       streamedMessageEvent({
         id: `message:${key}:root`,
         threadId: ids.threadId,

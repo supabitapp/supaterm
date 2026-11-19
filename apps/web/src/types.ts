@@ -67,19 +67,16 @@ export interface ChatFileAttachment extends ContractChatFileAttachment {
   readonly htmlRender?: boolean;
 }
 
-// Render unknown attachment contracts as inert rows so newer servers cannot crash older clients.
 export type ChatUnknownAttachment = ContractChatUnknownAttachment;
 
 export type ChatAttachment = ChatImageAttachment | ChatFileAttachment | ChatUnknownAttachment;
 
 export function isImageAttachment(attachment: ChatAttachment): attachment is ChatImageAttachment {
-  // Legacy file attachments can be images; unknown types must never be reclassified by name.
   if (attachment.type === "image") return true;
   return attachment.type === "file" && imageMimeType(attachment) !== null;
 }
 
 export function isFileAttachment(attachment: ChatAttachment): attachment is ChatFileAttachment {
-  // Keep disjoint from isImageAttachment so independently filtered sets do not render legacy images twice.
   return attachment.type === "file" && !isImageAttachment(attachment);
 }
 

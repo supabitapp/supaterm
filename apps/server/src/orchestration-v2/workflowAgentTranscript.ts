@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off
-/** Workflow members appear only in transcripts, not provider events. */
 import * as NodePath from "node:path";
 
 import { OrchestrationWorkflowFileError } from "@supaterm/contracts";
@@ -38,7 +37,6 @@ export const WorkflowAgentTranscriptReadObserver = Context.Reference<
   defaultValue: () => () => Effect.void,
 });
 
-/** Skip harness bookkeeping (attachment and isMeta user lines) and lines without uuids needed for idempotent projection. */
 function parseWorkflowAgentTranscriptLines(contents: string): ReadonlyArray<unknown> {
   return contents.split("\n").flatMap((line) => {
     if (line.trim().length === 0) return [];

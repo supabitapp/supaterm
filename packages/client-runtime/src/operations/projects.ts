@@ -117,7 +117,6 @@ export function defaultHostCloneUrl(repository: string): string | null {
     : `git@${definition.publicHost}:${path}`;
 }
 
-/** Owner present, repository name missing: `owner/` or `owner//`. */
 const INCOMPLETE_GITHUB_OWNER_PATH = /^[A-Za-z0-9](?:[A-Za-z0-9_-]{0,38})\/+$/;
 
 const INCOMPLETE_GITHUB_OWNER_REPOSITORY_MESSAGE = "Enter the full owner/repository name.";
@@ -200,7 +199,6 @@ export function buildAddProjectRemoteSourceReadiness(
 export function getAddProjectInitialQuery(baseDirectory: string | null | undefined): string {
   const trimmed = baseDirectory?.trim() ?? "";
   if (trimmed.length === 0) return "~/";
-  // A bare relative setting such as `Desktop/dev` means a folder under home.
   const isAnchored = trimmed === "~" || isHostPath(trimmed) || isExplicitRelativePath(trimmed);
   return ensureBrowseDirectoryPath(isAnchored ? trimmed : `~/${trimmed}`);
 }
@@ -312,9 +310,6 @@ export function getCloneDestinationBrowsePath(input: {
     : getCloneDestinationPath(selectedDirectoryPath, input.cloneDirectoryName);
 }
 
-// The native picker returns a full path, not a name under the browsed directory.
-// Split it and reuse the in-app rules so a folder already named after the
-// repository stays that folder instead of becoming repo/repo.
 export function getCloneDestinationForPickedFolder(input: {
   readonly pickedPath: string;
   readonly cloneDirectoryName: string;

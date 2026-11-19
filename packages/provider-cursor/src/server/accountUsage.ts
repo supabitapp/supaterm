@@ -27,7 +27,6 @@ function tokens(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.trunc(value) : 0;
 }
 
-// Grok's xAI first-party rate entry has no bare alias.
 export function cursorRateModel(model: string): string {
   const base = model
     .replace(/^cursor-/, "")
@@ -99,13 +98,11 @@ function boundaryOverlap(previous: readonly string[], current: readonly string[]
   return lengths.at(-1) ?? 0;
 }
 
-/** Never forward the access token through a redirect. */
 const NO_REDIRECT: RequestInit = { redirect: "error" };
 
 export const makeCursorAccountUsageReader = Effect.gen(function* () {
   const httpClient = yield* HttpClient.HttpClient;
   const digest = yield* Digest.Digest;
-  // Per-event hashes share the scan span and use the native hex encoder.
   const accountHash = (value: string) => digest.digestHex(Digest.sha256, textEncoder.encode(value));
   const readSession = Effect.fn("CursorAccountUsage.readSession")(function* (apiKey: string) {
     const accessToken = yield* exchangeCursorApiKey(apiKey);
@@ -184,7 +181,6 @@ export const makeCursorAccountUsageReader = Effect.gen(function* () {
       const { accessToken, teamIds, userId } = session;
       accountKey = session.accountKey;
       const pageSlots = yield* Semaphore.make(6);
-      // Omitting teamId returns personal history; team history also needs the current user filter.
       const readScope = Effect.fn("CursorAccountUsage.readScope")(function* (teamId?: number) {
         const pageRequest = HttpClientRequest.post(
           `${DEFAULT_CURSOR_API_ENDPOINT}/aiserver.v1.DashboardService/GetFilteredUsageEvents`,
@@ -202,8 +198,6 @@ export const makeCursorAccountUsageReader = Effect.gen(function* () {
         let total: number | undefined;
         const readPage = Effect.fn("CursorAccountUsage.readPage")(
           function* (page: number) {
-            // A count can include overlapping page boundaries. Allow room to
-            // reconcile them without imposing a fixed account-size limit.
             if (page > (total === undefined ? 1000 : Math.ceil(total / pageSize) * 2 + 1)) {
               return yield* invalid("Account usage page limit exceeded");
             }
@@ -272,8 +266,6 @@ export const makeCursorAccountUsageReader = Effect.gen(function* () {
           }),
           pageSlots.withPermit,
         );
-        // Cursor caps a page at 1,000 events and takes about a second to answer one, so the pages
-        // the first one's count implies are requested up to six ahead and consumed in page order.
         const ahead: Fiber.Fiber<
           Effect.Success<ReturnType<typeof readPage>>,
           CursorAccountUsageInvalidError
@@ -287,7 +279,6 @@ export const makeCursorAccountUsageReader = Effect.gen(function* () {
           if (!Array.isArray(events)) return events;
           const start = normalized.length;
           const firstTimestamp = object(events[0]).timestamp;
-          // Equal raw events must have equal timestamps; avoid canonicalizing disjoint pages.
           const mayOverlap =
             (typeof firstTimestamp !== "string" && typeof firstTimestamp !== "number") ||
             previousEvents.some((event) => object(event).timestamp === firstTimestamp);
@@ -342,7 +333,6 @@ export const makeCursorAccountUsageReader = Effect.gen(function* () {
             const reportedCostUsd =
               typeof usage.totalCents === "number" ? usage.totalCents / 100 : null;
             const sessionId = typeof event.conversationId === "string" ? event.conversationId : "";
-            // No event ID is provided. Preserve identical billed rows with an occurrence index.
             const key = yield* accountHash(
               billedEventIdentity(
                 ...(teamId === undefined ? [] : [teamId]),
@@ -373,7 +363,6 @@ export const makeCursorAccountUsageReader = Effect.gen(function* () {
         if (total !== undefined && rawCount < total)
           return yield* invalid("Incomplete account usage pages");
         let removalsRemaining = total === undefined ? 0 : rawCount - total;
-        // The final count proves which boundary copies to remove, including non-token events.
         for (const page of pages) {
           const removalCount = Math.min(removalsRemaining, page.overlap);
           removalsRemaining -= removalCount;

@@ -73,7 +73,6 @@ const olderDoneBeforeAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.withLabel(`web:older-done-before:${environmentId}`),
   ),
 );
-// Whether any of these environments leaves older done threads out, so short queries matter.
 const anyOlderDoneAtom = Atom.family((environmentIdsKey: string) =>
   Atom.make((get) =>
     (JSON.parse(environmentIdsKey) as ReadonlyArray<EnvironmentId>).some(
@@ -120,11 +119,9 @@ export function useThreadSearch(
   readonly query: string;
   readonly isPending: boolean;
 } {
-  // A pasted wall of text searches by its start rather than failing the request.
   const normalizedQuery = query.trim().slice(0, THREAD_SEARCH_QUERY_MAX_LENGTH).trim();
   const debouncedQuery = useDebouncedValue(normalizedQuery, THREAD_SEARCH_DEBOUNCE_MS);
   const anyOlderDone = useAtomValue(anyOlderDoneAtom(JSON.stringify(environmentIds)));
-  // Messages need a word of three or more letters; older done titles match from two.
   const canSearch =
     environmentIds.length > 0 &&
     ((scope.titlesOnly !== true && messageSearchTokens(normalizedQuery).long.length > 0) ||
@@ -137,20 +134,16 @@ export function useThreadSearch(
     searchKey === null ? EMPTY_THREAD_SEARCH_ATOM : threadSearch.results(searchKey),
   );
   const isPending = canSearch && (normalizedQuery !== debouncedQuery || result.isLoading);
-  // What fast environments returned shows without waiting for a slow one;
-  // callers keep shown rows in place with `nextShownOrder`.
   const ready =
     settledQuery !== null &&
     (!result.isLoading || result.matches.length > 0 || result.rows.length > 0)
       ? { query: settledQuery, matches: result.matches }
       : null;
-  // Kept from earlier renders: React's pattern for information from previous renders.
   const [previous, setPrevious] = useState<SettledThreadSearch | null>(null);
   if (ready !== null && previous?.matches !== ready.matches) setPrevious(ready);
   const visible = canSearch
     ? visibleThreadSearch(normalizedQuery, ready, previous)
     : { query: "", matches: EMPTY_THREAD_SEARCH_MATCHES };
-  // The shown results' rows stay mounted until newer results replace them.
   const shownKey = visible.query === "" ? null : searchKeyOf(visible.query);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mounts the shown search results' rows into the thread family registry until newer results replace them
   useEffect(() => {
@@ -201,7 +194,6 @@ const vcsRefPagesAtom = Atom.family((pagesKey: string) => {
 });
 
 export function usePaginatedBranches(target: VcsRefTarget) {
-  // Leave unkeyed; mismatches already reset cursors, and a seeded key would break caching across the hook.
   const [pagination, setPagination] = useState<{
     readonly targetKey: string | null;
     readonly cursors: ReadonlyArray<number | undefined>;
@@ -382,7 +374,6 @@ export function useProjectContentSearch(target: ProjectContentSearchTarget) {
   const fileAccess = useFilesystemReadAccess(target.environmentId);
   const canReadFiles = hasTarget && fileAccess.canReadFiles;
   const isCheckingAccess = hasTarget && fileAccess.isPending;
-  // Preserve query whitespace; trim only to detect blank input.
   const query = target.query;
   const hasQuery = query.trim().length > 0;
   const queryTooLong = query.length > PROJECT_SEARCH_CONTENTS_QUERY_MAX_LENGTH;
@@ -408,7 +399,6 @@ export function useProjectContentSearch(target: ProjectContentSearchTarget) {
         })
       : null,
   );
-  // Only once the timeout has come back: a refresh restarts a search still in flight.
   const settledScanTimeout =
     !result.isPending &&
     isProjectSearchContentsError(result.failure) &&

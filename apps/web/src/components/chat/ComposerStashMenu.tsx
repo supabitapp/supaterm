@@ -27,7 +27,6 @@ export function stashEntrySnippet(entry: PromptStashEntry): string {
     .replace(/\s+/g, " ");
   if (trimmed.length > 0) {
     if (trimmed.length <= SNIPPET_MAX_CHARS) return trimmed;
-    // Never end on a lone high surrogate, the first half of an emoji.
     const last = trimmed.charCodeAt(SNIPPET_MAX_CHARS - 1);
     const end = last >= 0xd800 && last <= 0xdbff ? SNIPPET_MAX_CHARS - 1 : SNIPPET_MAX_CHARS;
     return `${trimmed.slice(0, end)}…`;
@@ -66,7 +65,6 @@ export const ComposerStashMenu = memo(function ComposerStashMenu(props: {
     onSendAll,
     onClose,
   } = props;
-  // Its keys are window-wide, so the menu closes once its chat pane is no longer the one in use.
   const ownsInput = useIsPaneInputOwner();
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the menu once its chat pane stops owning the window-wide keys it listens to
   useEffect(() => {

@@ -82,8 +82,6 @@ describe("previewWindowOpenAction", () => {
   });
 
   it("opens a real window for scripted popups so the opener survives", () => {
-    // OAuth SDKs read a null `window.open()` as a blocked popup, and they need
-    // the opener alive to receive the credential back.
     expect(PreviewManager.previewWindowOpenAction(details({}))).toBe("popup");
     expect(
       PreviewManager.previewWindowOpenAction(details({ url: "http://localhost:5173/auth" })),
@@ -107,9 +105,6 @@ describe("previewWindowOpenAction", () => {
   });
 
   it("does not hand a window to schemes that cannot be hardened", () => {
-    // A popup skips the `will-attach-webview` hardening, so it only gets a window
-    // when its preferences can be overridden. Chromium copies the guest's
-    // preferences for `about:blank` and forbids overriding them.
     for (const url of [
       "vscode://vscode-remote/ssh-remote+box/tmp",
       "blob:https://example.com/0b6c6a5e-55d4-4b4c-9d47-8f1b0c1d2e3f",
@@ -261,7 +256,6 @@ const withManager = <A>(
 
 interface TestCapturedPreviewImage {
   readonly toJPEG: () => Buffer;
-  /** Only fixtures that deliver picture-in-picture frames need pixels to fingerprint. */
   readonly toBitmap?: () => Buffer;
   readonly getSize: () => { readonly width: number; readonly height: number };
 }
@@ -523,8 +517,6 @@ const makeFaviconWebContents = (options?: {
   };
 };
 
-// Electron mocks and state subscribers call `notify`, so a wait re-checks its
-// predicate exactly when the state it reads changes.
 const makeChangeSignal = () => {
   const waiters = new Set<() => void>();
   return {
@@ -546,8 +538,6 @@ const makeChangeSignal = () => {
 };
 type ChangeSignal = ReturnType<typeof makeChangeSignal>;
 
-// Favicon captures run detached from the Electron listener, so asserting that
-// one published nothing can only give its promise chain a fixed number of turns.
 const flushMicrotasks = function* () {
   for (let turn = 0; turn < 30; turn++) yield* Effect.promise(() => Promise.resolve());
 };
@@ -815,8 +805,6 @@ describe("PreviewManager", () => {
     withManager((manager) =>
       Effect.gen(function* () {
         const preview = makeFaviconWebContents();
-        // As in Chromium: the hung renderer answers nothing, and a terminate reaches it only
-        // while no navigation is pending.
         let stopped = false;
         const probed = yield* Deferred.make<void>();
         const navigatedAfterStop: Array<boolean> = [];
@@ -894,7 +882,6 @@ describe("PreviewManager", () => {
         yield* manager.createTab("tab_mouse_navigation");
         yield* manager.registerWebview("tab_mouse_navigation", 42);
 
-        // Electron reports thumb buttons as "back"/"forward" for every frame of the guest, iframes included.
         const beforeMouse = preview.listeners.get("before-mouse-event");
         expect(beforeMouse, "guest has no before-mouse-event listener").toBeDefined();
         const press = (type: "mouseDown" | "mouseUp", button: string) => {
@@ -903,7 +890,6 @@ describe("PreviewManager", () => {
           return preventDefault;
         };
 
-        // At the start of tab history the press is still swallowed, or the host app goes back instead.
         expect(press("mouseDown", "back")).toHaveBeenCalledOnce();
         expect(press("mouseUp", "back")).toHaveBeenCalledOnce();
         expect(goBack).not.toHaveBeenCalled();
@@ -922,7 +908,6 @@ describe("PreviewManager", () => {
         }
         expect(goBack).toHaveBeenCalledOnce();
         expect(goForward).toHaveBeenCalledOnce();
-        // The guest replays dropped presses for human input and recordings, in CSS px.
         expect(send.mock.calls.filter(([channel]) => channel === "preview:thumb-press")).toEqual([
           ["preview:thumb-press", "down", 5, 5, 3],
           ["preview:thumb-press", "up", 5, 5, 3],
@@ -1265,7 +1250,6 @@ describe("PreviewManager", () => {
   effectIt.effect("treats a load superseded by a page redirect as a successful navigation", () =>
     withManager((manager) =>
       Effect.gen(function* () {
-        // Same shape Electron's loadURL rejects with in lib/browser/api/web-contents.ts.
         const loadError = (errno: number, code: string, url: string) =>
           Object.assign(new Error(`${code} (${errno}) loading '${url}'`), { errno, code, url });
         const preview = makeFaviconWebContents();
@@ -1312,9 +1296,6 @@ describe("PreviewManager", () => {
   effectIt.effect("detaches through the pinned debugger after the webview is destroyed", () =>
     withManager((manager) =>
       Effect.gen(function* () {
-        // Real Electron throws on any `wc.debugger` access once the
-        // WebContents is destroyed, so cleanup must go through the debugger
-        // reference captured at attach time (electron/electron#53376).
         let destroyed = false;
         let attached = false;
         const debuggerOff = vi.fn();
@@ -1603,7 +1584,6 @@ describe("PreviewManager", () => {
       id,
       isDestroyed: () => destroyed,
       isDevToolsOpened: () => {
-        // Electron throws from native methods once a WebContents is destroyed.
         if (destroyed) throw new TypeError("Object has been destroyed");
         return false;
       },
@@ -1715,11 +1695,6 @@ describe("PreviewManager", () => {
         audible = next;
         listeners.get("audio-state-changed")?.({ audible: next } as never);
       },
-      /**
-       * Starts playing between the attach-time read and the post-attach
-       * reconcile, without a delivered event — the window in which
-       * audio-state-changed fires against a guest the tab does not own yet.
-       */
       startPlayingAfterFirstRead: () => {
         audibleAfterFirstRead = true;
       },
@@ -1779,9 +1754,6 @@ describe("PreviewManager", () => {
         yield* manager.registerWebview("tab_audio_window", 42);
         yield* Effect.yieldNow;
 
-        // audio-state-changed for this transition was dropped: it fired before
-        // the tab owned the guest. Without a post-attach reconcile the icon
-        // stays wrong until the next real transition, which may never come.
         expect(states.at(-1)?.audible).toBe(true);
       }),
     ),
@@ -1937,7 +1909,6 @@ describe("PreviewManager", () => {
         fromId.mockReturnValue(makeTestPreviewWebContents(capturePage));
         yield* manager.createTab("tab_1");
         yield* manager.registerWebview("tab_1", 42);
-        // it.effect keeps TestClock fixed until explicitly advanced.
         const first = yield* manager.captureScreenshot("tab_1");
         const second = yield* manager.captureScreenshot("tab_1");
 
@@ -2450,7 +2421,6 @@ describe("PreviewManager", () => {
         yield* manager.createTab("tab_1", { serverTab });
         yield* manager.registerWebview("tab_1", 42);
         yield* Deferred.await(attached);
-        // Navigating rebuilds the tab's state, which must keep the server tab it answers for.
         yield* manager.navigate("tab_1", "https://example.com/next");
         yield* Queue.clear(capturing);
 
@@ -2531,7 +2501,6 @@ describe("PreviewManager", () => {
         );
         expect(yield* openBlankLink).toBe(true);
 
-        // A person clicking in the guest itself gives it a focused frame.
         Object.assign(contents, { focusedFrame: {} });
         expect(yield* openBlankLink).toBe(false);
       }).pipe(Effect.provide(managerLayer()), Effect.scoped),
@@ -2610,7 +2579,6 @@ describe("PreviewManager", () => {
       expect(JSON.parse(yield* Queue.take(lines))).toEqual({ type: "attached", ...serverTab });
       expect(JSON.parse(yield* Queue.take(lines))).toEqual(failure("https://second.local/"));
 
-      // A callback queued by the old guest must not report a failure for its replacement.
       initial.fail("https://stale.local/");
       replacement.fail("https://current.local/");
       expect(JSON.parse(yield* Queue.take(lines))).toEqual(failure("https://current.local/"));
@@ -3201,7 +3169,6 @@ describe("PreviewManager", () => {
           yield* TestClock.adjust(500);
           expect(send).toHaveBeenCalled();
         } finally {
-          // Release stalled native calls after a failing assertion against unchanged base.
           stalledInitial.resolve(image);
           stalledLoop.resolve(image);
         }

@@ -255,7 +255,6 @@ const cancelPickElement = tabMethod(
 export const startRecording = DesktopIpc.makeIpcMethod({
   channel: IpcChannels.PREVIEW_RECORDING_START_CHANNEL,
   payload: DesktopPreviewTabInputSchema,
-  // Void encodes any value as undefined, so the tagged failure must be tried first.
   result: Schema.Union([PreviewCaptureFailure, Schema.Void]),
   handler: Effect.fn("desktop.ipc.preview.startRecording")(function* ({ tabId }) {
     const manager = yield* PreviewManager.PreviewManager;
@@ -320,7 +319,6 @@ export function resolvePartitionScope(
   if (profileId === undefined || profileId === DEFAULT_BROWSER_PROFILE_ID) {
     return { scope: environmentId, persistent: true };
   }
-  // JSON framing preserves lone UTF-16 surrogates; URI encoding throws and replacement would collide.
   return {
     scope: JSON.stringify([environmentId, profileId]),
     persistent: profileId !== INCOGNITO_BROWSER_PROFILE_ID,
@@ -328,7 +326,6 @@ export function resolvePartitionScope(
   };
 }
 
-/** Omitting a profile clears every partition; a named profile clears only its own partition. */
 const resolveClearPartitions = Effect.fn("desktop.ipc.preview.resolveClearPartitions")(function* (
   manager: PreviewManager.PreviewManager["Service"],
   environmentId: string,
@@ -336,7 +333,6 @@ const resolveClearPartitions = Effect.fn("desktop.ipc.preview.resolveClearPartit
 ) {
   if (profileId === undefined) return undefined;
   const { scope, persistent, namespace } = resolvePartitionScope(environmentId, profileId);
-  // getBrowserSession registers the partition; deriving its name alone leaves unopened profiles uncleared.
   yield* manager.getBrowserSession(scope, persistent, namespace);
   return [yield* manager.getBrowserPartition(scope, persistent, namespace)];
 });
@@ -348,7 +344,6 @@ const getPreviewConfig = DesktopIpc.makeIpcMethod({
   handler: Effect.fn("desktop.ipc.preview.getConfig")(function* ({ environmentId, profileId }) {
     const manager = yield* PreviewManager.PreviewManager;
     const { scope, persistent, namespace } = resolvePartitionScope(environmentId, profileId);
-    // Session creation installs UA and permission handlers before a guest can attach.
     yield* manager.getBrowserSession(scope, persistent, namespace);
     return {
       partition: yield* manager.getBrowserPartition(scope, persistent, namespace),

@@ -65,7 +65,6 @@ export function PullRequestSavedViewsMenu({
       written = update(current);
       return written;
     });
-    // The shared hook logs storage failures. Keep the editor open and explain when saving failed.
     try {
       if (
         written &&
@@ -74,9 +73,7 @@ export function PullRequestSavedViewsMenu({
       ) {
         return true;
       }
-    } catch {
-      // A browser policy can deny reads as well as writes.
-    }
+    } catch {}
     toastManager.add({
       type: "error",
       title: "Could not save PR views",

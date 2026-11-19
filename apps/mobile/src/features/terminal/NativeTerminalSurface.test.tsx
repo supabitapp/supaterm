@@ -163,8 +163,6 @@ it.each([null, 1])(
     } else {
       expect(mocks.write).not.toHaveBeenCalled();
       expect(mocks.initialBuffers).toEqual(["retained", "ined-new"]);
-      // An older binary recreates its emulator unless the next buffer extends the last one.
-      // The buffer is full here, so the erase must not push the earlier output out.
       let cleared = applyTerminalAttachStreamEvent(
         state,
         { type: "output", threadId: "thread", terminalId: "term-1", data: "\u001b[?1049h" },

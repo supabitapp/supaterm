@@ -112,9 +112,6 @@ interface QuitState {
   waitingSinceNanos: bigint;
 }
 
-// Longer than a backend's stop budget (SIGTERM, 5s grace, SIGKILL, 1s wait),
-// so a double Cmd-Q at the start of a normal quit cannot cut the backend stop
-// short and orphan it.
 const SHUTDOWN_STALL_THRESHOLD = Duration.seconds(10);
 
 const startWaitingForShutdown = Effect.fn("desktop.lifecycle.startWaitingForShutdown")(function* (
@@ -124,9 +121,6 @@ const startWaitingForShutdown = Effect.fn("desktop.lifecycle.startWaitingForShut
   quit.waitingSinceNanos = yield* Clock.monotonicTimeNanos;
 });
 
-// While a quit waits on shutdown, `quitting` makes activation open nothing. If
-// that shutdown stalls, a repeated Quit or SIGTERM is the user's only way out
-// short of SIGKILL.
 const exitIfShutdownStalled = Effect.fn("desktop.lifecycle.exitIfShutdownStalled")(function* (
   quit: QuitState,
   source: string,
@@ -234,7 +228,6 @@ export const make = DesktopLifecycle.of({
         yield* electronApp.exit(75);
         return;
       }
-      // Startup already acted on the app link that launched it; passing it on replays it.
       const appLinkPrefix = `${ElectronProtocol.getDesktopScheme(environment.isDevelopment)}:`;
       const args = yield* HostProcess.Arguments;
       yield* electronApp.relaunch({
@@ -266,14 +259,7 @@ export const make = DesktopLifecycle.of({
       );
     });
     yield* electronApp.onBeforeQuitForUpdate(() => {
-      // Electron's updater owns the remaining quit/install/relaunch sequence.
-      // Cancelling the following app "before-quit" event breaks that sequence,
-      // most visibly on macOS where the native updater performs the relaunch.
       quit.phase = "allowed";
-      // This event is synchronous and the updater's quit proceeds as soon as
-      // the listener returns, so a forked destroyAll would race the quit
-      // and windows could still be open when the process exits (visible on
-      // macOS). Destroy them inline.
       Effect.runSyncWith(context)(
         electronWindow.destroyAll.pipe(
           Effect.andThen(logLifecycleInfo("allowing updater-controlled quit")),
@@ -308,9 +294,6 @@ export const make = DesktopLifecycle.of({
       );
     });
 
-    // Sockets and setup attempts from before a sleep or lock are often dead
-    // without a close. A wake from sleep reports resume and then
-    // unlock-screen, so windows hear one wake per sleep or lock.
     const powerMonitor = yield* ElectronPowerMonitor.ElectronPowerMonitor;
     let wakePending = false;
     const markWakePending = () => {
@@ -330,9 +313,6 @@ export const make = DesktopLifecycle.of({
     yield* powerMonitor.onSimpleEvent("resume", sendWake);
     yield* powerMonitor.onSimpleEvent("unlock-screen", sendWake);
 
-    // Electron can exit without before-quit, e.g. when the X11/Wayland connection drops.
-    // Children (the backend too) get SIGTERM while main still holds an AppImage mount open.
-    // Prepended so the record is buffered before the trace sink's own exit flush runs.
     yield* addScopedListener(
       process,
       "exit",
@@ -340,7 +320,6 @@ export const make = DesktopLifecycle.of({
         Effect.runSyncWith(context)(
           Effect.gen(function* () {
             const shutdown = yield* DesktopShutdown.DesktopShutdown;
-            // "allowed" without a finished shutdown is the updater's quit; its relaunched app is a child.
             if (quit.phase === "allowed" || (yield* shutdown.isComplete)) return;
             const attributes = { exitCode, quitPhase: quit.phase };
             yield* Effect.gen(function* () {
@@ -367,7 +346,6 @@ export const make = DesktopLifecycle.of({
       });
     }
 
-    // Unscoped: the app scope closes before Electron exits, and every exit path must run this.
     if (environment.platform === "linux" && Option.isSome(environment.appImagePath)) {
       yield* Effect.sync(() => {
         process.once("exit", () => stopZygotesBeforeExit(process.pid));

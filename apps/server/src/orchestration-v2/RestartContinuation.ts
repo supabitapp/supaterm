@@ -118,7 +118,6 @@ export const restartStopRequested = Effect.fn("RestartContinuation.restartStopRe
     const task = (yield* getThreadRecords(lineage.parentThreadId, ["subagents"], {
       subagentIds: [taskId],
     })).subagents.find((candidate) => candidate.id === taskId);
-    // A settled task no longer owns later work in its thread.
     if (
       task === undefined ||
       task.runId === null ||
@@ -135,7 +134,6 @@ export const restartStopRequested = Effect.fn("RestartContinuation.restartStopRe
   },
 );
 
-/** App-owned delegations continue in their own threads and report back. */
 function hasOpenAwaitedWork(
   projection: Pick<ProjectionRuntimeRecoveryState, "runs" | "turnItems">,
   providerThread: ProjectionRuntimeRecoveryState["providerThreads"][number],
@@ -211,7 +209,6 @@ export function restartContinuationRun(
   const session = projection.providerSessions.find(
     (candidate) => candidate.id === providerThread.providerSessionId,
   );
-  // Adapters remain ready during turns; only stopped or failed sessions rule out liveness.
   if (
     session === undefined ||
     session.providerInstanceId !== run.providerInstanceId ||
@@ -281,7 +278,6 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
     )
       return;
     if (projection.thread.providerInstanceId !== source.providerInstanceId) return;
-    // A turn that keeps crashing the server would otherwise restart it forever.
     let chainLength = 0;
     const loopWindowStart =
       DateTime.toEpochMillis(source.completedAt ?? source.requestedAt) -
@@ -347,7 +343,6 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
         restartContinuationOfRunId: input.sourceRunId,
       })
       .pipe(
-        // Disabled instances cannot resume; still run success cleanup so delegated children recover without futile retries.
         Effect.catchTags({
           ThreadManagementProviderInstanceDisabledError: (error) =>
             Effect.logInfo("orchestration-v2.restart-continuation.instance-disabled", {
@@ -359,7 +354,6 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
         }),
       );
   },
-  // Declined child continuations still owe parent results; existing continuation runs settle them instead.
   (effect, input) =>
     effect.pipe(
       Effect.andThen(

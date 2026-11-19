@@ -21,7 +21,6 @@ vi.mock("../state/server", async (original) => {
   const { Atom } = await import("effect/reactivity");
   const { compileResolvedKeybindingsConfig } = await import("@supaterm/shared/keybindings");
   const { THREAD_JUMP_KEYBINDING_COMMANDS } = await import("@supaterm/contracts");
-  // The default jump bindings are desktop-only; these hold in the browser too.
   const jumpBindings = compileResolvedKeybindingsConfig(
     THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
       key: `mod+${index + 1}`,
@@ -47,8 +46,6 @@ vi.mock("../state/entities", async (original) => ({
 }));
 
 function setup(state: { projects?: ReadonlyArray<Project>; threads?: ReadonlyArray<Thread> } = {}) {
-  // Earlier browser test files share this origin's localStorage; a remembered project
-  // that is not listed here hides the default "New thread in <project>" row.
   removeLocalStorageItem(LAST_USED_PROJECT_STORAGE_KEY);
   useCommandPaletteStore.setState(useCommandPaletteStore.getInitialState(), true);
   entities.projects = state.projects ?? [];

@@ -12,7 +12,6 @@ export interface MarkdownLinkIcon {
   readonly tints: boolean;
 }
 
-// `vp run sync:link-icons` renders each host's artwork into the bundled image this reads.
 export function markdownLinkIcon(host: string): MarkdownLinkIcon | null {
   const definition = sourceControlClients.findByPublicDomain(host);
   const source = definition && SOURCE_CONTROL_LINK_ICON_SOURCES[definition.kind];

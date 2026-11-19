@@ -15,7 +15,6 @@ function measureComposerMultilinePrompt(body: HTMLElement): boolean | null {
   range.selectNodeContents(editor);
   const bounds = range.getBoundingClientRect();
 
-  // Measure against expanded width to prevent inline actions oscillating collapse.
   return bounds.height > lineHeight + 1 || bounds.width > expandedWidth + 1;
 }
 
@@ -27,8 +26,6 @@ export function useComposerMultilinePrompt(): readonly [
   const [isMultiline, setIsMultiline] = useState(false);
   const observeBody = (body: HTMLElement | null) => {
     if (!body) return;
-    // Measuring reads layout, so one measurement per frame runs after all of the frame's DOM
-    // writes instead of forcing a layout after each mutation.
     let frame: number | null = null;
     const measure = () => {
       if (frame !== null) return;

@@ -75,8 +75,6 @@ function entryOf(
 
 const PULL_REQUEST_LIST_PAGE_SIZE = 50;
 
-// A total order that survives unlinking: the cursor names a position, not an index, so removing
-// PRs already returned cannot skip later ones. PRs linked in one call share `linkedAt`.
 function pullRequestListPosition(link: ThreadPullRequestLink): string {
   return [link.linkedAt, link.host, link.repository, String(link.number).padStart(10, "0")].join(
     " ",
@@ -98,7 +96,6 @@ export function listThreadPullRequests(
   const pageKeys = new Set(page.map(({ link }) => threadPullRequestKeyOf(link)));
   return {
     pullRequests: page.map(({ link }) => entryOf(link, chains)),
-    // Stacks with a pull request on this page, whole.
     chains: chains
       .filter((chain) => chain.layers.some((layer) => pageKeys.has(threadPullRequestKeyOf(layer))))
       .map((chain) => ({
@@ -173,7 +170,6 @@ const make = Effect.gen(function* () {
         ? Effect.failCause(cause as Cause.Cause<never>)
         : Effect.fail(new Failure({ cause }));
 
-  // The domain service owns the registration span.
   const setWatching = Effect.fnUntraced(function* (
     input: PullRequestTargetInput,
     watching: boolean,
@@ -207,8 +203,6 @@ const make = Effect.gen(function* () {
       ),
     );
     const callerProject = known.find((project) => project.id === callerThread?.projectId);
-    // A pull request named by host and repository builds its URL through the project that holds
-    // it, which need not be the caller's.
     const urlProject = (input: PullRequestTargetInput) =>
       input.url === undefined && input.host !== undefined && input.repository !== undefined
         ? (projectForPullRequest(
@@ -399,7 +393,6 @@ const make = Effect.gen(function* () {
             });
           }).pipe(Effect.catchCause(dispatchFailure(PullRequestUnlinkFailedError))),
         );
-        // Numbers grouped by repository and state keep a large batch's result small.
         const groups = Map.groupBy(matching, (pr) => `${pr.host}/${pr.repository}/${pr.state}`);
         return {
           unlinked: [...groups.values()].map((prs) => ({
@@ -478,8 +471,6 @@ const make = Effect.gen(function* () {
         if (entry !== undefined && entry.target === null) {
           return yield* new PullRequestGuideFailedError({ detail: entry.failure ?? "" });
         }
-        // Hosts readable without a checkout (GitHub, Bitbucket, Forgejo) are read through the
-        // caller's project; PullRequestService decides whether the host allows that.
         const project = entry?.project ?? entry?.callerProject;
         if (entry === undefined || entry.target === null || project === undefined) {
           return yield* new PullRequestProjectNotFoundError({

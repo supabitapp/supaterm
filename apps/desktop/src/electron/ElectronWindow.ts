@@ -26,7 +26,6 @@ function windowsForegroundFocusTarget(window: Electron.BrowserWindow) {
     windowId: window.id,
     processId: process.pid,
     title: window.getTitle(),
-    // xa11y reports physical desktop pixels on Windows; Electron bounds are DIPs.
     bounds: Electron.screen.dipToScreenRect(window, window.getBounds()),
     contentBounds: Electron.screen.dipToScreenRect(window, window.getContentBounds()),
   };
@@ -136,7 +135,6 @@ export class ElectronWindow extends Context.Service<
 /** @public */
 export const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
-  // Lazy-load native accessibility on capture reveal to avoid startup cost for other users.
   let windowsForegroundFocus: ReturnType<typeof startWindowsForegroundFocusThread> | undefined;
   const ensureWindowsForegroundFocus = () => {
     windowsForegroundFocus ??= startWindowsForegroundFocusThread(
@@ -345,26 +343,24 @@ export const make = Effect.gen(function* () {
           }),
       }).pipe(Effect.orDie);
     }),
-    sendAll:
-      /* Window broadcasts run for streamed updates; avoid a span per broadcast. */
-      Effect.fnUntraced(function* (channel, ...args) {
-        for (const window of yield* listWindows) {
-          if (yield* isWindowDestroyed(window)) {
-            continue;
-          }
-          yield* Effect.try({
-            try: () => window.webContents.send(channel, ...args),
-            catch: (cause) =>
-              new ElectronWindowOperationError({
-                operation: "send-window-message",
-                platform,
-                windowId: window.id,
-                channel,
-                cause,
-              }),
-          }).pipe(Effect.orDie);
+    sendAll: Effect.fnUntraced(function* (channel, ...args) {
+      for (const window of yield* listWindows) {
+        if (yield* isWindowDestroyed(window)) {
+          continue;
         }
-      }),
+        yield* Effect.try({
+          try: () => window.webContents.send(channel, ...args),
+          catch: (cause) =>
+            new ElectronWindowOperationError({
+              operation: "send-window-message",
+              platform,
+              windowId: window.id,
+              channel,
+              cause,
+            }),
+        }).pipe(Effect.orDie);
+      }
+    }),
     destroyAll: Effect.gen(function* () {
       let firstFailure: Cause.Cause<never> | undefined;
       for (const window of yield* listWindows) {

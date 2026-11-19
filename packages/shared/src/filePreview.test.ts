@@ -103,7 +103,6 @@ describe("workspace file previews", () => {
     expect(filePreviewKind({ name: "download", mimeType })).toBe(kind);
     expect(filePreviewKind({ name, mimeType: "application/zip" })).toBe("archive");
   });
-  // regression: #10311 previews classify by the literal filename, not URL-like suffixes
   it.each([
     "image.png.ts",
     "image.png#notes.txt",

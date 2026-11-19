@@ -237,19 +237,15 @@ const isAssetNotFoundError = Schema.is(AssetWorkspaceAssetNotFoundError);
 
 interface ChatMarkdownProps {
   renderInsights?: boolean;
-  /** Compact markdown transforms remove blocks before rendering inside a label. */
   inline?: boolean;
   text: string;
   cwd: string | undefined;
-  /** Folders the agent worked in before writing `text`, the latest first; read when a link opens. */
   agentDirectories?: (() => ReadonlyArray<string>) | undefined;
   threadRef?: ScopedThreadRef | undefined;
   pullRequestPanelRef?: ScopedThreadRef | undefined;
   environmentId?: EnvironmentId | undefined;
   onTaskListChange?: ((input: { markerOffset: number; checked: boolean }) => void) | undefined;
   isStreaming?: boolean;
-  /** Set false to skip the streaming fade for blocks present at mount, such as a
-      live thought expanded mid-stream. */
   fadeInitialBlocks?: boolean;
   skills?: ReadonlyArray<ServerProviderSkill>;
   className?: string;
@@ -260,13 +256,9 @@ interface ChatMarkdownProps {
   imageBaseDir?: string | undefined;
   workspaceMutationId?: string | null | undefined;
   onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
-  /** Keep one list per configuration (a module constant): it keys the shared parse cache. */
   extraRemarkPlugins?: NonNullable<ReactMarkdownOptions["remarkPlugins"]>;
   renderContextReference?: ((reference: ChatMarkdownContextReference) => ReactNode) | undefined;
-  /** Loads media a source control host keeps behind a credential through the server, which holds
-      `cwd`'s; without it a private repository's uploads load unauthenticated and 404. */
   sourceControlMedia?: boolean | undefined;
-  /** The change request's repository, when it can differ from the checkout at `cwd`. */
   sourceControlMediaRepository?: string | undefined;
   headingLevelOffset?: number | undefined;
 }
@@ -434,7 +426,6 @@ const NO_MARKDOWN_EDITORS: ReadonlyArray<EditorId> = [];
 
 type MarkdownServerConfigFields = ReturnType<typeof markdownServerConfigFields>;
 
-/** The server config fields markdown reads. */
 function markdownServerConfigFields(config: ServerConfig | null) {
   return {
     pullRequestsEnabled: config != null,
@@ -462,9 +453,6 @@ function markdownServerConfigFieldsEqual(
   );
 }
 
-// The config object changes with every provider status push and snapshot. The
-// atom keeps its previous value while the fields markdown reads are equal, so
-// those pushes don't re-render every visible reply.
 const markdownServerConfigFieldsAtom = Atom.family((environmentId: EnvironmentId | null) =>
   Atom.make((get) => {
     const next = markdownServerConfigFields(get(serverEnvironment.configValueAtom(environmentId)));
@@ -543,8 +531,6 @@ function useChatMarkdownState({
     cwd,
     imageBaseDir,
   ]);
-  // Tagged with the scope it was opened in: a request from the previous scope can
-  // resolve before the layout cleanup below invalidates it, and must stay hidden.
   const [localMedia, setLocalMedia] = useState<{
     scope: string;
     preview: ExpandedImagePreview;
@@ -559,8 +545,6 @@ function useChatMarkdownState({
     setRenderedMediaScopeKey(mediaScopeKey);
     setLocalMedia(null);
   }
-  // A layout cleanup runs in the commit that changes scope, so a request resolving
-  // before paint cannot reach a parent onImageExpand either.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- layout cleanup invalidates media requests still loading for the old scope before paint
   useLayoutEffect(
     () => () => {
@@ -603,8 +587,6 @@ function useChatMarkdownState({
       resolvedFilePath,
       cwd,
       threadRef,
-      // Read at click time: a reconnect replaces the prepared connection, and
-      // subscribing would hand every rendered markdown element a new context.
       httpBaseUrl:
         environmentId === null ? undefined : readPreparedConnection(environmentId)?.httpBaseUrl,
       createAssetUrl,
@@ -633,7 +615,6 @@ function useChatMarkdownState({
           error.resource._tag === "media-file" &&
           environmentId !== null
         ) {
-          // The connection may resolve while the media lookup is pending.
           const target = readPreparedConnection(environmentId)?.target ?? null;
           if (
             target !== null &&
@@ -707,14 +688,8 @@ function useChatMarkdownState({
   };
   const openChangeRequestLink = useOpenChangeRequestLink(threadRef, pullRequestPanelRef);
   const openDeferredMarkdownLink = useOpenLink(threadRef);
-  // Subscribed rather than read at click time: the anchor has to decide
-  // synchronously whether to intercept its `_blank`, and a subscription is what
-  // makes a persisted "app" apply once settings hydrate after launch.
   const linkTargetPreference = useClientSettings((settings) => settings.browserLinkTarget);
   const mathEnabled = useClientSettings((settings) => settings.mathRenderingEnabled);
-  // Keyed by the file links found, not the text, so streamed text that adds none keeps the
-  // renderer context, and every block reading it, unchanged.
-  // A template literal marks the key as a string, so the compiler memoizes the maps on its value.
   const fileLinksKey = `${fileLinkSourcesKey(text, cwd, imageBaseDir)}`;
   const { markdownFileLinkMetaByHref, inlineCodeFileLinkMetaByText, fileLinkParentSuffixByPath } =
     resolveFileLinkSources(fileLinksKey, cwd, imageBaseDir);
@@ -804,8 +779,6 @@ function useChatMarkdownState({
     }
     const query = workspaceLinkLookupQuery(workspaceRelativePath, cwd);
     if (query === null) return null;
-    // Search can be truncated or still scanning, so it cannot rule out the literal
-    // path. A path with a folder opens as written whenever it exists.
     if (!needsWorkspaceBasenameLookup(workspaceRelativePath)) {
       const metadata = await getFilesystemMetadata({
         environmentId,
@@ -840,7 +813,6 @@ function useChatMarkdownState({
     );
     const agentRoots = (agentDirectories?.() ?? []).filter((root) => root !== cwd);
     if (otherRoots.length === 0 && agentRoots.length === 0) return null;
-    // Another project's file never replaces a thread-local file the search missed.
     if (needsWorkspaceBasenameLookup(workspaceRelativePath)) {
       const metadata = await getFilesystemMetadata({
         environmentId,
@@ -853,7 +825,6 @@ function useChatMarkdownState({
       await Promise.all(otherRoots.map(searchRoot)),
     );
     if (projectMatch !== null || agentRoots.length === 0) return projectMatch;
-    // No project has the file, so it opens where the agent last worked, as written.
     const agentPaths = agentRoots.map((root) =>
       resolveWorkspaceFilePath(workspaceRelativePath, root),
     );
@@ -867,8 +838,6 @@ function useChatMarkdownState({
   };
   const openFileInPanel = (fileLinkMeta: MarkdownFileLinkMeta, panelPath: string) => {
     if (!threadRef) return;
-    // Claimed on every open so a synchronous one supersedes a lookup already
-    // in flight.
     const isLatestLookup = claimWorkspaceBasenameLookup();
     const openAt = (path: string) =>
       useRightPanelStore.getState().openFile(threadRef, path, fileLinkMeta.line);
@@ -1034,8 +1003,6 @@ const ChatMarkdownRendererContext = React.createContext<
   ReturnType<typeof useChatMarkdownState>["componentState"]
 >(null!);
 
-// The markdown source changes on every streamed delta. Only the renderers that
-// slice it by node offset read it, so it sits apart from the renderer context.
 const ChatMarkdownTextContext = React.createContext("");
 
 function markdownHeadingRenderer(level: 1 | 2 | 3 | 4 | 5 | 6) {
@@ -1054,7 +1021,6 @@ function markdownHeadingRenderer(level: 1 | 2 | 3 | 4 | 5 | 6) {
   };
 }
 
-// Keep component types stable when streaming changes the message state.
 const CHAT_MARKDOWN_COMPONENTS = {
   h1: markdownHeadingRenderer(1),
   h2: markdownHeadingRenderer(2),
@@ -1113,9 +1079,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
   },
   li: function MarkdownListItem({ node, children, ...props }) {
     const { skills, threadRef } = use(ChatMarkdownRendererContext);
-    // The checkbox finds its marker from this offset when toggled, so list items
-    // don't read the source text and re-render on every streamed token.
-    // remark-gfm marks task items with this class; plain items carry no offset.
     const isTaskItem = String(props.className ?? "").includes("task-list-item");
     return (
       <li {...props} data-list-item-offset={isTaskItem ? node?.position?.start.offset : undefined}>
@@ -1184,7 +1147,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
     const threadLink = href ? parseThreadLinkHref(href) : null;
     if (threadLink) {
       const written = hastPlainTextDeep(node);
-      // An autolink's text is its own URL, which is no label.
       const label = written && parseThreadLinkHref(written) === null ? written : null;
       return environmentId ? (
         <MarkdownThreadLink
@@ -1297,9 +1259,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
                 canOpenInApp: canOpenInPreview,
               }) !== "app"
             ) {
-              // Chromium turns an Option/Alt-click into a download that never reaches the
-              // shell. On desktop, open the link here while the key is still down, so link
-              // routers such as Finicky can still read it.
               if (isElectron && event.altKey) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -1505,7 +1464,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
         <span>{label}</span>
       );
     }
-    // A `<picture>`'s source for this theme, resolved like any other image.
     const themeSrc = node?.properties?.[resolvedTheme === "dark" ? "dataDarkSrc" : "dataLightSrc"];
     const localSrc = typeof themeSrc === "string" ? undefined : node?.properties?.dataLocalSrc;
     const markdownTitle = node?.properties?.dataMarkdownTitle;
@@ -1758,7 +1716,6 @@ const CHAT_MARKDOWN_COMPONENTS = {
 } satisfies Components;
 
 const REMARK_MATH: Pluggable = [remarkMath, { singleDollarTextMath: true }];
-// Shared lists, so every message with the same options shares a processor and its cache.
 const CHAT_MARKDOWN_REMARK_PLUGIN_SETS = {
   plain: CHAT_MARKDOWN_REMARK_PLUGINS,
   breaks: CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS,
@@ -1770,7 +1727,6 @@ const INSIGHT_REMARK_PLUGINS: PluggableList = [remarkAssistantInsights];
 
 const combinedPlugins = new WeakMap<PluggableList, WeakMap<PluggableList, PluggableList>>();
 
-// One combined list per pair, so a stable extra list shares a renderer and its parse cache.
 function withExtraPlugins(shared: PluggableList, extra: PluggableList): PluggableList {
   if (extra.length === 0) return shared;
   let byShared = combinedPlugins.get(extra);
@@ -1811,12 +1767,9 @@ const MarkdownSource = memo(function MarkdownSource({
   text: string;
   remarkPlugins: PluggableList;
   rehypePlugins: PluggableList;
-  /** The plugins are one of the shared sets. */
   shared: boolean;
-  /** The text will not change again; streamed text would only fill the cache with prefixes. */
   cache: boolean;
 }) {
-  // Per-instance plugins, such as the incremental parser, set up their state on every render.
   const render = shared
     ? markdownRenderer(remarkPlugins, rehypePlugins)
     : createMarkdownRenderer({
@@ -1849,7 +1802,6 @@ function ChatMarkdown({
     useChatMarkdownState({ text, inline, ...props });
   const fadesNewBlocks = componentState.isStreaming && (fadeInitialBlocks || text !== mountedText);
   const hasInsights = renderInsights && text.includes("★ Insight");
-  // Streaming re-renders only the last block; offsets for task edits need the whole text.
   const streamingBlocks =
     props.isStreaming === true &&
     !inline &&
@@ -1877,7 +1829,6 @@ function ChatMarkdown({
           ? "breaks"
           : "plain"
     ];
-  // The incremental parser keeps per-instance state, so its output is not shared.
   const uncachedPlugins = incrementalParsing;
   const remarkPlugins = incrementalParsing
     ? [...sharedRemarkPlugins, ...extraRemarkPlugins, createIncrementalMarkdownPlugin()]
@@ -1914,7 +1865,6 @@ function ChatMarkdown({
                 : CHAT_MARKDOWN_LITERAL_HTML_REHYPE_PLUGINS
             }
             shared={!uncachedPlugins}
-            // Every block before the last is finished, so its parse can be reused.
             cache={!props.isStreaming || index < blocks.length - 1}
           />
         ))}

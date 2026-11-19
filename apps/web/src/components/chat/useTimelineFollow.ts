@@ -50,17 +50,11 @@ interface TimelineAnchor {
   readonly messageId: MessageId | null;
 }
 
-/** One visit to a thread; a switch starts a new one from the remembered position. */
 interface TimelineFollowVisit {
   readonly threadKey: string | null;
   readonly followEnd: boolean;
 }
 
-/**
- * Scroll bookkeeping that belongs to one visit. Handlers fetch it for the
- * current visit, so a thread switch leaves the old one behind instead of
- * resetting it.
- */
 function createVisitScrollState(
   visit: TimelineFollowVisit,
   showScrollToBottom: (visit: TimelineFollowVisit) => void,
@@ -68,9 +62,6 @@ function createVisitScrollState(
   return {
     visit,
     intent: null as "toward-end" | "away-from-end" | null,
-    // Debounce *showing* the scroll-to-bottom pill so it doesn't flash during
-    // thread switches. LegendList fires scroll events with isAtEnd=false while
-    // initialScrollAtEnd is settling; hiding is always immediate.
     showScrollDebouncer: new Debouncer(() => showScrollToBottom(visit), { wait: 150 }),
     positionedAnchor: null as MessageId | null,
     settledAnchor: null as MessageId | null,
@@ -91,24 +82,17 @@ function stopAnchorPositioning(scroll: VisitScrollState) {
   scroll.releaseAnchorScrollHold = null;
 }
 
-/** Whether the list still shows the anchored message; a thread switch replaces its data. */
 function listShowsMessage(list: LegendListRef | null, messageId: MessageId): boolean {
   const rows = list?.getState().data as ReadonlyArray<MessagesTimelineRow> | undefined;
   return rows?.some((row) => row.kind === "message" && row.message.id === messageId) === true;
 }
 
-/**
- * The follow mode, read by scroll listeners at event time and by render
- * through useSyncExternalStore. State recorded for an earlier visit is
- * discarded, so a thread switch needs no reset step.
- */
 function createTimelineFollowStore() {
   let snapshot: { readonly visit: TimelineFollowVisit | null; readonly follow: TimelineFollow } = {
     visit: null,
     follow: FOLLOWING,
   };
   const listeners = new Set<() => void>();
-  // Page keys read the overlay at keypress time; it changes no rendered state.
   let composerOverlay: HTMLElement | null = null;
   const read = (visit: TimelineFollowVisit) =>
     snapshot.visit === visit ? snapshot.follow : initialTimelineFollow(visit.followEnd);
@@ -119,7 +103,6 @@ function createTimelineFollowStore() {
     },
     snapshot: () => snapshot,
     read,
-    /** Ref callback for the composer overlay. */
     attachComposerOverlay: (element: HTMLElement | null) => {
       composerOverlay = element;
     },
@@ -198,14 +181,10 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     };
     setVisit(visit);
   }
-  // Keyed by visit, so a pill decision from the previous thread (a pending
-  // debounce) never shows here.
   const [pill, setPill] = useState<{ readonly visit: TimelineFollowVisit; readonly show: boolean }>(
     { visit, show: false },
   );
   const showScrollToBottom = pill.visit === visit ? pill.show : !visit.followEnd;
-  // Called on every streamed chunk while following; an unchanged pill must
-  // bail out instead of re-rendering ChatView.
   const setShowScrollToBottom = (show: boolean) =>
     setPill((current) =>
       current.visit === visit && current.show === show ? current : { visit, show },
@@ -216,7 +195,6 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     followSnapshot.visit === visit ? followSnapshot.follow : initialTimelineFollow(visit.followEnd);
   const timelineLiveFollowEnabled = follow.mode === "following";
   const readFollow = () => followStore.read(visit);
-  // Async settles outlive their render; this reads the visit shown now.
   const readCurrentFollow = useStableCallback(readFollow);
   const isTimelineAtLogicalEnd = (pendingScrollPx = 0) => {
     const current = readFollow();
@@ -227,19 +205,15 @@ export function useTimelineFollow(input: TimelineFollowInput) {
   };
   const isTimelineAtLogicalEndStable = useStableCallback(isTimelineAtLogicalEnd);
   const visitScrollRef = useRef<VisitScrollState | null>(null);
-  /** Only from handlers: the bookkeeping of the visit they run in. */
   const visitScroll = () => {
     if (visitScrollRef.current?.visit !== visit) {
       visitScrollRef.current = createVisitScrollState(visit, (shownVisit) => {
-        // A debounce that outlived its visit must not overwrite the current one's pill.
         if (visitScrollRef.current?.visit === shownVisit)
           setPill({ visit: shownVisit, show: true });
       });
     }
     return visitScrollRef.current;
   };
-  // The anchor whose list position LegendList reported ready; until then a
-  // newly started run must not re-anchor.
   const [laidOutAnchor, setLaidOutAnchor] = useState<MessageId | null>(null);
   const anchorPending =
     timelineAnchorMessageId !== null && laidOutAnchor !== timelineAnchorMessageId;
@@ -257,8 +231,6 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     if (before.mode === "following") legendListRef.current?.cancelScroll();
   };
 
-  // A run that starts while the live end is followed anchors its user message
-  // near the top, unless the previous anchor has not been laid out yet.
   const [observedRun, setObservedRun] = useState<TimelineRunObservation | null>(null);
   const dispatchedUserItem =
     observedRun?.hydrated &&
@@ -297,7 +269,6 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     visitScroll().intent = key === "PageUp" ? "away-from-end" : "toward-end";
     composerRef.current?.collapseForTimelineScrollKey(key);
     if ((key === "PageUp" && timelineRealContentOverflowsViewport()) || !isTimelineAtLogicalEnd()) {
-      // Through the viewport, so a running position restore stops too.
       viewportRef.current?.navigate({ releasesFollow: true });
     }
   });
@@ -314,14 +285,11 @@ export function useTimelineFollow(input: TimelineFollowInput) {
   };
   const onComposerPageScrollReleaseStable = useStableCallback(onComposerPageScrollRelease);
   const scrollToEnd = (animated: boolean = false) => {
-    // Stops a running position restore; follow itself is re-armed below.
     viewportRef.current?.navigate({ releasesFollow: false });
     followStore.dispatch(visit, { type: "followEnd" });
     visitScroll().showScrollDebouncer.cancel();
     setShowScrollToBottom(false);
     setTimelineAnchor(releaseChatTimelineAnchor);
-    // The anchored end space must be gone before the scroll measures, or the
-    // list lands short of the real end.
     requestAnimationFrame(() => {
       const list = legendListRef.current;
       if (!list) return;
@@ -339,8 +307,6 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     });
   };
   const scrollToEndStable = useStableCallback(scrollToEnd);
-  // The list does not follow footer layout, so growth above the composer (a new notice) would
-  // cover the last rows instead. An anchored new turn keeps its place; scrolling would release it.
   const onTimelineFooterGrow = () => {
     if (timelineAnchorMessageId === null && readFollow().mode === "following") scrollToEnd();
   };
@@ -390,10 +356,6 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     }
   };
   const handleNavigationStable = useStableCallback(handleNavigation);
-  /**
-   * Attached by the timeline's list ref callback, so follow hears the
-   * viewport's navigation exactly as long as the scroll node exists.
-   */
   const attachTimelineViewport = (viewport: TimelineViewport) => {
     viewportRef.current = viewport;
     const unsubscribe = viewport.subscribe(handleNavigationStable);
@@ -422,13 +384,10 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     }
     stopAnchorPositioning(scroll);
     scroll.positionedAnchor = messageId;
-    // The positioning scroll moves up when the anchor sits above the view.
     const releaseHold = viewportRef.current?.holdProgrammaticScroll() ?? (() => {});
     scroll.releaseAnchorScrollHold = releaseHold;
     const isPositioning = () =>
       scroll.positionedAnchor === messageId && listShowsMessage(legendListRef.current, messageId);
-    // Releasing is idempotent, so an attempt that is no longer current (the
-    // thread switched, the user navigated) always lets go of its own hold.
     const abandon = () => {
       releaseHold();
       if (scroll.positionedAnchor === messageId) stopAnchorPositioning(scroll);
@@ -448,7 +407,6 @@ export function useTimelineFollow(input: TimelineFollowInput) {
           }
           return;
         }
-        // LegendList waits for queued layout and the animation before resolving.
         void list
           .scrollToIndex({
             index: anchorIndex,
@@ -532,17 +490,11 @@ export function useTimelineFollow(input: TimelineFollowInput) {
   };
   const onIsAtEndChangeStable = useStableCallback(onIsAtEndChange);
 
-  // timelineEntries leave out reasoning rows (their text is not in the
-  // structure), and reasoning counts as tool activity, like any work row.
   const runningTurnHasReasoning =
     activeRunningTurnId !== null &&
     serverProjection?.visibleTurnItems.some(
       (row) => row.item.type === "reasoning" && row.item.runId === activeRunningTurnId,
     ) === true;
-  // Z: the release scrolls, and that scroll must follow the commit that drops
-  // the anchored end space; the trigger is streamed thread data. A
-  // totalSize listener cannot replace it: the anchored end space can already
-  // be 0, so dropping it changes no size and no list event fires.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the timeline to the end after the commit that drops anchored end space
   useLayoutEffect(() => {
     if (timelineAnchorMessageId === null || !timelineLiveFollowEnabled) return;
@@ -566,7 +518,6 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     timelineLiveFollowEnabled,
   ]);
 
-  /** Arms the anchor for a message the user just sent, before its run exists. */
   const anchorNewTurn = (threadKey: string, messageId: MessageId) => {
     followStore.dispatch(visit, { type: "followEnd" });
     visitScroll().showScrollDebouncer.cancel();
@@ -574,7 +525,6 @@ export function useTimelineFollow(input: TimelineFollowInput) {
     setTimelineAnchor({ threadKey, messageId });
   };
 
-  // Codex Micro's conversation chords scroll the timeline a step at a time.
   const shortcuts = {
     "conversation.scrollUp": () => scrollConversation(-1),
     "conversation.scrollDown": () => scrollConversation(1),

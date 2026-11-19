@@ -58,7 +58,6 @@ const userInputDraftsByRequestKeyAtom = Atom.make<
   Record<string, Record<string, PendingUserInputDraftAnswer>>
 >({}).pipe(Atom.keepAlive, Atom.withLabel("mobile:user-input-drafts"));
 
-// Writes start from the suggested answer the user was looking at.
 function seededDraft(
   drafts: Record<string, PendingUserInputDraftAnswer> | undefined,
   question: ThreadUserInputQuestion,
@@ -104,7 +103,6 @@ function setUserInputDraftCustomAnswer(
   });
 }
 
-/** Drops a thread's answer and attachment drafts for every request outside `pendingRequestIds`. */
 function pruneResolvedRequestDrafts(
   environmentId: EnvironmentId,
   threadId: ThreadId,
@@ -137,16 +135,10 @@ function pruneResolvedRequestDrafts(
   if (changed) appAtomRegistry.set(questionAttachmentPreparationAtom, counts);
 }
 
-// Resolution can come from anywhere: another device, an interrupt, the turn
-// ending, or a reload over drafts for requests that resolved meanwhile.
 onThreadRequestsResolved(({ environmentId, threadId, pendingRequestIds }) =>
   pruneResolvedRequestDrafts(environmentId, threadId, pendingRequestIds),
 );
 
-/**
- * Drops `answeredRequestId`'s drafts as soon as the server accepts the
- * response, before the projection push that resolves it lands.
- */
 function collectAnsweredRequestDrafts(
   environmentId: EnvironmentId,
   threadId: ThreadId,
@@ -155,7 +147,6 @@ function collectAnsweredRequestDrafts(
   const current = appAtomRegistry.get(
     environmentThreadDetails.pendingRequestsAtom({ environmentId, threadId }),
   );
-  // Missing detail is not resolution.
   if (current === null) return;
   pruneResolvedRequestDrafts(
     environmentId,
@@ -217,7 +208,6 @@ export function useSelectedThreadRequests() {
   );
   const preparationCounts = useAtomValue(questionAttachmentPreparationAtom);
   const uploadStates = useAtomValue(composerAttachmentUploadsAtom);
-  // Suggested answers are shown until the user edits them; only edits are stored.
   const activePendingUserInputAnswerDrafts =
     activePendingUserInput && selectedThreadShell
       ? seedUserInputDraftAnswers(

@@ -51,7 +51,6 @@ export const OrchestratorMcpClientRequestId = TrimmedNonEmptyString.check(Schema
   )
   .annotate({ description: "Reuse it to retry the same call. A new call gets a new key." });
 
-// OpenCode 1.15 serializes nested MCP union objects as JSON strings; decode that form at the boundary.
 const OrchestratorMcpScheduleFromJsonString = Schema.fromJsonString(ScheduledTaskSchedule).annotate(
   {
     description: "JSON-text schedule. Prefer the object form.",
@@ -66,10 +65,6 @@ const OrchestratorMcpSchedule = Schema.Union([
     "Trigger: {type:'interval',everyMs}, {type:'fixed_time',timeOfDay,weekdays?}, or {type:'once',runAt}.",
 });
 
-/**
- * Shorthand `{ id: value }` record form for target model options. A value
- * that is not a string or boolean fails the request.
- */
 const OrchestratorMcpTargetOptionsFromRecord = Schema.Record(
   Schema.String,
   ProviderOptionSelectionValue,
@@ -185,10 +180,8 @@ export const OrchestratorMcpDelegateTaskInput = Schema.Struct({
 });
 export type OrchestratorMcpDelegateTaskInput = typeof OrchestratorMcpDelegateTaskInput.Type;
 
-// Set only on results for still-running tasks whose completion will wake the parent.
 export const ORCHESTRATOR_MCP_RUNNING_TASK_NEXT =
   "Completion wakes this thread. Do not wait on it or poll it. Continue other work, and end your turn when none is left.";
-// A string, not a literal: servers on other versions send their own wording.
 const OrchestratorMcpRunningTaskNext = Schema.String;
 
 const OrchestratorMcpExecutedModel = Schema.NullOr(Schema.String).annotate({
@@ -308,9 +301,6 @@ const OrchestratorMcpProjectTarget = Schema.optional(
   }),
 );
 
-// Codex hides `minimum` and `maximum` from the model, so a value above the maximum clamps on
-// decode instead of failing the call; pagination returns the rest. Values below 1 still fail:
-// 0 asks for nothing, and answering it with one item would be a different request.
 export const clampedPositiveInt = (maximum: number) =>
   PositiveInt.pipe(
     Schema.decodeTo(
@@ -721,12 +711,10 @@ export const OrchestratorMcpUpdateScheduledTaskInput = Schema.Struct({
 export type OrchestratorMcpUpdateScheduledTaskInput =
   typeof OrchestratorMcpUpdateScheduledTaskInput.Type;
 
-// Not trimmed: whitespace in a password matters. The check stays out of the advertised schema.
 const PastedSecretValue = Schema.String.check(
   Schema.makeFilter((value: string) => value.length > 0, { expected: "a non-empty string" }),
 );
 
-// Filters, not length or pattern checks: those would add to every agent's tool list.
 const RequestSecretFields = Schema.Array(OrchestrationV2SecretRequestField).check(
   Schema.makeFilter((fields) => {
     if (fields.length === 0 || fields.length > 8) return "Give 1 to 8 fields.";

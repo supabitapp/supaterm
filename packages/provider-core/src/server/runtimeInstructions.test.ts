@@ -23,7 +23,6 @@ describe("buildRuntimeInstructions", () => {
     assert.include(instructions, "If linking fails, say so.");
     assert.notInclude(instructions, "git log -1");
     assert.notInclude(instructions, "work on");
-    // Listing linked PRs as an end-of-work check found nothing to add in audited threads.
     assert.notInclude(instructions, "list_thread_pull_requests");
   });
 
@@ -32,7 +31,6 @@ describe("buildRuntimeInstructions", () => {
 
     assert.notInclude(instructions, "Creation, pending checks, or a merge ask alone is not enough");
     assert.include(instructions, "Links and watches persist across pushes.");
-    // The wake message itself carries the do-not-re-watch rule.
     assert.notInclude(instructions, "On a wake");
     assert.include(
       instructions,

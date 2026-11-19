@@ -173,7 +173,6 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* ipc.handle(uninstallCliCommand);
   yield* ipc.handle(addCliCommandToPath);
   for (const previewMethod of PreviewIpc.methods) {
-    // Explicit types preserve the error/service union of these heterogeneous preview methods.
     yield* ipc.handle<
       Effect.Error<ReturnType<(typeof PreviewIpc.methods)[number]["handler"]>>,
       Effect.Services<ReturnType<(typeof PreviewIpc.methods)[number]["handler"]>>

@@ -33,7 +33,6 @@ function toolCallPatch(item: Pick<FileChange, "diffStr" | "fileName" | "changes"
     )
       return patch;
   }
-  // Codex can record added/deleted file contents or bare hunks instead of a complete patch.
   if (rawFileOperation || !patch.trimStart().startsWith("@@ ")) {
     if (!rawFileOperation) return patch;
     const lines = patch.split("\n");

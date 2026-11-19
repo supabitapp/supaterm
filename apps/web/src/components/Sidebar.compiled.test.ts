@@ -6,10 +6,6 @@ import { expect, it } from "vite-plus/test";
 
 const sidebarPath = NodeURL.fileURLToPath(new URL("./Sidebar.tsx", import.meta.url));
 
-// The compiler drops a cache scope without any diagnostic when the scope spans a
-// hook call, so the coverage test passes while these values are rebuilt on every
-// thread shell event. Each one feeds DndContext, the sensors, the sortable rows,
-// the list ref or the motion effect, which all redo work when its identity changes.
 const IDENTITY_SENSITIVE_VALUES = [
   "attachListMotionRef",
   "dndModifiers",

@@ -132,8 +132,6 @@ export interface ChannelSwitchRelease {
 export const channelSwitchLabel = (channel: DesktopUpdateChannel) =>
   channel === "nightly" ? "Nightly" : "Stable";
 
-/** Stable and Nightly each build their own commits, so either can hold migrations the other lacks.
- * Crossing tracks needs proof that the target release knows every migration the database holds. */
 const crossesTrack = (fromVersion: string, release: ChannelSwitchRelease) =>
   desktopUpdateChannelOf(fromVersion) !== release.channel;
 
@@ -144,7 +142,6 @@ function channelSwitchBlockReason(
 ): string | null {
   if (!crossesTrack(fromVersion, release)) return null;
   const from = channelSwitchLabel(desktopUpdateChannelOf(fromVersion));
-  // Servers and releases from before this check report no migration number.
   if (currentMigration === undefined) {
     return `its server predates database checks; update it on ${from} first`;
   }
@@ -249,7 +246,6 @@ export function collectChannelSwitchTargets(
       skip(blocked);
       continue;
     }
-    // Service launchers only accept newer versions, so leaving for an older release is manual.
     if (
       move.selfUpdate === "boot-service" &&
       compareSemverVersions(release.version, serverVersion) <= 0
@@ -282,7 +278,6 @@ function isOnTrack(version: string, channel: DesktopUpdateChannel): boolean {
   return cliReleaseChannelOf(version) !== "preview" && desktopUpdateChannelOf(version) === channel;
 }
 
-/** How a switch moves a host, or why it never can from here, whatever the release. */
 function trackSwitchMove(
   config: NonNullable<UpdateEverythingMachine["serverConfig"]>,
   sameTrack: boolean,
@@ -296,7 +291,6 @@ function trackSwitchMove(
   if (config.environment.capabilities.desktopAppChannelSwitch !== true) {
     return { skip: "needs a newer desktop app" };
   }
-  // Squirrel.Mac renames the bundle for the new track and then cannot relaunch it.
   if (!sameTrack && config.environment.platform.os === "darwin") {
     return { skip: "switch the Mac app on that Mac" };
   }

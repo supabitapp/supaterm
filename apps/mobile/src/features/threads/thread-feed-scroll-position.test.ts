@@ -81,7 +81,6 @@ describe("resolveThreadFeedSubmissionAnchor", () => {
     ).toBeNull();
   });
 
-  // regression: #7897 stop pushing follow-up messages to the top
   it("does not anchor a thread that has already started a turn", () => {
     expect(
       resolveThreadFeedSubmissionAnchor({

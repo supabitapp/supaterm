@@ -1,9 +1,3 @@
-/**
- * Records a Kiro ACP replay transcript through the real orchestrator and
- * KiroAdapterV2, teeing only the protocol logger. Run from apps/server, signed in
- * with `kiro-cli login`, with `kiro-cli` on PATH (or SUPATERM_KIRO_BIN):
- *   node scripts/record-kiro-acp-replay-fixture.ts --scenario simple
- */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import type { ProviderReplayEntry } from "@supaterm/contracts";
@@ -38,10 +32,6 @@ const wallClock = Clock.Clock.defaultValue();
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 const decodeJson = Schema.decodeUnknownSync(Schema.fromJsonString(Schema.Unknown));
 
-// Kiro broadcasts Supaterm never reads. They carry the account's governance flags,
-// the full text of Kiro's bundled steering documents, its powers, the user's
-// hooks, the session roster and memory sync state; the client ignores every
-// one of them (no handler is registered).
 const DROPPED_INBOUND_METHODS = new Set([
   "_kiro/governance/state",
   "_kiro/powers/items_changed",
@@ -65,7 +55,6 @@ interface JsonRpcMessage {
 
 type WireMessage =
   | { readonly direction: "incoming" | "outgoing"; readonly message: JsonRpcMessage }
-  /** One ACP process ended and the adapter spawned the next (an idle release). */
   | { readonly direction: "respawn" };
 
 function readArgValues(name: string): ReadonlyArray<string> {
@@ -86,11 +75,6 @@ function mapStrings(value: unknown, map: (text: string) => string): unknown {
   );
 }
 
-/**
- * Tees raw ACP lines in wire order. A later process (the idle release the
- * resume fixture forces) is marked as a respawn, which replay turns into a
- * fresh replay agent that continues the transcript.
- */
 function makeWireTee() {
   const wire: Array<WireMessage> = [];
   let runtimeCount = 0;
@@ -119,8 +103,6 @@ function makeWireTee() {
         }),
     };
   };
-  // Kiro settles every turn through the session/prompt response, so it is
-  // done once each prompt Supaterm sent has been answered.
   const kiroHasPendingWork = () => {
     const pending = new Set<string>();
     for (const wireMessage of wire) {
@@ -146,7 +128,6 @@ function frameLabel(kind: string, method: string, params: unknown): string {
   return `${kind}:${method}${updateType}`;
 }
 
-/** Pairs JSON-RPC ids with their methods and emits the logical frames acp-replay-agent reads. */
 function wireToEntries(wire: ReadonlyArray<WireMessage>): {
   readonly entries: Array<ProviderReplayEntry>;
   readonly droppedFrames: number;
@@ -157,7 +138,6 @@ function wireToEntries(wire: ReadonlyArray<WireMessage>): {
   let droppedFrames = 0;
   for (const wireMessage of wire) {
     if (wireMessage.direction === "respawn") {
-      // JSON-RPC ids restart with the process.
       supatermRequests.clear();
       agentRequests.clear();
       entries.push({ type: "runtime_exit", status: "success" });
@@ -192,8 +172,6 @@ function wireToEntries(wire: ReadonlyArray<WireMessage>): {
     const pending = direction === "outgoing" ? agentRequests : supatermRequests;
     const method = pending.get(String(message.id));
     if (method === undefined) {
-      // A response to a request Supaterm never saw; Supaterm's protocol drops it, so replay
-      // never sees it either.
       droppedFrames += 1;
       continue;
     }
@@ -213,18 +191,13 @@ function wireToEntries(wire: ReadonlyArray<WireMessage>): {
 }
 
 const SUPATERM_INSTRUCTIONS_BODY = /<supaterm_instructions>\n[\s\S]*?\n<\/supaterm_instructions>/u;
-// A turn on another model sends its own runtime info, which the filter below
-// keeps; its model stays pinned and the linking guidance does not.
 const PULL_REQUEST_LINKING_BODY = /<pull_request_linking>\n[\s\S]*?\n<\/pull_request_linking>/u;
 
-/** Replaces Supaterm-owned request content so prompt wording changes do not invalidate recordings. */
 function normalizeOutboundFrame(frame: Record<string, unknown>, runtimeInstructions: string) {
   const params = isRecord(frame.params) ? frame.params : undefined;
   if (params === undefined) return frame;
   switch (frame.method) {
     case "initialize":
-      // Pin what Supaterm advertises (fs and terminal capabilities decide whether
-      // Kiro routes file and shell work through Supaterm); the rest is <any>.
       return {
         ...frame,
         params: Object.fromEntries(
@@ -273,10 +246,6 @@ function normalizeOutboundFrame(frame: Record<string, unknown>, runtimeInstructi
   }
 }
 
-/**
- * Drops the account-specific parts of Kiro's frames: user-scoped commands and
- * agents, and the log directory `initialize` names.
- */
 function normalizeInboundFrame(frame: Record<string, unknown>): Record<string, unknown> {
   const params = isRecord(frame.params) ? frame.params : undefined;
   const update = isRecord(params?.update) ? params.update : undefined;
@@ -322,7 +291,6 @@ function normalizeInboundFrame(frame: Record<string, unknown>): Record<string, u
 
 const OTHER_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/giu;
 
-/** Collects Kiro session ids in first-seen order. */
 function collectSessionIds(entries: ReadonlyArray<ProviderReplayEntry>): ReadonlyArray<string> {
   const ids: Array<string> = [];
   const add = (value: unknown) => {
@@ -352,9 +320,6 @@ function normalizeEntries(input: {
       (id, index) =>
         [id, `sess_00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`] as const,
     ),
-    // Kiro's snapshot URIs carry paths URL-encoded once or twice
-    // (`?originalPath%3D%252Fhome%252F…`); replace those forms first.
-    // A HOME of "/" (root) or "" would replace every slash, method names included.
     ...[input.workspace, input.home].flatMap((path) => {
       if (path.length <= 1) return [];
       const once = encodeURIComponent(path);
@@ -368,7 +333,6 @@ function normalizeEntries(input: {
     ...(input.workspace.length <= 1 ? [] : [[input.workspace, "<workspace>"] as const]),
     ...(input.home.length <= 1 ? [] : [[input.home, HOME_PLACEHOLDER] as const]),
   ];
-  // Kiro's message and backend request ids, numbered in first-seen order.
   const otherIds: Array<string> = [];
   const numberOtherIds = (text: string) =>
     text.replace(OTHER_UUID, (id) => {
@@ -376,7 +340,6 @@ function normalizeEntries(input: {
       if (!otherIds.includes(id)) otherIds.push(id);
       return `00000000-0000-4000-9000-${String(otherIds.indexOf(id) + 1).padStart(12, "0")}`;
     });
-  // Shell output (e.g. `ls -l`) names the recording user.
   const user = /^[a-z_][a-z0-9_-]*$/iu.test(input.user) ? input.user : "";
   const userPattern = user.length === 0 ? undefined : new RegExp(`\\b${user}\\b`, "gu");
   const replaceAll = (text: string) => {
@@ -416,8 +379,6 @@ const recordScenario = Effect.fn("recordKiroScenario")(function* (fixtureName: s
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const fixtureInput = fixture.buildInput();
-  // Same README and seeded files as the replay workspace, so client-mediated
-  // fs reads answer identically at replay time.
   const workspace = yield* checkpointWorkspace(fixtureName, fixtureInput.workspaceFiles);
   const realWorkspace = yield* fs.realPath(workspace);
   const materialized = yield* materializeFixtureInput({
@@ -429,9 +390,6 @@ const recordScenario = Effect.fn("recordKiroScenario")(function* (fixtureName: s
   const scenario = {
     name: `${fixtureName}/kiro-record`,
     commands: materialized.commands,
-    // Gated fixtures pace replay with gates on the test clock. Live, Kiro and
-    // wall time pace themselves, so a fixture that gates records its
-    // dispatches only and then waits for Kiro to idle.
     steps: materialized.steps.some(
       (step) =>
         step.type === "release_replay_gate" || step.type === "release_replay_gate_after_waiting",
@@ -453,7 +411,6 @@ const recordScenario = Effect.fn("recordKiroScenario")(function* (fixtureName: s
         settings: KIRO_RECORDING_SETTINGS,
         environment,
         selfInvocation: yield* resolveSelfInvocation(),
-        // Production's runtime factory, with the protocol logger teeing raw lines.
         makeRuntime: ({ runtimePolicy: _runtimePolicy, processEnvironment, ...input }) =>
           makeKiroAcpRuntime({
             ...input,
@@ -462,9 +419,6 @@ const recordScenario = Effect.fn("recordKiroScenario")(function* (fixtureName: s
             environment: { ...environment, ...processEnvironment },
           }),
       });
-      // The scenario runs on the replay TestClock so its clock steps order
-      // dispatches as replay will. Kiro itself runs on wall time, so the
-      // adapter's session does too.
       const onWallClock = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
         Effect.provideService(effect, Clock.Clock, wallClock);
       return [
@@ -498,10 +452,6 @@ const recordScenario = Effect.fn("recordKiroScenario")(function* (fixtureName: s
     ),
   );
 
-  // Same deterministic runtime as replay (TestClock, seeded ids), so the
-  // scenario's clock steps order dispatches exactly as they will on replay.
-  // The session stays open until every prompt is answered and Kiro has been
-  // quiet for a few seconds, so the transcript holds everything replay emits.
   let quietPolls = 0;
   let seenFrames = -1;
   const waitForKiroIdle = Effect.sleep("1 second").pipe(
@@ -564,10 +514,6 @@ const recordScenario = Effect.fn("recordKiroScenario")(function* (fixtureName: s
     ],
   };
 
-  // The live orchestration must already satisfy the fixture's assertions
-  // before anything is written, so a changed Kiro response can never replace
-  // a good fixture with one that fails replay. `--force` writes it anyway to
-  // inspect the frames.
   const liveFailure = (() => {
     try {
       variant.assertOutput(result, transcript);

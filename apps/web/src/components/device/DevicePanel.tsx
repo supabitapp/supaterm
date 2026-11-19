@@ -179,7 +179,6 @@ export function DevicePanel(props: {
     state.bootingDevices?.filter((device) => device.threadId === threadId) ?? [];
   const { ready: hostReady, busy: hostBusy } = deviceHubReadiness(state);
   const loading = !activeDevice && (pendingDevice !== null || hostBusy || !loaded);
-  // Without a first snapshot a failed subscription never settles on its own.
   const loadError = loaded ? null : stateError;
   const diagnostics = state.hosts.flatMap((host) => {
     const status = state.hostStatuses[host.id];
@@ -424,7 +423,6 @@ function DeviceDiscoveryWarning(props: {
   const [retrying, setRetrying] = useState(false);
   const [dismissedCause, setDismissedCause] = useState<string | null>(null);
   const cause = `${props.incompletePlatforms.join()}\u0000${props.detail}`;
-  // A dismissal hides one occurrence; a cause that returns later shows again.
   if (dismissedCause !== null && dismissedCause !== cause) setDismissedCause(null);
   if (dismissedCause === cause) return null;
   const platforms = props.incompletePlatforms.map((platform) =>

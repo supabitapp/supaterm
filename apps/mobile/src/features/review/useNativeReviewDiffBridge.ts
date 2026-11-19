@@ -78,7 +78,6 @@ export function useNativeReviewDiffBridge(input: {
     const payload = event.nativeEvent;
     const message = payload.message;
     if (message === "surface-content-mounted") {
-      // The initial content already has a fresh hook; replacements lose accepted tokens.
       if (hasMountedContentRef.current) setSurfaceGeneration((generation) => generation + 1);
       hasMountedContentRef.current = true;
     }

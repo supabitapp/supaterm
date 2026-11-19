@@ -39,7 +39,6 @@ export function assertPiCompactionOutput(
     .filter((frame) => field(frame, "type") === "compaction_end");
   assert.lengthOf(compactionEnds, 2);
   const [refused, compacted] = compactionEnds;
-  // Pi omits `result` on failure rather than sending null.
   assert.isFalse(typeof refused === "object" && refused !== null && "result" in refused);
   const compactionResult = field(compacted, "result");
   assert.isDefined(compactionResult, "the second compaction must succeed");
@@ -72,7 +71,6 @@ export function assertPiCompactionOutput(
     ),
     "compaction must not run a model turn",
   );
-  // Pi reports tokens null after compaction; retain its post-compaction estimate.
   const compactionTurn = projection.providerTurns.find(
     (turn) => turn.runAttemptId === compactionRuns[1]?.activeAttemptId,
   );

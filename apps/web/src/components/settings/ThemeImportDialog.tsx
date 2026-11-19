@@ -24,15 +24,8 @@ import { Button } from "../ui/button";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "../ui/dialog";
 import { ThemeSearchSection } from "./ThemeSearchSection";
 
-/**
- * The guard runs on the size before the bytes are ever read: a large file
- * would otherwise be pulled into memory, highlighted, and rendered, which
- * locks the UI for as long as that takes.
- */
 const MAX_THEME_FILE_BYTES = 256 * 1024;
 
-/** Highlighting rebuilds the whole markup on every keystroke, so oversized
- *  pastes fall back to plain text instead of freezing the editor. */
 const MAX_HIGHLIGHTED_JSON_LENGTH = 20_000;
 
 function describeOversizedThemeFile(bytes: number): string | null {
@@ -173,8 +166,6 @@ export function ThemeImportDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  // Each opening is a fresh session: its body remounts with clean state, and
-  // closing aborts every read, search, and install the session started.
   const [session, setSession] = useState(() => ({
     open,
     id: 0,
@@ -244,7 +235,6 @@ function ThemeImportBody({
   const [isReading, setIsReading] = useState(false);
   const [isDropTarget, setIsDropTarget] = useState(false);
   const [conflicts, setConflicts] = useState<ReadonlyArray<ThemeDefinition> | null>(null);
-  // A newer read supersedes an older one still in flight.
   const importRequestRef = useRef(0);
   const isCurrentRequest = (requestId: number) =>
     requestId === importRequestRef.current && !signal.aborted;

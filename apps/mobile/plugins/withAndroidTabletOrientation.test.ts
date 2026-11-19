@@ -17,7 +17,6 @@ const MANIFEST = `<manifest xmlns:android="http://schemas.android.com/apk/res/an
   </application>
 </manifest>`;
 
-// Trimmed from the MainActivity.kt that `expo prebuild` generates for this app.
 const MAIN_ACTIVITY = `package com.supaterm.supaterm
 
 import android.os.Build
@@ -56,8 +55,6 @@ async function prebuildAndroid(input = { manifest: MANIFEST, mainActivity: MAIN_
     slug: "supaterm",
     orientation: "portrait",
   });
-  // Prebuild registers Expo's orientation mod after app plugins. Mods run in
-  // reverse order, so our plugin must remove the portrait lock Expo writes.
   await compileModsAsync(AndroidConfig.Orientation.withOrientation(config), {
     projectRoot,
     platforms: ["android"],

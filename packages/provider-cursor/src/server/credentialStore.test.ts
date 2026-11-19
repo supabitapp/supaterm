@@ -79,7 +79,6 @@ it.effect.each([
       createdAtMs: 100,
     };
     const credentials = { ...requiredFields };
-    // Match the SDK's runtime values without relying on its stricter declarations.
     Object.assign(credentials, optionalFields);
     yield* Effect.tryPromise(() => store.save(credentials));
 

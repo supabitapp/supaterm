@@ -44,14 +44,12 @@ export function managedWorktreesDirectories(
   return [...directories];
 }
 
-// Client paths/branches are untrusted; recreate only real paths matching managed-folder/repo/branch.
 export const makeIsManagedWorktreePath = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const serverConfig = yield* ServerConfig.ServerConfig;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
 
-  // Match Git's symlink-following location: nearest real ancestor plus missing path components.
   const realLocation = (target: string): Effect.Effect<string> =>
     fileSystem.realPath(target).pipe(
       Effect.catch(() => {
@@ -63,9 +61,7 @@ export const makeIsManagedWorktreePath = Effect.gen(function* () {
     );
 
   return Effect.fn("worktreesDirectory.isManagedWorktreePath")(function* (worktreePath: string) {
-    // git resolves a relative path against the project, not the server cwd.
     if (!path.isAbsolute(worktreePath)) return false;
-    // Require normalized paths; Git and realPath disagree on .. after symlink traversal.
     if (path.resolve(worktreePath) !== worktreePath) return false;
     const settings = yield* serverSettings.getSettings.pipe(
       Effect.orElseSucceed(() => ({

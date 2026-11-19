@@ -10,7 +10,6 @@ export function useRetryEnvironment() {
   const setEnabled = useAtomCommand(environmentCatalog.setEnabled, "environment toggle");
 
   return (environmentId: EnvironmentId) =>
-    // A retry does nothing while the environment is switched off.
     catalog.entries.get(environmentId)?.enabled === false
       ? setEnabled({ environmentId, enabled: true })
       : retryNow(environmentId);

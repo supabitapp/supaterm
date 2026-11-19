@@ -10,10 +10,8 @@ export const ICON_PHOSPHORS = {
   dev: "#6adaff",
 } as const;
 
-// At this pitch the bolt stays inside the 66dp safe circle of Android's 108dp adaptive canvas.
 const SCREEN_ART_LEDS = 54;
 
-/** The screen alone, filling `size` px square with the bolt lit in its middle. */
 function paintScreenArt(size: number, phosphor: string) {
   const pitch = size / SCREEN_ART_LEDS;
   const grid = makeGrid(SCREEN_ART_LEDS + 2, SCREEN_ART_LEDS + 2);

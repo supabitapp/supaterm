@@ -56,7 +56,6 @@ const layerTestHttpClient = Layer.succeed(
   ),
 );
 
-// The mock CLIs from makeTildeProviderFixtures are scripts Windows cannot execute.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
 
 const TEST_EPOCH = DateTime.makeUnsafe("1970-01-01T00:00:00.000Z");
@@ -498,8 +497,6 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
           [claudeId]: {
             driver: ProviderDriverKind.make("claudeAgent"),
             enabled: true,
-            // Packaged desktop builds start the server in $HOME, where some
-            // `claude` wrappers refuse to run.
             environment: [
               { name: "SUPATERM_CLAUDE_REQUIRED_CWD", value: stateDir, sensitive: false },
             ],
@@ -536,8 +533,6 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
             environment: [
               {
                 name: "SUPATERM_CLAUDE_SETTINGS_SOURCES",
-                // The merged `effective` settings read as exempting Opus 5; the flag tier's
-                // top-level cap still applies to it.
                 value: JSON.stringify([
                   {
                     source: "userSettings",
@@ -826,11 +821,7 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
       expect(before.usageLimits?.resetCredits?.nextCreditId).toBe("grant_a");
       const outcome = yield* instance!.consumeResetCredit!(undefined).pipe(Effect.result);
       return { outcome, after: yield* instance!.snapshot.getSnapshot };
-    }).pipe(
-      // macOS logins live in the Keychain, where resets are never read.
-      Effect.provideService(HostProcess.Platform, "linux"),
-      Effect.provide(layerTest),
-    );
+    }).pipe(Effect.provideService(HostProcess.Platform, "linux"), Effect.provide(layerTest));
 
   it.live.skipIf(windowsHost)("refreshes Claude usage after redeeming a reset", () =>
     Effect.gen(function* () {

@@ -386,7 +386,6 @@ const make = Effect.gen(function* () {
             }),
         ),
       );
-    // Approval codes stay out of the pairing links and QR codes that clients show.
     if (!mcpApproval) {
       yield* emitUpsert({
         id,
@@ -413,15 +412,10 @@ const make = Effect.gen(function* () {
           }),
         } satisfies BootstrapGrant;
       }
-      // Only credentials in the issued pairing-code formats are case-insensitive.
-      // People type codes in groups such as XXXX-XXXX-XXXX.
       const compactCredential = credential.replace(/[\s-]/g, "");
       const pairingCredential = PAIRING_TOKEN_PATTERN.test(compactCredential)
         ? compactCredential.toUpperCase()
         : (parseMcpApprovalCode(credential)?.code ?? credential);
-      // The scope check is part of the UPDATE's WHERE clause so a rejected
-      // request cannot consume a one-time link. The re-check below only
-      // explains why nothing matched.
       const consumed = yield* pairingLinks
         .consumeAvailable({
           credential: pairingCredential,

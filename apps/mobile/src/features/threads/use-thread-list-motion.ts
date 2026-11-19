@@ -59,7 +59,6 @@ export function useThreadListMotion(input: {
         doneLimit: frame.doneLimit,
       });
     previous.current = ready ? frame : null;
-    // Bound eligibility without scheduling an animation just to expire a flag.
     runOnUI((allow: boolean) => {
       "worklet";
       deadline.set(allow ? performance.now() + 300 : 0);

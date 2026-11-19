@@ -201,7 +201,6 @@ it("requests current dimensions after resizing and scrolling away and back befor
     }
     postMessage.call(this, message, options);
   });
-  // Synthetic pointer events have no browser pointer to capture.
   using _capture = vi.spyOn(root, "setPointerCapture").mockImplementation(() => {});
   using _release = vi.spyOn(root, "releasePointerCapture").mockImplementation(() => {});
   const rect = canvas.getBoundingClientRect();

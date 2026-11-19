@@ -22,7 +22,6 @@ const completeSdk = async (sdk: string, adb = "echo Android Debug Bridge") => {
   await executable(NodePath.join(sdk, "cmdline-tools/latest/bin/avdmanager"));
 };
 
-/** Runs the probe through the SSH shell setup, then `after` in that same shell. */
 const probeAndroid = (setup: (home: string) => Promise<Record<string, string>>, after = "true") =>
   Effect.promise(async () => {
     const home = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-ssh-sdk-"));
@@ -91,7 +90,6 @@ it.effect("uses the SDK the probe accepted for later SSH commands", () =>
     if ((yield* HostProcess.Platform) === "win32") return;
     let sdk = "";
     const result = yield* probeAndroid(async (home) => {
-      // Incomplete default locations must not shadow the configured SDK.
       await NodeFSP.mkdir(NodePath.join(home, "Library/Android/sdk"), { recursive: true });
       await NodeFSP.mkdir(NodePath.join(home, "Android/Sdk"), { recursive: true });
       sdk = NodePath.join(home, "custom-sdk");
@@ -177,7 +175,6 @@ if (fs.existsSync(${JSON.stringify(failMarker)})) process.exitCode = 1;`,
           JSON.stringify({ entryPath: entry }),
         );
         await NodeFSP.writeFile(daemonFile, JSON.stringify({ httpPort: 1, token: "claims" }));
-        // An empty PATH leaves no platforms, so the script ends right after the daemon check.
         const start = () =>
           NodeChildProcess.spawnSync(process.execPath, [], {
             input: remoteDeviceScript("owner", "start"),
@@ -225,7 +222,6 @@ it.effect("keeps a daemon record its missing agent CLI cannot stop", () =>
             encoding: "utf8",
           });
         };
-        // This test process stands in for a daemon that is still running.
         expect((await start(process.pid)).stderr).toContain(
           "Could not stop the agent-device daemon",
         );

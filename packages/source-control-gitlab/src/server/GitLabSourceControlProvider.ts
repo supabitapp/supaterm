@@ -108,13 +108,11 @@ function refineUnknownGitLabRemote(input: SourceControlUnknownRemoteRefinementIn
   } as const;
 }
 
-/** The caller refines only an identity no host recognised, so its remote is on an unknown host. */
 function unknownRemoteProvider(remoteUrl: string) {
   const remote = parseGitRemoteHost(remoteUrl);
   return remote === null ? null : unknownHostProvider(remote);
 }
 
-// A glab login confirms a self-hosted GitLab whose hostname does not identify its provider.
 const refineRepositoryIdentity: NonNullable<
   SourceControlProvider.SourceControlProvider["Service"]["refineRepositoryIdentity"]
 > = Effect.fn("GitLabSourceControlProvider.refineRepositoryIdentity")(function* ({
@@ -144,12 +142,8 @@ export const discovery = {
   label: "GitLab",
   executable: "glab",
   versionArgs: ["--version"],
-  // Without --all, glab 1.79+ checks only the current host unless that is gitlab.com; older
-  // glab lists every host and rejects --all. --all waits on every host, so ask it only after
-  // the current host reports signed out.
   authArgs: ["auth", "status"],
   authRetryArgs: ["auth", "status", "--all"],
-  // glab host matching requires the remote's exact spelling.
   remoteRefinementArgs: ({ provider, remoteUrl }) => {
     const authority = /^[a-z][a-z0-9+.-]*:\/\/([^/]+)/iu.exec(remoteUrl.trim())?.[1];
     const remoteHost = authority
@@ -210,7 +204,6 @@ export const make = Effect.gen(function* () {
 
   return SourceControlProvider.SourceControlProvider.of({
     kind: SourceControlProviderKind.make("gitlab"),
-    // GitLab lists fork merge requests by source branch with no owner filter, so read a full page.
     headBranchProbe: ({ headSelectors }) => ({
       headSelectors: headSelectors.filter((selector) => !selector.includes(":")),
       limit: 100,
@@ -222,7 +215,6 @@ export const make = Effect.gen(function* () {
     ),
     refineRepositoryIdentity,
     resolveLink: (input) => {
-      // Automatic enrichment must not send ambient CLI credentials to a host from message text.
       if (input.url.host !== "gitlab.com") return undefined;
       const match = /^\/(.+)\/-\/(merge_requests|issues)\/([1-9]\d*)(?:\/.*)?$/.exec(
         input.url.pathname,

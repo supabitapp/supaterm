@@ -21,7 +21,6 @@ const BACKGROUND_TURN_ITEM_TYPES = new Set<OrchestrationV2TurnItem["type"]>([
   "subagent",
 ]);
 
-// Plans and text streams can stay open across tool calls without executing work.
 const EXECUTION_TURN_ITEM_TYPES = new Set<OrchestrationV2TurnItem["type"]>([
   ...BACKGROUND_TURN_ITEM_TYPES,
   "file_change",
@@ -30,7 +29,6 @@ const EXECUTION_TURN_ITEM_TYPES = new Set<OrchestrationV2TurnItem["type"]>([
   "compaction",
 ]);
 
-// waiting is completed work awaiting checkpoints; exclude rolled_back entirely because provider threads are not run-tied.
 const SETTLED_FOR_BACKGROUND_WAIT_RUN_STATUSES = new Set<OrchestrationV2Run["status"]>([
   "cancelled",
   "completed",
@@ -58,7 +56,6 @@ export function deriveBlockedOnThreadWait(input: {
       item.runId !== input.activeRun.id ||
       !EXECUTION_TURN_ITEM_TYPES.has(item.type) ||
       (item.status !== "running" && item.status !== "waiting") ||
-      // App-owned rows track the child, including the child a blocking delegate is waiting for.
       (item.type === "subagent" && item.origin === "app_owned")
     ) {
       continue;
@@ -88,8 +85,6 @@ export function backgroundWorkHoldsCompletion(
   );
 }
 
-// Commands and monitors are as often a dev server or its watchdog as a wait, so they hold
-// only when the agent marks them awaited.
 function backgroundWorkKindHoldsCompletion(kind: PendingBackgroundWorkTask["kind"]): boolean {
   switch (kind) {
     case "command":
@@ -238,11 +233,8 @@ export function pendingBackgroundTurnItems<Item extends PendingBackgroundWorkTur
 }
 
 const PULL_REQUEST_WATCH_TASK_PREFIX = "pull-request-watch:";
-// Older servers still report their GitHub Actions run watches under this prefix.
 const RETIRED_WORKFLOW_RUN_WATCH_TASK_PREFIX = "workflow-run-watch:";
 
-// Links store their normalized identity, and this id only has to be unique within the thread,
-// so it reads those fields instead of parsing the URL.
 export function pullRequestWatchTaskId(link: {
   readonly host: string;
   readonly repository: string;
@@ -331,7 +323,6 @@ function pullRequestWatchTasks(
   pullRequests: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined,
 ): Array<PendingBackgroundWorkTask> {
   return (pullRequests ?? []).flatMap((link) =>
-    // The watch reactor ends a merged PR's watch without waking the agent, so it holds nothing.
     link.watch === undefined ||
     link.source === "stack-dismissed" ||
     link.snapshot?.state === "merged"
@@ -341,7 +332,6 @@ function pullRequestWatchTasks(
             taskId: pullRequestWatchTaskId(link),
             description: `Watching pull request #${link.number}`,
             kind: "monitor" as const,
-            // Once every check finished, a person moves the PR next: the watch stays on but holds nothing.
             ...(link.watch.checksPending === false ? {} : { awaited: true as const }),
           },
         ],

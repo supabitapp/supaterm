@@ -11,7 +11,6 @@ import {
   replaceComposerContextReferences,
 } from "@supaterm/shared/composerContextReferences";
 
-// Matches ProseMirror's default clipboard parser, which a custom handlePaste bypasses.
 export function readPastedPlainText(clipboardData: Pick<DataTransfer, "getData">): string {
   return clipboardData.getData("text/plain").replace(/\r\n?/g, "\n");
 }

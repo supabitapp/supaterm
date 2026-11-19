@@ -79,7 +79,6 @@ export const isAntigravityTextGenerationAvailable = Effect.fn(
     if (info.type !== "File" || info.size > 64_000n) {
       return false;
     }
-    // CLI 1.5.8 writes a 0-byte mcp_config.json before any server exists.
     const empty = yield* fs.readFileString(configurationPath).pipe(
       Effect.flatMap((text) =>
         text.trim().length === 0
@@ -109,7 +108,6 @@ export const makeAntigravityTextGeneration = Effect.fn("makeAntigravityTextGener
     "AntigravityTextGeneration.hasOnlyRuntimeDirectories",
   )(function* (cwd: string) {
     const root = yield* fs.realPath(cwd);
-    // ACP creates these empty skill directories before the first prompt.
     const allowed = new Set([
       path.join(root, ".agents"),
       path.join(root, ".agents", "skills"),

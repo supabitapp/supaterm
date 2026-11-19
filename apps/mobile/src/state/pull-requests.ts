@@ -24,7 +24,6 @@ export const pullRequestListPagesKey = (target: {
   readonly input: PullRequestListInput;
 }) => JSON.stringify([target.environmentId, target.input]);
 
-// Which listing each pages atom holds, so an action's reply can reach the pages past its head.
 const pullRequestListPagesTargets = new WeakMap<
   object,
   readonly [EnvironmentId, PullRequestListInput]
@@ -54,7 +53,6 @@ export const filesViewedReadsFamily = Atom.family((_key: string) =>
 );
 
 export const composerPullRequests = createPullRequestEnvironmentAtoms(connectionAtomRuntime, {
-  // Rows on pages past each listing's head; the head itself is patched where it is cached.
   actionReply: (target, reply, registry) =>
     Effect.sync(() => {
       for (const atom of registry.getNodes().keys()) {
@@ -92,8 +90,6 @@ export const composerPullRequests = createPullRequestEnvironmentAtoms(connection
         });
       }
     }),
-  // A new head can change which files GitHub still counts as viewed, so the viewed-files read is
-  // refreshed where the new head lands. The detail atom still holds the previous answer here.
   detail: (target, value, registry) =>
     Effect.sync(() => {
       const previous = AsyncResult.value(registry.get(composerPullRequests.detail(target)));

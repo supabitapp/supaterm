@@ -81,8 +81,6 @@ export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
   ),
 );
 
-// Settings sends replace/remove targets in its own normalized spelling, which can differ from a
-// hand-edited file ("cmd+k" vs "meta+k", "a&&b" vs "a && b"), so compare parsed forms.
 function keybindingRuleIdentity(rule: KeybindingRule): string {
   const shortcut = parseKeybindingShortcut(rule.key);
   const key = (shortcut && encodeShortcut(shortcut)) ?? rule.key;
@@ -110,10 +108,6 @@ function hasSameShortcutContext(left: KeybindingRule, right: KeybindingRule): bo
   return leftContext === rightContext;
 }
 
-/**
- * Saved configs hold every default, so a changed default reaches existing users only by
- * moving their saved rule. Each move runs once, so a user who picks the old key again keeps it.
- */
 const SAVED_DEFAULT_MOVES = [
   {
     marker: "mark-done-shortcut-v1",
@@ -347,8 +341,6 @@ const make = Effect.gen(function* () {
     ),
   );
 
-  // Entries this build cannot decode, such as a typo or a command from a newer
-  // build, are written back unchanged so editing another shortcut keeps them.
   const loadWritableCustomKeybindingsConfig = Effect.fn(function* (): Effect.fn.Return<
     ReadonlyArray<{ readonly value: unknown; readonly rule: KeybindingRule | null }>,
     KeybindingsConfigError
@@ -609,8 +601,6 @@ const make = Effect.gen(function* () {
 
     const revalidateAndEmitSafely = revalidateAndEmit.pipe(Effect.ignoreCause({ log: true }));
 
-    // Editors emit multiple events per save (truncate, write, rename) and
-    // `fs.watch` can fire before the content has been flushed to disk.
     const debouncedKeybindingsEvents = fs.watch(keybindingsConfigDir).pipe(
       Stream.filter((event) => {
         return (

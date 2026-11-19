@@ -41,7 +41,6 @@ export function usageSourceMessages(sources: readonly UsageSource[]): readonly s
         key,
         Math.max(malformedBySource.get(key) ?? 0, source.malformedRecords),
       );
-      // Servers also append this warning to message; retain any preceding read failure.
       const warning = formatMalformedUsageWarning(source.malformedRecords);
       if (message?.endsWith(warning)) message = message.slice(0, -warning.length).trim();
     }
@@ -69,7 +68,6 @@ export function formatTokens(value: number): string {
   if (Math.abs(Math.round(value)) < 1e3) return INTEGER.format(Math.round(value));
   let scaled = value / 1e3;
   let unit = 0;
-  // Choose the unit after rounding, so 999,999 reads 1M rather than 1000K.
   while (Math.abs(Number(trim(scaled))) >= 1e3 && unit < TOKEN_SUFFIXES.length - 1) {
     scaled /= 1e3;
     unit += 1;
@@ -353,7 +351,6 @@ export function makeWindow(
       untilTime: untilTime.toISOString(),
     };
   }
-  // Use calendar arithmetic in UTC; fixed millisecond subtraction crosses DST days incorrectly.
   const [year = 0, month = 1, dayOfMonth = 1] = untilDay
     .split("-")
     .map((part) => Number.parseInt(part, 10));

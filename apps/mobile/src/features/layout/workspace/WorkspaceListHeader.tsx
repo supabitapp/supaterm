@@ -30,7 +30,6 @@ function SidebarColumnHeader(
     const focus = () => searchBarRef.current?.focus();
     if (!sidebar.visible) {
       sidebar.onRequestVisibility();
-      // Focus once the revealed sidebar has slid in.
       setTimeout(focus, 240);
     } else {
       focus();

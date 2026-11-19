@@ -138,8 +138,6 @@ describe("commandProgramName", () => {
 });
 
 describe("commandDisplayText with redacted Codex commands", () => {
-  // Codex replaces secrets in command text before sending it
-  // (codex-rs/secrets/src/sanitizer.rs). Usually the quoting survives.
   it("unwraps a redacted command whose quoting is intact", () => {
     expect(
       commandDisplayText(
@@ -148,9 +146,6 @@ describe("commandDisplayText with redacted Codex commands", () => {
     ).toBe('curl -H "Authorization: Bearer [REDACTED_SECRET]" https://example.com');
   });
 
-  // Its secret-assignment pattern can also swallow the backslash of an escaped
-  // quote: `token=config[\"apiToken\"]` becomes `token=[REDACTED_SECRET]"apiToken\"]`.
-  // The bare quote ends the -lc argument early, so where the script ends is unknown.
   it("keeps the wrapper when redaction broke the quoting", () => {
     const input = `/bin/zsh -lc "python3 -c 'token=[REDACTED_SECRET]"apiToken\\"]; print(token)'"`;
     expect(commandDisplayText(input)).toBe(input);

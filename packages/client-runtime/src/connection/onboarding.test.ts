@@ -65,10 +65,6 @@ const layerClientPresentation = Layer.succeed(
 type Call = { readonly url: string; readonly init: RequestInit };
 type Server = (path: string, init: RequestInit) => Response | Promise<Response>;
 
-/**
- * Answers the origins a test lists. A silent origin never answers, like a LAN
- * address from cellular; every other address fails at once.
- */
 function layerRoutedHttp(
   calls: Array<Call>,
   servers: Record<string, Server | "silent">,
@@ -225,7 +221,6 @@ function savedEnvironment(
   return new Map([[SAVED_ENVIRONMENT_ID, entryWithRoutes(base, [first, ...rest])]]);
 }
 
-/** Paired over Tailscale; the LAN address was learned later. */
 const PAIRED_OVER_TAILNET = savedEnvironment(
   savedRoute(LAN, `learned:environment-paired:${LAN}@${TAILNET_CONNECTION}`, true),
   savedRoute(TAILNET, TAILNET_CONNECTION),
@@ -233,7 +228,6 @@ const PAIRED_OVER_TAILNET = savedEnvironment(
 
 const urls = (calls: ReadonlyArray<Call>) => calls.map((call) => call.url);
 
-/** Runs `registerPairing` against a registry holding `entries`, recording what it persists. */
 const registerPairing = Effect.fnUntraced(function* (options: {
   readonly pairingUrl: string;
   readonly expectedEnvironmentId?: EnvironmentId;
@@ -1478,7 +1472,6 @@ describe("connection onboarding", () => {
           connectionId: 'ssh:environment-ssh:["devbox","devbox.example.test","developer",22]',
           target,
         },
-        // Saved so the first connect reuses this pairing instead of adding another.
         credential: { token: "bearer-token" },
       });
     }),

@@ -36,11 +36,6 @@ type SkillFrontmatter =
       readonly userInvocable?: boolean;
     };
 
-/**
- * Claude Code accepts the YAML 1.1 boolean spellings (`yes`/`no`, `on`/`off`,
- * `1`/`0`), which the 1.2 core schema this parser uses leaves as strings and
- * numbers.
- */
 function parseFrontmatterBoolean(value: unknown): boolean | undefined {
   if (typeof value === "boolean") return value;
   if (typeof value === "number") {
@@ -74,8 +69,6 @@ function parseSkillFrontmatter(contents: string): SkillFrontmatter {
   try {
     parsed = parseYamlDocument(frontmatter);
   } catch {
-    // Claude Code accepts plain scalars containing `: `. Repair only those,
-    // leaving comments and YAML structure for the full-document parser.
     const repaired = frontmatter.replace(
       /^([\w-]+:[ \t]*)([^\r\n]*)/gm,
       (line, prefix: string, value: string) => {
@@ -112,7 +105,6 @@ function parseSkillFrontmatter(contents: string): SkillFrontmatter {
   };
 }
 
-// A caller-supplied environment is a plain object, without Windows' case-insensitive keys.
 function windowsEnvironmentValue(environment: NodeJS.ProcessEnv, name: string) {
   const key = name.toLowerCase();
   return Object.entries(environment)
@@ -149,7 +141,6 @@ function claudeManagedSettingsPaths(
   ];
 }
 
-/** Claude Code settings files, lowest precedence first. */
 function claudeSettingsPaths(
   path: Path.Path,
   configDirPath: string,
@@ -172,7 +163,6 @@ function claudeSettingsPaths(
   ];
 }
 
-// Untraced: skill discovery resolves every distinct plugin project path, too often for spans.
 const findRepositoryRoot = Effect.fnUntraced(function* (
   cwd: string,
 ): Effect.fn.Return<string | undefined, never, FileSystem.FileSystem | Path.Path> {
@@ -225,22 +215,13 @@ const findPluginRepositoryRoot = Effect.fnUntraced(function* (cwd: string) {
   ) {
     return root;
   }
-  // Claude shares plugin install records across linked worktrees, using their common repository.
   return path.basename(commonDirectory) === ".git"
     ? path.dirname(commonDirectory)
     : commonDirectory;
 });
 
-/**
- * The CLI validates the whole map, not each entry: verified against it, one
- * entry with an unknown value (or a boolean) makes it drop every override in
- * that file, so this schema does the same rather than applying the valid
- * siblings the CLI ignores.
- */
 const SkillOverrideValue = Schema.Literals(["on", "name-only", "user-invocable-only", "off"]);
 
-// Lenient because these settings files are hand-edited and Claude Code itself
-// tolerates comments and trailing commas in them.
 const SkillSettings = fromLenientJson(
   Schema.Struct({
     skillOverrides: Schema.optional(Schema.Record(Schema.String, SkillOverrideValue)),
@@ -318,11 +299,9 @@ const readSkillSettings = Effect.fn("readSkillSettings")(function* (
           managedPluginNames.add(pluginNameKey(key.slice(0, key.indexOf("@"))));
         }
       } else {
-        // Extended formats replace lower-precedence values without enabling the plugin here.
         enabledPlugins.delete(key);
       }
     }
-    // Claude ignores this switch in shared project settings, and honors only false.
     if (parsed?.syncClaudeAiPlugins === false && settingsPath !== projectSettingsPath) {
       syncedPluginsHidden = true;
     }
@@ -366,12 +345,10 @@ const decodeSyncedPlugin = Schema.decodeUnknownOption(
 );
 const ACCOUNT_UUID_PATTERN = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 
-/** Claude compares plugin names case-insensitively. */
 function pluginNameKey(name: string): string {
   return name.normalize("NFC").toLowerCase();
 }
 
-/** Claude's folder for a synced row: reserved characters become `_`, trailing dots and spaces go. */
 function syncedPluginDirectoryName(name: string): string {
   const replaced = name.replace(/[<>:"|?*\\/]/g, "_");
   let end = replaced.length;
@@ -428,7 +405,6 @@ const pluginSkillRoots = Effect.fn("pluginSkillRoots")(function* (
     const canonicalDirectory = yield* fileSystem
       .realPath(directory)
       .pipe(Effect.orElseSucceed(() => undefined));
-    // The native loader rejects manifest roots that escape through a symlink, too.
     if (
       canonicalDirectory !== undefined &&
       isInsideDirectory(path, canonicalInstallPath, canonicalDirectory)
@@ -439,7 +415,6 @@ const pluginSkillRoots = Effect.fn("pluginSkillRoots")(function* (
   return roots;
 });
 
-/** The `<org>_<account>` folder Claude syncs the signed-in account's claude.ai plugins into. */
 const resolveSyncedPluginBucket = Effect.fn("resolveSyncedPluginBucket")(function* (
   config: Pick<ClaudeSettings, "homePath">,
   configDirPath: string,
@@ -450,7 +425,6 @@ const resolveSyncedPluginBucket = Effect.fn("resolveSyncedPluginBucket")(functio
   );
   const account = yield* readClaudeOauthAccount(accountConfigPath);
   const organizationId = environment.CLAUDE_CODE_ORGANIZATION_UUID ?? account?.organizationUuid;
-  // A stored claude.ai login names its own account; an injected token uses the env account.
   const environmentAccountId = environment.CLAUDE_CODE_ACCOUNT_UUID;
   const accountId =
     account !== undefined && !environment.CLAUDE_CODE_OAUTH_TOKEN
@@ -471,7 +445,6 @@ const resolveSyncedPluginBucket = Effect.fn("resolveSyncedPluginBucket")(functio
   return `${organizationId.toLowerCase()}_${accountId.toLowerCase()}`;
 });
 
-/** A plugin folder itself, or else the manifest-bearing plugins directly inside it. */
 const expandInlinePluginDirectory = Effect.fn("expandInlinePluginDirectory")(function* (
   directory: string,
 ) {
@@ -491,7 +464,6 @@ const expandInlinePluginDirectory = Effect.fn("expandInlinePluginDirectory")(fun
   );
 });
 
-/** Plugin folders Claude Code loads inline from CLAUDE_CODE_PLUGIN_DIRS, and their plugin names. */
 const discoverInlinePluginSkillRoots = Effect.fn("discoverInlinePluginSkillRoots")(function* (
   pluginDirectories: string | undefined,
   enabledPlugins: ReadonlyMap<string, boolean>,
@@ -505,19 +477,16 @@ const discoverInlinePluginSkillRoots = Effect.fn("discoverInlinePluginSkillRoots
   const seen = new Set<string>();
   for (const entry of (pluginDirectories ?? "").split(platform === "win32" ? ";" : ":")) {
     const directory = expandHomePath(entry.trim(), home);
-    // Claude skips relative entries rather than resolving them against its cwd.
     if (!directory || !path.isAbsolute(directory)) continue;
     for (const installPath of yield* expandInlinePluginDirectory(path.resolve(directory))) {
       if (seen.has(installPath)) continue;
       seen.add(installPath);
       const manifest = yield* readPluginManifest(installPath);
       const prefix = manifest?.name ?? path.basename(installPath);
-      // A `<name>@inline` setting wins; otherwise the manifest's `defaultEnabled` decides.
       const setting = enabledPlugins.get(`${prefix}@inline`);
       if (setting === false || (setting === undefined && manifest?.defaultEnabled === false)) {
         continue;
       }
-      // Managed enabledPlugins entries, true or false, lock the name against inline copies.
       if (managedPluginNames.has(pluginNameKey(prefix))) continue;
       names.add(pluginNameKey(prefix));
       roots.push(...(yield* pluginSkillRoots(installPath, "user", prefix, manifest)));
@@ -548,14 +517,11 @@ const discoverPluginSkillRoots = Effect.fn("discoverPluginSkillRoots")(function*
       Effect.orElseSucceed(() => undefined),
     );
   const roots: Array<ClaudeSkillRoot> = [];
-  // An enabled inline plugin replaces installed and synced plugins of the same name.
   const claimedPluginNames = new Set(inlinePluginNames);
-  // The CLI's process.cwd() resolves symlinks; registry projectPath values remain lexical.
   const workspace =
     cwd === undefined
       ? undefined
       : yield* fileSystem.realPath(cwd).pipe(Effect.orElseSucceed(() => path.resolve(cwd)));
-  // Install records repeat project paths, often hundreds of times per discovery.
   const projectRepositoryRoots = new Map<string, string | undefined>();
   const repositoryRoot =
     workspace === undefined ? undefined : yield* findPluginRepositoryRoot(workspace);
@@ -577,7 +543,6 @@ const discoverPluginSkillRoots = Effect.fn("discoverPluginSkillRoots")(function*
           return projectRepositoryRoots.get(projectPath) === repositoryRoot;
         }),
     );
-    // The native loader keeps registry order, preferring the first install that exists.
     const existing = yield* Effect.findFirst(applicable, (record) =>
       fileSystem
         .exists(path.resolve(cwd ?? ".", record.installPath))
@@ -590,7 +555,6 @@ const discoverPluginSkillRoots = Effect.fn("discoverPluginSkillRoots")(function*
     const manifest = yield* readPluginManifest(installPath);
     const prefix = manifest?.name ?? key.split("@")[0];
     if (!prefix || inlinePluginNames.has(pluginNameKey(prefix))) continue;
-    // A registry record whose install is gone loads nothing and claims no namespace.
     if (Option.isSome(existing)) claimedPluginNames.add(pluginNameKey(prefix));
     roots.push(...(yield* pluginSkillRoots(installPath, scope, prefix, manifest)));
   }
@@ -624,7 +588,6 @@ const discoverPluginSkillRoots = Effect.fn("discoverPluginSkillRoots")(function*
     );
     const manifest = yield* readPluginManifest(pluginPath);
     const prefix = manifest?.name ?? directoryName;
-    // An installed plugin of the same name, then the first synced row, holds the namespace.
     const key = pluginNameKey(prefix);
     if (claimedPluginNames.has(key) || disabledSyncedPlugins.has(key)) continue;
     claimedPluginNames.add(key);
@@ -637,7 +600,6 @@ const SettingsEnv = Schema.Struct({
   ANTHROPIC_BASE_URL: Schema.optional(Schema.String),
   CLAUDE_CODE_ENTRYPOINT: Schema.optional(Schema.String),
   CLAUDE_CODE_PLUGIN_DIRS: Schema.optional(Schema.String),
-  // Unquoted JSON values must not fail the decode and drop ANTHROPIC_BASE_URL with them.
   CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: Schema.optional(Schema.Unknown),
   CLAUDE_CODE_GATEWAY_MODEL_DISCOVERY_TIMEOUT_MS: Schema.optional(Schema.Unknown),
 });
@@ -684,7 +646,6 @@ export function customClaudeApiEndpointHost(baseUrl: string | undefined): string
     : undefined;
 }
 
-// Claude's --add-dir is repeatable and variadic; parseCliArgs keeps only one value.
 export function claudeLaunchArgDirectories(launchArgs?: string): ReadonlyArray<string> {
   const directories: string[] = [];
   let collecting = false;
@@ -717,7 +678,6 @@ export const discoverClaudeSkills = Effect.fn("discoverClaudeSkills")(function* 
   const { skillOverrides, enabledPlugins, managedPluginNames, syncedPluginsHidden } =
     yield* readSkillSettings(configDirPath, cwd, env);
   const managedDirectory = claudeManagedDirectory(path, yield* HostProcess.Platform, env);
-  // Most installs have no synced folder; skip reading `.claude.json` for them.
   const hasSyncedPlugins =
     !syncedPluginsHidden &&
     (yield* fileSystem
@@ -726,7 +686,6 @@ export const discoverClaudeSkills = Effect.fn("discoverClaudeSkills")(function* 
   const syncedBucket = hasSyncedPlugins
     ? yield* resolveSyncedPluginBucket(config, configDirPath, env)
     : undefined;
-  // Claude applies its settings `env` over the inherited environment.
   const inlinePluginDirectories =
     (yield* readClaudeSettingsEnv(config, cwd, env)).CLAUDE_CODE_PLUGIN_DIRS ??
     env.CLAUDE_CODE_PLUGIN_DIRS;
@@ -792,13 +751,11 @@ export const discoverClaudeSkills = Effect.fn("discoverClaudeSkills")(function* 
       if (!directoryName) continue;
       let name = directoryName;
       if (root.prefix) {
-        // Native folder skills use their folder; only a single SKILL.md uses its name field.
         const declaredName = singleSkill && frontmatter.kind === "parsed" ? frontmatter.name : "";
         const unprefixedName = declaredName?.startsWith(`${root.prefix}:`)
           ? declaredName.slice(root.prefix.length + 1)
           : declaredName;
         name = `${root.prefix}:${(unprefixedName || entry).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-        // Advertise only exact native names the shared composer grammar can invoke.
         const [mention] = `$${name}`.matchAll(SKILL_MENTION_PATTERN);
         if (mention?.[2] !== name) continue;
       }

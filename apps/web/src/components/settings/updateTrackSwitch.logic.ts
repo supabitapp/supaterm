@@ -20,7 +20,6 @@ export async function prepareLocalTrackSwitch(
 > {
   let local: DesktopUpdateState;
   try {
-    // A build on another track re-checks the feed, older releases allowed down to the checked one.
     local = await bridge.setUpdateChannel(
       input.channel,
       input.reinstall ? input.version : undefined,
@@ -54,7 +53,6 @@ export async function prepareLocalTrackSwitch(
 export function nothingToMove(input: {
   readonly label: string;
   readonly channel: DesktopUpdateChannel;
-  // Null until the desktop reports it; an unknown track may still need saving.
   readonly savedChannel: DesktopUpdateChannel | null;
   readonly switchesLocal: boolean;
   readonly crossesLocal: boolean;

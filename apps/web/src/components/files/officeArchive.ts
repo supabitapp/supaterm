@@ -10,7 +10,6 @@ import {
   type OfficeWorkerRequest,
 } from "./officePreviewProtocol";
 
-// Word limits, measured against the @betteroffice/docx engine, which lays out in its own worker.
 export const WORD_LIMITS = {
   /** document.xml read and kept, about 700 pages of prose; the engine opens it in about 1 s. */
   bodyBytes: 4 * 1024 * 1024,
@@ -53,14 +52,11 @@ function officeXmlDecoder(bytes: Uint8Array) {
 }
 
 function officeXml(bytes: Uint8Array) {
-  // Repacked XML is UTF-8, regardless of the source part's encoding.
   return officeXmlDecoder(bytes)
     .decode(bytes)
     .replace(/^(<\?xml\s[^?]*\bencoding\s*=\s*)["'][^"']+["']/i, '$1"UTF-8"');
 }
 
-// Section properties terminate the section they describe, so the kept prefix
-// may depend on a paragraph or body section beyond the retained input window.
 function wordSections() {
   const parser = xmlParser();
   const names: string[] = [];
@@ -149,9 +145,6 @@ function wordSections() {
   };
 }
 
-// Keep whole body elements so every prefix and render batch is valid Word XML.
-// Individual tables/paragraphs are bounded too: one giant element must not
-// bypass the budget between yields on the main thread.
 function wordDocuments(
   xml: string,
   incomplete: boolean,
@@ -168,7 +161,6 @@ function wordDocuments(
   let elementTags = 0;
   let batchTags = 0;
   let elements = 0;
-  // The text each open paragraph lays out (its w:t runs); a nested paragraph counts apart.
   const paragraphText: number[] = [];
   let inText = false;
   let truncated = incomplete;
@@ -319,7 +311,6 @@ function boundedWorksheet(
           hidden: attribute("hidden"),
         },
       );
-    // The engine draws gridlines on every sheet, so the first view's choice travels beside the bytes.
     if (depth === 3 && tag.local === "sheetView" && gridlines === undefined) {
       const shown = attribute("showGridLines");
       gridlines = shown !== "0" && shown !== "false";
@@ -349,7 +340,6 @@ function boundedWorksheet(
         .replaceAll("<", "&lt;");
       emptyData = tag.isSelfClosing;
     }
-    // A dimension past the limits loses nothing by itself; the cells past them say whether content is lost.
     if (depth === 2 && tag.local === "dimension") {
       for (const ref of (attribute("ref") ?? "").split(":")) coordinate(ref);
     } else if (depth === 3 && tag.local === "row") {
@@ -381,7 +371,6 @@ function boundedWorksheet(
         throw new Error(
           "This workbook exceeds the preview limit: 2 million cells or 8 million grid positions.",
         );
-      // Explicit coordinates also bound sheets whose rows/cells omit r.
       let letters = "";
       for (let value = column; value > 0; value = Math.floor((value - 1) / 26))
         letters = String.fromCharCode(65 + ((value - 1) % 26)) + letters;
@@ -477,7 +466,6 @@ function boundedWorksheet(
         }
         if (/<(?:\w+:)?col\b/.test(opening)) {
           const min = Math.max(1, Number(attributes.min ?? 1));
-          // Hidden columns keep their full span, or the columns past the limit would show again.
           const hidden = attributes.hidden === "1" || attributes.hidden === "true";
           const max = Math.min(
             hidden ? 16384 : OFFICE_PREVIEW_MAX_COLUMNS,
@@ -490,8 +478,6 @@ function boundedWorksheet(
         return tag;
       },
     );
-  // The engine sizes columns without a width at Excel's 8.43 characters and ignores `defaultColWidth`, so the
-  // columns it covers get that width spelled out. A second `<cols>` is valid: the schema allows any number.
   let defaultColumns = "";
   if (defaultWidth !== undefined) {
     let next = 1;
@@ -526,11 +512,6 @@ function boundedWorksheet(
   };
 }
 
-/**
- * A stylesheet as Excel reads it, in the terms the engine understands. The engine takes a number format id under 164 as
- * Excel's built-in one, though workbooks define their own there (Excel writes its locale formats 5 to 8 that way), so
- * those move to free ids. It also reads `<u val="…">` as a boolean, which loses every named underline but the bare one.
- */
 function engineStyles(xml: string) {
   const name = (local: string) => `<((?:[\\w.-]+:)?)${local}\\b`;
   const blocks = new Map<string, { start: number; end: number }>();
@@ -595,7 +576,6 @@ function engineStyles(xml: string) {
 
 async function boundWorkbook(archive: JSZip) {
   const paths = new Map<string, string>();
-  // Chart sheets and other non-grid sheets hold no cells to bound.
   const otherSheets = new Set<string>();
   let sharedPath = "xl/sharedStrings.xml";
   let stylesPath = "xl/styles.xml";
@@ -619,7 +599,6 @@ async function boundWorkbook(archive: JSZip) {
     .write((await archive.file("xl/_rels/workbook.xml.rels")?.async("string")) ?? "")
     .close();
   const sheetPaths: string[] = [];
-  // Every sheet in workbook order, as the engine indexes them; chart sheets have no worksheet path.
   const sheetOrder: (string | undefined)[] = [];
   const workbook = xmlParser();
   workbook.on("opentag", (tag) => {
@@ -700,7 +679,6 @@ const WORD_BINARY_PARTS = new Set([
   "vbaProject",
   "origin",
   "certificate",
-  // Package metadata can point to binary payloads; explicit XML still wins below.
   "core-properties",
   "extended-properties",
   "custom-properties",
@@ -724,7 +702,6 @@ function wordPartTypes() {
     binary(path: string) {
       const extension = path.split(".").at(-1)?.toLowerCase() ?? "";
       const type = overrides.get(path) ?? defaults.get(extension) ?? "";
-      // An XML relationship always wins over a misleading media content type.
       if (
         path === "[Content_Types].xml" ||
         extension === "rels" ||
@@ -762,8 +739,6 @@ function wordPartTypes() {
           attr("TargetMode").toLowerCase() === "external" ||
           /^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(attr("Target"));
         const folder = path === "_rels/.rels" ? "" : path.replace(/_rels\/[^/]+\.rels$/, "");
-        // Preserve archive URL resolution, including literal query/fragment
-        // characters in ZIP names rather than silently classifying another file.
         const target = new URL(attr("Target"), `https://docx.invalid/${folder}`)
           .toString()
           .slice("https://docx.invalid/".length);
@@ -811,8 +786,6 @@ function wordPartTypes() {
   };
 }
 
-// Bound inherited style and numbering expansion before the engine loads it.
-// Picture bullets can duplicate embedded images, so `pictures` locates those definitions to omit.
 function wordXmlCost(xml: string, roles: Set<string> | undefined) {
   const parser = xmlParser();
   let depth = 0;
@@ -909,8 +882,6 @@ function wordXmlCost(xml: string, roles: Set<string> | undefined) {
   }
   const rawBytes = new TextEncoder().encode(xml).length;
   if (roles?.has("styles")) {
-    // Immutable parent pointers match processStyles' ordered merges (including
-    // forward links and cycles) without copying an expanding property map.
     type Resolved = {
       properties: Map<string, number>;
       parent?: Resolved | undefined;
@@ -938,8 +909,6 @@ function wordXmlCost(xml: string, roles: Set<string> | undefined) {
           for (const [key, size] of node.properties) {
             if (++propertyVisits > WORD_LIMITS.stylePropertyVisits) return exceeded;
             if (seen.has(key)) continue;
-            // Latent styles never enter properties. Charge each own property
-            // once per resolved style, including linked and default selectors.
             const copies = id ? 1 : 2;
             bytes += (size * 2 + id.length + 32) * copies;
             expandedMarkup += copies;
@@ -966,8 +935,6 @@ function wordXmlCost(xml: string, roles: Set<string> | undefined) {
   return { bytes, markup, pictures };
 }
 
-// Layout can repeat notes at references and headers/footers across pages.
-// Charge those copies, not just the XML that defines them.
 async function wordExpansion(
   archive: JSZip,
   parts: ReturnType<typeof wordPartTypes>,
@@ -1076,8 +1043,6 @@ async function wordExpansion(
   let bytes = 0;
   let markup = 0;
   let media = 0;
-  // Styles may introduce a page break before each styled paragraph. The page
-  // bound also includes explicit breaks and section transitions in each batch.
   let stylePageBreaks = false;
   for (const [path, roles] of parts.roles)
     if (
@@ -1114,7 +1079,6 @@ async function wordExpansion(
   if (truncated)
     for (const document of documents)
       costs.set(document, scan(document, "word/document.xml", new Set(), 1, false));
-  // Remove relationships too: related XML is parsed even when not rendered.
   for (const [owner, refs] of parts.relationships) {
     const ids = new Set([...refs].flatMap(([id, path]) => (omitted.has(path) ? [id] : [])));
     if (ids.size === 0) continue;
@@ -1142,8 +1106,6 @@ async function wordExpansion(
   return { costs, truncated, omitted };
 }
 
-// Stream each entry before handing it to an engine. A tiny compressed archive
-// must not turn into an unbounded allocation on the UI thread.
 export async function boundedArchive(input: Extract<OfficeWorkerRequest, { type: "open" }>) {
   const { bytes } = input;
   const spreadsheet = input.kind === "xlsx";
@@ -1164,7 +1126,6 @@ export async function boundedArchive(input: Extract<OfficeWorkerRequest, { type:
     throw new Error("Preview limited: this Word document has unsupported archive paths.");
   const archive = new JSZip();
   const partTypes = wordPartTypes();
-  // Metadata must be bounded and classified before any payload gets a media exemption.
   if (input.kind === "docx")
     entries.sort(
       (a, b) =>
@@ -1185,7 +1146,6 @@ export async function boundedArchive(input: Extract<OfficeWorkerRequest, { type:
     let decoder: TextDecoder | undefined;
     let length = 0;
     await new Promise<void>((resolve, reject) => {
-      // JSZip exposes this streaming API at runtime but omits it from its types.
       const stream = (
         entry as JSZip.JSZipObject & {
           internalStream(type: "uint8array"): JSZip.JSZipStreamHelper<Uint8Array>;
@@ -1216,8 +1176,6 @@ export async function boundedArchive(input: Extract<OfficeWorkerRequest, { type:
             wordInputTruncated = true;
             return;
           }
-          // Media is bounded independently. Even renamed auxiliary XML must
-          // stay small before the engine parses it.
           if (input.kind === "docx" && !document && !media) {
             for (const byte of chunk) if (byte === 0x3c) wordAuxiliaryMarkup++;
             if (
@@ -1262,9 +1220,7 @@ export async function boundedArchive(input: Extract<OfficeWorkerRequest, { type:
         xml = partTypes.metadata(entry.name, xml);
       const roles = partTypes.roles.get(entry.name);
       let cost = wordXmlCost(xml, roles);
-      // The renderer parses related parts even when their render option is off.
       if (roles && [...roles].every((role) => WORD_DISABLED_PARTS.has(role))) continue;
-      // Picture bullets come out, and their list levels keep the text bullets Word falls back to.
       if (roles?.has("numbering") && cost.pictures.length > 0) {
         for (const range of cost.pictures.toReversed())
           xml = xml.slice(0, range.start) + xml.slice(range.end);
@@ -1303,7 +1259,6 @@ export async function boundedArchive(input: Extract<OfficeWorkerRequest, { type:
       (sum, cost) => ({ bytes: sum.bytes + cost.bytes, markup: sum.markup + cost.markup }),
       { bytes: 0, markup: 0 },
     );
-    // The worker engine parses shared parts once, rather than once per legacy render batch.
     let bytes = auxiliary.bytes;
     let markup = auxiliary.markup;
     const documents: string[] = [];
@@ -1368,7 +1323,6 @@ export async function prepareOffice(
     const removed: { start: number; end: number }[] = [];
     const parser = xmlParser();
     let start = -1;
-    // Bounded parts can be omitted; dangling story references otherwise reject the entire body in the engine.
     parser.on("opentag", (tag) => {
       if (tag.local !== "headerReference" && tag.local !== "footerReference") return;
       const id = Object.values(tag.attributes).find((attr) => attr.local === "id")?.value ?? "";

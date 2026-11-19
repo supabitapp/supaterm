@@ -60,7 +60,6 @@ export function restoreSubagentBodies<T extends WithSubagentBodies>(
   const result = value.resultOmitted === true && previous.resultOmitted !== true;
   if (!prompt && !result) return value;
   const { promptOmitted, resultOmitted, ...rest } = value;
-  // Dropping both optional markers from `T` and keeping the unrestored one leaves a `T`.
   return {
     ...rest,
     ...(prompt ? { prompt: previous.prompt } : promptOmitted === true ? { promptOmitted } : {}),
@@ -119,7 +118,6 @@ export function restoreTurnItemBodies(
   }
 }
 
-/** Builds each index on first lookup, so a snapshot without marked items builds none. */
 function snapshotBodySource(projection: OrchestrationV2ThreadProjection): DedupedBodySource {
   let messages: Map<MessageId, string> | undefined;
   let checkpoints: Map<CheckpointId, OrchestrationV2Checkpoint["files"]> | undefined;
@@ -140,10 +138,6 @@ function snapshotBodySource(projection: OrchestrationV2ThreadProjection): Dedupe
   };
 }
 
-/**
- * Inherited rows belong to another thread, whose records this projection lacks. Maps each item
- * once, so an item shared by `visibleTurnItems` and `turnItems` stays one object.
- */
 function mapLocalTurnItems(
   projection: OrchestrationV2ThreadProjection,
   map: (item: OrchestrationV2TurnItem) => OrchestrationV2TurnItem,

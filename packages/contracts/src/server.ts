@@ -87,8 +87,6 @@ export const ServerProviderModel = Schema.Struct({
   isCustom: Schema.Boolean,
   isDefault: Schema.optional(Schema.Boolean),
   isLegacy: Schema.optional(Schema.Boolean),
-  // False when the provider can run this model in sessions but not for
-  // application text generation. Absent means supported.
   supportsTextGeneration: Schema.optional(Schema.Boolean),
   capabilities: Schema.NullOr(ModelCapabilities),
 });
@@ -144,7 +142,6 @@ export const ServerProviderWorkspaceSnapshot = Schema.Struct({
   slashCommandsPending: Schema.optional(Schema.Boolean),
   skills: Schema.Array(ServerProviderSkill),
   optionDescriptors: Schema.optional(Schema.Array(ProviderOptionDescriptor)),
-  // Absent means the provider's machine `models`, which keeps most snapshots small.
   models: Schema.optional(Schema.Array(ServerProviderModel)),
   modelsPending: Schema.optional(Schema.Boolean),
 });
@@ -234,14 +231,10 @@ export const ServerProviderUpdateState = Schema.Struct({
 export type ServerProviderUpdateState = typeof ServerProviderUpdateState.Type;
 
 export const ServerProvider = Schema.Struct({
-  // Routing key for the configured instance this snapshot represents. This
-  // is the only stable identity consumers may use for provider routing.
   instanceId: ProviderInstanceId,
   driver: ProviderDriverKind,
   displayName: Schema.optional(TrimmedNonEmptyString),
   accentColor: Schema.optional(TrimmedNonEmptyString),
-  // Optional visual identity supplied by the owning provider driver. Clients
-  // must still validate remote URLs against that driver's trusted origin.
   iconUrl: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(2_048))),
   badgeLabel: Schema.optional(TrimmedNonEmptyString),
   continuation: Schema.optional(ServerProviderContinuation),
@@ -252,7 +245,6 @@ export const ServerProvider = Schema.Struct({
   supportsConversationRollback: Schema.optional(Schema.Boolean),
   supportsTextGeneration: Schema.optional(Schema.Boolean),
   supportsReviewGuides: Schema.optional(Schema.Boolean),
-  // An unknown status from a newer server must not drop the whole provider.
   transcription: ForwardCompatibleOptional(ServerProviderTranscription),
   setup: Schema.optional(
     Schema.Struct({
@@ -279,8 +271,6 @@ export const ServerProvider = Schema.Struct({
   enabled: Schema.Boolean,
   installed: Schema.Boolean,
   version: Schema.NullOr(TrimmedNonEmptyString),
-  // Version reported by the installed CLI for a local provider with a separate
-  // server. Null means unknown; absence keeps legacy snapshots on `version`.
   installedVersion: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString)),
   status: ServerProviderState,
   auth: ServerProviderAuth,
@@ -319,7 +309,6 @@ export type ServerProvider = typeof ServerProvider.Type;
 export const ServerProviderDelta = ServerProvider.mapFields((fields) => ({
   ...fields,
   models: Schema.optionalKey(fields.models),
-  // Declared again without the decoding default, which would read as a change to an empty list.
   slashCommands: Schema.optionalKey(Schema.Array(ServerProviderSlashCommand)),
   skills: Schema.optionalKey(Schema.Array(ServerProviderSkill)),
 }));
@@ -358,7 +347,6 @@ export function applyServerProviderDeltas(
     const models = delta.models ?? base?.models;
     const slashCommands = delta.slashCommands ?? base?.slashCommands;
     const skills = delta.skills ?? base?.skills;
-    // A list this reader never held cannot be rebuilt; drop the provider like an unreadable one.
     return models && slashCommands && skills ? [{ ...delta, models, slashCommands, skills }] : [];
   });
 }
@@ -661,11 +649,6 @@ const environmentThemeFields = {
   version: Schema.optional(Schema.Literal(1)),
   name: TrimmedNonEmptyString.check(Schema.isMaxLength(48)),
   appearance: Schema.Literals(["light", "dark"]),
-  /**
-   * When present, clients derive the full palette from them with the guided
-   * theme editor's generator and layer `colors` on top; when absent, `colors`
-   * is the palette, as in an exported theme file.
-   */
   canvas: Schema.optional(EnvironmentThemeColor),
   accent: Schema.optional(EnvironmentThemeColor),
   colors: Schema.optional(EnvironmentThemeColors),
@@ -944,11 +927,6 @@ const ServerConfigKnownStreamEvents = [
 
 const isUnknownServerConfigStreamEvent = hasUnknownUnionTag(ServerConfigKnownStreamEvents, "type");
 
-/**
- * A config event whose type this build does not know, such as a newer server's event or the
- * `usageLimitSourcesUpdated` that servers with usage-limit hubs send on every connect. A failed
- * config subscription closes the connection, so clients skip these instead.
- */
 const ServerConfigStreamUnknownEvent = Schema.Struct({ type: Schema.String })
   .check(
     Schema.makeFilter(
@@ -974,7 +952,6 @@ const ServerConfigStreamUnknownEvent = Schema.Struct({ type: Schema.String })
 
 export const ServerConfigStreamEvent = Schema.Union([
   ...ServerConfigKnownStreamEvents,
-  // After the known arms: union members are tried in order.
   ServerConfigStreamUnknownEvent,
 ]);
 export type ServerConfigStreamEvent = typeof ServerConfigStreamEvent.Type;

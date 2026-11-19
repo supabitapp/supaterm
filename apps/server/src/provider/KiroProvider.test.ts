@@ -49,10 +49,6 @@ const decodeRequest = Schema.decodeUnknownSync(
   ),
 );
 
-/**
- * A `kiro-cli acp` that answers `initialize` and `_kiro/config/template` and
- * fails anything else, so a probe that opened a session would fail.
- */
 const acpProcess = (template: unknown) =>
   Effect.gen(function* () {
     const output = yield* Queue.unbounded<Uint8Array>();
@@ -97,7 +93,6 @@ const acpProcess = (template: unknown) =>
     });
   });
 
-/** Answers `kiro-cli` invocations by their arguments and records which ran. */
 function kiroCli(outputs: Record<string, CliOutput>, template?: unknown) {
   const invoked: Array<string> = [];
   const spawner = ChildProcessSpawner.make((command) => {
@@ -131,12 +126,10 @@ describe("KiroProvider", () => {
       assert.equal(snapshot.status, "error");
       assert.isTrue(snapshot.installed);
       assert.equal(snapshot.message, "Kiro CLI is installed but failed to run.");
-      // A broken CLI is not asked for its sign-in.
       assert.deepEqual(invoked, ["--version"]);
     }),
   );
 
-  // `whoami` outputs recorded from Kiro CLI 2.27.0.
   it.effect("asks for kiro-cli login when Kiro is signed out", () =>
     Effect.gen(function* () {
       const { snapshot } = yield* check({
@@ -158,13 +151,11 @@ describe("KiroProvider", () => {
       });
       assert.equal(snapshot.status, "ready");
       assert.equal(snapshot.auth.status, "authenticated");
-      // The version advisory is what the compatibility check and update UI read.
       assert.equal(snapshot.versionAdvisory?.currentVersion, "2.27.0");
       assert.isFalse(snapshot.versionAdvisory?.canUpdate);
     }),
   );
 
-  // Shape of `kiro-cli chat --list-models --format json` on Kiro CLI 2.27.0, trimmed to three models.
   const KIRO_MODEL_LIST = JSON.stringify({
     models: [
       { model_name: "auto", model_id: "auto", description: "Models chosen by task" },
@@ -217,7 +208,6 @@ describe("KiroProvider", () => {
         ],
       );
       assert.equal(kiroDefaultModelId(listed.snapshot.models), "claude-sonnet-4.5");
-      // An unparsable list keeps the built-in entry, which falls back to `auto`.
       const unlisted = yield* check({
         ...signedIn,
         "chat --list-models --format json": { stdout: "not json\n", code: 0 },
@@ -248,7 +238,6 @@ describe("KiroProvider", () => {
     }),
   );
 
-  // `--list-models` names no effort levels, so the picker's come from Kiro's ids.
   const KIRO_EFFORT_MODEL_LIST = JSON.stringify({
     models: [
       "auto",
@@ -285,7 +274,6 @@ describe("KiroProvider", () => {
           : { slug: model.slug, descriptors: descriptors.length };
       });
       assert.deepEqual(reasoning, [
-        // Kiro default and models without effort get no Reasoning select.
         { slug: "default", descriptors: 0 },
         {
           slug: "claude-fable-5.1",
@@ -301,7 +289,6 @@ describe("KiroProvider", () => {
           defaults: ["medium"],
           currentValue: "medium",
         },
-        // Opus 4.6 has no xhigh, and Kiro runs it at high by default.
         {
           slug: "claude-opus-4.6",
           label: "Reasoning",
@@ -309,7 +296,6 @@ describe("KiroProvider", () => {
           defaults: ["high"],
           currentValue: "high",
         },
-        // Kimi K3 skips medium and runs at max by default.
         {
           slug: "kimi-k3",
           label: "Reasoning",
@@ -368,8 +354,6 @@ describe("KiroProvider", () => {
   );
 
   it("offers Kiro's agents from its config template, Default first", () => {
-    // `_kiro/config/template` from kiro-cli 2.27.0 with two user agents in
-    // `~/.kiro/agents`, trimmed to three bundled agents and the `mode` option.
     const template = {
       modes: { currentModeId: "vibe", availableModes: [] },
       configOptions: [
@@ -410,7 +394,6 @@ describe("KiroProvider", () => {
         { id: "planner", label: "planner" },
       ],
     });
-    // The default follows the agent Kiro starts sessions on.
     const onSpec = kiroAgentDescriptor({
       configOptions: [{ ...template.configOptions[0], currentValue: "spec" }],
     });
@@ -426,7 +409,6 @@ describe("KiroProvider", () => {
         },
       ],
     );
-    // A template without agents to choose between gives no picker.
     assert.isUndefined(kiroAgentDescriptor({ configOptions: [] }));
     assert.isUndefined(kiroAgentDescriptor("not a template"));
   });

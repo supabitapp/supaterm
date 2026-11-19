@@ -170,7 +170,6 @@ const SURFACE_DISABLED_REASONS = {
   device: "Devices are only available from a thread.",
 } as const;
 
-// Closed keepMounted popups must stop blocking shortcuts once their exit transition ends.
 const LAUNCHER_SHORTCUT_BLOCKING_LAYERS = [
   "dialog-popup",
   "alert-dialog-popup",
@@ -218,11 +217,6 @@ function previewTabIdOf(
   return sessions[surface.resourceId]?.tabId ?? null;
 }
 
-/**
- * Stays disabled until desktop overlay state arrives: a server session id can
- * resolve while the preview manager's createTab is still in flight, and muting
- * then fails with a PreviewTabNotFoundError nothing surfaces to the user.
- */
 function tabMuteMenuItem(input: {
   overlay: DesktopPreviewOverlay | null;
   canResolveRuntimeTabId: boolean;
@@ -689,7 +683,6 @@ export function resolvePullRequestTabLink(
   reference: { repository: string; number: number },
 ) {
   if (environmentId === null || host === null) return undefined;
-  // Keys are cached per object, so one target normalizes once instead of once per link.
   const target = { host, repository: reference.repository, number: reference.number };
   let newest: EnvironmentThreadShell["pullRequests"][number] | undefined;
   for (const thread of threads) {
@@ -800,13 +793,11 @@ interface RightPanelTabHandlers {
   onFinishRename: (surfaceId: string, title: string) => void;
 }
 
-// Chromium on Linux only suppresses primary-selection paste when mouseup is cancelled.
 function preventTabMiddleButtonDefault(event: ReactMouseEvent) {
   if (event.button !== 1) return;
   event.preventDefault();
 }
 
-// Stable handlers and per-tab values let the compiler reuse tabs across parent renders.
 function RightPanelTab(
   props: RightPanelTabHandlers & {
     surface: RightPanelSurface;
@@ -1211,7 +1202,6 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     setRenamingDevice(null);
   });
 
-  // A newly active tab, or tabs that start overflowing, can sit outside the scrolled strip.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the active tab DOM node into view after it changes or the tab strip starts overflowing
   useEffect(() => {
     if (!props.activeSurfaceId || !tabScrollState.hasOverflow) return;
@@ -1225,8 +1215,6 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     if (!viewport) return;
 
     const update = () => updateTabScrollState(viewport);
-    // Only a vertical mouse wheel is translated. Horizontal input scrolls natively, since
-    // consuming it keeps Chromium from starting the gesture scroll that swipe navigation tracks.
     const handleWheel = (event: WheelEvent) => {
       if (event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
       let delta = event.deltaY;

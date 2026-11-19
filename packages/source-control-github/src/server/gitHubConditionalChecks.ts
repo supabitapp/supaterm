@@ -16,7 +16,6 @@ import type { ProviderRepositoryRef } from "@supaterm/source-control-core/server
 const HeadSchema = Schema.Struct({
   head: Schema.Struct({
     sha: Schema.String.check(Schema.isPattern(/^[a-f0-9]{40,64}$/)),
-    // Null once the fork a pull request came from has been deleted.
     repo: Schema.NullOr(Schema.Struct({ id: PositiveInt })),
   }),
   base: Schema.Struct({ repo: Schema.Struct({ id: PositiveInt }) }),
@@ -151,8 +150,6 @@ export const makeChecksRevalidator = Effect.gen(function* () {
             ...(runsEndpoint === null ? [] : [runsEndpoint]),
           ];
           const runPages: Array<string> = [];
-          // Each endpoint has its own cursor; only pages within one endpoint depend on each other.
-          // An unavailable endpoint interrupts the others so the fallback read starts at once.
           const available = yield* Effect.forEach(
             endpoints,
             Effect.fn("gitHubConditionalChecks.revalidateEndpoint")(function* (endpoint) {

@@ -51,7 +51,6 @@ export function useGuideDiffFiles({
   const loading = isMissing(current) && !current.done;
   const query = useEnvironmentQuery(loading ? pageAtom(current.cursor) : null);
 
-  // One update for every settled page: an update per page trips React's re-render limit.
   let next = current;
   let data = query.isPending ? null : query.data;
   while (data !== null && !next.done && next.folded !== data && isMissing(next)) {

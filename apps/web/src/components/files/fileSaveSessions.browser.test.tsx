@@ -12,8 +12,6 @@ vi.mock(import("@supaterm/client-runtime/state/runtime"), async (original) => ({
   ...(await original()),
   runAtomCommand: runAtomCommand as never,
 }));
-// The real session atom boots the connection runtime, whose endless discovery poll
-// would keep vi.runAllTimersAsync from ever draining once its timers are faked.
 vi.mock(import("~/state/session"), async (original) => {
   const actual = await original();
   const reactivity = await import("effect/reactivity");
@@ -39,8 +37,6 @@ const target = {
 };
 const onPendingChange = vi.fn();
 
-// The editor and rendered-markdown surfaces are different component types, so
-// switching between them unmounts one session holder and mounts another.
 function EditorSurface() {
   useFileSaveSession({ ...target }, onPendingChange);
   return <div>editor</div>;
@@ -64,10 +60,9 @@ describe("file save sessions in React", () => {
       <StrictMode>
         <EditorSurface />
       </StrictMode>,
-      { router: false }, // no routes involved; the surfaces are bare effect hosts
+      { router: false },
     );
     using _timers = fakeTimers();
-    // An edit lands in the query cache, unconfirmed until its write settles.
     getUnsavedFile.mockReturnValue({ contents: "draft" });
     changeFileSaveSession(target, "draft");
 

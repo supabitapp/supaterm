@@ -137,7 +137,6 @@ export class PortalCaptureShortcut {
       shortcutPending: true,
       shortcutMessage: "The desktop shortcut service restarted. Reconnecting…",
     });
-    // Register is sent to the well-known name, so it D-Bus-activates a portal that is not running.
     void this.connect();
   }
 
@@ -443,7 +442,6 @@ export class PortalCaptureShortcut {
     this.shortcutId = this.managedByHyprland
       ? HYPRLAND_CAPTURE_ACTION
       : `supaterm-snap-shot-${NodeCrypto.createHash("sha256").update(trigger).digest("hex").slice(0, 16)}`;
-    // Every session must bind, even when the desktop remembers this shortcut's approval.
     const bound = await this.request("BindShortcuts", "oa(sa{sv})s", [
       this.session,
       [

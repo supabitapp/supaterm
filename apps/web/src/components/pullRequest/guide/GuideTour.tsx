@@ -47,7 +47,6 @@ export function GuideTour({
   const update = (change: (current: GuideProgress) => Partial<GuideProgress>) =>
     useGuideRunStore.getState().setProgress(key, (current) => ({ ...current, ...change(current) }));
   const [railOpen, setRailOpen] = useState(false);
-  // Its own toggle slides the stop list; a step folds it at once, since J and K step too.
   const [railAnimates, setRailAnimates] = useState(true);
   const toggleRail = (open: boolean) => {
     setRailAnimates(true);

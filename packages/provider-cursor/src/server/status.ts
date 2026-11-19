@@ -300,7 +300,6 @@ export const checkCursorProviderStatus = Effect.fn("checkCursorProviderStatus")(
   const readCatalog = Effect.suspend(() => sdkCatalog.read(sdkApiKey)).pipe(
     Effect.timeoutOption(timeoutMs),
   );
-  // api.cursor.com latency is intermittent; one slow read should not flip the provider to error.
   const catalogResult = yield* readCatalog.pipe(
     Effect.filterOrElse(Option.isSome, () => readCatalog),
     Effect.result,

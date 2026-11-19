@@ -19,7 +19,6 @@ import * as Protocol from "./CodexManagedTokenProtocol.ts";
 
 const MAX_CONNECTIONS = 32;
 const MAX_JOBS = 16;
-// Stay below macOS's 104-byte and Linux's 108-byte sockaddr_un limits, including NUL.
 const UNIX_SOCKET_PATH_BYTES = 100;
 const encodeResponse = Schema.encodeSync(Schema.fromJsonString(Protocol.Response));
 class BrokerStartError extends Schema.TaggedError<BrokerStartError>()(
@@ -89,7 +88,6 @@ const acquireListener = Effect.gen(function* () {
     (owned) =>
       Effect.promise(async () => {
         if (!("directory" in owned)) return;
-        // Never recursively remove a replaced directory or another process's files.
         const current = await NodeFSP.lstat(owned.directory).catch(() => undefined);
         if (
           current &&
@@ -113,7 +111,6 @@ const acquireListener = Effect.gen(function* () {
   const sockets = new Set<NodeNet.Socket>();
   let closing = false;
   let admitted = 0;
-  // Keep branded validation here so the helper need not load the contracts graph.
   const decode = Schema.decodeUnknownEffect(
     Schema.fromJsonString(
       Schema.Struct({
@@ -137,7 +134,6 @@ const acquireListener = Effect.gen(function* () {
     let transferred = false;
     runConnection(
       Effect.gen(function* () {
-        // Windows pipes permit read-only peers by default; send no bytes until a complete request.
         const request = yield* Protocol.readFrame(
           socket,
           Protocol.REQUEST_BYTES,
@@ -153,7 +149,6 @@ const acquireListener = Effect.gen(function* () {
                 instanceId: request.instanceId,
                 expectedProfileKey: request.profileKey,
               });
-              // Retire abandoned permit waits; access saves a started rotation before honoring interruption.
               const credentials = yield* auth.access.pipe(
                 Effect.timeout(Protocol.COMMAND_TIMEOUT_MS),
               );
@@ -184,7 +179,6 @@ const acquireListener = Effect.gen(function* () {
     );
   });
   server.on("error", () => {});
-  // Drain accepted rotations before the FiberSet finalizers interrupt their fibers.
   yield* Effect.addFinalizer(() =>
     Effect.gen(function* () {
       closing = true;

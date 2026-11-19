@@ -98,8 +98,6 @@ export function useComposerSelection(input: ComposerSelectionInput) {
   };
   const openProviderSetupStable = useStableCallback(openProviderSetup);
 
-  // Keyed on the fields it reads: the thread and runtime objects change with
-  // every streamed event, and a new function re-renders the whole model picker.
   const hasStartedSession = activeRuntime !== null;
   const runtimeProviderInstanceId = activeRuntime?.providerInstanceId ?? null;
   const currentModelSelection = activeThread?.modelSelection ?? null;
@@ -148,7 +146,6 @@ export function useComposerSelection(input: ComposerSelectionInput) {
         return;
       }
     }
-    // The picker lists an unavailable model only as the active selection, so re-picking keeps it.
     const resolvedModel = resolveAppModelSelectionForInstance(
       instanceId,
       settings,
@@ -173,7 +170,6 @@ export function useComposerSelection(input: ComposerSelectionInput) {
         shownSelection.instanceId === instanceId &&
         shownSelection.model === resolvedModel)
     ) {
-      // Re-picking the shown model keeps its options and saves it again if that save failed.
       if (resolvedModel && !isLocalDraftThread) applyThreadModelPick(threadRef);
       if (options?.focusComposer !== false) scheduleComposerFocus();
       return;
@@ -181,7 +177,6 @@ export function useComposerSelection(input: ComposerSelectionInput) {
     const rememberedOptions =
       useComposerDraftStore.getState().stickyOptionsByModelByProvider[instanceId]?.[resolvedModel];
     const threadSelection = activeThread.modelSelection;
-    // This pick replaces the stored options, so the thread's own model carries them over.
     const pickOptions =
       rememberedOptions !== undefined && rememberedOptions.length > 0
         ? rememberedOptions

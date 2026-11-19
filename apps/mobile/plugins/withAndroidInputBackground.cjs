@@ -9,7 +9,6 @@ module.exports = function withAndroidInputBackground(config) {
       throw new Error("withAndroidInputBackground: AppTheme is missing from styles.xml.");
     }
 
-    // Set both attributes for AppCompat and framework EditText implementations.
     appTheme.item ??= [];
     for (const name of ["editTextBackground", "android:editTextBackground"]) {
       const existing = appTheme.item.find((item) => item.$?.name === name);

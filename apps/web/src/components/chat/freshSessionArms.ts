@@ -3,7 +3,6 @@ import { Atom } from "effect/reactivity";
 
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 
-/** Threads whose next message starts a fresh provider session, keyed by thread, valued by when it was armed. */
 const freshSessionArmsAtom = Atom.make<Readonly<Record<string, number>>>({}).pipe(Atom.keepAlive);
 
 export function armFreshSession(threadKey: string): void {

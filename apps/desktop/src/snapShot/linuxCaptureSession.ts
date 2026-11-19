@@ -4,8 +4,6 @@ import * as NodeURL from "node:url";
 import type { SnapShotKeyChord } from "@supaterm/contracts";
 import { nativeImage } from "electron";
 
-// Keep dbus-next out of desktop detection and PNG reads in the main process.
-
 export const HYPRLAND_CAPTURE_ACTION = "capture-window";
 
 export class CaptureSetupRequiredError extends Error {
@@ -136,7 +134,6 @@ export function resizeLinuxCapture(png: Buffer): Buffer {
 }
 
 export async function readPortalPng(uri: string): Promise<Buffer> {
-  // fileURLToPath rejects network schemes/hosts. Never delete a portal-owned file.
   const file = await NodeFSP.open(NodeURL.fileURLToPath(uri), "r");
   try {
     const stat = await file.stat();

@@ -404,7 +404,6 @@ it.layer(NodeServices.layer)("effect-acp client", (it) => {
           mcpServers: [],
         });
         assert.equal(session.sessionId, "mock-session-1");
-        // ACP v2 removed session/set_mode; modes are config options there.
         const setMode = yield* acp.agent
           .setSessionMode({ sessionId: session.sessionId, modeId: "code" })
           .pipe(Effect.flip);
@@ -960,7 +959,6 @@ it.layer(NodeServices.layer)("effect-acp client", (it) => {
       assert.deepEqual(answer.result, {
         action: { action: "accept", content: { branch: "main" } },
       });
-      // Recorded Devin 2026-09-10 called the older underscore method.
       yield* Queue.offer(
         input,
         yield* encodeJsonl(jsonRpcRequest("_session/elicitation", Schema.Unknown), {

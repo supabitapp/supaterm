@@ -203,7 +203,6 @@ function normalizeReplayFrame(value: unknown): unknown {
     normalized.params !== null
   ) {
     const params = { ...(normalized.params as Record<string, unknown>) };
-    // Older recordings used `never` for full access, before MCP prompts were kept interactive.
     if (
       params.approvalPolicy === "never" ||
       stableStringify(params.approvalPolicy) ===
@@ -249,11 +248,6 @@ function recorderThreadConfigKeys(transcript: CodexAppServerReplayTranscript): R
   return new Set(Array.isArray(keys) ? keys.filter((key) => typeof key === "string") : []);
 }
 
-/**
- * `cwd`, `model`, host-supplied MCP servers (machine-local URLs, short-lived
- * authorization headers) and the Supaterm thread id vary per machine or run, and
- * recorder-only keys are not the client's.
- */
 function normalizeThreadRequest(frame: unknown, ignoredConfigKeys: ReadonlySet<string>): unknown {
   if (typeof frame !== "object" || frame === null) return frame;
   const record = frame as Record<string, unknown>;
@@ -345,7 +339,6 @@ function normalizeLegacyInboundFrame(value: unknown): unknown {
     normalized.params !== null
   ) {
     const params = { ...(normalized.params as Record<string, unknown>) };
-    // Codex treats a legacy request without `isBlocking` as blocking.
     if (params.isBlocking === undefined) {
       params.isBlocking = true;
     }

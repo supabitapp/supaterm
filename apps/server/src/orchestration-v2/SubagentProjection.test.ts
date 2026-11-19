@@ -182,7 +182,6 @@ it.effect.each(["provider", "mcp"] as const)(
       assert.deepEqual(savedParent.pinnedAt, parentCreatedAt);
       assert.equal(savedParent.pinOrderKey, "a0");
       assert.deepEqual(savedParent.autoMarkDoneDisabledAt, parentCreatedAt);
-      // A subagent child waits for its parent, so mark the pinned parent done first.
       assert.deepEqual(yield* store.getAutoMarkDoneCandidates(), []);
       yield* store.apply({
         id: EventId.make(`event:${parentThreadId}:marked-done`),
@@ -448,7 +447,6 @@ it("keeps the report when a run queued behind it ends without assistant text", (
     const progress = delegatedTaskProgress(child);
     assert.equal(progress.state, "result_available");
     assert.equal(subagentResultForRun(child, progress.resultRun!).text, "REPORT-OK");
-    // Another task's run, or one that did not complete, keeps its own outcome.
     for (const other of [
       { ...queued, delegatedTaskId: NodeId.make("follow-up") },
       { ...queued, status: "interrupted" as const },

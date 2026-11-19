@@ -672,7 +672,6 @@ describe("listThreadPullRequests", () => {
       [stack],
     ]);
 
-    // Unlinking the first page must not shift the cursor past PRs not yet seen.
     const remaining = { pullRequests: thread.pullRequests.slice(50) };
     expect(
       listThreadPullRequests(remaining, pages[0]!.nextCursor!).pullRequests.map(

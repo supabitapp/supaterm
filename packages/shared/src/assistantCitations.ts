@@ -10,7 +10,6 @@ import * as Schema from "effect/Schema";
 
 const CITATION_PROTOCOL = "supaterm-citation:";
 const CITATION_HREF_PREFIX = `${CITATION_PROTOCOL}//v1/`;
-// Percent encoding needs up to nine characters per UTF-16 code unit; 1k covers keys and offsets.
 const MAX_CITATION_HREF_LENGTH =
   9 *
     (ASSISTANT_CITATION_MAX_TEXT_LENGTH +

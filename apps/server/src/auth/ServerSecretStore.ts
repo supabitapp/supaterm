@@ -227,8 +227,6 @@ export const make = Effect.gen(function* () {
     );
   };
 
-  // `link` publishes the fully written temp file under the final name, or fails with
-  // AlreadyExists, so a concurrent reader never observes a partially written secret.
   const create: ServerSecretStore["Service"]["create"] = (name, value) => {
     const secretPath = resolveSecretPath(name);
     return crypto.uuidV4().pipe(
@@ -267,9 +265,6 @@ export const make = Effect.gen(function* () {
 
   const getOrCreateRandom: ServerSecretStore["Service"]["getOrCreateRandom"] = (name, bytes) =>
     get(name).pipe(
-      // Older builds could persist a 0-byte secret, which is never a usable key. Re-read under
-      // the permit, and keep it until an interrupted removal settles, so a caller that saw the
-      // empty file cannot remove a key another caller created.
       Effect.filterOrElse(isMissingOrNonEmpty, () =>
         emptySecretRepair.withPermits(1)(
           get(name).pipe(

@@ -443,7 +443,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         }
         const invalidPath = releasePackageFiles[releasePackageFiles.length - 1]!;
         yield* fs.writeFileString(path.join(root, invalidPath), "invalid manifest");
-        // A successful child would leave a marker if partial alignment accidentally starts it.
         yield* fs.writeFileString(
           path.join(root, "build.cjs"),
           'require("node:fs").writeFileSync("unexpected-build.txt", "started");',
@@ -1035,9 +1034,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     ),
   );
 
-  // The fixture's supaterm.exe is a text placeholder, not an executable. These
-  // cases reach the native-load probe, so pin only that host-platform check to
-  // Linux. Host-native paths and the real Windows tar/archive checks still run.
   it.effect("validates every ASAR-unpacked native in the packaged Windows payload", () =>
     Effect.scoped(
       Effect.gen(function* () {

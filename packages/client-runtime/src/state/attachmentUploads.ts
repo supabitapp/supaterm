@@ -29,7 +29,6 @@ export type AttachmentUploadStatus =
   | { readonly status: "ready" }
   | { readonly status: "failed"; readonly reason: string };
 
-/** Equal by key; the request rides along for the upload. */
 class UploadKey<Request> implements Equal.Equal {
   readonly id: string;
   readonly request: Request | null;
@@ -94,8 +93,6 @@ export function createAttachmentUploadRegistry<Request>(options: {
     return semaphore;
   };
   const running = new Map<string, Fiber.Fiber<string, AttachmentUploadError>>();
-  // The entry that owns each key's status: an invalidated entry finishing or closing late must
-  // not overwrite or clear the status of the entry that replaced it.
   const owners = new Map<string, object>();
   const setOwnStatus = (owner: object, key: string, status: AttachmentUploadStatus | undefined) => {
     if (owners.get(key) === owner) setStatus(key, status);
@@ -137,7 +134,6 @@ export function createAttachmentUploadRegistry<Request>(options: {
               if (owners.get(key.id) === owner) owners.delete(key.id);
             }),
           );
-          // Starts in the holder's call, so an upload begins as soon as something holds it.
           const fiber = yield* Effect.forkScoped(transfer(key, owner), {
             startImmediately: true,
           });
@@ -153,7 +149,6 @@ export function createAttachmentUploadRegistry<Request>(options: {
   const keyOf = (request: Request) => new UploadKey(options.key(request), request);
 
   let disposed = false;
-  /** Keeps the request's upload running until the returned release is called. */
   function hold(request: Request): () => void {
     if (disposed) return () => {};
     const holder = Scope.makeUnsafe();
@@ -168,7 +163,6 @@ export function createAttachmentUploadRegistry<Request>(options: {
 
   const synced = new Map<string, () => void>();
   let requested: ReadonlyArray<Request> = [];
-  /** Holds exactly these uploads; anything no longer requested and held nowhere else stops. */
   function sync(requests: ReadonlyArray<Request>) {
     if (disposed) return;
     requested = requests;
@@ -183,12 +177,10 @@ export function createAttachmentUploadRegistry<Request>(options: {
     }
   }
 
-  /** Drops a failed upload so the next holder starts it again. */
   function invalidate(key: string) {
     Effect.runSync(RcMap.invalidate(uploads, new UploadKey<Request>(key, null)));
   }
 
-  /** Drops the key's upload and starts it again for whatever `sync` holds. */
   function restart(key: string) {
     invalidate(key);
     synced.get(key)?.();
@@ -201,10 +193,6 @@ export function createAttachmentUploadRegistry<Request>(options: {
     sync,
     invalidate,
     restart,
-    /**
-     * Uploads the request, joining its running or finished upload. A failed one starts again,
-     * so a retrying send never just rejoins the failure.
-     */
     upload(request: Request): Effect.Effect<string, AttachmentUploadError> {
       return Effect.suspend(() => {
         if (disposed) return Effect.fail(attachmentUploadError(new Error("Upload cancelled.")));
@@ -213,11 +201,9 @@ export function createAttachmentUploadRegistry<Request>(options: {
         return RcMap.get(uploads, keyOf(request)).pipe(Effect.flatMap(Fiber.join), Effect.scoped);
       });
     },
-    /** Starts a failed upload that `sync` holds again. */
     retry(key: string) {
       if (statuses[key]?.status === "failed") restart(key);
     },
-    /** The key's running upload, to await it without holding it. */
     current(key: string): Fiber.Fiber<string, AttachmentUploadError> | undefined {
       return running.get(key);
     },

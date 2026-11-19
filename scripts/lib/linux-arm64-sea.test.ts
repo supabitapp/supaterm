@@ -1,4 +1,3 @@
-// TEMPORARY one-time Node fix. Remove when fixed: https://github.com/nodejs/node/issues/67048
 import { describe, expect, it } from "@effect/vitest";
 import { assertLinuxArm64PageCompatibility } from "./linux-arm64-sea.ts";
 

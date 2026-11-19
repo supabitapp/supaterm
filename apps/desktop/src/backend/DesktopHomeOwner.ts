@@ -11,7 +11,6 @@ import * as Schema from "effect/Schema";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import { BACKEND_QUIT_STOP_TIMEOUT } from "./DesktopBackendManager.ts";
 
-// The fields of the server's `server-runtime.json` that identify the owner of a Supaterm home.
 const HomeOwnerRuntimeState = Schema.Struct({
   pid: Schema.Int,
   port: Schema.Int,
@@ -22,7 +21,6 @@ export type HomeOwner = typeof HomeOwnerRuntimeState.Type;
 
 const decodeHomeOwner = Schema.decodeUnknownOption(Schema.fromJsonString(HomeOwnerRuntimeState));
 
-/** Signal 0 only probes existence; EPERM still means alive. */
 const isProcessAlive = (pid: number): boolean => {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
@@ -33,10 +31,6 @@ const isProcessAlive = (pid: number): boolean => {
   }
 };
 
-/**
- * Whether a server holds the Supaterm home's ownership lock (an exclusive transaction on
- * `server-owner.sqlite`). A read-only read is refused with SQLITE_BUSY only while it is held.
- */
 const isHomeOwnershipLocked = Effect.fn("DesktopHomeOwner.isHomeOwnershipLocked")(function* () {
   const path = yield* Path.Path;
   const { stateDir } = yield* DesktopEnvironment.DesktopEnvironment;
@@ -52,13 +46,11 @@ const isHomeOwnershipLocked = Effect.fn("DesktopHomeOwner.isHomeOwnershipLocked"
         db.close();
       }
     } catch (cause) {
-      // Anything but SQLITE_BUSY (a missing file included) leaves the decision to the backend.
       return cause instanceof Error && "errcode" in cause && cause.errcode === 5;
     }
   });
 });
 
-// A quitting app's backend holds the lock until it exits, which can outlast the relaunch of an update.
 const HOME_OWNERSHIP_RELEASE_GRACE = Duration.sum(BACKEND_QUIT_STOP_TIMEOUT, Duration.seconds(3));
 const HOME_OWNERSHIP_RELEASE_POLL_INTERVAL = Duration.millis(250);
 

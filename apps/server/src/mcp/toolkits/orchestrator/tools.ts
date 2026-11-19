@@ -138,7 +138,6 @@ const BackgroundWaitTool = Tool.make("supaterm_background_wait", {
   dependencies,
 })
   .annotate(Tool.Title, "Wait on background work")
-  // Only marks which tasks keep the thread Working; Claude Plan mode blocks tools without this.
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false)
   .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
@@ -193,7 +192,6 @@ const RequestSecretTool = Tool.make("request_secret", {
 })
   .annotate(Tool.Title, "Request a secret from the user")
   .annotate(Tool.Destructive, false)
-  // Claude Code defers MCP tools behind ToolSearch; agents that never load this one ask in chat.
   .annotate(Tool.Meta, { "anthropic/alwaysLoad": true })
   .annotate(McpSchema.EnabledWhen, McpInvocationContext.hiddenFromOutsideClients);
 

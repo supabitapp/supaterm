@@ -12,7 +12,6 @@ const STALE_RUNTIME =
 
 const quoteShell = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
 
-/** agent-device 0.21.36's flags that take a value, so the launcher can find the command past them. */
 const VALUE_FLAGS: ReadonlyArray<string> = [
   "--activity",
   "--all",
@@ -151,10 +150,6 @@ const VALUE_FLAGS: ReadonlyArray<string> = [
   "--wait",
 ];
 
-// Help gets no bound flags (agent-device reads --config even for help); only args before `--` are flags.
-// agent-device 0.21.31 refuses some bound flags per command; connect/disconnect/auth/daemon would
-// replace Supaterm's connection; device status reads this machine's claims. It reports a sandboxed shell and a
-// dropped tunnel alike, so check first, at --daemon-base-url if given, as agent-device prefers it.
 const launcherSource = (node: string, entryPath: string, boundArgs: ReadonlyArray<string>) =>
   `import { spawn } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -223,7 +218,6 @@ child.on("error", error => { console.error(error.message); process.exitCode = 1;
 child.on("exit", code => { process.exitCode = code ?? 1; });
 `;
 
-/** Writes a launcher into `dir` and returns the executable agents run. */
 const writeLauncher = Effect.fn("AgentDeviceShim.writeLauncher")(function* (input: {
   readonly dir: string;
   readonly entryPath: string;

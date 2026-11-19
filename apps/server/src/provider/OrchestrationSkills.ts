@@ -46,8 +46,6 @@ const make = Effect.gen(function* () {
   const lock = yield* Semaphore.make(1);
   const config = yield* ServerConfig.ServerConfig;
   const platform = yield* HostProcess.Platform;
-  // Native CLIs cannot read Electron's asar or a standalone executable's
-  // embedded assets. Keep a stable on-disk target for links across upgrades.
   const bundleRoot = path.join(config.stateDir, "bundled-skills", "orchestration");
   const bundledDirectory = (name: string) => path.join(bundleRoot, name);
   const writeFile = (filePath: string, contents: string) =>
@@ -74,8 +72,6 @@ const make = Effect.gen(function* () {
     }
     return changed;
   });
-  // Refresh the bundle on every app start, without creating any provider links.
-  // A failed refresh remains repairable by installing from Settings.
   const bundleChanged = yield* materializeBundle.pipe(
     Effect.catch((cause) =>
       Effect.logWarning("Could not refresh bundled orchestration skills.", { cause }).pipe(
@@ -156,7 +152,6 @@ const make = Effect.gen(function* () {
     const state = yield* inspect(root, skill);
     if (state.managed) return false;
     const directory = path.join(root, skill.name);
-    // Replaces whatever holds our skill name. A link is removed without touching its target.
     if (state.state === "conflict") yield* fs.remove(directory, { recursive: true });
     yield* fs.makeDirectory(root, { recursive: true });
     yield* Effect.tryPromise(() =>
@@ -174,7 +169,6 @@ const make = Effect.gen(function* () {
   ) {
     const state = yield* inspect(root, skill);
     if (!state.managed) return false;
-    // Remove only our link, including dangling links. Never recurse into its target.
     yield* fs.remove(path.join(root, skill.name));
     return true;
   });
@@ -213,7 +207,6 @@ const make = Effect.gen(function* () {
       )
       .pipe(Effect.mapError((cause) => new OrchestrationSkillsError({ cause })));
   if (bundleChanged) {
-    // Updating the bundle must not make app startup wait on provider probes.
     const installed = yield* readStatus.pipe(Effect.orElseSucceed(() => null));
     if (installed?.targets.some((target) => target.skills.some((skill) => skill.managed))) {
       yield* refreshProviders.pipe(Effect.forkScoped);

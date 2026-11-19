@@ -30,7 +30,6 @@ vi.mock("@react-navigation/native", async () => {
   const nativeRequire = createRequire(
     realpathSync(require.resolve("@react-navigation/native/package.json")),
   );
-  // Use the shipped focus hook without importing the React Native view layer.
   const { NavigationContext, useFocusEffect }: typeof import("@react-navigation/native") =
     nativeRequire("@react-navigation/core");
   return { NavigationContext, useFocusEffect };

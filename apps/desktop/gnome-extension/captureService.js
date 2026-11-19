@@ -4,7 +4,6 @@ export const CLIENT_NAMES = [
 ];
 
 export function isWaylandSession(meta) {
-  // GNOME 50 removed the X11 compositor and this API. GNOME 45–49 still need the check.
   return typeof meta.is_wayland_compositor !== "function" || meta.is_wayland_compositor();
 }
 
@@ -46,7 +45,6 @@ export class CaptureService {
       const pid = options ? await this._getProcessId(sender) : undefined;
       this._checkSession();
       const snapshot = await this._takeSnapshot(options?.animate ?? false);
-      // Never deliver pixels after locking the session or disabling the extension.
       this._checkSession();
       if (options) {
         return {

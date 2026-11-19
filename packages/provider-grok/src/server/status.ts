@@ -60,9 +60,6 @@ const EMPTY_CAPABILITIES: ModelCapabilities = createModelCapabilities({
 });
 
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
-// Grok writes the initialize result only after startup work (settings,
-// skill discovery, file watching). From a home directory that work measured
-// 9-14s on CLI 1.0.52, so an 8s cap records a healthy CLI as a failed probe.
 const GROK_ACP_INITIALIZE_TIMEOUT_MS = 20_000;
 const GROK_API_KEY_ENV = "XAI_API_KEY";
 
@@ -186,7 +183,6 @@ export function grokReasoningOptionsFromModel(model: EffectAcpSchema.ModelInfo):
   const selectedDefault =
     advertisedDefaults.find((option) => option.value === currentValue)?.value ??
     advertisedDefaults[0]?.value;
-  // Grok advertises its strongest level first; pickers and effort bars read lowest to highest.
   const rank = (option: { value: string }) => GROK_EFFORT_RANK.indexOf(option.value);
   if (options.every((option) => rank(option) >= 0)) {
     options.sort((left, right) => rank(left) - rank(right));
@@ -317,8 +313,6 @@ const probeGrokModels = Effect.fn("GrokProviderStatus.probeGrokModels")(function
     Effect.timeoutOption(resolveProviderProbeTimeoutMs("grok", AUTH_PROBE_TIMEOUT_MS, environment)),
     Effect.result,
   );
-  // Only a clean exit is parsed. Failed invocations print help or error text that
-  // must not be read as model slugs or as a login verdict.
   const modelsOutput =
     Result.isSuccess(modelsResult) &&
     Option.isSome(modelsResult.success) &&
@@ -362,7 +356,6 @@ export function grokSlashCommandsFromInitialize(
     const command = decoded.value;
     const name = command.name.trim();
     if (!name || name.toLowerCase() === "always-approve") continue;
-    // Grok advertises /context, but its ACP handler completes without emitting output.
     if (name.toLowerCase() === "context") continue;
     const description = command.description.trim();
     const hint = command.input?.hint.trim();
@@ -375,10 +368,6 @@ export function grokSlashCommandsFromInitialize(
   return [...byName.values()];
 }
 
-/**
- * This never calls `authenticate` or `session/new`, so it cannot open a browser login or
- * boot the workspace's MCP servers.
- */
 const discoverGrokMetadataViaAcpInitialize = Effect.fn(
   "GrokProviderStatus.discoverGrokMetadataViaAcpInitialize",
 )(function* (grokSettings: GrokSettings, environment: NodeJS.ProcessEnv) {
@@ -498,10 +487,7 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
     });
   }
 
-  // `grok models` reports login state and model slugs without starting the agent.
   let cliModels = yield* probeGrokModels(grokSettings, probeEnvironment);
-  // An expired access token prints the logged-out line, then the CLI refreshes it in the same
-  // process. Probing again after that process exited tells a refresh from a real logout.
   if (cliModels.authenticated === false && !apiKey) {
     const recheck = yield* probeGrokModels(grokSettings, probeEnvironment);
     if (recheck.authenticated !== null) {
@@ -542,7 +528,6 @@ export const checkGrokProviderStatus = Effect.fn("checkGrokProviderStatus")(func
     discoveredModels.length > 0
       ? grokModelsFromSettings(grokSettings.customModels, discoveredModels)
       : fallbackModels;
-  // The registry replaces cached models on a ready probe, so a fallback-only list must not be ready.
   const incompleteMessage = acpFailed
     ? "Grok CLI is installed but ACP initialize failed. Model options may be incomplete."
     : discoveredModels.length === 0

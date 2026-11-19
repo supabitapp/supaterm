@@ -625,7 +625,6 @@ function EventLogSection(props: {
   );
 }
 
-// The panel unmounts while closed, so the log streams only while it is open.
 function EventLogEntries(props: {
   readonly access: DeviceHubAccess;
   readonly device: DeviceSummary;

@@ -64,7 +64,6 @@ describe("runDeviceAction", () => {
       const args = calls[0]!.args;
       expect(args.slice(0, 3)).toEqual(["-s", "emulator-5554", "shell"]);
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-      // adb joins arguments verbatim before the Android shell parses them.
       const stdout = yield* spawner.string(
         ChildProcess.make("/bin/sh", [
           "-c",

@@ -31,7 +31,6 @@ export default function ReadOnlySourcePreview(props: {
       const shadowRoot = root();
       if (shadowRoot) selection.sync(shadowRoot, text);
     };
-    // A drag that autoscrolls is usually released outside the preview.
     const release = () => {
       const shadowRoot = root();
       if (shadowRoot) selection.release(shadowRoot, text);
@@ -63,7 +62,6 @@ export default function ReadOnlySourcePreview(props: {
         className="contents"
         onCopy={copySelection}
         onPointerDown={(event) => selection.press(event.button !== 0 || event.shiftKey)}
-        // Scrolling unmounts rows, and a selection made in the same task has not been reported yet.
         onScrollCapture={(event) => {
           const root = event.currentTarget.querySelector("diffs-container")?.shadowRoot;
           if (root) selection.sync(root, text);

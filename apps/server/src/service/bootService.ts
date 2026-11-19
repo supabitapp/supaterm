@@ -48,13 +48,10 @@ export {
 
 const BOOT_SERVICE_NAME = "supaterm";
 export const BOOT_SERVICE_UNIT_FILE = `${BOOT_SERVICE_NAME}.service`;
-// `.service` suffix keeps the label distinct from the desktop app's bundle id
-// (com.supaterm.desktop), so launchd and TCC records never collide.
 export const BOOT_SERVICE_LAUNCHD_LABEL = "com.supaterm.desktop.service";
 export const BOOT_SERVICE_PLIST_FILE = `${BOOT_SERVICE_LAUNCHD_LABEL}.plist`;
 export const BOOT_SERVICE_LOG_FILE = "boot-service.log";
 
-/** systemd expands `%` specifiers, including in unquoted append-log paths. */
 function escapeSystemdSpecifiers(value: string): string {
   return value.replaceAll("%", "%%");
 }
@@ -76,8 +73,6 @@ export interface BootServicePlan {
   readonly handedOff?: boolean;
 }
 
-// systemd refuses an executable with a quote, backslash or control character even when
-// quoted. The executable lives under the Supaterm home, so this also catches a home with a newline.
 const systemdUnsafeValue = (plan: BootServicePlan) =>
   /[\x00-\x1f\x7f"'\\]/.test(plan.program[0] ?? "");
 
@@ -86,7 +81,6 @@ export function renderBootServiceUnit(plan: BootServicePlan): string {
   if (systemdUnsafeValue(plan)) {
     throw new BootServiceBaseDirUnsupportedError({ baseDir: plan.baseDir });
   }
-  // The user manager has no reliable network-online target; server networking retries itself.
   return [
     "[Unit]",
     "Description=Supaterm server",
@@ -102,23 +96,14 @@ export function renderBootServiceUnit(plan: BootServicePlan): string {
       : [`Environment=SUPATERM_INSTALL_BIN_DIR=${quoteSystemdValue(plan.installBinDir)}`]),
     `Environment=${SERVICE_UNIT_ENV}=${BOOT_SERVICE_UNIT_FILE}`,
     `ExecStart=${plan.program.map(quoteSystemdValue).join(" ")}`,
-    // Signal only the launcher first so it can stop its server child gracefully.
-    // systemd still SIGKILLs the whole cgroup if graceful shutdown times out.
     "KillMode=mixed",
-    // Helpers share this cgroup; default OOMPolicy=stop would stop the unit if one is OOM-killed.
     "OOMPolicy=continue",
     "Restart=always",
     "RestartSec=5",
-    // Weights favor the server over the sibling agents slice; IOWeight needs a delegated io controller.
     "CPUWeight=1000",
     "IOWeight=1000",
-    // Reclaim takes the agents' unprotected pages first. The kernel caps this at the
-    // protection of user.slice and user@.service, which only root can grant.
     "MemoryLow=1536M",
-    // A user manager's own score, the lowest it may set: below its other services (200) and agents (800).
-    // `supaterm service protect` lowers it further through a drop-in.
     "OOMScoreAdjust=100",
-    // systemd-oomd ignores this preference when the watched cgroup is root-owned, as user-1000.slice usually is.
     "ManagedOOMPreference=avoid",
     `StandardOutput=append:${escapeSystemdSpecifiers(plan.logPath)}`,
     `StandardError=append:${escapeSystemdSpecifiers(plan.logPath)}`,
@@ -138,9 +123,6 @@ export function renderBootServicePlist(
   plan: BootServicePlan,
   options: { readonly homeDir: string; readonly environmentPath: string },
 ): string {
-  // Allow 90s stops for update handoffs.
-  // Interactive avoids background throttling.
-  // AbandonProcessGroup=false reaps agents only on launcher exit, preserving them across child updates.
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">`,
@@ -198,7 +180,6 @@ export interface BootServiceStep {
   readonly timeout?: Duration.Input;
 }
 
-/** Must exceed systemd TimeoutStopSec and launchd ExitTimeOut (both 90s) to avoid shutdown races. */
 const STOP_STEP_TIMEOUT = Duration.seconds(120);
 
 export interface BootServiceManager {
@@ -229,7 +210,6 @@ function systemdManager(input: {
   readonly unitDir: string;
 }): BootServiceManager {
   const unitPath = input.path.join(input.unitDir, BOOT_SERVICE_UNIT_FILE);
-  // Once StartLimitBurst trips, systemd refuses every start until the failed state is cleared.
   const resetFailed = {
     step: "clearing the service's failed state",
     optional: true,
@@ -312,7 +292,6 @@ function launchdManager(input: {
   const unitPath = launchdPlistPath(input.path, input.homeDir);
   const domainTarget = `gui/${input.uid}`;
   const serviceTarget = `${domainTarget}/${BOOT_SERVICE_LAUNCHD_LABEL}`;
-  // Unloaded jobs may reject bootout/enable. Bootstrap starts RunAtLoad/KeepAlive jobs; kickstart would restart them.
   return {
     kind: "launchd",
     unitPath,
@@ -321,7 +300,6 @@ function launchdManager(input: {
         homeDir: input.homeDir,
         environmentPath: input.environmentPath,
       }),
-    // bootout --wait is undocumented but waits through ExitTimeOut, preventing bootstrap EIO races.
     stop: [
       {
         step: "stopping the installed launch agent",
@@ -332,7 +310,6 @@ function launchdManager(input: {
       },
     ],
     activate: [
-      // A persisted `launchctl disable` override refuses bootstrap; clear it.
       {
         step: "enabling the launch agent",
         command: "launchctl",
@@ -352,7 +329,6 @@ function launchdManager(input: {
         args: ["bootstrap", domainTarget, unitPath],
       },
     ],
-    // Persisted launchctl disable overrides would block reinstall.
     deactivate: [
       {
         step: "stopping the service",
@@ -401,7 +377,6 @@ const decodeSystemdUnitPaths = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ data: Schema.Array(Schema.String) })),
 );
 
-// The manager may not share the installer's environment; JSON preserves spaces in its paths.
 const readSystemdUnitDirectory = Effect.fn("cloud.boot_service.read_systemd_unit_directory")(
   function* (runner: ProcessRunner.ProcessRunner["Service"]) {
     const result = yield* runner.run({
@@ -553,7 +528,6 @@ export class BootServiceOtherBaseDirError extends Schema.TaggedError<BootService
     return `The Supaterm service on this machine serves ${this.installedBaseDir}, not ${this.baseDir}. Pass ${formatBootServiceBaseDirOption(this.installedBaseDir)} to manage it, or run \`supaterm service uninstall ${formatBootServiceBaseDirOption(this.installedBaseDir)}\` first to move it; both data directories are kept.`;
   }
 
-  // A refusal the user fixes by rerunning, so the CLI prints the message, not a stack trace.
   override get [CliError.userMessage]() {
     return this.message;
   }
@@ -647,7 +621,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     yield* Config.String("SUPATERM_INSTALL_BIN_DIR").pipe(Config.option),
   );
   const xdgRuntimeDir = yield* Config.String("XDG_RUNTIME_DIR").pipe(Config.withDefault(""));
-  // Root under sudo must not reach or start a separate root service.
   const rootUnderSudo =
     uid === 0 && (yield* Config.String("SUDO_USER").pipe(Config.withDefault(""))) !== "";
   const runningInsideService =
@@ -656,8 +629,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const processRunner = yield* ProcessRunner.ProcessRunner;
-  // Without a login session nothing sets this, so `--user` commands cannot find the user bus.
-  // The directory only appears once lingering starts the manager, so it need not exist yet.
   const userManagerEnv =
     platform === "linux" && xdgRuntimeDir === "" && uid !== undefined && !rootUnderSudo
       ? { XDG_RUNTIME_DIR: `/run/user/${uid}` }
@@ -680,8 +651,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
         return code >= 0x20 || code === 0x09 || code === 0x0a || code === 0x0d;
       }),
   );
-  // During an update, the running CLI and a PATH inherited from the service name the runtime
-  // being replaced. The service and its agent shells should find the runtime it starts.
   const environmentPath = Array.from(
     new Set(
       [
@@ -737,10 +706,8 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
         yield* fs.makeDirectory(directory, { recursive: true });
         const tempPath = yield* fs.makeTempFileScoped({ directory, prefix: ".service-write-" });
         yield* fs.writeFileString(tempPath, contents, { mode: 0o600 });
-        // Opened read-write: Windows refuses to flush a handle without write access.
         yield* (yield* fs.open(tempPath, { flag: "r+" })).sync;
         yield* fs.rename(tempPath, filePath);
-        // Windows has no directory fsync (EPERM); NTFS journals the rename.
         yield* (yield* fs.open(directory, { flag: "r" })).sync.pipe(
           Effect.catchIf(
             (error) => (error.reason.cause as NodeJS.ErrnoException | undefined)?.code === "EPERM",
@@ -851,7 +818,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     const problems = yield* readSystemdProblems(false);
     const firstProblem = problems[0];
     if (firstProblem === undefined) return;
-    // Logind reports a user without a session, whose manager is not running yet, as linger-unavailable.
     const withoutSession =
       problems.includes("linger-unavailable") && problems.includes("user-manager-unavailable");
     const lingerDisabled = problems.includes("linger-disabled");
@@ -864,7 +830,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
       ...(uid === undefined ? [] : [String(uid)]),
     ]).pipe(
       Effect.mapError(
-        // Without a session this also fails on hosts that do not run systemd at all.
         (cause) =>
           new BootServicePrerequisiteError({
             problem: lingerDisabled ? "linger-disabled" : firstProblem,
@@ -872,7 +837,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
           }),
       ),
     );
-    // Lingering starts the user manager asynchronously.
     const remaining = yield* readSystemdProblems(false).pipe(
       Effect.repeat({
         schedule: Schedule.spaced("500 millis"),
@@ -901,8 +865,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     if (manager.kind === "systemd" && systemdUnsafeValue(plan)) {
       return yield* new BootServiceBaseDirUnsupportedError({ baseDir: input.baseDir });
     }
-    // The unit is per user. Rewriting one that serves another home moves the
-    // service onto this home's data, which looks like every thread vanished.
     const refuseOtherBaseDir = Effect.gen(function* () {
       const existingUnit = yield* fs.readFileString(unitPath).pipe(Effect.option);
       const installedBaseDir = Option.isSome(existingUnit)
@@ -922,8 +884,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
 
     if (manager.kind === "systemd") {
       yield* requireSystemdPrerequisites.pipe(Effect.tapError(logFailure));
-      // Without a session the manager was unreachable at construction, and the one lingering
-      // started may use another config root than this shell's XDG_CONFIG_HOME.
       if (systemdUnitDir === undefined) {
         systemdUnitDir = yield* readSystemdUnitDirectory(runner);
         ({ manager: detectedManager, unitPath, plan } = resolveTarget(systemdUnitDir));
@@ -987,17 +947,12 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     const installed = yield* fs
       .exists(unitPath)
       .pipe(Effect.mapError((cause) => new BootServiceInstallError({ cause })));
-    // Stop outside the selection lock: the launcher may be waiting to acquire it.
     const start = options?.start !== false;
     if (installed && start && runningInsideService && manager.kind === "systemd") {
-      // Stopping the unit from inside it kills this process before the start.
-      // A transient unit runs the same install from outside, stop first, so it
-      // still serialises with a remote update the launcher may be starting.
       yield* runStep("handing the install to a transient unit", "systemd-run", [
         "--user",
         "--collect",
         "--quiet",
-        // Transient properties reach systemd literally, unlike unit-file specifiers.
         `--property=StandardOutput=append:${logPath}`,
         `--property=StandardError=append:${logPath}`,
         `--setenv=${SERVICE_UNIT_ENV}=`,
@@ -1005,7 +960,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
         "service",
         "install",
         "--base-dir",
-        // systemd expands $VAR in arguments (not in the executable path).
         input.baseDir.replaceAll("$", () => "$$"),
         ...(options?.allowDowngrade === true ? ["--allow-downgrade"] : []),
       ]);
@@ -1018,8 +972,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
       yield* runSteps(manager.stop);
     }
 
-    // State first, then unit. The launcher acquires only one at a time, and a
-    // failure to lock the unit must never prevent its durable update commit.
     const installedPlan = yield* withSelectionLock(
       statePath,
       withSelectionLock(
@@ -1039,7 +991,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
                   : {},
               );
             }
-            // Read the final version after stopping the launcher; a remote update may finish after the status check.
             if (
               installedVersion !== undefined &&
               options?.allowDowngrade !== true &&
@@ -1054,7 +1005,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
           yield* fs
             .makeDirectory(path.dirname(unitPath), { recursive: true })
             .pipe(Effect.mapError((cause) => new BootServiceInstallError({ cause })));
-          // Files can match the new version even when activation fails; keep that install retryable.
           yield* fs.writeFileString(restartPendingPath, `${input.cliVersion}\n`, { mode: 0o600 });
           const plan = planForUnit(currentlyInstalled ? yield* fs.readFileString(unitPath) : "");
           yield* writeDurably(
@@ -1087,7 +1037,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
             yield* withSelectionLock(
               statePath,
               Effect.gen(function* () {
-                // A concurrent deferred install may now be waiting for a newer restart.
                 const selected = parseServiceState(yield* fs.readFileString(statePath));
                 if (selected?.activeVersion === input.cliVersion && selected.update === undefined) {
                   yield* fs.remove(restartPendingPath, { force: true });
@@ -1118,8 +1067,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     ) {
       return "skipped" as const;
     }
-    // Writes no state, and the launcher lets an update transition in flight
-    // finish before the queued stop tears it down.
     if (runningInsideService && manager.handoff !== undefined) {
       yield* runSteps(manager.handoff);
       return "queued" as const;
@@ -1151,9 +1098,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     ) {
       return yield* operation;
     }
-    // `is-active` misses crash-looping systemd units; launchd can be loaded without a pid.
-    // Always stop; restore only if previously active, enabled, or loaded,
-    // so disabled crash loops stay stopped.
     const restore =
       manager.kind === "systemd"
         ? yield* Effect.map(
@@ -1170,16 +1114,11 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
             yield* probe("launchctl", ["print", `gui/${uid}/${BOOT_SERVICE_LAUNCHD_LABEL}`]),
           );
     return yield* Effect.acquireUseRelease(
-      // Require every stop before repair when restoring, so the server releases the database.
-      // Otherwise stops are best-effort; launchd rejects bootout of an unloaded job.
-      // A failed stop may still stop the service, so restoration runs either way.
       runSteps(manager.stop.map((step) => ({ ...step, optional: !restore }))).pipe(Effect.exit),
       (stopped): Effect.Effect<A, E | BootServiceError, R> =>
         Exit.isSuccess(stopped) ? operation : Effect.failCause(stopped.cause),
       (_, exit) => {
         if (!restore) return Effect.void;
-        // Start only: `activate` would also enable a unit the user disabled.
-        // When the operation itself failed, its error is the one worth reporting.
         const start = runSteps(manager.restart);
         return Exit.isFailure(exit) ? Effect.ignore(start) : start;
       },

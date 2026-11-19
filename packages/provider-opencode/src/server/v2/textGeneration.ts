@@ -1,4 +1,3 @@
-// Generate endpoints return 403 on the free tier; use and remove a temporary prompt session.
 import { AbsolutePath, Location, Model, Provider, Session } from "@opencode/client/effect";
 import { TextGenerationError } from "@supaterm/contracts";
 import { getModelSelectionStringOptionValue } from "@supaterm/shared/model";
@@ -19,10 +18,8 @@ const isTextGenerationError = Schema.is(TextGenerationError);
 
 const GENERATION_TIMEOUT = "3 minutes";
 
-// Free models refuse denied read/shell permissions; ask and reject requests as they arrive.
 const GENERATION_PERMISSIONS = [{ action: "*", resource: "*", effect: "ask" }] as const;
 
-// Provider error text stays in cause, outside detail.
 type Outcome =
   | { readonly _tag: "text"; readonly text: string }
   | { readonly _tag: "failed"; readonly detail: string; readonly cause?: unknown };
@@ -45,12 +42,9 @@ const runOnServer = Effect.fn("Opencode2TextGeneration.runOnServer")(function* (
   const outcome = yield* Deferred.make<Outcome>();
   let sessionId: string | undefined;
   const texts = new Map<string, string>();
-  // Subscribed first: the stream is volatile, and the reply arrives on it.
   const events = yield* connection.events;
   yield* events.pipe(
     Stream.runForEach((event) => {
-      // An execution end a newer server sent in a shape this build cannot
-      // read still ends the generation, as it ends a turn in the adapter.
       if (event.type === "unreadable.execution.ended") {
         if (event.sessionID !== sessionId) return Effect.void;
         return Deferred.succeed(
@@ -105,7 +99,6 @@ const runOnServer = Effect.fn("Opencode2TextGeneration.runOnServer")(function* (
           return Effect.void;
       }
     }),
-    // The reply only arrives on this stream, so a lost stream ends the wait.
     Effect.exit,
     Effect.flatMap((exit) =>
       Deferred.succeed(outcome, {
@@ -116,8 +109,6 @@ const runOnServer = Effect.fn("Opencode2TextGeneration.runOnServer")(function* (
     ),
     Effect.forkScoped,
   );
-  // The limit covers creating the session and sending the prompt as well, since
-  // either request can stall while the event stream stays connected.
   const generate = Effect.gen(function* () {
     const session = yield* client.session.create({
       title: `supaterm ${input.operation}`,
@@ -136,8 +127,6 @@ const runOnServer = Effect.fn("Opencode2TextGeneration.runOnServer")(function* (
         .pipe(Effect.timeout("5 seconds"), Effect.ignore({ log: true })),
     );
     const images: Array<{ uri: string; name: string }> = [];
-    // As in the adapter: an external server may not share Supaterm's attachment directory, and
-    // OpenCode rejects the whole prompt if an attached file is missing.
     for (const attachment of connection.external ? [] : (input.attachments ?? [])) {
       if (!isProviderNativeImageAttachment(attachment)) continue;
       const path = resolveAttachmentPath(attachment);

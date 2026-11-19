@@ -33,8 +33,6 @@ export type ThreadCurrentPullRequest =
     };
 
 function layersFromTop(chain: ThreadPullRequestChain): Array<ThreadPullRequestLink> {
-  // `.sort()` on a fresh array, not `.toSorted()`: this runs on Hermes, which has no ES2023
-  // array methods, and a TypeError here is fatal on every mobile launch that renders a stack.
   return chain.layers
     .map((link, index) => ({ link, index, depth: chain.depths[index]! }))
     .sort((left, right) => right.depth - left.depth || right.index - left.index)
@@ -124,8 +122,6 @@ export function makeThreadPullRequests(
     return threadPullRequestKeyOf(left) === threadPullRequestKeyOf(right);
   }
 
-  // Clients re-derive chains for every link on each render, and normalizing parses the
-  // link's URL. Links are immutable and keep their identity until they change.
   const normalizedKeys = new WeakMap<ThreadPullRequestKeySource, ThreadPullRequestKey>();
 
   function normalizedKeyOf(key: ThreadPullRequestKeySource): ThreadPullRequestKey {
@@ -207,7 +203,6 @@ export function makeThreadPullRequests(
       nativeStacks.set(stackKey, members);
     }
     for (const members of nativeStacks.values()) {
-      // Saved snapshots can lag behind newer members of the same stack.
       const memberNumbers = new Set(members.map((member) => member.number));
       let layers = members[0]!.stack!.layers;
       let coverage = layers.filter((layer) => memberNumbers.has(layer.number)).length;
@@ -267,7 +262,6 @@ export function makeThreadPullRequests(
       ];
       for (let next = pending.pop(); next !== undefined; next = pending.pop()) {
         const key = threadPullRequestKeyOf(next.link);
-        // Two links with one identity would otherwise share a child list and expand forever.
         if (placed.has(key)) continue;
         placed.add(key);
         layers.push(next.link);

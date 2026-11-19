@@ -88,7 +88,6 @@ export interface AcpRegistryAdapterV2Options {
   readonly assertComplete?: Effect.Effect<void, EffectAcpErrors.AcpError>;
 }
 
-// Mistral Vibe's application rate-limit code, outside ACP.
 const MISTRAL_VIBE_RATE_LIMITED = -31001;
 
 const MistralVibeSessionRetrying = Schema.Struct({
@@ -202,7 +201,6 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
       /^opencode(?:-v2)?(\.exe|\.cmd)?$/i.test(
         options.settings.commandPath.split(/[\\/]/).pop() ?? "",
       ));
-  // Local installs launch the `copilot` binary directly with no registry id.
   const isCopilot =
     registryAgentId === "github-copilot-cli" ||
     (options.settings.source === "local" &&
@@ -231,14 +229,10 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
     ? yield* makeKimiPromptOutcomeWatch(options.environment.KIMI_CODE_HOME)
     : undefined;
   const copilotRouting = isCopilot ? makeCopilotSubagentRouting() : undefined;
-  // Copilot CLI 1.0.105 rejects stdio MCP servers from the client, and Command Code cannot
-  // start the stdio bridge on Windows (it spawns MCP commands through cmd.exe, which splits
-  // an unquoted executable path at a space). Both take Supaterm's MCP endpoint over ACP HTTP.
   const useHttpMcpServers =
     copilotRouting !== undefined || prefersHttpMcpTransport(options.settings);
   const flavor: AcpAdapterV2Flavor = {
     driver: ACP_REGISTRY_PROVIDER,
-    // Cancelling a Copilot prompt also kills the background agents it started.
     capabilities: isCopilot
       ? {
           ...AcpProviderCapabilitiesV2,
@@ -255,7 +249,6 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
         : isOpenCode
           ? { extractElicitationForm: extractOpenCodeElicitationForm }
           : {}),
-    // glm-acp-agent is the one agent whose per-turn usage a live probe has verified.
     ...(registryAgentId === "glm-acp-agent" ? { reportsPerTurnPromptUsage: true } : {}),
     ...(watchKimiPromptOutcome === undefined ? {} : { watchPromptOutcome: watchKimiPromptOutcome }),
     ...(registryAgentId === "mistral-vibe"
@@ -291,9 +284,7 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
           extractSubagentUpdate: extractCopilotSubagentUpdate,
           supportsCompaction: true,
           restartRuntimeAfterPromptError: isCopilotLostSessionError,
-          // A finished background agent wakes the root after assistant.idle settled the run.
           enablePostSettleContinuation: true,
-          // session/new reports a built-in default, not the model Copilot runs (github/copilot-cli#5363).
           alwaysSetModel: true,
         }),
     mcpOverHttp: useHttpMcpServers,
@@ -306,7 +297,6 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
               options.instanceId,
               normalizeAcpRegistryCommands(commands),
             ),
-          // A new Copilot session starts at its own effort, not the one the composer shows.
           ...(isCopilot
             ? {
                 unsetOptionDefaults: runtimeCoordinator
@@ -356,7 +346,6 @@ export const makeAcpRegistryAdapterV2 = Effect.fn("makeAcpRegistryAdapterV2")(fu
     ...(options.continuationRequests === undefined
       ? {}
       : { continuationRequests: options.continuationRequests }),
-    // Devin runs commands through client terminals and has no ask mode over ACP to fall back on.
     ...(isDevin
       ? {
           clientTerminals: {

@@ -48,7 +48,6 @@ function setup() {
   stack.use(vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden));
   stack.defer(() => {
     for (const sensor of sensors.splice(0)) sensor.cancel();
-    // Cancelled sensors keep suppressing clicks on the shared document until the next press.
     document.dispatchEvent(pointer("pointerdown"));
     vi.runAllTimers();
   });

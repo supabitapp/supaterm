@@ -75,9 +75,6 @@ type AppUpdateYmlConfig = typeof AppUpdateYmlConfig.Type;
 
 const UpdateInfo = Schema.Struct({
   version: Schema.String,
-  // Left unvalidated on purpose: a malformed release-notes payload must never
-  // fail the decode and block the update state transition. The shape is
-  // validated defensively in normalizeDesktopUpdateReleaseNotes.
   releaseNotes: Schema.optional(Schema.Unknown),
   releaseName: Schema.optional(Schema.NullOr(Schema.String)),
   releaseDate: Schema.optional(Schema.String),
@@ -378,9 +375,6 @@ export const make = Effect.gen(function* () {
   const updaterConfiguredRef = yield* Ref.make(false);
   const lastLoggedDownloadMilestoneRef = yield* Ref.make(-1);
   const notAppliedVersionRef = yield* Ref.make(Option.none<string>());
-  // The release a track switch's database check cleared. A build crosses to another track only
-  // through such a switch, and never below that release: version order alone cannot tell whether
-  // a Stable knows a Nightly's migrations.
   const releaseFloorRef = yield* Ref.make(Option.none<string>());
   const offerable = (version: string, state: DesktopUpdateState) =>
     Ref.get(releaseFloorRef).pipe(
@@ -401,8 +395,6 @@ export const make = Effect.gen(function* () {
   );
 
   const stateChanges = yield* PubSub.sliding<DesktopUpdateState>(16);
-  // Makes ref writes + publishes atomic against subscribe, so a snapshot
-  // never overlaps with the first change a subscriber receives.
   const stateMutex = yield* Semaphore.make(1);
 
   const emitState = Ref.get(updateStateRef).pipe(
@@ -436,8 +428,6 @@ export const make = Effect.gen(function* () {
     ),
   );
 
-  // The .deb carries electron-builder's resources/package-type marker.
-  // electron-updater reads the same file and installs updates with dpkg.
   const isDebPackage =
     environment.platform === "linux" && environment.isPackaged
       ? yield* fileSystem
@@ -490,7 +480,6 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  // Re-runs admit after each finished action, so a caller waiting on a check decides on its result.
   const admitAfterCheck = Effect.fn("desktop.updates.admitAfterCheck")(function* (
     admit: Effect.Effect<"admitted" | "refused" | "wait-for-check">,
   ) {
@@ -514,8 +503,6 @@ export const make = Effect.gen(function* () {
     const allowsPrerelease = channel === "nightly";
     yield* electronUpdater.setChannel(channel);
     yield* electronUpdater.setAllowPrerelease(allowsPrerelease);
-    // An older build can lack migrations this one ran. Only a guarded track switch's own check
-    // may offer one.
     yield* electronUpdater.setAllowDowngrade(false);
     yield* electronUpdater.setFullChangelog(allowsPrerelease);
     yield* logUpdaterInfo("using update channel", {
@@ -525,7 +512,6 @@ export const make = Effect.gen(function* () {
     });
   });
 
-  // The flag is shared updater state, so callers flip it only while holding a reservation.
   const runUpdaterCheck = Effect.fn("desktop.updates.runUpdaterCheck")(function* (
     allowDowngrade: boolean,
   ) {
@@ -557,7 +543,6 @@ export const make = Effect.gen(function* () {
     if (actionReservation === "acquire" && !(yield* tryStartUpdateAction("check"))) return false;
 
     const check = Effect.gen(function* () {
-      // An offer stays on screen while re-checking, so finding it again changes nothing.
       if (!isOffered(state)) {
         yield* setState(reduceDesktopUpdateStateOnCheckStart(state, yield* currentIsoTimestamp));
       }
@@ -592,7 +577,6 @@ export const make = Effect.gen(function* () {
         );
   });
 
-  // Install refreshes before downloading, and a second check could pick a stale, older release.
   const downloadAvailableUpdate = Effect.fn("desktop.updates.downloadAvailableUpdate")(function* (
     refresh: boolean,
   ) {
@@ -623,12 +607,10 @@ export const make = Effect.gen(function* () {
     let state = offered;
     return yield* Effect.gen(function* () {
       if (refresh) {
-        // electron-updater downloads what its last check found, which can be hours old.
         yield* logUpdaterInfo("checking for updates", { reason: "download" });
         yield* runUpdaterCheck(
           offered.channel !== desktopUpdateChannelOf(environment.appVersion),
         ).pipe(
-          // A failed check keeps electron-updater's earlier result, so the known offer still downloads.
           Effect.catchTags({
             ElectronUpdaterCheckForUpdatesError: (error) =>
               logUpdaterWarning(error.message, {
@@ -718,7 +700,6 @@ export const make = Effect.gen(function* () {
       logUpdaterWarning("Could not write the update-in-progress marker.", { errorTag: error._tag }),
     ),
   );
-  // Failed or interrupted installs leave no replacement backend to clear it.
   const removeUpdateInProgressMarker = fileSystem
     .remove(updateInProgressMarkerPath, { force: true })
     .pipe(Effect.ignore);
@@ -855,9 +836,6 @@ export const make = Effect.gen(function* () {
           yield* writeUpdateInProgressMarker;
           const { downloadedVersion } = yield* Ref.get(updateStateRef);
           if (downloadedVersion !== null) yield* writeInstallRecord(downloadedVersion);
-          // Stop every pool backend, not just the primary, and every SSH tunnel: quitAndInstall's
-          // app.quit() exits before their scope finalizers run, so the WSL child would be
-          // hard-killed instead of getting SIGTERM and grace.
           const instances = yield* pool.list;
 
           const runningInstances = yield* Effect.filter(instances, (instance) =>
@@ -930,7 +908,6 @@ export const make = Effect.gen(function* () {
       };
     }
     let installVersion = expectedVersion;
-    // A download can be hours old: a release published since replaces it before restarting.
     const retained = yield* Ref.get(updateStateRef);
     if (
       retained.downloadedVersion !== null &&
@@ -943,7 +920,6 @@ export const make = Effect.gen(function* () {
       (yield* Ref.get(updateStateRef)).status === "available"
     ) {
       const refreshed = yield* Ref.get(updateStateRef);
-      // electron-updater compares a stale feed with the running build, not the retained download.
       if (
         refreshed.availableVersion === null ||
         compareSemverVersions(refreshed.availableVersion, retained.downloadedVersion) <= 0
@@ -1153,13 +1129,11 @@ export const make = Effect.gen(function* () {
       Effect.flatMap(
         Effect.fn("desktop.updates.applyUpdateDownloaded")(function* (info) {
           const state = yield* Ref.get(updateStateRef);
-          // A download can finish after its track switch moved on; never offer that build.
           if (!(yield* offerable(info.version, state))) {
             yield* logUpdaterInfo("ignoring download outside the selected channel or its floor", {
               version: info.version,
               channel: state.channel,
             });
-            // Its progress events left the updater "downloading", which would block every check.
             if (state.status === "downloading") {
               yield* setState(
                 reduceDesktopUpdateStateOnNoUpdate(state, yield* currentIsoTimestamp),
@@ -1202,8 +1176,6 @@ export const make = Effect.gen(function* () {
     disabledReason: resolveDisabledReason,
     configure: Effect.gen(function* () {
       const context = yield* Effect.context<never>();
-      // Runs synchronously up to the first await, so a check's outcome is applied before the
-      // check's promise resolves and wakes the actions waiting on it.
       const runEffect = (effect: Effect.Effect<void>) => {
         void Effect.runPromiseWith(context)(effect);
       };
@@ -1279,7 +1251,6 @@ export const make = Effect.gen(function* () {
       options?: { readonly minimumVersion?: string | undefined },
     ) {
       yield* Effect.annotateCurrentSpan({ channel: nextChannel });
-      // A background check holds the updater only briefly, so wait it out instead of refusing.
       const activeAction = yield* tryStartChannelChange.pipe(
         Effect.repeat({
           while: (active) => Option.isSome(active) && active.value === "check",
@@ -1301,8 +1272,6 @@ export const make = Effect.gen(function* () {
         );
         const state = yield* Ref.get(updateStateRef);
         const retained = state.downloadedVersion ?? state.availableVersion;
-        // A build from another track re-checks, so retrying a track switch finds an older release.
-        // So does a retained offer below the new floor, which must not install.
         if (
           nextChannel === state.channel &&
           nextChannel === desktopUpdateChannelOf(environment.appVersion) &&
@@ -1326,7 +1295,6 @@ export const make = Effect.gen(function* () {
         }
 
         yield* applyAutoUpdaterChannel(nextChannel);
-        // Only leaving the running build's track can need an older release.
         yield* checkForUpdates(
           "channel-change",
           "held",

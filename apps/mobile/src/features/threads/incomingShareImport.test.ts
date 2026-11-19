@@ -15,7 +15,6 @@ import {
 const destination = { environmentId: "env-1", projectId: "project-1" };
 const edited: ComposerDraft = { text: "typed after the undo", attachments: [] };
 
-/** The draft store's own undo, applied to the test's draft map. */
 function undoInto(
   drafts: Map<string, ComposerDraft>,
   draftKey: string,
@@ -195,7 +194,6 @@ describe("incoming share imports", () => {
     expect(watched.phase()).toBe("cancelled");
     expect(calls).toEqual(["reserve", "merge", "undo", "release"]);
     expect(drafts.get("draft-a")).toEqual({ text: "mine", attachments: [] });
-    // Unconsumed: the inbox still owns the files.
     expect(deps.releaseUnusedAttachments).not.toHaveBeenCalled();
     expect(deps.leave).toHaveBeenCalledWith(target);
   });
@@ -263,7 +261,6 @@ describe("incoming share imports", () => {
         consume: vi.fn(async () => {
           throw new Error("disk full");
         }),
-        // Like undoComposerDraftMerge: publishes, then fails to persist.
         undoMerge: vi.fn(
           async (draftKey: string, snapshot: ComposerDraft, merged: ComposerDraft) => {
             undoAttempts += 1;
@@ -313,7 +310,6 @@ describe("incoming share imports", () => {
     "cancel keeps a draft the user %s after a merge that published but failed to persist",
     async (_change, change, expected) => {
       const { drafts, watch, imports } = setup({
-        // Like mergeComposerDraftContent: publishes, then fails to persist.
         mergeIntoDraft: vi.fn(async (draftKey, content) => {
           mergeInto(drafts, draftKey, content);
           throw new Error("write failed");

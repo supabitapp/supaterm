@@ -22,7 +22,6 @@ const readWslState: Effect.Effect<
   const wslBackend = yield* DesktopWslBackend.DesktopWslBackend;
   const settings = yield* appSettings.get;
   const available = settings.localEnvironmentEnabled && (yield* wslEnvironment.isAvailable);
-  // Listing distros on non-WSL hosts spawns wsl.exe only to time out.
   const distros = available ? yield* wslEnvironment.listDistros : [];
   const preflightError = yield* wslBackend.lastPreflightError;
   return {
@@ -66,7 +65,6 @@ export const setWslBackendEnabled = makeIpcMethod({
       yield* lifecycle.relaunch(`wslBackendEnabled=${enabled}`);
       return state;
     }
-    // Reconcile never fails, so no rollback is needed.
     yield* wslBackend.reconcile;
     return yield* readWslState;
   }),
@@ -82,7 +80,6 @@ export const setWslDistro = makeIpcMethod({
     const lifecycle = yield* DesktopLifecycle.DesktopLifecycle;
     const change = yield* appSettings.setWslDistro(distro);
     const settings = yield* appSettings.get;
-    // WSL-only primary backends capture their distro at startup; relaunch to change it.
     if (settings.wslBackendEnabled && settings.wslOnly && change.changed) {
       const state = yield* readWslState;
       yield* lifecycle.relaunch(`wslDistro=${distro ?? "default"}`);
@@ -98,7 +95,6 @@ export const setWslOnly = makeIpcMethod({
   payload: Schema.Boolean,
   result: DesktopWslStateSchema,
   handler: Effect.fn("desktop.ipc.wsl.setOnly")(function* (enabled) {
-    // The pool captures its primary at initialization; disabled WSL can stage mode changes until enable.
     const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
     const lifecycle = yield* DesktopLifecycle.DesktopLifecycle;
     const change = yield* appSettings.setWslOnly(enabled);

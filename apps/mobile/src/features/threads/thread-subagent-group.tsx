@@ -197,8 +197,6 @@ export function ThreadSubagentGroup(props: {
                       )
                     )
                       return;
-                    // Push, not navigate: navigate reuses this Thread route, so back
-                    // would skip the parent thread.
                     navigation.dispatch(
                       StackActions.push("Thread", {
                         environmentId: String(props.environmentId),

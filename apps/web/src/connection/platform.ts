@@ -92,10 +92,6 @@ interface NetworkInformationLike extends EventTarget {
   readonly type?: string;
 }
 
-/**
- * `change` also fires for bandwidth and latency estimates on the same network,
- * so only a type change counts.
- */
 const networkPathChanges = Stream.callback<"network-changed">((queue) =>
   Effect.acquireRelease(
     Effect.sync(() => {
@@ -184,8 +180,6 @@ function sshPreparationError(cause: unknown) {
   });
 }
 
-// IPC keeps running after its waiter is interrupted. A retry can adopt only
-// that interrupted waiter's unfinished setup.
 const pendingSshSetups = new Map<
   string,
   { readonly promise: Promise<DesktopSshEnvironmentBootstrap>; signal: AbortSignal }
@@ -243,8 +237,6 @@ export const provisionDesktopSshEnvironment = Effect.fn(
     try: () => bridge.bootstrapSshBearerSession(bootstrap.httpBaseUrl, pairingToken),
     catch: (cause) => {
       const error = sshPreparationError(cause);
-      // A reused remote server on another build can fail to decode the grant
-      // the desktop's runner just minted, and answers 500 on every retry.
       if (
         error._tag === "ConnectionBlockedError" ||
         descriptor.serverVersion === APP_VERSION ||
@@ -266,9 +258,6 @@ export const provisionDesktopSshEnvironment = Effect.fn(
   };
 });
 
-// The bridge cannot cancel an SSH launch, and launches for one host run one at
-// a time, so a retry that gave up waiting joins the launch still running
-// instead of queueing another behind it.
 const pendingSshReconnects = new Map<string, Promise<DesktopSshEnvironmentBootstrap>>();
 
 const sshTargetKey = (target: DesktopSshEnvironmentTarget) =>
@@ -291,8 +280,6 @@ function ensureSshEnvironmentForReconnect(
 export const disconnectDesktopSshEnvironment = Effect.fn(
   "web.connectionPlatform.ssh.disconnectDesktop",
 )(function* (bridge: DesktopBridge, target: DesktopSshEnvironmentTarget) {
-  // A disconnect queues behind the running launch and tears its tunnel down,
-  // so a later reconnect must start a launch of its own instead of joining it.
   pendingSshReconnects.delete(sshTargetKey(target));
   yield* Effect.tryPromise({
     try: () => bridge.disconnectSshEnvironment(target),
@@ -324,8 +311,6 @@ export const prepareDesktopSshEnvironment = Effect.fn("web.connectionPlatform.ss
         try: () => ensureSshEnvironmentForReconnect(bridge, input.target),
         catch: sshPreparationError,
       });
-      // Stop without sending the saved token, or pairing, when the forward
-      // reaches a different environment.
       const descriptor = yield* Effect.tryPromise({
         try: () => bridge.fetchSshEnvironmentDescriptor(bootstrap.httpBaseUrl),
         catch: sshPreparationError,
@@ -340,8 +325,6 @@ export const prepareDesktopSshEnvironment = Effect.fn("web.connectionPlatform.ss
         try: () => bridge.fetchSshSessionState(bootstrap.httpBaseUrl, bearerToken),
         catch: sshPreparationError,
       });
-      // Servers never widen a stored grant, so a token from before the standard
-      // scopes grew is replaced by pairing again.
       const granted = session.scopes ?? [];
       if (
         session.authenticated &&
@@ -456,10 +439,6 @@ const loadSecondaryConnectionRegistration = Effect.fn(
     scopes: AuthStandardClientScopes,
     clientMetadata: currentClientMetadata(),
   }).pipe(Effect.mapError(mapRemoteEnvironmentError));
-  // Keep the desktop pool's stable backend id in the connection id. The
-  // descriptor environment id still scopes projects and RPC state, while the
-  // backend id lets desktop-only operations (notably the WSL folder picker)
-  // route back to the instance that owns the environment.
   const connectionId = desktopLocalConnectionId(entry.id);
   const label = entry.label || descriptor.label;
   return {
@@ -483,9 +462,6 @@ const loadSecondaryConnectionRegistration = Effect.fn(
   };
 });
 
-// Poll cadence for the desktop bootstrap topology. There is no change event on
-// the bridge, so the renderer polls; successful registrations are cached by a
-// signature of their endpoint until bearer credentials approach expiry.
 const PLATFORM_POLL_INTERVAL = "3 seconds";
 const SECONDARY_BEARER_REFRESH_SKEW_MS = 5_000;
 
@@ -696,16 +672,9 @@ const layerPlatformConnectionSource = Layer.effect(
         const rejected = yield* Ref.get(rejectedRef);
         const nextRejected = new Map<string, RejectedSecondaryBootstrap>();
         for (const bootstrap of topologyRead.bootstraps) {
-          // The cached bearer belongs to the endpoint, not to the bootstrap
-          // token it was exchanged for: a new token must not drop a live
-          // session (its removal also clears the environment's drafts). The
-          // token only decides whether a rejected exchange is retried.
           const endpointSignature = `${bootstrap.httpBaseUrl}|${bootstrap.wsBaseUrl}`;
           const signature = `${endpointSignature}|${bootstrap.bootstrapToken ?? ""}`;
           const cached = previous.get(bootstrap.id);
-          // A new token from the desktop means something changed (rotation, a
-          // restarted backend): exchange it rather than reusing a bearer that
-          // may be dead. The old bearer stays registered if that exchange fails.
           if (
             cached !== undefined &&
             cached.bootstrapToken === bootstrap.bootstrapToken &&
@@ -740,9 +709,7 @@ const layerPlatformConnectionSource = Layer.effect(
             ),
             Effect.tapError((error) =>
               isRejectedBootstrapCredentialError(error)
-                ? // Back off from when the rejection arrived; the exchanges in
-                  // this poll can take longer than the first backoff step.
-                  Clock.currentTimeMillis.pipe(
+                ? Clock.currentTimeMillis.pipe(
                     Effect.map((rejectedAtEpochMs) =>
                       nextRejected.set(
                         bootstrap.id,
@@ -811,7 +778,6 @@ const layerEnvironmentOwnedDataCleanup = Layer.succeed(
 const layerRpcRequestObserver = Layer.succeed(
   EnvironmentRpcRequestObserver,
   EnvironmentRpcRequestObserver.of({
-    // Every RPC passes through this observer; the request owns its span.
     observe: Effect.fnUntraced(function* ({ environmentId, environmentLabel, method }) {
       return yield* Effect.sync(() => {
         nextObservedRpcRequestId += 1;

@@ -29,8 +29,6 @@ export async function resolveNewDraftWorkspace(
   const project = readProject(projectRef) ?? undefined;
   const serverSettings = serverConfig?.settings ?? DEFAULT_SERVER_SETTINGS;
   const projectSettings = resolveProjectSettings(serverSettings, project?.id ?? null, project);
-  // Environment queries wait for a connection, so reading the project file on an
-  // offline machine would never settle and the draft would never open.
   const projectFile =
     project !== undefined &&
     projectSettings.settings.defaultThreadEnvMode === null &&

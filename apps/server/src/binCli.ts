@@ -67,10 +67,8 @@ export const makeCli = () =>
       updateCommand,
       installCommand,
       uninstallCommand,
-      // bin.ts runs the bare service invocation; this keeps flags and help working like other commands.
       Command.make("__service-launcher").pipe(
         Command.unlisted,
-        // The launcher owns shutdown until its child exits; `runMain` would interrupt that shutdown.
         Command.withHandler(() => Effect.sync(() => void runServiceLauncherCli())),
       ),
       claudeHistoryCommand,
@@ -93,12 +91,10 @@ export function runCli() {
   keepOutboundFetchOnHttp1();
   offerCliInstall({
     args: process.argv.slice(2),
-    // A child started over IPC (a service launcher) has no one to answer.
     interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY) && process.send === undefined,
     foreground: inTerminalForeground,
     confirm: confirmCliInstall,
   }).pipe(
-    // The offer handles its own errors; even an unexpected defect must not stop the command.
     Effect.catchDefect(() => Effect.succeed(true)),
     Effect.flatMap((proceed) =>
       proceed

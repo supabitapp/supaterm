@@ -23,7 +23,6 @@ function request(id: string, environment = environmentId): UploadRequest {
   return { environmentId: environment, attachment: { id, fileUri: `file:///documents/${id}.pdf` } };
 }
 
-/** The registry over a promise-based transfer, as each client wires its own. */
 function createQueue(options: {
   readonly upload: (
     request: UploadRequest,
@@ -237,7 +236,6 @@ describe("attachment upload registry", () => {
       const local = request("video");
       queue.sync([local]);
       yield* Effect.promise(() => started.promise);
-      // Sending hands the attachment from the draft to the outbox, which uploads it too.
       const sent = yield* Effect.forkChild(queue.upload(local), { startImmediately: true });
       queue.sync([]);
       gate.resolve("uploaded-1");

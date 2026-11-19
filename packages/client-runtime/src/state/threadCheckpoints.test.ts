@@ -139,7 +139,6 @@ describe("deriveThreadCheckpointSummaries", () => {
 
   it.each([null, undefined])("does not fall back past a last assistant with ID %s", (id) => {
     const { id: _id, ...withoutId } = message("a", "last");
-    // Preserve the runtime fallback even for legacy objects outside the decoded schema.
     const last = (
       id === undefined ? withoutId : { ...withoutId, id }
     ) as OrchestrationV2ConversationMessage;

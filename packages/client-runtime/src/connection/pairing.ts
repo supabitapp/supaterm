@@ -61,8 +61,6 @@ export const reachPairingServer = Effect.fn("clientRuntime.connection.pairing.re
     const link = new URL(input.httpBaseUrl);
     const securePage =
       typeof globalThis.location !== "undefined" && globalThis.location.protocol === "https:";
-    // A relay or HTTPS link's credential stays off plain HTTP like the token it
-    // mints; relay addresses are always https. Loopback stays open for SSH forwards.
     const plainHttpAllowed = (url: URL) =>
       !securePage && (link.protocol !== "https:" || isLocalLoopbackHost(url.hostname));
     for (const [source, urls] of [

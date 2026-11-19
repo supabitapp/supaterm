@@ -16,10 +16,7 @@ import {
   type TurnDetailMemory,
 } from "./turnDetailAnnouncement";
 
-// Long enough for a screen reader to finish a short label before the next one.
 const ACTIVITY_GAP_MS = 2_000;
-// A polite region queues what it can't say yet, so steps written while a
-// message is still being read would all be heard late. They wait this long.
 const MESSAGE_HOLD_MS_PER_CHARACTER = 50;
 const MESSAGE_HOLD_MAX_MS = 15_000;
 
@@ -30,7 +27,6 @@ function holdAfter(text: string) {
   );
 }
 
-/** One write, since a second write to a region replaces the first before it is heard. */
 function asOneAnnouncement(texts: ReadonlyArray<string>) {
   return texts
     .map((text, index) => (index === texts.length - 1 || /[.!?:…]$/.test(text) ? text : `${text}.`))
@@ -73,7 +69,6 @@ export const ThreadActivityAnnouncer = memo(function ThreadActivityAnnouncer({
     memory: ThreadAnnouncementMemory;
     detail: TurnDetailMemory;
   } | null>(null);
-  // Messages are written at once; a step waits its turn, and a newer one replaces it.
   const stepRef = useRef<{
     quietUntil: number;
     waiting: { label: string; timer: ReturnType<typeof setTimeout> } | null;
@@ -102,7 +97,6 @@ export const ThreadActivityAnnouncer = memo(function ThreadActivityAnnouncer({
     }
     const waitingLabel = takeWaiting();
     if (detailBehind) {
-      // The dropped step counts as unsaid, so it is read once the detail catches up.
       if (waitingLabel !== null && memoryRef.current !== null) {
         const { detail } = memoryRef.current;
         memoryRef.current = { ...memoryRef.current, detail: { ...detail, activity: null } };
@@ -116,7 +110,6 @@ export const ThreadActivityAnnouncer = memo(function ThreadActivityAnnouncer({
       runId,
       runStatus,
     });
-    // A new level starts from what the turn already holds, so raising it mid-turn replays nothing.
     const previousDetail = previous?.level === level ? previous.detail : null;
     const detail = nextTurnDetailAnnouncement(previousDetail, {
       ...(level === "status"
@@ -133,8 +126,6 @@ export const ThreadActivityAnnouncer = memo(function ThreadActivityAnnouncer({
       return;
     }
     if (detail.messages.length > 0) {
-      // NVDA reads two regions written in the same frame in either order, so a
-      // status that lands with a message is read as its last sentence.
       const text = asOneAnnouncement(
         turn.announcement === null ? detail.messages : [...detail.messages, turn.announcement],
       );
@@ -143,7 +134,6 @@ export const ThreadActivityAnnouncer = memo(function ThreadActivityAnnouncer({
       announce(turn.announcement);
       step.quietUntil = Math.max(step.quietUntil, Date.now() + ACTIVITY_GAP_MS);
     }
-    // A waiting label is stale once its step is over or the level no longer reads steps.
     const label =
       level !== "everything" || detail.memory.activity === null
         ? null
@@ -160,7 +150,6 @@ export const ThreadActivityAnnouncer = memo(function ThreadActivityAnnouncer({
     }
     const timer = setTimeout(speakStep, wait);
     step.waiting = { label, timer };
-    // The next run takes the label over; after an unmount nothing is left to speak it.
     return () => clearTimeout(timer);
   }, [
     threadKey,
@@ -178,7 +167,6 @@ export const ThreadActivityAnnouncer = memo(function ThreadActivityAnnouncer({
     clearDetail,
   ]);
 
-  // No role="status": Orca 50 maps it to a status bar in Chromium and drops its updates.
   return (
     <>
       <div ref={detailRegionRef} aria-live="polite" className="sr-only" />

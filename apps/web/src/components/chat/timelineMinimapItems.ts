@@ -46,8 +46,6 @@ export function deriveTimelineMinimapItems(
   return items;
 }
 
-// Reads entries rather than rows because a collapsed turn fold hides the
-// replies before its final one, and those can be pinned too.
 function resolveTurnPins(
   entries: ReadonlyArray<TimelineEntry>,
   pinnedMessages: ReadonlyArray<ThreadPinnedMessage>,
@@ -118,7 +116,6 @@ function markdownNodeText(node: Nodes): string {
   if (!("children" in node)) return "";
   const separator = INLINE_PARENT_TYPES.has(node.type) ? "" : " ";
   const text = node.children.map(markdownNodeText).join(separator);
-  // A thread autolink's only text is its URL.
   return node.type === "link" && parseThreadLinkHref(text) !== null ? "a thread" : text;
 }
 
@@ -140,7 +137,6 @@ export function resolveTimelineMinimapPreview(
     : {
         ...item,
         userText: compactMinimapPreview(item.userText),
-        // The tooltip shows three lines; bound parsing work while long responses stream.
         assistantText: compactMinimapPreview(
           item.assistantText === null
             ? null

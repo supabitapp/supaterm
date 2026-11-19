@@ -36,8 +36,6 @@ export async function checkoutNewTaskBranch<E>(input: {
   }
   if (input.workspaceMode === "worktree") return AsyncResult.success(input.branch);
 
-  // The picked ref's current flag, remote refs' missing worktrees and historical
-  // thread metadata can all be stale, so Git is asked again before choosing.
   const localName = localBranchName(input.branch);
   let cursor: number | undefined;
   for (;;) {
@@ -45,7 +43,6 @@ export async function checkoutNewTaskBranch<E>(input: {
       environmentId: input.project.environmentId,
       input: {
         cwd: input.project.workspaceRoot,
-        // Bound the substring query; compare the full name across every page.
         query: localName.slice(0, VCS_REF_QUERY_MAX_LENGTH),
         refKind: "local",
         ...(cursor === undefined ? { refresh: true } : { cursor }),
@@ -96,7 +93,6 @@ export async function checkoutNewTaskBranch<E>(input: {
   }));
 }
 
-// A remote name can itself contain slashes; prefer the authoritative prefix.
 function localBranchName(branch: VcsRef): string {
   if (!branch.isRemote) return branch.name;
   const prefix = branch.remoteName ? `${branch.remoteName}/` : null;

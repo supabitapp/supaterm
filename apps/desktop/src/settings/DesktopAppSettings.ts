@@ -39,7 +39,6 @@ export interface DesktopSettings {
   readonly updateChannelConfiguredByUser: boolean;
   readonly wslBackendEnabled: boolean;
   readonly wslDistro: string | null;
-  // Requires restart because the pool chooses its primary spec at layer initialization.
   readonly wslOnly: boolean;
 }
 
@@ -49,9 +48,6 @@ export interface DesktopSettingsChange {
 }
 
 const DEFAULT_TAILSCALE_SERVE_PORT = 443;
-// Fits half and third tiles of common scaled displays (down to 480x432 DIP) on
-// Wayland, where Electron's client-side frame adds 32x42 DIP to the enforced
-// minimum. The web layout already handles phone widths.
 export const MIN_MAIN_WINDOW_SIZE = {
   width: 400,
   height: 360,
@@ -90,8 +86,6 @@ const DesktopWindowBoundsDocument = Schema.Struct({
   height: Schema.Number,
 });
 
-// A value this build cannot read drops only its own key, so the rest of the file
-// still loads and is written back instead of every setting resetting to defaults.
 const optionalReadableKey = <S extends Schema.Top>(schema: S) =>
   Schema.optionalKey(schema.pipe(Schema.catchDecoding(() => Effect.succeedNone)));
 
@@ -379,7 +373,6 @@ function applyWslWindowsFallback(settings: DesktopSettings): DesktopSettings {
   return setWslOnly(setWslBackendEnabled(settings, false), false);
 }
 
-// Fails only when the file may exist but could not be read; a missing file means defaults.
 function readSettings(
   fileSystem: FileSystem.FileSystem,
   settingsPath: string,
@@ -481,7 +474,6 @@ export const make = Effect.gen(function* () {
   const path = yield* Path.Path;
   const random = yield* SecureRandom.SecureRandom;
   const settingsRef = yield* SynchronizedRef.make(environment.defaultDesktopSettings);
-  // Writing over a settings file we could not read would erase the preferences it holds.
   const persistenceEnabled = yield* Ref.make(true);
 
   const updateInMemory = (update: (settings: DesktopSettings) => DesktopSettings) =>

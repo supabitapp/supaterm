@@ -84,7 +84,6 @@ function isGroupingSelection(value: unknown): value is SidebarProjectGroupingMod
   );
 }
 
-// Grouping overrides are client settings, so they stay editable without project write access.
 function CheckoutGroupingSelect({ member }: { member: SidebarProjectGroupMember }) {
   const overrideKey = derivePhysicalProjectKey(member);
   const globalMode = useClientSettings((settings) => settings.sidebarProjectGroupingMode);
@@ -189,7 +188,6 @@ export function ProjectSettingsPanel({
         (checkoutKey === null || member.physicalProjectKey === checkoutKey),
     ) ?? [];
 
-  // Retain group members so grouping-rule changes can follow the project to its new group.
   const [lastSelection, setLastSelection] = useState<ProjectSelection | null>(null);
   if (selected && members.length > 0) {
     const current: ProjectSelection = {
@@ -261,7 +259,6 @@ function ProjectDetail({
   hasOtherMembers,
 }: {
   group: SidebarProjectSnapshot;
-  /** Pin and archive belong to the whole project, even when one machine is picked. */
   allMembers: ReadonlyArray<SidebarProjectGroupMember>;
   hasOtherMembers: boolean;
 }) {
@@ -430,8 +427,6 @@ function ProjectDetail({
     if (members) members.push(member);
     else checkoutsByEnvironment.set(member.environmentId, [member]);
   }
-  // A lone checkout is removed from the Danger section, but it still needs its grouping
-  // rule here so "Keep separate" can be undone.
   const checkoutControls = (member: SidebarProjectGroupMember) => (
     <div className="flex w-full min-w-0 items-center gap-2 @min-[32rem]/settings-row:w-auto">
       <div className="min-w-0 flex-1 @min-[32rem]/settings-row:w-72 @min-[32rem]/settings-row:flex-none">

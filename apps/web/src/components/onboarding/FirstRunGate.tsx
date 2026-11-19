@@ -27,8 +27,6 @@ import { environmentShell } from "../../state/shell";
 import { environmentThreadShells } from "../../state/threads";
 import { Button } from "../ui/button";
 
-/** Pending blocks all rendering, including EventRouter welcome navigation. */
-
 const FIRST_RUN_DECISION_TIMEOUT_MS = 4_000;
 
 const primaryShellLiveAtom = Atom.make((get) => {
@@ -54,8 +52,6 @@ const workspaceEvidenceLiveAtom = Atom.make((get) => {
   return true;
 }).pipe(Atom.withLabel("web-onboarding-workspace-evidence-live"));
 
-// Subscribe only to thread count and the sole thread so populated-workspace shell updates cannot rerender the
-// app root.
 const threadCountAtom = Atom.make(
   (get) => get(environmentThreadShells.threadShellsAtom).length,
 ).pipe(Atom.withLabel("web-onboarding-thread-count"));
@@ -97,7 +93,6 @@ export function FirstRunGate({
   }));
   const { decision, stalled } = gateState;
   const settingsReadFailed = hydrationStatus === "failed" || hydrationStatus === "retrying";
-  // The server's sole cwd-bootstrap project/thread still counts as fresh so npx supaterm users see onboarding.
   const serverCwd = serverConfig?.cwd ?? null;
   const primaryEnvironmentId = serverConfig?.environment.environmentId ?? null;
   const workspaceFresh =

@@ -48,10 +48,6 @@ function failureMessage(result: Parameters<typeof squashAtomCommandFailure>[0]):
   return error instanceof Error ? error.message : "An error occurred.";
 }
 
-/**
- * Resolves when the clone finishes, or null once it is removed. A failed or
- * cancelled clone keeps waiting, since the composer offers a retry.
- */
 function waitForClone(environmentId: EnvironmentId, projectId: ProjectId) {
   return new Promise<ProjectCloneSnapshot | null>((resolve) => {
     const atom = environmentProjectClonesAtom(environmentId);
@@ -77,7 +73,6 @@ export type ProjectFileCopy =
   | { readonly phase: "copying" }
   | { readonly phase: "failed"; readonly title: string; readonly failures: ReadonlyArray<string> };
 
-/** Ignored-file copies still owed to a cloned project, keyed by its scoped project key. */
 const useFileCopies = create<{ copies: Readonly<Record<string, ProjectFileCopy>> }>(() => ({
   copies: {},
 }));
@@ -104,7 +99,6 @@ export function dismissProjectFileCopy(ref: ScopedProjectRef) {
  * caller opens it, and its composer shows progress, so nothing toasts.
  */
 export async function addProjectToMachine(input: AddProjectToMachineInput): Promise<ProjectId> {
-  // Read first, so the copy reflects the files as they were when the user asked.
   const reads = await Promise.all(
     input.files.map(async (relativePath) => {
       const result = await executeAtomQuery(
@@ -123,7 +117,6 @@ export async function addProjectToMachine(input: AddProjectToMachineInput): Prom
 
   const requestedRef = { environmentId: input.target.environmentId, projectId: input.projectId };
   const requestedKey = scopedProjectKey(requestedRef);
-  // Marked before the start request, since the clone list can arrive before its reply.
   silenceProjectCloneToasts(requestedRef);
   if (reads.length > 0) setFileCopy(requestedKey, { phase: "copying" });
   const started = await runAtomCommand(
@@ -145,7 +138,6 @@ export async function addProjectToMachine(input: AddProjectToMachineInput): Prom
     setFileCopy(requestedKey, null);
     throw new Error(failureMessage(started));
   }
-  // The server clones for the existing project when one already owns the empty destination.
   const { projectId } = started.value;
   const targetRef = { environmentId: input.target.environmentId, projectId };
   const copyKey = scopedProjectKey(targetRef);

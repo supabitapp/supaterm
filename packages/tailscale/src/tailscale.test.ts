@@ -46,8 +46,6 @@ function assertCarriesNoSecret(error: object, secret: string): void {
       value.forEach((entry, index) => walk(entry, `${path}[${String(index)}]`));
       return;
     }
-    // `message` and `cause` are getters on Error subclasses, so they are not
-    // own enumerable properties and Object.entries alone would skip them.
     walk((value as { message?: unknown }).message, `${path}.message`);
     walk((value as { cause?: unknown }).cause, `${path}.cause`);
     for (const [key, nested] of Object.entries(value)) {
@@ -75,8 +73,6 @@ function mockHandle(result: { stdout?: string; stderr?: string; code?: number })
   });
 }
 
-// The executable name depends on the host platform (`tailscale.exe` on
-// Windows), so pin it: these tests assert the posix spelling.
 function layerSpawner(spawner: ChildProcessSpawner.ChildProcessSpawner["Service"]) {
   return Layer.merge(
     Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, spawner),
@@ -171,24 +167,19 @@ describe("tailscale", () => {
         "box.tailnet.ts.net:8443": { Handlers: { "/": { Proxy: "http://127.0.0.1:5173" } } },
         "box.tailnet.ts.net:10000": {
           Handlers: {
-            // Another service on another loopback address, and one on the other family.
             "/a": { Proxy: "http://127.0.0.2:3773" },
             "/b": { Proxy: "http://[::1]:3773" },
             "/c": { Proxy: "http://192.168.1.5:3773" },
             "/d": { Proxy: "http://0.0.0.0:3773" },
             "/e": { Proxy: "http://[::ffff:127.0.0.1]:3773" },
             "/f": { Proxy: "http://localhost:3773" },
-            // Shorthand Tailscale expands when it proxies.
             "/g": { Proxy: "3773" },
             "/h": { Proxy: "localhost:3773" },
             "/i": { Proxy: "http://[::]:3773" },
-            // A name can resolve to any address, the bound one included.
             "/j": { Proxy: "http://ip6-localhost:3773" },
-            // Go resolves these as names; a WHATWG URL rejects the first and rewrites the second.
             "/k": { Proxy: "http://box.1:3773" },
             "/l": { Proxy: "http://127.1:3773" },
             "/m": { Proxy: "unix:/run/app.sock" },
-            // Credentials before the host, and IPv6 written out in full, still dial here.
             "/n": { Proxy: "http://user:pass@127.0.0.1:3773" },
             "/o": { Proxy: "http://[0:0:0:0:0:ffff:7f00:1]:3773" },
             "/p": { Proxy: "http://127.0.0.1:03773" },
@@ -211,7 +202,6 @@ describe("tailscale", () => {
     assert.deepEqual(parseTailscaleServeRoutesTo(status, { host: "127.0.0.1", port: 3773 }), [
       { servePort: 7000 },
       { servePort: 443, mount: "/supaterm", host: "box.tailnet.ts.net" },
-      // `localhost` and `[::]` can dial either loopback, so they might be another service's.
       ...(
         [
           ["/d", undefined],
@@ -327,10 +317,6 @@ describe("tailscale", () => {
   });
 
   it.effect("turns spawn defects into typed spawn failures", () => {
-    // A non-directory entry on PATH makes node's spawn throw ENOTDIR
-    // synchronously. The platform spawner calls `NodeChildProcess.spawn` from
-    // inside an `Effect.callback` registration, so that throw arrives as a
-    // defect rather than a typed error - the shape reproduced here.
     const defect = Object.assign(new Error("spawn tailscale ENOTDIR"), { code: "ENOTDIR" });
     const layer = layerSpawner(
       ChildProcessSpawner.make(() =>
@@ -387,7 +373,6 @@ describe("tailscale", () => {
     });
   });
 
-  // regression: #34736 - a full stdout pipe blocks the child before it exits.
   it.effect("drains serve stdout so a long success summary does not time out", () =>
     Effect.gen(function* () {
       const stdoutDrained = yield* Deferred.make<void>();
@@ -426,8 +411,6 @@ describe("tailscale", () => {
     }),
   );
 
-  // regression: #35510 - without the https capability `tailscale serve` prints an
-  // enablement notice, writes no Serve config, and still exits 0.
   it.effect("fails serve when the tailnet has not enabled HTTPS", () => {
     const layer = layerMockSpawner((_command, args) => {
       if (args[0] === "status") {
@@ -449,8 +432,6 @@ describe("tailscale", () => {
     });
   });
 
-  // regression: #21609 - without forceKillAfter a timed-out probe only gets
-  // SIGTERM, so a group member that ignores it outlives the call.
   it.effect("escalates timed-out probes to SIGKILL", () => {
     const killGraces: Array<number | undefined> = [];
     const layer = layerSpawner(

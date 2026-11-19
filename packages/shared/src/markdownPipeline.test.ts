@@ -208,7 +208,6 @@ it("ends bare URLs at CJK and Arabic punctuation with source positions", () => {
       },
     ],
   });
-  // Markup the URL swallowed comes back once the URL ends.
   expect(parse(`打开 ${url}，然后运行\`pnpm dev\``)).toMatchObject({
     children: [
       {
@@ -221,7 +220,6 @@ it("ends bare URLs at CJK and Arabic punctuation with source positions", () => {
       },
     ],
   });
-  // Every URL in one paragraph ends at its mark, with positions on its own line.
   const lines = Array.from({ length: 300 }, (_, index) => `接口：http://localhost:${index}，`);
   const [paragraph] = (parse(lines.join("\n")) as Root).children;
   const links =
@@ -235,7 +233,6 @@ it("ends bare URLs at CJK and Arabic punctuation with source positions", () => {
   expect(links.at(-1)).toMatchObject({
     position: { start: at(300, 4, lastLine + 3), end: at(300, 24, lastLine + 23) },
   });
-  // Only a table unescapes `\|` in code, so that cell keeps its parse and the URL is cut.
   const descendants = (node: Root | RootContent): RootContent[] =>
     "children" in node
       ? (node.children as RootContent[]).flatMap((child) => [child, ...descendants(child)])
@@ -245,13 +242,11 @@ it("ends bare URLs at CJK and Arabic punctuation with source positions", () => {
     "http://example.com",
   ]);
   expect(cell.flatMap((node) => (node.type === "inlineCode" ? [node.value] : []))).toEqual(["a|b"]);
-  // A task item's checkbox is not part of its paragraph's text.
   const task = descendants(parse("- [x] http://example.com，刷新") as Root);
   expect(task.flatMap((node) => (node.type === "text" ? [node.value] : []))).toEqual([
     "http://example.com",
     "，刷新",
   ]);
-  // A list item's indentation stays out of a code span that crosses lines.
   const code = descendants(parse("- `echo\n  hello` http://example.com，结束") as Root);
   expect(code.flatMap((node) => (node.type === "link" ? [node.url] : []))).toEqual([
     "http://example.com",
@@ -259,7 +254,6 @@ it("ends bare URLs at CJK and Arabic punctuation with source positions", () => {
   expect(code.flatMap((node) => (node.type === "inlineCode" ? [node.value] : []))).toEqual([
     "echo\nhello",
   ]);
-  // A list item's continuation line parses the same on its own.
   expect(parse(`- 第一行\n  **${url}**（已重启）`)).toMatchObject({
     children: [
       {
@@ -279,7 +273,6 @@ it("ends bare URLs at CJK and Arabic punctuation with source positions", () => {
       },
     ],
   });
-  // A quote's continuation line does not, so the URL ends and the asterisks stay as text.
   expect(parse(`> 第一行\n> **${url}**（已重启）`)).toMatchObject({
     children: [
       {
@@ -448,7 +441,6 @@ it("builds the tree rehype-raw builds for markdown without HTML", () => {
     data?: unknown;
     children?: Node[];
   };
-  // What the round trip changes that renders the same; see `needsHtmlParser`.
   const comparable = (node: Node): Node => {
     const { position, children, data, ...rest } = node;
     const result: Node =
@@ -460,7 +452,6 @@ it("builds the tree rehype-raw builds for markdown without HTML", () => {
       if (child.type === "text" && last?.type === "text") last.value += child.value ?? "";
       else merged.push(child);
     }
-    // Blank text inside a table moves in front of it; the JSX runtime drops it in tables.
     const inTable = /^(?:table|thead|tbody|tfoot|tr)$/.test(node.tagName ?? "");
     result.children = merged.filter(
       (child, index) =>
@@ -483,7 +474,6 @@ it("builds the tree rehype-raw builds for markdown without HTML", () => {
   for (const markdown of [
     "- [ ] open\n- [x] done\n\nNote[^1]\n\n[^1]: The note.",
     "| a | b |\n| :- | -: |\n| `c` | ![d](./d.png) |\n\n```ts title=x\nconst a = 1;\n```",
-    // The HTML parser moves the footnote's link out of the label's link.
     "[note[^x]](https://example.com)\n\n[^x]: text",
     "**a** **b**\r\n> - | a |\r\n>   | - |\r\n>   | b |\r\n\n-\tx\n\n  y",
   ]) {

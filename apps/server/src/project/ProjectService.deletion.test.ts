@@ -347,7 +347,6 @@ it.effect.each([
         const liveProjectId = ProjectId.make("project:still-live");
         const missingProjectId = ProjectId.make("project:missing");
         yield* seedProject(liveProjectId);
-        // Older deletions or interrupted best-effort cleanup can leave the original overrides on restart.
         yield* serverSettings.updateSettings({
           projectSettingsOverrides: {
             [projectId]: {

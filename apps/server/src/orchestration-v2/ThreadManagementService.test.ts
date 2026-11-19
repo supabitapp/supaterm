@@ -60,7 +60,6 @@ it("stamps authoritative provenance on commands that create threads or messages"
     interactionMode: "default",
     branch: null,
     worktreePath: null,
-    // A client's message goes through intake; only the server folds one into the creation.
     initialMessage: {
       messageId: MessageId.make("message:thread-management:forged"),
       text: "Forged",
@@ -281,7 +280,6 @@ it.effect.each([
         creationSource: "mcp",
       }),
     );
-    // The mock records no message, so a dispatched send ends in the projection read.
     expect(error._tag).toBe(
       running
         ? "ThreadManagementDurableRunProjectionError"
@@ -379,7 +377,6 @@ it.effect("waitForThread can wait past an ended run for the thread's delegated w
         startedAt: at(end - 1),
         completedAt: status === "running" ? null : at(end),
       }) as unknown as OrchestrationV2Run;
-    // The run ended, but a task it delegated still runs and will wake the thread.
     let runs = [run(runId, 1, "completed", 1)];
     let subagents = [{ status: "running" }];
     const stored = (sequence: number, event: object) =>
@@ -417,7 +414,6 @@ it.effect("waitForThread can wait past an ended run for the thread's delegated w
     const service = yield* ThreadManagementService.ThreadManagementService.pipe(
       Effect.provide(layerTest),
     );
-    // Without the option, the ended run is the answer, as before.
     expect(
       yield* service.waitForThread({ projectId, threadId, runId, timeoutMs: 60 * 60 * 1_000 }),
     ).toMatchObject({ timedOut: false, run: { id: runId } });
@@ -434,9 +430,7 @@ it.effect("waitForThread can wait past an ended run for the thread's delegated w
         untilDelegatedWorkSettled: true,
       })
       .pipe(Effect.forkChild);
-    // A wait that returns early fails below instead of hanging here.
     yield* Effect.raceFirst(Deferred.await(subscribed), Fiber.await(fiber));
-    // The task finishes; its delivery wakes the thread, whose next run answers.
     subagents = [{ status: "completed" }];
     runs = [...runs, run(wakeRunId, 2, "completed", 3)];
     yield* Queue.offer(events, stored(1, { type: "subagent.updated", payload: {} }));
@@ -495,7 +489,6 @@ it.effect("waitForThread settles delegated work on a thread rolled back past its
         untilDelegatedWorkSettled: true,
       })
       .pipe(Effect.forkChild);
-    // Nothing will ever run there again, so a wait still open runs out here.
     yield* TestClock.adjust(Duration.millis(60_000));
     const result = yield* Fiber.join(fiber);
 
@@ -729,7 +722,6 @@ it.effect.each([
   { status: "completed" as const, followUp: "held-notification", marksDone: true },
   { status: "completed" as const, followUp: "user", marksDone: false },
   { status: "completed" as const, followUp: "steered-notification", marksDone: false },
-  // Send now cancels the queued run; its message joins the run that asked to mark the thread done.
   { status: "completed" as const, followUp: "promoted-to-steer", marksDone: true },
 ])("markDoneAfterRun handles $status with $followUp follow-up", ({ status, followUp, marksDone }) =>
   Effect.gen(function* () {
@@ -751,7 +743,6 @@ it.effect.each([
       userMessageId: MessageId.make("follow-up"),
     };
     const dispatched: Array<string> = [];
-    // The notification starts after the completed run was observed, before marking done commits.
     let raced = false;
     const layerTest = ThreadManagementService.layer.pipe(
       Layer.provide(Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({})),
@@ -951,7 +942,6 @@ it.effect.each([
                   status: "settledRun" in row ? "completed" : "running",
                   activeAttemptId: "attempt",
                 },
-                // A queued follow-up neither supersedes the request nor becomes the target.
                 { id: RunId.make("run:queued-follow-up"), ordinal: 2, status: "queued" },
               ],
               providerThreads: [{ id: providerThreadId, appThreadId: threadId, providerSessionId }],

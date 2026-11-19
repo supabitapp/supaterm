@@ -128,8 +128,6 @@ export const COMPOSER_COLLAPSED_CHROME = 60;
 
 const INLINE_EDITOR_HEIGHT = 36;
 const COLLAPSED_EDITOR_DEFAULT_INSET = 6;
-// iOS puts line-height slack above glyphs. DM Sans's lowercase midline is
-// descender (0.31em) + half x-height (0.504em) above the line bottom.
 const LOWERCASE_MIDLINE_EM = 0.562;
 
 function lowercaseMidline(text: ScaledTextRole): number {
@@ -190,7 +188,6 @@ export interface ThreadComposerProps {
   readonly onRemoveDraftImage: (imageId: string) => void;
   readonly onStopThread: () => void;
   readonly onResumeQueue: (() => Promise<void>) | null;
-  /** `stillSendable` reports whether the draft is unchanged after any wait before sending. */
   /** Queues a recording from an empty draft as the message, for the environment to transcribe. */
   readonly onSendVoiceMessage?: (
     recordingUri: string,
@@ -283,10 +280,6 @@ function SendActionButton(props: {
   );
 }
 
-/**
- * The pill / card container — renders with Expo's native GlassView on supported
- * iOS 26+ devices, with a frosted blur fallback where supported.
- */
 function ComposerSurface(props: {
   readonly children: ReactNode;
   readonly style: ViewStyle;
@@ -310,12 +303,8 @@ function ComposerSurface(props: {
   }));
   const layoutTransition = shouldAnimate ? COMPOSER_LAYOUT_TRANSITION : undefined;
 
-  // Each native frame follows the same transition. Animating only the outer
-  // clip leaves the glass and content at their final height on the first frame.
   return (
     <Animated.View
-      // A shadow on this clipping view moves its children into a separate native container,
-      // so toggling one would detach the editor and drop its focus.
       className={
         Platform.OS === "android"
           ? undefined
@@ -380,7 +369,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     onPresent: () => {
       if (settingsRoutePresentedRef.current) return;
       settingsRoutePresentedRef.current = true;
-      // The draft composer edits the new-task flow, which owns its own settings route.
       navigation.dispatch(
         props.isDraft
           ? StackActions.push("NewTaskThreadSettings")
@@ -487,7 +475,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const draftRunsLocally = composerRunsDraftLocally({
     text: draftMessage,
     holdsOnlyText: draftAttachments.length === 0,
-    // A side-chat command starts a side chat; it never queues or steers the running turn.
     sideChat: sideChat.disabledReason === null,
     usageLimits: usageLimitsOffered,
     codexFeedback: selectedProviderStatus?.driver === "codex",
@@ -582,7 +569,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const isVoiceInputPresented = voicePresentation.statusLabel !== null;
   const isExpanded =
     !voiceInput.isBusy && (isFocused || settingsSheetPresentation.keepsComposerExpanded);
-  // iPad workspace navigation is taller, so the collapsed row's controls grow to match.
   const sidebarWorkspaceTabs = useSidebarWorkspaceTabs();
   const deviceType = useDeviceType();
   const usesLargeControls = sidebarWorkspaceTabs === "picker" || deviceType === "pad";
@@ -627,7 +613,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       : null;
   const isCommandMenuOpen = commandMenuTrigger !== null;
   const { onCommandMenuOpenChange } = props;
-  // Report closed on unmount too, so the host never keeps its chrome hidden.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports the command menu open to the host and closed again on close or unmount
   useEffect(() => {
     if (!isCommandMenuOpen) return;
@@ -763,8 +748,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the native stack's finishTransitioning event to restore the keyboard after a sheet dismisses
   useEffect(
     () =>
-      // UIKit's completion callback for the sheet dismissal, surfaced by the
-      // native-stack patch. This is when the queued keyboard restore runs.
       (navigation as unknown as NavigationWithFinishTransitioning).addListener(
         "finishTransitioning",
         settingsSheetPresentation.onStackTransitionsFinished,
@@ -841,9 +824,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
           Platform.OS === "android" ? themeColorWithAlpha(composerPanel, 1) : undefined,
       }}
     >
-      {/* The backdrop gradient lives on a plain View: Reanimated's Animated.View
-          silently drops experimental_backgroundImage on Android, which left this
-          strip fully transparent and the feed text legible through the composer. */}
       <View
         className={
           Platform.OS === "android"
@@ -1002,7 +982,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                 ref={inputRef}
                 multiline
                 value={draftMessage}
-                // The save uses a draft snapshot; further typing would be discarded on success.
                 readOnly={isSubmissionLocked}
                 skills={composerMenu.skills}
                 selection={composerMenu.selection}
@@ -1110,7 +1089,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                         paddingVertical: 4,
                       }
                     : {
-                        // Large text sizes need room for one full line plus the iOS inset.
                         height: Math.max(
                           INLINE_EDITOR_HEIGHT,
                           Math.ceil(bodyText.lineHeight) +

@@ -6,7 +6,6 @@ export function resolveProtocolRelativeMediaUrl(src: string): string {
   return `${protocol}${src}`;
 }
 
-// Data URL escapes are raw bytes, not UTF-8, so `%89` must stay one byte.
 function decodePercentBytes(payload: string) {
   const encoder = new TextEncoder();
   return Uint8Array.from(
@@ -20,9 +19,7 @@ function decodePercentBytes(payload: string) {
   );
 }
 
-/** Decodes inline media locally; desktop connect-src omits `data:`, so fetch() cannot read it. */
 function readDataUrlBlob(src: string): Blob {
-  // A fragment is never part of the payload; a literal `#` in data must be escaped as `%23`.
   const url = src.split("#", 1)[0] ?? src;
   const comma = url.indexOf(",");
   const [mimeType = "", ...parameters] = url.slice("data:".length, comma).split(";");
@@ -30,7 +27,6 @@ function readDataUrlBlob(src: string): Blob {
   try {
     if (comma < 0) throw new Error("Missing data URL payload.");
     const isBase64 = parameters.some((parameter) => parameter.trim().toLowerCase() === "base64");
-    // Base64 text is ASCII, so any escape that is not valid UTF-8 is malformed anyway.
     const bytes = isBase64
       ? Uint8Array.from(atob(decodeURIComponent(payload)), (char) => char.charCodeAt(0))
       : decodePercentBytes(payload);
@@ -43,7 +39,6 @@ function readDataUrlBlob(src: string): Blob {
 async function fetchMediaBlob(src: string): Promise<Blob> {
   const response = await fetch(src).catch(() => null);
   if (response?.ok) return response.blob();
-  // An <img> can show media that fetch() may not read (CORS, CSP, cookies); desktop reads it natively.
   const desktop = typeof window === "undefined" ? undefined : window.desktopBridge;
   const native =
     desktop && /^https?:/i.test(src) ? await desktop.readMedia(src).catch(() => null) : null;
@@ -118,7 +113,6 @@ export async function readMediaPng(src: string): Promise<Blob> {
           "image/png",
         );
       } catch (cause) {
-        // SVG with HTML inside foreignObject, such as typeset diagram labels, taints the canvas.
         reject(new Error("This image cannot be copied. Try saving it instead.", { cause }));
       }
     });

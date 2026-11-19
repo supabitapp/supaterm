@@ -178,7 +178,6 @@ const makeHarness = Effect.fn("TestEnvironmentRegistry.makeHarness")(function* (
     readonly setRoutes?: Persistence.ConnectionRegistrationStore["Service"]["setRoutes"];
     readonly checkRoute?: (route: ConnectionRoute) => RouteCheck;
     readonly prepareRoute?: (target: ConnectionTarget) => ConnectionBlockedError | undefined;
-    /** Runs before preparing a connection; may suspend to hold an attempt in flight. */
     readonly beforePrepareRoute?: (
       target: ConnectionTarget,
     ) => Effect.Effect<ConnectionBlockedError | undefined>;
@@ -787,7 +786,6 @@ describe("EnvironmentRegistry", () => {
           httpBaseUrl: "https://alternate.example.test/",
           wsBaseUrl: "wss://alternate.example.test/",
         });
-        // A LAN route outranks the public alternate, so registering the alternate leaves it unused.
         const harness = yield* makeHarness(
           [BEARER_TARGET],
           [LAN_BEARER_PROFILE],
@@ -1681,9 +1679,6 @@ describe("EnvironmentRegistry", () => {
     }),
   );
 
-  // The desktop rotates the bootstrap token, so the renderer exchanges it again
-  // and the server revokes the old bearer while the socket stays open. HTTP
-  // reads such as the session's scopes must move to the new bearer.
   it.effect("a replaced platform bearer reaches a connected session's HTTP requests", () =>
     Effect.gen(function* () {
       let failCredentialWrites = false;

@@ -22,7 +22,6 @@ export function NativeColumnContent(props: {
   const shared = use(WorkspaceColumnMetricsContext);
   const [measured, setMeasured] = useState<NativeLayoutMetrics | null>(null);
   const onMetrics = (next: NativeLayoutMetrics) => {
-    // A hidden tab's insets lack the bars UIKit lays out only for the selected tab.
     if (tabActivity && !tabActivity.isActive()) return;
     setMeasured(next);
     if (props.column !== undefined) shared?.publish(props.column, next);
@@ -41,7 +40,6 @@ export function NativeColumnContent(props: {
           edges={props.insetHorizontally === false ? [] : ["left", "right"]}
           style={{ flex: 1 }}
         >
-          {/* Observe the inset body. UIKit can reserve other columns in its safe area. */}
           <View style={{ flex: 1 }}>
             <NativeLayoutObserver onChange={onMetrics} />
             <NativeColumnLayoutMetricsContext value={metrics}>

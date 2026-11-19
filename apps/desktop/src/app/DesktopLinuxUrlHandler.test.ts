@@ -440,7 +440,6 @@ describe("DesktopLinuxUrlHandler", () => {
                   nodeExecutable,
                   [
                     "-e",
-                    // The watchdog makes the unfixed case exit with a distinguishable code.
                     "process.on('SIGTERM', () => setTimeout(() => process.exit(99), 5000));" +
                       "process.stdout.write('ready\\n'); setInterval(() => {}, 2147483647);",
                   ],

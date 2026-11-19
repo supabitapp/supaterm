@@ -68,10 +68,6 @@ const DRIVER_OPTIONS = providerClients.definitions.filter(
 const FEATURED_DRIVER_OPTIONS = DRIVER_OPTIONS.filter((option) => option.featured !== false);
 const MORE_DRIVER_OPTIONS = DRIVER_OPTIONS.filter((option) => option.featured === false);
 const EMPTY_CONFIG_DRAFT: Record<string, unknown> = {};
-/**
- * Validate an instance id against the same slug rules the server applies in
- * `ProviderInstanceId` (see `packages/contracts/src/providerInstance.ts`).
- */
 function validateInstanceId(id: string, existing: ReadonlySet<string>): string | null {
   if (id.length === 0) return "Instance ID is required.";
   if (id.length > 64) return "Instance ID must be 64 characters or fewer.";
@@ -184,7 +180,6 @@ export function AddProviderInstanceDialog({
     !addingChatGptAccount &&
     wizardStep === 0 &&
     !(isAcpRegistry && isManualAcpConfiguration);
-  // Searches while Show more is closed, so the fold opens on results.
   const registry = useAcpRegistrySearch(environmentId, showRegistrySearch);
   const isPreparingRegistryAgent = registry.preparingId !== null;
   const defaultIdentity: ProviderIdentityDraft = {
@@ -473,7 +468,6 @@ export function AddProviderInstanceDialog({
                       />
                     </CollapsibleTrigger>
                   </div>
-                  {/* WizardPanel already animates its height, so the fold opens without its own. */}
                   <CollapsiblePanel animate={false}>
                     <div className="space-y-4 pt-4">
                       <ProviderOptionGrid

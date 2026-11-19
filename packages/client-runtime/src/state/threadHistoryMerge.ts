@@ -49,9 +49,6 @@ function renumberVisible(
   return rows.map((row, position) => (row.position === position ? row : { ...row, position }));
 }
 
-// A page is a contiguous history range, so current rows before its first
-// visible row are older than the page start and new page rows sit just
-// before the next row both lists share.
 function interleavePage(
   current: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
   page: ReadonlyArray<OrchestrationV2ProjectedTurnItem>,
@@ -123,8 +120,6 @@ export function mergeOlderHistoryIntoProjection(
     ) {
       const currentItem = turnItemById.get(String(row.sourceItemId));
 
-      // Snapshots keep some rows outside their window, such as interrupt requests
-      // and running background work. A stored row stays out only if it is hidden.
       if (currentItem !== undefined) {
         if (
           !isOrchestrationV2TurnItemVisible({

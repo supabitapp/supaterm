@@ -250,10 +250,6 @@ process.once("SIGTERM", () => {
 process.once("SIGHUP", () => {
   void shutdown(129);
 });
-// A parent killed without forwarding a signal leaves us reparented (to a subreaper on Linux, not
-// necessarily PID 1), and nothing else would ever stop the restart loop. This only notices the
-// death of our direct parent, so vite.config.ts launches us without a shell in between. Windows
-// never reparents, and reading process.ppid there snapshots the process table.
 if (hostPlatform !== "win32") {
   setInterval(() => {
     if (process.ppid !== parentPid) {

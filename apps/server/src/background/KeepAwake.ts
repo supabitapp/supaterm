@@ -14,10 +14,8 @@ import * as OrchestrationEventStore from "../persistence/OrchestrationEventStore
 import { forkParked } from "../serverActivation.ts";
 import * as Settings from "../serverSettings.ts";
 
-// Bridges gaps between back-to-back runs, so a long-idle machine does not sleep mid-queue.
 const RELEASE_GRACE = Duration.seconds(60);
 
-/** Each command holds its inhibitor until it exits, and exits on its own if the server dies. */
 function inhibitorCommand(
   platform: NodeJS.Platform,
   serverPid: number,
@@ -46,7 +44,6 @@ function inhibitorCommand(
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          // ES_CONTINUOUS | ES_SYSTEM_REQUIRED, held by this thread until Wait-Process returns.
           `$t = Add-Type -Name Power -Namespace Supaterm -PassThru -MemberDefinition '[DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint f);'; [void]$t::SetThreadExecutionState([uint32]2147483649); Wait-Process -Id ${serverPid}`,
         ],
       };
@@ -74,8 +71,6 @@ export const holdWhileWanted = <E, R>(
     Stream.runDrain,
   );
 
-// Reads, the event subscription and the inhibitor retry until they succeed; the cap keeps a
-// host without an inhibitor (e.g. no logind) from retrying and warning constantly.
 const backoff = Schedule.exponential("5 seconds").pipe(
   Schedule.modifyDelay(({ duration }) =>
     Effect.succeed(Duration.min(duration, Duration.minutes(10))),
@@ -112,7 +107,6 @@ export const layer = Layer.effectDiscard(
       Effect.map((rows) => rows[0]?.active === 1),
       retryWithBackoff("keep-awake could not read active runs"),
     );
-    // Read the cursor before the snapshot so a run changing in between is replayed, not missed.
     const active = Stream.unwrap(
       events.latestApplicationSequence.pipe(
         retryWithBackoff("keep-awake could not read the event cursor"),
@@ -133,7 +127,6 @@ export const layer = Layer.effectDiscard(
       ),
     ).pipe(
       Stream.mapEffect(() => hasActiveRun),
-      // A failed subscription resubscribes, which re-reads the cursor and the snapshot.
       Stream.tapCause((cause) =>
         Effect.logWarning("keep-awake run event stream failed", { cause }),
       ),

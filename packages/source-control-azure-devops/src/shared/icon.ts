@@ -1,6 +1,5 @@
 import type { SourceControlIcon } from "@supaterm/source-control-core/shared/definition";
 
-// Microsoft Azure DevOps mark via selfhst/icons (CC BY 4.0): https://github.com/selfhst/icons/blob/main/svg/azure-devops.svg
 export const icon: SourceControlIcon = {
   viewBox: "0 0 512 512",
   gradients: [

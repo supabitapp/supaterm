@@ -168,7 +168,6 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
       return;
     }
 
-    // Close a sheet so the thread shows the action's progress.
     if (!isInspector) navigation.goBack();
     else closeInspectorSheet?.();
     await gitActions.onRunSelectedThreadGitAction(input);
@@ -220,7 +219,6 @@ function GitOverviewSheetContent(props: GitOverviewSheetProps) {
 
   const behindCount = gitStatus.data?.behindCount ?? 0;
 
-  // Background refreshes also report pending; using that query flag would stick the RefreshControl spinner.
   const [isRefreshing, setIsRefreshing] = useState(false);
   const handleRefresh = async () => {
     setIsRefreshing(true);

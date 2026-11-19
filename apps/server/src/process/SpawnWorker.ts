@@ -9,9 +9,6 @@ import * as Layer from "effect/Layer";
 import { supportsEnvChdir } from "@supaterm/shared/envTrampoline";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
-// Windows runs CreateProcess synchronously on the calling thread, and antivirus or a busy disk can
-// hold it for seconds; Linux's spawn waits for chdir and the PATH search, which a hung mount
-// stalls. Workers own the children, so only the worker waits.
 const MAX_WORKERS = 4;
 const MAX_IDLE_WORKERS = 1;
 
@@ -60,12 +57,8 @@ type FromWorker =
     }
   | { readonly type: "close"; readonly id: number };
 
-// Windows makes a child's stdio pipes inheritable for the length of its CreateProcess, so a child
-// another worker launches meanwhile inherits them and holds the first child's output open. Every
-// pool's workers take this lock around spawn(); it holds the owning worker's threadId.
 const windowsSpawnLock = new Int32Array(new SharedArrayBuffer(4));
 
-// Inline source runs from bundles, asar archives and single-executable builds without module files.
 const workerSource = `
 const { parentPort, threadId, workerData } = require("node:worker_threads");
 const { spawn } = require("node:child_process");
@@ -226,7 +219,6 @@ class WorkerChild
       this.#finals.set(fd, callback);
       this.worker.post({ type: "end", id: this.id, fd });
     };
-    // A caller that destroys its end closes the child pipe, as it would with a real pipe.
     const destroy = (error: Error | null, callback: (error?: Error | null) => void) => {
       if (!this.exited) this.worker.post({ type: "destroy", id: this.id, fd });
       callback(error);
@@ -287,15 +279,12 @@ class WorkerChild
     this.exited = true;
     this.exitCode = code;
     this.signalCode = signal;
-    // Node destroys stdin on exit; the Effect sink may already have removed its error listener.
     this.stdin?.on("error", () => {});
     this.stdin?.destroy();
     this.emit("exit", code, signal);
   }
 
-  /** The worker is gone: end output so readers finish, and let the exit report the kill. */
   abandon(): void {
-    // Not destroy(error): Effect leaves an unread stderr's pipe without an error listener.
     for (const stream of this.stdio) {
       if (stream && "push" in stream && !stream.readableEnded) stream.push(null);
       else if (stream && !("push" in stream)) stream.destroy();
@@ -307,9 +296,7 @@ class SpawnWorker {
   readonly worker: NodeWorkerThreads.Worker;
   readonly children = new Map<number, WorkerChild>();
   readonly pool: SpawnWorkerPool;
-  /** Node sets `worker.threadId` to -1 once the thread exits, so keep the id the lock holds. */
   readonly threadId: number;
-  /** Launches sent but not yet answered; the worker is inside CreateProcess for one of them. */
   launching = 0;
   closed = false;
 
@@ -340,7 +327,6 @@ class SpawnWorker {
     const stdio =
       typeof io === "string" || io === undefined ? [io ?? "pipe", io ?? "pipe", io ?? "pipe"] : io;
     const child = new WorkerChild(this, id, stdio);
-    // An AbortSignal cannot cross to the worker, so this thread kills on abort as Node would.
     const { signal, ...rest } = options;
     if (signal !== undefined) {
       const abort = () => child.kill();
@@ -358,7 +344,6 @@ class SpawnWorker {
       id,
       command,
       args: [...args],
-      // A worker's process.env is a copy from when it started; children get the server's current one.
       options: { ...rest, stdio, env: rest.env ?? { ...process.env } },
     });
     return child;
@@ -434,7 +419,6 @@ class SpawnWorker {
         child.emit("error", error);
         continue;
       }
-      // The worker owned the only handle, so try to end the whole tree before reporting the exit.
       const finish = () => {
         child.exit(null, "SIGKILL");
         child.abandon();
@@ -450,8 +434,6 @@ class SpawnWorker {
     this.closed = true;
     this.pool.workers.delete(this);
     void this.worker.terminate().then(() => {
-      // The thread may have died holding the lock, or between its unlock and notify, or after
-      // a notify woke it: free the lock and wake every waiter so none sleeps on a free lock.
       Atomics.compareExchange(windowsSpawnLock, 0, this.threadId, 0);
       Atomics.notify(windowsSpawnLock, 0);
     });
@@ -473,7 +455,6 @@ class SpawnWorkerPool {
     options: NodeChildProcess.SpawnOptions,
   ) => {
     const workers = [...this.workers];
-    // A worker inside CreateProcess cannot start another launch until it returns.
     const worker =
       workers.find((candidate) => candidate.launching === 0) ??
       (workers.length < MAX_WORKERS
@@ -499,7 +480,6 @@ class SpawnWorkerPool {
     const finish = (killed: boolean) => {
       if (settled) return;
       settled = true;
-      // As Effect's own kill does when taskkill fails, end at least the direct child.
       if (!killed) killPid();
       done();
     };

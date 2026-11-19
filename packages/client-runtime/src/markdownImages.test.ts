@@ -29,7 +29,6 @@ describe("classifyMarkdownImageSource", () => {
     },
   );
 
-  // Loading these makes Windows send the user's NTLM credentials to the named host.
   it.each([
     "file://attacker.test/share/cat.jpg",
     "\\\\attacker.test\\share\\cat.jpg",

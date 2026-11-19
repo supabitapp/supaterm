@@ -36,7 +36,6 @@ it.effect("isolates provider bindings and preserves opaque credentials", () =>
     assert.isTrue(Option.isNone(yield* b.get));
     assert.isTrue(Option.isNone(yield* c.get));
     assert.isFalse(a.binding.key.includes("/"));
-    // Stored credentials are found by this name, so it must not change between releases.
     assert.strictEqual(
       a.binding.key,
       "provider-auth-db3cc9436c8272847fe0c152ba8b0d4695af90acd916f555649e17ba6efe6094",

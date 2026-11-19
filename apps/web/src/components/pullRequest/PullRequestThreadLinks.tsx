@@ -63,7 +63,6 @@ function EnabledPullRequestThreadLinks({
         })
       : null,
   );
-  // Retain the last count while refresh temporarily clears query data.
   const [lastRelations, setLastRelations] = useState(relations.data);
   if (relations.data !== null && relations.data !== lastRelations) {
     setLastRelations(relations.data);
@@ -183,7 +182,6 @@ function ThreadPicker({
   const linking = usePullRequestLinking(environmentId);
   const projects = useProjects();
   const [query, setQuery] = useState("");
-  // Mounts older done threads matching the query, which shells may leave out.
   useThreadSearch([environmentId], query, { titlesOnly: true });
   const projectNames = new Map(
     projects

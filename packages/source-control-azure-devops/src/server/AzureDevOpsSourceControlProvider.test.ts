@@ -84,7 +84,6 @@ it.effect("names the remote's repository when reading the default branch", () =>
       assert.strictEqual(branch, "master", remoteUrl);
       const args = [...(run.mock.calls.find(([input]) => input.command !== "git")?.[0].args ?? [])];
       assert.include(args, `--repository=${repository}`, remoteUrl);
-      // The selected remote names the project, not the checkout's primary remote.
       if (scoped) assert.include(args, "--project=project", remoteUrl);
     }
   }).pipe(Effect.provide(AzureDevOpsCli.layer.pipe(Layer.provideMerge(support))));

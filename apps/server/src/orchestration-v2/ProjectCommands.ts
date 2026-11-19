@@ -179,7 +179,6 @@ export function planProjectCommand(input: {
         return invariant("Project monograms must contain at most two characters.");
       }
       if (command.scripts !== undefined) {
-        // Allow editing or removing persisted invalid script ids, while rejecting new invalid ids.
         const existingIds = new Set(project.scripts.map((script) => script.id));
         for (const script of command.scripts) {
           if (!existingIds.has(script.id) && !isScriptRunCommand(`script.${script.id}.run`)) {
@@ -210,7 +209,6 @@ export function planProjectCommand(input: {
           ...(command.faviconPath === undefined ? {} : { faviconPath: command.faviconPath }),
           ...(command.projectIcon === undefined ? {} : { projectIcon: command.projectIcon }),
           ...(command.scripts === undefined ? {} : { scripts: command.scripts }),
-          // Repeating a pin or archive keeps the original time.
           ...(command.pinned === undefined
             ? {}
             : { pinnedAt: command.pinned ? (project.pinnedAt ?? occurredAt) : null }),
@@ -224,7 +222,6 @@ export function planProjectCommand(input: {
 
     case "project.delete": {
       if (activeProject === undefined) return missingProject();
-      // Thread children are deleted by ProjectService before this event commits.
       return Result.succeed({
         ...base,
         type: "project.deleted",

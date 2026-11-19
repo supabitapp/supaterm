@@ -27,8 +27,6 @@ export function announceSidebarVisibility(open: boolean) {
     second!.textContent = "";
     next.textContent = `Sidebar ${latestOpen ? "shown" : "hidden"}`;
   };
-  // Screen readers ignore text written in the same task that inserts its live region.
-  // Toggles during that delay only update the state the pending write announces.
   if (created) {
     firstWritePending = true;
     setTimeout(write, 100);

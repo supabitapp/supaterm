@@ -54,7 +54,6 @@ export function resolveThreadRowShownStatus(
     },
 ): ThreadRowStatus {
   const status = resolveThreadRowStatus(thread);
-  // A runtime failure without a failed run has nothing to date it, so it stays.
   if (status !== "failed" || thread.latestRun?.status !== "failed") return status;
   return hasUnseenRunFailure(thread) ? status : "ready";
 }

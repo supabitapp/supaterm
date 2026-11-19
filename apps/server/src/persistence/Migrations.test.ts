@@ -49,7 +49,6 @@ describe("runMigrations", () => {
       assert.lengthOf(yield* failedErrorIndex, 1);
       assert.deepStrictEqual(yield* runMigrations(), []);
 
-      // query_only rejects BEGIN IMMEDIATE, which CLI startup would otherwise take on the live database.
       yield* sql`PRAGMA query_only = ON`;
       assert.deepStrictEqual(yield* runMigrations(), []);
       assert.deepStrictEqual(yield* history, migrationManifest);
@@ -178,7 +177,6 @@ describe("runMigrations", () => {
   );
 });
 
-// The npm launcher reads the highest migration id from these file names.
 it.effect("registers every migration file", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;

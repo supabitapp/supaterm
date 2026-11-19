@@ -232,7 +232,6 @@ const makeAvailable = Effect.gen(function* () {
       (environmentId, kind, cacheKey, schemaVersion, payload) =>
         Effect.tryPromise({
           try: async () => {
-            // Bound offline PR caches to 32 MiB and 256 responses per environment; reject huge diffs that would evict everything.
             if (
               kind === "pull-request" &&
               new TextEncoder().encode(payload).length > 4 * 1024 * 1024

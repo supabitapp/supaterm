@@ -46,12 +46,6 @@ export class OrchestrationEffectExecutionError extends Schema.TaggedError<Orches
 
 const isOrchestrationEffectExecutionError = Schema.is(OrchestrationEffectExecutionError);
 
-/**
- * Do not apply this to `provider-turn.restart`: that compound effect also runs
- * detach and start. Swallowing a start failure that happens to mention
- * "is not active" would drop the outbox item without ever starting the
- * replacement turn.
- */
 function isNonRetryableProviderTurnControlFailure(effectType: string, errorText: string): boolean {
   if (effectType !== "provider-turn.interrupt") {
     return false;
@@ -64,7 +58,6 @@ function isNonRetryableProviderTurnControlFailure(effectType: string, errorText:
   );
 }
 
-// Keep an owner for starting runs when persistence or restart cleanup fails.
 const ownsStartingRun = (effectType: EffectOutbox.OrchestrationEffectV2["request"]["type"]) =>
   effectType === "provider-turn.start" || effectType === "provider-turn.restart";
 
@@ -134,8 +127,6 @@ export const layerExecutor: Layer.Layer<
               Effect.andThen(
                 Effect.suspend(() => {
                   const failure = Option.getOrUndefined(Cause.findErrorOption(cause));
-                  // A failed read cannot identify the attempt. Keep retry ownership
-                  // rather than settling whichever attempt happens to be current.
                   if (
                     !ProviderTurnStartService.isProviderTurnStartError(failure) ||
                     failure.attemptId === undefined ||
@@ -273,8 +264,6 @@ export const layerExecutor: Layer.Layer<
                       }),
                 ),
                 Effect.map((outcome) => ({ unresponsive: false, outcome }) as const),
-                // Settling here would end the run while the agent may still be running; the
-                // user decides with Force stop instead.
                 Effect.catchIf(
                   (cause) => request.subagent === undefined && cause.unresponsive === true,
                   () => Effect.succeed({ unresponsive: true, outcome: undefined } as const),
@@ -376,12 +365,10 @@ export const layerExecutor: Layer.Layer<
                     const message = projection.messages.find((item) => item.id === messageId);
                     const run = projection.runs.find((item) => item.id === message?.runId);
                     if (message === undefined || run === undefined) return yield* error;
-                    // Notifications must be queued messages.
                     const queued =
                       message.delegatedCompletion !== undefined ||
                       message.notification !== undefined ||
                       error.steerDeclined === true;
-                    // Reuse message ids and receipts so retries cannot duplicate messages or follow-ups.
                     yield* threads
                       .dispatch({
                         type: "message.dispatch",
@@ -423,7 +410,6 @@ export const layerExecutor: Layer.Layer<
                           : { senderThreadId: message.senderThreadId }),
                       })
                       .pipe(
-                        // A disabled instance cannot retry this completed turn; its result stands.
                         Effect.catchTags({
                           ThreadManagementProviderInstanceDisabledError: (disabledError) =>
                             Effect.logInfo(
@@ -479,10 +465,7 @@ export const layerExecutor: Layer.Layer<
                         })
                       : Effect.void,
                 ),
-                Effect.andThen(
-                  // Failed interruption or detach must not report the old process stopped.
-                  startRun(effect, effect.request.runId, willRetry),
-                ),
+                Effect.andThen(startRun(effect, effect.request.runId, willRetry)),
                 Effect.mapError(
                   (cause) =>
                     new OrchestrationEffectExecutionError({
@@ -591,7 +574,6 @@ export const layerExecutor: Layer.Layer<
                 scopeId: effect.request.scopeId,
               })
               .pipe(
-                // Completion bookkeeping must survive a missed live run update, including capture retries.
                 Effect.andThen(
                   threads.recoverDelegatedTask(effect.threadId, {
                     completedRunId: effect.request.runId,
@@ -617,8 +599,6 @@ export const layerExecutor: Layer.Layer<
                   }),
               ),
             );
-          // Archive and delete queue this one per-thread teardown, so it also releases the
-          // thread's device claims; the devices stay booted for other threads.
           case "terminal.cleanup":
             return Effect.partition(
               [
@@ -653,7 +633,6 @@ export const layerExecutor: Layer.Layer<
           case "attachment.cleanup": {
             const request = effect.request;
             return Effect.gen(function* () {
-              // Another message or answer may share the file, or a stale queued edit may restore it.
               const referenced = new Set(
                 request.skipReferenced
                   ? yield* projectionStore.getThreadAttachmentIds(effect.threadId, {
@@ -715,8 +694,6 @@ export const layerExecutor: Layer.Layer<
   }),
 );
 
-// A running effect blocks later work on its thread and its lease is never reclaimed in-process,
-// so a stop that hangs must give up and fall through to the normal retry/fail path.
 const DELEGATED_TASKS_STOP_TIMEOUT = Duration.seconds(30);
 
 const boundExecution =
@@ -749,8 +726,6 @@ export class OrchestrationEffectWorkerError extends Schema.TaggedError<Orchestra
 
 const isOrchestrationEffectWorkerError = Schema.is(OrchestrationEffectWorkerError);
 
-// Only the claiming worker settles its row, and a running row blocks every later effect on its
-// thread until the server restarts. onError masks interruption, so retries must restore it.
 const isLockTimeout = (error: EffectOutbox.EffectOutboxError) =>
   SqlError.isSqlError(error.cause) && error.cause.reason._tag === "LockTimeoutError";
 const lockRetrySchedule = Schedule.spaced(Duration.millis(100));
@@ -889,7 +864,6 @@ export const layerWithOptions = (
           ? requeueClaim(effect, cause)
           : terminalizeClaim(effect, cause);
 
-      // The worker probes for work repeatedly, including when the outbox is empty.
       const runOnce = Effect.fnUntraced(
         function* (filter: ClaimFilter = {}) {
           const claimExit = yield* Effect.exit(outbox.claimNext({ workerId, ...filter }));
@@ -906,7 +880,6 @@ export const layerWithOptions = (
             return false;
           }
           const effect = claimed.value;
-          // Arm cancellation before rereading durable state to close the read-to-registration race.
           const cancellation = outbox
             .awaitCancellation(effect.id)
             .pipe(Effect.as("cancelled" as const));
@@ -923,7 +896,6 @@ export const layerWithOptions = (
               ),
               Duration.millis(Math.max(0, claimedAt - eligibleAt)),
             );
-            // Recheck durable cancellation after registering the Deferred; cancellation may have committed after claim.
             if (yield* wasCancelled(effect.id)) {
               yield* outbox.clearCancellation(effect.id);
               return true;
@@ -1006,7 +978,6 @@ export const layerWithOptions = (
         awaitWork: outbox.awaitAvailable,
         runOnce,
         runRecoveryOnce: runOnce({ excludeRestartContinuations: true }),
-        // Idle workers poll this; a span per poll would bury useful traces.
         nextClaimableAt: Effect.fnUntraced(
           function* (input) {
             return yield* outbox.nextClaimableAt(input);
@@ -1039,8 +1010,6 @@ export interface OrchestrationEffectDaemonOptions {
 
 const DEFAULT_EFFECT_WORKER_CONCURRENCY = 4;
 const DEFAULT_EFFECT_WORKER_LIVENESS_POLL_INTERVAL_MS = 30_000;
-// A provider request can go unanswered indefinitely. After this wait the slot claims other work
-// while the execution keeps its running row (which blocks its own thread) and settles it later.
 const EFFECT_WORKER_SLOT_WAIT = Duration.seconds(30);
 
 export const runDaemonWithOptions = (options: OrchestrationEffectDaemonOptions = {}) =>
@@ -1057,9 +1026,7 @@ export const runDaemonWithOptions = (options: OrchestrationEffectDaemonOptions =
       const livenessPollIntervalMs = Number.isFinite(requestedLivenessPollIntervalMs)
         ? Math.max(1, Math.floor(requestedLivenessPollIntervalMs))
         : DEFAULT_EFFECT_WORKER_LIVENESS_POLL_INTERVAL_MS;
-      // Title generation can run for minutes; leave at least one worker free for turn work.
       const claimLimits = concurrency > 1 ? { maxRunningTitleGenerations: concurrency - 1 } : {};
-      // Notifications wake promptly; availableAt persists retry timing, and liveness polling recovers missed wakeups.
       const runWorker = Effect.gen(function* () {
         while (true) {
           const attempt = yield* worker.runOnce(claimLimits).pipe(
@@ -1080,7 +1047,6 @@ export const runDaemonWithOptions = (options: OrchestrationEffectDaemonOptions =
             continue;
           }
           if (outcome === "failed") {
-            // Failed claims can leave overdue rows; cool off instead of rescheduling at the one-millisecond floor.
             yield* Effect.sleep(Duration.millis(Math.min(1_000, livenessPollIntervalMs)));
             continue;
           }

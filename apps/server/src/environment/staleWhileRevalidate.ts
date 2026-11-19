@@ -17,8 +17,6 @@ type Entry<A> =
       readonly refreshing: boolean;
     };
 
-// Shared scans survive caller cancellation; monotonic TTL bounds cache age.
-// Warm reads return stale data while a scope-owned, bounded refresh runs.
 export const makeStaleWhileRevalidate = Effect.fn("StaleWhileRevalidate.make")(function* <A>(
   discover: Effect.Effect<A>,
   ttl: Duration.Input,
@@ -54,8 +52,6 @@ export const makeStaleWhileRevalidate = Effect.fn("StaleWhileRevalidate.make")(f
 
   return Effect.gen(function* () {
     const now = yield* Clock.monotonicTimeNanos;
-    // Claiming a scan and starting it are one uninterruptible step: a caller
-    // interrupted between them would leave a claimed scan that never runs.
     const result = yield* Ref.modify(
       state,
       (entry): readonly [readonly [Effect.Effect<unknown>, Effect.Effect<A>], Entry<A>] => {

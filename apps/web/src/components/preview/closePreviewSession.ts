@@ -25,8 +25,6 @@ interface ClosePreviewSessionInput<E> {
 export async function closePreviewSession<E>(
   input: ClosePreviewSessionInput<E>,
 ): Promise<AtomCommandResult<void, E>> {
-  // Unmounting a webview destroys its page, so a tab this window renders stays mounted until the
-  // server has unloaded it.
   const keepMounted = rendersServerTabNatively(
     input.threadRef.environmentId,
     appAtomRegistry.get(primaryEnvironmentIdAtom),

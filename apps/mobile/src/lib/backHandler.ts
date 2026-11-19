@@ -10,7 +10,6 @@ import { usePaneRole } from "../components/ui/Pane";
  * first, so re-registering per render lets a covered screen consume Back.
  */
 export function useHardwareBack(active: boolean, onBack: () => boolean) {
-  // The sidebar's route stays unfocused under the page beside it.
   const inSidebar = usePaneRole() === "sidebar";
   const focused = useIsFocused() || inSidebar;
   const handleBack = useEffectEvent(onBack);

@@ -88,7 +88,6 @@ describe("createFilesViewedStore", () => {
     expect(t.refresh).toHaveBeenCalledWith(first);
     expect(scope.getSnapshot().get("a.ts")).toBe(true);
 
-    // A push landed between the write and the next read: the host's answer wins.
     t.answerFor(first, unchanged);
     expect(scope.getSnapshot().size).toBe(0);
     release();
@@ -133,7 +132,6 @@ describe("createFilesViewedStore", () => {
   it("keeps the handle and the debounce across a release and re-subscribe through it", async () => {
     using t = setup();
     const handle = t.store.scope(first);
-    // StrictMode subscribes, releases, then subscribes again through the same handle.
     handle.subscribe(() => {})();
     const release = handle.subscribe(() => {});
     expect(t.store.scope(first)).toBe(handle);

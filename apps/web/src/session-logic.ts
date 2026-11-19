@@ -269,7 +269,6 @@ export function deriveActivePlanState(
   };
 }
 
-// Claude's unfinished tasks belong to the provider session, not just the turn.
 export function selectComposerTasksPlan(
   projection: ThreadStructure | null,
   plan: ActivePlanState | null,
@@ -312,7 +311,6 @@ function planItemTime(
   if (item?.type === "proposed_plan" || item?.type === "todo_list") {
     return DateTime.formatIso(item.updatedAt);
   }
-  // Without a plan item, the plan's run dates it; the thread's own timestamps move while a reply streams.
   const run = projection.runs.find((candidate) => candidate.id === plan.runId);
   return DateTime.formatIso(
     run?.completedAt ?? run?.startedAt ?? run?.requestedAt ?? projection.thread.createdAt,
@@ -331,7 +329,6 @@ const STANDALONE_V2_ITEM_TYPES = new Set<OrchestrationV2ProjectedTurnItem["item"
 const PERSISTENT_RESOURCE_V2_ITEM_TYPES = new Set<OrchestrationV2TurnItem["type"]>([
   "fork",
   "thread_created",
-  // Still answerable after a steer supersedes the attempt that asked.
   "secret_request",
 ]);
 
@@ -597,7 +594,6 @@ export function deriveTimelineEntriesFromVisibleTurnItems(
     return undefined;
   };
 
-  // An answer that started a later run stays a normal message at that run's position.
   const foldedAnswerRunIdByMessageId = new Map<string, OrchestrationV2TurnItem["runId"]>(
     input.visibleTurnItems.flatMap(({ item }) =>
       item.type === "user_input_request" && item.questionAnswer
@@ -897,15 +893,9 @@ export function isStreamingTurnItemTextUpdate(
   ) {
     return false;
   }
-  // Wire decoding recreates timestamps and attachments; compare only the changed item's metadata.
   return Equal.equals(previousMetadata, nextMetadata);
 }
 
-/**
- * A changed tool or work item maps to exactly one entry with the item's id.
- * Messages and question answers take part in cross-entry dedupe, and anchored
- * messages are placed by createdAt, so those changes rebuild.
- */
 function canRederiveInPlace(
   input: TimelineEntriesInput,
   previousItem: OrchestrationV2ProjectedTurnItem,
@@ -917,7 +907,6 @@ function canRederiveInPlace(
     item.item.type !== "user_message" &&
     item.item.type !== "assistant_message" &&
     item.item.type !== "user_input_request" &&
-    // An app call projects two entries; in-place reuse replaces one.
     (previousItem.item.type !== "dynamic_tool" ||
       mcpAppFromToolItem(previousItem.item) === undefined) &&
     ((input.anchoredMessages?.length ?? 0) === 0 ||
@@ -925,7 +914,6 @@ function canRederiveInPlace(
   );
 }
 
-/** Entries read only each plan's status; streaming plans rebuild artifacts with every delta. */
 function samePlanStatuses(
   next: TimelineEntriesInput["plans"],
   previous: TimelineEntriesInput["plans"],
@@ -953,9 +941,7 @@ function reuseTimelineEntries(
     return null;
   }
   const appended = input.visibleTurnItems.length > before.visibleTurnItems.length;
-  // Keep full projection until committed items interleave and deduplicate anchored messages.
   if (appended && (input.anchoredMessages?.length ?? 0) > 0) return null;
-  // Answer rows can replace a message already present in the retained prefix.
   if (
     appended &&
     input.visibleTurnItems
@@ -976,7 +962,6 @@ function reuseTimelineEntries(
     const previousItem = before.visibleTurnItems[index]!;
     const item = input.visibleTurnItems[index]!;
     if (item === previousItem) continue;
-    // Reasoning and plan text re-derive below; only assistant text patches the message.
     if (
       item.item.type === "assistant_message" &&
       isStreamingTurnItemTextUpdate(previousItem, item)
@@ -987,7 +972,6 @@ function reuseTimelineEntries(
     if (!canRederiveInPlace(input, previousItem, item)) return null;
     changedItems.push(item);
   }
-  // One batch keeps the attempt/node/plan lookups to a single build.
   const rederived =
     changedItems.length === 0
       ? []
@@ -1079,7 +1063,6 @@ export function createTimelineEntriesProjector() {
   };
 }
 
-// Run ordinals keep increasing after a rewind; only visible local runs define predecessors.
 export function deriveRevertTurnCountByUserMessageId(input: {
   readonly timelineEntries: ReadonlyArray<TimelineEntry>;
   readonly checkpoints: ReadonlyArray<ThreadCheckpointSummary>;
@@ -1097,7 +1080,6 @@ export function deriveRevertTurnCountByUserMessageId(input: {
   const byUserMessageId = new Map<ChatMessage["id"], number>();
   let previousRunId: RunId | null = null;
   for (const entry of input.timelineEntries) {
-    // Inherited history belongs to the source thread, not our checkpoint scope.
     if (entry.kind !== "message" && entry.kind !== "work") continue;
     const projectedItem =
       entry.kind === "message" ? entry.projectedItem : entry.entry.projectedItem;
@@ -1134,8 +1116,6 @@ export function deriveRevertTurnCountByUserMessageId(input: {
   return byUserMessageId;
 }
 
-// A missing snapshot (no git, or a side chat) still pins a conversation position; only
-// restoring files needs a ready one.
 function isRewindableCheckpoint(checkpoint: Pick<OrchestrationV2Checkpoint, "status">) {
   return checkpoint.status === "ready" || checkpoint.status === "missing";
 }

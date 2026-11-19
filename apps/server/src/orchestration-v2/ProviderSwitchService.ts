@@ -105,16 +105,13 @@ export const layer: Layer.Layer<
             Option.isSome(currentInstance) &&
             (currentSession !== undefined || currentProviderThread !== undefined)
               ? negotiatedCapabilities === undefined
-                ? // No session record left to switch in place; the next session starts with it.
-                  ({ type: "apply_on_next_turn" } as const)
+                ? ({ type: "apply_on_next_turn" } as const)
                 : yield* targetAdapter.value.planSelectionTransition({
                     current,
                     target: targetModelSelection,
                     sessionCapabilities: negotiatedCapabilities,
                   })
               : undefined;
-          // A selection change keeps the thread where it is. A shared session's cwd is the
-          // workspace of whichever thread opened it, not a move of this thread.
           const workspace =
             projection.thread.worktreePath ?? currentSession?.cwd ?? "<unresolved-workspace>";
           const transition =
@@ -164,7 +161,6 @@ export const layer: Layer.Layer<
             .filter((session) => {
               if (!isLiveProviderSession(session)) return false;
               if (transition.type === "restart_and_resume") {
-                // Release only the replaced session; peers can serve pooled or delegated bindings.
                 return session.id === currentSession?.id;
               }
               if (transition.type === "create_with_handoff") {

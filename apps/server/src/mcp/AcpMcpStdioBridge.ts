@@ -1,4 +1,3 @@
-// Relay JSON-RPC verbatim; schema decoding would reject foreign payloads.
 // @effect-diagnostics preferSchemaOverJson:off
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -7,8 +6,6 @@ import * as Fiber from "effect/Fiber";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { discardResponseBody, responsePayloads } from "@supaterm/shared/mcpResponsePayloads";
-
-/** ACP mandates stdio MCP support; HTTP/SSE support varies. */
 
 class AcpMcpBridgeError extends Error {
   readonly _tag = "AcpMcpBridgeError";
@@ -147,8 +144,6 @@ export const mcpToolSession = (
         ).pipe(Effect.flatMap(discardResponseBody), Effect.ignore),
   );
 
-  // Registered before the handshake so a session the server opened is ended
-  // even when the handshake fails, and the handshake stays interruptible.
   return Effect.gen(function* () {
     yield* Effect.addFinalizer(() => terminate);
     yield* request("initialize", {
@@ -261,7 +256,6 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
         ),
     );
 
-    // Order only session establishment; SSE responses must bypass it to avoid deadlock. Calls remain concurrent after initialization.
     let sessionBarrier: Effect.Effect<void> = Effect.void;
     let sessionBarrierPending = false;
 
@@ -322,7 +316,6 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
       return yield* launch(task);
     });
 
-    // node:readline also splits on U+2028/U+2029, which JSON.stringify leaves raw inside strings.
     yield* Stream.fromAsyncIterable(options.input, bridgeError).pipe(
       Stream.map((chunk) => (typeof chunk === "string" ? Buffer.from(chunk) : chunk)),
       Stream.decodeText(),
@@ -386,7 +379,6 @@ export async function runAcpMcpCliFastPath(
       arguments: parsed as Record<string, unknown>,
     }),
   );
-  // Terminal callers see both fields, unlike native MCP clients that choose one.
   if (
     typeof result === "object" &&
     result !== null &&

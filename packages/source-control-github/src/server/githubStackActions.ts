@@ -190,7 +190,6 @@ export const runGitHubStackAction = Effect.fn("runGitHubStackAction")(function* 
         (cause) => new GitHubStackResponseInvalidError({ ...identity, cause }),
       ),
     );
-    // Current layers report viewerCanUpdateBranch=false even if restacking could make them stale.
     if (
       access.some(({ repository }) => {
         const pr = repository?.pullRequest;
@@ -202,7 +201,6 @@ export const runGitHubStackAction = Effect.fn("runGitHubStackAction")(function* 
     )
       return yield* new GitHubStackPermissionError({ ...identity });
     const mergedHeadSha = stack.layers[stack.layers.indexOf(open[0]!) - 1]?.headSha;
-    // GitHub has no stack-rebase API; per-PR updates replay lower layers' old commits.
     yield* cascadeRebaseStack({
       host: input.host,
       repository: input.repository,

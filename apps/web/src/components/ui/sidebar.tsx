@@ -73,7 +73,6 @@ function useMobileSidebarSheetMounted() {
   return context !== null && context.isMobile && context.mobileSheetMounted;
 }
 
-// The md breakpoint, also read when a shortcut fires.
 const SIDEBAR_MOBILE_QUERY = "(max-width: 767px)";
 
 function isMobileViewport(): boolean {
@@ -90,7 +89,6 @@ function readStoredSidebarOpen(storageKey: string | undefined): boolean | null {
   }
 }
 
-// The desktop sidebar turns inert once collapsed, which drops focus to the body.
 function moveFocusOutOfCollapsingSidebar() {
   const sidebar = document.activeElement?.closest<HTMLElement>('[data-slot="sidebar"]');
   const wrapper = sidebar?.closest<HTMLElement>('[data-slot="sidebar-wrapper"]');
@@ -106,7 +104,6 @@ interface SidebarOpenState {
   readonly openMobile: boolean;
 }
 
-/** Per-provider open state, kept outside React so shortcuts can toggle it at event time. */
 function createSidebarOpenStore(defaultOpen: boolean, storageKey: string | undefined) {
   let state: SidebarOpenState = {
     open: readStoredSidebarOpen(storageKey) ?? defaultOpen,
@@ -164,7 +161,6 @@ function SidebarProvider({
   if (openMobile && !mobileSheetMounted) {
     setMobileSheetMounted(true);
   }
-  // Widening mid-close unmounts the sheet before its close completes.
   if (!isMobile && !openMobile && mobileSheetMounted) {
     setMobileSheetMounted(false);
   }
@@ -241,7 +237,6 @@ function Sidebar({
         }}
         open={openMobile}
       >
-        {/* Children stay mounted while closed so their window shortcuts, like thread jumps, keep working. */}
         <SheetPopup
           keepMounted
           className={cn(
@@ -445,9 +440,6 @@ function SidebarContent({
         hideScrollbars
         scrollFade
         scrollFadePadding={false}
-        // Thread rows provide keyboard access to this scroll region. Keeping
-        // Base UI's viewport out of the tab order lets its presentational role
-        // flatten in WebKit instead of becoming a VoiceOver interaction group.
         viewportTabIndex={-1}
         className="h-auto min-h-0 flex-1 [&>[data-slot=scroll-area-viewport]]:[--fade-size:0.75rem]"
       >

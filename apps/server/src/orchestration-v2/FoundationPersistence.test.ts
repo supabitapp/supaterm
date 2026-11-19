@@ -275,7 +275,6 @@ it.effect("discovers on the reader worker and deletes on the writer", () =>
     yield* Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
       yield* seedCompaction();
-      // Establish the reader before recording statements.
       yield* sql`SELECT 1`.pipe(NodeSqliteClient.readOnly);
       workerStatements.length = 0;
       const maintenance = yield* ProjectionMaintenance.ProjectionMaintenanceV2;
@@ -321,7 +320,6 @@ it.effect("paces scheduled compaction while preserving retention state and fixed
           if (typeof query !== "string" || !query.includes("LIMIT")) return;
           if (!query.includes("FROM orchestration_events AS event")) return;
           eventPages++;
-          // Model a page exceeding the active budget, without wall-clock sleeps.
           activeNanos += 30_000_000n;
         };
         return span;
@@ -338,7 +336,6 @@ it.effect("paces scheduled compaction while preserving retention state and fixed
         compactionSpans.map((span) => span.status._tag),
         ["Started"],
       );
-      // Foreground commits must not extend the compactor's initial scan bounds.
       yield* sql`INSERT INTO orchestration_events (
           event_id, aggregate_kind, stream_id, stream_version, event_type,
           occurred_at, actor_kind, payload_json, metadata_json, application_event_version
@@ -847,7 +844,6 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
         live.map((stored) => stored.sequence),
         [completed!.sequence],
       );
-      // Both subscribers get one shared projection, so the live budget sizes it once.
       assert.strictEqual(otherLive[0], live[0]);
       assert.lengthOf(
         stringify.mock.calls.filter(([value]) => value === live[0] || value === otherLive[0]),
@@ -1115,7 +1111,6 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
       });
 
       let afterSequence = created[0]!.sequence;
-      // The yield lands each write inside the catch-up-to-live window this test exercises.
       // oxlint-disable-next-line supaterm/no-polling-loop-in-tests -- a fixed 32 rounds, each awaiting its reader; nothing is polled.
       for (let index = 1; index <= 32; index += 1) {
         const nextEvent = {
@@ -4129,7 +4124,6 @@ it.effect("allows writes while compaction waits for the reader to discover obsol
         Effect.forkChild,
       );
       const discoverySpan = yield* Deferred.await(discoveryStarted);
-      // Let the initial bounds read finish before holding the reader for this page.
       const reader = yield* sql
         .withTransaction(
           Deferred.succeed(readerHeld, undefined).pipe(

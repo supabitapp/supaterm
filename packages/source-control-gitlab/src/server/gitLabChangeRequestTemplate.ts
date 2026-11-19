@@ -12,7 +12,6 @@ type ExecuteGit = SourceControlHost.SourceControlHost["Service"]["git"]["execute
 
 export const detect = Effect.fn("gitLabChangeRequestTemplate.detect")(
   function* (cwd: string, treeish: string, executeGit: ExecuteGit) {
-    // Read committed regular blobs so symlinks never reach the host filesystem.
     const listing = yield* executeGit({
       operation: "gitLabChangeRequestTemplate.listTemplates",
       cwd,

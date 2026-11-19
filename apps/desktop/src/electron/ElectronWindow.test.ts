@@ -54,7 +54,6 @@ vi.mock("electron", () => ({
     getFocusedWindow: getFocusedWindowMock,
   }),
   screen: {
-    // A 200% display, so the focus target must carry converted bounds.
     dipToScreenRect: (_window: unknown, rect: Electron.Rectangle) => ({
       x: rect.x * 2,
       y: rect.y * 2,

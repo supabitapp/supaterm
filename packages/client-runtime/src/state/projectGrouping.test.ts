@@ -385,7 +385,6 @@ describe("buildProjectGroups", () => {
     expect(groups[1]?.label).toBe("julius/supaterm-fork");
   });
 
-  // regression: #15049 a rename to the repository name snapped back to the display path
   it("labels a renamed group by its title even when it matches the repository name", () => {
     const displayed = { ...repositoryIdentity, displayName: "Supaterm" };
     const folderTitles = [
@@ -407,8 +406,6 @@ describe("buildProjectGroups", () => {
   });
 
   it("labels a group by its repository when clones disagree on its casing", () => {
-    // A subfolder project, its repository root, and a clone whose remote URL is
-    // lowercased: no shared title or display name, but one repository.
     const subfolder = makeProject("design-study", "/work/NewCo/reference/design-study");
     const root = makeProject("NewCo", "/work/NewCo");
     const lowercasedClone = makeProject("NewCo", "/remote/NewCo", {
@@ -424,7 +421,6 @@ describe("buildProjectGroups", () => {
     expect(groups).toHaveLength(1);
     expect(groups[0]?.label).toBe("supaterm");
 
-    // A subfolder group in repository_path mode keeps its own title.
     const localIdentity = { ...repositoryIdentity, rootPath: "/work/supaterm" };
     const pathGroups = buildProjectGroups({
       projects: [

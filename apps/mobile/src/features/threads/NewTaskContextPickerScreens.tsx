@@ -261,8 +261,6 @@ export function NewTaskBranchPickerRouteScreen() {
     const checkoutAndSelect = async () => {
       if (!selectedProject) return;
       setSwitchingBranchName(branch.name);
-      // The guard belongs to this checkout: back actions are refused while it is
-      // in flight, and our own goBack runs after it is lifted.
       const releaseRemovalGuard = navigation.addListener("beforeRemove", (event) => {
         event.preventDefault();
       });
@@ -284,9 +282,6 @@ export function NewTaskBranchPickerRouteScreen() {
         return;
       }
 
-      // The checkout has already changed the repository. Persist the matching
-      // draft selection even if the native sheet was dismissed while the
-      // command was in flight; only visible-screen work is focus-gated below.
       selectFlowBranch(result.value);
       if (!navigation.isFocused()) return;
       navigation.goBack();

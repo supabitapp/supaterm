@@ -6,12 +6,7 @@ import { WorkspaceTabsProvider } from "./WorkspaceTabsContext";
 import { workspaceTabOf } from "./workspace-tabs-state";
 
 interface AndroidWorkspaceRoot {
-  /**
-   * The rail's `useNavigation()` dispatches to the focused navigator, which may be nested Settings.
-   * Target the root stack's key (and read `rootNavigationRef`'s state) so a tab press resets the root.
-   */
   readonly key: string;
-  /** Settings is derived from navigation rather than kept in the tab reducer. */
   readonly settingsOpen: boolean;
   readonly settingsRoute: NavigationState["routes"][number] | undefined;
   readonly settingsPage: string | null;
@@ -36,7 +31,6 @@ export function AndroidWorkspaceTabsProvider(props: {
     settingsIndex < 0 ? null : (props.state.routes[settingsIndex + 1]?.name ?? null);
   const root = { key, settingsOpen, settingsRoute, settingsPage };
   return Platform.OS === "android" ? (
-    // A cold-start link lands on a page with no list selection; start on that page's list.
     <WorkspaceTabsProvider
       initialTab={workspaceTabOf(props.state.routes.find((route) => route.name !== "Home")?.name)}
     >

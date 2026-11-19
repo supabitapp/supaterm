@@ -5,7 +5,6 @@ import { readMediaPng } from "./mediaContent";
 const PNG_BYTES = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 it("copies a data URL image without fetching it", async () => {
-  // The desktop renderer's connect-src rejects data: URLs the way fetch rejects a CORS failure.
   using fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
   const src = `data:image/png;base64,${btoa(String.fromCharCode(...PNG_BYTES))}`;
 

@@ -53,7 +53,6 @@ function Dialog<Payload>(props: DialogPrimitive.Root.Props<Payload>) {
 function useDialogActionInitialFocus() {
   const popupRef = useRef<HTMLDivElement>(null);
   const initialFocus = (openType: string) => {
-    // Match Base UI: touch opens focus the popup to avoid opening the virtual keyboard.
     if (openType === "touch") return popupRef.current;
     return (
       popupRef.current?.querySelector<HTMLElement>(
@@ -95,7 +94,6 @@ function DialogBackdrop({
 function DialogViewport({ className, ...props }: DialogPrimitive.Viewport.Props) {
   return (
     <DialogPrimitive.Viewport
-      // Electron drag regions ignore z-index, so without no-drag a click over a header drag strip never reaches the page.
       className={cn(
         "fixed inset-0 z-50 grid grid-rows-[1fr_auto_1fr] justify-items-center p-4 [-webkit-app-region:no-drag]",
         className,
@@ -150,11 +148,9 @@ function DialogPopup({
       </DialogPrimitive.Popup>
     ),
   });
-  // macOS has no CSS window-controls overlay, so use the platform titlebar height.
   const nativeTitlebarHeight = useNativeTitlebarHeight();
   return (
     <DialogPortal>
-      {/* Media opens from inside other overlays (a composer chip, a popover), so it sits above them. */}
       <DialogBackdrop className={variant === "media" ? "z-[60]" : undefined} variant={variant} />
       <DialogViewport
         className={cn(

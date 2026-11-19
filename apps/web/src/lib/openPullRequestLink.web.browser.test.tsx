@@ -1,7 +1,6 @@
 import { act, render as renderUi, type Screen } from "../../test/render";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-// The plain browser cases: no desktop bridge, so isElectron is false as in a web client.
 const state = vi.hoisted(() => ({
   navigate: vi.fn(),
   openExternal: vi.fn().mockResolvedValue(undefined),
@@ -100,8 +99,6 @@ async function clickLink(options: MouseEventInit = {}, button = false) {
   await screen.rerender(<Link button={button} />);
   const event = new MouseEvent("click", { bubbles: true, cancelable: true, ...options });
   let defaultPrevented: boolean | undefined;
-  // Record what the link decided, then keep the real browser from following it. React handles
-  // the click on the root container and stops it there, so this listener sits beside React's.
   const stopNavigation = (seen: Event) => {
     defaultPrevented = seen.defaultPrevented;
     seen.preventDefault();

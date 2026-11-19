@@ -47,7 +47,6 @@ function fileDirectory(path: string) {
 
 function useChangedFiles(params: PullRequestDiffParams) {
   const detail = useEnvironmentQuery(composerPullRequests.detail(pullRequestTarget(params)));
-  // A commit's diff is part of the pull request, so the PR's file counts and viewed state don't apply.
   const pr = params.commit ? null : detail.data;
   const terminology = sourceControlClients.get(
     (detail.data ?? params.initialSummary)?.provider,
@@ -94,7 +93,6 @@ function describeFiles(
 function FileRow(props: {
   readonly file: ReviewRenderableFile;
   readonly viewed: boolean;
-  /** Shown under the file name where files aren't grouped by directory. */
   readonly directory?: string;
   readonly onPress: () => void;
 }) {

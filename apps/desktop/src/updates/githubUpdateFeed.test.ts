@@ -5,7 +5,6 @@ import { describe, expect, it } from "vite-plus/test";
 
 type ProviderArgs = ConstructorParameters<typeof GitHubProvider>;
 
-// electron-updater's own dependency, which apps/desktop does not declare.
 const semver = NodeModule.createRequire(
   NodeModule.createRequire(import.meta.url).resolve("electron-updater"),
 )("semver") as { parse: (version: string) => ProviderArgs[1]["currentVersion"] };
@@ -21,10 +20,6 @@ const atomFeed = (tags: ReadonlyArray<string>) =>
     )
     .join("")}</feed>`;
 
-/**
- * The release a nightly install on 4580 is offered when GitHub serves this feed, this `update-feed`
- * pointer, and this newest nightly from the REST API scan.
- */
 const offeredRelease = async (
   feedTags: ReadonlyArray<string>,
   pointerTag: string | undefined,
@@ -45,7 +40,6 @@ const offeredRelease = async (
   };
   const provider = new GitHubProvider(
     { provider: "github", owner: "supabitapp", repo: "supaterm" },
-    // Only the four fields the provider reads; a real AppUpdater needs Electron.
     {
       allowPrerelease: true,
       channel: "nightly",
@@ -62,7 +56,6 @@ const offeredRelease = async (
   return { tag, releaseNotes, apiScans };
 };
 
-// What filled releases.atom on 2026-11-12: ten tags, none of them a nightly.
 const crowdedFeed = Array.from({ length: 10 }, (_, i) => `v0.1.10-preview.20261112.${4550 + i}`);
 
 describe("GitHubProvider nightly lookup", () => {

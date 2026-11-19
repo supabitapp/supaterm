@@ -718,7 +718,6 @@ describe("DesktopWindow", () => {
           return yield* Effect.die("input listeners were not registered");
         }
 
-        // Electron throws on any member access of a destroyed BrowserWindow.
         fakeWindow.isDestroyed.mockReturnValue(true);
         Object.defineProperty(fakeWindow.window, "webContents", {
           get: () => {
@@ -726,7 +725,6 @@ describe("DesktopWindow", () => {
           },
         });
 
-        // A key released while the window tears down still lands here.
         assert.doesNotThrow(() =>
           beforeInput(
             { preventDefault: () => {} },
@@ -746,9 +744,6 @@ describe("DesktopWindow", () => {
     }),
   );
 
-  // Chromium hands the main window's zoom level down to embedded preview
-  // guests, so every app zoom has to put the preview browser back at its own
-  // zoom or zooming the UI drags the previewed page with it.
   it.effect("zooms main with a focused popup and reapplies preview zoom", () =>
     Effect.gen(function* () {
       const fakeWindow = makeFakeBrowserWindow();
@@ -995,7 +990,6 @@ describe("DesktopWindow", () => {
           const fiber = yield* creation.pipe(Effect.forkChild({ startImmediately: true }));
           yield* Deferred.await(previewStarted);
           yield* Ref.set(state.quitting, true);
-          // Cover both an already-destroyed window and one shutdown has yet to destroy.
           fake.isDestroyed.mockReturnValue(entry !== "backend ready");
           yield* Deferred.succeed(releasePreview, undefined);
 
@@ -1180,7 +1174,6 @@ describe("DesktopWindow", () => {
         }
         resize();
         yield* TestClock.adjust(250);
-        // Windows reports a minimized window at -32000.
         fakeWindow.isMinimized.mockReturnValue(true);
         fakeWindow.getBounds.mockReturnValue({ x: -32_000, y: -32_000, width: 160, height: 28 });
 
@@ -1299,7 +1292,6 @@ describe("DesktopWindow", () => {
         }
         move();
         yield* TestClock.adjust(250);
-        // Minimized windows report stale state: macOS unmaximized at the pre-move frame.
         fakeWindow.isMinimized.mockReturnValue(true);
         fakeWindow.isMaximized.mockReturnValue(false);
         fakeWindow.getBounds.mockReturnValue({ x: 100, y: 100, width: 1100, height: 780 });

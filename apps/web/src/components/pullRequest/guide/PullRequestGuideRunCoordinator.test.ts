@@ -81,7 +81,6 @@ it("does not keep polling a run that settles on its first read", () => {
   using _timers = { [Symbol.dispose]: () => vi.useRealTimers() };
   vi.useFakeTimers();
   const { registry, refreshed, stop, watch } = setup();
-  // Long unseen and not running: the first read retires the watch.
   registry.set(guideAtom(`${environmentId}:1`), AsyncResult.success(idle));
   watch(1, 0);
   expect(useGuideRunStore.getState().watches[guideRunKey(environmentId, reference(1))]).toBe(
@@ -105,7 +104,6 @@ it("does not report the previous run's failure when a Running answer starts a wa
       run: { _tag: "Failed", failedAt: "2026-10-01T00:00:00.000Z", detail: "old failure" },
     } as unknown as PullRequestReviewGuideResult),
   );
-  // What the reviewGuide answer handler does before the Running answer replaces the atom's value.
   useGuideRunStore.getState().watch({
     environmentId,
     reference: reference(1),

@@ -12,7 +12,6 @@ import { HttpClient, HttpClientRequest } from "effect/http";
 
 import * as GitHubRest from "./GitHubRest.ts";
 
-/** Readers fetch the pull request on every event, so check suites' conclusions go unused. */
 const EVENT_TYPES = [
   "com.github.pull_request.review.submitted.v1",
   "com.github.pull_request.head.changed.v1",
@@ -21,13 +20,9 @@ const EVENT_TYPES = [
   "com.github.pull_request.check_suite.status.changed.v1",
 ];
 const API_ORIGIN = "https://api.github.com";
-/** GitHub sends a keep-alive at least every 15 seconds while a stream is idle. */
 const SILENCE_LIMIT = Duration.seconds(45);
-/** A connection open this long was healthy, however it ended. */
 const HEALTHY_AFTER = Duration.minutes(2);
-/** GitHub enables event streams per account, so a refusal holds for a while. */
 const REFUSED_PAUSE = Duration.hours(1);
-/** Another watch ending may free a slot under the per-account subscription limit. */
 const LIMIT_PAUSE = Duration.minutes(10);
 const MAX_FAILURES = 6;
 const MAX_BACKOFF_MS = 60_000;
@@ -42,7 +37,6 @@ const decodeStreamEnd = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Struct({ outcome: Schema.String })),
 );
 
-/** How a connection ended. `renew` means the subscription expired or lost access. */
 type Ending = "reconnect" | "renew" | "stop";
 
 const endingOf = (data: string): Ending =>
@@ -64,7 +58,6 @@ export interface PullRequestEventsInput {
 export const make = Effect.gen(function* () {
   const rest = yield* GitHubRest.GitHubRest;
   const httpClient = yield* HttpClient.HttpClient;
-  /** Keyed by host for account-wide refusals, and by pull request for one it cannot read. */
   const pausedUntil = new Map<string, number>();
 
   const subscribe = Effect.fn("GitHubPullRequestEvents.subscribe")(function* (
@@ -105,7 +98,6 @@ export const make = Effect.gen(function* () {
         ),
       );
     if (Option.isNone(response)) return Option.none();
-    // The stream request carries the token, so its URL must stay on GitHub's API.
     return decodeSubscription(response.value.body).pipe(
       Option.filter(({ events_url }) => URL.parse(events_url)?.origin === API_ORIGIN),
     );
@@ -125,7 +117,6 @@ export const make = Effect.gen(function* () {
       .pipe(Effect.ignore);
   });
 
-  /** One SSE connection: "changed" when it opens and per event, and last, how it ended. */
   const connection = (host: string, eventsUrl: string): Stream.Stream<"changed" | Ending> =>
     Stream.unwrap(
       Effect.gen(function* () {
@@ -141,7 +132,6 @@ export const make = Effect.gen(function* () {
               }),
             ),
           )
-          // Client spans would carry the subscription URL.
           .pipe(Effect.provideService(HttpClient.TracerDisabledWhen, () => true));
         if (response.status === 403 || response.status === 404) {
           return Stream.succeed<Ending>("stop");
@@ -155,7 +145,6 @@ export const make = Effect.gen(function* () {
             frame.event === "github.stream.end" ? endingOf(frame.data) : "changed",
           ),
           Stream.prepend(["changed" as const]),
-          // A close without GitHub's end frame is reconnected like one with it.
           Stream.concat(Stream.succeed<Ending>("reconnect")),
           Stream.takeUntil((element) => element !== "changed"),
         );
@@ -181,7 +170,6 @@ export const make = Effect.gen(function* () {
     const target = { ...input, host: normalizeHost(input.host) };
     if (target.host !== "github.com") return Stream.empty;
 
-    /** Follows one subscription; sets `session.renew` when it needs replacing. */
     const follow = (
       session: { renew: boolean },
       eventsUrl: string,
@@ -205,7 +193,6 @@ export const make = Effect.gen(function* () {
                 Stream.unwrap(
                   Clock.currentTimeMillis.pipe(
                     Effect.map((closedAt) => {
-                      // The first change is the opening; an event or a long life proves it worked.
                       const healthy =
                         changes > 1 || closedAt - openedAt >= Duration.toMillis(HEALTHY_AFTER);
                       const failures = healthy ? 0 : failuresSoFar + 1;
@@ -231,7 +218,6 @@ export const make = Effect.gen(function* () {
         ),
       );
 
-    /** One subscription, deleted once its stream has closed. */
     const subscription = (session: { renew: boolean }): Stream.Stream<void> =>
       Stream.unwrap(
         Effect.acquireRelease(subscribe(target), (held) =>

@@ -24,7 +24,6 @@ import {
 import type * as SourceControlProvider from "@supaterm/source-control-core/server/SourceControlProvider";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
-// GitLab allows ~1M-character descriptions; glab's JSON escaping (`\u003c`) can grow one sixfold.
 const MERGE_REQUEST_LIST_MAX_BYTES = 8_000_000;
 const decodeJsonArray = Schema.decodeUnknownExit(
   Schema.fromJsonString(Schema.Array(Schema.Unknown)),
@@ -461,8 +460,6 @@ function parseRepositoryLookup(repository: string): {
   }
 }
 
-// glab prints a missing project or merge request as a bare 404, and an expired
-// OAuth login as an `invalid_grant` refresh failure without suggesting `glab auth login`.
 const classifyGlabFailure = (stderr: string): VcsProcessExitFailureKind | null => {
   const normalized = stderr.toLowerCase();
   if (normalized.includes("glab auth login") || normalized.includes("invalid_grant")) {
@@ -491,7 +488,6 @@ export const make = Effect.gen(function* () {
         command: "glab",
         args: input.args,
         cwd: input.cwd,
-        // glab may otherwise prefer a different checkout remote.
         ...(input.host === undefined ? {} : { env: { GITLAB_HOST: input.host } }),
         classifyFailure: classifyGlabFailure,
         notFoundDetail: "Merge request not found.",
@@ -568,7 +564,6 @@ export const make = Effect.gen(function* () {
           });
         }
         items.push(...decoded.success.map(toSummaryWithOptionalUpdatedAt));
-        // Count raw entries: the decoder drops invalid ones, which would end paging early.
         const entries = decodeJsonArray(raw);
         if (
           page * pageSize >= limit ||
@@ -702,7 +697,6 @@ export const make = Effect.gen(function* () {
       );
     }),
     createMergeRequest: Effect.fn("GitLabCli.createMergeRequest")(function* (input) {
-      // A confined glab (Snap) has a private /tmp, so it cannot open the server's body file.
       const description = yield* fileSystem.readFileString(input.bodyFile).pipe(
         Effect.mapError(
           (cause) =>

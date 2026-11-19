@@ -19,7 +19,6 @@ export function limitTitleMessage(text: string, budget: number): string {
   const available = budget - TRUNCATED.length;
   let head = Math.ceil(available / 2);
   let tail = available - head;
-  // Half an emoji serializes to a lone surrogate escape, which provider JSON parsers reject.
   const last = text.charCodeAt(head - 1);
   if (last >= 0xd800 && last <= 0xdbff) head -= 1;
   const first = text.charCodeAt(text.length - tail);
@@ -30,7 +29,6 @@ export function limitTitleMessage(text: string, budget: number): string {
 export function formatThreadTitleContext(messages: ReadonlyArray<ThreadTitleMessage>) {
   const sections = messages.flatMap((source, index) => {
     const message = isAttachmentOnlyBootstrapPrompt(source.text) ? { ...source, text: "" } : source;
-    // Thinking traces dwarf answers without identifying the thread subject.
     if (
       message.role === "system" ||
       message.role === "reasoning" ||

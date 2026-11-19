@@ -146,7 +146,6 @@ export function knownPullRequestSummary(
   let newest:
     | { readonly summary: PullRequestSummary; readonly updatedAt: number; readonly readAt: number }
     | undefined;
-  // Checks and reviews change without moving `updatedAt`, so equal versions prefer the later read.
   const consider = (summary: PullRequestSummary, readAt = Number.NEGATIVE_INFINITY) => {
     const updatedAt = Date.parse(summary.updatedAt);
     if (

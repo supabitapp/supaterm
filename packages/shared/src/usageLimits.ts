@@ -58,7 +58,6 @@ export function exhaustedUsageWindow(
       });
     }
     case "codex": {
-      // Seat-based plans spend credits only past their plan windows, so the credit cap blocks only plans without them.
       const hasPlanWindows = windows.some(
         (window) => window.id === "primary" || window.id === "secondary",
       );
@@ -214,10 +213,6 @@ function accountKey(provider: ServerProvider): string | null {
   return fingerprint ? `${provider.driver}:credential:${fingerprint}` : null;
 }
 
-/**
- * Pass every enabled login, read or not, so an unreadable workspace still
- * counts as one.
- */
 function accountKeyResolver(providers: Iterable<ServerProvider>) {
   const workspaces = new Map<string, Set<string>>();
   for (const provider of providers) {
@@ -466,7 +461,6 @@ const CODEX_PLAN_CAPACITY: Record<string, number> = {
   "ChatGPT Pro 100 Subscription": 5,
   "ChatGPT Pro 200 Subscription": 20,
 };
-// Claude's published plan multipliers describe the session allowance only.
 const CLAUDE_SESSION_CAPACITY: Record<string, number> = { Pro: 1, Max: 5, Ultra: 20 };
 
 function planCapacity(account: LimitAccount, kind: ServerProviderUsageWindow["kind"]) {
@@ -480,11 +474,6 @@ function planCapacity(account: LimitAccount, kind: ServerProviderUsageWindow["ki
   return undefined;
 }
 
-/**
- * Codex ids are slots, not allowances: a weekly-only plan reports its weekly
- * window as `primary`, other plans as `secondary`. Its windows pool by kind;
- * other drivers' ids name distinct allowances.
- */
 function poolKey(driver: ServerProvider["driver"], window: ServerProviderUsageWindow): string {
   return driver === "codex" ? window.kind : `${window.kind}:${window.id}`;
 }
@@ -551,7 +540,6 @@ function poolWindows(accounts: readonly LimitAccount[], now: number): readonly L
     const memberByAccount = new Map(members.map((member) => [member.account.key, member]));
     const first = members[0]!.window;
     const id = members[0]!.account.driver === "codex" ? key : first.id;
-    // One unknown plan makes the pool incomparable by plan, so every member then counts once.
     const capacities = members.map((m) => planCapacity(m.account, first.kind));
     const weights = capacities.every((capacity) => capacity !== undefined)
       ? capacities
@@ -560,9 +548,6 @@ function poolWindows(accounts: readonly LimitAccount[], now: number): readonly L
     const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
     const usedPercent =
       members.reduce((sum, m) => sum + m.window.usedPercent * weightOf.get(m)!, 0) / totalWeight;
-    // Pace compares spend against the clock, so it is judged only over the
-    // members that have a clock; a window with no reset would otherwise
-    // count as spend with no time elapsed and skew the verdict.
     const timed = members.flatMap((m) => {
       const share = elapsedShare(m.window, now);
       return share === null

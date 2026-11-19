@@ -493,7 +493,6 @@ it.effect.each([
     const releaseLock = yield* Ref.make(false);
     const lockedWrite = Effect.gen(function* () {
       yield* Deferred.succeed(settlementStarted, undefined);
-      // An in-flight database write can finish its own wait before noticing shutdown.
       yield* Effect.sleep(Duration.millis(1));
       if (yield* Ref.get(releaseLock)) return true;
       return yield* new EffectOutbox.EffectOutboxError({

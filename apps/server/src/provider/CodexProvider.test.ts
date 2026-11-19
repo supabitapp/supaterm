@@ -121,13 +121,11 @@ it.effect("reuses one Codex skills helper per launch until it idles out", () =>
       { cwds: ["/beta"], forceReload: true },
     ]);
 
-    // Another home is another launch identity; the previous helper retires at once.
     assert.deepStrictEqual(yield* read("/alpha", "/home-b"), ["skill-in-/alpha"]);
     assert.strictEqual(helpers.length, 2);
     assert.strictEqual(helpers[0]!.closed, true);
     assert.strictEqual(helpers[1]!.codexHome, "/home-b");
 
-    // A helper that exits is replaced within the same read.
     yield* helpers[1]!.crash;
     assert.deepStrictEqual(yield* read("/beta", "/home-b"), ["skill-in-/beta"]);
     assert.strictEqual(helpers.length, 3);

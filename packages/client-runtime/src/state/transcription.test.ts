@@ -170,7 +170,6 @@ describe("uploadVoiceRecording", () => {
     ])
       .upload()
       .catch((error: unknown) => error);
-    // The server keeps this outcome for the upload id, so only a new attempt can clear it.
     expect(limited).toMatchObject({
       retryable: false,
       message: "Transcription is rate limited. Try again soon. Try again in 3 s.",

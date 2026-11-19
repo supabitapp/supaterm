@@ -394,7 +394,6 @@ describe("thread action permissions", () => {
     expect(state.localEffects).not.toContain("clear-draft:fork");
     expect(state.localEffects).not.toContain("clear-draft:other-side-chat");
 
-    // The family read only finds drafts to clear; it never blocks the delete.
     state.familyLookupFails = true;
     state.requests = [];
     state.localEffects = [];

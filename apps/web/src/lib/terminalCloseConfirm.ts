@@ -32,7 +32,6 @@ async function terminalCloseConfirmationEnabled(): Promise<boolean> {
     await ensureClientSettingsHydrated();
     return getClientSettings().confirmTerminalClose;
   } catch {
-    // If saved settings cannot be read, keep the destructive confirmation.
     return true;
   } finally {
     pendingConfirmations -= 1;

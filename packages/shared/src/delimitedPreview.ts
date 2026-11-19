@@ -76,7 +76,6 @@ export function parseDelimitedPreview(
 }
 
 export function csvPreviewDelimiter(text: string) {
-  // Semicolons win only when they are consistent across the first two records and commas are not.
   const commas = [0, 0];
   const semicolons = [0, 0];
   let record = 0;

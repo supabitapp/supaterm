@@ -56,8 +56,6 @@ function PullRequestListError(props: { readonly message: string }) {
       accessibilityLabel={props.message}
       accessibilityState={{ expanded }}
       onPress={() => setExpanded((value) => !value)}
-      // A long press selects the text; collapsing under that selection crashes Android's
-      // smart-select animation, so it must not also count as a press.
       onLongPress={() => undefined}
       className="min-h-11 flex-row items-center gap-3 px-4 py-2.5 active:opacity-70"
     >
@@ -98,7 +96,6 @@ export function PullRequestsScreen(
   const configs = useAtomValue(environmentServerConfigsAtom);
   const insets = useSafeAreaInsets();
   const contentTopInset = useContentTopInset();
-  // UIKit insets the list by its column's safe area, which this context can report as 0.
   const columnSafeBottom = useNativeColumnLayoutMetrics()?.safeArea.bottom;
   const bottomSafeArea =
     Platform.OS === "ios" ? (columnSafeBottom ?? insets.bottom) : insets.bottom;
@@ -304,7 +301,6 @@ export function PullRequestsScreen(
           <RefreshControl
             refreshing={result.refreshing}
             onRefresh={() => void result.onRefresh()}
-            // The list already accounts for the navigation header in its content inset.
             progressViewOffset={Platform.OS === "ios" ? 60 : undefined}
           />
         }
@@ -372,7 +368,6 @@ export function PullRequestsScreen(
               />
             </View>
           ) : result.hasMore ? (
-            // A filtered page can be too short to scroll, which leaves nothing to reach the end of.
             <View className="items-center py-4">
               <Button
                 label="Load more"
@@ -435,7 +430,6 @@ export function PullRequestsScreen(
 
 type PullRequestsFrameRender = (filters: WorkspaceFilterMenu | null, list: ReactNode) => ReactNode;
 
-// Rendered as an element so the menu's press handler, which scrolls the list, is not called in render.
 function PullRequestsFrame(props: {
   readonly render: PullRequestsFrameRender;
   readonly filters: WorkspaceFilterMenu | null;

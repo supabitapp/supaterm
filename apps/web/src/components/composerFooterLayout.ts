@@ -31,9 +31,6 @@ export function shouldUseRestingComposerLayout(input: {
   hasMultilinePrompt: boolean;
   timelineOverflows: boolean;
 }): boolean {
-  // Resting clamps a single prompt line, so multiline drafts never rest. Only a timeline scroll
-  // rests it, never losing focus, so clicking or selecting text leaves the composer where it was.
-  // Resting gives reading space back to the timeline, so a thread that fits stays expanded.
   return (
     input.isExistingThread &&
     !input.isMobileViewport &&
@@ -44,12 +41,6 @@ export function shouldUseRestingComposerLayout(input: {
   );
 }
 
-/**
- * How much taller the empty expanded composer is than its resting row on
- * desktop widths, from the layout classes in ChatComposer: the body loses
- * 8px of top padding, the prompt clamps from min-h-17.5 (70px) to 32px, and
- * the 48px footer leaves flow.
- */
 const COMPOSER_RESTING_EXPANSION_MIN_PX = 94;
 
 /** Reserve expansion height because the timeline does not move when footer growth covers its last rows. */
@@ -60,8 +51,6 @@ export function resolveComposerTimelineInset(input: {
   restingOnlyHeight?: number;
   expandedNoticesHeight?: number;
 }): number {
-  // Expanded notices temporarily cover the timeline. Remove their growth before
-  // rounding so fractional measurements reserve exactly the collapsed height.
   const overlayHeight = Math.ceil(input.overlayHeight - (input.expandedNoticesHeight ?? 0));
   return input.isResting
     ? Math.max(
@@ -178,8 +167,6 @@ export function resolveRestingComposerControlsLayout(
       fixedWidth,
       Math.min(candidate, iconSteps),
     );
-  // Use 1px slack for natural-width jitter on promotion; demote immediately to avoid clipping or layout
-  // flapping.
   while (
     step < iconSteps + blockWidths.length &&
     widthAtStep(step) > hostWidth - (step < previousStep ? RESTING_CONTROLS_SLACK_PX : 0)

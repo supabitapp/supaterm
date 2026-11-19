@@ -46,7 +46,6 @@ export function serverUpdateStageLabel(stage: ServerUpdateStage): string {
 
 const CROSS_TRACK_NOTE = "Switch tracks in About → Update track";
 
-/** Hosts refuse a Stable/Nightly crossing outside a track switch, which checks the database first. */
 function refusedCrossing(
   target: {
     readonly selfUpdate: ServerSelfUpdateCapability | null;

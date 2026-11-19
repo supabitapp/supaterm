@@ -66,7 +66,6 @@ export const layer = HttpApiBuilder.group(
         Effect.forEach(
           projects,
           (project) =>
-            // Use available enrichment only; git probes can take a minute and exceed shell-snapshot budgets.
             projectEnrichment.getAvailable(project.workspaceRoot).pipe(
               Effect.map((enrichment) => ({
                 ...project,
@@ -99,7 +98,6 @@ export const layer = HttpApiBuilder.group(
       },
     );
 
-    // A client that holds rows names their cursor; a small answer tells it to keep them.
     const answerShellSnapshot = Effect.fn("http.orchestration.answerShellSnapshot")((query: {
       readonly omitIdleSubagents?: string;
       readonly omitOlderDone?: string;

@@ -413,7 +413,6 @@ it.effect("refuses a queued edit that keeps a file another edit already deleted"
     const result = yield* edit([kept, deleted]);
     expect(result._tag).toBe("Failure");
     expect(captured).toHaveLength(1);
-    // A retry of the accepted edit replays its receipt even after a later cleanup removed its file.
     NodeFS.rmSync(NodePath.join(config.attachmentsDir, `${kept.id}.png`));
     yield* edit([kept]);
     expect(captured).toHaveLength(2);

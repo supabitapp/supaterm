@@ -118,7 +118,6 @@ describe("applyServerConfigProjection provider catalogs", () => {
     expect(reconnected.slashCommands).toBe(slashCommands);
     expect(reconnected.skills).toBe(skills);
 
-    // A changed catalog keeps the stale lists; the old marker says they need a reload.
     const { slashCommands: _c, skills: _s, ...delta } = sent({ catalogDigest: "d2" });
     const changed = apply(projection([held]), {
       type: "providerStatusDeltas",
@@ -127,7 +126,6 @@ describe("applyServerConfigProjection provider catalogs", () => {
     expect(changed).toMatchObject({ catalogDigest: "d2", loadedCatalogDigest: "d1" });
     expect(changed.skills).toBe(skills);
 
-    // Lists cached before digests existed carry over without a marker.
     const legacy = apply(projection([provider({ slashCommands, skills })]), {
       type: "providerStatuses",
       payload: { providers: [sent({})] },

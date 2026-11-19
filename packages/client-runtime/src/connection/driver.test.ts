@@ -606,7 +606,6 @@ describe("ConnectionDriver", () => {
                 ),
             }),
             Layer.mock(RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization)({}),
-            // SSH routes have no HTTP check, so the driver never sends a request.
             FetchHttpClient.layer,
           ),
         ),

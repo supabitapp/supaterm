@@ -3,7 +3,6 @@ import * as NodeModule from "node:module";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-// The agent forks via the shared CJS module at call time; replace it to stub the helper on every platform.
 const requireCjs = NodeModule.createRequire(import.meta.url);
 const childProcess: typeof import("node:child_process") = requireCjs("child_process");
 const {

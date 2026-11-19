@@ -145,9 +145,6 @@ export function useComposerAttachmentIntake(input: {
       });
       return false;
     }
-    // Captured before the awaits below: the user may switch threads while a
-    // large image is being compressed, and the attachments and errors belong
-    // to the thread the paste happened in.
     const threadId = activeThreadId;
     const imageAttachmentsGetChips =
       !options?.skipImageInlineChip &&
@@ -156,13 +153,7 @@ export function useComposerAttachmentIntake(input: {
         projectSelectionRequired ||
         stripInlineContextReferences(promptRef.current).trim().length > 0);
 
-    // Validation happens synchronously so concurrent pastes see each other:
-    // accepted files reserve their attachment slots (as preparing images)
-    // before the first await, keeping the total under the limit.
     let reservedCount = countReservedAttachments();
-    // A pick that matches a needs-reattach marker replaces it in the draft, so
-    // it must not consume a slot; a draft full of markers would otherwise hit
-    // the capacity error before the replacement path could run.
     const reattachMarkers = composerFilesRef.current.filter(composerFileNeedsReattach);
     const replacedReattachMarkerIds = new Set<string>();
     const acceptedImages: File[] = [];
@@ -251,15 +242,11 @@ export function useComposerAttachmentIntake(input: {
     }
     if (acceptedImages.length === 0) return insertedAny;
 
-    // The store drops a repeated image only after compressing it, so a likely repeat prepares
-    // without a tile instead of flashing one. Only the store decides it is a duplicate.
     const imageSourceKeys = new Set(
       [...composerImagesRef.current, ...getPreparingComposerImages(attachmentTargetKey)].map(
         (image) => composerImageSourceKey(image.file),
       ),
     );
-    // The draft image reuses its placeholder's id and thumbnail so the strip tile stays exactly
-    // as it is when the compressed file replaces it.
     const preparingImages = acceptedImages.map((file) => {
       const sourceKey = composerImageSourceKey(file);
       const hidden = imageSourceKeys.has(sourceKey);
@@ -270,16 +257,12 @@ export function useComposerAttachmentIntake(input: {
     if (questionAttachmentTarget)
       changeQuestionAttachmentPreparation(questionAttachmentTarget, acceptedImages.length);
     const compressed: { id: string; file: File }[] = [];
-    // Keyed by image so a failure whose tile was removed (even mid-compression) is not reported.
     const compressionErrors = new Map<string, string>();
     const pendingInsertion = imageAttachmentsGetChips
       ? composerEditorRef.current?.captureAttachmentInsertion()
       : undefined;
     for (const { id, file } of preparingImages) {
-      // Removed from the strip while an earlier image was compressing.
       if (!isPreparingComposerImage(attachmentTargetKey, id)) continue;
-      // A rejection must still reach the cleanup below: a leaked
-      // placeholder would block sending from this draft for good.
       const result = await prepareImageForAttachment(
         file,
         PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
@@ -302,8 +285,6 @@ export function useComposerAttachmentIntake(input: {
     const questionDiscarded =
       questionAttachmentTarget !== null &&
       !useQuestionAttachmentPreparation.getState().counts[questionAttachmentTarget];
-    // Same tick as the draft insert below, so the strip swaps placeholders for
-    // real tiles in one render. A placeholder removed meanwhile stays removed.
     const stillPreparingIds = removePreparingComposerImages(
       attachmentTargetKey,
       new Set(preparingImages.map((image) => image.id)),
@@ -334,7 +315,6 @@ export function useComposerAttachmentIntake(input: {
           : [],
     );
     const storedImages = nextImages.filter((image) => storedImageIds.has(image.id));
-    // The draft may be gone by now; revoking a URL the store already revoked is harmless.
     for (const image of nextImages) {
       if (!storedImageIds.has(image.id)) URL.revokeObjectURL(image.previewUrl);
     }
@@ -346,10 +326,6 @@ export function useComposerAttachmentIntake(input: {
         undefined,
         pendingInsertion,
       );
-    // Only failures are reported here. Success must not pass `null`: by
-    // now other work (a failed send, an overlapping paste) may have set a
-    // thread error this call knows nothing about, and clearing it would
-    // swallow that message.
     const compressionError = [...compressionErrors].findLast(([id]) =>
       stillPreparingIds.has(id),
     )?.[1];
@@ -361,7 +337,6 @@ export function useComposerAttachmentIntake(input: {
 
   const removeComposerImage = (imageId: string) => {
     if (removePreparingComposerImages(attachmentTargetKey, new Set([imageId])).size > 0) {
-      // Its compression finishes in the background and is dropped.
       if (questionAttachmentTarget)
         changeQuestionAttachmentPreparation(questionAttachmentTarget, -1);
       return;

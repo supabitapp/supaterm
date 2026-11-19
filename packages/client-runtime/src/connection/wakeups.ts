@@ -8,7 +8,6 @@ export type ConnectionWakeup =
   | "application-resumed"
   | "application-background"
   | "network-changed"
-  // Desktop: the machine woke from sleep or was unlocked.
   | "system-resumed";
 
 export function shouldResubscribeAfterWakeup(reason: ConnectionWakeup): boolean {

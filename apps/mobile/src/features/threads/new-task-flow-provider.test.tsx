@@ -157,8 +157,6 @@ vi.mock("../../state/use-thread-outbox", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../state/use-thread-outbox")>()),
   useThreadOutboxMessages: () => useAtomValue(queueAtom),
 }));
-// The provider uses the real atom registry with an in-memory draft store; native
-// persistence and attachment cleanup are outside environment-switch behavior.
 vi.mock("../../state/use-composer-drafts", async (importOriginal) => ({
   get composerDraftsAtom() {
     return draftsAtom;
@@ -304,7 +302,6 @@ interface TestDraftRoute {
 let renderer: ReactTestRenderer | null = null;
 let stack: ReadonlyArray<TestDraftRoute> = [];
 const routeFlows = new Map<string, NewTaskFlow>();
-/** The topmost draft route's flow. */
 let flow: NewTaskFlow;
 let pendingActions: ReturnType<typeof usePendingTaskListActions>;
 const selectThreadRoute = (params: ReactNavigation.RootParamList["Thread"]) =>
@@ -323,14 +320,12 @@ function Probe(props: {
       pendingActions = actions;
     }
   }, [actions, current, props.routeKey, props.top]);
-  // Mirrors the draft screen applying its route project on mount, before the provider's effects run.
   useEffect(() => {
     if (props.pickOnMount) current.setProject(props.pickOnMount);
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- picks once on mount; setProject changes every render
   }, []);
   return null;
 }
-// Draft routes stay mounted under the ones pushed above them, as on the native stack.
 function draftStack(routes: ReadonlyArray<TestDraftRoute>) {
   stack = routes;
   const top = routes.at(-1);

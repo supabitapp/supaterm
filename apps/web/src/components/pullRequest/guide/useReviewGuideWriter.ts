@@ -33,7 +33,6 @@ export function useReviewGuideWriter({
   const data = query.data;
   const running = starting || data?.run?._tag === "Running";
 
-  // A run reported by the server is watched where its answer lands (state/pullRequests.ts).
   const write = async () => {
     if (running) return;
     setStarting(true);

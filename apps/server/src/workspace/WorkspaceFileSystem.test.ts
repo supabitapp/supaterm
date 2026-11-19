@@ -162,8 +162,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
       }),
     );
 
-    // A file chip for `file://attacker.test/s/a.ts` in an agent's message sent
-    // the Windows user's NTLM credentials to attacker.test as it rendered.
     it.effect("never stats a network path", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
@@ -455,14 +453,11 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
       }),
     );
 
-    // This resolves inside the project, but Windows reads `\\?\` paths as
-    // written, so realpath on the raw string signed in to attacker.test.
     it.effect("reads the network path it checked", () =>
       Effect.gen(function* () {
         const workspaceFileSystem = yield* WorkspaceFileSystem.make.pipe(
           Effect.provide(Layer.merge(layerKnownWorkspacesTest, NodePath.layerWin32)),
         );
-        // Rejects without touching the filesystem, so a Windows runner never looks the share up.
         const realpath = vi
           .mocked(NodeFSP.realpath)
           .mockClear()
@@ -481,8 +476,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
       }),
     );
 
-    // Resolving `..` before realpath would read beside the link instead of its target.
-    // Windows collapses `..` before the filesystem sees a path, so it has no such reads.
     it.effect.skipIf(!symlinksSupported || HostProcess.Platform.defaultValue() === "win32")(
       "reads `..` after a link from the link's target",
       () =>
@@ -804,7 +797,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
             relativePath: "notes.md",
             contents: "notes\n",
           });
-          // `..` after a link in cwd is resolved by name, as for the relative path.
           yield* fileSystem.symlink(path.join(cwd, "docs/plans"), path.join(cwd, "plans-alias"));
           yield* workspaceFileSystem.writeFile({
             cwd: `${path.join(cwd, "plans-alias")}${path.sep}..`,
@@ -822,7 +814,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         }),
     );
 
-    // On Windows `\` is a separator, so the name cannot exist there.
     it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
       "keeps a backslash in a file name as part of the name",
       () =>
@@ -852,7 +843,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         yield* writeTextFile(cwd, ".bare/objects/info/packs");
         yield* writeTextFile(cwd, ".bare/refs/heads/main");
         yield* writeTextFile(cwd, ".bare/hooks/pre-push.sample");
-        // Only a linked worktree's `.git` file ends the upward check, not any `.git` folder.
         yield* fileSystem.makeDirectory(path.join(cwd, ".bare/hooks/.git"));
         yield* writeTextFile(cwd, ".bare/worktrees/main/HEAD", "ref: refs/heads/main\n");
         yield* writeTextFile(cwd, ".bare/worktrees/main/commondir", "../..\n");

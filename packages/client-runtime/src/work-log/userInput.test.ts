@@ -2,7 +2,6 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { getQuestionAnswerPreview, getQuestionAnswerText } from "./userInput.js";
 
-// Shape the web client submits for an answer holding a review-comment chip.
 const answerWithReviewComment = [
   "See my note: [Review comment: notes.md L2; ref=review-comment_c1]",
   "",

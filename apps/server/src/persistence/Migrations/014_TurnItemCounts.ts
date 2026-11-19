@@ -8,7 +8,6 @@ import * as SqlClient from "effect/sql/SqlClient";
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
-  // run_key is '' for items without a run; NULLs never conflict in a primary key.
   yield* sql`
     CREATE TABLE orchestration_v2_projection_turn_item_counts (
       thread_id TEXT NOT NULL,
@@ -23,7 +22,6 @@ export default Effect.gen(function* () {
     FROM orchestration_v2_projection_turn_items
     GROUP BY thread_id, run_id
   `;
-  // An upsert that hits an existing item fires only the update trigger.
   yield* sql`
     CREATE TRIGGER orchestration_v2_turn_item_counts_insert
     AFTER INSERT ON orchestration_v2_projection_turn_items

@@ -1,17 +1,12 @@
 import * as Schema from "effect/Schema";
 import type { PullRequestCheck } from "@supaterm/contracts";
 
-// The branch endpoint reports the governing protection rule with repository read access.
 export const ForgejoBranchStatusChecks = Schema.Struct({
   enable_status_check: Schema.optional(Schema.Boolean),
   status_check_contexts: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
 });
 
-// Forgejo compiles each context with gobwas/glob and no separator, so `*` and `**` both match any
-// run of characters, `/` included, and `?` matches one character. Classes, alternation and escapes
-// are not handled.
 const UNSUPPORTED_GLOB = /[[\]{}\\]/;
-// Linear two-pointer match: a regex built from the glob backtracks polynomially per `*`.
 const matchesContext = (glob: string, name: string) => {
   const pattern = Array.from(glob);
   const text = Array.from(name);
@@ -20,7 +15,6 @@ const matchesContext = (glob: string, name: string) => {
   let star = -1;
   let resume = 0;
   while (t < text.length) {
-    // Wildcard first, so a literal `*` in the name never consumes the pattern's `*`.
     if (pattern[p] === "*") {
       star = p++;
       resume = t;
@@ -46,7 +40,6 @@ export function markRequiredForgejoChecks(
   if (contexts.length === 0) return checks;
   const unsupported = [...new Set(contexts.filter((context) => UNSUPPORTED_GLOB.test(context)))];
   if (unsupported.length > 0) {
-    // Keep all observed checks gating, but never pass a policy we cannot evaluate.
     return [
       ...checks,
       ...unsupported.map((name) => ({
@@ -63,7 +56,6 @@ export function markRequiredForgejoChecks(
       ? { ...check, required: true }
       : check,
   );
-  // Forgejo keeps an unmatched required pattern pending, including wildcards.
   const missing = patterns.flatMap((name) =>
     !name.trim() || checks.some((check) => matchesContext(name, check.name))
       ? []

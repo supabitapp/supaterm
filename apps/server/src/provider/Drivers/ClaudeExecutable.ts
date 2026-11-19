@@ -7,16 +7,11 @@ import { SpawnExecutableResolution } from "@supaterm/shared/shell";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 
-/** Node 20.12+ cannot spawn Windows launcher scripts without a shell; the SDK cannot use these as executables. */
 const WINDOWS_SHIM_EXTENSIONS: ReadonlySet<string> = new Set([".cmd", ".bat", ".ps1"]);
 
 export const isWindowsClaudeLauncherShimPath = (filePath: string): boolean =>
   WINDOWS_SHIM_EXTENSIONS.has(NodePath.win32.extname(filePath).toLowerCase());
 
-/**
- * npm: new packages provide bin/claude.exe; older ones need a JavaScript runtime for cli.js.
- * WinGet: Links\claude.cmd forwards to the package's native executable under ..\Packages.
- */
 const PACKAGE_ENTRY_CANDIDATES = [
   ["node_modules", "@anthropic-ai", "claude-code", "bin", "claude.exe"],
   ["node_modules", "@anthropic-ai", "claude-code", "cli.js"],

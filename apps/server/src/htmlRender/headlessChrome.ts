@@ -46,8 +46,6 @@ const MAX_CONSOLE_TEXT_CHARS = 500;
 const VIEWPORT_HEIGHT = 800;
 const MAX_CAPTURE_HEIGHT = 4_000;
 const CAPTURE_TIMEOUT = "20 seconds";
-// Chrome blocks file access; images arrive inlined. Browser-only .localhost permits secure contexts and HTTP resources.
-// publicProxy blocks local networks; pinning the main frame and forbidding popups keeps captures on the page.
 const PAGE_ORIGIN = "http://supaterm-page.localhost";
 const PAGE_URL = `${PAGE_ORIGIN}/page.html`;
 const PAGE_NAME = "page.html";
@@ -55,7 +53,6 @@ const MEASURE_CONCURRENCY = 3;
 
 const textEncoder = new TextEncoder();
 
-// Pages reach 25 MiB; use Node's encoder.
 const pageBody = (html: string) =>
   Buffer.from(Buffer.from(html, "utf8").toString("base64"), "latin1");
 
@@ -107,7 +104,6 @@ const decodeLogEntryAdded = Schema.decodeUnknownOption(
 
 const clipConsoleText = (text: string) => {
   if (text.length <= MAX_CONSOLE_TEXT_CHARS) return text;
-  // Half an emoji serializes to a lone surrogate escape, which provider JSON parsers reject.
   const last = text.charCodeAt(MAX_CONSOLE_TEXT_CHARS - 1);
   const end =
     last >= 0xd800 && last <= 0xdbff ? MAX_CONSOLE_TEXT_CHARS - 1 : MAX_CONSOLE_TEXT_CHARS;
@@ -153,10 +149,8 @@ const consoleMessageFromEvent = (method: string, params: unknown): ConsoleMessag
   return undefined;
 };
 
-// Wait for fonts and two paint frames to capture late layout.
 const SETTLE_EXPRESSION =
   "document.fonts.ready.then(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve(true)))))";
-// scrollHeight is at least viewport height; use the root box for shorter pages.
 const MEASURE_EXPRESSION =
   "(() => { const root = document.documentElement; return root.scrollHeight > root.clientHeight ? root.scrollHeight : root.getBoundingClientRect().height; })()";
 
@@ -174,7 +168,6 @@ interface PageEvents {
   omittedConsoleMessages: number;
 }
 
-// CDP pipe uses fd 3 in, fd 4 out and NUL-delimited JSON.
 const launchBrowser = Effect.fnUntraced(function* (input: {
   readonly executable: string;
   readonly noSandbox: boolean;
@@ -201,9 +194,7 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
           "--mute-audio",
           "--block-new-web-contents",
           `--proxy-server=socks5://127.0.0.1:${proxy.port}`,
-          // Loopback would otherwise skip the proxy.
           "--proxy-bypass-list=<-loopback>",
-          // WebRTC would otherwise send UDP, which no proxy carries.
           "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
           ...(input.noSandbox ? ["--no-sandbox"] : []),
           `--user-data-dir=${input.profileDirectory}`,
@@ -226,8 +217,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
         (cause) =>
           new HtmlRenderBrowserError({ reason: "the browser could not be started", cause }),
       ),
-      // Node throws some spawn errors synchronously, such as `spawn UNKNOWN`
-      // when policy blocks the executable; `mapError` cannot catch those.
       Effect.catchDefect((cause) =>
         Effect.fail(
           new HtmlRenderBrowserError({ reason: "the browser could not be started", cause }),
@@ -263,7 +252,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       ),
     ).pipe(Effect.asVoid);
 
-  // Queue shared body bytes between JSON halves to avoid copies across capture widths.
   const fulfillPage = (sessionId: string, requestId: string, body: Uint8Array) =>
     Queue.offerAll(outgoing, [
       textEncoder.encode(
@@ -273,7 +261,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       textEncoder.encode('"}}\0'),
     ]).pipe(Effect.asVoid);
 
-  // Incoming messages share the session span; frame acknowledgements are frequent.
   const receive = Effect.fnUntraced(function* (raw: string) {
     const message = Option.getOrUndefined(decodeCdpMessage(raw));
     if (message?.id !== undefined) {
@@ -304,7 +291,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       if (url === PAGE_URL && body !== undefined) {
         return yield* fulfillPage(sessionId, paused.requestId, body);
       }
-      // Subframes may show other sites covered by Local Network Access; the main frame stays on Supaterm's page.
       const otherSiteFrame =
         paused.resourceType === "Document" &&
         paused.frameId !== page.mainFrameId &&
@@ -330,7 +316,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     return yield* Effect.void;
   });
 
-  // Startup aborts close the pipe; let stderr drain to recover the reason.
   const disconnect = Effect.gen(function* () {
     yield* Fiber.await(stderrReader).pipe(Effect.timeout("1 second"), Effect.ignore);
     const exit = yield* child.exitCode.pipe(
@@ -359,7 +344,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     );
   });
 
-  // Chunks may split messages; screenshot replies span many chunks.
   let partial: Array<string> = [];
   yield* child.getOutputFd(4).pipe(
     Stream.decodeText(),
@@ -380,8 +364,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     Effect.forkScoped,
   );
 
-  // Signals can miss a confined browser (AppArmor in LXC), so ask it to quit first.
-  // Runs before the spawn's release, which still signals a browser that stays up.
   yield* Effect.addFinalizer(() =>
     disconnected
       ? Effect.void
@@ -417,7 +399,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     );
   });
 
-  // Chrome's default context can stall Fetch interception during navigation.
   const { browserContextId } = yield* send(
     "Target.createBrowserContext",
     {},
@@ -436,7 +417,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       Schema.Struct({ sessionId: Schema.String }),
     );
     const events: PageEvents = {
-      // A page target's id is its main frame's id.
       mainFrameId: targetId,
       body: undefined,
       loaded: undefined,
@@ -453,8 +433,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       Ignored,
       sessionId,
     );
-    // Previews have no use for WebRTC, whose ICE servers can make the browser
-    // resolve names outside the proxy. Runs before page scripts in every frame.
     yield* send(
       "Page.addScriptToEvaluateOnNewDocument",
       {
@@ -464,7 +442,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
       Ignored,
       sessionId,
     );
-    // Intercept Supaterm's page and all document navigations to keep the main frame on it.
     yield* send(
       "Fetch.enable",
       {
@@ -543,7 +520,6 @@ const launchBrowser = Effect.fnUntraced(function* (input: {
     return { load, screenshot, consoleMessages, close };
   });
 
-  // Each capture opens one page per browser, so this note belongs to that page alone.
   const fakeIpNote = (): ReadonlyArray<ConsoleMessage> =>
     [...proxy.fakeIpHosts].map(([host, address]) => ({
       level: "warning",

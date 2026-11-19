@@ -1,4 +1,3 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import {
   initWasm,
   openWorkbook,
@@ -18,23 +17,15 @@ import { frozenSize } from "./sheet-paint";
 import type { SheetLayout, SheetMethods, SheetTab } from "./sheet-protocol";
 import { serveWorker, Transfer } from "./worker-rpc";
 
-// One worker holds one open workbook: its engine, recalculation, display lists and the painting of its cells. The
-// window terminates the worker when the workbook closes, which is the only way the engine's memory is given back.
-
 type Opened = {
   readonly workbook: WorkbookHandle;
-  /** The active sheet's metadata; the engine draws only the active sheet. */
   info: SheetInfo;
-  /** Where each sheet's last cell ends, by sheet and frozen panes' size; measured once, as it costs a frame. */
   readonly ends: Map<string, { readonly x: number; readonly y: number } | undefined>;
-  /** The one canvas every frame paints on and hands over as a bitmap. */
   readonly surface: OffscreenCanvas;
-  /** The sheets whose view hides gridlines, which the engine draws on every sheet. */
   readonly hiddenGridlines: ReadonlySet<number>;
   readonly themeFonts: WorkbookView["themeFonts"];
 };
 
-/** The workbook this worker opened, once it has. */
 type State = { opened: Opened | undefined };
 
 const state: State = { opened: undefined };
@@ -60,7 +51,6 @@ serveWorker<SheetMethods>({
     };
 
     const tabs = visibleTabs(workbook, info);
-    // A workbook saved on a hidden sheet opens on the first visible one, as Excel does.
     const first = tabs.find((tab) => tab.index === info.activeSheet) ?? tabs[0];
 
     if (!first) return undefined;
@@ -74,7 +64,6 @@ serveWorker<SheetMethods>({
 
     if (layout) return layout;
 
-    // One sheet that fails to open leaves the others readable: go back to the sheet on show.
     attempt(() => show(opened, current));
 
     throw new Error(`Sheet ${input.sheet} could not open`);
@@ -178,7 +167,6 @@ serveWorker<SheetMethods>({
       ),
     );
   },
-  // Copies the cells as they show, which is what a reader expects to paste, not the formulas behind them.
   copy: (input) => {
     const cells = read(required(), input.sheet, input.range);
 
@@ -198,7 +186,6 @@ function required() {
   return state.opened;
 }
 
-/** The workbook with `sheet` active, as a frame from a grid that has since given way to another sheet may ask. */
 function active(sheet: number) {
   const opened = required();
 
@@ -207,7 +194,6 @@ function active(sheet: number) {
   return opened;
 }
 
-/** Makes a sheet the active one and reads what its grid needs. */
 function show(opened: Opened, sheet: number): SheetLayout {
   opened.workbook.setActiveSheet(sheet);
   opened.info = opened.workbook.sheetInfo();
@@ -215,10 +201,6 @@ function show(opened: Opened, sheet: number): SheetLayout {
   return { info: opened.info, ...layout(opened.workbook, sheet) };
 }
 
-/**
- * The used range, the merged cells, the hidden rows and columns, and how far the charts reach, from one export of the
- * sheet's metadata. One cell is enough: the lists before the cells are complete however soon the export stops.
- */
 function layout(workbook: WorkbookHandle, sheet: number) {
   const result = attempt(() =>
     workbook.exportStructured({
@@ -233,7 +215,6 @@ function layout(workbook: WorkbookHandle, sheet: number) {
   const charts = (exported?.objects ?? [])
     .filter((object) => object.kind === "chart" && !object.hidden)
     .flatMap((object) => (object.anchor ? anchorRange(object.anchor) : []))
-    // The corner cell holds the chart's edge somewhere inside it, so the cell past it bounds the chart.
     .flatMap((range) => {
       const corner = attempt(() =>
         workbook.cellPosition(
@@ -258,7 +239,6 @@ function layout(workbook: WorkbookHandle, sheet: number) {
   };
 }
 
-/** Where the sheet's last cell ends, past the frozen panes. A viewport past it makes the engine throw. */
 function end(
   opened: Opened,
   sheet: number,
@@ -284,7 +264,6 @@ function measureEnd(
 
   if (!last) return undefined;
 
-  // A viewport one pixel past the frozen panes, on the last cell, reports where that cell ends.
   const grid = attempt(
     () =>
       workbook.displayList({
@@ -295,7 +274,6 @@ function measureEnd(
       }).grid,
   );
 
-  // The engine works in single precision there, so stay a little short of the edge.
   const margin = 2;
 
   return {
@@ -310,7 +288,6 @@ function measureEnd(
   };
 }
 
-/** The cells of a range on a sheet as the engine reads them, row by row; undefined when it cannot. */
 function read(opened: Opened, sheet: number, range: CellRange) {
   if ((range.bottom - range.top + 1) * (range.right - range.left + 1) > 200_000) return undefined;
   const target: XlsxRangeTarget = {
@@ -327,7 +304,6 @@ function read(opened: Opened, sheet: number, range: CellRange) {
   return result?.ok ? result.ranges[0]?.cells : undefined;
 }
 
-/** The workbook's sheets but its hidden and very hidden ones, which Excel lists only to unhide. */
 function visibleTabs(workbook: WorkbookHandle, info: SheetInfo): SheetTab[] {
   const names = info.sheetNames;
 
@@ -348,10 +324,6 @@ function visibleTabs(workbook: WorkbookHandle, info: SheetInfo): SheetTab[] {
   return names.flatMap((name, index) => (hidden.has(index) ? [] : [{ index, name }]));
 }
 
-/**
- * Whether a cell's text pastes as it is. `toTsv` quotes text that a spreadsheet would read as a formula; a number shown
- * with a sign, such as "-12.50", is safe, and quoting it would paste text instead of the number.
- */
 function literal(cell: XlsxCellRead) {
   return (
     cell.value.kind === "number" && /^[-+][\d\s.,%\p{Sc}]+(?:e[-+]\d+)?$/iu.test(cell.displayText)

@@ -66,7 +66,6 @@ const webRtcSettingsSchema = Schema.Struct({
   iceServers: Schema.optionalKey(Schema.Array(iceServerSchema)),
   iceTransportPolicy: Schema.optionalKey(Schema.Literals(["all", "relay"])),
 });
-// serve-sim reports its stream settings as `streamSettings` (Expo) or `stream`.
 const serveSimApiSchema = Schema.Struct({
   streamSettings: Schema.optionalKey(Schema.Unknown),
   stream: Schema.optionalKey(Schema.Unknown),
@@ -125,18 +124,10 @@ export type DeviceHardwareButton = "home" | "back" | "recents" | "power" | "appS
 
 const RETRY_DELAY_MS = 1_000;
 const FIRST_FRAME_TIMEOUT_MS = 15_000;
-// A WebRTC feed that shows no frame for this long is reconnected; checked
-// every WEBRTC_STALL_CHECK_MS, so a transient `disconnected` peer that
-// recovers is left alone.
 const WEBRTC_STALL_TIMEOUT_MS = FIRST_FRAME_TIMEOUT_MS;
 const WEBRTC_STALL_CHECK_MS = 5_000;
 const TRANSPORT_PROBE_TIMEOUT_MS = 5_000;
-// Offers carry every candidate: serve-sim does not accept trickled ICE.
 const ICE_GATHERING_TIMEOUT_MS = 2_000;
-// A gathering cut short without a reflexive or relay candidate is retried
-// with twice the deadline, up to this; then the offer goes as gathered. The
-// whole sequence stays inside the first-frame deadline, which retries do
-// not extend.
 const ICE_GATHERING_MAX_TIMEOUT_MS = 4_000;
 const MJPEG_FRAME_CHECK_MS = 250;
 const FRAME_DURATION_US = 16_667;
@@ -144,9 +135,7 @@ const SEMU_MAGIC = 0x53454d55;
 const SEMU_HEADER_BYTES = 16;
 const SEMU_FLAG_KEY = 1;
 const SOFT_DECODE_QUEUE = 8;
-// expo-device-hub 0.19.0 serve-emu input.js MAX_TEXT_BYTES limits packets to 300 UTF-8 bytes.
 const ANDROID_MAX_TEXT_BYTES = 300;
-// The pinned hub queue depth is 128; the client does not read queue rejections.
 const ANDROID_MAX_TEXT_CHUNKS = 64;
 
 const IOS_MSG_TOUCH = 0x03;
@@ -159,7 +148,6 @@ const IOS_TAG_INPUT_ADMITTED = 0x83;
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/** serve-sim requires a v4 UUID; `crypto.randomUUID` is missing over plain-HTTP LAN origins. */
 function webRtcSessionId(): string {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
   bytes[6] = (bytes[6]! & 0x0f) | 0x40;
@@ -458,8 +446,6 @@ export function createDeviceStreamClient(
           const value = request.command.value;
           pendingOrientation = { requestId: request.requestId };
           rotationCursor = value;
-          // Upstream serializes orientation with hinge commands, then broadcasts config.
-          // An orientation-locked app can keep its framebuffer orientation after the sensor rotates.
           socket.send(taggedJson(IOS_MSG_ORIENTATION, { orientation: value }));
         } else socket.send(taggedJson(0x10, request));
         return true;
@@ -523,14 +509,12 @@ export function createDeviceStreamClient(
       timer = null;
       if (image.naturalWidth > 0 && image.naturalHeight > 0) frameReceived();
       else {
-        // Multipart images may not emit load until the response ends.
         timer = setTimeout(check, MJPEG_FRAME_CHECK_MS);
       }
     };
     const error = () => {
       if (released) return;
       const failure = "Could not receive the device stream. Reconnect to try again.";
-      // An <img> cannot read the 409 that a WebRTC-only serve-sim answers with.
       if (typeof RTCPeerConnection === "undefined") fail(failure);
       else void switchToWebRtc(failure, false);
     };
@@ -659,8 +643,6 @@ export function createDeviceStreamClient(
         recoverDecoder();
         return;
       }
-      // Native IDRs are spaced by frame count, so an idle simulator may take
-      // minutes to produce one. A new AVCC subscription forces a fresh IDR.
       controller?.abort();
       closeDecoder();
       return;
@@ -741,7 +723,6 @@ export function createDeviceStreamClient(
       if (!response.ok || !response.body) throw new Error(`stream ${response.status}`);
       const reader = response.body.getReader();
       for (;;) {
-        // An AVCC body can stay open after its helper stops producing frames.
         const timer = setTimeout(() => {
           if (!isCurrent()) return;
           retryDetail = "Device stream stopped receiving video. Reconnecting…";
@@ -818,11 +799,6 @@ export function createDeviceStreamClient(
     }
   };
 
-  /**
-   * serve-sim's helper only accepts HID and pushes its screen config once
-   * screen capture is running, and the AVCC stream does not reliably start
-   * it. Touching the MJPEG endpoint does; one aborted request is enough.
-   */
   const primeIosHelper = async (session: number) => {
     const controller = new AbortController();
     primeController = controller;
@@ -843,11 +819,6 @@ export function createDeviceStreamClient(
     }
   };
 
-  /**
-   * serve-sim can be locked to WebRTC (an Expo Simulator always is), and then
-   * refuses AVCC and MJPEG; serve-emu advertises WebRTC the same way. An
-   * unreadable answer keeps the default path.
-   */
   const probeWebRtc = async (): Promise<WebRtcSettings | null> => {
     const probe = new AbortController();
     const timeout = setTimeout(() => probe.abort(), TRANSPORT_PROBE_TIMEOUT_MS);
@@ -882,7 +853,6 @@ export function createDeviceStreamClient(
     current.connection.close();
     current.video.srcObject = null;
     current.video.remove();
-    // Releases the capture session; best effort because the page may be unloading.
     void fetch(webRtcUrl("close"), {
       method: "POST",
       keepalive: true,
@@ -907,8 +877,6 @@ export function createDeviceStreamClient(
         : {}),
       iceTransportPolicy: settings.iceTransportPolicy ?? "all",
     });
-    // Frames only reach requestVideoFrameCallback from a video that is in the
-    // document; it stays invisible because the sink paints them.
     const video = document.createElement("video");
     video.muted = true;
     video.playsInline = true;
@@ -923,9 +891,6 @@ export function createDeviceStreamClient(
       generation === lifecycle &&
       videoGeneration === feedGeneration &&
       peer === current;
-    // After the first frame nothing else bounds a feed that stops: the peer
-    // can sit `disconnected` with the last frame on the canvas. A long gap
-    // between frames reconnects through the same path as a failed connection.
     let checksWithoutFrame = 0;
     let watchdog: ReturnType<typeof setInterval> | null = null;
     const clearWatchdog = () => {
@@ -960,7 +925,6 @@ export function createDeviceStreamClient(
     const transceiver = connection.addTransceiver("video", { direction: "recvonly" });
     const codecs = RTCRtpReceiver.getCapabilities("video")?.codecs ?? [];
     if (codecs.length > 0) {
-      // serve-sim encodes H.264; other codecs stay as fallbacks it may refuse.
       transceiver.setCodecPreferences([
         ...codecs.filter((codec) => codec.mimeType.toLowerCase() === "video/h264"),
         ...codecs.filter((codec) => codec.mimeType.toLowerCase() !== "video/h264"),
@@ -993,9 +957,6 @@ export function createDeviceStreamClient(
         connection.addEventListener("icegatheringstatechange", changed);
       });
       if (!isCurrent()) return;
-      // serve-sim takes all candidates in the offer; later candidates never trickle.
-      // Cloud simulators need a reflexive or relay candidate, so retry incomplete offers with
-      // longer deadlines up to the bound, then send what was gathered.
       const sdp = connection.localDescription?.sdp ?? "";
       if (
         !gathered &&
@@ -1021,7 +982,6 @@ export function createDeviceStreamClient(
         return;
       }
       if (response.status === 401 || response.status === 403) return handleUnauthorized();
-      // 409: another viewer is still negotiating with this simulator.
       if (!response.ok) return retry(`Device stream offer failed (${response.status}). Retrying…`);
       const answer = decodeWebRtcAnswer(await response.json());
       if (!isCurrent()) return;
@@ -1033,10 +993,6 @@ export function createDeviceStreamClient(
     }
   };
 
-  /**
-   * Called once AVCC or MJPEG was refused. `locked` means serve-sim already
-   * said it streams WebRTC only, so a missing /api answer still switches.
-   */
   const switchToWebRtc = async (failure: string, locked: boolean) => {
     const session = generation;
     if (typeof RTCPeerConnection === "undefined") return fail(failure);
@@ -1049,17 +1005,12 @@ export function createDeviceStreamClient(
       releaseImage = null;
       events.onCanvasVideo?.();
     }
-    // MJPEG may have shown frames already: say the stream is connecting again
-    // rather than leave a blank canvas until the first WebRTC frame.
     connecting("Switching to WebRTC.");
     void readWebRtc(settings);
   };
 
   const startDuoVideo = (panels: DuoPanelSinks) => {
     for (const panel of panelClients) panel.stop();
-    // Physical handoff elects a native surface. Fixed-panel encoders can keep
-    // an inactive shutdown frame after election, so this build uses one active
-    // feed instead of decoding a third stream alongside the two fixed feeds.
     const ids = screen?.supportsPhysicalOrientation ? ([null] as const) : ([1, 3] as const);
     panelClients = ids.map((id) => {
       const output = id === 1 ? panels.cover : panels.inner;
@@ -1070,7 +1021,6 @@ export function createDeviceStreamClient(
             if (id === null) {
               return sink.present(source, width, height);
             }
-            // An inactive native LCD can emit its shutdown black frame. Retain its last useful image.
             if (screen?.screenId !== id) return true;
             const retained = output.present(source, width, height);
             const primary = sink.present(source, width, height);
@@ -1132,9 +1082,6 @@ export function createDeviceStreamClient(
               rotationCursor = screen.orientation;
             panelSinks?.onScreen?.(screen);
             events.onScreen(screen);
-            // A surface election can leave an existing decoder on the former
-            // encoder description. Reopen only video to acquire the elected
-            // surface's seed and codec configuration; HID and the viewer stay.
             if (
               panelSinks &&
               screen.supportsPhysicalOrientation &&
@@ -1165,7 +1112,6 @@ export function createDeviceStreamClient(
         false,
         event.reason || (event.code === 1006 ? "input socket refused" : `closed ${event.code}`),
       );
-      // A rejected HTTP upgrade surfaces as 1006, including an expired stream ticket.
       if (
         event.code === 1008 ||
         event.code === 4401 ||
@@ -1177,7 +1123,6 @@ export function createDeviceStreamClient(
     ws.onerror = () => ws.close();
   };
 
-  /** `inputOnly` keeps a socket for input beside a WebRTC feed, so its reconnects leave video alone. */
   const connectAndroid = (inputOnly = false) => {
     if (stopped) return;
     const ws = new WebSocket(
@@ -1187,7 +1132,6 @@ export function createDeviceStreamClient(
     socket = ws;
     ws.onopen = () => {
       if (stopped || socket !== ws) return;
-      // scrcpy powers the screen on only when serve-emu first starts it; a dozing phone sends no frames.
       ws.send(
         JSON.stringify({ type: "key", keycode: ANDROID_KEYCODE_WAKEUP, record: false, ack: false }),
       );
@@ -1197,8 +1141,6 @@ export function createDeviceStreamClient(
     ws.onmessage = (event) => {
       if (stopped || socket !== ws || inputOnly) return;
       if (typeof event.data === "string") {
-        // The encoder restarts at a new size when the device rotates; the
-        // next keyframe carries a fresh SPS, so the decoder is rebuilt from it.
         if (isVideoSessionMessage(event.data)) {
           closeDecoder();
           configuring = false;
@@ -1251,7 +1193,6 @@ export function createDeviceStreamClient(
         configuring = false;
         connecting(event.reason || undefined);
       }
-      // A full socket re-probes, so one failed /api read does not pin SEMU on a WebRTC host.
       scheduleRetry("input", () => (inputOnly ? connectAndroid(true) : void startAndroid()));
     };
     ws.onerror = () => ws.close();
@@ -1325,8 +1266,6 @@ export function createDeviceStreamClient(
   };
 
   const rawPoint = (x: number, y: number) => {
-    // serve-sim streams the raw framebuffer; rotated devices need input
-    // remapped into that raw space.
     if (platform !== "ios" || !screen || screen.width > screen.height) return { x, y };
     switch (screen.orientation) {
       case "landscape_left":

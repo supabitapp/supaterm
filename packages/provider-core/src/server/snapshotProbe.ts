@@ -52,8 +52,6 @@ export const resolveProviderProbeTimeoutMs = (
   environment: NodeJS.ProcessEnv = process.env,
 ): number => {
   const timeoutMs = Number(environment[`SUPATERM_${provider.toUpperCase()}_PROBE_TIMEOUT_MS`]);
-  // Overrides only extend: callers nest these deadlines and size optional work inside them
-  // against the defaults. Node timers overflow above a signed 32-bit delay.
   return Number.isInteger(timeoutMs) && timeoutMs > defaultTimeoutMs && timeoutMs <= 2_147_483_647
     ? timeoutMs
     : defaultTimeoutMs;
@@ -127,8 +125,6 @@ export function providerProbeEnvironment(environment: NodeJS.ProcessEnv): NodeJS
   return { ...environment, MISE_OFFLINE: "1" };
 }
 
-// A timed-out probe interrupts the child with SIGTERM and then waits for it to exit,
-// so a CLI that ignores SIGTERM would hold the caller's timeout open without this.
 const PROBE_FORCE_KILL_AFTER = "1 second";
 
 function withProbeForceKill(command: ChildProcess.Command): ChildProcess.Command {
@@ -169,7 +165,6 @@ export const spawnAndCollect = Effect.fn("snapshotProbe.spawnAndCollect")(functi
 }, Effect.scoped);
 
 export function parseGenericCliVersion(output: string): string | null {
-  // Consume v before the digits; v2 has no internal word boundary.
   const match = output.match(/\bv?(\d+\.\d+\.\d+)\b/);
   return match?.[1] ?? null;
 }
@@ -305,7 +300,6 @@ export function buildServerProvider(input: {
     version: input.probe.version,
     status: input.enabled ? input.probe.status : "disabled",
     auth: input.probe.auth,
-    // Drivers with in-app setup replace these CLI-owned defaults.
     setup: { canAuthenticate: false, canInstall: false },
     checkedAt: input.checkedAt,
     ...(input.probe.message ? { message: input.probe.message } : {}),

@@ -1,8 +1,3 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
-// The engines run in a worker per open file, so no layout, recalculation or painting holds the window. These are the
-// two ends of that worker's protocol: typed calls by method name, a key that lets a newer call replace a queued one
-// (as the markdown worker's queue does), transferable payloads, and a worker that fails every pending call when it dies.
-
 /** What one method takes and returns. */
 export type Method<Input, Output> = { readonly input: Input; readonly output: Output };
 
@@ -16,11 +11,9 @@ type Request = {
   readonly input: unknown;
 };
 
-/** Withdraws a call whose caller aborted it. */
 type Cancel = { readonly cancel: number };
 
 type Response =
-  /** `transferred` lists the objects the reply moved, so a reply nobody waits for can close its bitmaps. */
   | {
       readonly id: number;
       readonly ok: true;
@@ -45,25 +38,19 @@ export class Transfer<T> {
 /** A call that a newer call with the same key replaced before it ran. */
 export class SupersededError extends Error {}
 
-/** A call made after the worker failed or was closed, or pending when that happened. */
 class WorkerClosedError extends Error {}
 
 type CallOptions = {
-  /** A newer call with the same key replaces this one while it waits to run. */
   readonly key?: string;
-  /** Buffers to move to the worker rather than copy, such as the file's bytes or a transferred canvas. */
   readonly transfer?: readonly Transferable[];
-  /** Drops the reply and a call still queued; a call that has started sees its handler's signal abort. */
   readonly signal?: AbortSignal;
 };
 
-/** A call waiting for its reply. */
 type Pending = {
   readonly settle: (response: Response) => void;
   readonly reject: (error: Error) => void;
 };
 
-/** The next call id, and why the worker stopped answering once it has. */
 type ClientState = { next: number; failure: Error | undefined };
 
 /** The window's end: starts the worker and calls its methods. */
@@ -81,7 +68,6 @@ export function createWorkerClient<M extends Methods>(worker: Worker) {
   worker.addEventListener("message", (event: MessageEvent<Response>) => {
     const call = pending.get(event.data.id);
 
-    // A reply that crossed its call's cancel on the way: its bitmaps would hold their memory until collected.
     if (!call) {
       if (event.data.ok) closeBitmaps(event.data.transferred);
 
@@ -142,7 +128,6 @@ export function createWorkerClient<M extends Methods>(worker: Worker) {
                   : new Error(response.message),
               );
 
-            // SAFETY: the worker answers each id with the output of the method that id called (see `serveWorker`).
             resolve(response.value as M[K]["output"]);
           },
           reject: (error) => {
@@ -156,14 +141,12 @@ export function createWorkerClient<M extends Methods>(worker: Worker) {
         ]);
       });
     },
-    /** Stops the worker, which frees its engine's memory, and fails every pending call. */
     close() {
       fail(new WorkerClosedError("The Office engine was closed"));
     },
   };
 }
 
-/** Whether a call runs, and which call it is, so its caller can abort it. */
 type ServerState = {
   running: boolean;
   current: { readonly id: number; readonly controller: AbortController } | undefined;
@@ -194,7 +177,6 @@ export function serveWorker<M extends Methods>(handlers: {
 
     state.running = true;
 
-    // Each call returns to the event loop before it leaves the queue, so calls that arrived meanwhile can replace it.
     while (queue.length > 0) {
       await new Promise((resolve) => setTimeout(resolve));
 
@@ -217,7 +199,6 @@ export function serveWorker<M extends Methods>(handlers: {
         continue;
       }
 
-      // SAFETY: the client sends each method the input its `Methods` entry declares (see `createWorkerClient`).
       const input = request.input as never;
 
       await Promise.resolve()
@@ -226,7 +207,6 @@ export function serveWorker<M extends Methods>(handlers: {
           (result) => {
             const transfer = result instanceof Transfer ? result.transfer : [];
 
-            // The caller already settled a call it aborted, so nothing would take the reply or its bitmaps.
             if (controller.signal.aborted) return closeBitmaps(transfer);
 
             reply(
@@ -257,7 +237,6 @@ export function serveWorker<M extends Methods>(handlers: {
   };
 
   self.addEventListener("message", (event: MessageEvent<Request | Cancel>) => {
-    // The caller already settled a cancelled call, so it gets no reply.
     if ("cancel" in event.data) {
       const id = event.data.cancel;
       const queued = queue.findIndex((request) => request.id === id);
@@ -284,7 +263,6 @@ export function serveWorker<M extends Methods>(handlers: {
   });
 }
 
-/** Frees the bitmaps among objects that were moved for a reply nobody takes. */
 function closeBitmaps(transfer: readonly Transferable[]) {
   transfer.forEach((item) => {
     if (item instanceof ImageBitmap) item.close();

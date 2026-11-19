@@ -17,12 +17,10 @@ export class FirefoxCookieReadError extends Schema.TaggedError<FirefoxCookieRead
   }
 }
 
-/** Unset and unknown SameSite values stay unspecified; mapping them to None would permit cross-site use. */
 const SAMESITE_NONE = 0;
 const SAMESITE_LAX = 1;
 const SAMESITE_STRICT = 2;
 
-/** Schemas 10–14 defaulted sameSite to Lax; rawSameSite preserves the declared value until migration. */
 const FIREFOX_RAW_SAMESITE_FIRST_SCHEMA = 10;
 const FIREFOX_RAW_SAMESITE_LAST_SCHEMA = 14;
 
@@ -30,7 +28,6 @@ const sameSiteFromColumn = (
   value: number | null,
   rawValue: number | null,
 ): ImportedCookie["sameSite"] => {
-  // Schema 9 added the column with no default, so older rows carry NULL.
   if (value === null) return "unspecified";
   if (value === SAMESITE_LAX && rawValue === SAMESITE_NONE) return "unspecified";
   if (value === SAMESITE_NONE) return "no_restriction";
@@ -52,7 +49,6 @@ const CookieRow = Schema.Struct({
 });
 const decodeCookieRows = Schema.decodeUnknownEffect(Schema.Array(CookieRow));
 
-/** Schema 16+ stores expiry in milliseconds; older schemas use seconds, which Electron expects. */
 const FIREFOX_EXPIRY_MILLISECONDS_SCHEMA = 16;
 
 const UserVersionRow = Schema.Struct({ user_version: Schema.Number });
@@ -74,7 +70,6 @@ export const readFirefoxCookies = Effect.fn("FirefoxCookies.readFirefoxCookies")
       const hasRawSameSite =
         schemaVersion >= FIREFOX_RAW_SAMESITE_FIRST_SCHEMA &&
         schemaVersion <= FIREFOX_RAW_SAMESITE_LAST_SCHEMA;
-      // Electron cannot represent Firefox containers/private windows; importing them would collapse distinct sessions.
       const raw = hasRawSameSite
         ? yield* sql`
           select host, name, value, path, expiry, isSecure, isHttpOnly, sameSite, rawSameSite

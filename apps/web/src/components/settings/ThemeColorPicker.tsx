@@ -66,10 +66,6 @@ function themeRgbValue(hex: string) {
   return themeHexToRgb(hex).join(", ");
 }
 
-// Local state updates immediately for a smooth thumb; the parent commit
-// (which can regenerate a whole guided palette) is batched to one call per
-// animation frame. The popover flushes it on close, the drag surfaces on
-// release, and the picker on unmount, so the final frame is never lost.
 function createFrameCommitter() {
   let pending: { readonly color: string; readonly commit: (color: string) => void } | null = null;
   let frame: number | null = null;
@@ -120,13 +116,10 @@ function ThemeColorPickerPanel({
 
   if (syncedValue !== normalizedValue) {
     setSyncedValue(normalizedValue);
-    // Ignore readability-adjusted echoes while typing so drafts keep keystrokes; hsv still updates the
-    // swatch.
     if (!isEditingText) {
       setHexDraft(normalizedValue);
       setRgbDraft(themeRgbValue(normalizedValue));
     }
-    // Preserve hue/saturation for echoed changes; hex-to-HSV loses them for greys, white, and black.
     if (currentColor !== normalizedValue) setHsv(hexToHsv(normalizedValue));
   }
 
@@ -252,10 +245,7 @@ function ThemeColorPicker({
   onInteract?: () => void;
 }) {
   const [committer] = useState(createFrameCommitter);
-  // Escape reverts the edit, so commits after it (the pending frame flushed on close, or a drag
-  // still firing through the exit animation) are dropped instead of landing on the restored colors.
   const cancelledRef = useRef(false);
-  // Unmounting with the popover open (the editor closes mid-drag) never fires onOpenChange.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- flushes the frame committer on unmount, since an open popover never fires onOpenChange
   useEffect(() => committer.flush, [committer]);
   return (

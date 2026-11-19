@@ -638,7 +638,6 @@ it.effect("lists each changed project and thread once at its newest sequence, ol
       throughSequence: threadA2,
       limit: 10,
     });
-    // A project and a thread may share an id; they are separate aggregates.
     assert.deepEqual(changed, [
       { aggregateKind: "project", aggregateId: "thread:a", sequence: project },
       { aggregateKind: "thread", aggregateId: "thread:legacy", sequence: legacy },
@@ -678,7 +677,6 @@ it.effect("finds the same changed aggregates as decoding and coalescing the repl
       ["project", "project:0"],
       ["project", "project:1"],
     ] as const;
-    // A fixed linear congruential sequence keeps the interleaving varied and reproducible.
     let seed = 7;
     const sequences: Array<number> = [];
     for (let index = 0; index < 600; index++) {

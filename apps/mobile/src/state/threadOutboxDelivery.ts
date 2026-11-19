@@ -190,7 +190,6 @@ function setQueuedMessageRetrying(queuedMessageId: MessageId, retrying: boolean)
 }
 
 function beginDispatchingQueuedMessage(queuedMessageId: MessageId): void {
-  // An attempt in flight is sending, even while its retry count is kept.
   setQueuedMessageRetrying(queuedMessageId, false);
   appAtomRegistry.set(dispatchingQueuedMessageIdsAtom, {
     ...appAtomRegistry.get(dispatchingQueuedMessageIdsAtom),
@@ -230,7 +229,6 @@ function settingsCommandId(message: QueuedThreadMessage, setting: string): Comma
   return CommandId.make(`${message.commandId}:${setting}`);
 }
 
-/** Outbox or draft storage refused a step; the step decides what that means for the message. */
 class ThreadOutboxStorageError extends Schema.TaggedError<ThreadOutboxStorageError>()(
   "ThreadOutboxStorageError",
   {
@@ -343,7 +341,6 @@ export const completeQueuedMessageDelivery = Effect.fn("ThreadOutbox.completeDel
     scopedThreadKey(queuedMessage.environmentId, queuedMessage.threadId),
     queuedMessage.messageId,
   );
-  // Editors can acquire entries during startTurn without bumping revisions; CAS alone would lose unsaved edits.
   if (isEditingQueuedMessage(queuedMessage.messageId)) return "edited" as const;
   retainAcknowledgedThreadMessage(
     sequence === undefined ? queuedMessage : { ...queuedMessage, sequence },
@@ -406,7 +403,6 @@ export const recoverEditedCreationAfterDelivery = Effect.fn("ThreadOutbox.recove
     const keptRevision = threadOutboxRevision(kept.messageId);
     const draftKey = scopedThreadKey(kept.environmentId, kept.threadId);
     const handedBack = yield* Effect.gen(function* () {
-      // Merge before removal to retain file ownership; allow overflow and let send guards require trimming.
       yield* storage("hand-back-to-draft", kept.messageId, () =>
         mergeComposerDraftContent(draftKey, {
           text: kept.text,
@@ -428,7 +424,6 @@ export const recoverEditedCreationAfterDelivery = Effect.fn("ThreadOutbox.recove
         ...(kept.modelSelection !== undefined ? { modelSelection: kept.modelSelection } : {}),
         ...(kept.runtimeMode !== undefined ? { runtimeMode: kept.runtimeMode } : {}),
       });
-      // Flush before removal: append only schedules persistence, leaving the queue as the sole durable copy.
       yield* storage("flush-drafts", kept.messageId, () => flushComposerDrafts());
       return "handed-back" as const;
     }).pipe(
@@ -465,7 +460,6 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
     const draftKey = recoveryDraftKey(queuedMessage);
     const threadKey = scopedThreadKey(queuedMessage.environmentId, queuedMessage.threadId);
     const editing = () => isEditingQueuedMessage(queuedMessage.messageId);
-    // Until the queue drops the message, a failure undoes the merge, keeping concurrent edits.
     let rollback: ComposerDraftMergeReceipt | null = null;
     const undo = (receipt: ComposerDraftMergeReceipt) =>
       storage("undo-draft-merge", queuedMessage.messageId, () =>
@@ -492,8 +486,6 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
         );
         return "blocked" as const;
       }
-      // Follow-ups queued behind a rejected task have no thread to reach. They join its draft in
-      // this same merge, so a rollback takes them out with the task and a retry cannot add them twice.
       const followUps = queuedMessage.creation ? queuedFollowUps(threadKey) : [];
       if (followUps.some((followUp) => isEditingQueuedMessage(followUp.messageId))) {
         return "deferred" as const;
@@ -541,7 +533,6 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
         removeThreadOutboxMessage(queuedMessage, revision, () => !editing()),
       );
       if (!removed) return yield* withdraw;
-      // After queue removal, the draft owns content and must never roll back.
       rollback = null;
       if (queuedMessage.creation) {
         clearThreadComposerError(threadKey, queuedMessage.messageId);
@@ -550,8 +541,6 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
           message: queuedMessage,
           reason: message,
         });
-        // The outcome stops new sends into this thread, so this read also catches a follow-up
-        // queued while the restore ran.
         const folded = new Set(followUps.map((followUp) => followUp.messageId));
         for (const followUp of queuedFollowUps(threadKey)) {
           yield* Effect.gen(function* () {
@@ -559,7 +548,6 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
               foldFollowUpIntoDraft(draftKey, followUp);
               yield* storage("flush-drafts", followUp.messageId, () => flushComposerDrafts());
             }
-            // The draft holds its content now. One left behind is dropped with the missing thread.
             yield* storage("remove-restored", followUp.messageId, () =>
               removeThreadOutboxMessage(followUp),
             );
@@ -621,7 +609,6 @@ function foldFollowUpIntoDraft(draftKey: string, followUp: QueuedThreadMessage):
   appendComposerDraftAttachments(draftKey, followUp.attachments, { restore: true });
 }
 
-/** Derive keys from message ids so failed recovery retries reuse the same draft. */
 function recoveryDraftKey(queuedMessage: QueuedThreadMessage): string {
   return queuedMessage.creation
     ? restoredNewTaskDraftKey(queuedMessage.messageId)
@@ -681,7 +668,6 @@ function releaseVoiceRecordingsQuietly(): void {
 
 const freshCommandId = () => CommandId.make(makeQueuedMessageMetadata().commandId);
 
-/** Stops delivering a message that only the user can continue; its thread's queue waits. */
 const holdQueuedMessage = Effect.fn("ThreadOutbox.holdQueuedMessage")(function* (
   queuedMessage: QueuedThreadMessage,
   failure: string,
@@ -785,9 +771,6 @@ export const deliverQueuedVoiceMessage = Effect.fn("ThreadOutbox.deliverVoiceMes
   };
 });
 
-// Everything delivery decides from. Each queued environment's session is read
-// here so a granted or revoked operate scope wakes delivery.
-
 const deliveryInputsAtom = Atom.make((get) => {
   const connectedEnvironments = get(workspaceConnections.environmentsAtom);
   const operableEnvironments = new Set<EnvironmentId>();
@@ -814,8 +797,6 @@ const deliveryInputsAtom = Atom.make((get) => {
   };
 }).pipe(Atom.withLabel("mobile:thread-outbox:delivery-inputs"));
 
-// Read through the shell atom, not once: the shell often lands before the
-// outcome is recorded, and that entry must still be collected when it does.
 const settledCreationOutcomeKeysAtom = Atom.make((get): ReadonlyArray<string> => {
   const outcomes = get(pendingThreadCreationOutcomesAtom);
   const threads = get(environmentThreadShells.threadShellsAtom);
@@ -877,23 +858,18 @@ interface ThreadOutboxRetry {
   readonly notBefore: number;
 }
 
-/** A thread's delivery fiber; `retiring` once interrupted, until the fiber has exited. */
 interface ThreadFiber {
   readonly wake: Latch.Latch;
   fiber: Fiber.Fiber<never> | undefined;
   retiring: boolean;
 }
 
-/** What a thread's delivery fiber does next with the head of its queue. */
 type ThreadDeliveryStep =
-  /** Nothing to send until an input changes, or until `until` when a backoff is running. */
   | { readonly _tag: "Wait"; readonly until?: number }
-  /** The head failed without a send; back off before trying it again. */
   | { readonly _tag: "Backoff"; readonly messageId: MessageId }
   | {
       readonly _tag: "Dispatch";
       readonly messageId: MessageId;
-      /** Succeeds once the message is handled (sent, removed or handed back). */
       readonly run: Effect.Effect<void, DeliveryRetry>;
     };
 
@@ -910,17 +886,11 @@ export function createThreadOutboxDelivery(): {
   let disposed = false;
   const retries = new Map<MessageId, ThreadOutboxRetry>();
   let readyEnvironmentIds = new Set<EnvironmentId>();
-  // Existing-thread turns the server accepted but whose outbox removal has
-  // not landed; the next pass retries only the removal, never the send.
   const acknowledgedExistingThreadMessageIds = new Set<MessageId>();
-  // Revision and workspace each new task's launch carried. Launch replays by command id, so an
-  // unedited task whose reply was lost is resent in that workspace, not handed back.
   const launchedCreations = new Map<
     MessageId,
     { readonly revision: number; readonly workspace: QueuedThreadCreation }
   >();
-  // Targets the shell may have left out hold their thread family until they leave the queue, so
-  // the row stays readable through dispatch.
   const familyMounts = new Map<MessageId, () => void>();
   const blockedRecoveries = new Map<
     MessageId,
@@ -944,8 +914,6 @@ export function createThreadOutboxDelivery(): {
     setQueuedMessageRetrying(messageId, false);
   };
 
-  // An over-cap draft blocks recovery until the user changes its attachments;
-  // parking on the draft avoids hammering the restore with backoff retries.
   const restoreQueuedMessage = Effect.fn("ThreadOutbox.restoreQueuedMessage")(function* (
     queuedMessage: QueuedThreadMessage,
     message: string,
@@ -999,7 +967,6 @@ export function createThreadOutboxDelivery(): {
         settings.modelSelection,
         thread.projectId,
       );
-      // A recording has no text to put back in the composer.
       if (queuedMessage.voice) {
         return yield* holdQueuedMessage(queuedMessage, `${title}. ${detail}`);
       }
@@ -1060,7 +1027,6 @@ export function createThreadOutboxDelivery(): {
     }
 
     if (!hasAccess()) return;
-    // Waiting on the shared upload is the one part of a send that may be cut short.
     const preparedExit = yield* Effect.exit(
       Effect.interruptible(prepareQueuedMessageAttachments(queuedMessage)),
     );
@@ -1212,7 +1178,6 @@ export function createThreadOutboxDelivery(): {
       );
       return yield* restoreQueuedMessage(queuedMessage, `${title}. ${detail}`);
     }
-    // Waiting on the shared upload is the one part of a send that may be cut short.
     const preparedExit = yield* Effect.exit(
       Effect.interruptible(prepareQueuedMessageAttachments(queuedMessage)),
     );
@@ -1341,7 +1306,6 @@ export function createThreadOutboxDelivery(): {
     if (outcome !== "removed") return yield* retryDelivery;
   });
 
-  /** The head of one thread's queue, as the inputs stand now. */
   function nextStep(
     threadKey: string,
     queuedMessages: ReadonlyArray<QueuedThreadMessage>,
@@ -1410,8 +1374,6 @@ export function createThreadOutboxDelivery(): {
       creation === undefined &&
       serverConfig?.shellThreadFamilies === true
     ) {
-      // The family keeps the row readable through dispatch once it loads; the current shell
-      // generation's read decides whether the thread is gone.
       if (!familyMounts.has(nextQueuedMessage.messageId)) {
         familyMounts.set(
           nextQueuedMessage.messageId,
@@ -1428,8 +1390,6 @@ export function createThreadOutboxDelivery(): {
         ),
       );
       if (familyRead === "settled") {
-        // The rows read at the start of this pass can lag the family that just settled;
-        // decide from the merged rows as they are now.
         thread = findThread(
           appAtomRegistry.get(environmentThreadShells.threadShellsAtom),
           nextQueuedMessage,
@@ -1447,7 +1407,6 @@ export function createThreadOutboxDelivery(): {
       launchedCreations.get(messageId)?.revision === threadOutboxRevision(messageId);
     const deliveryAction = resolveThreadOutboxDeliveryAction({
       isCreation: creation !== undefined,
-      // A resend goes through the same gates as the first launch.
       threadExists: thread !== undefined && !resendLaunch,
       shellStatus,
       environmentConnected: environment?.connectionState === "connected",
@@ -1460,7 +1419,6 @@ export function createThreadOutboxDelivery(): {
       familyRead !== undefined &&
       familyRead !== "settled"
     ) {
-      // An empty family read changes no merged row, so nothing else would wake the thread.
       return { _tag: "Backoff", messageId };
     }
     if (deliveryAction === "send" && !operableEnvironments.has(nextQueuedMessage.environmentId)) {
@@ -1526,10 +1484,8 @@ export function createThreadOutboxDelivery(): {
         ),
         Effect.asVoid,
       );
-    // Confirm durability before sending; optimistic enqueue can still roll back on write failure.
     const run = Effect.gen(function* () {
       if (!(yield* confirmQueued(nextQueuedMessage))) return;
-      // An editor that took the message after confirmation owns it; that is not a failure.
       if (isEditingQueuedMessage(messageId)) return;
       if (deliveryAction === "send") {
         const liveThread = findThread(
@@ -1546,7 +1502,6 @@ export function createThreadOutboxDelivery(): {
         if (liveDeliveryAction !== "send") return;
       }
       if (deliveryAction === "remove") {
-        // Edited since launch, or launched before a restart that lost the revision: hand it back.
         return yield* creation !== undefined
           ? recoverEditedCreationAfterDelivery(nextQueuedMessage)
           : removeQueuedMessage("[thread-outbox] failed to remove message for a missing thread");
@@ -1563,9 +1518,6 @@ export function createThreadOutboxDelivery(): {
     return { _tag: "Dispatch", messageId, run };
   }
 
-  // One fiber per thread with queued messages. Opening a thread's latch wakes its fiber to
-  // reconsider its head; the fiber closes it before reading the inputs, so no wake is lost.
-  // An entry outlives its interrupted fiber until that fiber exits, so a thread never has two.
   const threadFibers = new Map<string, ThreadFiber>();
 
   const deliverThread = (threadKey: string, wake: Latch.Latch) =>
@@ -1592,13 +1544,10 @@ export function createThreadOutboxDelivery(): {
           );
           return;
         }
-        // A send that started finishes, even when its thread leaves the queue meanwhile; only
-        // its wait on a shared upload stops early.
         beginDispatchingQueuedMessage(step.messageId);
         const sent = yield* step.run.pipe(
           Effect.as(true),
           Effect.catchTags({ DeliveryRetry: () => Effect.succeed(false) }),
-          // A send that throws backs off like any failure, not straight back into the send.
           Effect.catchDefect((error) =>
             Effect.logWarning("[thread-outbox] queued message delivery threw", {
               messageId: step.messageId,
@@ -1617,14 +1566,11 @@ export function createThreadOutboxDelivery(): {
     for (const { wake } of threadFibers.values()) wake.openUnsafe();
   }
 
-  /** Starts a fiber for each thread with queued messages, stops the rest, and wakes them all. */
   function onInputs(): void {
     if (disposed) return;
     const { queuedMessagesByThreadKey, serverConfigs, connectedEnvironments } =
       appAtomRegistry.get(deliveryInputsAtom);
     const queued = Object.values(queuedMessagesByThreadKey).flat();
-    // Failures while an environment was unreachable say nothing about it now; a backoff
-    // started then would hold a message for up to its full delay after reconnecting.
     const ready = new Set(
       connectedEnvironments
         .filter(
@@ -1662,7 +1608,6 @@ export function createThreadOutboxDelivery(): {
     }
     for (const [threadKey, messages] of Object.entries(queuedMessagesByThreadKey)) {
       if (messages.length === 0 || threadFibers.has(threadKey)) continue;
-      // Registered before the fiber starts: its first step runs synchronously and can re-enter here.
       const entry: ThreadFiber = {
         wake: Latch.makeUnsafe(true),
         fiber: undefined,
@@ -1674,7 +1619,6 @@ export function createThreadOutboxDelivery(): {
       fiber.addObserver(() => {
         if (threadFibers.get(threadKey) !== entry) return;
         threadFibers.delete(threadKey);
-        // A message queued while this fiber finished its send starts the next fiber now.
         if (!disposed) onInputs();
       });
       if (entry.retiring) Effect.runFork(Fiber.interrupt(fiber));

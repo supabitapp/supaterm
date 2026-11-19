@@ -72,7 +72,6 @@ export function resolveExistingSnapShotTarget(
     : null;
 }
 
-// Pin absence too: a later question must never claim an earlier capture.
 export function resolveSnapShotAttachmentTarget(
   pins: Map<string, DraftId | null>,
   id: string,
@@ -193,7 +192,6 @@ export async function deliverSnapShot(
       file,
       source,
     };
-    // Only question drafts may bypass addImage's thread-session gate.
     const added =
       questionAttachmentCount === null
         ? store.addImage(target, image)
@@ -218,7 +216,6 @@ export async function deliverSnapShot(
     throw new Error("The captured window could not be saved to the draft.");
   }
 
-  // Paint the attachment before removing the capture overlay to avoid missing frames at landing.
   if (getPendingSnapShotAnimations().some((animation) => animation.id === capture.id)) {
     await afterNextPaint();
     await waitForSnapShotAnimationDestination(capture.id).catch(() => undefined);
@@ -272,7 +269,6 @@ export function SnapShotCoordinator() {
   const reportedCaptureFailuresRef = useRef(new Map<string, Set<CaptureFailure>>());
   const pendingAnimationStartsRef = useRef(new Set<string>());
 
-  // Captures go to the last thread or draft on screen, even from routes that show neither.
   const currentTarget = routeThreadRef ?? routeDraftId;
   const [lastRouteTarget, setLastRouteTarget] = useState(currentTarget);
   if (
@@ -281,13 +277,11 @@ export function SnapShotCoordinator() {
   ) {
     setLastRouteTarget(currentTarget);
   }
-  // Reuse the resolved target until navigation so captures in one drain share a draft.
   const settledTargetRef = useRef<{
     readonly routeTarget: CaptureTarget | null;
     readonly target: CaptureTarget | null;
   } | null>(null);
   const readLastRouteTarget = useStableCallback(() => lastRouteTarget);
-  // Scope pending resolutions to their starting route so navigation cannot inherit another route's draft.
   const readSettledTarget = (routeTarget: CaptureTarget | null) => {
     const settled = settledTargetRef.current;
     return settled && settled.routeTarget === routeTarget ? settled.target : routeTarget;
@@ -384,7 +378,6 @@ export function SnapShotCoordinator() {
           }
 
           try {
-            // Pending captures may have arrived without a requested event; pin before reading.
             resolveSnapShotAttachmentTarget(questionPinsRef.current, item.id, target);
             await deliverSnapShot(bridge, item, () =>
               resolveSnapShotAttachmentTarget(questionPinsRef.current, item.id, target),
@@ -437,7 +430,6 @@ export function SnapShotCoordinator() {
         case "requested": {
           const current = readSettledTarget(readLastRouteTarget());
           const target = current ? resolveExistingSnapShotTarget(current, routeThreadRef) : null;
-          // Creating a new draft would navigate the renderer before a self-capture finishes.
           if (target) {
             resolveSnapShotAttachmentTarget(questionPinsRef.current, event.id, target);
             void resolveSnapShotDeliveryTarget(captureTargetsRef.current, event.id, () =>

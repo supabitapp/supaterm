@@ -23,7 +23,6 @@ interface Snapshot {
   readonly head: string;
   readonly config: string;
   readonly blobs: ReadonlyArray<UntrackedBlob>;
-  /** Files hashed without a reading of their conversion state from before staging. */
   readonly pending: ReadonlyArray<string>;
 }
 
@@ -38,7 +37,6 @@ export const NOTHING: {
   readonly before: ConversionState | undefined;
 } = { reused: [], before: undefined };
 
-// Every attribute convert_to_git reads; a blob is reused only while all of them are unchanged.
 const CONVERSION_ATTRIBUTES = [
   "text",
   "eol",
@@ -48,12 +46,8 @@ const CONVERSION_ATTRIBUTES = [
   "filter",
 ] as const;
 const MAX_BLOBS = 20_000;
-// Below this, hashing the files costs less than the Git processes that check them.
 const MIN_TOTAL_BYTES = 16n * 1024n * 1024n;
-// A capture that staged faster than this and reused nothing has nothing worth another Git process.
 const MIN_STAGING_MS = 100;
-// A file must have been left alone for this long before the capture, so an edit that lands
-// while Git hashes it cannot hide inside one timestamp tick (two seconds on FAT).
 const SETTLED_MS = 3_000;
 const MAX_WORKSPACES = 64;
 const STAT_BATCH = 512;
@@ -96,7 +90,6 @@ export const make = (
 ) => {
   const snapshots = new Map<string, Snapshot>();
 
-  // Worktree files only: an index copy of a deleted .gitattributes applies or not by staging order.
   const readAttributes = Effect.fn("GitVcsDriver.checkpoints.readConversionAttributes")(function* (
     topLevel: string,
     env: NodeJS.ProcessEnv,
@@ -114,7 +107,6 @@ export const make = (
         CONVERSION_ATTRIBUTES.length * (Buffer.byteLength(stdin) + paths.length * 256),
       outputMode: "error",
     });
-    // Records are "<path> NUL <attribute> NUL <value> NUL", one per attribute, in input order.
     const fields = result.stdout.split("\0");
     return paths.map((entryPath, index) => {
       const values: string[] = [];
@@ -127,7 +119,6 @@ export const make = (
     });
   });
 
-  // Config that changes the blob or mode `git add` records for an unchanged file.
   const readConfig = (cwd: string) =>
     execute({
       operation,
@@ -141,11 +132,6 @@ export const make = (
       allowNonZeroExit: true,
     }).pipe(Effect.map((result) => `${result.exitCode}\0${result.stdout}`));
 
-  /**
-   * Finds directories whose .gitattributes may have changed while Git hashed: a present file
-   * touched since just before the capture, or a missing one in a directory touched since then.
-   * Reading attributes before and after staging cannot see a change that was undone in between.
-   */
   const changingAttributeDirectories = Effect.fnUntraced(function* (
     topLevel: string,
     paths: ReadonlyArray<string>,
@@ -188,11 +174,6 @@ export const make = (
     };
   });
 
-  /**
-   * Adds the still-valid blobs to the scratch index, flagged so `git add` does not read their
-   * files. The index must hold exactly HEAD's paths. Returns the blobs it added, and the
-   * conversion state of every file this capture may remember, read before any of them is hashed.
-   */
   const reuse = Effect.fn("GitVcsDriver.checkpoints.reuseUntrackedBlobs")(
     function* (input: {
       readonly cwd: string;
@@ -202,12 +183,10 @@ export const make = (
       readonly indexConfig: ReadonlyArray<string>;
     }) {
       const snapshot = snapshots.get(input.cwd);
-      // A capture that fails after this point hashes everything once more, then remembers again.
       snapshots.delete(input.cwd);
       if (snapshot === undefined || snapshot.topLevel !== input.topLevel) return NOTHING;
       let blobs = snapshot.blobs;
       if (snapshot.head !== input.head) {
-        // A path HEAD now tracks, or one below a path it changed, is no longer untracked.
         const moved = yield* execute({
           operation,
           cwd: input.cwd,
@@ -228,7 +207,6 @@ export const make = (
         blobs.map((blob) => blob.path),
       );
       blobs = blobs.filter((blob, index) => stats[index]?.stat === blob.stat);
-      // Git stages a directory that became a repository as one gitlink, not as its files.
       const directories = new Set<string>();
       for (const blob of blobs) {
         for (
@@ -258,7 +236,6 @@ export const make = (
         [
           readConfig(input.cwd),
           readAttributes(input.topLevel, input.env, paths),
-          // Without --no-index this reports only untracked paths, which these are in this index.
           blobs.length === 0
             ? unchecked
             : execute({
@@ -271,7 +248,6 @@ export const make = (
                 maxOutputBytes: Buffer.byteLength(stdin),
                 outputMode: "error",
               }),
-          // Blobs of deleted checkpoints can be pruned while this process still remembers them.
           blobs.length === 0
             ? unchecked
             : execute({
@@ -306,7 +282,6 @@ export const make = (
       yield* execute({
         operation,
         cwd: input.cwd,
-        // core.ignorestat marks the new entries assume-unchanged, so git add trusts them as they are.
         args: [
           ...input.indexConfig,
           "-c",
@@ -318,7 +293,6 @@ export const make = (
         stdin: blobs.map((blob) => `${blob.mode} ${blob.oid}\t${blob.path}\0`).join(""),
         env: input.env,
       });
-      // Tracked entries are racy against the index's old timestamp, not this rewrite's.
       const indexTime = Math.floor(mtime.value.getTime() / 1000);
       yield* fileSystem.utimes(indexFile, indexTime, indexTime);
       return { reused: blobs, before };
@@ -326,7 +300,6 @@ export const make = (
     Effect.orElseSucceed(() => NOTHING),
   );
 
-  /** Records the untracked files the published checkpoint `tree` holds, for the next capture. */
   const remember = Effect.fn("GitVcsDriver.checkpoints.rememberUntrackedBlobs")(
     function* (input: {
       readonly cwd: string;
@@ -360,17 +333,14 @@ export const make = (
       const reused = new Map(input.reused.map((blob) => [blob.path, blob]));
       const kept: UntrackedBlob[] = [];
       const added: Array<{ path: string; mode: string; oid: string }> = [];
-      // Records are ":<old mode> <new mode> <old oid> <new oid> <status> NUL <path> NUL".
       const fields = listed.stdout.split("\0");
       for (let field = 0; field + 1 < fields.length; field += 2) {
         const [, mode = "", , oid = "", status] = fields[field]!.split(" ");
         const entryPath = fields[field + 1]!;
         if (status === "D") {
-          // Git may still apply a deleted .gitattributes from the index, depending on staging order.
           if (entryPath === ".gitattributes" || entryPath.endsWith("/.gitattributes")) return;
           continue;
         }
-        // U+FFFD marks a name that is not UTF-8 and so cannot be addressed from here.
         if ((mode !== "100644" && mode !== "100755") || entryPath.includes("\uFFFD")) continue;
         const previous = reused.get(entryPath);
         if (previous !== undefined && previous.oid === oid && previous.mode === mode) {
@@ -395,8 +365,6 @@ export const make = (
         .slice(0, MAX_BLOBS);
       if (largest.reduce((total, blob) => total + blob.size, 0n) < MIN_TOTAL_BYTES) return;
 
-      // Git hashed these under rules nobody recorded. Reading the rules now would pair the blob
-      // with whatever they have since become, so only a reading from before staging counts.
       const before = input.before;
       const candidates = largest.flatMap((blob) =>
         "settled" in blob && blob.settled && before?.attributes.get(blob.path) !== undefined
@@ -412,12 +380,10 @@ export const make = (
         ],
         { concurrency: "unbounded" },
       );
-      // check-attr prints a filter driver named "unspecified" or "unset" like no filter at all.
       if (/\0filter\./.test(config)) return;
       const sameConfig = before !== undefined && config === before.config;
       const admitted = candidates.flatMap((blob, index): UntrackedBlob[] => {
         const value = attributes[index];
-        // A clean filter is a program whose output can depend on more than the file.
         return sameConfig &&
           value !== undefined &&
           value === before.attributes.get(blob.path) &&
@@ -435,7 +401,6 @@ export const make = (
             ]
           : [];
       });
-      // Reused blobs were checked against the earlier config; a different one now vouches for none.
       const blobs = sameConfig
         ? [...largest.flatMap((blob) => ("settled" in blob ? [] : [blob])), ...admitted]
         : [];

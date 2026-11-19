@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - Encrypts fixtures with the same
-// OSCrypt primitives the module under test decrypts.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
@@ -285,7 +284,6 @@ describe("readChromiumCookieDatabase", () => {
       const filename = `${directory}/Cookies`;
       const cbcV10 = Buffer.from("0123456789abcdef");
       const cbcV11 = Buffer.from("fedcba9876543210");
-      // Some Linux clients encrypted with an empty passphrase (crbug.com/1195256).
       const cbcEmpty = NodeCrypto.pbkdf2Sync("", "saltysalt", 1, 16, "sha1");
 
       yield* Effect.gen(function* () {

@@ -232,7 +232,6 @@ function withDescriptorCurrentValue(
   };
 }
 
-// Ultracode was a Claude effort level before it became its own toggle; that level ran at xhigh.
 export function withLegacyUltracodeEffort<
   Selections extends ReadonlyArray<ProviderOptionSelection> | null | undefined,
 >(
@@ -311,7 +310,6 @@ export function getProviderOptionCurrentValue(
     return undefined;
   }
   const hasExplicitOption = selection?.options?.some((option) => option.id === descriptor.id);
-  // Reported values are display-only; callers that build dispatch options omit this context.
   const reportedValue = getReportedOptionValue(descriptor.id, selection, reportedSelection);
   if (reportedValue !== undefined) return reportedValue;
   if (descriptor.id === "variant" && selection && !hasExplicitOption) return undefined;
@@ -590,7 +588,6 @@ export function applyClaudePromptEffortPrefix(
   if (!trimmed) {
     return trimmed;
   }
-  // Prefixing slash commands prevents Claude invocation; command names allow any token without a second slash.
   if (effort !== "ultrathink" || /^\/[^\s/]+(?:\s|$)/u.test(trimmed)) {
     return trimmed;
   }

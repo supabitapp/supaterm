@@ -791,7 +791,6 @@ describe("context chip colors", () => {
 
   const toOklch = converter("oklch");
   const toRgb = converter("rgb");
-  // Surfaces stay unrounded, as CSS paints them; the chip is the 8-bit hex the solver returns.
   const paintedContrastRatio = (chip: string, surface: string, canvas: string) => {
     const channels = (value: string) => {
       const rgb = toRgb(value)!;

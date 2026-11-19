@@ -55,9 +55,6 @@ export function isSameSchedule(a: ScheduledTaskSchedule, b: ScheduledTaskSchedul
   }
   if (a.type === "once") return b.type === "once" && Date.parse(a.runAt) === Date.parse(b.runAt);
   if (b.type !== "fixed_time") return false;
-  // The contract accepts padded and unpadded hours ("9:00" and "09:00"), so
-  // compare the parsed time — string equality would treat a format-only edit
-  // as a schedule change and recompute the pending run.
   const aTime = parseTimeOfDay(a.timeOfDay);
   const bTime = parseTimeOfDay(b.timeOfDay);
   return (

@@ -25,7 +25,6 @@ function resolveTimestampLocale(systemLocale: string | null | undefined): string
   if (!tag) return undefined;
 
   try {
-    // Reject structurally invalid tags; let ICU fall back for valid tags it lacks data for.
     Intl.DateTimeFormat.supportedLocalesOf([tag]);
     return tag;
   } catch {
@@ -48,17 +47,11 @@ type LocaleWithWeekInfo = Intl.Locale & {
   getWeekInfo?: () => { readonly firstDay: number };
 };
 
-/**
- * First weekday of a locale as a `Date#getDay` index (0 is Sunday), or
- * `undefined` when the runtime has no week data, so callers keep their own
- * default.
- */
 function resolveWeekStartsOn(locale: string | undefined): WeekdayIndex | undefined {
   try {
     const resolved: LocaleWithWeekInfo = new Intl.Locale(
       locale ?? Intl.DateTimeFormat().resolvedOptions().locale,
     );
-    // Week info counts Monday as 1 and Sunday as 7.
     const firstDay = resolved.getWeekInfo?.().firstDay ?? resolved.weekInfo?.firstDay;
     return firstDay === undefined ? undefined : WEEKDAY_INDEXES[firstDay % 7];
   } catch {
@@ -68,8 +61,6 @@ function resolveWeekStartsOn(locale: string | undefined): WeekdayIndex | undefin
 
 export const weekStartsOn = resolveWeekStartsOn(timestampLocale);
 
-// A formatter keeps the default zone it was built in, so default-zone formatters run in UTC
-// on the wall-clock time, which Date reads from the current zone.
 function wallClockAsUtc(date: Date): Date {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
 }
@@ -110,9 +101,6 @@ export function parseTimestampDate(isoDate: string): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-// Deliberately not the host locale: the tooltip's ordinal suffix and
-// day-before-month order below are English, so a localized month alone would
-// read "4th Juni 2026".
 const monthNameFormatter = new Intl.DateTimeFormat("en-US", { month: "long", timeZone: "UTC" });
 
 function ordinalSuffix(day: number): string {
@@ -172,7 +160,6 @@ const numericDateWithYearFormatter = new Intl.DateTimeFormat(timestampLocale, {
 
 interface CalendarDay {
   year: number;
-  /** Days since the epoch, so differences are whole days across DST shifts. */
   index: number;
 }
 
@@ -279,7 +266,6 @@ export function msUntilRelativeTimeChange(
   const elapsedMs = Math.max(0, nowMs - date.getTime());
   const unitMs = relativeTimeUnitMs(elapsedMs);
   const nextChangeMs = date.getTime() + (Math.floor(elapsedMs / unitMs) + 1) * unitMs;
-  // Delays above 2^31-1 fire immediately; cap safely and let callers reschedule.
   return Math.min(nextChangeMs - nowMs, DAY_MS);
 }
 

@@ -98,7 +98,6 @@ export function useAttachmentTrayMotion(
 interface RetainedAttachment<T> {
   readonly id: string;
   readonly item: T;
-  /** Everything shown before it when it left, so it keeps its place as others come and go. */
   readonly after: ReadonlyArray<string>;
 }
 
@@ -171,7 +170,6 @@ export function useAttachmentExits<T>(
       return;
     }
     const entry = { id, item, after: shownIds.slice(0, index) };
-    // One commit takes it out of the draft and retains it, so its element stays mounted.
     flushSync(() => {
       setRetained((current) => ({
         draftKey: tray.draftKey,

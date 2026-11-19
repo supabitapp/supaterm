@@ -101,7 +101,6 @@ async function renderHost() {
       </AppAtomRegistryProvider>,
     ),
   );
-  // Unmounting releases each tab on a close timer; run it now so it never fires in a later test.
   stack.defer(async () => {
     using _timers = fakeTimers();
     await screen.unmount();

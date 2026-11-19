@@ -48,7 +48,6 @@ export class RemoteEnvironmentAuthorization extends Context.Service<
 >()("@supaterm/client-runtime/authorization/service/RemoteEnvironmentAuthorization") {}
 
 const CHECKED_DESCRIPTOR_TTL_NANOS = 5_000_000_000n;
-// A loopback or LAN host answers well inside this, so a dead one frees its attempt sooner.
 const NEARBY_DESCRIPTOR_TIMEOUT_MS = 3_000;
 
 const fetchDescriptor = Effect.fn("clientRuntime.connection.remote.fetchDescriptor")(function* (
@@ -64,9 +63,6 @@ const fetchDescriptor = Effect.fn("clientRuntime.connection.remote.fetchDescript
 
 const make = Effect.gen(function* () {
   const httpClient = yield* HttpClient.HttpClient;
-  // A route or host check hands its descriptor to the connect it leads to, once,
-  // so the connect skips a round trip. Only over HTTPS or loopback: any other
-  // plain http address can belong to another machine after a network change.
   const checkedDescriptors = new Map<
     string,
     { readonly descriptor: ExecutionEnvironmentDescriptor; readonly at: bigint }
@@ -82,9 +78,6 @@ const make = Effect.gen(function* () {
       readonly bearerToken: string;
       readonly connectionMethod: ClientConnectionMethod;
     }) {
-      // Read on every prepare unless a check just read it: a saved address can belong to
-      // another machine by now. A remembered mismatch still reads again, so a host that
-      // answers for the right environment a moment later is not blocked.
       const checked = checkedDescriptors.get(input.httpBaseUrl);
       checkedDescriptors.delete(input.httpBaseUrl);
       const descriptor =
@@ -95,7 +88,6 @@ const make = Effect.gen(function* () {
           : yield* fetchDescriptor(
               input.httpBaseUrl,
               input.connectionMethod,
-              // An SSH forward listens on loopback but reaches a remote host.
               input.connectionMethod === "direct" && isNearbyAddress(input.httpBaseUrl)
                 ? NEARBY_DESCRIPTOR_TIMEOUT_MS
                 : undefined,
@@ -130,7 +122,6 @@ const make = Effect.gen(function* () {
 
   return RemoteEnvironmentAuthorization.of({
     authorizeBearer,
-    // Untraced: it runs on every route and host check.
     rememberCheckedDescriptor: Effect.fnUntraced(function* (httpBaseUrl, descriptor, keepsItsHost) {
       if (Option.isNone(descriptor) || !keepsItsHost) {
         checkedDescriptors.delete(httpBaseUrl);

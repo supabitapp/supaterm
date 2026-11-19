@@ -20,7 +20,6 @@ const makeTaskFile = Effect.gen(function* () {
   return { root, tasks, file: path.join(tasks, `${TASK_ID}.output`) };
 });
 
-// TestClock cannot interleave with real filesystem I/O; tests that wait on a poll use the live clock.
 describe("tailClaudeTaskOutput", () => {
   it.live("follows a file that appears after the task starts, across split characters", () =>
     Effect.scoped(
@@ -37,7 +36,6 @@ describe("tailClaudeTaskOutput", () => {
         }).pipe(Effect.forkScoped);
 
         yield* fileSystem.makeDirectory(tasks, { recursive: true });
-        // Split the two-byte é across writes.
         const encoded = new TextEncoder().encode("café 1\n");
         yield* fileSystem.writeFile(file, encoded.subarray(0, 4));
         assert.equal(yield* Queue.take(chunks), "caf");
@@ -54,7 +52,6 @@ describe("tailClaudeTaskOutput", () => {
         const fileSystem = yield* FileSystem.FileSystem;
         const { root, tasks, file } = yield* makeTaskFile;
         yield* fileSystem.makeDirectory(tasks, { recursive: true });
-        // End the first read inside the two-byte é.
         yield* fileSystem.writeFile(file, new TextEncoder().encode("café").subarray(0, 4));
         const chunks = yield* Queue.unbounded<string>();
         const stop = yield* Deferred.make<void>();
@@ -91,7 +88,6 @@ describe("tailClaudeTaskOutput", () => {
         }).pipe(Effect.forkScoped);
         assert.equal(yield* Queue.take(chunks), "start\n");
 
-        // The skip lands on the second byte of a two-byte é.
         yield* fileSystem.writeFileString(file, `start\n${"é\n".repeat(1_000_000)}end.\n`);
         const flooded = yield* Queue.take(chunks);
         assert.isAtMost(flooded.length, 256 * 1024 + 1);

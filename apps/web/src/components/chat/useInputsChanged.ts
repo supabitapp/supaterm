@@ -9,8 +9,6 @@ function sameInputs(previous: ReadonlyArray<unknown>, inputs: ReadonlyArray<unkn
 
 type PrimitiveInput = string | number | boolean | null | undefined;
 
-// Primitives only: an object rebuilt each render never compares equal, so the
-// state set below would re-render forever.
 export function useInputsChanged(inputs: ReadonlyArray<PrimitiveInput>): boolean {
   const [previous, setPrevious] = useState<ReadonlyArray<PrimitiveInput> | null>(null);
   if (previous !== null && sameInputs(previous, inputs)) {

@@ -8,8 +8,6 @@ type HastNode = {
   children?: HastNode[];
 };
 
-// Raw HTML such as `<li>a</li><li>b</li>` has no whitespace between its
-// blocks, so they add their own to keep the words apart.
 const BLOCK_TAGS = new Set([
   "blockquote",
   "br",

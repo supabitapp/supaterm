@@ -31,7 +31,6 @@ export class BinaryDataFactory {
   }
 }
 
-// Without a shared worker, pdf.js starts a worker and recompiles its 1.3 MB script for every document.
 let worker: PDFWorker | undefined;
 
 export function openPdf(bytes: ArrayBuffer) {
@@ -42,7 +41,6 @@ export function openPdf(bytes: ArrayBuffer) {
     useSystemFonts: true,
     useWorkerFetch: false,
     BinaryDataFactory,
-    // PDF.js imports JavaScript decoders directly, bypassing BinaryDataFactory.
     wasmUrl: new URL(".", new URL(fallbackUrl, window.location.href)).href,
     canvasMaxAreaInBytes: 32 * 1024 * 1024,
     useWasm: true,

@@ -303,7 +303,6 @@ it("keeps the selected models when the draft switches machine by hand", async ()
   await expect.element(screen.getByText("gpt-6.1-sol, gpt-6.1-luna")).toBeInTheDocument();
   expect(store.getComposerDraft(draftId)?.prompt).toBe("Keep this prompt");
 
-  // Changes made on the new machine come back with the draft.
   await act(async () => appAtomRegistry.set(selectionsOn(b), models("gpt-6.1-sol")));
   await screen.getByRole("button", { name: `Switch to ${a}` }).click();
   await expect.element(screen.getByText(a)).toBeInTheDocument();

@@ -184,7 +184,6 @@ export function useComposerStash(input: {
   );
   const [isStashMenuOpen, setIsStashMenuOpen] = useState(false);
   const [isSendingAllStash, setIsSendingAllStash] = useState(false);
-  // Each stash bumps the key; the badge replays its one-shot pulse animation per key.
   const [stashPulseKey, setStashPulseKey] = useState(0);
   const stashInFlightRef = useRef<Set<string>>(new Set());
 
@@ -222,10 +221,6 @@ export function useComposerStash(input: {
     }
     setIsStashMenuOpen(false);
 
-    // An expired upload restores as a needs-reattach row instead of a reference
-    // the next send would fail to verify. Verify BEFORE taking: the take
-    // removes the entry from durable storage, and a tab closed during this
-    // await must still find it there after reload.
     const verifications = await Promise.all(
       filesToVerify.map((file) =>
         verifyStashedAttachmentUpload({ environmentId, attachmentId: file.attachmentId }),
@@ -360,8 +355,6 @@ export function useComposerStash(input: {
       const filesToAppend = appendedFiles.slice(0, capacity);
       const skippedFiles = appendedFiles.slice(capacity);
       unrestoredFileNames = skippedFiles.map((file) => file.name);
-      // A non-durable take can resurrect the stash entry after a reload;
-      // deleting these uploads would leave it pointing at nothing.
       if (durable) {
         for (const file of duplicateFiles) {
           releasePersistedAttachmentUpload({
@@ -399,9 +392,6 @@ export function useComposerStash(input: {
     let unrestoredImageNames: string[] = [];
     if (entry.attachments.length > 0) {
       const existingIds = new Set(composerImagesRef.current.map((image) => image.id));
-      // Filter on the draft store's dedupe key here. Counting a duplicate
-      // against capacity would burn a slot the store then refuses to fill,
-      // pushing a genuinely unique image into the overflow list for nothing.
       const existingDedupKeys = new Set(composerImagesRef.current.map(composerImageDedupKey));
       const capacity = remainingComposerAttachmentSlots(
         composerImagesRef.current.length + composerFilesRef.current.length + restoredFileCount,
@@ -457,9 +447,6 @@ export function useComposerStash(input: {
   const restoreStashEntry = async (menuEntry: PromptStashEntry) => {
     const targetKey = composerTargetKey(composerDraftTarget);
     const expiredAttachmentIds = await verifyStashEntryFiles(menuEntry);
-    // A thread switch during the verify await would mix the new thread's
-    // prompt with this invocation's captured target. Nothing was taken yet,
-    // so abort and leave the entry restorable where the user now is.
     if (!expiredAttachmentIds || composerTargetMovedFrom(targetKey)) return;
     if (applyStashEntry(menuEntry, expiredAttachmentIds)?.promptChanged) {
       window.requestAnimationFrame(() => {
@@ -517,9 +504,6 @@ export function useComposerStash(input: {
           ? "Still saving stashed images"
           : null;
 
-  // Runs between sends, so it re-checks what the previous send may have changed:
-  // a question from the agent would otherwise take the next prompt as its answer.
-  // The send reads the restored draft from render state, hence the flushSync.
   const applyStashEntryForSend = (
     entry: PromptStashEntry,
     expiredAttachmentIds: ReadonlySet<string>,
@@ -537,9 +521,6 @@ export function useComposerStash(input: {
   };
   const submitStashEntryStable = useStableCallback(submitStashEntry);
 
-  // Each prompt is restored and sent through the composer's own path, oldest first. Sends
-  // queue instead of steering, so the first starts a turn and the rest wait behind it. The
-  // run stops at the first prompt that cannot go out as stashed, leaving it in the composer.
   const sendAllStashEntries = async () => {
     setIsStashMenuOpen(false);
     setIsSendingAllStash(true);
@@ -555,8 +536,6 @@ export function useComposerStash(input: {
         ) {
           break;
         }
-        // Restored uploads are sendable only once the queue re-verifies them, which a
-        // person restoring by hand waits out without noticing.
         const restoredUploads = (getComposerDraft(composerDraftTarget)?.files ?? []).filter(
           (file) => file.uploadedAttachmentId !== undefined,
         );
@@ -589,8 +568,6 @@ export function useComposerStash(input: {
   const sendAllStashEntriesStable = useStableCallback(sendAllStashEntries);
 
   const stashCurrentPrompt = async () => {
-    // Stashing clears the draft. A pasted attachment still downloading would then land in the
-    // emptied composer instead of travelling with the entry it belongs to.
     if (pendingDraftWork.has(attachmentTargetKeyRef.current)) {
       toastManager.add({
         type: "info",
@@ -600,7 +577,6 @@ export function useComposerStash(input: {
       return;
     }
     const trimmedPrompt = promptRef.current.trim();
-    // A trailing chip only parses with whitespace after it, so keep one space to restore it.
     const endsWithChip =
       collectComposerPromptInlineTokens(promptRef.current).at(-1)?.end ===
       promptRef.current.trimEnd().length;
@@ -629,8 +605,6 @@ export function useComposerStash(input: {
       }
       return;
     }
-    // The snapshot only holds compressed images; a still-compressing one would land in the
-    // emptied composer instead of travelling with this entry.
     if (countPreparingComposerImages(attachmentTargetKeyRef.current) > 0) {
       toastManager.add({
         type: "info",
@@ -666,8 +640,6 @@ export function useComposerStash(input: {
         ...(file.source ? { source: file.source } : {}),
       });
     }
-    // Deduplicate the snapshot while encoding, not all stashes: new drafts or
-    // thread switches must still be able to create their own entries.
     const attachmentKey = images
       .map((image) => `image:${image.id}`)
       .concat(files.map((file) => `file:${file.id}`))
@@ -679,8 +651,6 @@ export function useComposerStash(input: {
     const stashTarget = composerDraftTarget;
     const entryId = randomUUID();
     const persistStash = async () => {
-      // Persist the text-only entry first so a crash mid-encode leaves the prompt recoverable,
-      // then clear before the async image work so edits typed during encoding are not wiped.
       const { evicted, written, durable } = stashEntryToQueue({
         id: entryId,
         createdAt: new Date().toISOString(),
@@ -693,9 +663,6 @@ export function useComposerStash(input: {
         ...(stashedRecords.length > 0 ? { records: stashedRecords } : {}),
       });
 
-      // If it was rejected (quota) the store has already rolled itself back,
-      // so leave the composer untouched rather than making it the second
-      // casualty of a reload.
       if (!written) {
         toastManager.add({
           type: "error",
@@ -751,9 +718,6 @@ export function useComposerStash(input: {
         });
       }
 
-      // Images are re-encoded for the stash rather than stored verbatim: the
-      // composer allows up to 10MB per image, but localStorage gives the whole
-      // origin ~5MB.
       const candidateAttachments: PersistedComposerImageAttachment[] = [];
       const oversizedImageNames: string[] = [];
       const unreadableImageNames: string[] = [];
@@ -828,8 +792,6 @@ export function useComposerStash(input: {
   }
 
   const handleStashShortcut = useStableCallback(() => {
-    // Always claim the shortcut so the browser save dialog never opens,
-    // even when the composer is in a state that can't stash.
     if (isCommandPaletteOpen() || isRevertingCheckpoint) return;
     if (pendingUserInputs.length > 0) {
       setIsStashMenuOpen((open) => !open);

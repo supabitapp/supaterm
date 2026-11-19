@@ -126,7 +126,6 @@ it("seeds relocated cache entries without allowing writes into shipped resources
     expect(seedPreparedCache(prepared, active, "matching")).toBe(true);
     const key = cacheKey(active, NodePath.join(root, "resources", manifest.entries[0]!.module));
     expect(NodeFS.readFileSync(NodePath.join(active, key), "utf8")).toBe("prepared bytes");
-    // Node persists by replacing the directory entry, never by overwriting the linked inode.
     NodeFS.rmSync(NodePath.join(active, key));
     NodeFS.writeFileSync(NodePath.join(active, key), "runtime replacement");
     expect(NodeFS.readFileSync(NodePath.join(prepared, "12345678"), "utf8")).toBe("prepared bytes");

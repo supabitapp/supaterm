@@ -170,7 +170,6 @@ export function composerModelCandidates(
   serverConfig: ServerConfig | null | undefined,
   projectId: ProjectId | null,
 ): ComposerModelCandidate[] {
-  // buildModelOptions already leaves out providers turned off for the project.
   const mentionable = new Map(
     (serverConfig?.providers ?? []).flatMap((provider) =>
       isMentionableProvider(provider, true) ? [[provider.instanceId, provider] as const] : [],
@@ -267,7 +266,6 @@ export function useComposerCommandMenu({
     ownerKey,
     ...composerSelectionAtEnd(draftMessage),
   }));
-  // Thread mentions rank by recency as of when the composer mounted.
   const [now] = useState(() => Date.now());
   const insertedSelection = useComposerDraftSelection(ownerKey, draftMessage);
   const selection = resolveComposerMenuSelection({
@@ -295,8 +293,6 @@ export function useComposerCommandMenu({
         })
       : idleWorkspaceSnapshotRefreshAtom,
   );
-  // Every draft change rechecks a stale snapshot, including drafts written by
-  // another surface (a prompt link) that never move the editor selection.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- refreshes the provider workspace snapshot atom whenever the draft text changes from any surface
   useEffect(() => {
     refreshWorkspaceSnapshot();
@@ -318,7 +314,6 @@ export function useComposerCommandMenu({
     cwd: trigger?.kind === "path" ? projectCwd : null,
     query: trigger?.kind === "path" ? trigger.query : null,
   });
-  // Mounts older done threads matching the mention, which shells may leave out.
   useThreadSearch(
     trigger?.kind === "path" && environmentId ? [environmentId] : [],
     trigger?.kind === "path" ? trigger.query : "",

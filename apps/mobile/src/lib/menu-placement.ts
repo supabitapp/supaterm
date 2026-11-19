@@ -40,7 +40,6 @@ export function deriveMenuVerticalPlacement(input: {
   const opensDown = spaceBelow >= 280 || spaceBelow >= spaceAbove;
   const maxHeight = Math.min(opensDown ? spaceBelow : spaceAbove, 480);
   if (maxHeight < input.minHeight) {
-    // Neither side fits (e.g. a code block taller than the screen): overlap the anchor instead.
     const top = Math.max(
       input.margin,
       Math.min(input.anchorY, usableBottom - input.margin - input.minHeight),

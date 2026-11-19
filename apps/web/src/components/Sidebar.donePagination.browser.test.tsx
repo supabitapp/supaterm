@@ -5,7 +5,6 @@ import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import { AppRoot } from "~/AppRoot";
-// The thread route loads ChatView lazily; its first transform would eat the test's timeout.
 import "~/components/ChatView";
 import { __setClientSettingsForTests } from "~/hooks/useSettings";
 import { getRouter } from "~/router";
@@ -18,7 +17,6 @@ import {
 } from "../../test/fakeEnvironment";
 import { act, render } from "../../test/render";
 
-// The socket is the only fake layer; see test/appScenarios.renders.tsx.
 vi.mock("../../../../packages/client-runtime/src/connection/driver.ts", async (importOriginal) => {
   const [actual, { fakeDriver }, Layer] = await Promise.all([
     importOriginal<{ readonly ConnectionDriver: Context.Key<unknown, FakeDriver> }>(),
@@ -62,11 +60,9 @@ it("keeps Show more focused while older done threads load", async () => {
   );
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
 
-  // Entering the thread focuses the composer whenever ChatView mounts, so let it land first.
   await expect.element(page.getByTestId("composer-editor")).toHaveFocus();
   const doneShelf = page.getByRole("button", { name: "Done (60)" });
   await expect.element(doneShelf).toBeInTheDocument();
@@ -79,7 +75,6 @@ it("keeps Show more focused while older done threads load", async () => {
   const loadingButton = page.getByRole("button", { name: "Loading", exact: true });
   await expect.element(loadingButton).toBeInTheDocument();
 
-  // A disabled button loses focus on the browser's next frame; a real key press waits for it.
   await userEvent.keyboard("{Enter}");
   await expect.element(loadingButton).toHaveFocus();
   expect(retry).toHaveBeenCalledTimes(1);

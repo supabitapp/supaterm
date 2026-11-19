@@ -49,7 +49,6 @@ function readGrokUsageTotals(value: unknown): GrokUsageTotals | null {
 function grokTotalsToUsage(totals: GrokUsageTotals): UsageTokenTotals {
   const cachedInputTokens = totals.cachedReadTokens;
   const cacheCreationTokens = totals.cacheCreationTokens;
-  // Grok reports `inputTokens` inclusive of the cached portion, matching Codex.
   const uncachedInputTokens = Math.max(
     0,
     totals.inputTokens - cachedInputTokens - cacheCreationTokens,
@@ -92,7 +91,6 @@ function parseGrokRecord(parsed: unknown): readonly UsageRecord[] {
   const usageRecord = usage as Record<string, unknown>;
 
   const sessionId = typeof paramsRecord["sessionId"] === "string" ? paramsRecord["sessionId"] : "";
-  // Supaterm's prompt ids restart with each Grok process, so a resumed session reuses them.
   const promptId = typeof updateRecord["prompt_id"] === "string" ? updateRecord["prompt_id"] : null;
 
   const meta = paramsRecord["_meta"];
@@ -136,7 +134,6 @@ function parseGrokRecord(parsed: unknown): readonly UsageRecord[] {
         totals: grokTotalsToUsage(topLevel),
         reportedCostUsd: grokCostTicksToUsd(topLevel.costUsdTicks),
         speed: "standard",
-        // No prompt id means we cannot tell two same-second updates apart.
         dedupeKey: promptId === null ? null : `${sessionId}:${promptId}:${timestampMs}:grok`,
       },
     ];
@@ -207,7 +204,6 @@ export const grokUsageReader: ProviderUsageReader<GrokSettings, Path.Path> = {
       environment.GROK_HOME?.trim() || path.join(homeDirectory, ".grok"),
       homeDirectory,
     );
-    // Only updates.jsonl carries usage; skip large chat_history and events logs.
     return [{ dir: path.resolve(home, "sessions"), fileName: "updates.jsonl" }];
   }),
 };

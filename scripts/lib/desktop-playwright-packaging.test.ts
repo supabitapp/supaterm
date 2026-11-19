@@ -28,8 +28,6 @@ const decodeManifest = Schema.decodeUnknownSync(
 const repoRoot = NodeURL.fileURLToPath(new URL("../..", import.meta.url));
 const desktopPackagePath = NodePath.join(repoRoot, "apps/desktop/package.json");
 
-// Stage the same external package closure the desktop artifact installs, applying
-// the production runtime file exclusions without retaining pnpm links to this checkout.
 async function stagePackage(
   name: string,
   from: string,
@@ -84,7 +82,6 @@ it("loads the packaged Playwright runtime through the server browser loader path
     NodePath.join(NodeOS.tmpdir(), "supaterm-playwright-package-"),
   );
   try {
-    // Missing staged dependencies must not resolve from a developer's /tmp tree.
     for (let parent = NodePath.dirname(scratch); ; parent = NodePath.dirname(parent)) {
       assert.isFalse(NodeFS.existsSync(NodePath.join(parent, "node_modules")));
       if (parent === NodePath.dirname(parent)) break;

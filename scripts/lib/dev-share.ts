@@ -1,5 +1,3 @@
-/** Vite proxies the backend, so only the web port needs a share mapping. */
-
 import {
   buildTailscaleHttpsBaseUrl,
   disableTailscaleServe,
@@ -14,7 +12,6 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type { ChildProcessSpawner } from "effect/process";
 
-/** Log fixed diagnostics; tailscale stderr can contain auth keys and node names. */
 const DIAGNOSTIC_EXPLANATIONS: Record<TailscaleStderrDiagnostic, string | undefined> = {
   "no-existing-handler": "no mapping existed for that port",
   "not-logged-in": "this machine is not logged into a tailnet — run `tailscale up`",
@@ -155,7 +152,6 @@ export const shareDevServer = Effect.fn("devShare.shareDevServer")(function* (in
   }
 
   const target = input.localTarget ?? { port: input.webPort, host: "localhost" };
-  // A mapping left by an earlier run, or one dialing a dead loopback port, is safe to replace.
   const holder = yield* readTailscaleServeRootHolder(input.webPort, {
     port: target.port,
     host: target.host.replace(/^\[|\]$/gu, ""),
@@ -177,7 +173,6 @@ export const shareDevServer = Effect.fn("devShare.shareDevServer")(function* (in
 
   const cleared = yield* unshareDevServer(input.webPort);
   if (!cleared.cleared) {
-    // Refuse stale routes: the page could load while /ws and /api still point at a dead backend.
     return yield* new DevServeFailedError({
       stage: "clear-existing",
       webPort: input.webPort,
@@ -186,7 +181,6 @@ export const shareDevServer = Effect.fn("devShare.shareDevServer")(function* (in
     });
   }
 
-  // Vite's localhost can bind only ::1; a 127.0.0.1 proxy target would return 502.
   yield* ensureTailscaleServe({
     localPort: target.port,
     servePort: input.webPort,

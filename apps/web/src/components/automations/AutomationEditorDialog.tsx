@@ -88,11 +88,9 @@ import {
   type WorkspaceMode,
 } from "./automations.logic";
 
-/** JS day-of-week (0 = Sunday) rendered Monday-first, matching how people read a week. */
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
 const WEEKDAY_SHORT = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] as const;
 
-// Thread ids are trimmed, so the leading space keeps this from matching one.
 const NEW_THREAD_DESTINATION = " new-thread";
 
 const WORKSPACE_MODE_LABELS: Record<WorkspaceMode, string> = {
@@ -125,7 +123,6 @@ const EMPTY_DRAFT: DraftState = {
   baseModelSelection: null,
 };
 
-/** Labelled field: a caption sitting above its control. */
 function Field({
   label,
   htmlFor,
@@ -152,7 +149,6 @@ const THREAD_MODE_LABELS: Record<ScheduledTaskThreadMode, string> = {
 function useScheduledTaskThread(environmentId: EnvironmentId, threadId: ThreadId | null) {
   const ref = threadId === null ? null : scopeThreadRef(environmentId, threadId);
   const shell = useThreadShell(ref);
-  // The shell can omit older done threads; their family read still carries the row.
   const family = useEnvironmentQuery(
     ref !== null && shell === null ? threadFamilies.familyAtom(environmentId, ref.threadId) : null,
   );
@@ -174,7 +170,6 @@ function ScheduledTaskDestination({
   readonly threadMode: ScheduledTaskThreadMode;
   readonly disabled: boolean;
   readonly onSelect: (thread: { id: ThreadId; projectId: ProjectId } | null) => void;
-  /** Absent on servers that predate thread modes. */
   readonly onThreadModeChange: ((mode: ScheduledTaskThreadMode) => void) | undefined;
 }) {
   const [open, setOpen] = useState(false);
@@ -188,7 +183,6 @@ function ScheduledTaskDestination({
         ? "New thread each run"
         : "Started by the first run";
   const shells = useThreadShells(open);
-  // Mounts older done threads matching the query, which shells may leave out.
   useThreadSearch(open && projectId ? [environmentId] : [], query, {
     titlesOnly: true,
     projectIds: [projectId as ProjectId],
@@ -335,7 +329,6 @@ export function AutomationEditorDialog({
 }) {
   const [environmentId, setEnvironmentId] = useState(initialEnvironmentId);
   const environment = useEnvironment(environmentId);
-  // Older servers reject one-time schedules, so offer Once only where it can save.
   const offersOnce =
     environment?.serverConfig?.environment.capabilities.oneTimeSchedules === true ||
     task?.schedule.type === "once";
@@ -365,7 +358,6 @@ export function AutomationEditorDialog({
       ? taskToDraft(task)
       : { ...EMPTY_DRAFT, projectId: defaultAutomationProjectId(scopedProjects, scope) },
   );
-  // Pinned first. The chosen project stays listed after it is archived.
   const projects = scopedProjects
     .filter(
       (project) =>
@@ -388,8 +380,6 @@ export function AutomationEditorDialog({
     selectedProject?.id ?? null,
   );
 
-  // The real model picker is keyed by a `${instanceId}:${model}` string, which
-  // is exactly how the draft stores its selection.
   const firstInstance = instanceEntries[0];
   const draftSelection = draft.modelKey ? splitModelKey(draft.modelKey) : null;
   const activeSelection =
@@ -404,7 +394,6 @@ export function AutomationEditorDialog({
     environmentId,
     draft.threadId ? (draft.threadId as ThreadId) : null,
   );
-  // Bound runs use the thread's current model, so the locked picker shows that one.
   const shownSelection = draft.threadId
     ? (boundThread?.modelSelection ?? null)
     : { instanceId: activeInstanceId, model: activeModel };
@@ -470,8 +459,6 @@ export function AutomationEditorDialog({
       reportFailure("Checkout path is required", "Enter the path of the checkout to run in.");
       return;
     }
-    // Keep the original selection object (with provider options) when the
-    // picker still points at the same instance+model.
     const modelSelection =
       draft.baseModelSelection !== null &&
       draft.baseModelSelection.instanceId === selection.instanceId &&
@@ -503,7 +490,6 @@ export function AutomationEditorDialog({
       interactionMode: draft.interactionMode,
       creationSource: "web",
     };
-    // Lock before React renders, and keep successful creates locked until the form closes.
     submissionPending.current = true;
     setSaving(true);
     const result = await upsertTask({ environmentId, input });
@@ -756,7 +742,6 @@ export function AutomationEditorDialog({
               <div>
                 <ProviderModelPicker
                   environmentId={environmentId}
-                  // The saved selection only seeds new threads; bound runs ignore it.
                   disabled={saving || !connected || draft.threadId !== ""}
                   activeInstanceId={shownInstanceId}
                   model={shownModel}
@@ -789,7 +774,6 @@ export function AutomationEditorDialog({
                         return {
                           ...current,
                           scheduleMode: mode,
-                          // Keep the instant too, so an hour that repeats when clocks go back stays exact.
                           ...(suggested === null
                             ? {}
                             : {

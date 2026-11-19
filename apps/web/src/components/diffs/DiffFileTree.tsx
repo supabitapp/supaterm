@@ -75,7 +75,6 @@ export function DiffFileTree({
   } | null>(null);
   const mountedPresentationRef = useRef<ReturnType<typeof diffFileTreeModel> | null>(null);
 
-  // The tree model keeps the first selection handler it was given.
   const handleSelectionChange = useStableCallback((selectedPaths: ReadonlyArray<string>) => {
     if (syncingSelectionRef.current) return;
     const modelPath = selectedPaths.at(-1);
@@ -117,8 +116,6 @@ export function DiffFileTree({
       const updates = buildDiffFileTreeUpdates(mounted.paths, modelPaths);
       if (updates.length > 0) model.batch(updates);
     } else {
-      // A reset can turn a file path into a directory. Carry selection and focus
-      // through real paths so paging keeps the same file without revealing it again.
       const focusedPath = model.getFocusedPath();
       const nextFocusedPath =
         focusedPath === null ? null : presented.modelPath(mounted.selectionPath(focusedPath));
@@ -234,7 +231,6 @@ export function DiffFileTree({
           ) {
             return;
           }
-          // Pierre emits no change for its sole selected row; read before the click to avoid double reveals.
           const selected = model.getSelectedPaths();
           const path = selected.length === 1 ? selected[0] : undefined;
           if (!path || !modelPaths.includes(path)) return;

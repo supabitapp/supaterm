@@ -39,7 +39,6 @@ export function ConnectionsNewRouteScreen({
 }: StaticScreenProps<ConnectionsNewRouteParams | undefined>) {
   const params = route.params ?? {};
   const routePairingUrl = linkedPairingUrl(params.pairingUrl);
-  // A fresh pairing link replaces the form, including the previous attempt's error and progress.
   return (
     <PairingForm
       key={routePairingUrl}
@@ -67,7 +66,6 @@ function PairingForm({
   const [codeInput, setCodeInput] = useState(() => parsePairingUrl(originalPairingUrl).code);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // The user's own edit or submit dismisses the dev auto-connect report.
   const [ownAttempt, setOwnAttempt] = useState(false);
   const autoConnect = autoConnectReport(
     useAtomValue(devAutoConnectAttemptAtom),
@@ -153,12 +151,9 @@ function PairingForm({
           : Haptics.NotificationFeedbackType.Error,
       );
       if (outcome.ok) {
-        // Return to whatever opened the sheet. Replacing it with Home would
-        // nest Home inside any sheet still below it.
         if (!navigation.canGoBack()) {
           navigation.dispatch(StackActions.replace("Home"));
         } else {
-          // Added from the Settings list, the new environment shows on Environments.
           leaveSettingsPage(navigation, workspaceHasColumns(), "SettingsEnvironments");
         }
       }

@@ -5,13 +5,10 @@ import * as Stream from "effect/Stream";
 
 import * as ConnectionWakeups from "../connection/wakeups.ts";
 
-// Do not debounce upstream: its consumer can retain an older snapshot during a save.
 export const runCachePersistence = Effect.fn("runCachePersistence")(function* <A, E, R>(
   queue: Queue.Queue<A>,
   persist: (value: A) => Effect.Effect<void, E, R>,
 ) {
-  // The OS may end a backgrounded app before a throttled write runs, so going to
-  // the background cuts the current wait short.
   const backgrounded = yield* Queue.sliding<void>(1);
   const wakeups = yield* Effect.serviceOption(ConnectionWakeups.ConnectionWakeups);
   if (Option.isSome(wakeups)) {

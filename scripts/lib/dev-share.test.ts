@@ -80,8 +80,6 @@ const spawnerLayer = (input: {
 };
 
 describe("unshareDevServer", () => {
-  // `tailscale serve … off` exits 1 when the port had no mapping, which is the
-  // normal first-share case — the port is clear, so this must not be an error.
   it.effect("treats a missing handler as cleared", () =>
     Effect.gen(function* () {
       const result = yield* unshareDevServer(5788).pipe(
@@ -104,8 +102,6 @@ describe("unshareDevServer", () => {
 });
 
 describe("shareDevServer", () => {
-  // Vite binds `localhost`, which modern Node resolves to `::1` first, so a
-  // 127.0.0.1 target would proxy to a loopback nothing listens on.
   it.effect("proxies to the localhost name Vite binds, not 127.0.0.1", () =>
     Effect.gen(function* () {
       const calls: Array<ReadonlyArray<string>> = [];

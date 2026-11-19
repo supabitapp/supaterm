@@ -2,16 +2,12 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-// Include the major version, which Expo ignores, to prevent OTAs reaching older store binaries.
 const appConfig = fs.readFileSync(path.join(__dirname, "app.config.ts"), "utf8");
 const majorVersion = appConfig.match(/^ {2}version: "(\d+)\./m)?.[1];
 if (!majorVersion) {
   throw new Error("fingerprint.config.js could not read the app version from app.config.ts");
 }
 
-// The fingerprint hashes native modules by name and version, so a patch to their native code
-// would ship as an OTA to binaries that lack it. Hash patches touching platform sources,
-// C/C++, or codegen specs; JS-only patches ship in the bundle.
 const repoRoot = path.join(__dirname, "../..");
 const workspaceConfig = fs.readFileSync(path.join(repoRoot, "pnpm-workspace.yaml"), "utf8");
 const appliedPatches = [...workspaceConfig.matchAll(/: (patches\/\S+\.patch)$/gm)].flatMap(
@@ -24,7 +20,7 @@ const nativePatchSources = appliedPatches.flatMap((patch) => {
   const touchesNative = [...contents.matchAll(/^diff --git a\/(\S+)/gm)].some(([, touched = ""]) =>
     nativePath.test(touched),
   );
-  return touchesNative ? [{ type: /** @type {const} */ ("contents"), id: patch, contents }] : [];
+  return touchesNative ? [{ type: "contents", id: patch, contents }] : [];
 });
 
 module.exports = {

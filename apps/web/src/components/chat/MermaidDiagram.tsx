@@ -7,14 +7,11 @@ import { serializeCodeBlockToMarkdown } from "../../markdown-clipboard";
 
 let mathLoad: Promise<MathResolver | null> | null = null;
 
-// Pele has no typesetter, so $$...$$ labels go through the KaTeX the chat
-// already uses for math. It only loads for diagrams that contain math.
 function loadMath(): Promise<MathResolver | null> {
   mathLoad ??= import("katex").then(
     ({ default: katex }) => {
       const typeset = new Map<string, ReturnType<MathResolver>>();
       let probe: HTMLDivElement | null = null;
-      // Pele calls this on every layout, including resizes.
       return (tex, size) => {
         const key = `${size}:${tex}`;
         if (typeset.has(key)) return typeset.get(key);
@@ -31,22 +28,18 @@ function loadMath(): Promise<MathResolver | null> {
             displayMode: true,
             output: "mathml",
             throwOnError: true,
-            // No \href, \url, \htmlClass, or other commands that emit active HTML.
             trust: false,
             strict: "ignore",
             maxSize: 20,
             maxExpand: 1000,
           });
           const expression = probe.querySelector("math");
-          // The annotation repeats the TeX source; the sanitizer would keep its text.
           expression?.querySelector("annotation")?.remove();
           if (expression) {
             const { width, height } = expression.getBoundingClientRect();
             markup = { html: expression.outerHTML, width, height };
           }
-        } catch {
-          // Unsupported TeX stays readable as its source.
-        }
+        } catch {}
         typeset.set(key, markup);
         return markup;
       };
@@ -56,8 +49,6 @@ function loadMath(): Promise<MathResolver | null> {
   return mathLoad;
 }
 
-// MathML element types KaTeX emits, without annotation (the resolver removes it),
-// semantics (only a wrapper, so its content is kept), and mglyph (an image).
 const KATEX_MATHML_TAGS = new Set([
   "math",
   "menclose",
@@ -84,8 +75,6 @@ const KATEX_MATHML_TAGS = new Set([
   "munder",
   "munderover",
 ]);
-// Presentation attributes KaTeX sets on those elements. The profiles already
-// cover class, style, width, height, display, and xmlns.
 const KATEX_MATHML_ATTRIBUTES = new Set([
   "accent",
   "accentunder",
@@ -117,9 +106,6 @@ const KATEX_MATHML_ATTRIBUTES = new Set([
 
 let purifier: ReturnType<typeof DOMPurify> | null = null;
 
-// Diagrams can come from untrusted PR descriptions. Pele escapes labels and
-// links and images are off, so this is defense in depth against anything that
-// could navigate, run script, or fetch remote content.
 function sanitizeDiagramSvg(svg: string): Node {
   purifier ??= DOMPurify(window);
   return purifier.sanitize(svg, {
@@ -130,12 +116,9 @@ function sanitizeDiagramSvg(svg: string): Node {
   });
 }
 
-// Pele puts MathML labels in a <foreignObject> with an HTML <div> around them.
 function sanitizeMathDiagramSvg(svg: string): Node {
   purifier ??= DOMPurify(window);
   return purifier.sanitize(svg, {
-    // DOMPurify still only accepts <math> under an HTML parent and checks every
-    // MathML child's namespace.
     ADD_TAGS: ["foreignObject", ...KATEX_MATHML_TAGS],
     ADD_ATTR: (attribute, tagName) =>
       KATEX_MATHML_TAGS.has(tagName) && KATEX_MATHML_ATTRIBUTES.has(attribute),
@@ -147,7 +130,6 @@ function sanitizeMathDiagramSvg(svg: string): Node {
   });
 }
 
-// Pele colors diagrams through these, which a standalone image cannot inherit.
 const PELE_COLOR_VARIABLES = [
   "--pele-bg",
   "--pele-fg",
@@ -163,10 +145,6 @@ const PELE_COLOR_VARIABLES = [
 
 let expandedImageUrl: string | null = null;
 
-/**
- * A blob URL, unlike a data URL, passes the desktop connect-src policy that media
- * save and copy actions fetch through.
- */
 function diagramImageUrl(svg: SVGSVGElement): string {
   const element = svg.cloneNode(true) as SVGSVGElement;
   const computed = getComputedStyle(svg);
@@ -190,20 +168,16 @@ export function MermaidDiagram({
   source: string;
   onExpand: (imageUrl: string) => void;
 }) {
-  // An error belongs to the source that produced it. The worker only lays out a visible target,
-  // so a new source must not inherit the error that hides it.
   const [failure, setFailure] = useState<{ source: string; message: string } | null>(null);
   const trimmedSource = source.trim();
   const renderError = failure?.source === trimmedSource ? failure.message : null;
   const math = trimmedSource.includes("$$") ? use(loadMath()) : null;
 
-  // Re-created, and so remounted, whenever math support or the source changes.
   const attachDiagram = (container: HTMLSpanElement) => {
     const mounted = mountDiagram(container, trimmedSource, {
       links: false,
       images: false,
       zoom: false,
-      // Keep the author's direction; a wide diagram scales down to fit instead of turning vertical.
       autoDirection: false,
       ...(math ? { math, sanitize: sanitizeMathDiagramSvg } : { sanitize: sanitizeDiagramSvg }),
       onRender: () => setFailure(null),

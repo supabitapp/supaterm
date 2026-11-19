@@ -66,7 +66,6 @@ describe("Backspace at the start of a line", () => {
     expect(storedDraft(editor)).toBe(expected);
   });
 
-  // Neither item has a list of its own kind one level up to lift into.
   it.each([
     ["- a\n  - [ ] x\n  - [ ] y", "- a\n  - [ ] xy"],
     ["- [ ] a\n  - x\n  - y", "- [ ] a\n  - xy"],

@@ -1,10 +1,6 @@
 const motionTiming = { duration: 180, easing: "cubic-bezier(0.645, 0.045, 0.355, 1)" };
 const exitTiming = { duration: 140, easing: "cubic-bezier(0.32, 0.72, 0, 1)" };
 const rowTravel = (height: number) => Math.min(height, 40);
-// A project filter change or a bulk snooze swaps a large part of the list at
-// once. Fades are the expensive part: every removed row gets a deep clone and
-// every clone and entering row gets its own animation, and the layout reads
-// in between force synchronous reflows.
 const MAX_FADED_ROWS_PER_UPDATE = 40;
 
 type RowPosition = { top: number; left: number; width: number; height: number };
@@ -140,8 +136,6 @@ export function createSidebarListMotion(parent: HTMLUListElement) {
     },
     update(animate: boolean, shelfToggled = false) {
       if (disposed) return;
-      // A hidden list (the closed narrow sheet stays mounted) reports zero
-      // offsets, which would make the first pass after it opens animate every row.
       if (parent.getClientRects().length === 0) {
         suspend();
         return;
@@ -256,8 +250,6 @@ export function createSidebarListMotion(parent: HTMLUListElement) {
             continue;
           }
           const delta = movedDelta.get(node);
-          // Computed progress includes the effect's easing. Only our own
-          // translate is carried forward; dnd-kit's transforms are never read.
           if (delta !== undefined) move(node, delta);
         }
       }

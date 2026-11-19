@@ -438,7 +438,6 @@ describe("file tree workspace state", () => {
     expect(screen.requests).toHaveLength(1);
     await screen.fail(0);
     expect(screen.current.error).toBe("Directory unavailable");
-    // Re-rendering and the browser's passive expansion effect never retry a failed listing.
     screen.render();
     screen.render();
     expect(screen.requests).toHaveLength(1);
@@ -454,7 +453,6 @@ describe("file tree workspace state", () => {
     expect(screen.current.error).toBeNull();
     expect(screen.rows).toEqual(["src", "src/file.ts"]);
 
-    // A loaded folder serves from cache on collapse and expand.
     screen.press("src");
     screen.press("src");
     expect(screen.rows).toEqual(["src", "src/file.ts"]);
@@ -611,9 +609,7 @@ describe("file tree workspace state", () => {
       };
       screen.render({ searchQuery: "new" });
       for (const equalContents of [false, true]) {
-        // A later parent listing wins over retained discovery evidence.
         if (path.includes("/")) {
-          // Refresh re-lists the root and every reachable folder; the empty parent prunes the child.
           const refreshed = screen.requests.length;
           act(() => {
             void screen.current.refresh();
@@ -624,7 +620,6 @@ describe("file tree workspace state", () => {
             { cwd: "/first", directoryPath: "src" },
             { cwd: "/first", directoryPath: path },
           ]);
-          // The parent settles last so its listing carries the newest response timestamp.
           for (const index of [refreshed, refreshed + 1, refreshed + 3, refreshed + 2]) {
             await screen.succeed(index, []);
           }
@@ -641,7 +636,6 @@ describe("file tree workspace state", () => {
         expect([...screen.current.expandedPaths]).toEqual(path.includes("/") ? ["src"] : []);
         expect([...screen.current.loadedDirectories]).toEqual(["src"]);
 
-        // Cover an older cache and the timestamp's ambiguous same-millisecond boundary.
         for (const success of [
           cachedSearch,
           AsyncResult.success(cachedSearch.value, { timestamp: screen.responseTimestamp }),

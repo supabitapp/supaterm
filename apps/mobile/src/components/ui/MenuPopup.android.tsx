@@ -17,7 +17,6 @@ import { useAppearancePreferences } from "../../features/settings/appearance/App
 import type { MenuPopupProps } from "./MenuPopup";
 import { isAppSymbolName, SymbolView, type AppSymbolName } from "./AppSymbol.android";
 
-// The Compose glyph host consumes touches; run the action here and keep accessibility on the row.
 function MenuIcon(props: {
   readonly name: AppSymbolName;
   readonly color?: MenuAction["imageColor"];
@@ -64,7 +63,6 @@ export function MenuPopupItems(
   const caption = resolveScaledTextRole("caption", appearance.baseFontSize);
   const foreground = colors["--color-foreground"];
   const muted = colors["--color-foreground-muted"];
-  // A fixed native item height clips wrapped labels; a minimum lets each row grow.
   const itemModifiers = [width(props.menuWidth), defaultMinSize({ minHeight: menuItemHeight })];
   return (
     <>

@@ -27,10 +27,8 @@ export function DeviceWorkspace(props: {
   const [axOverlay, setAxOverlay] = useState(false);
   const [screenshotPending, setScreenshotPending] = useState(false);
   const [screenshotError, setScreenshotError] = useState<string | null>(null);
-  // A capture always finishes, even if the panel hides or closes meanwhile; the user asked for it.
   const capturing = useRef(false);
   const access = useDeviceHubAccess(props.environmentId, props.device.hostId);
-  // Settings and tools run commands on the device's own machine, which Expo does not expose.
   const runsHostCommands = props.hostKind === "local" || props.hostKind === "ssh";
   const controls = useDeviceControls({
     ...props,
@@ -44,7 +42,6 @@ export function DeviceWorkspace(props: {
     setScreenshotError(null);
     return captureDeviceScreenshot(
       { access, platform: props.device.platform, deviceId: props.device.id },
-      // Never aborted: see `capturing` above.
       new AbortController().signal,
     )
       .then((image) => {
@@ -55,7 +52,6 @@ export function DeviceWorkspace(props: {
         document.body.append(link);
         link.click();
         link.remove();
-        // The browser reads the blob after the click returns.
         window.setTimeout(() => URL.revokeObjectURL(url), DOWNLOAD_URL_LIFETIME_MS);
       })
       .catch((cause: unknown) => {

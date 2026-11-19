@@ -15,7 +15,6 @@ export class HostResources extends Context.Service<
   { readonly read: Effect.Effect<HostResourcesSnapshot> }
 >()("supaterm/resourceTelemetry/HostResources") {}
 
-// Linux CPU list syntax, as in Cpus_allowed_list: "0-3,8,10-11".
 function parseCpuList(list: string): ReadonlySet<number> | null {
   const cpus = new Set<number>();
   for (const range of list.split(",")) {
@@ -26,14 +25,12 @@ function parseCpuList(list: string): ReadonlySet<number> | null {
   return cpus;
 }
 
-// os.cpus() compacts online CPUs, so its indices are not CPU ids; /proc/stat lines are keyed.
 function pinnedCpu(stat: string, allowed: ReadonlySet<number>) {
   const cpu = { idle: 0, total: 0, count: 0 };
   for (const [, id, fields] of stat.matchAll(/^cpu(\d+) (.+)$/gm)) {
     if (!allowed.has(Number(id))) continue;
     const counters = (fields ?? "").trim().split(/\s+/).map(Number);
     const at = (index: number) => counters[index] ?? 0;
-    // user nice system idle iowait irq softirq steal
     const idle = at(3) + at(4);
     cpu.idle += idle;
     cpu.total += idle + at(0) + at(1) + at(2) + at(5) + at(6) + at(7);
@@ -60,7 +57,6 @@ function darwinAvailableMemory(output: string): number | null {
   const inactive = /^Pages inactive:\s+(\d+)\./m.exec(output)?.[1];
   const speculative = /^Pages speculative:\s+(\d+)\./m.exec(output)?.[1];
   if (!pageSize || !free || !inactive || !speculative) return null;
-  // vm_stat excludes speculative from free; add it once, without overlapping purgeable pages.
   const available = (Number(free) + Number(inactive) + Number(speculative)) * Number(pageSize);
   return Number.isSafeInteger(available) && Number(pageSize) > 0 ? available : null;
 }
@@ -78,7 +74,6 @@ const make = Effect.fn("makeHostResources")(function* () {
   const readFile = (path: string) => fs.readFileString(path).pipe(Effect.orElseSucceed(() => ""));
 
   const sample = Effect.fn("HostResources.sample")(function* () {
-    // cgroup v2 only; limits of the server's own cgroup, which is `/` inside a container.
     const cgroupPath =
       platform === "linux"
         ? /^0::(\/.*)$/m.exec(yield* readFile("/proc/self/cgroup"))?.[1]
@@ -94,7 +89,6 @@ const make = Effect.fn("makeHostResources")(function* () {
             cgroupNumber(stat, /^usage_usec (\d+)$/m),
           )
         : Effect.succeed(null);
-    // Affinity (cpuset) pins the server to some CPUs; idle CPUs outside it are of no use.
     const allowedCpus =
       platform === "linux"
         ? parseCpuList(
@@ -129,7 +123,6 @@ const make = Effect.fn("makeHostResources")(function* () {
         previousUsage !== null && usage !== null && elapsedMicros > 0
           ? capacity - (usage - previousUsage) / elapsedMicros
           : null;
-      // Agents can run in sibling cgroups (agentScope.ts), so a busy host still counts.
       const hostIdle = hostUtilization === null ? null : cpu.count * (1 - hostUtilization);
       const idle =
         cgroupIdle === null || hostIdle === null
@@ -139,7 +132,6 @@ const make = Effect.fn("makeHostResources")(function* () {
     }
 
     let totalMemoryBytes = NodeOS.totalmem();
-    // On Windows libuv returns GlobalMemoryStatusEx.ullAvailPhys, including standby memory.
     let availableMemoryBytes = NodeOS.freemem();
     if (platform === "linux") {
       const meminfo = yield* readFile("/proc/meminfo");
@@ -161,10 +153,8 @@ const make = Effect.fn("makeHostResources")(function* () {
       memoryMax === null
         ? null
         : cgroupNumber(yield* readFile(`${cgroup}/memory.current`), /^(\d+)$/m);
-    // Without usage, a capped total would read as a near-empty cgroup; keep host values instead.
     if (memoryMax !== null && memoryCurrent !== null) {
       totalMemoryBytes = Math.min(totalMemoryBytes, memoryMax);
-      // inactive_file is page cache the kernel reclaims before hitting memory.max.
       const stat = yield* readFile(`${cgroup}/memory.stat`);
       const reclaimable = cgroupNumber(stat, /^inactive_file (\d+)$/m) ?? 0;
       availableMemoryBytes = Math.min(

@@ -377,8 +377,6 @@ export function SettingsScheduledTasksRouteScreen() {
   );
 }
 
-// The "New task" action and takeScheduledTaskNewLink clear the editor before
-// this screen opens, so it starts from the default target.
 export function SettingsScheduledTaskNewRouteScreen() {
   return <SettingsScheduledTaskEditorScreen title="New scheduled task" />;
 }
@@ -394,7 +392,6 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
   const navigation = useNavigation();
   const insets = useSafeAreaInsets();
   const [saving, setSaving] = useState(false);
-  // Set once the save lands, so the removal guard lets the editor close.
   const saved = useRef(false);
   const ownerKey = editor ? `${voiceOwnerKey}:${editor.environmentId}` : null;
   const prompt = editor?.draft.prompt ?? "";
@@ -458,11 +455,7 @@ function SettingsScheduledTaskEditorScreen({ title }: { readonly title: string }
     ]);
   });
   return (
-    <SettingsScreen
-      title={title}
-      // Native Back pops before removal guards; a bar action lets the guard run first.
-      guardBack={preventRemove}
-    >
+    <SettingsScreen title={title} guardBack={preventRemove}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
@@ -576,7 +569,6 @@ function TaskForm({
   const tasks = useEnvironmentQuery(
     serverEnvironment.scheduledTasksLive({ environmentId, input: {} }),
   );
-  // Pinned first. The chosen project stays listed after it is archived.
   const projects = useProjects()
     .filter(
       (project) =>
@@ -589,7 +581,6 @@ function TaskForm({
   const config = useEnvironmentServerConfig(environmentId);
   const destinationLabel = useScheduledTaskDestinationLabel(environmentId, draft.threadId);
   const boundThread = useScheduledTaskThread(environmentId, draft.threadId);
-  // Bound runs use the thread's current model, so the locked row shows that one.
   const shownSelection =
     draft.threadId === null ? draft.modelSelection : (boundThread?.modelSelection ?? null);
   const modelOptions = buildModelOptions(config, null, undefined, draft.projectId);
@@ -803,7 +794,6 @@ function TaskForm({
               (modelOptions.length ? "Choose model" : "No models available")
             }
             onPress={() => navigation.navigate("SettingsScheduledTaskModel")}
-            // The saved selection only seeds new threads; bound runs ignore it.
             disabled={
               saving || dictationPending || environmentUnavailable || draft.threadId !== null
             }
@@ -925,7 +915,6 @@ function TaskForm({
               variant="card"
               options={[
                 { value: "fixed_time", label: "At a time" },
-                // Older servers reject one-time schedules on save.
                 ...(offersOnce || draft.schedule.mode === "once"
                   ? [{ value: "once" as const, label: "Once" }]
                   : []),
@@ -1066,7 +1055,6 @@ function TaskForm({
                       display={Platform.OS === "ios" ? "spinner" : "default"}
                       onDismiss={() => setRunAtPicker(null)}
                       onValueChange={(_, selected) => {
-                        // Android shows a dialog that closes on pick; iOS stays inline.
                         if (Platform.OS === "android") setRunAtPicker(null);
                         setDraft((current) => ({
                           ...current,

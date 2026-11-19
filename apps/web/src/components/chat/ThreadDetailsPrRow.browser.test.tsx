@@ -28,7 +28,6 @@ const state = vi.hoisted(() => ({
 
 vi.mock(import("~/state/entities"), async (importOriginal) => ({
   ...(await importOriginal()),
-  // Rows render a pull request only with a project, so this does not reach tests that pass none.
   useServerConfigs: (() =>
     new Map([
       [

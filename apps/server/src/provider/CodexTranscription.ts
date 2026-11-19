@@ -24,13 +24,11 @@ import {
 } from "./CodexDictationStream.ts";
 
 const TRANSCRIBE_URL = "https://chatgpt.com/backend-api/transcribe";
-// The endpoint answers only Codex Desktop's request identity.
 const CODEX_DESKTOP_VERSION = "26.1027.61615";
 const REQUEST_TIMEOUT = "2 minutes";
 const EXPIRY_MARGIN_MS = 60_000;
 const BLOCKED_STATUSES = new Set([403, 404, 405, 410]);
 const CODEX_DESKTOP_USER_AGENT = `Codex Desktop/${CODEX_DESKTOP_VERSION} (Mac OS; arm64)`;
-// Streaming is rolled out per account, so a refusal holds for a while instead of every recording.
 const STREAMING_REFUSAL_MS = 60 * 60_000;
 
 const AuthFile = Schema.fromJsonString(
@@ -106,7 +104,6 @@ const statusError = (status: number, code: string | undefined, retryAfter: strin
   return new TranscriptionError({ reason: "failed" });
 };
 
-/** The desktop composer's upload, byte for byte: its boundary, part order, and part headers. */
 const transcribeBody = (wav: Uint8Array, language: string | undefined, uuid: string) => {
   const boundary = `----codex-transcribe-${uuid}`;
   const languagePart =
@@ -130,7 +127,6 @@ export const codexTranscriptionStatus = (
 ): ServerProviderTranscription | undefined => {
   if (auth.status === "unauthenticated") return { status: "unavailable", reason: "signedOut" };
   if (auth.status !== "authenticated") return undefined;
-  // A keyring or auto credential store leaves no auth.json to read.
   return auth.type === "chatgpt" && authFileExists
     ? { status: "ready" }
     : { status: "unavailable", reason: "unsupportedLogin" };
@@ -189,7 +185,6 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
     } satisfies CodexLogin;
   });
 
-  // A caller that waited on the lock first checks whether another already refreshed.
   const refreshFrom = (stale: CodexLogin) =>
     input.withLoginLock(
       Effect.gen(function* () {
@@ -215,7 +210,6 @@ export const makeCodexTranscription = Effect.fn("makeCodexTranscription")(functi
         ),
       )
       .pipe(
-        // Trace headers would carry our span ids to the vendor; the desktop app sends none.
         Effect.provideService(HttpClient.TracerPropagationEnabled, false),
         Effect.timeout(REQUEST_TIMEOUT),
         Effect.mapError((cause) => new TranscriptionError({ reason: "failed", cause })),

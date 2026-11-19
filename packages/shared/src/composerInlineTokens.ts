@@ -26,7 +26,6 @@ const SKILL_MENTION_SOURCE =
 const SKILL_TOKEN_REGEX = new RegExp(`${SKILL_MENTION_SOURCE}(?=\\s)`, "gu");
 export const SKILL_MENTION_PATTERN = new RegExp(`${SKILL_MENTION_SOURCE}(?=\\s|$)`, "gu");
 const MENTION_TOKEN_REGEX = /(^|\s)@(?:"((?:\\.|[^"\\])*)"|([^\s@"]+))(?=\s)/g;
-// Bound unmatched-bracket rescans to avoid quadratic work; only basenames survive, and common filesystems cap them at 255.
 const MAX_FILE_LINK_LABEL_LENGTH = 512;
 const FILE_LINK_TOKEN_REGEX = new RegExp(
   `(^|\\s)\\[((?:\\\\.|[^\\]\\\\]){0,${MAX_FILE_LINK_LABEL_LENGTH}})\\]\\(([^)\\s]+)\\)(?=\\s)`,
@@ -154,9 +153,6 @@ export function collectComposerInlineTokens(
     }
   }
 
-  // TeX can contain literal skill and file tokens, especially inside \text{}.
-  // They remain formula source rather than becoming composer context chips.
-  // Confirmed trailing file links are masked too, so a kept chip is not read as TeX.
   const math = matches.length > 0 ? composerMathRanges(text, matches) : [];
   return matches
     .filter(

@@ -48,7 +48,6 @@ export function reuseUnchanged<T>(previous: unknown, next: T): T {
     });
     return (same ? previous : merged) as T;
   }
-  // Decoded settings carry Durations, which are fresh instances on every push.
   if (Equal.isEqual(next)) return (Equal.equals(previous, next) ? previous : next) as T;
   if (Object.getPrototypeOf(next) !== Object.prototype) return next;
   const before = previous as Record<string, unknown>;
@@ -66,10 +65,6 @@ export function reuseUnchanged<T>(previous: unknown, next: T): T {
 
 type ServerProviders = ServerConfig["providers"];
 
-/**
- * A provider sent with a catalog digest comes without its slash commands and skills. Keep the
- * lists this client holds, stale ones too, until it loads the lists the digest stands for.
- */
 function withHeldProviderCatalogs(
   previous: ServerProviders | undefined,
   next: ServerProviders,
@@ -98,8 +93,6 @@ export function applyServerConfigProjection(
 ): Option.Option<ServerConfigProjection> {
   switch (event.type) {
     case "snapshot": {
-      // Wire snapshots never contain published themes. Keep the previous set
-      // until the server sends its authoritative event.
       const carriedThemes = Option.isSome(current)
         ? current.value.config.environmentThemes
         : undefined;
@@ -112,7 +105,6 @@ export function applyServerConfigProjection(
         ...(carriedThemes === undefined ? {} : { environmentThemes: carriedThemes }),
       };
       return Option.some({
-        // Every reconnect re-sends the whole config, usually unchanged apart from timestamps.
         config: Option.isSome(current) ? reuseUnchanged(current.value.config, config) : config,
         latestEvent: event,
         source: "live" as const,
@@ -170,7 +162,6 @@ export function applyServerConfigProjection(
       return Option.map(current, (projection) => ({
         config: {
           ...projection.config,
-          // Kept when empty: undefined means the theme event has not arrived yet.
           environmentThemes: event.payload.themes,
         },
         latestEvent: event,

@@ -14,8 +14,6 @@ type SettingsDragHandleProps = {
   readonly onStep: (direction: "up" | "down") => void;
 };
 
-// Gesture callbacks are separate worklets with their own copies of captured
-// variables, so the drop reads its translation from the event, not a closure.
 function createDragPan(latest: RefObject<SettingsDragHandleProps>) {
   return Gesture.Pan()
     .minDistance(0)

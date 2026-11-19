@@ -126,7 +126,6 @@ const makeIdentity = Effect.gen(function* () {
         prefix: ".environment-id-",
       });
       yield* fileSystem.writeFileString(tempPath, `${value}\n`);
-      // Publish the completed file without replacing an ID created by another process.
       yield* fileSystem.link(tempPath, destinationPath).pipe(
         Effect.catchIf(
           (cause) => cause.reason._tag === "AlreadyExists",
@@ -134,7 +133,6 @@ const makeIdentity = Effect.gen(function* () {
         ),
       );
       if (mode === "recover") {
-        // Keep the recovery ID so delayed initializers also publish the same winner.
         yield* fileSystem.remove(tempPath);
         yield* fileSystem.copyFile(destinationPath, tempPath);
         yield* fileSystem.rename(tempPath, serverConfig.environmentIdPath);
@@ -196,7 +194,6 @@ export const make = Effect.gen(function* () {
     launcherManaged: launcher.managed,
   });
   const serverInstallation = serverSelfUpdate === null ? yield* resolveServerInstallation : null;
-  // The desktop reports whether it can install updates; requests travel over its control fd.
   const desktopAppUpdate =
     serverSelfUpdate === "desktop-managed" &&
     serverConfig.desktopAppUpdate === true &&

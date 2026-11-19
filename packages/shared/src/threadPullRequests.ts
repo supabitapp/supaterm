@@ -36,8 +36,6 @@ export function threadSearchPullRequests(thread: {
     references: [`${link.repository}#${link.number}`, link.url],
   });
   const branch = thread.branchPullRequest ? [entry(thread.branchPullRequest, null)] : [];
-  // Every pull request matches by number and link, but only the newest few
-  // by title: a triage thread linked to dozens would match almost any word.
   const newestFirst = [...visibleThreadPullRequests(thread.pullRequests ?? [])].sort(
     (left, right) => threadPullRequestUpdatedAtMs(right) - threadPullRequestUpdatedAtMs(left),
   );

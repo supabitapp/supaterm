@@ -57,7 +57,6 @@ const driver = ProviderDriverKind.make("claudeAgent");
 const instanceId = ProviderInstanceId.make("claudeAgent");
 const modelSelection = { instanceId, model: "claude-test" };
 
-// Cancellation races with turn completion and checkpoint capture; "recorded" restarts before the Stop outbox runs.
 const cancelBackgroundOnlyTask = (
   background: "subagent" | "command",
   {
@@ -157,9 +156,7 @@ const cancelBackgroundOnlyTask = (
       const databaseLayer = SqlitePersistence.layerFromPath(
         path.join(directory, "state.sqlite"),
       ).pipe(Layer.provide(NodeServices.layer));
-      // Migrate the file first, as an existing install's database already is.
       yield* Effect.provide(Effect.void, databaseLayer);
-      // Each build is a server on the same database; the second runs startup recovery.
       let restarted = false;
       const layerOrchestrator = Layer.suspend(() =>
         ProviderReplayHarness.layerWithRegistry(
@@ -228,8 +225,6 @@ const cancelBackgroundOnlyTask = (
         const service = yield* OrchestratorMcpService.OrchestratorMcpService;
         const eventSink = yield* EventSink.EventSinkV2;
         const parentThreadId = ThreadId.make("thread:task-cancel-parent");
-        // Read the cursor before forking: provider events offered right after a watch can
-        // commit before a live-tail subscriber has read its starting sequence.
         const watch = (predicate: (event: OrchestrationV2DomainEvent) => boolean) =>
           eventSink.latestSequence().pipe(
             Effect.flatMap((afterSequence) =>
@@ -428,7 +423,6 @@ const cancelBackgroundOnlyTask = (
               event.threadId === task.childThreadId &&
               (event.payload.pendingBackgroundTasks?.length ?? 0) > 0,
         );
-        // An async question the child asked during its turn, and one no run of this task owns.
         const question = (id: string, nodeId: NodeId) =>
           ({
             type: "runtime_request.updated",
@@ -479,7 +473,6 @@ const cancelBackgroundOnlyTask = (
           cancelAt !== "checkpoint" && cancelAt !== "turn" && cancelAt !== "recorded";
         if (turnSettled) yield* worker.drain();
         if (cancelAt === "monitor") {
-          // A monitor notification then ran and completed while the shell kept running.
           const { runs, messages } = yield* orchestrator.getThreadProjection(task.childThreadId!);
           const run = { ...runs[0]!, id: RunId.make("run:monitor"), ordinal: 2 };
           const source = { kind: "monitor" } as const;
@@ -555,7 +548,6 @@ const cancelBackgroundOnlyTask = (
           assert.isUndefined(after?.cancelledRunId);
           return undefined;
         }
-        // Settling the task ends the async question it left, after its own row.
         const done = yield* watch(
           (event) =>
             event.type === "runtime-request.updated" &&
@@ -568,13 +560,11 @@ const cancelBackgroundOnlyTask = (
         });
         assert.equal(cancelled.status, "cancel_requested");
         assert.equal((yield* parentTask)?.cancelledRunId, child.turn.runId);
-        // The turn completes normally after Stop, before its interrupt reaches the provider.
         if (cancelAt === "turn") yield* endTurn;
         yield* worker.drain();
         const owned = Effect.map(orchestrator.getThreadProjection(task.childThreadId!), (child) =>
           child.runtimeRequests.find((request) => request.id === "request:owned"),
         );
-        // task_cancel settles a finished turn itself; a running one settles when it ends.
         if ((yield* owned)?.status !== "resolved") yield* Fiber.join(done);
 
         const childAfter = yield* orchestrator.getThreadProjection(task.childThreadId!);
@@ -593,7 +583,6 @@ const cancelBackgroundOnlyTask = (
           )?.status,
           nativeStatus,
         );
-        // Stop reached the provider turn that owns the shell.
         if (background === "command") assert.deepEqual(interrupted, [["bg-sleep"]]);
         assert.equal(childAfter.runs.length, cancelAt === "monitor" || cancelAt === "turn" ? 2 : 1);
         assert.equal(childAfter.runs[0]!.status, "completed");
@@ -618,7 +607,6 @@ const cancelBackgroundOnlyTask = (
       if (stopped === undefined) return;
       restarted = true;
 
-      // A server restarted on the same database runs startup recovery and keeps the outcome.
       yield* Effect.gen(function* () {
         const service = yield* OrchestratorMcpService.OrchestratorMcpService;
         const orchestrator = yield* Orchestrator.OrchestratorV2;

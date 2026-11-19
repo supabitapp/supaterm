@@ -41,16 +41,11 @@ import {
 } from "./utils.ts";
 import { requestUrl } from "../requestUrl.ts";
 
-// Request-derived origins support loopback, Tailscale and tunnels.
-// Signed client metadata keeps unauthenticated registration stateless.
-
 const SIGNING_SECRET_NAME = "mcp-oauth-signing-key";
 const AUTHORIZATION_CODE_TTL_MS = 60_000;
 const MAX_CLIENT_NAME_LENGTH = 100;
 const MAX_REDIRECT_URIS = 10;
 const MAX_REDIRECT_URI_LENGTH = 512;
-// The client_id rides in the authorize URL. Past the original five-URI limit, cap it to leave room
-// under Node's 16 KB header cap for an encoded redirect_uri and state.
 const MAX_UNBOUNDED_CLIENT_ID_REDIRECT_URIS = 5;
 const MAX_CLIENT_ID_LENGTH = 10_240;
 const DEFAULT_CLIENT_NAME = "MCP client";
@@ -99,7 +94,6 @@ export const authorizationServerMetadata = (
 });
 
 const parseRedirect = (value: string): URL | undefined => {
-  // URL.hash misses empty fragments, which RFC 6749 §3.1.2 also forbids.
   if (value.length > MAX_REDIRECT_URI_LENGTH || value.includes("#")) return undefined;
   try {
     const url = new URL(value);
@@ -127,7 +121,6 @@ export const redirectMatches = (registered: string, presented: string): boolean 
 
 const sameResource = (urls: McpOAuthUrls, presented: string | undefined): boolean => {
   if (presented === undefined) return true;
-  // URL.hash misses empty fragments, which RFC 8707 §2 also forbids.
   if (presented.includes("#")) return false;
   try {
     const url = new URL(presented);
@@ -260,7 +253,6 @@ const make = Effect.gen(function* () {
     return sign("mcp-client-id", body).pipe(Effect.map((signature) => `${body}.${signature}`));
   };
 
-  // Untraced: only called inside the traced McpOAuth methods below.
   const parseClientId = Effect.fnUntraced(function* (
     clientId: string,
   ): Effect.fn.Return<McpOAuthClient | undefined> {
@@ -317,7 +309,6 @@ const make = Effect.gen(function* () {
             "Redirect URIs must be https, or http on localhost, 127.0.0.1 or [::1].",
         });
       }
-      // RFC 7591 allows ignoring unsupported registration options; all clients use public PKCE.
       const clientId = yield* signClientId(name, redirectUris);
       if (
         redirectUris.length > MAX_UNBOUNDED_CLIENT_ID_REDIRECT_URIS &&
@@ -388,7 +379,6 @@ const make = Effect.gen(function* () {
   ) =>
     environmentAuth.authenticateBrowserSession(request).pipe(
       Effect.flatMap((session) =>
-        // Approving manages access, and a session may only hand out scopes it holds.
         session.scopes.includes(AuthAccessWriteScope) &&
         session.scopes.includes(AuthOrchestrationReadScope)
           ? csrfToken(session.sessionId, authorization).pipe(
@@ -491,7 +481,6 @@ const make = Effect.gen(function* () {
       if ((yield* parseClientId(clientId)) === undefined) {
         return yield* fail("invalid_client", "The client is unknown.");
       }
-      // A presented code is spent even when a later check fails (RFC 6749 §4.1.2).
       const pending = yield* Ref.modify(codes, (current) => {
         const found = current.get(code);
         if (found === undefined) return [undefined, current] as const;

@@ -250,7 +250,6 @@ describe("collapsed split Back", () => {
     routeGetIdList: {},
   };
   type Appearance = "willAppear" | "didAppear" | "willDisappear" | "didDisappear";
-  // UIKit's appearance callbacks for one collapsed transition, against the router at each step.
   function replay(
     steps: ReadonlyArray<readonly [Appearance, string, StackNavigationState<ParamListBase>]>,
   ) {
@@ -283,7 +282,6 @@ describe("collapsed split Back", () => {
     expect(router.getStateForAction(listed, select, routerOptions)?.routes[1]?.key).not.toBe(
       thread.key,
     );
-    // Left on the hidden detail, the selection would only rename it and never show the column.
     expect(router.getStateForAction(state, select, routerOptions)?.routes[1]?.key).toBe(thread.key);
   });
 
@@ -332,7 +330,6 @@ describe("collapsed split Back", () => {
         ["didDisappear", thread.key],
       ]),
     ).toBeNull();
-    // Native Back reveals the list before the detail finishes disappearing.
     expect(
       leavingAfter([
         ["willDisappear", thread.key],
@@ -364,7 +361,6 @@ describe("collapsed split Back", () => {
         ["didAppear", home.key, popped],
       ]).pop,
     ).toBeNull();
-    // A linked thread whose list appears first still needs its detail column shown.
     expect(replay([["didAppear", home.key, history([home, thread])]])).toEqual({
       visible: "primary",
       pop: null,
@@ -414,7 +410,6 @@ describe("v5 stack handoff", () => {
       settings,
     ]);
   });
-  // regression: #17231 keep native screens ordered during stack pops
   it("retains a multi-page pop in order without changing the active router order", () => {
     const replacement = { ...thread, key: "replacement" };
     const screens = reconcileStackScreens([home, thread, files], [home, replacement]);

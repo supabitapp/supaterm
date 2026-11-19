@@ -40,7 +40,6 @@ import * as ServerConfig from "../config.ts";
 import { subscribeBeforeSnapshotWithoutMutex } from "../utils/subscribeBeforeSnapshot.ts";
 
 const SAMPLE_INTERVAL_MS = 1_000;
-// The sidecar treats 0 as "sample only on request".
 const IDLE_SAMPLE_INTERVAL_MS = 0;
 const BATTERY_SAMPLE_INTERVAL_MS = 5_000;
 const CONSTRAINED_SAMPLE_INTERVAL_MS = 15_000;
@@ -259,8 +258,6 @@ function isThermallyConstrained(snapshot: HostPowerSnapshot): boolean {
   return snapshot.thermalState === "serious" || snapshot.thermalState === "critical";
 }
 
-// Without a live subscriber the sidecar does not sample on a timer, so an idle server
-// never walks the process table. History then covers only time with a subscriber.
 function resolveNativeSampleIntervalMs(
   snapshot: HostPowerSnapshot,
   liveSubscriberCount: number,
@@ -279,7 +276,6 @@ function resolveNativeSampleIntervalMs(
   return SAMPLE_INTERVAL_MS;
 }
 
-// Desktop power samples also commit control state; avoid a span for each sample.
 export const commitCollectionControlUpdate = Effect.fnUntraced(function* <E, R>(
   desiredState: Ref.Ref<CollectionControl>,
   appliedState: Ref.Ref<CollectionControl>,
@@ -775,7 +771,6 @@ export const make = Effect.fn("resourceTelemetry.nativeTelemetryClient.make")(fu
     Effect.forkScoped,
   );
 
-  // Desktop power samples reach this even when the control state has not changed.
   const applyCollectionControl = Effect.fnUntraced(function* (
     previous: CollectionControl,
     next: CollectionControl,
@@ -842,7 +837,6 @@ export const make = Effect.fn("resourceTelemetry.nativeTelemetryClient.make")(fu
     }),
   );
 
-  // Desktop telemetry refreshes this process set on every sample.
   const setExternalProcesses: NativeTelemetryClient["Service"]["setExternalProcesses"] =
     Effect.fnUntraced(function* (processes) {
       yield* Ref.set(externalProcesses, [...processes]);

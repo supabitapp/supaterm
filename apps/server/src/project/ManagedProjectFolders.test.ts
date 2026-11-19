@@ -142,7 +142,6 @@ it.effect("offers nothing, and says why once, when the data dir sits inside a Gi
       const failure = yield* Effect.flip(scratch.ensureScratchProject);
       assert.equal(failure._tag, "ScratchUnavailableError");
       assert.include(failure.message, baseDir);
-      // The root prefixes the data dir, so it must appear on its own.
       assert.include(failure.message.replaceAll(baseDir, ""), repositoryRoot);
       yield* Effect.flip(scratch.ensureScratchProject);
     }).pipe(
@@ -371,7 +370,6 @@ it.effect("still knows No project when its folder is the target of a symlinked S
       const fileSystem = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const root = yield* requireRoot;
-      // macOS temp folders sit behind /var -> /private/var, so name the target by its real path.
       const target = path.join(yield* fileSystem.realPath(baseDir), "visible-chats");
       yield* fileSystem.makeDirectory(target);
       yield* fileSystem.symlink(target, root);

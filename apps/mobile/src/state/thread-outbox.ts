@@ -43,5 +43,3 @@ export function retryHeldThreadOutboxMessage(message: QueuedThreadMessage): Prom
 export function threadOutboxRevision(messageId: QueuedThreadMessage["messageId"]): number {
   return threadOutboxManager.revisionOf(messageId);
 }
-
-// Removal needs draft-state ownership to release files; keep that dependency outside this module.

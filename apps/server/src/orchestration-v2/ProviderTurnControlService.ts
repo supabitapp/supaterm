@@ -151,10 +151,6 @@ export const layer: Layer.Layer<
           cause: "The recorded provider execution target is no longer valid.",
         });
       }
-      // A restart-session command commits the replacement binding before its
-      // process-bound effect runs. The old live runtime must still receive
-      // the interrupt, but only when the projection matches the exact
-      // replacement captured by that same durable effect.
       const interruptProviderThread = targetsRecordedSession
         ? providerThread
         : { ...providerThread, providerSessionId: input.providerSessionId };
@@ -181,10 +177,6 @@ export const layer: Layer.Layer<
       }
       const session = yield* sessions.get(input.providerSessionId);
       if (Option.isNone(session)) {
-        // Interrupt/restart against a already-released session must not fail
-        // the durable effect (and retry 5x). The turn may still look running
-        // in projection until recovery/finalization; there is no live adapter
-        // to interrupt.
         if (input.operation === "interrupt" || input.operation === "restart") {
           yield* Effect.logWarning(
             "Provider interrupt/restart found no live session; treating as already stopped",
@@ -305,7 +297,6 @@ export const layer: Layer.Layer<
                 : { requestedAt: input.subagent.requestedAt }),
             });
           }
-          // Settled turns still reach adapters, which alone know whether background work remains.
           yield* session.value
             .interruptTurn({
               providerThread: loaded.providerThread,
@@ -327,7 +318,6 @@ export const layer: Layer.Layer<
               }),
             );
           if (loaded.providerTurn.status === "running") {
-            // Let native terminal ingestion finalize the attempt before the Stop follow-up repairs it.
             const { runAttemptId } = loaded.providerTurn;
             yield* awaitSettled(input.threadId, {
               providerThreadId: input.providerThreadId,
@@ -354,7 +344,6 @@ export const layer: Layer.Layer<
         function* (input) {
           const loaded = yield* load({ ...input, operation: "restart" });
           if (Option.isNone(loaded.session)) {
-            // Without a live adapter, no terminal event can arrive; proceed to detach/start without polling.
             if (loaded.providerTurn.status === "running") {
               yield* Effect.logWarning(
                 "Provider restart interrupt skipped; no live session for a still-projected running turn",
@@ -390,7 +379,6 @@ export const layer: Layer.Layer<
             ) {
               return;
             }
-            // Yield through Node's event loop; detached ingestion cannot advance a deterministic Effect clock.
             yield* yieldToRuntime;
           }
           return yield* new ProviderTurnControlError({

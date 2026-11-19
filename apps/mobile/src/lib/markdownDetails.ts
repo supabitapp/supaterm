@@ -30,9 +30,7 @@ export function splitMarkdownDetails(markdown: string): ReadonlyArray<MarkdownDe
 
   const folds: Array<OpenFold & { end: number; closeTagLength: number }> = [];
   let depth = 0;
-  // Asserted so the scan closure's writes are not narrowed away after the loop.
   let current = null as OpenFold | null;
-  // A fold opens only at block level; once open, a tag inside a paragraph can close it.
   const scan = (node: RootContent, inline: boolean) => {
     if (node.type !== "html") {
       if (depth > 0 && "children" in node) {
@@ -48,7 +46,6 @@ export function splitMarkdownDetails(markdown: string): ReadonlyArray<MarkdownDe
       const start = nodeStart + tag.index;
       if (details[1] !== "/") {
         if (depth === 0) {
-          // Quoted values are blanked so `title="is open"` does not count as the attribute.
           const attributes = tag[0].replace(/"[^"]*"|'[^']*'/g, '""');
           current = {
             start,

@@ -57,7 +57,6 @@ function DocumentWebPreview(props: { readonly uri: string }) {
       <View className="flex-1" style={linkedPdf ? { display: "none" } : undefined}>
         <WebView
           source={{ uri: props.uri }}
-          // react-native-webview defaults to "never", which starts the page under the header.
           contentInsetAdjustmentBehavior="automatic"
           decelerationRate={webViewDecelerationRate}
           originWhitelist={["*"]}

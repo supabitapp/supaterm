@@ -35,9 +35,6 @@ function hasReasoningControl(model: ServerProviderModel): boolean {
   return (model.capabilities?.optionDescriptors ?? []).some(isReasoningControl);
 }
 
-// Reasoning is the norm, so only its absence is labeled, and only when other models have it.
-// Custom and null capabilities are fallbacks or user-written, not discovered, so they prove nothing.
-// Alias slugs ("default", Cursor's "auto") defer to the provider's own model choice, so reasoning is unknown.
 function describeModelCapabilities(
   model: ServerProviderModel,
   flagMissingReasoning: boolean,
@@ -150,8 +147,6 @@ export function ProviderModelsSection({
   const hiddenModelSet = new Set(hiddenModels);
   const favoriteModelSet = new Set(favoriteModels);
   const reportedSlugs = new Set(models.map((model) => model.slug));
-  // A favorite the provider no longer reports (disabled, signed out, model removed)
-  // still needs a row, or its star could never be cleared.
   const unreportedFavoriteModels = favoriteModels.flatMap((slug): ServerProviderModel[] =>
     reportedSlugs.has(slug) ? [] : [{ slug, name: slug, isCustom: false, capabilities: null }],
   );
@@ -188,7 +183,6 @@ export function ProviderModelsSection({
     row.scrollIntoView({ block: "nearest" });
   }, [displayModels]);
 
-  // Derive after the effect and use hiddenModels directly to preserve the editor's option-array cache.
   const builtInModels = models.filter((model) => !model.isCustom);
   const allBuiltInModelsHidden =
     builtInModels.length > 0 && builtInModels.every((model) => hiddenModels.includes(model.slug));
@@ -221,7 +215,6 @@ export function ProviderModelsSection({
       { slug: normalized, name: normalized, capabilities: null },
     ]);
     setIsSaving(false);
-    // Cancel bumps the attempt, so a late save cannot close the draft opened after it.
     if (!saved || attempt !== addAttemptRef.current) return;
     scrollToSlugRef.current = normalized;
     setFilter("");
@@ -372,7 +365,6 @@ export function ProviderModelsSection({
             type="button"
             size="xs"
             variant="ghost-muted"
-            // The ghost padding would inset the label from the column edge the toggles align to.
             className="-me-2 ml-auto"
             onClick={() => setIsAdding(true)}
           >
@@ -644,7 +636,6 @@ const ProviderModelRow = memo(function ProviderModelRow({
           </>
         ) : null}
       </span>
-      {/* Disabled switches receive no pointer events; wrap the tooltip trigger. */}
       <Tooltip>
         <TooltipTrigger render={<span className="flex shrink-0 items-center" />}>
           <Switch

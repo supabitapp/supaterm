@@ -6,10 +6,8 @@ export const DEFAULT_TERMINAL_ID = "term-1";
 export const DEFAULT_MAX_TERMINAL_BUFFER_BYTES = 512 * 1024;
 
 const historyEncoder = new TextEncoder();
-// A BOM at a retained chunk boundary is terminal data, not an encoding marker.
 const historyDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
-// libghostty-vt's parser states, merged where the same input takes them back to ground.
 export const TERMINAL_SEQUENCE_GROUND = 0;
 const SEQUENCE_ESCAPE = 1;
 const SEQUENCE_ESCAPE_INTERMEDIATE = 2;
@@ -18,7 +16,6 @@ const SEQUENCE_DCS = 4;
 const SEQUENCE_SOS_PM_APC = 5;
 const SEQUENCE_OSC = 6;
 
-// Bits above the low three hold a high surrogate until its other half arrives.
 function nextTerminalSequenceState(state: number, unit: number): number {
   if (unit === 0x1b) return SEQUENCE_ESCAPE;
   if (state === TERMINAL_SEQUENCE_GROUND || unit === 0x18 || unit === 0x1a) {
@@ -53,8 +50,6 @@ function nextTerminalSequenceState(state: number, unit: number): number {
     if (state < 8) return mode;
     codePoint = 0x10000 + (((state >> 3) - 0xd800) << 10) + (unit - 0xdc00);
   }
-  // Outside ground and OSC the parser reads UTF-8 bytes one at a time, so a continuation
-  // byte in 0x80-0x9F acts as a C1 control: most end the sequence, five start another.
   for (let shift = codePoint > 0xffff ? 12 : codePoint > 0x7ff ? 6 : 0; shift >= 0; shift -= 6) {
     const byte = 0x80 | ((codePoint >> shift) & 0x3f);
     if (byte >= 0xa0) continue;
@@ -75,7 +70,6 @@ export function terminalSequenceStateAfter(
   end = text.length,
 ): number {
   if (end <= start) return state;
-  // ESC enters the escape state from every state, so only what follows the last one matters.
   const escape = text.lastIndexOf("\u001b", end - 1);
   if (escape >= start) {
     state = SEQUENCE_ESCAPE;
@@ -151,7 +145,6 @@ export const TerminalThreadInput = Schema.Struct({
 });
 export type TerminalThreadInput = typeof TerminalThreadInput.Type;
 
-// Terminal ids are client-chosen; the server never allocates them.
 const TerminalSessionInput = Schema.Struct({
   ...TerminalThreadInput.fields,
   terminalId: TerminalIdSchema,
@@ -181,7 +174,6 @@ export const TerminalAttachInput = Schema.Struct({
   stopOnDone: Schema.optional(Schema.Boolean),
   restartIfNotRunning: Schema.optional(Schema.Boolean),
   resume: Schema.optional(Schema.Boolean),
-  // Snapshots carry only the history a client this bounded keeps; older servers ignore it.
   maxHistoryBytes: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
 });
 export type TerminalAttachInput = typeof TerminalAttachInput.Type;
@@ -197,10 +189,7 @@ export const TerminalWriteInput = Schema.Struct({
   data: Schema.String.check(Schema.isNonEmpty()).check(
     Schema.isMaxLength(TERMINAL_WRITE_MAX_LENGTH),
   ),
-  // `data` holds one byte per UTF-16 code unit; older servers write it as UTF-8 text.
   binary: Schema.optionalKey(Schema.Boolean),
-  // A renderer's answer to a terminal query (DA, DSR, DECRQM). Every attached renderer
-  // answers, so the server passes on one viewer's replies; older servers ignore it.
   reply: Schema.optionalKey(Schema.Boolean),
 });
 export type TerminalWriteInput = Schema.Codec.Encoded<typeof TerminalWriteInput>;
@@ -254,10 +243,8 @@ export const TerminalSessionSnapshot = Schema.Struct({
   label: Schema.String.check(Schema.isMaxLength(128)),
   updatedAt: Schema.String,
   sequence: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
-  // The PTY grid every renderer of this terminal should draw; absent from older servers.
   cols: Schema.optional(TerminalColsSchema),
   rows: Schema.optional(TerminalRowsSchema),
-  // Why the shell failed to start, kept so later attachments can show it.
   error: Schema.optional(Schema.String.check(Schema.isNonEmpty())),
 });
 export type TerminalSessionSnapshot = typeof TerminalSessionSnapshot.Type;
@@ -352,7 +339,6 @@ const TerminalActivityEvent = Schema.Struct({
   type: Schema.Literal("activity"),
   hasRunningSubprocess: Schema.Boolean,
   label: Schema.String.check(Schema.isMaxLength(128)),
-  // Shared PTY grid changes ride on activity because older clients reject unknown event types.
   cols: Schema.optional(TerminalColsSchema),
   rows: Schema.optional(TerminalRowsSchema),
 });

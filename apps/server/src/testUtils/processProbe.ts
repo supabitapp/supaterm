@@ -49,7 +49,6 @@ export const makeProcessProbe = Effect.gen(function* () {
         Effect.addFinalizer(() =>
           Effect.gen(function* () {
             if (yield* Deferred.isDone(exited)) return;
-            // Only a PID reported by this fixture is eligible for failure cleanup.
             yield* Effect.sync(() => {
               try {
                 process.kill(pid, "SIGKILL");

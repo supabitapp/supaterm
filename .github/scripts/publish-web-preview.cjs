@@ -2,8 +2,6 @@ const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-// Deploy and cleanup jobs hold the same per-PR lock while this runs. Recheck
-// after upload because a PR can close or advance during a Cloudflare request.
 async function reconcilePreview({ headSha, readPull, deploy, remove }) {
   const pull = readPull();
   if (pull.state !== "OPEN") {
@@ -17,8 +15,6 @@ async function reconcilePreview({ headSha, readPull, deploy, remove }) {
     await remove();
     return "removed";
   }
-  // The new head's build will replace these assets. Do not advertise an old
-  // commit as current while that build is pending.
   if (current.headRefOid === headSha) return "deployed";
 }
 
@@ -38,8 +34,6 @@ async function main() {
   if (!/^[1-9]\d*$/.test(prNumber ?? "")) throw new Error("Invalid PR number");
   const origin = `https://preview-${prNumber}.supaterm.com`;
   const name = `supaterm-web-preview-${prNumber}`;
-  // Only trusted default-branch configuration is read. The artifact is stored
-  // outside the checkout and supplies static files, never a Worker or build.
   const config = JSON.parse(fs.readFileSync("apps/web/cloudflare/latest.json", "utf8"));
   const previewConfig = {
     account_id: config.account_id,

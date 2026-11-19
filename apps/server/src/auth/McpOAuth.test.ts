@@ -190,7 +190,6 @@ it.effect("registers loopback and https clients and never redirects for an unver
         expect(response.status).toBe(400);
         expect(yield* json<unknown>(response)).toMatchObject({ error: "invalid_redirect_uri" });
       }
-      // JSON escaping can inflate the signed client_id past what an authorize URL can carry.
       const oversized = yield* handler(
         at("/oauth/mcp/register", {
           method: "POST",
@@ -561,7 +560,6 @@ it.live("an app approval code approves only an app sign-in, at its own level", (
       const code = issued.credential;
       expect(code).toMatch(/^SUPERVISED-[2-9A-HJ-NP-Z]{12}$/);
 
-      // Signing in a browser and a token exchange both refuse it and leave it unspent.
       const browser = yield* handler(
         at("/api/auth/browser-session", {
           method: "POST",
@@ -575,7 +573,6 @@ it.live("an app approval code approves only an app sign-in, at its own level", (
         .pipe(Effect.flip);
       expect(exchanged._tag).toBe("ServerAuthInvalidCredentialError");
 
-      // Supervised and Auto share scopes, so only the code's own level may spend it.
       const otherLevel = yield* decide(handler, params, {
         _tag: "pairing-code",
         access: "auto",

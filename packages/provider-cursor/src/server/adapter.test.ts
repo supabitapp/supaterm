@@ -94,7 +94,6 @@ describe("CursorAdapterV2", () => {
                 send: (input) =>
                   Effect.gen(function* () {
                     sentWithMcpOverride = Object.hasOwn(input.options ?? {}, "mcpServers");
-                    // Recorded tasks stream partial args before start, then end without completion; live runs cannot force this.
                     const taskToolCall = {
                       type: "task" as const,
                       args: {
@@ -372,8 +371,6 @@ describe("CursorAdapterV2", () => {
     },
     {
       reason: "no failure when Cursor's resume after the turn ended made no progress",
-      // Cursor's SDK resumed from an older checkpoint after the answer was
-      // delivered, regenerated the closing, then gave up on the run.
       updates: [
         { type: "text-delta", text: "The answer." },
         { type: "turn-ended" },
@@ -427,7 +424,6 @@ describe("CursorAdapterV2", () => {
     },
     {
       reason: "the token usage Cursor reported",
-      // Cursor's inputTokens already include cache reads and writes.
       updates: [
         { type: "text-delta", text: "Done." },
         {
@@ -454,7 +450,6 @@ describe("CursorAdapterV2", () => {
         cacheCreationTokens: 31_955,
         outputTokens: 181,
       },
-      // The checkpoint holds the context fill; billed input counts every step.
       contextFill: { usedTokens: 8_304, maxTokens: 200_000 },
     },
   ])("ends the turn with $reason", ({ updates = [], wait, failure, answers, usage, contextFill }) =>
@@ -830,7 +825,6 @@ describe("CursorAdapterV2", () => {
         lastVisitedAt: null,
         deletedAt: null,
       };
-      // Starts at run 5: a conversation from before device instructions existed, now resumed.
       let runOrdinal = 4;
       const send = Effect.fnUntraced(function* (compact = false) {
         runOrdinal += 1;
@@ -924,7 +918,6 @@ describe("CursorAdapterV2", () => {
                   return {
                     agentId: "native-cursor-steer",
                     runId,
-                    // Cursor drops a cancelled run's prompt from the agent's conversation.
                     wait: Deferred.await(ended).pipe(
                       Effect.map((status) => ({
                         id: runId,
@@ -1525,7 +1518,6 @@ describe("CursorAdapterV2", () => {
         interactionMode: "default",
         cwd: workspace,
       });
-      // The SDK serializes subagent steps with protobuf toJson(), which omits empty repeated fields.
       const conversationSteps = [
         {
           toolCall: {
@@ -2279,7 +2271,6 @@ describe("CursorAdapterV2", () => {
         sandboxEnabled: true,
       },
     );
-    // Auto-review can gate Windows execution without the unsupported SDK sandbox.
     assert.deepEqual(
       cursorRuntimeAgentPolicy(
         {
@@ -2414,14 +2405,12 @@ describe("CursorAdapterV2", () => {
             Effect.provideService(HostProcess.HomeDirectory, home),
             Effect.provideService(HostProcess.Environment, {}),
           );
-        // Cursor resolves the project root through symlinks, as git does.
         yield* fileSystem.makeDirectory(path.join(workspace, "packages", "app"), {
           recursive: true,
         });
         yield* fileSystem.symlink(workspace, path.join(scratch, "link"));
         const cwd = path.join(scratch, "link", "packages", "app");
         yield* spawnAndCollect("git", ChildProcess.make("git", ["init", workspace]));
-        // Git prints forward slashes on Windows, and the loader passes its spelling through.
         const projectRoot = (yield* spawnAndCollect(
           "git",
           ChildProcess.make("git", ["rev-parse", "--show-toplevel"], { cwd }),
@@ -2462,7 +2451,6 @@ describe("CursorAdapterV2", () => {
             },
           }),
         );
-        // Cursor keeps per-project state under a directory named after the project path.
         const projectDirectory = workspace.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
         yield* fileSystem.makeDirectory(path.join(home, ".cursor", "projects", projectDirectory), {
           recursive: true,
@@ -2595,11 +2583,9 @@ describe("CursorAdapterV2", () => {
           },
           "cwd-only": { command: "node", args: ["server.mjs"], cwd: projectRoot },
         };
-        // The agent is created with Supaterm's server only; the resolved servers go with each turn.
         assert.deepEqual(openedWith?.mcpServers, supatermServers);
         yield* sendTurn(1);
         assert.deepEqual(sentWith[0], { ...expectedServers, ...supatermServers });
-        // A server switched off between turns stays off on the next one.
         yield* fileSystem.writeFileString(
           path.join(home, ".cursor", "projects", projectDirectory, "mcp-disabled.json"),
           JSON.stringify(["off", "repro"]),
@@ -2607,14 +2593,12 @@ describe("CursorAdapterV2", () => {
         yield* sendTurn(2);
         const { repro: _disabled, ...stillEnabled } = expectedServers;
         assert.deepEqual(sentWith[1], { ...stillEnabled, ...supatermServers });
-        // Unreadable disabled state starts none of the overrides, and the turn still goes out.
         yield* fileSystem.writeFileString(
           path.join(home, ".cursor", "projects", projectDirectory, "mcp-disabled.json"),
           "[",
         );
         yield* sendTurn(3);
         assert.deepEqual(sentWith[2], supatermServers);
-        // Outside Full access the repository's servers stay off and the user's still start.
         yield* fileSystem.writeFileString(
           path.join(home, ".cursor", "projects", projectDirectory, "mcp-disabled.json"),
           JSON.stringify(["off"]),
@@ -2828,7 +2812,6 @@ describe("CursorAdapterV2", () => {
             attachments: [],
           },
         });
-        // Cursor hides `disable-model-invocation` skills from the model, so the SDK prompt must carry them.
         assert.include(steered.at(-1), "Ask one question at a time.");
 
         outcome = "revert_to_followup";
@@ -2893,8 +2876,6 @@ type CursorTaskUpdate = Extract<
   { readonly type: "tool-call-delta" }
 >["taskUpdate"];
 
-// Runs one Cursor turn whose only tool is a Task that streams `taskUpdates`, then completes with
-// `conversationSteps` as the saved transcript.
 const runCursorTaskTurn = Effect.fnUntraced(function* (
   taskUpdates: ReadonlyArray<CursorTaskUpdate>,
   conversationSteps: ReadonlyArray<unknown>,

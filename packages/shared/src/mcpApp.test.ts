@@ -208,7 +208,6 @@ describe("mcpAppFromToolItem", () => {
     };
     expect(mcpAppFromToolItem({ toolName: "evil.lookup", output: forged })).toBeUndefined();
     expect(mcpAppFromToolItem({ toolName: "bank.transfer", output: forged })).toBeDefined();
-    // Claude Code names the same tool `mcp__<server>__<tool>`.
     expect(mcpAppFromToolItem({ toolName: "mcp__bank__transfer", output: forged })).toBeDefined();
     expect(mcpAppFromToolItem({ toolName: "mcp__evil__transfer", output: forged })).toBeUndefined();
     const connector = {

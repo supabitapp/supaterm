@@ -76,10 +76,6 @@ const COMPOSER_CONTEXT_MOTION_DURATION_MS = 180;
 const CONTEXT_STRIP_CLASS = "gap-1 text-xs font-normal text-muted-foreground/70";
 const COMPOSER_CONTEXT_LABEL_SELECTOR = "[data-composer-label]";
 
-/**
- * Reading one element's scrollWidth drops the tail when the label is hidden or
- * squeezed, and the strip then flips between labels and icons on every measure.
- */
 function labelTextWidth(label: HTMLElement, range: Range): number {
   const walker = document.createTreeWalker(label, NodeFilter.SHOW_TEXT);
   let width = 0;
@@ -127,11 +123,6 @@ function animateLabelWidths(
   }
 }
 
-/**
- * Whether the strip's labels must collapse to icons. The strip is measured when
- * it, a control group or a hosted control resizes, when its text or children
- * change, and when fonts load, which covers everything the widths depend on.
- */
 function useLabelsOverflow(): readonly [
   attach: (element: HTMLDivElement | null) => (() => void) | undefined,
   overflows: boolean,
@@ -143,7 +134,6 @@ function useLabelsOverflow(): readonly [
     const labelAnimations = new Map<HTMLElement, Animation>();
 
     const measure = () => {
-      // The committed attribute, not render state, so a stale closure cannot misread it.
       const compact = current.hasAttribute("data-compact");
       const stripWidth = current.clientWidth;
       if (stripWidth === 0) return;
@@ -175,8 +165,6 @@ function useLabelsOverflow(): readonly [
       let groups = 0;
       for (const child of current.children) {
         if (!(child instanceof HTMLElement)) continue;
-        // Reserve the natural width of the hosted controls, overflowed ones included, so Git labels
-        // compact first. Reserving only visible controls lets the labels re-expand and hide them.
         const hostedControls = child.matches('[data-chat-resting-composer-controls-host="true"]')
           ? child.querySelector<HTMLElement>('[data-chat-composer-resting-controls="true"]')
           : null;
@@ -224,9 +212,6 @@ function useLabelsOverflow(): readonly [
       );
     };
     observeSizes();
-    // Text and control changes alter natural widths without resizing a hidden
-    // or squeezed label, so they re-measure too. Only added or removed elements
-    // can change the observed set; re-subscribing delivers a measure itself.
     const mutations = new MutationObserver((records) => {
       const elementsChanged = records.some((record) =>
         [...record.addedNodes, ...record.removedNodes].some((node) => node instanceof Element),
@@ -283,7 +268,6 @@ export const BranchToolbar = memo(function BranchToolbar({
   const branchSelectorRef = useRef<BranchToolbarBranchSelectorHandle>(null);
   const threadRef = scopeThreadRef(environmentId, threadId);
   const setDraftThreadContext = useComposerDraftStore((store) => store.setDraftThreadContext);
-  // The composer retains resolved thread details while bootstrap cleanup can remove its shell.
   const activeProjectRef = scopeProjectRef(environmentId, projectId);
   const activeProject = useProject(activeProjectRef);
   const activeWorktreePath = forceNewWorktree ? null : worktreePath;
@@ -410,9 +394,6 @@ export const BranchToolbar = memo(function BranchToolbar({
       data-compact={labelsOverflow ? "" : undefined}
       className={cn(
         CONTEXT_STRIP_CLASS,
-        // A non-Git strip with no visible composer controls should occupy no
-        // space, but its host must retain a prospective width so controls can
-        // become visible again when the chat view grows.
         !contextStripVisible && "pointer-events-none invisible absolute inset-x-0 top-full",
       )}
     >
@@ -459,9 +440,6 @@ export const BranchToolbar = memo(function BranchToolbar({
       ) : null}
 
       {composerControlsHostRef ? (
-        // The host takes whatever the workspace and branch controls leave
-        // over, in both strip layouts, so a collapsed phone composer can show
-        // its model and mode controls wherever they fit.
         <div
           ref={composerControlsHostRef}
           data-composer-context-control

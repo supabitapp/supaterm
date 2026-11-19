@@ -244,11 +244,8 @@ export const OrchestrationV2TurnCapabilities = Schema.Struct({
   emitsTurnCompleted: Schema.Boolean,
   supportsInterrupt: Schema.Boolean,
   supportsActiveSteering: Schema.Boolean,
-  // Some native steering mechanisms cancel pending tools before consuming the message.
   activeSteeringInterruptsTools: Schema.optional(Schema.Boolean),
-  // Some take text only, so a steer with attachments restarts the turn instead.
   activeSteeringAcceptsAttachments: Schema.optional(Schema.Boolean),
-  // Only where a steer leaves a running automatic compaction intact; otherwise clients queue.
   activeSteeringDuringCompaction: Schema.optional(Schema.Boolean),
   supportsSteeringByInterruptRestart: Schema.Boolean,
   supportsQueuedMessages: Schema.Boolean,
@@ -353,8 +350,6 @@ export const OrchestrationV2ProviderCapabilities = Schema.Struct({
   context: OrchestrationV2ContextCapabilities,
   checkpointing: OrchestrationV2CheckpointCapabilities,
   identity: OrchestrationV2IdentityCapabilities,
-  // Events persisted before this field existed decode to the weaker
-  // client-boundary guarantee so replay never overclaims enforcement.
   runtimePolicy: OrchestrationV2RuntimePolicyCapabilities.pipe(
     Schema.withDecodingDefault(Effect.succeed({ enforcement: "client-boundary" as const })),
   ),
@@ -416,8 +411,6 @@ export const OrchestrationV2ThreadOpens = Schema.Struct({
 });
 export type OrchestrationV2ThreadOpens = typeof OrchestrationV2ThreadOpens.Type;
 
-// Open stats only rank search results, so a value this build cannot read (an
-// older or newer shape) becomes null instead of failing the whole thread.
 const LenientThreadOpens = Schema.NullOr(OrchestrationV2ThreadOpens).pipe(
   Schema.catchDecoding(() => Effect.succeedSome(null)),
 );
@@ -773,7 +766,6 @@ export function orchestrationV2RunWorkStartedAt(
 
 export const OrchestrationV2RunAttempt = Schema.Struct({
   id: RunAttemptId,
-  // Provider-thread rows can be reused after recovery; retain the native input destination.
   nativeThreadId: Schema.optional(Schema.String),
   runId: RunId,
   attemptOrdinal: PositiveInt,
@@ -908,12 +900,6 @@ export const OrchestrationV2SubagentWorkflow = Schema.Struct({
 });
 export type OrchestrationV2SubagentWorkflow = typeof OrchestrationV2SubagentWorkflow.Type;
 
-/**
- * Wire-only, for clients that opted in with `acceptDedupedBodies` or `dedupeBodies=1`: the field
- * was blanked because an earlier record on the same response or stream holds the same value.
- * Restore with `@supaterm/shared/orchestrationV2DedupedBodies`; never store or forward a marked
- * value. Clients restore only these fields, so blanking another field needs a new opt-in.
- */
 const DedupedBodyMarker = Schema.optionalKey(Schema.Literal(true));
 
 export const OrchestrationV2Subagent = Schema.Struct({
@@ -934,7 +920,6 @@ export const OrchestrationV2Subagent = Schema.Struct({
   modelSelection: Schema.optional(ModelSelection),
   completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
   completionDelivery: Schema.optional(OrchestrationV2DelegatedCompletionTaskDelivery),
-  // The run whose unfinished task was cancelled, committed with its Stop.
   cancelledRunId: Schema.optional(RunId),
   status: Schema.Literals([
     "idle",
@@ -1043,7 +1028,6 @@ function kindUnionWithFallback<
       encode: SchemaGetter.forbidden(() => "Unknown kinds are decode-only."),
     }),
   );
-  // Members are tried in order, so the fallback must come last.
   return Schema.Union([...members, unknownKind]);
 }
 
@@ -1053,16 +1037,9 @@ const PendingBackgroundTaskFields = {
   sourceThreadId: Schema.optional(ThreadId),
   taskId: TrimmedNonEmptyString,
   description: Schema.optional(TrimmedNonEmptyString),
-  /** The subagent task that started this work and waits on it. */
   parentTaskId: Schema.optional(TrimmedNonEmptyString),
-  /** Native id of the turn item that started this work, when it is not `taskId`. */
   nativeItemId: Schema.optional(TrimmedNonEmptyString),
-  /** The run that was executing when the work first appeared, stamped by the projection. */
   runId: Schema.optional(RunId),
-  /**
-   * The agent declared it resumes when this work ends, so the thread holds like it does for a
-   * subagent. Only the agent knows whether a command is a wait or a dev server it left running.
-   */
   awaited: Schema.optional(Schema.Literal(true)),
 };
 
@@ -1315,7 +1292,6 @@ const OrchestrationV2NotificationOutcome = Schema.Literals([
   "updated",
   "unknown",
 ]);
-/** One pull request's part of a wake, which stands alone once the others are outdated. */
 const PullRequestWakeSection = Schema.Struct({
   text: Schema.String,
   outcome: OrchestrationV2NotificationOutcome,
@@ -1324,10 +1300,8 @@ const PullRequestWakeSection = Schema.Struct({
 const MonitorPullRequestStamp = Schema.Struct({
   ...ThreadPullRequestKey.fields,
   watchStartedAt: IsoDateTime,
-  /** Null when the wake is not about one head, so a newer push does not outdate it. */
   headSha: Schema.NullOr(TrimmedNonEmptyString),
   watchEnded: Schema.optional(Schema.Boolean),
-  /** Set on a wake covering several pull requests. */
   section: Schema.optional(PullRequestWakeSection),
 });
 
@@ -1474,7 +1448,6 @@ export const OrchestrationV2PlanArtifact = Schema.Union([
 export type OrchestrationV2PlanArtifact = typeof OrchestrationV2PlanArtifact.Type;
 
 export const OrchestrationV2CheckpointFileSummary = Schema.Struct({
-  // Exact, as git reports it: file names may start or end with whitespace.
   path: Schema.NonEmptyString,
   kind: TrimmedNonEmptyString,
   additions: NonNegativeInt,
@@ -1592,7 +1565,6 @@ export const OrchestrationV2UserMessageInputIntent = Schema.Literals([
 export type OrchestrationV2UserMessageInputIntent =
   typeof OrchestrationV2UserMessageInputIntent.Type;
 
-/** Notices without a level predate it and are warnings. */
 const OrchestrationV2SystemNoticeLevel = Schema.Literals(["info", "warning", "error"]);
 
 /** A same-harness model or effort change that took effect with this message. */
@@ -1605,7 +1577,6 @@ export type OrchestrationV2ModelSwitch = typeof OrchestrationV2ModelSwitch.Type;
 const AssistantMessagePhase = Schema.Literals(["commentary", "partial_answer", "final_answer"]);
 
 const OrchestrationV2TurnItemBaseFields = {
-  /** Wire-only cursor for collapsed work; persisted items keep their complete history. */
   deferredWork: Schema.optionalKey(
     Schema.Struct({
       cursor: TrimmedNonEmptyString,
@@ -1671,7 +1642,6 @@ const OrchestrationV2SecretRequestDetailFields = {
   placeholder: Schema.optional(Schema.String),
   fields: Schema.optional(Schema.Array(OrchestrationV2SecretRequestField)),
   secretStatus: OrchestrationV2SecretRequestStatus,
-  // Older clients decode `secretStatus` as a closed set, so a timeout stays `cancelled` plus this.
   timedOut: Schema.optional(Schema.Boolean),
 } as const;
 
@@ -1976,7 +1946,6 @@ export const OrchestrationV2DomainEvent = Schema.Union([
       "thread.marked-unread",
       "thread.metadata-updated",
       "thread.pull-request-synced",
-      // Retired with run watches; stored events and older servers still carry it.
       "thread.workflow-run-watch-synced",
       "thread.runtime-mode-updated",
       "thread.interaction-mode-updated",
@@ -2338,10 +2307,6 @@ const OrchestrationV2KnownShellStreamItems = [
   Schema.Struct({
     kind: Schema.Literal("synchronized"),
   }),
-  /**
-   * The only item of a resume the server cannot replay when the client asked for
-   * `httpSnapshotFallback`: load the HTTP snapshot and subscribe again from its cursor.
-   */
   Schema.Struct({
     kind: Schema.Literal("snapshot-required"),
   }),
@@ -2378,10 +2343,6 @@ const knownShellStreamItemKinds: ReadonlySet<string> = new Set(
   OrchestrationV2KnownShellStreamItems.map((member) => member.fields.kind.literal),
 );
 
-/**
- * A shell stream item whose kind this build does not know. Newer servers add kinds; older
- * clients decode them to this case and skip them instead of failing the whole subscription.
- */
 const OrchestrationV2UnknownShellStreamItem = Schema.Struct({
   kind: Schema.String.check(
     Schema.makeFilter(
@@ -2407,7 +2368,6 @@ const OrchestrationV2UnknownShellStreamItem = Schema.Struct({
 
 export const OrchestrationV2ShellStreamItem = Schema.Union([
   ...OrchestrationV2KnownShellStreamItems,
-  // After the known arms: union members are tried in order.
   OrchestrationV2UnknownShellStreamItem,
 ]);
 export type OrchestrationV2ShellStreamItem = typeof OrchestrationV2ShellStreamItem.Type;
@@ -3144,12 +3104,6 @@ export const OrchestrationV2Command = Schema.Union([
     expectedLatestRunId: Schema.optional(RunId),
     doneAt: Schema.optional(Schema.DateTimeUtc),
   }),
-  /**
-   * Server-internal completion: dispatched by the automatic completion sweep,
-   * never by clients. Rejected when the thread changed after `snapshotAt` or
-   * carries any explicit done override, so automatic completion can never
-   * race a user action or clobber an explicit reopen.
-   */
   Schema.Struct({
     type: Schema.Literal("thread.auto-mark-done"),
     commandId: CommandId,
@@ -3162,7 +3116,6 @@ export const OrchestrationV2Command = Schema.Union([
     commandId: CommandId,
     threadId: ThreadId,
     reason: Schema.Literal("user"),
-    // Undo of mark done restores the Active anchor it cleared instead of moving the thread to the top.
     restoreReopenedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
   }),
   Schema.Struct({
@@ -3223,8 +3176,6 @@ export const OrchestrationV2Command = Schema.Union([
     commandId: CommandId,
     threadId: ThreadId,
     visitedAt: IsoDateTime,
-    // The user opened the thread, as opposed to new activity on an open one.
-    // Older servers ignore both fields and only move the read watermark.
     opened: Schema.optional(Schema.Boolean),
     searchQuery: Schema.optional(Schema.String.check(Schema.isMaxLength(200))),
   }),
@@ -3312,7 +3263,6 @@ export const OrchestrationV2Command = Schema.Union([
     title: Schema.optional(TrimmedNonEmptyString),
     outcome: Schema.optional(ThreadTitleRegenerationOutcome),
   }),
-  /** Makes a side chat a full thread: listed and forkable. */
   Schema.Struct({
     type: Schema.Literal("thread.side-chat.promote"),
     commandId: CommandId,
@@ -3470,8 +3420,6 @@ export const OrchestrationV2Command = Schema.Union([
     threadId: ThreadId,
     runId: RunId,
     text: Schema.String,
-    // Full replacement list. Absent = leave the message's attachments as-is,
-    // so pre-attachment clients editing text keep the original attachments.
     attachments: Schema.optional(Schema.Array(ChatAttachment)),
   }),
   Schema.Struct({
@@ -3537,8 +3485,6 @@ export const OrchestrationV2Command = Schema.Union([
     runtimeMode: RuntimeMode,
     interactionMode: ProviderInteractionMode,
     workspaceStrategy: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
-    // Omitted behaves as "settled_only" (no wake while the parent has a live
-    // run); producers that want fire-and-forget wakes must set "always".
     completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
     createdAt: Schema.optional(Schema.DateTimeUtc),
   }),
@@ -3580,11 +3526,6 @@ export const OrchestrationV2Command = Schema.Union([
 ]);
 export type OrchestrationV2Command = typeof OrchestrationV2Command.Type;
 
-/**
- * Commands only the server dispatches. They stay out of
- * `OrchestrationV2Command`, the `dispatchCommand` payload, so no client can
- * send them.
- */
 const OrchestrationV2InternalCommand = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("thread.user-input.auto-dismiss"),
@@ -3593,27 +3534,17 @@ const OrchestrationV2InternalCommand = Schema.Union([
     requestId: RuntimeRequestId,
     deadline: Schema.DateTimeUtc,
   }),
-  /** Moves a thread to a project rooted at the folder it already works in, so its cwd never changes. */
   Schema.Struct({
     type: Schema.Literal("thread.project.adopt-folder"),
     commandId: CommandId,
     threadId: ThreadId,
     projectId: ProjectId,
   }),
-  /**
-   * After a push, the thread's watches forget whether their checks were running, since the push
-   * can start new ones. Applied to the watches as they are then, so no earlier read overwrites them.
-   */
   Schema.Struct({
     type: Schema.Literal("thread.pull-request-watch.checks-reopen"),
     commandId: CommandId,
     threadId: ThreadId,
   }),
-  /**
-   * Records what a pull request watch saw, and wakes the agent in the same transaction when
-   * `wake` is set. Rejected once the watch started at `startedAt` has ended, and a wake is
-   * rejected on a done or archived thread, so a read that raced either changes nothing.
-   */
   Schema.Struct({
     type: Schema.Literal("thread.pull-request-watch.sync"),
     commandId: CommandId,
@@ -3621,13 +3552,8 @@ const OrchestrationV2InternalCommand = Schema.Union([
     ...ThreadPullRequestKey.fields,
     startedAt: IsoDateTime,
     watch: Schema.NullOr(ThreadPullRequestWatch),
-    /**
-     * The watch's `checksPending` when this read started. A push that clears it during the read
-     * makes the read's answer describe the old head, so the cleared answer stays.
-     */
     checksPendingBefore: Schema.optional(Schema.Boolean),
     endedWatch: Schema.optional(ThreadPullRequestWatch),
-    /** More watches of this thread recorded together, which `wake` also reports on. */
     others: Schema.optional(
       Schema.Array(
         Schema.Struct({
@@ -3645,9 +3571,7 @@ const OrchestrationV2InternalCommand = Schema.Union([
         messageId: MessageId,
         text: Schema.String,
         notification: OrchestrationV2Notification,
-        /** Comments stay worth reading after a push, so the wake outlives a newer head. */
         includesRemarks: Schema.optional(Schema.Boolean),
-        /** With `others`, each pull request's own part, in the same order. */
         sections: Schema.optional(Schema.Array(PullRequestWakeSection)),
       }),
     ),
@@ -3659,14 +3583,12 @@ const OrchestrationV2InternalCommand = Schema.Union([
     requestId: CommandId,
     message: TrimmedNonEmptyString,
   }),
-  /** Delivering the answer to request `requestId` failed on its last attempt. */
   Schema.Struct({
     type: Schema.Literal("runtime-request.delivery.fail"),
     commandId: CommandId,
     threadId: ThreadId,
     requestId: RuntimeRequestId,
   }),
-  /** The provider did not confirm a Stop of this turn in time. */
   Schema.Struct({
     type: Schema.Literal("thread.interrupt.unresponsive"),
     commandId: CommandId,
@@ -3680,7 +3602,6 @@ const OrchestrationV2InternalCommand = Schema.Union([
     threadId: ThreadId,
     providerThreadId: ProviderThreadId,
     providerTurnId: ProviderTurnId,
-    /** Replaces the Stop's own reason on the result, as Force stop does. */
     reason: Schema.optional(Schema.String),
     subagent: Schema.optional(
       Schema.Struct({
@@ -3694,11 +3615,6 @@ const OrchestrationV2InternalCommand = Schema.Union([
       }),
     ),
   }),
-  /**
-   * Stop for one thread, whatever it is doing: interrupts its running turn, holds its queue,
-   * ends its pull request watches, and drops pending delegated-task wakes. Nothing to stop is an
-   * accepted no-op. Delegated tasks under the thread get their own `thread.stop`.
-   */
   Schema.Struct({
     type: Schema.Literal("thread.stop"),
     commandId: CommandId,
@@ -3706,10 +3622,6 @@ const OrchestrationV2InternalCommand = Schema.Union([
     reason: Schema.optional(Schema.String),
     stopDelegatedTasks: Schema.optional(Schema.Boolean),
   }),
-  /**
-   * Internal so no client can mark a request saved without the value being
-   * stored.
-   */
   Schema.Struct({
     type: Schema.Literal("secret_request.record"),
     commandId: CommandId,
@@ -3974,10 +3886,6 @@ export const OrchestrationV2SubscribeThreadInput = Schema.Struct({
 });
 export type OrchestrationV2SubscribeThreadInput = typeof OrchestrationV2SubscribeThreadInput.Type;
 
-/**
- * Server-side only: set it on a response for a client that opted in, and the
- * `withRecordIdTable` codec sends that response with an ID table.
- */
 const IdTableMarker = Schema.optionalKey(Schema.Literal(true));
 
 export const OrchestrationV2ThreadDetailSnapshot = Schema.Struct({
@@ -4040,12 +3948,6 @@ export function isKnownOrchestrationV2EventType(type: string): boolean {
   return knownDomainEventTypes.has(type);
 }
 
-/**
- * A thread event whose type this build does not know, or a turn-item.updated
- * carrying a turn item type it does not know. Newer servers add both; older
- * clients decode them to this case and skip them, still advancing their resume
- * cursor, instead of failing the whole subscription.
- */
 const OrchestrationV2UnknownThreadStreamEvent = Schema.Struct({
   kind: Schema.Literal("event"),
   sequence: NonNegativeInt,
@@ -4098,7 +4000,6 @@ export const OrchestrationV2ThreadStreamItem = withRecordIdTable(
       sequence: NonNegativeInt,
       event: OrchestrationV2DomainEvent,
     }),
-    // After the known arm: union members are tried in order.
     OrchestrationV2UnknownThreadStreamEvent,
   ]),
   (item) => (item.kind === "snapshot" ? "projection" : undefined),

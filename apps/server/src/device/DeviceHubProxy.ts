@@ -1,9 +1,3 @@
-/**
- * Same-origin proxy in front of expo-device-hub, which binds loopback because serve-sim exposes
- * shell exec and serve-emu's action routes are unauthenticated. Requires read scope (operate for
- * input and tuning) and forwards only the Device panel's routes; reusing the Supaterm origin lets
- * remote connections work unchanged.
- */
 import { AuthOrchestrationReadScope, AuthOrchestrationOperateScope } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -39,10 +33,8 @@ const ALLOWED_PATHS: ReadonlyArray<RegExp> = [
   /^\/vendor\/serve-emu\/health$/,
 ];
 
-// Paths that take methods besides GET; one missing from ALLOWED_PATHS takes no GET.
 const MUTABLE_PATHS: ReadonlyArray<RegExp> = [
   /^\/vendor\/serve-sim\/api\/screenshot$/,
-  // WebRTC signalling: opening and closing a view of the stream, so read scope.
   /^\/vendor\/serve-sim\/helper\/[^/]+\/webrtc\/(offer|close)$/,
   /^\/vendor\/serve-emu\/webrtc\/(offer|close)$/,
   /^\/vendor\/serve-emu\/api\/(screenshot|stream-mode|stream-settings)$/,
@@ -80,7 +72,6 @@ const forwardHeaders = (request: HttpServerRequest.HttpServerRequest, origin: st
     if (DROPPED_REQUEST_HEADERS.has(name) || value === undefined) continue;
     headers[name] = value;
   }
-  // serve-emu refuses mutations whose Origin differs from the request origin.
   if (request.headers.origin !== undefined) headers.origin = origin;
   return headers;
 };
@@ -88,9 +79,6 @@ const forwardHeaders = (request: HttpServerRequest.HttpServerRequest, origin: st
 const VIEWER_BACKLOG_BYTES = 64 * 1024;
 const VIEWER_STALL_TIMEOUT = "10 seconds";
 
-// `ws` sockets pause, so a stalled viewer stops reads from the hub and serve-emu skips frames.
-// Effect drops its listeners before closing a socket that is still connecting, and `ws` then
-// emits an `error` nobody handles, which exits the server.
 export const upstreamWebSocketConstructor = Layer.effect(
   Socket.WebSocketConstructor,
   Effect.gen(function* () {
@@ -109,10 +97,8 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   protocols: ReadonlyArray<string> = [],
 ) {
   const incoming = NodeHttpServerRequest.toIncomingMessage(request);
-  // Video doesn't compress, and deflate queues frames where `writableLength` can't see them.
   delete incoming.headers["sec-websocket-extensions"];
   const viewer = incoming.socket;
-  // Checks inside the callback, so a drain just before subscribing cannot be missed.
   const viewerDrained = Effect.callback<void>((resume) => {
     if (viewer.writableLength <= VIEWER_BACKLOG_BYTES) {
       resume(Effect.void);
@@ -131,7 +117,6 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
     Effect.gen(function* () {
       const writeToClient = yield* client.writer;
       const writeToUpstream = yield* upstream.writer;
-      // A viewer that never drains would keep serve-emu resetting the device's video for every viewer.
       const viewerCaughtUp = Effect.suspend(() =>
         viewer.writableLength <= VIEWER_BACKLOG_BYTES
           ? Effect.void
@@ -145,8 +130,6 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
               }),
             ),
       );
-      // Whichever side closes first ends the other via scope teardown: a close
-      // fails the pull with a SocketError, which loses the race.
       return yield* Effect.raceFirst(
         pumpFrames(upstream, writeToClient, viewerCaughtUp),
         pumpFrames(client, writeToUpstream),
@@ -156,19 +139,17 @@ const proxyWebSocket = Effect.fn("DeviceHubProxy.proxyWebSocket")(function* (
   return HttpServerResponse.empty();
 });
 
-const pumpFrames =
-  /* Frame pumping runs continuously; a span per frame stream adds no diagnostic value. */
-  Effect.fnUntraced(function* (
-    source: Socket.Socket,
-    sink: Socket.Writer,
-    sinkReady: Effect.Effect<void, Socket.SocketError> = Effect.void,
-  ) {
-    const { pull } = yield* source.reader;
-    while (true) {
-      yield* sinkReady;
-      yield* sink.writeAll(yield* pull);
-    }
-  });
+const pumpFrames = Effect.fnUntraced(function* (
+  source: Socket.Socket,
+  sink: Socket.Writer,
+  sinkReady: Effect.Effect<void, Socket.SocketError> = Effect.void,
+) {
+  const { pull } = yield* source.reader;
+  while (true) {
+    yield* sinkReady;
+    yield* sink.writeAll(yield* pull);
+  }
+});
 
 const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
   request: HttpServerRequest.HttpServerRequest,
@@ -187,16 +168,13 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
     }),
     method === "GET" || method === "HEAD"
       ? (self) => self
-      : // A bare stream body is sent as octet-stream; serve-sim refuses WebRTC
-        // offers that are not application/json.
-        HttpClientRequest.bodyStream(request.stream, {
+      : HttpClientRequest.bodyStream(request.stream, {
           contentType: request.headers["content-type"],
         }),
   );
   const response = yield* httpClient.execute(upstreamRequest);
   const headers: Record<string, string> = {};
   for (const [name, value] of Object.entries(response.headers)) {
-    // A cookie from an upstream such as an Expo Simulators session's preview host would land on Supaterm's origin.
     if (
       name === "content-encoding" ||
       name === "transfer-encoding" ||
@@ -207,7 +185,6 @@ const proxyHttp = Effect.fn("DeviceHubProxy.proxyHttp")(function* (
     }
     if (value !== undefined) headers[name] = value;
   }
-  // Long-lived MJPEG and AVCC responses must not be buffered by compression.
   headers["cache-control"] = "no-store, no-transform";
   const body = headers["content-type"]?.startsWith("multipart/x-mixed-replace")
     ? repeatStillFrame(response.stream)
@@ -249,7 +226,6 @@ const handler = Effect.gen(function* () {
   if (!ready) {
     return HttpServerResponse.text("Device hub is not running", { status: 503 });
   }
-  // The ticket authenticates here and must not travel on to the hub.
   const upstreamSearch = new URLSearchParams(url.value.search);
   upstreamSearch.delete("wsTicket");
   upstreamSearch.delete("hostId");
@@ -265,7 +241,6 @@ const handler = Effect.gen(function* () {
       headers: { "cache-control": "no-store, no-transform" },
     });
   }
-  // Hosts with several upstreams (one per cloud session) route and authenticate requests themselves.
   const routed = ready.upstream ? yield* ready.upstream(hubPath, upstreamSearch) : undefined;
   if (routed === null) {
     return HttpServerResponse.text("Not Found", { status: 404 });

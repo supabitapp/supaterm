@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off
-// Cold windows span ~1.4 GB/1,500 files; node:fs buffer streaming is ~10x cheaper than materializing files.
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodeFSP from "node:fs/promises";
@@ -48,7 +47,6 @@ const READ_CHUNK_BYTES = 256 * 1024;
 const NEWLINE = 0x0a;
 const STAT_CONCURRENCY = 32;
 const WALK_CONCURRENCY = 16;
-// Measured about 3x faster than the promise API's stat across 20,000 transcripts.
 const statFile = NodeUtil.promisify(NodeFS.stat);
 const CARRIAGE_RETURN = 0x0d;
 
@@ -87,7 +85,6 @@ export async function listTranscriptFiles(
   let failedPaths = 0;
   let reading = 0;
   const waiting: Array<() => void> = [];
-  // Sibling directories read together; each returns its own list so the result keeps readdir order.
   const walk = async (dir: string): Promise<readonly string[]> => {
     if (reading < WALK_CONCURRENCY) reading += 1;
     else await new Promise<void>((resume) => waiting.push(resume));
@@ -98,7 +95,6 @@ export async function listTranscriptFiles(
       failedPaths += 1;
       return [];
     } finally {
-      // A waiting directory takes over this slot, so the count only drops when none waits.
       const next = waiting.shift();
       if (next === undefined) reading -= 1;
       else next();
@@ -169,11 +165,6 @@ const unescapeMountField = (field: string) =>
 const normalizeWindowsPath = (path: string) =>
   (/^[a-z]:/.test(path) ? path[0]!.toUpperCase() + path.slice(1) : path).replace(/\\$/, "");
 
-/**
- * The Windows directory behind the deepest mount holding `dir`, read from
- * `/proc/self/mountinfo` so a custom automount root resolves and an ext4
- * mount under `/mnt` never passes for a drive.
- */
 function windowsMountFor(
   mountInfo: string,
   dir: string,
@@ -191,7 +182,6 @@ function windowsMountFor(
     if (!contains || (deepest !== undefined && deepest.mountPoint.length > mountPoint.length)) {
       continue;
     }
-    // WSL2 mounts drives over 9p with `aname=drvfs;path=C:\`; WSL1 as `drvfs`.
     const options = (fields[separator + 3] ?? "").split(/[,;]/);
     const source = options.includes("aname=drvfs")
       ? options.find((option) => option.startsWith("path="))?.slice("path=".length)
@@ -214,11 +204,6 @@ function windowsMountFor(
     : { mountPoint: deepest.mountPoint, windowsRoot: deepest.windowsRoot };
 }
 
-/**
- * drvfs keeps the casing a path was typed with, while Windows reports the
- * on-disk names. Read those names rather than folding case, which would join
- * distinct entries of a case-sensitive directory.
- */
 async function onDiskNames(
   mountPoint: string,
   parts: readonly string[],
@@ -264,7 +249,6 @@ export async function readPhysicalSourceId(
   if (scope === undefined || scope.length === 0) return undefined;
   try {
     if (platform === "win32") {
-      // The native realpath reports on-disk casing; the JS one keeps the input's.
       return physicalSourceIdOf(scope, normalizeWindowsPath(await NodeFSP.realpath(dir)));
     }
     if (platform !== "linux") return undefined;
@@ -301,15 +285,12 @@ async function guardMatches(
   }
 }
 
-/** Plain files reuse one buffer, so a chunk is only valid until the next one is requested. */
 async function* readChunks(
   handle: NodeFSP.FileHandle,
   start: number,
   compressed: boolean,
 ): AsyncGenerator<Buffer> {
   if (compressed) {
-    // Compressed snapshots cache a full parse; decoded byte offsets cannot
-    // resume the compressed input.
     yield* handle
       .createReadStream({ start, autoClose: true, highWaterMark: READ_CHUNK_BYTES })
       .compose(NodeZlib.createZstdDecompress());
@@ -324,7 +305,6 @@ async function* readChunks(
   }
 }
 
-// Match markers in one latin1 alternation; one character per byte preserves exact ASCII offsets.
 export function transcriptLineGate(markers: readonly [string, ...string[]]) {
   if (markers.length === 1) {
     const marker = Buffer.from(markers[0]);
@@ -400,13 +380,11 @@ export async function readTranscriptRecords<State>(
 
     const append = (segment: Buffer) => {
       if (!streaming && pendingBytes + segment.length <= streamingThresholdBytes) {
-        // Copy: the next read overwrites the chunk this segment points into.
         if (segment.length > 0) pendingChunks.push(Buffer.from(segment));
         pendingBytes += segment.length;
         return;
       }
       if (!streaming) {
-        // Usage has no import-history budget; retain selected fields regardless of surrounding tool payload size.
         streaming = createTranscriptJsonReader(() => {}, selectPath, { maxDepth: Infinity });
         decoder = new NodeStringDecoder.StringDecoder("utf8");
         for (const pending of pendingChunks) streaming.write(decoder.write(pending));
@@ -452,7 +430,6 @@ export async function readTranscriptRecords<State>(
       scanOffset += chunk.length;
     }
 
-    // Parse unfinished tails against copied state so the next scan can replay from resumeOffset.
     const encodedState = encodeState === undefined ? null : encodeState(state);
     const tailRecords: UsageRecord[] = [];
     const tailState =

@@ -22,7 +22,6 @@ export function transitionIncomingSharePresentation(
 ): IncomingSharePresentationTransition {
   if (input.isShareSheetPresented) {
     if (state.presentedShareId !== null && input.pendingShareId !== state.presentedShareId) {
-      // Forget consumed presentations immediately so later handoffs can reuse their ids.
       return {
         state: EMPTY_INCOMING_SHARE_PRESENTATION_STATE,
         shareIdToPresent: null,

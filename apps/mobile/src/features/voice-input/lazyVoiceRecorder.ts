@@ -64,7 +64,6 @@ export function createLazyVoiceRecorder<TStatus, TRecorderState>(input: {
     return promise;
   };
 
-  // Listening is what makes the native recorder emit frames, so it only listens while asked to.
   const syncFrameSubscription = () => {
     if (recorder && frameListeners.size > 0) {
       frameSubscription ??= recorder.addFrameListener((pcm) => {

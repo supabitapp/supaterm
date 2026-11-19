@@ -29,7 +29,6 @@ import { ConnectionStatusDot } from "./ConnectionStatusDot";
 import { DisclosureChevron } from "../../components/ui/DisclosureChevron";
 import { environmentStatusText } from "./environmentStatusText";
 
-// Store captures present remote-looking addresses over loopback fixtures on a busy CI host.
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
 
 function connectionStatusLabel(environment: ConnectedEnvironmentSummary): string | null {

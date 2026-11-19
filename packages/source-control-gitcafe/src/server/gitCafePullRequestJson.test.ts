@@ -547,12 +547,10 @@ describe("toChecks", () => {
       );
     assert.deepStrictEqual(statusOf([run("99", "failure"), run("100", "success")]), ["success"]);
     assert.deepStrictEqual(statusOf([run("101", "failure"), run("100", "success")]), ["failure"]);
-    // Another app's run of the same name is a separate check, not a re-run.
     assert.deepStrictEqual(statusOf([run("100", "failure", "a"), run("101", "success", "b")]), [
       "failure",
       "success",
     ]);
-    // Commit statuses carry no run order, so neither is taken for the other's re-run.
     assert.deepStrictEqual(statusOf([run("status:2", "failure"), run("status:1", "success")]), [
       "failure",
       "success",

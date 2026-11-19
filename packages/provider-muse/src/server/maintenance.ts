@@ -126,7 +126,6 @@ export const enrichMuseSnapshot = Effect.fn("enrichMuseSnapshot")(function* (inp
 }) {
   const { snapshot } = input;
   const options = { enableProviderUpdateChecks: input.enableProviderUpdateChecks };
-  // Mise names the version it would install, so its answer alone counts.
   if (input.maintenanceCapabilities.lookupLatestVersion) {
     return yield* enrichProviderSnapshotWithVersionAdvisory(
       snapshot,

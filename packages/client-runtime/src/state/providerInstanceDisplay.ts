@@ -27,9 +27,6 @@ export function resolveProviderInstanceDisplayName(
 }
 
 export function providerInstanceInitials(label: string): string {
-  // Punctuation separates words so "Codex (hub)" reads CH, not C(. An apostrophe
-  // inside a word stays ("Theo's Codex" is TC); a quoting one does not
-  // ("Codex 'hub'" is CH).
   const words = label
     .replace(/[^\P{P}'’]+/gu, " ")
     .split(/\s+/u)

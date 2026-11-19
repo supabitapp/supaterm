@@ -9,9 +9,6 @@ const XML_ENTITIES: Readonly<Record<string, string>> = {
   "&apos;": "'",
 };
 
-// react-native-svg parses "smaller" as a number (0px on iOS, an exception on Android) and only
-// shifts sub/super with font tables. Pele lays out "smaller" at 1/1.2 of the label size; the
-// shifts are the usual 1/5 down and 1/3 up of that label size.
 const NATIVE_KEYWORDS = new Map([
   ["fontSize:smaller", "0.83em"],
   ["baselineShift:sub", "-0.24em"],
@@ -76,7 +73,6 @@ export function nativeDiagramStyles(root: XmlAST, palette: Readonly<Record<strin
         continue;
       }
       if (typeof value !== "string") continue;
-      // react-native-svg drops a url() paint that carries a fallback colour.
       const resolved = resolve(value)
         .replace(/\bcurrentColor\b/gi, ownColor)
         .replace(/^(url\(#[^)]+\))\s.+$/, "$1");

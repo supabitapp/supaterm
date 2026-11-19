@@ -47,13 +47,10 @@ function bannerPriority(item: ComposerBannerStackEntry) {
 interface StackSlot {
   readonly item: ComposerBannerStackEntry;
   readonly exiting: boolean;
-  /** Exiting notices only leave from the slot they occupied; stacked ones never surface. */
   readonly wasFront: boolean;
-  /** Set for the commit that mounts the slot, so `starting:` styles replay only then. */
   readonly entering: boolean;
 }
 
-// The activity row trades places with the strip outside the stack, so it never animates.
 const animates = (item: ComposerBannerStackEntry) => item.priority !== "activity";
 
 const staysVisible = (item: ComposerBannerStackEntry) =>
@@ -65,7 +62,6 @@ function arrangeSlots(slots: ReadonlyArray<StackSlot>) {
   return { front, stacked: ordered.filter((slot) => slot !== front) };
 }
 
-/** Keeps removed notices where they were, marked exiting, until their exit transition ends. */
 function reconcileStackSlots(
   previous: ReadonlyArray<StackSlot>,
   live: ReadonlyArray<ComposerBannerStackEntry>,
@@ -100,7 +96,6 @@ function reconcileStackSlots(
   ];
 }
 
-/** Drops a finished exit. A notice revealed by the front's exit rises into its place. */
 function releaseStackSlot(slots: ReadonlyArray<StackSlot>, id: string): ReadonlyArray<StackSlot> {
   const released = slots.find((slot) => slot.exiting && slot.item.id === id);
   if (!released) return slots;
@@ -114,7 +109,6 @@ function releaseStackSlot(slots: ReadonlyArray<StackSlot>, id: string): Readonly
     : remaining;
 }
 
-// The banner fades itself (see ComposerBanner.Root) so its glass keeps its blur.
 const presenceClassName =
   "transition-[translate] duration-200 ease-drawer data-enter:starting:translate-y-1 data-ending-style:pointer-events-none data-ending-style:translate-y-2 data-ending-style:duration-150 data-ending-style:ease-in motion-reduce:transition-none";
 
@@ -130,7 +124,6 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   const expandedItemsRef = useRef<HTMLDivElement>(null);
   const slotElementsRef = useRef(new Map<string, HTMLElement>());
   const expandedItemsId = useId();
-  // A dismissed notice leaves at once, even if its owner removes it asynchronously.
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(() => new Set());
   const presentDismissedIds = [...dismissedIds].filter((id) =>
     items.some((item) => item.id === id),
@@ -150,7 +143,6 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
   if (stack.liveKey !== liveKey) {
     setStack({ liveKey, slots: reconcileStackSlots(stack.slots, live) });
   }
-  // Content changes every parent render; only the set of notices goes through state.
   const slots = stack.slots.map((slot) => {
     const fresh = slot.exiting ? undefined : live.find((item) => item.id === slot.item.id);
     return fresh && fresh !== slot.item ? { ...slot, item: fresh } : slot;
@@ -349,11 +341,6 @@ export function ComposerBannerStack({ className, items }: ComposerBannerStackPro
 
 const SUBPIXEL_ROUNDING = 0.001;
 
-/**
- * The width an element's children lay out to. An open popover puts 1px fixed focus guards
- * beside its trigger, at the viewport's origin; they are not content. A range counts nested
- * elements only through the child that holds them, so skipping guard children is enough.
- */
 function contentWidth(element: Element, range: Range): number {
   let left = Infinity;
   let right = -Infinity;
@@ -389,25 +376,16 @@ export function NoticeText({
     const banner = text.closest("[data-slot=composer-banner]");
     const range = document.createRange();
     const measure = () => {
-      // Ignore the space taken by the details button itself so it cannot
-      // sustain its own overflow after the text would otherwise fit.
       const recoveredWidth = detailsRef.current ? detailsRef.current.offsetWidth + 4 : 0;
       const hidden = getComputedStyle(text).position === "absolute";
       const overflowing =
         hidden ||
         [text, ...text.querySelectorAll("*")].some((element) => {
-          // A range spans laid-out content only; scrollWidth also counts positioned layers
-          // such as a link's touch hit area, which overflow without cutting any text.
-          // The two rects can disagree by float rounding (~0.00001px on phones); real
-          // overflow is at least one layout unit, 1/64 of a device pixel.
           return (
             contentWidth(element, range) >
             element.getBoundingClientRect().width + recoveredWidth + SUBPIXEL_ROUNDING
           );
         });
-      // The button's width can wrap the banner's actions onto a second row, which gives
-      // the text room and removes the button, which unwraps the row again. Once shown,
-      // the button stays until the banner itself gets wider than where it appeared.
       const width = banner?.clientWidth ?? text.clientWidth;
       setDetailsAtWidth((shownAt) =>
         overflowing
@@ -501,7 +479,6 @@ function ComposerBannerStackAlert({
     "data-ending-style": exiting ? "" : undefined,
     inert: exiting || undefined,
   };
-  // Items change content under a stable id; an exit keeps what was last shown, not the item the stack first stored.
   if ("content" in item) {
     return (
       <ComposerBanner.Root

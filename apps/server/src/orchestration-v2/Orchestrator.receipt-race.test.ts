@@ -25,7 +25,6 @@ import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAd
 
 const instanceId = ProviderInstanceId.make("codex");
 const modelSelection = { instanceId, model: "gpt-5.1-codex" };
-// Holds model-selection planning until both racing commands have read no receipt.
 let capabilityGate: Effect.Effect<void> | undefined;
 const adapter = {
   instanceId,
@@ -158,7 +157,6 @@ it.effect("a command id reused concurrently for two threads succeeds for only on
       assert.deepEqual(noOpReplay.storedEvents, []);
     }
 
-    // The winner's own thread still replays its receipt.
     const replay = yield* setModel(threadIds[winner]!);
     if (Exit.isSuccess(winnerExit)) {
       assert.equal(replay.sequence, winnerExit.value.sequence);

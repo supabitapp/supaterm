@@ -12,14 +12,12 @@ const babel: {
   transformFileSync: (file: string, options: Record<string, unknown>) => unknown;
 } = requireFromMobile("@babel/core");
 
-// Remove bailout entries and manual memoization when compilation starts; this check rejects stale entries.
 export const KNOWN_BAILOUTS: Record<string, string> = {
   "src/features/threads/ThreadArrangementSheet.tsx": "unsupported syntax",
   "src/native/SupatermComposerEditor.ios.tsx": "ref read during render",
   "src/native/SupatermComposerEditor.native.tsx": "ref read during render",
 };
 
-// Use Metro's iOS release flags; experiments.reactCompiler enables supportsReactCompiler.
 const metroCaller = {
   name: "metro",
   bundler: "metro",
@@ -51,8 +49,6 @@ export interface CompilerEvent {
   };
 }
 
-// babel.config.js is the file Metro loads; the logger rides on the preset's
-// own react-compiler option so the plugin runs with Metro's exact settings.
 export function compileLikeMetro(
   file: string,
   events: CompilerEvent[],
@@ -95,7 +91,6 @@ function compilerBailouts(file: string): string[] {
   );
 }
 
-// One sweep compiles about a thousand files on one thread, so the slices run as separate files.
 export function describeCompileSweep(slice: number, slices: number) {
   describe(`React Compiler sweep ${slice}/${slices}`, () => {
     it.each(sourceFiles.filter((_, index) => index % slices === slice - 1))(

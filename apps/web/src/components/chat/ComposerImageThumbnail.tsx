@@ -56,9 +56,7 @@ export const ComposerImageThumbnail = memo(function ComposerImageThumbnail({
         try {
           await image.decode();
           if (!disposed) setPreview({ file, mode, src: thumbnail });
-        } catch {
-          // Keep the local preview if the thumbnail cannot be decoded.
-        }
+        } catch {}
       });
     }
     return () => {

@@ -163,7 +163,6 @@ type PairingLinkListRowProps = {
   pairingLink: ServerPairingLinkRecord;
   credential: string | undefined;
   preparedRelay: RelayConnectionInfo | undefined;
-  /** Whether this page is served by the environment the link pairs with. */
   servedByEnvironment: boolean;
   endpointUrl: string | null | undefined;
   endpoints: ReadonlyArray<AdvertisedEndpoint>;
@@ -262,8 +261,6 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
     kind: "code" | "hosted-link" | "link";
   }>({
     onError: (error, { value, kind }) => {
-      // Captured per attempt so concurrent copies cannot make the dialog
-      // reveal a different value than the one that failed.
       setFailedCopyValue(value);
       setIsRevealDialogOpen(true);
       toastManager.add(

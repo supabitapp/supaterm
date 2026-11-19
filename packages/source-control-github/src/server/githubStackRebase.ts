@@ -63,7 +63,6 @@ export const cascadeRebaseStack = Effect.fn("cascadeRebaseStack")(function* (inp
           }),
       ),
     );
-  // The token rides in a header for this process only: never in the URL, argv, or git config.
   const remote = input.remote ?? remoteUrl(input.host, input.repository);
   const authorization = `AUTHORIZATION: basic ${Base64.encode(`x-access-token:${Redacted.value(token)}`)}`;
   const env = {
@@ -106,7 +105,6 @@ export const cascadeRebaseStack = Effect.fn("cascadeRebaseStack")(function* (inp
 
   let parentOld = `origin/${input.base}`;
   let parentNew = `origin/${input.base}`;
-  // A squash or rebase merge leaves the merged layer's commits outside the base's history.
   const mergedParent =
     input.mergedHeadSha !== undefined &&
     (yield* git(["merge-base", "--is-ancestor", input.mergedHeadSha, first.headSha], true).pipe(
@@ -115,7 +113,6 @@ export const cascadeRebaseStack = Effect.fn("cascadeRebaseStack")(function* (inp
       ? input.mergedHeadSha
       : undefined;
   for (const [index, layer] of input.layers.entries()) {
-    // Exclude old parents: the merged layer or fork point for the bottom, the reviewed head above.
     const upstream =
       index === 0
         ? (mergedParent ??

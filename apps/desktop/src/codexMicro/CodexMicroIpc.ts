@@ -22,7 +22,6 @@ export const installEventForwarding = Effect.fn("desktop.ipc.codexMicro.installE
     yield* codexMicro.subscribeState((state) =>
       electronWindow.sendAll(IpcChannels.CODEX_MICRO_STATE_CHANNEL, state),
     );
-    // Only the main window runs the keyboard coordinator, so input never goes to other windows.
     yield* codexMicro.subscribeInput(
       Effect.fn("desktop.ipc.codexMicro.forwardInput")(
         function* (event) {

@@ -216,7 +216,6 @@ function threadSnapshotWithItems(): OrchestrationV2ThreadDetailSnapshot {
   };
 }
 
-// More rows than one encoding chunk, so a cold save yields to the host mid-encode.
 function threadSnapshotWithManyItems(
   snapshotSequence: number,
   message = "A done local notice.",

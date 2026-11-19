@@ -60,9 +60,6 @@ function initialConfigOption<E>(
   );
 }
 
-// A responsive host answers well inside the first timeout; each timeout doubles
-// the wait up to the cap, so a busy host is waited out instead of read as having
-// no grants, and a wedged one still settles within about two and a half minutes.
 const DEFAULT_SESSION_STATE_TIMEOUT_MS = 6_000;
 const MAX_SESSION_STATE_TIMEOUT_MS = 60_000;
 
@@ -114,7 +111,6 @@ export const fetchEnvironmentSessionState = Effect.fn(
       timeoutMs,
       request: ({ client, headers }) => client.session({ headers }),
     }).pipe(
-      // A timeout says nothing about grants; failing would show a busy host as read-only.
       Effect.catchTags({
         RemoteEnvironmentAuthTimeoutError: (error) => {
           const nextTimeoutMs = Math.min(timeoutMs * 2, MAX_SESSION_STATE_TIMEOUT_MS);
@@ -151,9 +147,6 @@ function makeEnvironmentSessionAtoms<R, E>(
     ),
   );
 
-  // This is only the bootstrap config captured when a transport session is
-  // established. Consumers that need current provider/settings state must use
-  // createServerEnvironmentAtoms(...).configValueAtom instead.
   const initialConfigValueAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make((get): ServerConfig | null =>
       pipe(
@@ -201,16 +194,12 @@ function makeEnvironmentSessionAtoms<R, E>(
     ),
   );
 
-  // Keyed on the transport session, so each reconnect re-runs the fetch and picks up re-pairing
-  // scopes. A transient failure retries quickly before it settles; a settled failure retries with
-  // a backoff that restarts per connection, since a failed read shows as missing grants.
   const sessionStateAtom = Atom.family((environmentId: EnvironmentId) => {
     let consecutiveFailures = 0;
     let backoffConnection: RpcSession | null = null;
     return runtime
       .atom((get) => {
         const prepared = Option.getOrNull(get(preparedConnectionValueAtom(environmentId)));
-        // A fetch that failed mid-reconnect cannot outlive the socket that recovered.
         const connection = AsyncResult.getOrElse(get(transportSessionAtom(environmentId)), () =>
           Option.none(),
         );
@@ -226,7 +215,6 @@ function makeEnvironmentSessionAtoms<R, E>(
           if (Option.isNone(client)) return yield* new SessionHttpClientUnavailable();
           return yield* fetchEnvironmentSessionState({ prepared }).pipe(
             Effect.retry({
-              // Timeouts already escalated inside the fetch; retrying them would wait minutes more.
               while: (error) =>
                 error._tag !== "RemoteEnvironmentAuthTimeoutError" &&
                 mapRemoteEnvironmentError(error)._tag === "ConnectionTransientError",
@@ -268,7 +256,6 @@ function makeEnvironmentSessionAtoms<R, E>(
     ).pipe(Atom.withLabel(`environment-session-state-value:${environmentId}`)),
   );
 
-  // Structural keys keep a reorder or a newly allocated route wrapper from rechecking it.
   const routeLatencyAtoms = Atom.family((route: ConnectionRoute) => {
     const resultAtom = runtime
       .atom((get) => {

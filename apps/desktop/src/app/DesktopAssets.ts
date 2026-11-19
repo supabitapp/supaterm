@@ -136,7 +136,6 @@ const resolveIconPath = Effect.fn("desktop.assets.resolveIconPath")(function* (
   return yield* resolveAssetPath(resolveSourceTreeIconPath(environment, ext), `icon.${ext}`);
 });
 
-// Brands differ only in the bolt, so one unlit render per appearance serves all of them.
 const launchIconFileNames = {
   light: {
     resource: { lit: "icon.png", unlit: "icon-unlit.png" },

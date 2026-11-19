@@ -18,7 +18,6 @@ import {
 const threadRef = (threadId: string) =>
   scopeThreadRef(EnvironmentId.make("env"), ThreadId.make(threadId));
 
-// Node has no DOM; entry only listens on the root's document for focus changes.
 const enterThread = (ref: ReturnType<typeof threadRef>) =>
   restoreFocusOnThreadEnter(ref, {
     root: {
@@ -194,8 +193,6 @@ describe("focusTerminal", () => {
     useTerminalUiStateStore.getState().ensureTerminal(ref, "drawer", { open: true, active: true });
     focusTerminalOnNavigation(ref, "panel");
 
-    // React commit order: the new thread's viewports attach and take the
-    // request before ChatView's thread-enter effect runs.
     const drawer = vi.fn(() => true);
     const unregisterDrawer = registerTerminalFocusTarget({
       threadRef: ref,

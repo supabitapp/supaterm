@@ -42,7 +42,6 @@ describe("reconcileRoute", () => {
     store().reconcileRoute(thread("b"), roomy);
     expect(orderedPanes(layout()).map((cell) => cell.target)).toEqual([thread("a"), thread("b")]);
     expect(store().openToSide).toBeNull();
-    // The request was used up: the next route replaces the focused pane again.
     store().reconcileRoute(thread("c"), roomy);
     expect(layout().cells).toHaveLength(2);
   });

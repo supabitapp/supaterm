@@ -9,7 +9,6 @@ import type { Browser, BrowserContext, CDPSession } from "playwright-core";
 
 import { sandboxDisabled } from "./PreviewBrowserHost.ts";
 
-// Playwright needs its files on disk. createRequire also resolves it from a Node SEA executable.
 const requirePlaywright = NodeModule.createRequire(import.meta.url);
 const loadPlaywright = () =>
   requirePlaywright("playwright-core") as typeof import("playwright-core");
@@ -21,9 +20,6 @@ interface CdpSession {
   createChildSession(...args: ReadonlyArray<unknown>): CdpSession;
 }
 
-// The headless shell binds no BadgeService for service workers and kills the renderer of a
-// worker that calls navigator.setAppBadge. Playwright resumes each worker itself, so the stub
-// can only go in ahead of that resume through its in-process session; without it nothing is stubbed.
 const stubWorkerBadges = (client: Browser | BrowserContext) => {
   const { _connection: connection } = client as unknown as {
     readonly _connection?: {
@@ -140,7 +136,6 @@ export class ServerBrowserContexts {
       ],
       ignoreDefaultArgs: ["--enable-automation"],
       headless: true,
-      // Only an explicit operator opt-out disables sandboxing. Launch errors never do.
       chromiumSandbox: !sandboxDisabled(env),
     };
   }
@@ -205,7 +200,6 @@ export class ServerBrowserContexts {
     const browser = await launched.catch(() => undefined);
     if (!browser || this.browser !== launched || this.pendingSharedContexts > 0) return;
     if (browser.contexts().length > 0) return;
-    // Cleared first, so a request during the close launches a fresh browser.
     this.browser = undefined;
     await browser.close().catch(constVoid);
   }
@@ -280,7 +274,6 @@ export class ServerBrowserContexts {
 
   async connectDesktopPage(endpoint: string) {
     const { chromium } = loadPlaywright();
-    // Only a same-machine desktop backend gets the browser channel, so uploads can pass file paths.
     const browser = await chromium.connectOverCDP(endpoint, { isLocal: true, timeout: 15_000 });
     const page = browser.contexts().flatMap((context) => context.pages())[0];
     if (!page) {

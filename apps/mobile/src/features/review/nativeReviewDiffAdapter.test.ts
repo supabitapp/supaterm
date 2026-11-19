@@ -160,7 +160,6 @@ describe("getCachedNativeReviewDiffData", () => {
     expect(data.rows.find((row) => row.id === selectedRowId)).toBe(
       before.rows.find((row) => row.id === selectedRowId),
     );
-    // IDs used by native initialFileId/collapse and parsed source lookup share one namespace.
     expect(data.files.map((file) => file.id)).toEqual(filtered.files.map((file) => file.id));
     for (const file of filtered.files) {
       const header = data.rows.find((row) => row.kind === "file" && row.fileId === file.id)!;

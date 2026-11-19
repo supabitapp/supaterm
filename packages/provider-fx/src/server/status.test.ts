@@ -16,7 +16,6 @@ import { checkFxProviderStatus } from "./status.ts";
 const encoder = new TextEncoder();
 const settings = Schema.decodeSync(FxSettings)({ enabled: true });
 
-/** Holds stdout and the exit back until `answered` completes, like a CLI slow to answer. */
 function processHandle(stdout: string, code: number, answered: Effect.Effect<void> = Effect.void) {
   return ChildProcessSpawner.makeHandle({
     pid: ChildProcessSpawner.ProcessId(900_000_101),
@@ -38,7 +37,6 @@ function processHandle(stdout: string, code: number, answered: Effect.Effect<voi
   });
 }
 
-// `fx models --json` from fx 0.0.13, ids trimmed.
 const FX_MODELS_JSON = JSON.stringify({
   kind: "models",
   count: 2,
@@ -48,7 +46,6 @@ const FX_MODELS_JSON = JSON.stringify({
   ids: ["anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5"],
 });
 
-/** Answers `fx` invocations by their arguments and records which ran. */
 const check = (
   statusJson: string,
   versionDelay: Duration.Input = 0,
@@ -112,7 +109,6 @@ describe("checkFxProviderStatus", () => {
     }),
   );
 
-  // `fx status --json` from fx 0.0.13, trimmed to the fields Supaterm reads plus a few it ignores.
   it.effect("reports sign-in from `fx status` without opening an ACP session", () =>
     Effect.gen(function* () {
       const signedIn = yield* check(
@@ -132,7 +128,6 @@ describe("checkFxProviderStatus", () => {
         signedIn.draft.models.map((model) => model.slug),
         ["default", "anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5"],
       );
-      // "Default" carries the model `fx status` reports, which the adapter selects for it.
       assert.deepEqual(signedIn.draft.models[0]?.aliases, ["anthropic/claude-opus-5.5"]);
       assert.isDefined(signedIn.draft.versionAdvisory);
 
@@ -150,14 +145,12 @@ describe("checkFxProviderStatus", () => {
       assert.equal(signedOut.draft.auth.status, "unauthenticated");
       assert.equal(signedOut.draft.message, "Run `fx login` to sign in.");
 
-      // An fx whose status output Supaterm cannot read is not reported as signed out.
       const unknown = yield* check("not json");
       assert.equal(unknown.draft.status, "warning");
       assert.equal(unknown.draft.auth.status, "unknown");
     }),
   );
 
-  // A ready snapshot drops models it does not list, so only a real listing may report ready.
   it.effect("treats `fx models` output without ids as a failed listing", () =>
     Effect.gen(function* () {
       const signedIn = JSON.stringify({ kind: "status", auth: "fx login" });

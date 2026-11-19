@@ -251,7 +251,6 @@ function rowToApplicationStoredEvent(
   return row.aggregate_kind === "project" ? rowToProjectEvent(row) : rowToV2StoredEvent(row);
 }
 
-// Only agent replay reads rows this way, and it reads thread rows alone.
 const keepReplayRow = (row: ApplicationEventRow, skipUnknownEventTypes?: boolean) =>
   skipUnknownEventTypes !== true || isKnownOrchestrationV2EventType(row.event_type)
     ? Effect.succeed(true)
@@ -454,9 +453,6 @@ const makeEventStore = Effect.gen(function* () {
           const promptKey = subagent === undefined ? undefined : `${event.type}:${subagent.id}`;
           const hint = promptKey === undefined ? undefined : promptHints.get(promptKey);
           const payloadJson = yield* encodeJson(encoded.payload);
-          // Progress ticks repeat an unchanged prompt, so store it once and point
-          // later rows at it. ProjectionMaintenance never deletes these anchor
-          // rows.
           const storedPayload =
             hint !== undefined && subagent !== undefined
               ? sql`CASE WHEN EXISTS (
@@ -630,8 +626,7 @@ const makeEventStore = Effect.gen(function* () {
       FROM orchestration_events
       ${
         threadId === undefined
-          ? // The planner can otherwise pick the covering stream index and scan every agent event.
-            sql`INDEXED BY idx_orchestration_events_application_sequence`
+          ? sql`INDEXED BY idx_orchestration_events_application_sequence`
           : sql`INDEXED BY idx_orchestration_events_agent_stream_sequence`
       }
       WHERE application_event_version = 2
@@ -643,7 +638,6 @@ const makeEventStore = Effect.gen(function* () {
       Effect.mapError(toPersistenceSqlError("OrchestrationEventStore.latestAgentSequence:query")),
     );
 
-  // The OR planner otherwise scans every V2 event instead of seeking the final sequence.
   const latestApplicationSequence = sql<{ readonly sequence: number | null }>`
     SELECT MAX(sequence) AS sequence
     FROM orchestration_events INDEXED BY idx_orchestration_events_application_high_water
@@ -671,7 +665,6 @@ const makeEventStore = Effect.gen(function* () {
         ORDER BY "sequence" ASC
         LIMIT ${input.limit}
       `.pipe(
-        // GROUP BY scans the whole range before LIMIT applies; keep it off the writer.
         NodeSqliteClient.readOnly,
         Effect.mapError(
           toPersistenceSqlError("OrchestrationEventStore.readChangedApplicationAggregates:query"),

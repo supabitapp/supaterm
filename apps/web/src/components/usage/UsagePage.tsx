@@ -169,7 +169,6 @@ function usageLoading(
   };
 }
 
-/** Keep dialog selection outside UsagePage so opening/closing rerenders only its host. */
 const selectedUsageModelKeyAtom = Atom.make<string | null>(null).pipe(
   Atom.keepAlive,
   Atom.withLabel("usage:selected-model-key"),
@@ -278,7 +277,6 @@ export function UsagePage() {
     updatePreferences({ metric: nextMetric });
   };
   const refreshLimits = (automatic = false) =>
-    // Settled so the timestamp still advances when a refresh throws.
     settlePromise(() =>
       Promise.all(
         Array.from(presentations, ([environmentId, presentation]) => {
@@ -649,15 +647,11 @@ function UsageOverview({
   const [breakdown, setBreakdown] = useState<"model" | "time">("model");
   const shownHourly = shownWindow.resolution === "hour";
   const loading = usageLoading(showingKept, selectedEnvironments, refreshingUsage, hiddenProviders);
-  // Copy the primitive; JSX reads of loading.partial would merge all derivations into one compiler cache
-  // scope.
   const loadingPartial = loading.partial === true;
   const loadingProviders = new Set(
     PROVIDER_ORDER.filter((provider) => loading.everyProvider || loading.providers.has(provider)),
   );
   const providersWithData = new Set(providersWithUsage(merged.providers));
-  // Only loading.providers excludes hidden providers without data. Filter a fresh array so the compiler can
-  // cache independently.
   const activeProviders = [...PROVIDER_ORDER].filter(
     (provider) => providersWithData.has(provider) || loading.providers.has(provider),
   );

@@ -52,7 +52,6 @@ export function createReviewEnvironmentAtoms<R, E>(
           ...input,
           trackedOnly: true,
         });
-        // Older servers ignore trackedOnly and already return the complete preview.
         if (!tracked.incomplete) return tracked;
         yield* emit(tracked);
       }
@@ -60,13 +59,9 @@ export function createReviewEnvironmentAtoms<R, E>(
     }),
     ...(options.onDiffPreviewAnswer === undefined ? {} : { onAnswer: options.onDiffPreviewAnswer }),
   });
-  // A file patch is a slice of the comparison its preview generated, so a newer preview
-  // revision makes every patch read under the old one stale.
   const previewRevisionFamily = Atom.family((key: string) => {
     const target = JSON.parse(key) as Parameters<typeof diffPreview>[0];
     return Atom.make((get) => {
-      // A failed refresh keeps the last revision, so an error does not refresh every patch.
-      // Reading the preview here keeps its query mounted while any of its patches is read.
       return Option.match(AsyncResult.value(get(diffPreview(target))), {
         onNone: () => null,
         onSome: (preview) => DateTime.formatIso(preview.generatedAt),
@@ -90,7 +85,6 @@ export function createReviewEnvironmentAtoms<R, E>(
       execute: (input: {
         request: ReviewDiffPreviewInput & { file: NonNullable<ReviewDiffPreviewInput["file"]> };
         cacheKey: string;
-        /** The preview this patch belongs to; its revisions refresh the patch. */
         preview?: ReviewDiffPreviewInput;
       }) =>
         request(WS_METHODS.reviewGetDiffPreview, input.request).pipe(

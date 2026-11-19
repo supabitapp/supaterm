@@ -97,9 +97,6 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
     const target = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     return { target, focusVisible: target?.matches(":focus-visible") ?? false };
   });
-  // The host unmounts the dialog outright, so Base UI never runs finalFocus. Without
-  // this, focus stays on the removed dialog, and the composer that owned the opener
-  // reads that as a blur and rests. Preserve mouse focus when Escape closes it.
   const close = () => {
     flushSync(onClose);
     const { target, focusVisible } = returnFocus;
@@ -172,7 +169,6 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
       open
       onOpenChange={(open, eventDetails) => {
         if (open) return;
-        // Escape belongs to an open context menu first.
         if (eventDetails.reason === "escape-key" && isContextMenuOpen()) {
           eventDetails.cancel();
           return;
@@ -301,7 +297,6 @@ export const ExpandedImageDialog = memo(function ExpandedImageDialog({
   );
 });
 
-// Keep preview state outside ChatView to isolate dialog renders.
 type ExpandedImagePreviewState = {
   readonly threadKey: string;
   readonly preview: ExpandedImagePreview;
@@ -317,7 +312,6 @@ function ownedSrc(state: ExpandedImagePreviewState): string | null {
   return item?.ownsSrc === true ? item.src : null;
 }
 
-// The preview owns a blob URL made for it, so whatever replaces it releases that URL.
 function setExpandedImagePreview(next: ExpandedImagePreviewState): void {
   const previous = ownedSrc(appAtomRegistry.get(expandedImagePreviewAtom));
   appAtomRegistry.set(expandedImagePreviewAtom, next);
@@ -332,7 +326,6 @@ function closeExpandedImagePreview(): void {
   setExpandedImagePreview(null);
 }
 
-// A thread no route or pane shows drops its preview.
 registerThreadOverlay((shownThreadKeys) => {
   const current = appAtomRegistry.get(expandedImagePreviewAtom);
   if (current !== null && !shownThreadKeys.has(current.threadKey)) closeExpandedImagePreview();

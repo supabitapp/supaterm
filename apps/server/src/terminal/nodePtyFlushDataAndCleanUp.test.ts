@@ -22,7 +22,6 @@ interface FakeAgent {
   _cleanUpProcess: () => void;
 }
 
-// The sockets are stand-ins; the timer logic and _cleanUpProcess are node-pty's own (as patched by Supaterm).
 const makeAgent = (): FakeAgent => {
   const agent: FakeAgent = {
     _useConptyDll: false,
@@ -35,9 +34,6 @@ const makeAgent = (): FakeAgent => {
 
 const flush = (agent: FakeAgent) => WindowsPtyAgent.prototype._flushDataAndCleanUp.call(agent);
 
-// A minimal event loop that mirrors Node's phases: expired timers run first, then immediates (the check phase).
-// node-pty calls the global timer functions at call time, so replacing them lets the test place a "poll phase"
-// (delivery of already-buffered pipe data) exactly between the two.
 interface Timer {
   readonly id: number;
   readonly dueAt: number;
@@ -59,7 +55,6 @@ const runImmediates = () => {
   immediates = [];
   for (const run of batch) run();
 };
-/** One loop iteration after `ms` of wall time; `poll` runs between the timers and check phases. */
 const loopIteration = (ms: number, poll?: () => void) => {
   now += ms;
   runExpiredTimers();
@@ -67,8 +62,6 @@ const loopIteration = (ms: number, poll?: () => void) => {
   runImmediates();
 };
 
-// ConPTY never closes the output pipe after the shell exits, so node-pty ends the session on a timer.
-// Supaterm shortens it (patches/node-pty@1.2.0-beta.15.patch) so the terminal reports "exited" about 0.9 s sooner.
 describe("node-pty Windows exit flush", () => {
   beforeEach(() => {
     now = 0;
@@ -105,8 +98,6 @@ describe("node-pty Windows exit flush", () => {
     expect(agent._inSocket.readable).toBe(false);
   });
 
-  // Timers run before the poll phase. After a main-thread stall longer than the window, output that is already
-  // buffered in the pipe is read only after the timer has expired, so the cleanup has to wait one loop turn for it.
   it("keeps the socket open when buffered output is read right after a stalled timer expires", () => {
     const agent = makeAgent();
     flush(agent);

@@ -247,7 +247,6 @@ export function resolveNewTaskModelSelection(input: {
   );
 }
 
-// Rows built after a pick on another instance carry no options for the thread's own model.
 export function withStoredThreadModelOptions(
   selection: ModelSelection,
   stored: ModelSelection,

@@ -17,7 +17,6 @@ const composerCodeBlockHighlightKey = new PluginKey<DecorationSet>("composerCode
 
 const MAX_HIGHLIGHTED_CODE_BLOCK_LENGTH = 20_000;
 
-// Keep mapped colors while typing in long fences, then refresh after a pause.
 const DEFERRED_HIGHLIGHT_CODE_BLOCK_LENGTH = 2_000;
 const DEFERRED_HIGHLIGHT_DELAY_MS = 300;
 
@@ -118,9 +117,7 @@ export function composerCodeBlockHighlight(options: {
                     languageOfInfoString(String(node.attrs.language ?? "")) || "text",
                   );
                   const signature = blockSignature(node, theme);
-                  // Cache failure as plain text to clear retained colors.
                   const highlighter = await getSyntaxHighlighterPromise(language).catch(() => null);
-                  // An older request must not bypass the debounce if its text returns.
                   if (disposed || live !== signatures || cache.has(signature)) return;
                   cache.set(signature, {
                     signature,
@@ -198,7 +195,6 @@ function buildDecorations(
     if (!shouldHighlightCodeBlock(node.textContent)) continue;
     const highlighted = cache.get(blockSignature(node, theme));
     if (!highlighted) {
-      // A mapped token can span split fences and the paragraph between them.
       const start = pos + 1;
       const end = start + node.content.size;
       for (const decoration of previous.find(start, end)) {
@@ -225,7 +221,6 @@ function buildDecorations(
   return DecorationSet.create(state.doc, decorations);
 }
 
-// Keep the color available when clipping mapped decorations to a fence.
 function colorDecoration(from: number, to: number, color: string): Decoration {
   return Decoration.inline(from, to, { style: `color:${color}` }, { color });
 }

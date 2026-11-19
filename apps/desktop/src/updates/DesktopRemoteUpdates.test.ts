@@ -22,7 +22,6 @@ import * as DesktopRemoteUpdates from "./DesktopRemoteUpdates.ts";
 import * as DesktopUpdates from "./DesktopUpdates.ts";
 import { makeHarness } from "./updatesTestHarness.ts";
 
-// Updater runPromise handlers need real microtasks between test-runtime fiber yields.
 const settle = Effect.gen(function* () {
   for (let i = 0; i < 20; i += 1) {
     yield* Effect.yieldNow;
@@ -186,7 +185,6 @@ describe("DesktopRemoteUpdates", () => {
   });
 
   it.effect("switches to the requested track before preparing its release", () => {
-    // In-memory settings keep the channel write off real disk I/O.
     const harness = makeHarness({ beforeSetUpdateChannel: Effect.void });
 
     return runRemoteUpdatesTest(harness, ({ reports, requests }) =>
@@ -230,7 +228,6 @@ describe("DesktopRemoteUpdates", () => {
             targetVersion: "1.2.4-nightly.20261027.1",
           });
           yield* settle;
-          // Answers the track change's check, then the request's own check.
           harness.emit("update-available", { version: older });
           yield* settle;
           harness.emit("update-available", { version: older });
@@ -240,10 +237,8 @@ describe("DesktopRemoteUpdates", () => {
             terminalReports(reports).map((report) => [report.outcome, report.reason]),
             [["failed", "The desktop app found no build of 1.2.4-nightly.20261027.1."]],
           );
-          // The saved track is the user's intent; a retry picks it up from here.
           assert.equal((yield* updates.getState).channel, "nightly");
 
-          // A plain update afterwards cannot reach the build the switch refused.
           yield* Queue.offer(requests, request("req-plain"));
           yield* settle;
           harness.emit("update-available", { version: older });
@@ -267,7 +262,6 @@ describe("DesktopRemoteUpdates", () => {
           targetVersion: "1.2.3",
         });
         yield* settle;
-        // Even with a newer build on the feed, the host only saves its track.
         harness.emit("update-available", { version: "1.2.4" });
         yield* settle;
 
@@ -287,7 +281,6 @@ describe("DesktopRemoteUpdates", () => {
     return runRemoteUpdatesTest(harness, ({ reports, requests }) =>
       Effect.gen(function* () {
         const updates = yield* DesktopUpdates.DesktopUpdates;
-        // Downloaded earlier on this Stable host, before the switch checked 1.2.5.
         harness.emit("update-downloaded", { version: "1.2.4" });
         yield* settle;
         assert.equal((yield* updates.getState).downloadedVersion, "1.2.4");
@@ -348,7 +341,6 @@ describe("DesktopRemoteUpdates", () => {
           targetVersion: "1.2.5",
         });
         yield* settle;
-        // The feed lags npm and has nothing newer than this host's 1.2.3.
         harness.emit("update-not-available");
         yield* settle;
         harness.emit("update-not-available");
@@ -381,7 +373,6 @@ describe("DesktopRemoteUpdates", () => {
         harness.emit("update-not-available");
         yield* settle;
 
-        // Still on Nightly, though the target is numbered below this build.
         assert.deepEqual(
           terminalReports(reports).map((report) => [report.outcome, report.reason]),
           [["failed", "The desktop app found no build of 1.2.3."]],
@@ -845,7 +836,6 @@ describe("DesktopRemoteUpdates", () => {
           requestId: "req-switch-cancel",
         });
         yield* settle;
-        // The next request starts without waiting for the cancelled switch's feed check.
         yield* Queue.offer(requests, {
           ...request("req-switch-back"),
           channel: "latest",

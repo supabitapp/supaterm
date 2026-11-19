@@ -17,9 +17,7 @@ import { makeLaunchIconFrames, type LaunchIconFrames } from "./LaunchIconFrames.
 
 const FRAME_MILLIS = 66;
 const FADE_SECONDS = 0.6;
-// A quick launch still shows the rainbow run its whole course down the bolt.
 const MIN_THINKING_SECONDS = 2.4;
-// A launch that never shows a window stops animating rather than repaint the Dock for good.
 const MAX_THINKING_SECONDS = 60;
 
 export class DesktopLaunchIcon extends Context.Service<
@@ -37,12 +35,6 @@ const ease = (x: number) => {
   return t * t * (3 - 2 * t);
 };
 
-/**
- * The appearance the Dock draws the bundle's icon in under this Icon & widget
- * style, when frames exist for it. Default icons stay light in dark mode; only
- * the automatic Dark style follows it. Clear and tinted icons have no frames:
- * the Dock would jump between looks when it takes the bundle's icon back.
- */
 const dockAppearanceFor = (
   iconStyle: string,
   systemDarkMode: boolean,
@@ -108,7 +100,6 @@ export const make = Effect.gen(function* () {
         ),
       );
 
-    // Ease out of the lit icon the Dock bounced with...
     let t = 0;
     let glow = 1;
     while (yield* thinking(t)) {
@@ -116,7 +107,6 @@ export const make = Effect.gen(function* () {
       yield* show(t, glow);
       t = yield* elapsed;
     }
-    // ...and back into it once the window shows.
     const settledAt = t;
     const settledFrom = glow;
     while (t - settledAt < FADE_SECONDS) {
@@ -125,7 +115,6 @@ export const make = Effect.gen(function* () {
     }
   });
 
-  // Forked so decoding the icons overlaps the backend's boot instead of delaying it.
   const start = Effect.gen(function* () {
     const appearance = yield* dockAppearance;
     if (Option.isNone(appearance)) return;

@@ -15,7 +15,6 @@ export const ProviderSetupInput = Schema.Struct({
 export type ProviderSetupInput = typeof ProviderSetupInput.Type;
 
 const SetupOperationId = TrimmedNonEmptyString.check(Schema.isMaxLength(128));
-// Environments supply these and clients open them, so a `javascript:` URL would run as the client.
 const SignInUrl = TrimmedNonEmptyString.check(
   Schema.isMaxLength(16_384),
   Schema.isPattern(/^https?:\/\//i),
@@ -73,7 +72,6 @@ export const ProviderAuthResponse = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("terminal"),
     data: Schema.String.check(Schema.isMaxLength(4_096)),
-    // `data` holds one byte per UTF-16 code unit, as in `TerminalWriteInput`.
     binary: Schema.optionalKey(Schema.Boolean),
     size: Schema.optionalKey(
       Schema.Struct({
@@ -127,7 +125,6 @@ export const ProviderAuthState = Schema.Struct({
   authorizationUrl: Schema.NullOr(SignInUrl),
   expiresAt: Schema.NullOr(IsoDateTime),
   message: Schema.NullOr(Schema.String),
-  // Drop unknown auth methods rather than rejecting the entire state.
   methods: Schema.optionalKey(
     ForwardCompatibleArray(ProviderAuthMethod).check(Schema.isMaxLength(32)),
   ),

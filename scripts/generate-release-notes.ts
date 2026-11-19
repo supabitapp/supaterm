@@ -16,14 +16,12 @@ import { Command, Flag } from "effect/cli";
 import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
-// Release notes cover web, desktop, and server. Mobile ships through the app stores on its own schedule.
 const MOBILE_SCOPES = new Set(["mobile", "android", "ios"]);
 const COMMIT_SCOPES = /^[a-z]+\(([^)]*)\)!?:/i;
 const PULL_REQUEST_NUMBER = /\(#(\d+)\)$/;
 const MERGE_COMMIT_SUBJECT = /^Merge pull request #(\d+) from \S+$/;
 const PULL_REQUEST_BODY_LIMIT = 300;
 const SUMMARY_MODEL = "claude-opus-5-5";
-// The Claude balancer serves Opus only to requests whose system prompt opens with this line.
 const BALANCER_IDENTITY = "You are Claude Code, Anthropic's official CLI for Claude.";
 
 const SUMMARY_INSTRUCTIONS = `You write release notes for Supaterm, a GUI for coding agents (web and desktop apps backed by a server; providers like Codex, Claude, Cursor, Grok, OpenCode, Antigravity).
@@ -140,7 +138,6 @@ export function isReleaseNoteCommit(commit: ReleaseCommit): boolean {
   return !scopes?.every((scope) => MOBILE_SCOPES.has(scope.trim().toLowerCase()));
 }
 
-/** Keeps the prose of a PR body: no images, tables, headings, HTML, or verification sections. */
 function trimPullRequestBody(body: string, limit = PULL_REQUEST_BODY_LIMIT): string {
   const [prose = ""] = body.split(/\n#+\s*(?:Verification|Council|Test|Testing|Screenshots)\b/i);
   const text = prose
@@ -174,7 +171,6 @@ export function countContributors(
   pullRequests: ReadonlyMap<number, PullRequest>,
 ): number {
   const people = new Set<string>();
-  // A PR's commit carries a git name, which may differ from the author's profile name.
   const prAuthorNames = new Set<string>();
   const directAuthors: string[] = [];
   for (const commit of commits) {
@@ -195,13 +191,11 @@ export function countContributors(
   return people.size;
 }
 
-/** No date here: the app shows how long ago a release shipped, and GitHub shows the date. */
 function buildReleaseHeader(version: string, changes: number, contributors: number): string {
   const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
   return `**v${version.replace(/^v/, "")}** · ${plural(changes, "change")} from ${plural(contributors, "contributor")}`;
 }
 
-/** The summary leads; GitHub's full list folds under it. Clients cut the body at `<details>`. */
 function assembleReleaseNotes(header: string, summary: string, fullChangelog: string): string {
   return `${header}\n\n${summary.trim()}\n\n<details>\n<summary>Full changelog</summary>\n\n${fullChangelog.trim()}\n\n</details>\n`;
 }
@@ -233,7 +227,6 @@ const readCommits = Effect.fn("generateReleaseNotes.readCommits")(function* (
   previousTag: string,
   ref: string,
 ) {
-  // Merged branches would otherwise add every work-in-progress commit to the range.
   const log = yield* run("git", [
     "log",
     "--first-parent",
@@ -269,10 +262,7 @@ const readPullRequests = Effect.fn("generateReleaseNotes.readPullRequests")(func
         `owner=${owner}`,
         "-f",
         `name=${name}`,
-      ]).pipe(
-        // gh exits 1 when a number in the batch is not a PR here, such as an issue, yet still prints the rest.
-        Effect.catchTags({ CommandFailedError: (error) => Effect.succeed(error.stdout) }),
-      ),
+      ]).pipe(Effect.catchTags({ CommandFailedError: (error) => Effect.succeed(error.stdout) })),
     );
     for (const [alias, pullRequest] of Object.entries(response.data.repository)) {
       if (pullRequest) pullRequests.set(Number(alias.slice(2)), pullRequest);
@@ -301,7 +291,6 @@ const readFullChangelog = Effect.fn("generateReleaseNotes.readFullChangelog")(fu
 });
 
 export function summaryText(response: typeof SummaryResponse.Type): Option.Option<string> {
-  // A response cut off by max_tokens or a refusal can carry partial text; publishing it would cut the notes short.
   if (response.stop_reason !== "end_turn") return Option.none();
   const text = response.content
     .flatMap((block) => (block.type === "text" && block.text ? [block.text] : []))
@@ -363,7 +352,6 @@ const command = Command.make(
   },
   ({ repository, tag, ref, previousTag, version, output }) =>
     Effect.gen(function* () {
-      // The header counts every commit in the range; the summary skips mobile-only work.
       const allCommits = yield* readCommits(previousTag, ref);
       if (allCommits.length === 0) {
         return yield* new EmptyReleaseRangeError({ range: `${previousTag}..${ref}` });
@@ -384,7 +372,6 @@ const command = Command.make(
         allCommits.length,
         countContributors(allCommits, pullRequests),
       );
-      // With no summary, write nothing: the release falls back to GitHub's generated notes.
       const summary =
         commits.length === 0
           ? Option.none<string>()
@@ -393,7 +380,6 @@ const command = Command.make(
         return yield* Effect.logWarning("no release summary, leaving GitHub's notes in place");
       }
       const fs = yield* FileSystem.FileSystem;
-      // Publish uses the file when it exists, so a partial write must never land at `output`.
       yield* fs.writeFileString(
         `${output}.tmp`,
         assembleReleaseNotes(header, summary.value, fullChangelog),

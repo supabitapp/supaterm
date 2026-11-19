@@ -11,16 +11,12 @@ import {
 } from "@supaterm/source-control-core/shared/definition";
 import { icon } from "./icon.ts";
 
-// Azure DevOps Server runs on any hostname; its `_git` route identifies it.
 const CHANGE_REQUEST_PATH = /^\/((?:[^/]+\/)*_git\/[^/]+)\/pullrequest\/(\d+)(?:\/|$)/u;
 const COMMIT_PATH = /^\/((?:[^/]+\/)*_git\/[^/]+)\/commit\/([0-9a-f]+)\/?$/iu;
 const CHECKOUT_COMMAND = /^az\s+repos\s+pr\s+checkout\s+(.+)$/i;
 const CHANGE_REQUEST_REFERENCE =
   /^https:\/\/(?:dev\.azure\.com\/[^/\s]+\/[^/\s]+|[^/\s]+\.visualstudio\.com\/(?:DefaultCollection\/)?[^/\s]+)\/_git\/[^/\s]+\/pullrequest\/(\d+)(?:[/?#].*)?$/i;
 
-// `ssh.dev.azure.com` is the default SSH clone host (git@ssh.dev.azure.com:v3/org/project/repo),
-// so any `*.dev.azure.com` subdomain is Azure. Legacy hosts stay under `.visualstudio.com`,
-// including `vs-ssh.visualstudio.com`.
 function isAzureHostname(hostname: string): boolean {
   return (
     hostname === "dev.azure.com" ||
@@ -29,17 +25,10 @@ function isAzureHostname(hostname: string): boolean {
   );
 }
 
-/**
- * Azure alone addresses one repository under two names that share no part: `ssh.dev.azure.com` and
- * `v3/{org}/{project}/{repo}` over SSH, against `dev.azure.com` and `{org}/{project}/_git/{repo}`
- * everywhere a person sees it. A project cloned over SSH would otherwise be a different repository
- * to every comparison made against a pull request URL, which arrives in the web spelling.
- */
 function repositoryKeyFromRemote(key: string): string | null {
   const match =
     /^(ssh\.dev\.azure\.com|vs-ssh\.visualstudio\.com)\/v3\/([^/]+)\/([^/]+)\/([^/]+)$/u.exec(key);
   if (match === null) {
-    // Azure takes a name as written, so its keys keep the `.git` other hosts drop.
     return isAzureHostname(key.split("/", 1)[0]!) ? key : null;
   }
   const [, host, organization, project, repository] = match;
@@ -48,7 +37,6 @@ function repositoryKeyFromRemote(key: string): string | null {
     : `${organization}.visualstudio.com/${project}/_git/${repository}`;
 }
 
-/** Every spelling of an Azure DevOps Services repository, on `dev.azure.com`. */
 function canonicalRepositoryKey(key: string): string | null {
   const canonical = key
     .replace(
@@ -93,8 +81,6 @@ export const definition = defineSourceControl({
     plural: "pull requests",
   },
   repositoryPathHint: "project/repository",
-  // `az repos` reads need the checkout's organization and project, so a bare hostname names no
-  // repository this client can act on.
   publicHost: null,
   publishDescription: "dev.azure.com",
   publishHost: () => "dev.azure.com",
@@ -112,7 +98,6 @@ export const definition = defineSourceControl({
     return buildCommitUrl({ ...input, host, repository: path.join("/") }, "commit");
   },
   parseCommitUrl: (url) => parseCommitPath(url, COMMIT_PATH),
-  // Servers on different ports are different servers, so a port stays in the link.
   parseChangeRequestUrl: (url) => {
     const link = parseChangeRequestPath(url, CHANGE_REQUEST_PATH);
     return link === null || url.port === "" ? link : { ...link, authority: url.host.toLowerCase() };
@@ -128,7 +113,6 @@ export const definition = defineSourceControl({
     "disable-auto-merge",
   ] as const),
   checkoutCommand: ({ number }) => `az repos pr checkout --id ${number}`,
-  // Completing or abandoning is a status change, the same `update` this package runs.
   changeRequestCloseCommand:
     /\baz\s+repos\s+pr\s+update\b[^;&|]*--status[\s=]+["']?(?:completed|abandoned)\b/u,
   authorProfileUrl: () => null,

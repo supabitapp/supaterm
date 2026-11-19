@@ -86,7 +86,6 @@ it.effect("follows a pull request across reconnects and renewals", () =>
     const events = yield* eventsOf(rest, httpClient);
     const fiber = yield* events(target).pipe(Stream.take(4), Stream.runCount, Effect.forkChild);
     yield* TestClock.adjust("5 minutes");
-    // An open per connection plus the head change.
     assert.equal(yield* Fiber.join(fiber), 4);
 
     assert.deepEqual(connections, [
@@ -112,7 +111,6 @@ it.effect("gives up on a silent stream and deletes its subscription", () =>
   Effect.gen(function* () {
     const { rest, posts, deletes } = fakeRest(subscription);
     let connections = 0;
-    // Answers, then never sends a byte, not even a keep-alive.
     const httpClient = HttpClient.make((request) =>
       Effect.sync(() => {
         connections += 1;

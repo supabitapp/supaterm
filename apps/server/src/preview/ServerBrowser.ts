@@ -1,6 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off globalDate:off globalTimers:off - Playwright callbacks run outside the Effect runtime.
-// Screencasts ignore emulated device scale; real 2x keeps captures sharp.
-// --disable-gpu uses cheaper software compositing while preserving SwiftShader WebGL.
 import {
   BrowserProfile,
   BrowserProfileId,
@@ -99,18 +97,14 @@ import { BrowserControlInterrupted, SessionControl } from "./SessionControl.ts";
 import { installPdfDocumentNavigation, isPdfAssetUrl } from "./PdfDocumentNavigation.ts";
 
 const SERVER_HOST_CLIENT_ID = SERVER_BROWSER_AUTOMATION_CLIENT_ID;
-// Each client's report is capped, but the saved catalog is their union, so it has no cap.
 const SavedProfilesJson = Schema.fromJsonString(
   Schema.Struct({ profiles: Schema.Array(BrowserProfile), defaultProfileId: BrowserProfileId }),
 );
 const decodeSavedProfiles = Schema.decodeUnknownEffect(SavedProfilesJson);
 const encodeSavedProfiles = Schema.encodeSync(SavedProfilesJson);
 const RENDER_SCALE = 2;
-// Chromium allows three unacked frames, so 100 ms pacing caps viewers near 30 fps.
 const SCREENCAST_UNACKED_LIMIT = 3;
 const SCREENCAST_ACK_PACE_MS = 100;
-// Chromium takes a frame's slot before encoding it, so a frame it captured before reading
-// an ack can arrive after that ack is answered, within its encode time.
 const SCREENCAST_ENCODE_ALLOWANCE_MS = 100;
 const SCREENCAST_SETTLE_MS = 200;
 const SCREENCAST_MOTION_FRAMES = 4;
@@ -118,7 +112,6 @@ const SCREENCAST_MOTION_WINDOW_MS = 300;
 const SCREENCAST_MOTION_QUALITY = 50;
 const HOST_RECONNECT_DELAY = "1 second";
 const DESKTOP_ATTACH_TIMEOUT = "10 seconds";
-// A viewer still is best-effort; a capture Chromium never answers must not hold the capture lock.
 const VIEWER_STILL_TIMEOUT_MS = 2_000;
 const VIEWER_OUTPUT_LIMIT = 64;
 const RECORDING_SCREENCAST = { format: "jpeg", quality: 90, everyNthFrame: 1 } as const;
@@ -127,11 +120,8 @@ const RECORDING_DOWNLOAD_TIMEOUT_MS = 5_000;
 const decodeViewportSetting = Schema.decodeUnknownSync(PreviewViewportSettingSchema);
 const AGENT_CURSOR_MOVE_MS = 160;
 const AGENT_CURSOR_CLICK_LEAD_MS = 40;
-/** A dialog blocks page script, so a desktop size read gives up after this. */
 const DESKTOP_VIEWPORT_READ_TIMEOUT = "1 second";
-/** A desktop page that keeps its size draws nothing on a resize, so the wait gives up. */
 const DESKTOP_RESIZE_WAIT_MS = 1000;
-// A revealed tab's client opens the panel and attaches its stream a few round trips later, remote ones included.
 const REVEAL_VIEWER_WAIT_MS = 1000;
 
 const sleepUntil = (deadline: number) =>
@@ -167,7 +157,6 @@ const EDITABLE_AT_POINT_SCRIPT = `(x, y) => {
 }`;
 const UNATTACHED_FILL_VIEWPORT = { width: 1280, height: 800 } as const;
 const NAVIGATION_TIMEOUT_MS = 15_000;
-// Status reads run in the renderer; a busy page must not hold a status past the broker's grace.
 const STATUS_READ_MS = 250;
 const VIEWER_NAVIGATION_OPTIONS = { waitUntil: "commit", timeout: NAVIGATION_TIMEOUT_MS } as const;
 const ACTION_TIMELINE_LIMIT = 50;
@@ -329,9 +318,7 @@ interface ServerTab {
   readonly page: Page;
   readonly cdp: CDPSession;
   readonly frameSessions: Map<Frame, CDPSession>;
-  /** Copy reads run in key order, outside the input queue. */
   copyReads: Promise<void>;
-  /** When the last copy or cut key was acknowledged; the next one starts after it. */
   copyKeyedUntil: number;
   readonly createdAt: number;
   usedAt: number;
@@ -362,22 +349,15 @@ interface ServerTab {
   setting: PreviewViewportSetting;
   colorScheme: PreviewAppearancePreference;
   zoomFactor: number;
-  /** Last usable CSS size measured on the desktop. */
   desktopViewport: { readonly width: number; readonly height: number } | null;
   desktopViewportRead: Promise<ServerTab["desktopViewport"]>;
-  /** A read queued behind `desktopViewportRead`, shared by every caller that waits for it. */
   desktopViewportNext: Promise<ServerTab["desktopViewport"]> | null;
-  /** A page resize or load since the last read started; status measures again. */
   desktopViewportStale: boolean;
-  /** Counts page resizes, loads and dialog closes, so a caller can tell one landed during a read. */
   desktopViewportChanges: number;
-  /** Settles at the desktop page's next main-frame resize. */
   desktopResize: PromiseWithResolvers<void>;
   loading: boolean;
   loadError: PreviewAutomationLoadError | undefined;
-  /** The renderer crash this page died of, or the one the page it replaced died of. */
   crash: PreviewAutomationLoadError | undefined;
-  /** What Reload loads after a crash; the reported URL is shortened and drops data payloads. */
   crashedUrl: string | undefined;
   closing: boolean;
   recording: Recording | null;
@@ -385,7 +365,6 @@ interface ServerTab {
   pendingInitialRequestUrl: string | null;
   navigationGeneration: number;
   stoppedGeneration: number | null;
-  /** The reported title a watch in the main document's isolated world waits to change from. */
   titleWatch: { readonly contextId: number; readonly title: string } | null;
   lastReport: PreviewReportStatusInput | null;
 
@@ -458,9 +437,6 @@ const modifiersOf = (message: Record<string, unknown>) => {
 
 type PointerMotion = ReadonlyArray<Record<string, unknown>>;
 
-// Chromium acknowledges pointer input only after a page frame, so motion waiting behind it
-// collapses to the latest move and the summed wheel, in the order the last of each arrived.
-// Splitting by point or direction would let touch pans and jittery trackpads queue again.
 const pointerMotionOf = (message: Record<string, unknown>): PointerMotion | null => {
   const motion =
     message.type === "wheel" ||
@@ -485,9 +461,6 @@ const mergePointerMotion = (waiting: PointerMotion, next: PointerMotion): Pointe
     return [...merged.filter((other) => other !== prior), latest];
   }, waiting);
 
-// Cmd shortcuts from Apple viewers are no editing shortcut for Linux or headless
-// Chromium, so they carry the command. Ctrl already works natively on Linux,
-// except copy and cut, which headless Chromium only runs as commands.
 const editingCommand = (key: string, modifiers: number) => {
   const modifier = modifiers & 0b0111;
   if (modifier !== 2 && modifier !== 4) return null;
@@ -511,7 +484,6 @@ const editingCommand = (key: string, modifiers: number) => {
 
 const TITLE_LIMIT = 512;
 const TITLE_WORLD = "supaterm-preview-title";
-// Observe root replacement without subscribing to body subtree mutations.
 const titleChange = (reported: string) => `new Promise((resolve) => {
   const changed = () => document.title.slice(0, ${TITLE_LIMIT}) !== ${JSON.stringify(reported)};
   if (changed()) return resolve();
@@ -546,10 +518,6 @@ const titleChange = (reported: string) => `new Promise((resolve) => {
 
 const CLIPBOARD_TEXT_LIMIT = 1024 * 1024;
 const CLIPBOARD_WORLD = "supaterm-preview-clipboard";
-// Headless Chromium shares one clipboard between every context, so the copy
-// a viewer's copy or cut key makes is read from this world instead of the
-// clipboard. Page scripts cannot see the world, and only a copy made while a
-// real key is handled counts.
 const CLIPBOARD_SCRIPT = `(() => {
   let keying = false;
   // One entry per copy or cut key, oldest first, so a later key cannot overwrite an unread copy.
@@ -606,7 +574,6 @@ const make = Effect.gen(function* () {
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   const runPromise = Effect.runPromiseWith(yield* Effect.context<never>());
   const launchServices = yield* Effect.context<ChildProcessSpawner.ChildProcessSpawner>();
-  // sudo resets the environment, so the command has to name this server's home.
   const setupCommand = yield* resolveRootCliCommand(PreviewBrowserHost.SETUP_SUBCOMMAND, [
     "--base-dir",
     config.baseDir,
@@ -630,7 +597,6 @@ const make = Effect.gen(function* () {
     profilesDir: NodePath.join(config.stateDir, "server-browser", "profiles"),
     idleBrowserMs: 5 * 60_000,
     executable: () => runPromise(previewBrowser.executable),
-    // An agent scope keeps Chrome out of the server's memory protection and OOM score.
     launcher: async (executable) => {
       const launch = await runPromise(
         agentScope.wrap({ command: executable, args: [], name: "preview-browser" }),
@@ -641,7 +607,6 @@ const make = Effect.gen(function* () {
       await NodeFSP.writeFile(launcher, agentScopeLauncherScript(launch), { mode: 0o700 });
       return { path: launcher, release: () => NodeFSP.rm(launcher, { force: true }) };
     },
-    // Playwright's launch error drops Chrome's own output; its sandbox note survives.
     diagnose: (executable, cause) =>
       Effect.runPromiseWith(launchServices)(
         PreviewBrowserHost.diagnoseLaunchFailure({
@@ -659,7 +624,6 @@ const make = Effect.gen(function* () {
     },
   });
 
-  // Playwright cannot reload a crashed page, so a fresh page takes over its tab.
   const reopenCrashedTab = async (tab: ServerTab) => {
     if (tab.desktop) return dropTab(tab, true);
     const key = tabKey(tab.threadId, tab.tabId);
@@ -671,7 +635,6 @@ const make = Effect.gen(function* () {
     };
     tab.crash = crash;
     const reopening = (async () => {
-      // The session must name the crash before a new page reads it, or it would load the URL again.
       await runPromise(
         manager
           .reportStatus({
@@ -685,7 +648,6 @@ const make = Effect.gen(function* () {
           .pipe(Effect.ignore),
       );
       dropTab(tab, false, true);
-      // A context that is still closing would take the new page down with it.
       if (tab.isolatedContext) await tab.page.context().close().catch(constVoid);
       const { sessions } = await runPromise(manager.list({ threadId: tab.threadId }));
       const snapshot = sessions.find(
@@ -699,7 +661,6 @@ const make = Effect.gen(function* () {
       pendingTabs.delete(key);
       closedPendingTabs.delete(key);
     });
-    // Reserved before the dead page leaves, so a lookup in between waits for its replacement.
     pendingTabs.set(key, { agentId: tab.control.agentId, promise: reopening });
     await reopening.catch(constVoid);
   };
@@ -757,7 +718,6 @@ const make = Effect.gen(function* () {
       .send("Page.getNavigationHistory")
       .catch(() => null)
       .then((history) => {
-        // A status the dead page still had in flight must not replace the crash.
         if (tab.crash) return;
         if (
           navStatus._tag === "Success" &&
@@ -782,9 +742,7 @@ const make = Effect.gen(function* () {
 
   const reportLoaded = async (tab: ServerTab) => {
     const url = tab.page.url();
-    // Chromium's error page loads after `requestfailed` and must not clear LoadFailed.
     if (url === "about:blank" || url.startsWith("chrome-error://")) return;
-    // A navigation that starts and fails during the title read leaves the URL unchanged.
     const generation = tab.navigationGeneration;
     const loadError = tab.loadError;
     const title = (await tab.page.title().catch(() => "")).slice(0, TITLE_LIMIT);
@@ -803,9 +761,7 @@ const make = Effect.gen(function* () {
     void watchTitle(tab, title);
   };
 
-  // A title change fires no page event, so one watch per document reports the next one.
   const watchTitle = async (tab: ServerTab, title: string) => {
-    // Chromium keeps one world per name and document, so a new document gets a new context.
     const world = await tab.cdp
       .send("Page.getFrameTree")
       .then(({ frameTree }) =>
@@ -831,7 +787,6 @@ const make = Effect.gen(function* () {
       );
     if (tab.titleWatch !== watch) return;
     tab.titleWatch = null;
-    // A dropped tab's page can still change its title while it unloads.
     if (changed && !tab.closing && !tab.loadError) await reportLoaded(tab);
   };
 
@@ -857,8 +812,6 @@ const make = Effect.gen(function* () {
     );
   };
 
-  // Desktop pages have no Playwright viewport; an isolated world keeps page script
-  // from overriding the CSS size. A failed read answers null and keeps the last usable size.
   const readDesktopViewport = async (tab: ServerTab) => {
     const readSize = async () => {
       const { frameTree } = await tab.cdp.send("Page.getFrameTree");
@@ -874,7 +827,6 @@ const make = Effect.gen(function* () {
       return asRecord(result.value);
     };
     const size = await runPromise(
-      // A navigation can destroy the isolated world mid-read.
       Effect.promise(() => readSize().catch(() => null)).pipe(
         Effect.timeoutOption(DESKTOP_VIEWPORT_READ_TIMEOUT),
         Effect.map(Option.getOrNull),
@@ -888,7 +840,6 @@ const make = Effect.gen(function* () {
     return null;
   };
 
-  // Reads run one at a time, and callers that arrive during a read share the next one.
   const measureDesktopViewport = (tab: ServerTab) =>
     (tab.desktopViewportNext ??= tab.desktopViewportRead.then(() => {
       tab.desktopViewportNext = null;
@@ -897,7 +848,6 @@ const make = Effect.gen(function* () {
     }));
 
   const layoutSize = async (tab: ServerTab) => {
-    // A dialog blocks page script; its close measures again.
     if (tab.desktop) {
       return tab.dialog
         ? tab.desktopViewport
@@ -911,8 +861,6 @@ const make = Effect.gen(function* () {
     };
   };
 
-  // Page resizes and loads mark the size stale; only then does status read the page. One
-  // during the read it waits for can leave that answer old, so it reads once more.
   const desktopStatusViewport = async (tab: ServerTab) => {
     const changes = tab.desktopViewportChanges;
     await (tab.desktopViewportStale || tab.dialog ? layoutSize(tab) : tab.desktopViewportRead);
@@ -974,8 +922,6 @@ const make = Effect.gen(function* () {
 
   const sessionOpen = (tab: ServerTab) => !closedSessions.has(tabKey(tab.threadId, tab.tabId));
 
-  // Closing the session makes the desktop destroy its webview, which drops an unload still in
-  // progress, and `runBeforeUnload` resolves before it runs. So wait for the page's `pagehide`.
   const unloadDesktopPage = async (page: Page) => {
     const unloaded = Promise.withResolvers<void>();
     const timeout = setTimeout(unloaded.resolve, PAGE_CLOSE_GRACE_MS);
@@ -1031,7 +977,6 @@ const make = Effect.gen(function* () {
     tab.closing = true;
     tab.viewerAttached?.resolve();
     clearAbortedNavigation(tab);
-    // A desktop page outlives the connection unless its session closed with it.
     const end =
       (tab.desktop || reopening) && !closeSession && sessionOpen(tab) ? "reconnect" : "gone";
     for (const viewer of tab.viewers) viewer.push({ _tag: end });
@@ -1039,16 +984,12 @@ const make = Effect.gen(function* () {
     if (tab.desktop) void tab.desktop.close().catch(constVoid);
     else {
       const page = tab.page;
-      // `runBeforeUnload` returns before the page closes, so closing an isolated context
-      // must wait for it. A pending dialog would block `beforeunload` from running at all.
       const closed = page.isClosed()
         ? Promise.resolve()
         : new Promise<void>((resolve) => page.once("close", () => resolve()));
-      // A renderer that never finishes unloading would outlive its tab, so force it closed.
       const forceClose = setTimeout(() => void page.close().catch(constVoid), PAGE_CLOSE_GRACE_MS);
       void closed.then(() => clearTimeout(forceClose));
       void page
-        // A crashed page never answers `beforeunload`, so that close would not finish.
         .close({ runBeforeUnload: tab.dialog === null && tab.crash === undefined })
         .catch(() => page.close())
         .catch(constVoid);
@@ -1067,8 +1008,6 @@ const make = Effect.gen(function* () {
       ? runPromise(
           Effect.gen(function* () {
             const key = { threadId: snapshot.threadId, tabId: snapshot.tabId };
-            // A reloaded desktop mounts a thread's tabs again only once an event for it arrives,
-            // and a renderer still reloading misses events, so repeat it until the wait ends.
             if (!(yield* desktopChannel.isAttached(key))) {
               yield* manager
                 .announce({ threadId: ThreadId.make(key.threadId), tabId: key.tabId })
@@ -1109,7 +1048,6 @@ const make = Effect.gen(function* () {
     try {
       return await setUpTab(snapshot, opened, crashedUrl);
     } catch (cause) {
-      // An unpublished tab is in no list, so nothing else would ever close it.
       for (const close of opened.reverse()) await close().catch(constVoid);
       throw cause;
     }
@@ -1127,7 +1065,6 @@ const make = Effect.gen(function* () {
         ? await connectDesktop(snapshot)
         : null;
     if (desktop) opened.push(desktop.close);
-    // Attaching over CDP emulates a light scheme; a tab on System follows the desktop's.
     if (desktop) await desktop.page.emulateMedia({ colorScheme: null });
     const opener =
       adopted?.openerTabId === undefined
@@ -1205,7 +1142,6 @@ const make = Effect.gen(function* () {
       desktopResize: Promise.withResolvers<void>(),
       loading: false,
       loadError: undefined,
-      // The page a crash left behind is blank; the session still names what crashed.
       crash:
         !desktop && !adopted && snapshot.navStatus._tag === "LoadFailed"
           ? {
@@ -1233,7 +1169,6 @@ const make = Effect.gen(function* () {
     }
     await applyRendering(tab, snapshot);
     if (desktop) {
-      // The desktop resizes and zooms its webview itself; viewers map input with the new size.
       const remeasure = () => {
         tab.desktopViewportStale = true;
         tab.desktopViewportChanges += 1;
@@ -1245,9 +1180,7 @@ const make = Effect.gen(function* () {
         drawn.resolve();
         return remeasure();
       });
-      // A read a navigation broke has a fresh page to measure.
       cdp.on("Page.loadEventFired", remeasure);
-      // Closing a dialog resizes nothing, and the host can close it without us.
       cdp.on("Page.javascriptDialogClosed", () => {
         tab.dialog = null;
         return remeasure();
@@ -1259,7 +1192,6 @@ const make = Effect.gen(function* () {
     const navigationGenerations = new WeakMap<object, number>();
     page.on("request", (request) => {
       if (!isMainNavigation(request)) return;
-      // Playwright can deliver the first request after Stop has already settled its navigation.
       const stoppedInitialRequest =
         request.url() === tab.pendingInitialRequestUrl &&
         tab.stoppedGeneration === tab.navigationGeneration;
@@ -1293,11 +1225,9 @@ const make = Effect.gen(function* () {
           if (!current && tab.fileChooser?.chooser === open.chooser) closeFileChooser(tab);
         });
       }
-      // Same-document navigations (SPA routes) fire no load event.
       if (frame === page.mainFrame() && !tab.loading) void reportLoaded(tab);
       if (!desktop) void recordFrameCopies(tab, frame);
     });
-    // An adopted popup's frames may have loaded before the tab listened.
     if (adopted) for (const frame of page.frames()) void recordFrameCopies(tab, frame);
     page.on("requestfailed", (request) => {
       const errorText = request.failure()?.errorText ?? "";
@@ -1356,7 +1286,6 @@ const make = Effect.gen(function* () {
       });
     });
     page.on("dialog", (dialog) => {
-      // Closing is already decided, so an unsaved-changes guard must not keep the page open.
       if (tab.closing && dialog.type() === "beforeunload") {
         void dialog.accept().catch(constVoid);
         return;
@@ -1366,7 +1295,6 @@ const make = Effect.gen(function* () {
     });
     page.on("download", (download) => void saveDownload(tab, download));
     updateFileChooserInterception(tab);
-    // Popups become tabs and keep `window.opener`, so sign-in popups can report back.
     page.on("popup", (popup) => void adoptPopup(tab, popup));
     const key = tabKey(tab.threadId, tab.tabId);
     if (closedPendingTabs.delete(key)) {
@@ -1394,7 +1322,6 @@ const make = Effect.gen(function* () {
     }
     reportLiveTabs();
 
-    // A desktop page navigates on its own and can finish loading before these listeners attach.
     if (desktop) void page.waitForLoadState("load").then(() => reportLoaded(tab), constVoid);
     if (
       snapshot.navStatus._tag === "Loading" &&
@@ -1420,13 +1347,11 @@ const make = Effect.gen(function* () {
   };
 
   const downloadsRoot = NodePath.join(config.stateDir, "server-browser", "downloads");
-  // Saved downloads are indexed in memory, so an earlier run's files can never be opened again.
   yield* Effect.tryPromise(() => NodeFSP.rm(downloadsRoot, { recursive: true, force: true })).pipe(
     Effect.catch((cause) =>
       Effect.logWarning("server preview could not clear earlier downloads", { cause }),
     ),
   );
-  // Tab ids are opaque server strings; hashing keeps them out of the path.
   const downloadDir = (tab: ServerTab) =>
     NodePath.join(
       downloadsRoot,
@@ -1478,10 +1403,8 @@ const make = Effect.gen(function* () {
     try {
       if (await download.failure()) return;
       await NodeFSP.mkdir(downloadDir(tab), { recursive: true, mode: 0o700 });
-      // mkdir leaves the mode of a folder that already exists, such as one an older build made.
       await NodeFSP.chmod(downloadDir(tab), 0o700);
       await download.saveAs(path);
-      // saveAs copies with the process umask; a download should stay readable by its owner only.
       await NodeFSP.chmod(path, 0o600);
       const { size } = await NodeFSP.stat(path);
       if (tab.closing || size > DOWNLOAD_MAX_BYTES) {
@@ -1519,7 +1442,6 @@ const make = Effect.gen(function* () {
       if (navigation !== null && !tab.closing) {
         settleAbortedNavigation(tab, navigation, download.url(), offered);
       }
-      // saveAs copies the artifact; cached profile contexts otherwise retain the original.
       await download.delete().catch(constVoid);
     }
   };
@@ -1534,8 +1456,6 @@ const make = Effect.gen(function* () {
         }
       : null;
 
-  // Not isConnected: upload helpers often click an input never added to the page. The handle's
-  // context is destroyed with its document, so a replaced document rejects.
   const isFileChooserCurrent = (chooser: FileChooser) =>
     chooser
       .element()
@@ -1568,7 +1488,6 @@ const make = Effect.gen(function* () {
     const controller = [...tab.viewers].find((viewer) => viewer.id === tab.control.controller);
     if (!open || !controller) return;
     if (open.offeredTo !== controller.id) {
-      // A new controller gets a fresh id; the previous one can no longer answer.
       tab.fileChooser = { ...open, id: NodeCrypto.randomUUID(), offeredTo: controller.id };
       if (open.offeredTo !== null)
         for (const viewer of tab.viewers) viewer.push({ _tag: "fileChooserClosed", id: open.id });
@@ -1612,8 +1531,6 @@ const make = Effect.gen(function* () {
         "PreviewAutomationExecutionError",
         `Upload paths must be absolute: ${relative}`,
       );
-    // Reading a network path makes Windows sign in to its host with the user's
-    // NTLM credentials.
     const network = input.paths.find(isNetworkPath);
     if (network !== undefined)
       throw new ServerBrowserPage.ServerBrowserOperationError(
@@ -1661,7 +1578,6 @@ const make = Effect.gen(function* () {
   };
 
   const recordCopies = async (cdp: CDPSession) => {
-    // Scripts for new documents run only while this session's Page domain is on.
     await cdp.send("Page.enable");
     await cdp.send("Page.addScriptToEvaluateOnNewDocument", {
       source: CLIPBOARD_SCRIPT,
@@ -1670,11 +1586,6 @@ const make = Effect.gen(function* () {
     });
   };
 
-  /**
-   * A frame in its own process, such as one with an `Origin-Agent-Cluster`
-   * header, is out of the page session's reach, so it records copies through
-   * its own session until that target closes.
-   */
   const recordFrameCopies = async (tab: ServerTab, frame: Frame) => {
     if (frame === tab.page.mainFrame() || tab.frameSessions.has(frame)) return;
 
@@ -1822,7 +1733,6 @@ const make = Effect.gen(function* () {
       );
   };
 
-  // The desktop draws its tabs in its own webview, so they never get a streamed viewer.
   const isVisible = (tab: ServerTab) =>
     tab.viewers.size > 0 || (tab.desktop !== null && desktopChannel.isShown(tab));
 
@@ -1838,9 +1748,6 @@ const make = Effect.gen(function* () {
     );
   };
 
-  // The desktop app renders every server tab, so idle desktop agent tabs would otherwise
-  // hold the server's budget forever. Hidden ones give up their slots, longest idle first,
-  // only when an agent needs one and has room for it.
   const freeIdleAgentSlot = async (agentSessionId: string) => {
     if (!serverAtTabLimit() || agentAtTabLimit(agentSessionId)) return;
     const longestIdle = idleAgentTabs().sort((left, right) => left.usedAt - right.usedAt)[0];
@@ -1857,7 +1764,6 @@ const make = Effect.gen(function* () {
     }
   };
 
-  // A Playwright launch must settle before its capacity can be released.
   const openTab = Effect.fn("ServerBrowser.openTab")(function* (
     input: Parameters<typeof manager.open>[0],
     options: { readonly reclaimIdleSlot?: boolean } = {},
@@ -1947,8 +1853,6 @@ const make = Effect.gen(function* () {
     };
   };
 
-  // Clients report profiles only when they connect, so the catalog at the last report is
-  // kept on disk for agents and scheduled tasks that open a profile after a restart.
   const savedProfilesPath = NodePath.join(
     config.stateDir,
     "server-browser",
@@ -1984,16 +1888,9 @@ const make = Effect.gen(function* () {
     ),
     Effect.orElseSucceed(() => null),
   );
-  // Only reports change what is saved, so the order clients disconnect in at shutdown,
-  // even while a save waits for the lock, cannot shrink the saved catalog.
   let catalogToSave = reportedProfiles;
-  // Agent recordings encode here, so they need the client's Browser recording frame rate. The
-  // last report outlives the client, which lets agents record while no client is connected.
   let recordingFrameRate = DEFAULT_BROWSER_RECORDING_FRAME_RATE;
 
-  // Each client reports only the profiles in its own settings, so the catalog is
-  // their union while they stay connected. The last catalog stays usable after
-  // every client disconnects, as a single report did before.
   const rebuildReportedProfiles = () => {
     const byId = new Map<string, BrowserProfile>();
     let latest: PreviewReportProfilesInput | undefined;
@@ -2046,12 +1943,7 @@ const make = Effect.gen(function* () {
             reportsByClient.set(client, input);
             rebuildReportedProfiles();
             catalogToSave = reportedProfiles;
-          }).pipe(
-            Effect.andThen(saveReportedProfiles),
-            // A disconnect, even while an earlier save holds the lock, must not drop this
-            // report's save or leave the saved-content cache stale.
-            Effect.uninterruptible,
-          ),
+          }).pipe(Effect.andThen(saveReportedProfiles), Effect.uninterruptible),
     ),
   );
 
@@ -2086,7 +1978,6 @@ const make = Effect.gen(function* () {
   const loadErrorOf = (tab: ServerTab): PreviewAutomationLoadError | undefined => {
     if (tab.crash) return tab.crash;
     if (!tab.page.url().startsWith("chrome-error://")) return undefined;
-    // A desktop failure from before CDP attached is superseded by any navigation we observe.
     if (tab.loadError || !tab.desktop || tab.navigationGeneration > 0) return tab.loadError;
     const reported = desktopChannel.loadFailure({ threadId: tab.threadId, tabId: tab.tabId });
     return reported && { ...reported, url: ServerBrowserPage.withoutDataPayload(reported.url) };
@@ -2140,7 +2031,6 @@ const make = Effect.gen(function* () {
     const loadError = loadErrorOf(tab);
     const statusUrl = loadError?.url ?? (url === "about:blank" ? null : url);
     const [viewport, title] = await Promise.all([
-      // A late measurement still lands in desktopViewport for the next status.
       tab.desktop
         ? withinStatusDeadline(desktopStatusViewport(tab), () => tab.desktopViewport)
         : tab.page.viewportSize(),
@@ -2211,7 +2101,6 @@ const make = Effect.gen(function* () {
     return `${target.protocol ?? "http"}://localhost:${target.port}${path.startsWith("/") || path === "" ? path : `/${path}`}`;
   };
 
-  /** A pending dialog also leaves the probe unanswered, but its script is waiting, not stuck. */
   const leaveBusyPage = (tab: ServerTab, cdp: CDPSession, budgetMs?: number) =>
     tab.dialog ? Promise.resolve() : ServerBrowserPage.stopUnresponsiveScript(cdp, budgetMs);
 
@@ -2230,7 +2119,6 @@ const make = Effect.gen(function* () {
       tab.control.track(navigation);
       return;
     }
-    // Once the target commits, a stalled subresource only delays readiness; report the loading tab.
     const ready = () =>
       tab.page
         .waitForLoadState(readiness === "domContentLoaded" ? "domcontentloaded" : "load", {
@@ -2274,7 +2162,6 @@ const make = Effect.gen(function* () {
       let session: CDPSession | null = null;
       try {
         await encoder.evaluate(ServerBrowserPage.recordingEncoderScript(recordingFrameRate));
-        // Seed idle pages before returning so an immediate stop has a frame to encode.
         const firstFrame = await ServerBrowserPage.captureViewport(tab.cdp, {
           format: "jpeg",
           quality: RECORDING_SCREENCAST.quality,
@@ -2287,8 +2174,6 @@ const make = Effect.gen(function* () {
         const opened = await tab.page.context().newCDPSession(tab.page);
         session = opened;
         const framesInFlight = new Set<Promise<void>>();
-        // Chrome withholds frames while acks are outstanding, so ack on arrival and let a
-        // slow encoder skip to the newest frame instead of throttling the capture.
         let pendingFrame: readonly [string, number] | null = null;
         const deliverPending = async () => {
           while (pendingFrame) {
@@ -2377,7 +2262,6 @@ const make = Effect.gen(function* () {
         await recording.session.send("Page.stopScreencast").catch(constVoid);
         await Promise.all(recording.framesInFlight);
         await recording.session.detach().catch(constVoid);
-        // A screencast can miss the last paint when the page goes idle.
         if (!tab.closing && !tab.dialog) {
           const finalFrame = await ServerBrowserPage.captureFinalRecordingFrame(
             tab.cdp,
@@ -2399,7 +2283,6 @@ const make = Effect.gen(function* () {
         const { mimeType, count, bytes } = await recording.encoder.evaluate(() =>
           (globalThis as unknown as EncoderWindow).__supatermRecorder.stop(),
         );
-        // Checked before the transfer so an oversized video never lands in this process.
         if (bytes > PROVIDER_SEND_TURN_MAX_FILE_BYTES) {
           throw new ServerBrowserPage.ServerBrowserOperationError(
             "PreviewAutomationRecordingTooLargeError",
@@ -2661,7 +2544,6 @@ const make = Effect.gen(function* () {
             if (existing) {
               if (url) await navigate(tab, url, "load", navigationTimeout);
             } else {
-              // A failed open returns no tabId; a leftover hidden tab would block later reuse.
               await Promise.resolve(tab.initialNavigation)
                 .then(async () => {
                   if (url) {
@@ -2672,7 +2554,6 @@ const make = Effect.gen(function* () {
                   assertNavigationSucceeded(tab);
                 })
                 .catch(async (cause: unknown) => {
-                  // Playwright rejects downloads too; their tab must survive to save the file.
                   if (cause instanceof Error && cause.message.includes("Download is starting")) {
                     throw cause;
                   }
@@ -2691,7 +2572,6 @@ const make = Effect.gen(function* () {
                   force: reveal === true,
                 }),
               );
-              // Only an explicit show is sure to reach a client; desktop tabs are visible without a viewer.
               if (reveal === true && tab.viewers.size === 0 && tab.desktop === null)
                 shown = awaitViewer(
                   tab,
@@ -2734,13 +2614,10 @@ const make = Effect.gen(function* () {
             "No recording is active for this thread.",
           );
         }
-        // A stop cannot act twice (a retry finds no recording);
-        // dropping a late one would leave capture running.
         return tab.control.agent(request.agentSessionId ?? "", () => stopRecording(tab));
       }
     }
     const tab = await requireTab(request);
-    // Closing must unblock an action waiting on a dialog, without queueing behind it.
     if (request.operation === "close") {
       if (tab.control.agentId === null)
         throw new BrowserControlInterrupted(
@@ -2753,8 +2630,6 @@ const make = Effect.gen(function* () {
       dropTab(tab, false);
       return {};
     }
-    // A click can be waiting for its dialog. Resolve it outside the serial queue,
-    // with the same owner check, so the operation can finish and control can drain.
     if (request.operation === "dialog") {
       if (tab.control.controller !== null)
         throw new BrowserControlInterrupted("A human controls this tab.", "humanControl");
@@ -2844,13 +2719,9 @@ const make = Effect.gen(function* () {
               Effect.map(Option.getOrNull),
             ),
           );
-        // The desktop draws the new size after the session update; its page resize says it has.
-        // Half the time left keeps room for the read, which runs even if nothing was drawn,
-        // because a page can keep another size than the one asked for.
         if (changed) await within(drawn, Math.min(DESKTOP_RESIZE_WAIT_MS, remainingMs() / 2));
         const changes = tab.desktopViewportChanges;
         const measured = await within(measureDesktopViewport(tab), remainingMs());
-        // Only a read after the draw, with no page resize or load during it, measures this resize.
         return {
           tabId: tab.tabId,
           setting,
@@ -2881,7 +2752,6 @@ const make = Effect.gen(function* () {
         return loadError ? { ...snapshot, url: loadError.url, loadError } : snapshot;
       }
       case "click": {
-        // Time spent queued behind other work on this tab counts against the broker's deadline.
         const clickInput = {
           ...(input as PreviewAutomationClickInput),
           timeoutMs: Math.max(1, Math.floor(deadlineMs - performance.now())),
@@ -2972,7 +2842,6 @@ const make = Effect.gen(function* () {
           await ensureTab(event.snapshot).catch(constVoid);
         return;
       }
-      // A backing change only selects the client renderer; the page did not navigate or resize.
       if (event.type === "backingChanged") return;
       const key = tabKey(event.threadId, event.tabId);
       const tab = tabs.get(key);
@@ -2985,7 +2854,6 @@ const make = Effect.gen(function* () {
         return;
       }
       if (event.type === "resized") {
-        // Desktop tabs only record the setting, so status need not wait behind an agent action.
         if (tab.desktop) tab.setting = event.snapshot.viewport ?? FILL_PREVIEW_VIEWPORT;
         await tab.control
           .system(async () => {
@@ -3087,7 +2955,6 @@ const make = Effect.gen(function* () {
         const copying =
           !tab.desktop && (command?.commands[0] === "copy" || command?.commands[0] === "cut");
 
-        // Copy keys get disjoint millisecond windows so each frame's copy belongs to one key.
         if (copying)
           while (Date.now() <= tab.copyKeyedUntil) await sleepUntil(tab.copyKeyedUntil + 1);
         const since = Date.now();
@@ -3107,7 +2974,6 @@ const make = Effect.gen(function* () {
         if (!copying) return;
         const until = Date.now();
         tab.copyKeyedUntil = until;
-        // A busy frame answers late; its read must not hold later input.
         const read = tab.copyReads.then(async () => {
           const copied = await takeCopiedText(tab, since, until);
           if (copied) viewer.push({ _tag: "clipboard", text: copied });
@@ -3163,7 +3029,6 @@ const make = Effect.gen(function* () {
         const generation = tab.navigationGeneration;
         tab.stoppedGeneration = generation;
         await session.send("Page.stopLoading");
-        // Stopping a committed document need not emit Playwright's load or requestfailed events.
         settleStoppedNavigation(tab, generation);
         return;
       }
@@ -3218,8 +3083,6 @@ const make = Effect.gen(function* () {
         ),
     );
     const quality = Math.min(100, Math.max(1, Math.round(input.quality)));
-    // Chromium skips captures while its unacked frames are all out, and motion frames are
-    // scaled down, so either needs a still of the page once it settles.
     let framesInFlight = 0;
     let newestCapture = -Infinity;
     let stillNeeded = false;
@@ -3250,23 +3113,19 @@ const make = Effect.gen(function* () {
       pressedKeys: new Map(),
       pressedButtons: new Map(),
       push: (next) => {
-        // Dropped frames must still release Chromium.
         if (Queue.offerUnsafe(output, next)) return;
         if (next._tag === "frame") {
           stillNeeded = true;
           runFork(next.ack);
-        }
-        // State a stalled viewer cannot miss compacts its backlog. It runs
-        // synchronously so an older compaction can never land after a newer one.
-        else if (["gone", "reconnect", "control", "viewport", "fileChooser"].includes(next._tag)) {
+        } else if (
+          ["gone", "reconnect", "control", "viewport", "fileChooser"].includes(next._tag)
+        ) {
           const dropped = Effect.runSyncExit(Queue.clear(output));
           if (dropped._tag === "Failure") return;
           const items = [...dropped.value, next];
-          // Without its latest size and control the viewer cannot map input at all.
           const state = (["control", "viewport"] as const).flatMap(
             (tag) => items.findLast((item) => item._tag === tag) ?? [],
           );
-          // Everything else is one-time; if it no longer fits, the oldest goes first.
           const rest = items.filter(
             (item) => item._tag !== "frame" && item._tag !== "control" && item._tag !== "viewport",
           );
@@ -3337,12 +3196,9 @@ const make = Effect.gen(function* () {
       screencastStarted = true;
       framesInFlight += 1;
       if (framesInFlight >= SCREENCAST_UNACKED_LIMIT) stillNeeded = true;
-      // Chromium encodes frames in parallel, so an older capture can arrive after a newer one.
       const capturedAt = frame.metadata.timestamp ?? -Infinity;
       if (capturedAt < newestCapture) stillNeeded = true;
       else newestCapture = capturedAt;
-      // Capturing a still repaints the page, and Chromium sends that repaint too. It shows what
-      // the still shows, so its slot is not held for the viewer, or stills would beget stills.
       const stillTwin = stillRequestedAt !== null && capturedAt * 1000 >= stillRequestedAt;
       if (stillTwin) stillRequestedAt = null;
       const arrivedAt = Date.now();
@@ -3371,7 +3227,6 @@ const make = Effect.gen(function* () {
           recentFrames.length = 0;
           void startScreencast(1);
         }
-        // Capturing repaints the page, which a scaled screencast would send after the still.
         void screencastParams.then(pushStill);
       }, SCREENCAST_SETTLE_MS);
       const ack = Effect.promise(() =>
@@ -3395,8 +3250,6 @@ const make = Effect.gen(function* () {
     });
     void broadcastViewport(tab).catch(constVoid);
     yield* Effect.promise(() => startScreencast(1));
-    // An idle page does not repaint for a new screencast, so the viewer
-    // starts from a still unless a live frame beat it.
     if (!screencastStarted) yield* Effect.forkScoped(Effect.promise(pushStill));
     return {
       output,
@@ -3476,7 +3329,6 @@ const make = Effect.gen(function* () {
     Effect.forkScoped,
   );
 
-  // The desktop keeps the tabs an agent uses focused until its turn ends, not just per command.
   yield* Stream.fromSubscription(agentTurns).pipe(
     Stream.runForEach((change) => desktopChannel.turn(change.threadId, change.active)),
     Effect.forkScoped,
@@ -3525,7 +3377,6 @@ const make = Effect.gen(function* () {
         ),
       ),
     );
-  // The broker disconnects timed-out hosts, including slow first installs. Reconnect.
   yield* hostSession.pipe(
     Effect.exit,
     Effect.andThen(Effect.sleep(HOST_RECONNECT_DELAY)),

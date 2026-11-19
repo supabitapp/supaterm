@@ -247,7 +247,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("checkGrokProvide
     },
   ] as const)("gives `grok --version` 10 s when it $label", (row) =>
     Effect.gen(function* () {
-      // A fake CLI runs on wall time, so a stub answers `--version` on the test clock.
       const spawned: Array<string> = [];
       const spawner = ChildProcessSpawner.make((command) => {
         const args = ChildProcess.isStandardCommand(command) ? command.args : [];
@@ -292,9 +291,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("checkGrokProvide
     }),
   );
 
-  // A stand-in for the Grok CLI: `--version` and `models` print canned text,
-  // and `agent stdio` execs the mock ACP agent so `initialize` returns model metadata.
-  // A list of `models` outputs is served in call order, repeating the last one.
   const writeFakeGrokCli = (input: {
     readonly modelsOutput: string | ReadonlyArray<string>;
     readonly acp: boolean;
@@ -374,8 +370,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("checkGrokProvide
     }),
   );
 
-  // An expired access token prints the logged-out banner, then the CLI refreshes it in the
-  // same run, so the next `grok models` reports the login.
   it.effect("reports authenticated when `grok models` logs in after refreshing a token", () =>
     Effect.gen(function* () {
       const snapshot = yield* Effect.scoped(

@@ -79,7 +79,6 @@ const chromiumSource = (input: {
 });
 
 export const BROWSER_IMPORT_SOURCES: ReadonlyArray<BrowserImportSourceDefinition> = [
-  // Chrome 127+ App-Bound Encryption prevents other processes from reading Windows Chromium cookies.
   chromiumSource({
     id: "chrome",
     name: "Chrome",
@@ -114,7 +113,6 @@ export const BROWSER_IMPORT_SOURCES: ReadonlyArray<BrowserImportSourceDefinition
     keychainAccount: "Vivaldi",
     macSegments: ["Vivaldi"],
     linuxSegments: ["vivaldi"],
-    // Vivaldi stores its Linux libsecret key under Chrome's application name.
     linuxSecretApplication: "chrome",
   }),
   chromiumSource({
@@ -141,7 +139,6 @@ export const BROWSER_IMPORT_SOURCES: ReadonlyArray<BrowserImportSourceDefinition
     macSegments: ["net.imput.helium"],
     linuxSegments: ["net.imput.helium"],
     windowsSegments: ["imput", "Helium", "User Data"],
-    // Helium retains Chromium's libsecret application name on Linux.
     linuxSecretApplication: "chromium",
   }),
   {
@@ -215,7 +212,6 @@ const cookieDatabaseCandidatePaths = (
   if (definition.engine === "safari") {
     return [context.path.join(profilePath, "Cookies.binarycookies")];
   }
-  // Prefer Chromium 96+'s Network/Cookies; upgrades leave the pre-96 Cookies file behind.
   return [
     context.path.join(profilePath, "Network", "Cookies"),
     context.path.join(profilePath, "Cookies"),
@@ -262,7 +258,6 @@ export function parseFirefoxProfiles(
           if (!escapesRoot) directory = path.normalize(candidate);
         }
       } else if (path.isAbsolute(candidate)) {
-        // IsRelative=0 permits custom roots outside Firefox's standard directory.
         directory = path.normalize(candidate);
       }
 
@@ -335,7 +330,6 @@ const isSafeProfileDirectory = (directory: string): boolean =>
 const CookieCountRow = Schema.Struct({ count: Schema.Number });
 const decodeCookieCount = Schema.decodeUnknownEffect(Schema.Array(CookieCountRow));
 
-// Count only default-container cookies because Electron cannot represent Firefox containers.
 const countProfileCookies = Effect.fnUntraced(function* (
   definition: BrowserImportSourceDefinition,
   context: BrowserImportPathContext,
@@ -345,7 +339,6 @@ const countProfileCookies = Effect.fnUntraced(function* (
   if (database === undefined) return undefined;
   return yield* Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
-    // readChromiumCookieDatabase imports a razed jar as empty; Firefox has no such reader guard.
     if (definition.engine !== "firefox") {
       const tables =
         yield* sql`select 1 from sqlite_master where type = 'table' and name = 'cookies'`;
@@ -420,7 +413,6 @@ const listSafariProfiles = Effect.fnUntraced(function* (
       name: profile.title?.trim() || profile.external_uuid,
     });
   }
-  // With readable metadata, avoid resurrecting deleted profiles left on disk.
   if (declared.length === 0) {
     const entries = yield* fileSystem.readDirectory(stores).pipe(Effect.orElseSucceed(() => []));
     for (const entry of entries.filter(isSafariProfileUuid).sort()) {
@@ -450,7 +442,6 @@ const listSourceProfilesInDirectory = Effect.fnUntraced(function* (
       Effect.map((ini) => parseFirefoxProfiles(ini, context.path, root)),
       Effect.orElseSucceed(() => [] as ReadonlyArray<BrowserImportSourceProfile>),
     );
-    // Declared profiles may be stale or never launched; scan for unlisted stores if none has a cookie database.
     if (declared.length > 0) {
       const found = yield* Effect.forEach(declared, (profile) =>
         Effect.forEach(
@@ -485,7 +476,6 @@ const listSourceProfilesInDirectory = Effect.fnUntraced(function* (
   const declared = yield* fileSystem.readFileString(context.path.join(root, "Local State")).pipe(
     Effect.flatMap(decodeLocalState),
     Effect.map((state) => Object.entries(state.profile?.info_cache ?? {})),
-    // Browser metadata is user-writable; reject traversal segments before resolving cookie database paths.
     Effect.map((entries) => entries.filter(([directory]) => isSafeProfileDirectory(directory))),
     Effect.map((entries) =>
       entries.map(([directory, info]) => ({ directory, name: info.name?.trim() || directory })),
@@ -558,7 +548,6 @@ export const chromiumProcessIsAlive = (
       signalProcess(pid, 0);
       return true;
     } catch (cause) {
-      // Only ESRCH proves a stale lock; permission and unknown failures may still hide an active browser.
       return !(
         typeof cause === "object" &&
         cause !== null &&
@@ -582,18 +571,14 @@ export const chromiumSingletonLockIsHeld = Effect.fnUntraced(function* (
   if (!/^\d+$/.test(pidText)) return true;
   const pid = Number(pidText);
   if (!Number.isSafeInteger(pid) || pid <= 0) return true;
-  // Foreign-host PIDs may come from a shared home; never declare them stale here.
   if (host !== currentHost) return true;
   return yield* isProcessAlive(pid);
 });
 
-/** Windows sharing and lock violations are translated by libuv to `Busy`. */
 const isWindowsLockHeldError = (error: PlatformError.PlatformError): boolean =>
   error.reason._tag === "Busy";
 
-/** Windows leaves parent.lock after exit; only opening it for write reveals a live holder as Busy. */
 const windowsLockIsHeld = Effect.fnUntraced(function* (lockPath: string) {
-  // Permission failures do not prove a running browser owns the lock.
   const fileSystem = yield* FileSystem.FileSystem;
   return yield* fileSystem.open(lockPath, { flag: "r+" }).pipe(
     Effect.as(false),
@@ -629,10 +614,8 @@ export const firefoxSymlinkLockIsHeld = Effect.fnUntraced(function* (
 ) {
   const separator = target.lastIndexOf(":");
   if (separator < 0) return true;
-  // Firefox resolves the hostname to loopback or LAN addresses; only local owners' PIDs are meaningful.
   const owner = target.slice(0, separator);
   if (!localAddresses.has(owner)) return true;
-  // A `+` marks an fcntl-holding owner; the pid follows either way.
   const pidText = target.slice(separator + 1).replace(/^\+/, "");
   if (!/^\d+$/.test(pidText)) return true;
   const pid = Number(pidText);
@@ -640,10 +623,8 @@ export const firefoxSymlinkLockIsHeld = Effect.fnUntraced(function* (
   return yield* isProcessAlive(pid);
 });
 
-/** Dock launches have a bare PATH; try the absolute interpreter before relying on shell discovery. */
 const FCNTL_PROBE_INTERPRETERS = ["/usr/bin/python3", "python3"] as const;
 
-/** Apple's python3 shim can fail with an install prompt before the probe script runs. */
 const FCNTL_PROBE_SCRIPT =
   "import fcntl,os,sys\n" +
   "fd=os.open(sys.argv[1],os.O_WRONLY)\n" +
@@ -654,11 +635,6 @@ const FCNTL_PROBE_SCRIPT =
   "else:\n" +
   "  print('free')";
 
-/**
- * A missing or refusing interpreter (Apple's shim without developer tools) means
- * the probe is unavailable, so report "not held": "held" would block Firefox import
- * forever, and the SQLite snapshot already copes with a live WAL.
- */
 const posixLockIsHeld = Effect.fnUntraced(function* (
   path: string,
   interpreters: ReadonlyArray<string> = FCNTL_PROBE_INTERPRETERS,
@@ -687,7 +663,6 @@ const posixLockIsHeld = Effect.fnUntraced(function* (
   return false;
 });
 
-/** Firefox leaves regular lock files after exit; test the lock, not file existence. */
 const firefoxProfileIsHeld = Effect.fnUntraced(function* (
   directory: string,
   context: BrowserImportPathContext,
@@ -722,7 +697,6 @@ export const isSourceRunning = Effect.fn("BrowserImportSources.isSourceRunning")
   const fileSystem = yield* FileSystem.FileSystem;
   const root = definition.userDataDirectory(context);
   if (root === undefined) return false;
-  // Safari writes its jar atomically and needs no lock, even while running.
   if (definition.engine === "safari") return false;
   if (definition.engine !== "firefox") {
     if (context.platform === "win32") {

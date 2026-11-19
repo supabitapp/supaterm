@@ -222,7 +222,6 @@ export const requestInSession = Effect.fn("EnvironmentRpc.request")(function* <
   return yield* method(input).pipe(Effect.ensuring(completeObservation));
 });
 
-// The session-bound request owns the existing EnvironmentRpc.request span.
 export const requestGuarded = Effect.fnUntraced(function* <TTag extends EnvironmentUnaryRpcTag>(
   tag: TTag,
   input: EnvironmentRpcInput<TTag>,
@@ -319,7 +318,6 @@ function subscribeDynamicMapped<TTag extends EnvironmentSubscriptionRpcTag, A>(
                 EnvironmentRpcStreamFailure<TTag>
               >;
               let expectedFailureRetries = 0;
-              // Not reset by a first value: a stream can emit before every chunk failure.
               let streamFailureRetries = 0;
               const subscribeToSession = (): Stream.Stream<A, EnvironmentRpcStreamFailure<TTag>> =>
                 Stream.suspend(() =>
@@ -370,19 +368,12 @@ function subscribeDynamicMapped<TTag extends EnvironmentSubscriptionRpcTag, A>(
                         cause.reasons.every(
                           (reason) => reason._tag === "Fail" && isRpcClientError(reason.error),
                         );
-                      // The RPC client dies with a SchemaError when one stream chunk fails to
-                      // decode, ending only that request while the socket stays open. A caller
-                      // with `onDefect` owns its defect recovery.
                       const isChunkDecodeDefect =
                         options?.onDefect === undefined &&
                         cause.reasons.length > 0 &&
                         cause.reasons.every(
                           (reason) => reason._tag === "Die" && Schema.isSchemaError(reason.defect),
                         );
-                      // Both end one stream while the session can stay healthy, so nothing else
-                      // would replace it. A dead session is replaced by the supervisor, which
-                      // interrupts this retry through switchMap. A finite search must settle
-                      // rather than restart, so it keeps waiting for the next session.
                       const resubscribesOnSameSession =
                         tag !== ORCHESTRATION_V2_WS_METHODS.searchThreadStream;
                       if (isTransportFailure && !resubscribesOnSameSession) {
@@ -436,8 +427,6 @@ function subscribeDynamicMapped<TTag extends EnvironmentSubscriptionRpcTag, A>(
                           ),
                         );
                       }
-                      // A reported defect parks until the next session or resubscribe. Failing would
-                      // end the whole subscription, so a mounted screen never syncs again.
                       if (options?.onDefect !== undefined && Cause.hasDies(cause)) {
                         return Stream.empty;
                       }
@@ -550,7 +539,6 @@ export const refreshVcsBranch = Effect.fn("EnvironmentRpc.refreshVcsBranch")(fun
   if (config.environment.capabilities.vcsBranchStatus === true) {
     return yield* requestInSession(session, WS_METHODS.vcsRefreshBranch, input);
   }
-  // Older hosts retain their existing status stream without adding per-row wake scans.
 });
 
 export const request = <TTag extends Exclude<EnvironmentUnaryRpcTag, ClientGuardedRpcTag>>(

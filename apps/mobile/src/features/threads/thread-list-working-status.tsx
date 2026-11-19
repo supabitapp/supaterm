@@ -5,7 +5,6 @@ import { memo, useEffect, useState } from "react";
 import { AppState, Platform, Text as RNText } from "react-native";
 import { AppText } from "../../components/ui/AppText";
 
-// DM Sans has no tabular figures, so a ticking timer in it reflows the row every second.
 const TABULAR_DURATION_STYLE = {
   fontFamily: Platform.OS === "ios" ? "System" : "sans-serif",
   fontWeight: "700",

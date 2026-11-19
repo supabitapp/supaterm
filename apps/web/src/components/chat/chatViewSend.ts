@@ -34,8 +34,6 @@ import { getComposerPromptInjectionState, getComposerProviderState } from "./com
 import { readPreparedConnection } from "../../state/session";
 import { recallComposerMessage } from "./composerPromptHistory";
 
-// Kept per route so a send in flight, and the multiple-model selections, survive
-// ChatView remounting while the user navigates.
 export const draftFanoutSelectionsAtom = Atom.family((_routeKey: string) =>
   Atom.make<ReadonlyArray<ModelSelection> | null>(null).pipe(Atom.keepAlive),
 );
@@ -128,7 +126,6 @@ export async function rewindToMessage(input: {
           ? `${currentPrompt}\n\n${restoredPrompt}`
           : restoredPrompt;
     store.setPrompt(draftTarget, nextPrompt);
-    // The restored prompt already carries the chips; these add only their records.
     store.addReferenceContexts(draftTarget, mentions.referenceContexts, {
       appendReference: false,
     });

@@ -1,4 +1,3 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import { pipe } from "effect/Function";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -64,11 +63,9 @@ const Table = Schema.Struct({
   ),
 });
 
-/** A slide object: a shape, group, picture or graphic frame. */
 const Drawing: Schema.Codec<Drawing> = Schema.Struct({
   text: Schema.optional(Schema.NullOr(Body)),
   children: Schema.optional(Schema.Array(Schema.suspend((): Schema.Codec<Drawing> => Drawing))),
-  // A table's cells; other frames, such as charts, carry no rows.
   data: Schema.optional(Schema.NullOr(Table)),
 });
 
@@ -134,7 +131,6 @@ const hanRange = /[\u3000-\u303F\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF\uFF00-\u
 function scripts(text: string): FallbackScript[] {
   const found = scriptRanges.flatMap((entry) => (entry[1].test(text) ? [entry[0]] : []));
 
-  // The Japanese and Korean faces also draw the Chinese characters their text mixes in.
   return hanRange.test(text) && !found.some((script) => script.startsWith("cjk-"))
     ? [...found, "cjk-sc"]
     : found;
@@ -199,7 +195,6 @@ export function deckText(bytes: Uint8Array, snapshot: DeckSnapshot): DeckText {
   );
 }
 
-/** A file in the deck's zip package: where its central directory record and its local data sit. */
 type Entry = {
   readonly name: string;
   readonly record: number;
@@ -207,11 +202,6 @@ type Entry = {
   readonly local: number;
 };
 
-/**
- * The package without its pictures and media. The inspection reads only the deck's text and styles, but returns every
- * picture as base64, which for a deck of photos costs tens of megabytes of engine memory the worker never gives back.
- * Entries keep their compressed bytes. A package this cannot read, such as a ZIP64 one, stays as it is.
- */
 function withoutMedia(bytes: Uint8Array): Uint8Array {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const end = endOfDirectory(view);
@@ -227,7 +217,6 @@ function withoutMedia(bytes: Uint8Array): Uint8Array {
 
   if (!entries || !entries.some((entry) => entry.name.startsWith("ppt/media/"))) return bytes;
 
-  // An entry's local header and data run up to the next entry's, or to the central directory.
   const starts = entries.map((entry) => entry.local).toSorted((left, right) => left - right);
 
   const kept = entries
@@ -238,7 +227,6 @@ function withoutMedia(bytes: Uint8Array): Uint8Array {
       end: starts.find((start) => start > entry.local) ?? directory,
     }));
 
-  // Where each kept entry's local data and directory record land in the new package.
   const locals = offsets(kept.map((part) => part.end - part.start));
   const records = offsets(kept.map((part) => part.entry.length));
   const size = locals.at(-1) ?? 0;
@@ -267,7 +255,6 @@ function withoutMedia(bytes: Uint8Array): Uint8Array {
   return out;
 }
 
-/** Where each length starts when they are laid end to end, then where the last ends. */
 function offsets(lengths: readonly number[]) {
   return lengths.reduce(
     (list, length) => {
@@ -279,7 +266,6 @@ function offsets(lengths: readonly number[]) {
   );
 }
 
-/** Where the end of central directory record starts, searched back from the end past any comment. */
 function endOfDirectory(view: DataView) {
   const last = view.byteLength - 22;
   const first = Math.max(0, last - 0xffff);
@@ -289,10 +275,6 @@ function endOfDirectory(view: DataView) {
   return undefined;
 }
 
-/**
- * The central directory's records, from `directory` up to the end record at `end`; undefined when one is malformed: it
- * runs past the directory, or its local header does not sit before it.
- */
 function readEntries(view: DataView, directory: number, end: number, count: number) {
   const decoder = new TextDecoder();
 
@@ -306,7 +288,6 @@ function readEntries(view: DataView, directory: number, end: number, count: numb
         46 + nameLength + view.getUint16(state.at + 30, true) + view.getUint16(state.at + 32, true);
       const local = view.getUint32(state.at + 42, true);
 
-      // A local header is 30 bytes before its name and data.
       if (state.at + length > end || local + 30 > directory) return undefined;
 
       const name = decoder.decode(
@@ -365,10 +346,6 @@ function fromSnapshot(snapshot: DeckSnapshot): DeckText {
   );
 }
 
-/**
- * Groups runs by the family they resolve to: the theme's body font first, then by how much text each draws. The
- * masters' default runs count too, so a theme font that placeholders inherit without naming it is still found.
- */
 function summarize(
   runs: readonly Run[],
   resolve: (family: string | null | undefined) => string,
@@ -404,7 +381,6 @@ function summarize(
       .toSorted((left, right) => rank(right, body) - rank(left, body))
       .map((entry) => ({
         name: entry[1].name,
-        // Regular first, so a family's first face is the one its unstyled text draws with.
         styles: [...entry[1].styles.values()].toSorted(
           (left, right) => styleRank(left) - styleRank(right),
         ),

@@ -136,7 +136,6 @@ export function layer(input: {
         enabled: true,
         config: DEFAULT_CODEX_SETTINGS,
       },
-      // Recorded transcripts carry no thread/sample exchange.
       { promptSuggestionsEnabled: Effect.succeed(false) },
     ).pipe(Effect.map((adapter) => [adapter])),
   ).pipe(

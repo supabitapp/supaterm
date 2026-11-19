@@ -121,10 +121,7 @@ export function registerNavigationHistoryCommands(router: AnyRouter): () => void
   );
 }
 
-// Capture phase, so F6 also leaves widgets that swallow keys, such as the terminal.
 function registerWorkspaceFocusCommands(router: AnyRouter): () => void {
-  // Inside a dialog the move is refused, but the key is still consumed. A focused
-  // desktop browser forwards the keys as menu actions; its renderer focus is stale.
   const move =
     (direction: 1 | -1): CommandHandler =>
     ({ source, event }) => {
@@ -139,21 +136,13 @@ function registerWorkspaceFocusCommands(router: AnyRouter): () => void {
 
 const MODIFIER_KEYS = new Set(["Alt", "Control", "Meta", "Shift"]);
 
-// A held key undoes once. Module state: undoing an archive navigates, and the
-// hold must survive whatever that re-renders.
 let heldUndoKey: string | null = null;
 
-// Undoes the thread actions in the sidebar's notice. Settings and Usage own
-// mod+z while open. Captured so mod+z reaches it before the composer's own
-// undo handler consumes the key.
 function registerThreadUndoCommands(
   router: AnyRouter,
   readSidebarVisible: () => boolean,
 ): () => void {
   const threadSidebarShown = () => !isAppModalPage(router.state.location.pathname);
-  // Registered first, so it hears only keys the undo command left: any other
-  // keypress hands mod+z back to text fields. A modifier tapped mid-hold leaves
-  // the held key repeating.
   const unregisterRelease = registerCommands(
     {},
     {
@@ -180,12 +169,9 @@ function registerThreadUndoCommands(
       when: threadSidebarShown,
       context: (event) => ({
         ...readRoutePanelsOpen(router),
-        // A collapsed sidebar hides the notice, so text fields keep their own undo.
         editableFocus:
           isEditableFocused(event.target) && !(readSidebarVisible() && threadUndoClaimsShortcut()),
       }),
-      // Cancel a held key's repeats so they cannot fall through to the
-      // editor's own undo, even after the last notice is gone.
       onKeyDown: (event) => {
         if (!event.repeat || event.code !== heldUndoKey) return false;
         event.preventDefault();
@@ -193,7 +179,6 @@ function registerThreadUndoCommands(
       },
     },
   );
-  // Pastes from a menu, dictation and drops edit text without a keypress.
   const onInput = () => {
     if (threadSidebarShown()) releaseThreadUndoShortcut();
   };
@@ -209,8 +194,6 @@ function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => vo
   return registerCommands(
     {
       "sidebar.toggle": ({ event }) => {
-        // The rich-text composer claims Mod+B only to bold selected text;
-        // the toggle stays available everywhere else.
         if (
           event &&
           isRichTextBoldShortcut(event, window.getSelection()) &&
@@ -229,10 +212,7 @@ function registerSidebarToggleCommand(router: AnyRouter, toggleSidebar: () => vo
   );
 }
 
-/** Keyboard and menu commands that live as long as the app shell. */
 function registerAppShellCommands(router: AnyRouter, shellElement: Element): () => void {
-  // The provider mirrors the visibility it renders onto its wrapper, so the
-  // committed state is readable when a key arrives.
   const readSidebarVisible = () =>
     shellElement.closest('[data-slot="sidebar-wrapper"]')?.getAttribute("data-sidebar-state") ===
     "expanded";
@@ -259,8 +239,6 @@ function SidebarControl() {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the sidebar toggle with the command dispatcher for the control's lifetime
   useEffect(() => registerSidebarToggleCommand(router, () => toggleSidebarFromCommand()), [router]);
 
-  // The control lives as long as the shell, so it carries the shell's commands. Created
-  // once so re-renders never re-register them.
   const [appShellCommandsRef] = useState(
     () => (node: HTMLDivElement | null) =>
       node === null ? undefined : registerAppShellCommands(router, node),

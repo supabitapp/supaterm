@@ -611,8 +611,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
     }),
   );
 
-  // OpenCode types an empty balance as provider.quota too, but answers it with
-  // HTTP 402 and it never resets. Usage windows and budgets arrive as 429.
   it.effect.each([
     {
       name: "an out-of-funds provider.quota (402)",
@@ -708,7 +706,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
     }),
   );
 
-  // regression: #29289 Claude weekly limits through claude-agent lost their usage-limit reset
   it.effect(
     "classifies a Claude weekly limit as a usage limit that resets at its reported time",
     () =>
@@ -1692,7 +1689,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         ...tool,
         metadata: { sessionID: CHILD, status: "running" },
       }),
-      // The adapter writes a child's rules only when they changed.
       ...(writesRules
         ? [
             out("session.update", { sessionID: CHILD, permissions: "<any>" }),
@@ -1845,8 +1841,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
                 ]
               : []),
             ...launchedAndRunning,
-            // The parent turn ends, and the background child fails: it reports
-            // nothing back, so its call has to end with the failure.
             event("session.execution.succeeded", { sessionID: SESSION }),
             event("session.execution.failed", {
               sessionID: CHILD,
@@ -1905,9 +1899,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       const again = { sessionID: SESSION, assistantMessageID: "msg_assistant", id: "call-again" };
       const { runtime, thread } = yield* resumed([
         ...launchedAndRunning,
-        // A foreground call joins the running background child. It is only
-        // marked background once its own tool call returns, so the child can
-        // fail while this call is still the foreground one.
         event("session.tool.input.started", { ...again, name: "subagent" }),
         event("session.tool.called", {
           ...again,
@@ -1921,7 +1912,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         }),
         out("session.update", { sessionID: CHILD, permissions: "<any>" }),
         reply("session.update", null),
-        // The child fails while the joined call is still the foreground one.
         event("session.execution.failed", {
           sessionID: CHILD,
           error: { type: "provider.quota", message: "Rate limit exceeded." },
@@ -1998,7 +1988,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
     });
   it.effect.each([
     {
-      // regression: #26319 the report settled the older run and left the resumed call running
       name: "an earlier run's report never arrived",
       replay: [
         ...launchedAndRunning,
@@ -2364,7 +2353,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       yield* watch.until(() => offers.length === 1);
       yield* runtime.startTurn(withLineage(thread));
       assert.isTrue(yield* Effect.promise(() => gate.waitForReached("drained")));
-      // The called session's held wake is its caller's pending work too.
       yield* watch.until(() => watch.pendingSnapshots.get(SESSION) === true);
       yield* runtime.startTurn(continuationTurn(other, offers[0]!));
       gate.release("drained");
@@ -2486,7 +2474,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       Effect.forkScoped,
     );
 
-  // regression: #30193 an unanswered Stop showed the turn interrupted while its tool kept running
   it.effect("reports a Stop OpenCode never answers as an interrupt timeout", () =>
     Effect.gen(function* () {
       const { runtime, thread } = yield* resumed(stopTimedOut);
@@ -3184,8 +3171,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
 
   it.effect("reads the agents again while a fresh server still lists none", () =>
     Effect.gen(function* () {
-      // 2.0.18 answers `/api/agent` with `[]` for a moment after it starts;
-      // rules written from that would drop the agents' own paths.
       const runtime = yield* openCode2ReplayRuntime([
         ...opening,
         out("agent.list", "<any>"),
@@ -3224,7 +3209,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
     out("message.list", { sessionID: SESSION, order: "desc", limit: "50" }),
     reply("message.list", {
       data: [
-        // OpenCode appends an `idle` item after each execution it ends.
         ...(ended === undefined
           ? []
           : [{ id: "msg_idle_gap", time: { created: 3 }, type: "idle", outcome: ended }]),
@@ -3436,8 +3420,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
 
   it.effect("finishes a workspace command whose stream dropped before its inbox event", () =>
     Effect.gen(function* () {
-      // `session.command` answers 204 without the inbox item's id, and the
-      // stream drops before `session.inbox.enqueued` would have named it.
       const { runtime, thread } = yield* resumed([
         out("command.list", "<any>"),
         reply("command.list", { location: { directory: WORK }, data: [{ name: "git/hello" }] }),
@@ -3511,7 +3493,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         [
           out("skill.list", { "location[directory]": WORK }),
           reply("skill.list", { location: { directory: WORK }, data: [] }),
-          // OpenCode answers the model list only once the directory scan has ended.
           ...directoryModels(WORK),
           out("skill.list", { "location[directory]": WORK }),
           reply("skill.list", { location: { directory: WORK }, data: [greet] }),
@@ -3887,7 +3868,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
             ...reconnected({}).slice(1),
           ],
           {
-            // The replay lends one connection; only the first borrow's process exits.
             processExit: Effect.suspend(() =>
               restarted
                 ? Effect.never
@@ -3912,7 +3892,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         const terminal = yield* terminalOf(runtime).pipe(Effect.forkScoped);
         yield* runtime.startTurn(turnInput(thread));
         yield* Deferred.await(reading);
-        // The exit at 1s cuts the stalled read; the retry 2s later borrows the restarted server.
         yield* TestClock.adjust("3 seconds");
         yield* Deferred.await(cancelled);
         assert.equal((yield* Fiber.join(terminal))?.status, "interrupted");
@@ -4054,7 +4033,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
     }),
   );
 
-  // A cancel without a message aborts the asking session's step, so the child would never report.
   it.effect.each(["cancel", "decline"] as const)(
     "lets a background child carry on when its question is dismissed with %s",
     (decision) =>
@@ -4201,7 +4179,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         out("session.prompt", { sessionID: SESSION, id: PROMPT_ID, text: "<any>" }),
         promptAccepted,
         delta("Sent before the stream dropped"),
-        // OpenCode saves a block's text only when the block ends.
         ...reconnected({ [SESSION]: { type: "running" } }, undefined, {
           content: [{ type: "text", text: "" }],
           finish: undefined,
@@ -4968,7 +4945,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
           "session.tool.success",
           {
             ...tool,
-            // The script returns the first page and discards the second.
             content: [{ type: "text", text: JSON.stringify({ htmlRender: references[0] }) }],
             metadata: {
               toolCalls: [
@@ -5216,7 +5192,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
           event("session.execution.succeeded", { sessionID: SESSION }),
         ];
         const prompts: Array<unknown> = [];
-        // Idle Location eviction drops OpenCode's runtime MCP servers without a reconnect.
         const { runtime, thread } = yield* resumed(
           [
             add,
@@ -5239,7 +5214,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         for (let index = 0; index < 2; index++) {
           const terminal = yield* terminalOf(runtime).pipe(Effect.forkScoped);
           const started = yield* runtime.startTurn(turnInput(thread)).pipe(Effect.forkScoped);
-          // OpenCode before 2.2.6 loads a newly added server's tools after a debounce.
           if (index === 0) {
             yield* TestClock.adjust("249 millis");
             assert.lengthOf(
@@ -5717,10 +5691,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
     message: "Rate limit exceeded: free-models-per-min.",
     status: 429,
   };
-  /**
-   * OpenCode numbers the request it retries with, so its first retry is
-   * attempt 2, and stamps `at` from the clock behind the event's `created` (1 here).
-   */
   const retryScheduled = (attempt: number, delayMs: number) =>
     event("session.retry.scheduled", {
       sessionID: SESSION,
@@ -5850,7 +5820,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       yield* Effect.promise(() => gate.waitForReached("finish"));
       gate.release("finish");
       const collected = yield* Fiber.join(events);
-      // Reconciled requests follow backfill, before the terminal can settle the retry row.
       const reconciled = collected.findIndex((event) => event.type === "runtime_request.updated");
       assert.isAtLeast(reconciled, 0);
       const seen = collected.slice(0, reconciled);
@@ -5894,7 +5863,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         started: 1,
       };
       const gate = makeProviderReplayGate(["second retry"]);
-      // OpenCode starts the step of each attempt that fails, so a step start is no recovery.
       const seen = yield* runRetryTurn(
         [
           event("session.step.started", step),
@@ -6165,9 +6133,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
           status: 500,
           body: { _tag: "UnknownError", message: "disk I/O error" },
         }),
-        // Uncleared, OpenCode would commit the stage on the next prompt. The
-        // clear wakes the session into an empty execution of its own, with no
-        // turn of Supaterm's running: it is no subagent's follow-up.
         out("session.revert.clear", { sessionID: SESSION }),
         reply("session.revert.clear", null),
         event("session.revert.cleared", { sessionID: SESSION }),
@@ -6215,9 +6180,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
 
   it.effect("prompts under ids no other session on the server can hold", () =>
     Effect.gen(function* () {
-      // Two Supaterm databases on one external server can share attempt and steer message
-      // ids. OpenCode refuses a prompt id another session holds with 409 ConflictError; the
-      // replay refuses a client id it already gave another recorded message.
       const OTHER = "ses_f148ca2deffeOtherSession000";
       const steerInto = (session: string, recorded: string): ReadonlyArray<ProviderReplayEntry> => [
         out("session.prompt", {
@@ -6494,7 +6456,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       const seen: Array<string> = [];
       const ended = yield* Deferred.make<void>();
       const nextEnded = yield* Deferred.make<void>();
-      // One consumer reads every terminal; a second reader would race it for the queue.
       const thirdEnded = yield* Deferred.make<void>();
       yield* runtime.events.pipe(
         Stream.tap((event) =>
@@ -6765,7 +6726,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
     }),
   );
 
-  // regression: #24549 a Stop whose interrupted event never arrives blocked the next fork
   it.effect("forks a stopped session whose interrupted event never arrived", () =>
     Effect.gen(function* () {
       const FORK = "ses_f1484db83ffeLGtrRCFimo1H0e";
@@ -6803,7 +6763,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         targetThreadId: ThreadId.make("thread:opencode2-adapter:fork"),
       });
       assert.equal(forked.nativeThreadRef?.nativeId, FORK);
-      // The lost end arriving late must not finish the source's next turn.
       yield* runtime.startTurn(secondTurn(thread));
       const [first, second] = yield* Fiber.join(ended);
       assert.equal(first?.status, "interrupted");
@@ -6853,7 +6812,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
           ],
         }),
         reply("session.update", null),
-        // OpenCode makes the fork where its source runs; the target thread runs elsewhere.
         out("session.move", { sessionID: FORK, directory: target }),
         reply("session.move", null),
       ]);
@@ -7685,7 +7643,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
           sessionID: SESSION,
           item: { type: "user", payload: { text, files: [] }, delivery: "steer" },
         });
-      // Supaterm's own prompt can be admitted after a failed submit ended its turn.
       const late = `msg_supaterm_turn_${SESSION}:attempt:late`;
       const { runtime, thread } = yield* resumed([
         prompt(late, "mine"),
@@ -7702,7 +7659,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
           text: "Both!",
         }),
         event("session.execution.succeeded", { sessionID: SESSION }),
-        // Handled only after the wake above has buffered everything before it.
         event("session.model.selected", {
           sessionID: SESSION,
           model: { id: "buffered", providerID: "opencode" },
@@ -7780,12 +7736,10 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
           event("session.execution.started", { sessionID: SESSION }),
           event("session.inbox.delivered", { sessionID: SESSION, inboxID: "msg_report" }),
           event("form.created", { form: colorForm }),
-          // Handled after the form, so its update proves the form reached the adapter.
           event("session.model.selected", {
             sessionID: OTHER,
             model: { providerID: "opencode", id: "big-pickle", variant: "none" },
           }),
-          // Released once the continuation started, so its update follows the replay.
           event(
             "session.model.selected",
             {
@@ -8013,7 +7967,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
       }),
   );
 
-  // regression: #35872
   it.effect("completes /goal clear when OpenCode has no goal to clear", () =>
     Effect.gen(function* () {
       const { runtime, thread } = yield* resumed(

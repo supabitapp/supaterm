@@ -4,7 +4,6 @@ import { ThreadId, TurnItemId } from "./baseSchemas.ts";
 
 /** The http(s) page a secret card may open, or null for anything else. */
 export function secretRequestPageUrl(value: string): URL | null {
-  // React Native's URL has no `canParse`.
   try {
     const url = new URL(value);
     return (url.protocol === "https:" || url.protocol === "http:") && url.host !== "" ? url : null;
@@ -22,7 +21,6 @@ export const SecretRequestAnswerInput = Schema.Struct({
       type: Schema.Literal("save"),
       secret: Schema.String.check(Schema.isPattern(/\S/)),
     }),
-    /** A request with `fields`: one value per field name. */
     Schema.Struct({
       type: Schema.Literal("save"),
       values: Schema.Record(Schema.String, Schema.String.check(Schema.isPattern(/\S/))),

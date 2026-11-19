@@ -45,7 +45,6 @@ export const extractOmpElicitationForm: NonNullable<
       })),
     });
   }
-  // Do not hide unknown fields or partially reinterpret a different form.
   if (questions.length === 0 || Object.keys(properties).length !== questions.length * 2)
     return undefined;
   return {

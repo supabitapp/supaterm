@@ -1,10 +1,8 @@
 import type { OrchestratorFixtureInput } from "../shared.ts";
 
 export const CLAUDE_COMPACT_FIRST_PROMPT = "Reply with exactly: compact probe first turn";
-// Held until the continuation run settles, as the CLI process outlives it.
 const CLAUDE_COMPACT_LAST_FRAME_LABEL = "command_lifecycle:compact-completed";
 
-// Splice a peer-origin turn before live Claude 2.1.285 /compact frames to model queued compaction.
 export function claudeCompactAfterPeerTurnInput(): OrchestratorFixtureInput {
   return {
     steps: [

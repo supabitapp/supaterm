@@ -4,8 +4,6 @@ import { getResolvedOrResolveTheme, registerCustomTheme, type DiffsTheme } from 
 export const READABLE_LIGHT_THEME_NAME = "supaterm-light";
 
 const MIN_CONTRAST = 4.5;
-// The darkest light code surface is a changed word on a deleted line (#f8d3d4, luminance
-// 0.71), rounded down for margin.
 const DARKEST_SURFACE_LUMINANCE = 0.69;
 
 function channelLuminance(channel: number): number {
@@ -36,9 +34,6 @@ export function readableOnLightCode(color: string, minContrast = MIN_CONTRAST): 
 
 type ZedTheme = NonNullable<DiffsTheme["zed"]>;
 
-// Pairs that differ only in lightness would merge at one floor. The darker color of each pair
-// goes further, keeping pierre-light's order: numbers stay darker than operators, punctuation
-// darker than comments, and decorators darker than property names.
 const FURTHER_COLORS = new Set(["#1ca1c7", "#636363", "#1a85d4"]);
 const FURTHER_MIN_CONTRAST = 6;
 
@@ -64,7 +59,6 @@ function withReadableSyntax(theme: ZedTheme): ZedTheme {
   return { ...theme, name: READABLE_LIGHT_THEME_NAME, style: { ...theme.style, syntax } };
 }
 
-// Themes resolve on the main thread and reach the diff workers already resolved.
 registerCustomTheme(
   READABLE_LIGHT_THEME_NAME,
   async () => {

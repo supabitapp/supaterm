@@ -11,12 +11,10 @@ import pcmCaptureWorkletUrl from "./pcmCapture.worklet.ts?worker&url";
 import { PCM_CAPTURE_PROCESSOR, VOICE_SAMPLE_RATE, wavFromPcm } from "./wav";
 
 export const VOICE_LEVEL_HISTORY = 16;
-// The worklet answers within a render quantum; a suspended context never would.
 const FLUSH_TIMEOUT_MS = 1_000;
 
 const DEV_FAKE_MICROPHONE_STORAGE_KEY = "supaterm:dev-fake-microphone";
 
-/** Dev only: "1" plays a tone, a `data:` audio URL plays that recording, so tests can speak. */
 function fakeMicrophoneSource(): string | null {
   if (!import.meta.env.DEV) return null;
   try {
@@ -40,7 +38,6 @@ export interface VoiceRecording {
   readonly durationMs: number;
 }
 
-// Keyed by object URL, the `uri` the shared controller passes around.
 const recordings = new Map<string, VoiceRecording>();
 
 export function readVoiceRecording(uri: string): VoiceRecording {
@@ -164,7 +161,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
         if (event.data instanceof Int16Array) this.receive(event.data);
         else if (event.data === "flushed") this.flushed?.();
       };
-      // The node outputs silence; it only renders while connected to the destination.
       context.createMediaStreamSource(stream).connect(node).connect(context.destination);
       await context.resume();
       this.capture = { context, node };
@@ -260,7 +256,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
     this.recording = false;
     this.resetLevels();
     this.closeCapture();
-    // A tap can stop before the first frame; that is an empty recording, not a failure.
     if (this.recordedSamples === 0 && elapsedMs >= TRANSCRIPTION_MIN_DURATION_MS) return;
     const audio = wavFromPcm(this.pcm);
     this.pcm = [];
@@ -292,7 +287,6 @@ export class WebVoiceRecorder implements VoiceRecorder {
     let node: AudioScheduledSourceNode;
     if (source.startsWith("data:")) {
       const player = context.createBufferSource();
-      // The desktop CSP blocks fetching `data:` URLs.
       const bytes = Uint8Array.from(atob(source.slice(source.indexOf(",") + 1)), (char) =>
         char.charCodeAt(0),
       );

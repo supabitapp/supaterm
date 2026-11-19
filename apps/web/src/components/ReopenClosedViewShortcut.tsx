@@ -91,7 +91,6 @@ export function ReopenClosedViewShortcut() {
   const pending = useRef(Promise.resolve());
 
   const reopenNext = useEffectEvent(async () => {
-    // Chat panes and panel views share one history: the most recently closed comes back first.
     const paneClosedAt = newestClosedPaneAt();
     const viewClosedAt = useClosedViewStore.getState().entries[0]?.closedAt ?? 0;
     if (paneClosedAt !== null && paneClosedAt >= viewClosedAt) {

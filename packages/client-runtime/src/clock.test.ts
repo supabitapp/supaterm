@@ -38,7 +38,6 @@ describe("deadlineStore", () => {
     const unsubscribeSecond = second.subscribe(secondListener);
     expect(vi.getTimerCount()).toBe(1);
 
-    // A click observing the passed deadline must update every subscriber.
     vi.setSystemTime(5_000);
     first.refresh();
     expect(second.getSnapshot()).toBe(true);
@@ -70,7 +69,6 @@ describe("deadlineStore", () => {
     const unsubscribe = store.subscribe(listener);
     store.refresh();
     expect(listener).not.toHaveBeenCalled();
-    // Wall clock jumps past the deadline without the timer firing (sleep, throttling).
     vi.setSystemTime(5_000);
     expect(store.getSnapshot()).toBe(false);
     store.refresh();

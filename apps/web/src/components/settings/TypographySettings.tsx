@@ -286,9 +286,6 @@ export function TypographySection() {
     false,
     Schema.Boolean,
   );
-  // A deep link or history step must persist the flag too: the terminal reads it, so advanced
-  // rows without it would make terminal font edits do nothing. The rows follow the target
-  // directly so its row mounts in the first commit; the target clears once handled.
   const searchTargetId = useSettingsSearchTargetId();
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- writes the advanced typography flag to localStorage when a search target needs it
   useEffect(() => {
@@ -353,8 +350,6 @@ function FontFamilySettingsRow({
   const [draft, setDraft] = useState(value);
   const [draftSettled, setDraftSettled] = useState(true);
   const commitTimerRef = useRef<number | null>(null);
-  // The committed value changed externally (hydration, reset, picker
-  // selection); adopt it and drop any pending commit of a stale draft.
   const [lastValue, setLastValue] = useState(value);
   if (lastValue !== value) {
     setLastValue(value);
@@ -452,8 +447,6 @@ function FontFamilySettingsRow({
           if (isImeComposing(event)) return;
           if (event.key === "Enter") flushDraft();
           if (event.key === "Escape") {
-            // Discard uncommitted typing without closing the settings page,
-            // which is what an unhandled Escape does.
             event.preventDefault();
             event.stopPropagation();
             if (commitTimerRef.current !== null) {

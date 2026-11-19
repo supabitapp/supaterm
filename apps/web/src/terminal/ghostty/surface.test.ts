@@ -362,7 +362,6 @@ describe("GhosttyTerminalSurface visibility", () => {
     Object.assign(document, { execCommand });
     surface.write("SELECTED_OUTPUT");
     surface.selectAll();
-    // Russian layout: Cyrillic Es (U+0421) on the physical C key.
     key(surface, "С", "KeyC", { ctrlKey: true, shiftKey: true });
     expect(execCommand).toHaveBeenCalledWith("copy");
     expect(harness.onData).not.toHaveBeenCalled();
@@ -431,7 +430,6 @@ describe("GhosttyTerminalSurface visibility", () => {
     key(surface, "a", "KeyA");
     key(surface, "a", "KeyA", {}, "keyup");
     key(surface, "Control", "ControlLeft", { ctrlKey: true });
-    // App capture stops Ctrl+D before it reaches the terminal input.
     key(surface, "d", "KeyD", { ctrlKey: true }, "keydown", window);
     key(surface, "d", "KeyD", { ctrlKey: true }, "keyup");
     key(surface, "Control", "ControlLeft", {}, "keyup");
@@ -602,7 +600,6 @@ describe("GhosttyTerminalSurface visibility", () => {
     harness.pointer("pointerup", 85, 0);
     expect(surface.getSelection()).toBe("* Working |");
 
-    // A TUI repaints its spinner line in place, the way Claude Code redraws.
     const redraw = (data: string) => {
       const previous = state;
       state = applyTerminalAttachStreamEvent(state, {
@@ -649,7 +646,6 @@ describe("GhosttyTerminalSurface visibility", () => {
     harness.pointer("pointermove", 45, 1, {}, 0, 50);
     expect(surface.getSelection()).toBe("row 6");
 
-    // The pointer stays over the row that output scrolls "row 8" into.
     surface.write("\r\nrow 10\r\nrow 11");
     harness.pointer("pointermove", 53, 1, {}, 0, 50);
     expect(surface.getSelection()).toBe("row 6\nrow 7\nrow 8");
@@ -1059,7 +1055,6 @@ describe("isTerminalCopyShortcut", () => {
 
 describe("applyTerminalCopyEvent", () => {
   it("leaves the writeText fallback alive when clipboardData is missing", () => {
-    // Electron menu Copy often omits clipboardData.
     expect(applyTerminalCopyEvent("ls -la", null)).toEqual({
       preventDefault: false,
       claimWriteFallback: false,
@@ -1166,7 +1161,6 @@ describe("terminalWheelDeltaRows", () => {
   });
 });
 
-// regression: #19492 drag selection scrolled one row per tick however far past the edge
 describe("terminalSelectionAutoscrollRows", () => {
   it("scrolls more rows per tick the farther the pointer is past an edge", () => {
     const top = 100;

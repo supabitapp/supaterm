@@ -4,10 +4,6 @@ import { Atom } from "effect/reactivity";
 import { appAtomRegistry } from "./atomRegistry";
 
 const SLOW_RPC_ACK_THRESHOLD_MS = 15_000;
-/**
- * Updates wait for package installs; VCS refreshes may wait for background work and network calls.
- * Give these requests longer than the normal 15s warning threshold.
- */
 const LONG_RUNNING_RPC_ACK_THRESHOLD_MS = 120_000;
 const MAX_TRACKED_RPC_ACK_REQUESTS = 256;
 let slowRpcAckThresholdMs = SLOW_RPC_ACK_THRESHOLD_MS;
@@ -26,8 +22,6 @@ interface PendingRpcAckRequest {
 }
 
 const pendingRpcAckRequests = new Map<string, PendingRpcAckRequest>();
-// Background requests nobody waits on, and transcription, which runs as long as the
-// recording needs. A generic warning about either does not say what is wrong.
 const untrackedRpcAckMethods = new Set<string>([
   WS_METHODS.serverGetUsageSummary,
   WS_METHODS.serverReportClientActivity,

@@ -53,7 +53,6 @@ export function usePullRequestFilesViewed(params: PullRequestParams, pr: PullReq
       ...target,
       input: { ...target.input, files: [{ path, viewed }] },
     });
-    // A read completed by the time the write lands may predate it; the next one carries it.
     const readsAtWrite = registry.get(readsAtom);
     setState((current) => {
       if (current.key !== scopeKey || current.presses[path]?.version !== version) return current;

@@ -143,7 +143,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
           },
         });
 
-        // Frames split across reads, with one read ending one frame and starting the next.
         const wire = new Uint8Array([...updateFrame, ...completionFrame]);
         const splits = [10, updateFrame.length + 10, wire.length];
         let start = 0;
@@ -204,7 +203,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
           Queue.offer(handled, decodeIndex(notification.params).index).pipe(Effect.asVoid),
       });
 
-      // Ten 3 MiB notifications: only the newest five fit in the budget.
       for (let index = 0; index < 10; index++) {
         yield* Queue.offer(input, largeNotification(index, 3 * MIB));
         assert.equal(yield* Queue.take(handled), index);
@@ -271,7 +269,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
       );
       yield* Deferred.await(entered);
 
-      // Notification 2 is still unread, so 3 and 4 push it past the budget.
       yield* send(3, 6 * MIB);
       yield* send(4, 6 * MIB);
       yield* send(5, 1);
@@ -296,7 +293,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
         Effect.forkScoped,
       );
 
-      // 30 MiB in total, well past the unread budget.
       for (let index = 0; index < 10; index++) {
         yield* Queue.offer(input, largeNotification(index, 3 * MIB));
         assert.equal(yield* Queue.take(received), index);
@@ -351,7 +347,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
       for (let index = 0; index < 32; index++) {
         assert.equal(yield* deliver(index), index);
       }
-      // A failed write terminates the connection while the reader keeps running.
       yield* transport.notify("x/fail", {}).pipe(Effect.exit);
       yield* Deferred.await(terminated);
       assert.equal(yield* deliver(32), 32);
@@ -367,8 +362,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
     }),
   );
 
-  // clanka once sent a usage_update without `used` and `size`. One bad update
-  // must not end a session whose later updates are fine.
   it.effect("drops a session/update that fails to decode and keeps reading", () =>
     Effect.gen(function* () {
       const secret = "acp-core-notification-secret-sentinel";
@@ -507,7 +500,6 @@ it.layer(NodeServices.layer)("effect-acp protocol", (it) => {
 
       yield* transport.notify("session/cancel", { sessionId: "session-1" });
 
-      // A notification must not carry `id` or `headers`. Grok CLI drops frames that do.
       assert.deepEqual(events, [
         {
           direction: "outgoing",

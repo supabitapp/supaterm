@@ -223,13 +223,9 @@ export function PullRequestPrimaryAction({
   const actionPending = pendingAction !== null;
   const disableAutoMergeLabel =
     pendingAction === "disable-auto-merge" ? "Disabling..." : "Disable auto-merge";
-  // The off switch doubles as the indicator, as on the host.
   const armedAutoMergeStatus = `${armedAutoMergeLabel} is enabled: the host will merge this on its own once its requirements are met`;
   return (
     <>
-      {/* Said where the Merge button is, because it is the answer to why nobody has
-          pressed it: the merge is already asked for, and the host is holding it. It
-          stays beside conflicts and drafts, which take the slot without disarming it. */}
       {autoMergeArmed ? (
         <Tooltip>
           <TooltipTrigger

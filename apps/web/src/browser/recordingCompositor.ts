@@ -30,8 +30,6 @@ export async function createRecordingCompositor(
   let timer: number | undefined;
   const draw = () => {
     if (disposed || video.readyState < 2) return;
-    // The encoded size stays at the first frame's: avc1 MP4 stores one set of decoder
-    // parameters, so a resized source is letterboxed instead of changing the stream size.
     if (!sized) {
       canvas.width = video.videoWidth || canvas.width;
       canvas.height = video.videoHeight || canvas.height;
@@ -154,7 +152,6 @@ class RecordingDecorations {
   }
 
   draw(context: CanvasRenderingContext2D, width: number, height: number, now: number) {
-    // Guest coordinates are CSS pixels; native frames include zoom and display scale.
     const scale = width / (this.key?.width ?? this.ring?.width ?? 1280);
     const ring = this.ring;
     if (ring && (ring.held || (ring.releasedAt !== null && now < ring.releasedAt + 600))) {

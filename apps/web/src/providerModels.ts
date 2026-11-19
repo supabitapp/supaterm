@@ -22,12 +22,10 @@ const RUNTIME_MODEL_CATALOG_DRIVERS: ReadonlySet<string> = new Set([
   "acpRegistry",
 ]);
 
-// These drivers discover models at runtime, so a refresh can briefly omit a model the user chose.
 export function hasRuntimeModelCatalog(provider: ProviderDriverKind): boolean {
   return RUNTIME_MODEL_CATALOG_DRIVERS.has(provider);
 }
 
-// These markers follow the session's current model rather than naming an unavailable model.
 export function isRuntimeModelDefaultAlias(
   provider: ProviderDriverKind,
   model: string | null | undefined,
@@ -38,7 +36,6 @@ export function isRuntimeModelDefaultAlias(
   );
 }
 
-// Antigravity lists its default model only as an alias, which a slug lookup would call missing.
 export function keepsUnavailableModelOptions(
   provider: ProviderDriverKind,
   model: string | null | undefined,
@@ -95,9 +92,6 @@ export function getProviderModelCapabilities(
   return withoutPlanAgentOption(caps);
 }
 
-// Drop the opencode "plan" agent so it cannot be selected or dispatched.
-// currentValue is re-resolved against the surviving options so a stale or
-// defaulted "plan" value cannot leak back into dispatch.
 function withoutPlanAgentOption(caps: ModelCapabilities): ModelCapabilities {
   return {
     ...caps,

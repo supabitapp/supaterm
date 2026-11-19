@@ -15,7 +15,6 @@ import { POPUP_MOTION_CLASS } from "~/components/ui/popup-styles";
 import { cn } from "~/lib/utils";
 import { useNativeTitlebarHeight } from "~/lib/windowControlsOverlay";
 
-// Base UI's default, restated because a padding object zeroes the sides it omits.
 const COLLISION_PADDING = 5;
 
 const TooltipProvider = TooltipPrimitive.Provider;
@@ -53,7 +52,6 @@ function TooltipScrollDismissArea({ onScrollCapture, ...props }: ComponentProps<
             return;
           }
           hovered.clear(tooltip.actionsRef);
-          // Base UI also cancels delayed hover opens through this action.
           tooltip.actionsRef.current?.close();
         }}
       />

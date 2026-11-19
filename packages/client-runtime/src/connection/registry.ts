@@ -724,10 +724,6 @@ export const make = Effect.gen(function* () {
             return next;
           });
 
-          // Secondary desktop-local backends (e.g. a parallel WSL backend) live
-          // on their own loopback origin, so they authenticate with a bearer
-          // token instead of the primary's same-origin cookie. Stash it where
-          // the resolver's bearer broker looks it up.
           let bearerChanged = false;
           if (registration._tag === "BearerConnectionRegistration") {
             const stored = yield* credentials
@@ -773,8 +769,6 @@ export const make = Effect.gen(function* () {
                   }).pipe(Effect.as(false)),
                 ),
               );
-            // Only a bearer that was actually stored can be retried with; a
-            // failed write leaves the rejected one in place.
             bearerReplaced = written && bearerChanged;
             applied &&= written;
           }
@@ -879,7 +873,6 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  /** Succeeds with `false` when a best-effort write failed, so an identical repeat retries it. */
   const applyPlatformRegistrations = Effect.fn("EnvironmentRegistry.reconcilePlatform")(function* (
     platformRegistrations: ReadonlyArray<PlatformConnectionRegistration>,
   ) {
@@ -898,8 +891,6 @@ export const make = Effect.gen(function* () {
 
   const reconcileLock = yield* Semaphore.make(1);
   let appliedPlatformRegistrations: ReadonlyArray<PlatformConnectionRegistration> | undefined;
-  // Untraced: platforms repeat unchanged registrations every few seconds, and a
-  // span per poll would make idle clients export traces continuously.
   const reconcilePlatform = Effect.fnUntraced(function* (
     platformRegistrations: ReadonlyArray<PlatformConnectionRegistration>,
   ) {
@@ -1154,8 +1145,6 @@ export const make = Effect.gen(function* () {
 
         const { unsupportedReason: _reason, serverUpdateRequired: _update, ...rest } = entry;
         const next: ConnectionCatalogEntry = { ...(retryUnsupported ? rest : entry), enabled };
-        // Update the lease in place so the supervisor keeps its generation and
-        // durable streams; `installEntryLocked` would tear it down instead.
         const lease = (yield* SubscriptionRef.get(serviceScopes)).get(environmentId);
         if (lease !== undefined) {
           yield* Ref.set(lease.entry, next);
@@ -1170,8 +1159,6 @@ export const make = Effect.gen(function* () {
         } else if (enabled) {
           yield* createServiceScope(next);
         }
-        // The supervisor only owns the RPC session. A managed SSH backend and
-        // its tunnel outlive it, so switching off tears those down as well.
         if (!enabled)
           for (const route of connectionRoutes(entry))
             yield* releaseRouteTransports(route, environmentId);
@@ -1227,7 +1214,6 @@ export const make = Effect.gen(function* () {
           serverUpdateRequired: _previousUpdateRequired,
           ...rest
         } = entry;
-        // Compatibility pauses connections without changing the user's saved on/off choice.
         const next: ConnectionCatalogEntry =
           error === null
             ? rest

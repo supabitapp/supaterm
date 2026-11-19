@@ -294,12 +294,10 @@ const FULL_REVIEW: PullRequestReviewCapabilities = {
 
 const FULL_REVIEWERS: PullRequestReviewerCapabilities = { request: true, listCandidates: true };
 
-// Like Azure DevOps, whose repository names repeat across organizations and projects.
 const keyedByCanonicalKey = {
   repositoryKey: ({ canonicalKey }: { readonly canonicalKey: string }) => canonicalKey,
 };
 
-/** A host whose SSH remotes name an alias, so discovery says which server serves them. */
 const sshAliasHost = {
   resolveRemoteWebHost: ({ cwd, context, resolveContext }) =>
     isSshRemoteUrl(context.remoteUrl)
@@ -327,7 +325,6 @@ function makeService(input: {
   readonly resolveRepositoryIdentity?: RepositoryIdentityResolver.RepositoryIdentityResolver["Service"]["resolve"];
   readonly onProjectRead?: () => void;
 }) {
-  // Build in the test scope; per-call Effect.provide would close the marks database on service acquisition.
   return Effect.flatMap(
     Layer.build(
       Layer.mergeAll(
@@ -690,7 +687,6 @@ it.effect(
           }),
         ],
         providers: [
-          // Pages the way Bitbucket does: inclusively by update time, excluding rows already sent.
           fakePullRequestProvider(SourceControlProviderKind.make("bitbucket"), {
             listChangeRequests: ({ cursor, limit }) =>
               Effect.sync(() => {
@@ -1239,7 +1235,6 @@ it.effect("offers each label once across repositories, despite one that cannot b
                 });
           },
         }),
-        // A host with no repository labels is left out rather than failing the answer.
         fakePullRequestProvider(SourceControlProviderKind.make("gitlab")),
       ],
     });
@@ -1541,7 +1536,6 @@ it.effect("publishes a merge for immediate settlement only after host confirmati
     );
     confirmationFails = false;
     state = "merged";
-    // The event carries the host's merge time, not the moment the confirmation ran.
     yield* TestClock.setTime(Date.parse(mergedAt) + 60_000);
     yield* service.runAction({
       ...reference,
@@ -1595,7 +1589,6 @@ it.effect("returns the host's merged reply as a summary and trusts it without an
     const observedAt = Date.parse("2026-09-03T02:00:01.000Z");
     yield* TestClock.setTime(observedAt);
 
-    // Clients that did not ask decode the success as void, so they must get nothing back.
     assert.isUndefined(yield* service.runAction({ ...reference, action: "merge" }));
     const result = yield* service.runAction({
       ...reference,
@@ -2266,7 +2259,6 @@ it.effect("routes a hosted reference to another repository through a project on 
     assert.strictEqual(summary.number, 7);
     assert.deepStrictEqual(seen, [{ cwd: "/web", repository: "acme/api", host: "github.com" }]);
 
-    // A sync sweep resolves the project once for all of its references, then reads fresh again.
     const readsPerReference = projectReads;
     const read = (number: number) =>
       service.summary(
@@ -2275,7 +2267,6 @@ it.effect("routes a hosted reference to another repository through a project on 
       );
     assert.isAbove(readsPerReference, 2);
     yield* service.withSharedProjectReads(Effect.all([read(8), read(9), read(10)]));
-    // One read of the project and one of the host's projects, for all three references.
     assert.strictEqual(projectReads, readsPerReference + 2);
     yield* read(11);
     assert.strictEqual(projectReads, readsPerReference * 2 + 2);
@@ -2500,7 +2491,6 @@ it.effect.each([
   }),
 );
 
-// regression: #37633 any checkout on the host routes the read, so name the host, not the repository
 it.effect("names the host when no project has a checkout on it for a host-routed read", () =>
   Effect.gen(function* () {
     const service = yield* makeService({
@@ -2769,7 +2759,6 @@ it.effect("lists a renamed repository's pull requests only under its new name", 
               truncated: true,
               unresolved: ["badlogic/pi-mono"],
             }),
-          // The old name reads further back than the new name's first page reaches.
           listChangeRequests: () =>
             Effect.succeed({
               items: [
@@ -3473,7 +3462,6 @@ it.effect("keeps a withheld file's read out of the page's cached diff", () =>
     );
     assert.strictEqual((yield* service.diff(ref)).patch, "page");
 
-    // A host that would answer with its whole diff must not be cached as one file's.
     const wholeDiffOnly = yield* makeService({
       projects: [project({ id: "p1", title: "web", workspaceRoot: "/a", repository: "acme/web" })],
       providers: [
@@ -3777,7 +3765,6 @@ it.effect("notifies linked threads when detail changes draft status in either di
     yield* service.invalidate({ reference });
     yield* read();
 
-    // A different PR ends collection after all the synchronous notifications above.
     yield* service.reportState({ reference: { ...reference, number: 2 }, state: "open" });
     const events = yield* Stream.runCollect(
       changes.pipe(Stream.takeUntil((event) => event.number === 2, { excludeLast: true })),
@@ -5062,7 +5049,6 @@ it.effect("pauses uncached activity on a host after one activity read is rate li
     });
     assert.strictEqual(activityReads, 1);
 
-    // A different change request cannot reuse the first request's cached failure.
     expect(yield* Effect.result(service.activity({ ...reference, number: 2 }))).toMatchObject({
       _tag: "Failure",
       failure: {
@@ -5298,7 +5284,6 @@ it.effect(
     }),
 );
 
-// Refresh and expiry are covered by the in-flight test below; repository and number share the ref key.
 it.effect.each(["commit", "credential"] as const)(
   "does not reuse loaded diff membership after changing %s",
   (boundary) =>
@@ -5340,7 +5325,6 @@ it.effect.each(["commit", "credential"] as const)(
         host: "github.com",
         expectedAccountId: "101",
       };
-      // Load at a commit and expand without one so the commit must be part of the membership key.
       const loaded = boundary === "commit" ? { ...ref, commit: "a".repeat(40) } : ref;
       yield* service.withRoutingCredential(loaded, service.diff(loaded));
       if (boundary === "credential") credential = "restricted";

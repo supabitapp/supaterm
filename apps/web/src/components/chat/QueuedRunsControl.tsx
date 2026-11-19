@@ -109,7 +109,6 @@ export function QueuedRunsControl({
     : null;
   const queued = workflow?.queuedRuns ?? [];
   const activeRun = workflow?.activeRun ?? null;
-  // A fresh message starts its own turn: it may skip compaction, but not steer into a turn.
   const canSendRun = (freshContext: boolean) =>
     workflow?.canSendNow === true ||
     (workflow?.canPromoteToSteer === true &&
@@ -340,7 +339,6 @@ export function QueuedRunsControl({
                         ) : (
                           <>
                             <Tooltip>
-                              {/* The span keeps the tooltip, and its reason, on a disabled button. */}
                               <TooltipTrigger render={<span className="flex shrink-0" />}>
                                 <Button
                                   size="icon-xs"
@@ -399,7 +397,6 @@ type QueuedRunMessage = NonNullable<ThreadQueueProjection["messages"][number]>;
 
 const SENDER_CLASS_NAME = "flex max-w-40 shrink-0 items-center gap-1 text-muted-foreground";
 
-/** Who sent a queued message, as its sent form in the thread names it. */
 function QueuedRunSender(props: {
   readonly environmentId: EnvironmentId;
   readonly message: QueuedRunMessage;

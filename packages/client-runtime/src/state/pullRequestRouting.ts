@@ -45,8 +45,6 @@ const reads = new Set<string>([
   WS_METHODS.pullRequestsReviewerCandidates,
   WS_METHODS.pullRequestsLabelCandidates,
 ]);
-// Review guides are not routed: each server keeps its own, so another server answering would
-// report none, or start a run nobody on the pull request's own server can see.
 const writes = new Set<string>([
   WS_METHODS.pullRequestsSetFilesViewed,
   WS_METHODS.pullRequestsRunAction,
@@ -109,7 +107,6 @@ function shareMetadataRead<A, R>(
       const existing = entries.get(key);
       if (existing !== undefined) {
         const result = yield* restore(Deferred.await(existing));
-        // A cancelled first reader must not cancel the other readers waiting on its probe.
         return yield* restore(
           Exit.hasInterrupts(result) ? shareMetadataRead(pending, key, probe) : result,
         );
@@ -212,7 +209,6 @@ const invalidateTarget = Effect.fn("PullRequestRouting.invalidateTarget")(functi
     inputs,
     (input) =>
       registry.run(target, request(WS_METHODS.pullRequestsInvalidate, input)).pipe(
-        // A stalled reader must not delay the write's answer.
         Effect.timeoutOption("1 second"),
         Effect.orElseSucceed(() => undefined),
       ),
@@ -220,10 +216,6 @@ const invalidateTarget = Effect.fn("PullRequestRouting.invalidateTarget")(functi
   );
 });
 
-/**
- * The origin owns the threads linked to this pull request, but a routed read never reaches it.
- * Tell it which state the read saw so it checks again.
- */
 const reportState = (
   { allowStale: _allowStale, expectedAccountId: _expectedAccountId, ...reference }: PullRequestRef,
   status: { readonly state: PullRequestState; readonly isDraft?: boolean | undefined },
@@ -309,7 +301,6 @@ export function createPullRequestRouter() {
         { concurrency: 4, discard: true },
       );
     });
-    // A failed viewed-files batch may have applied some paths. Other writes invalidate on success.
     const finish = (operation: ReturnType<typeof request<T>>) =>
       tag === WS_METHODS.pullRequestsSetFilesViewed
         ? operation.pipe(Effect.ensuring(invalidateReaders))
@@ -347,7 +338,6 @@ export function createPullRequestRouter() {
           identityProbe,
         )
       : identityProbe;
-    // The source server answers only for a host whose account it can verify.
     if (identity === null) return yield* finish(source);
 
     const routedInput = {
@@ -407,7 +397,6 @@ export function createPullRequestRouter() {
         if (id !== origin.target.environmentId) {
           if (!(yield* routingAllowed(registry, origin.target.environmentId, id, writes.has(tag))))
             return yield* visit(index + 1);
-          // Route only to an environment signed in to the same account on this host.
           const alternateProbe = request(WS_METHODS.pullRequestsRoutingIdentity, {
             host: identity.host,
           }).pipe(

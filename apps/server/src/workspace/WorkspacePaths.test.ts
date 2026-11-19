@@ -61,7 +61,6 @@ it.layer(layerTest)("WorkspacePathsLive", (it) => {
       }),
     );
 
-    // On Windows `\` is a separator, so these names cannot exist there.
     it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
       "keeps a backslash in a name as part of the name",
       () =>

@@ -49,7 +49,6 @@ it("drops a prompt the desktop ended, whether it is on screen or still waiting",
   bridge.prompt("ssh-3", "third-host");
   await expect.element(screen.getByText("julius@first-host")).toBeVisible();
 
-  // ssh-2 ended while it waited behind ssh-1, and ssh-1 ended on screen.
   bridge.settle("ssh-2");
   bridge.settle("ssh-1");
   await expect.element(screen.getByText("julius@third-host")).toBeVisible();
@@ -63,7 +62,6 @@ it("shows a prompt that arrived before the dialog mounted", async () => {
   const stopQueue = startSshPasswordPromptQueue();
   using _queue = { [Symbol.dispose]: stopQueue };
 
-  // The desktop asks while the app is still on a page without the dialog (pairing, sign-in).
   bridge.prompt("ssh-1", "devbox");
 
   await using screen = await render(<SshPasswordPromptDialog />);

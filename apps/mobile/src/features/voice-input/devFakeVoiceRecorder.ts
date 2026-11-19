@@ -94,7 +94,6 @@ export function createDevFakeVoiceRecorder(
   let limit: ReturnType<typeof setTimeout> | null = null;
   let pacer: ReturnType<typeof setInterval> | null = null;
 
-  // The clip, then silence once it runs out.
   const clipBytes = (start: number, end: number) => {
     const pcm = new Uint8Array(end - start);
     pcm.set(new Uint8Array(samples.buffer).subarray(start, end));

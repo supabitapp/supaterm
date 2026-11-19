@@ -40,7 +40,6 @@ it("drops strict MCP mode, and only that, next to an administrator's managed-mcp
     spawnVia: undefined,
   });
 
-  // Claude exits before initializing when handed --strict-mcp-config here.
   assert.equal(options.strictMcpConfig, undefined);
   assert.deepEqual(options.mcpServers, {});
   assert.equal(options.env?.ENABLE_CLAUDEAI_MCP_SERVERS, "false");
@@ -56,13 +55,7 @@ it.layer(NodeServices.layer)("Claude capability probe SDK boundary", (it) => {
         new URL("./testing/ClaudeCapabilitiesProbe.fixture.mjs", import.meta.url),
       );
       const invocationPath = path.join(tempDir, "invocation.json");
-      // The probe aborts the SDK without awaiting the child's exit, and on
-      // Windows a directory that is still some process's cwd cannot be
-      // removed. Keep the workspace outside the scoped directory and let it
-      // go with a retrying removal once the child has gone.
       const workspaceCwd = yield* fs.makeTempDirectory({ prefix: "supaterm-claude-probe-cwd-" });
-      // Node's own retry rather than an Effect schedule: it.effect runs on a
-      // TestClock, so a scheduled retry would wait for time nobody advances.
       yield* Effect.addFinalizer(() =>
         Effect.promise(() =>
           NodeFSP.rm(workspaceCwd, {
@@ -185,7 +178,6 @@ it.effect("records an SDK failure without exposing the rejection message", () =>
   }).pipe(Effect.scoped, Effect.provide([NodeServices.layer, Logger.layer([logger])]));
 });
 
-// A shell trampoline would not do: dash drops the exported function, and the launcher exits 127.
 it.live.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
   "starts a Bash launcher that calls an exported function in the probe's workspace",
   () =>
@@ -241,7 +233,6 @@ it.effect("keeps the probe subprocess alive while gateway model discovery can fi
     yield* Effect.addFinalizer(() => Effect.sync(() => query.mockRestore()));
     const fileSystem = yield* FileSystem.FileSystem;
     const configDir = yield* fileSystem.makeTempDirectoryScoped();
-    // Claude Code also reads these from settings.json, which is where gateway users set them.
     yield* fileSystem.writeFileString(
       `${configDir}/settings.json`,
       JSON.stringify({

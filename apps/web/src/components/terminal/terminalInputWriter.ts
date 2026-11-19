@@ -1,6 +1,5 @@
 import { chunkTerminalWrite } from "@supaterm/contracts";
 
-/** Sends one chunk of terminal input; resolves false when it failed and the rest should drop. */
 type SendTerminalChunk = (chunk: string) => Promise<boolean | "not-dispatched">;
 
 /**

@@ -8,7 +8,6 @@ const project = vi.hoisted(() => {
   let value: unknown = null;
   const listeners = new Set<() => void>();
   return {
-    // Each test starts from no project and no listeners left by an earlier test.
     setup: (initial: unknown) => {
       value = initial;
       listeners.clear();

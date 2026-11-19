@@ -83,7 +83,6 @@ export class CaptureFeedback {
         session.pid,
         title,
       );
-    // A command-palette capture temporarily unmaps Supaterm. Wait for its new surface, not a sleep.
     const target =
       find() ??
       (await new Promise((resolve) => {
@@ -141,7 +140,6 @@ export class CaptureFeedback {
       });
     });
     await this._flight;
-    // Keep the landed image until the renderer acknowledges the attachment (connection closes).
   }
 
   _clearActors() {

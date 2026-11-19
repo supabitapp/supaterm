@@ -40,7 +40,6 @@ it("reports the single stable tag on HEAD unless a release manifest was edited",
   repo.git("tag", "--no-sign", "-a", "v0.1.6", "-m", "release");
   expect(resolve()).toBe("0.1.6");
 
-  // A nightly or preview job on the tagged commit aligns the manifests to its own version.
   repo.writeManifest("apps/web/package.json", "0.1.7-preview.1");
   expect(resolveTaggedSourceVersion(repo.root, "0.1.7-preview.1")).toBe("0.1.7-preview.1");
   repo.writeManifest("apps/web/package.json", "0.1.5");

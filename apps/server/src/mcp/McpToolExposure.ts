@@ -3,7 +3,6 @@ import * as Effect from "effect/Effect";
 
 export const TOOL_SEARCH = "tool_search";
 
-/** What a deferring client lists before it searches. Pi's extension declares the same three. */
 const DIRECT_TOOLS: ReadonlySet<string> = new Set([
   "orchestrator_capabilities",
   "delegate_task",
@@ -12,7 +11,6 @@ const DIRECT_TOOLS: ReadonlySet<string> = new Set([
 ]);
 
 const MAX_RESULTS = 10;
-// Sessions that ended are never reported here, so keep only the newest.
 const MAX_SESSIONS = 256;
 
 export interface ListedTool {

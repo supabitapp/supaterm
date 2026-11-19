@@ -320,7 +320,6 @@ export function pullRequestSurface(target: {
   };
 }
 
-/** A pending link belongs to the click that made it, not to a reload or a reopen. */
 const withoutReveal = (surface: RightPanelSurface): RightPanelSurface => {
   if (surface.kind !== "pull-request" || surface.revealUrl === undefined) return surface;
   const { revealUrl: _pending, ...rest } = surface;
@@ -529,7 +528,6 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
           ) {
             return state;
           }
-          // Keep an existing PR tab where the user left it when revisiting a thread.
           if (
             !activateExisting &&
             selectThreadRightPanelState(state.byThreadKey, ref).surfaces.some(
@@ -623,7 +621,6 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               ...next,
               surfaces: next.surfaces.map((entry) => {
                 if (entry.id !== surface.id || entry.kind !== "pull-request") return entry;
-                // A later link replaces one not yet shown.
                 const { revealUrl: _previous, ...rest } = entry;
                 return { ...rest, ...surface, ...(revealUrl ? { revealUrl } : {}) };
               }),
@@ -667,7 +664,6 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
             if (requestedPath === ".") {
               return upsertSurface(current, singletonSurface("files"));
             }
-            // Workspace entry paths use '/', including on Windows.
             const relativePath = /^[A-Za-z]:\/+$/.test(requestedPath)
               ? requestedPath
               : requestedPath.replace(/\/+$/, "") || requestedPath;
@@ -925,8 +921,6 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               (surface) => surface.id === current.activeSurfaceId,
             );
             const fallbackBrowser = surfaces.find((surface) => surface.kind === "preview");
-            // A closed session tab was the last surface: hide the panel rather than leave it on
-            // the empty picker, as a user close would. A dropped `browser:new` placeholder does not count.
             const closedLastSessionTab =
               surfaces.length === 0 &&
               current.surfaces.some((surface) => surface.kind === "preview" && surface.resourceId);

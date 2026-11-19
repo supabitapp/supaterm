@@ -11,10 +11,6 @@ import { SshHostDiscoveryError } from "./errors.ts";
 
 const NO_HOSTS: ReadonlyArray<string> = [] as const;
 
-// Mirrors OpenSSH readconf: the keyword may be followed by one optional "=",
-// then the arguments are split like misc.c argv_split() with quotes, the
-// escapes \\ \" \' and unquoted "\ ", and "#" starting a comment only at
-// the start of a token. Invalid quoting leaves hostname resolution uncertain.
 function parseSshConfigLine(line: string) {
   const match = /^[ \t\r]*([^ \t\r=]+)[ \t\r]*=?[ \t\r]*(.*)$/su.exec(
     line.replace(/[ \t\r\f]+$/u, ""),
@@ -92,7 +88,6 @@ function escapeRegex(value: string): string {
 
 const utf8 = new TextEncoder();
 
-// OpenSSH's glob matches UTF-8 bytes, so `?` consumes one byte of a filename.
 function globBytes(value: string): string {
   return Array.from(utf8.encode(value), (byte) => String.fromCharCode(byte)).join("");
 }
@@ -131,7 +126,6 @@ const expandGlob = Effect.fnUntraced(function* (
   for (const directory of directories) {
     if (!(yield* fs.exists(directory))) continue;
     if ((yield* fs.stat(directory)).type !== "Directory") continue;
-    // Like OpenSSH's glob, a wildcard-matched directory we cannot read matches nothing.
     const entries = directoryIsGlob
       ? yield* fs.readDirectory(directory).pipe(Effect.orElseSucceed(() => NO_HOSTS))
       : yield* fs.readDirectory(directory);
@@ -153,7 +147,6 @@ type HostCondition = ReadonlyArray<string> | null;
 
 interface HostRule {
   readonly conditions: ReadonlyArray<HostCondition>;
-  // null: an unreadable Include that may set any directive.
   readonly directive: "hostname" | "port" | null;
   readonly value: string | null;
 }
@@ -187,7 +180,6 @@ function resolveConfiguredValue(
     ) {
       continue;
     }
-    // SSH takes the first value; an uncertain earlier value blocks later fallbacks.
     if (rule.conditions.includes(null) || rule.value === null) return null;
     return rule.value;
   }
@@ -200,7 +192,6 @@ function resolveConfiguredHostname(alias: string, rules: ReadonlyArray<HostRule>
   return hostname.replaceAll("%h", alias);
 }
 
-// "*" when the port is uncertain, so the alias still covers every known_hosts port.
 function resolveConfiguredPort(alias: string, rules: ReadonlyArray<HostRule>) {
   const port = resolveConfiguredValue(alias, "port", rules);
   return port === undefined ? "22" : (port ?? "*");
@@ -218,7 +209,6 @@ const collectSshConfigAliasesFromFile = Effect.fnUntraced(function* (
   const path = yield* Path.Path;
   const resolvedPath = path.resolve(filePath);
   if (visited.has(resolvedPath)) {
-    // Read each file once, but never reuse its rules under a different Include context.
     hostNameRules.push({ conditions: inheritedConditions, directive: null, value: null });
     return;
   }
@@ -406,7 +396,6 @@ export const discoverSshHosts = Effect.fnUntraced(
 
     for (const { hostname, port } of knownHosts) {
       const name = hostname.toLowerCase();
-      // A port-less entry connects as `ssh <host>`, so a matching alias's Port applies to it.
       if (
         port === null
           ? configuredNames.has(name)

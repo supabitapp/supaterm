@@ -17,8 +17,6 @@ export interface TerminalOutputState {
   readonly retainedBytes: number;
   readonly resetVersion: number;
   readonly nextOffset: number;
-  // The terminal parser's state at the first retained code unit. Trimming can cut a control
-  // sequence, and a replay has to skip the rest of it instead of printing it.
   readonly sequenceState: number;
   /** Chunks before this offset are replayed to emulators but are no longer displayed text. */
   readonly textStartOffset: number;
@@ -28,7 +26,6 @@ export interface TerminalOutputCursor {
   readonly generation: number;
   readonly resetVersion: number;
   readonly offset: number;
-  // The cut control sequence still open at `offset`, which the reader's terminal never entered.
   readonly sequenceState: number;
 }
 
@@ -58,7 +55,6 @@ export type TerminalOutputUpdate =
 const DEFAULT_TERMINAL_CHUNK_BYTES = 16 * 1024;
 const MAX_TERMINAL_OUTPUT_CHUNKS = 1_024;
 const textEncoder = new TextEncoder();
-// A BOM at a retained chunk boundary is terminal data, not an encoding marker.
 const textDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
 export const EMPTY_TERMINAL_OUTPUT_STATE = Object.freeze<TerminalOutputState>({
@@ -91,8 +87,6 @@ function splitStringByUtf8Bytes(data: string, maxBytes: number): ReadonlyArray<U
     while (end < encoded.byteLength && ((encoded[end] ?? 0) & 0xc0) === 0x80) {
       end -= 1;
     }
-    // A degenerate budget smaller than one code point still has to advance:
-    // include the whole code point rather than looping forever.
     if (end === offset) {
       end = Math.min(offset + maxBytes, encoded.byteLength);
       while (end < encoded.byteLength && ((encoded[end] ?? 0) & 0xc0) === 0x80) {
@@ -274,13 +268,10 @@ function resetOutput(
   };
 }
 
-// Erases the screen and scrollback only. A full emulator reset would drop the
-// screen and input modes the still-running program negotiated.
 const CLEAR_TERMINAL_TEXT = "\u001b[H\u001b[2J\u001b[3J";
 
 /** Earlier output stays retained so a replay from the start restores those modes. */
 function clearOutput(current: TerminalOutputState, maxBufferBytes: number): TerminalOutputState {
-  // The erase rides over the budget: trimming here would evict the output that set those modes.
   const cleared = appendOutput(
     current,
     CLEAR_TERMINAL_TEXT,
@@ -333,7 +324,6 @@ export function readTerminalOutputUpdate(
     };
   }
 
-  // Appends and compaction preserve offset order, so unread chunks form a suffix.
   let firstUnread = output.chunks.length;
   while (firstUnread > 0) {
     const chunk = output.chunks[firstUnread - 1]!;

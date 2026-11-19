@@ -280,12 +280,10 @@ describe("scan cache round trip", () => {
       size: -1,
       position: { resumeOffset: 0, guardLength: 0, guardHash: 0, state: null },
     });
-    // Served while unchanged, but its state predates the latest snapshot time, so it cannot resume.
     expect(restored.get("/clean-codex.jsonl")).toEqual({
       ...codex(0),
       position: { resumeOffset: 0, guardLength: 0, guardHash: 0, state: null },
     });
-    // The migrated entries persist without a state and load again under the current version.
     expect(decodeScanCache(parse(makeScanCacheWriter()(restored, {})), TEST_FORMAT_MAP)).toEqual(
       restored,
     );

@@ -74,8 +74,6 @@ export const layer: Layer.Layer<ThreadHistoryController> = Layer.effect(
             environmentId: registration.environmentId,
             threadId: registration.threadId,
           });
-          // Only remove when this registration still owns the slot. An older
-          // fiber finalizer must not delete a newer handler for the same key.
           if (current.get(key) !== registration.handler) {
             return current;
           }

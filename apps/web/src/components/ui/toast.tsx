@@ -77,11 +77,6 @@ type BaseToastManager = ReturnType<typeof Toast.createToastManager<ThreadToastDa
 type ToastManagerListener = Parameters<BaseToastManager[" subscribe"]>[0];
 type ToastManagerEvent = Parameters<ToastManagerListener>[0];
 
-/**
- * base-ui's manager drops events while no provider is subscribed. App services raise toasts
- * from before the first render (and while the root error view replaces the providers), so hold
- * those until a provider listens.
- */
 function createBufferedToastManager(): BaseToastManager {
   const manager = Toast.createToastManager<ThreadToastData>();
   const listeners = new Set<ToastManagerListener>();
@@ -468,7 +463,6 @@ function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
   return null;
 }
 
-/** Threads on screen: the route's, plus the server threads in the other chat panes. */
 function useVisibleThreadRefs(): ReadonlyArray<ScopedThreadRef> {
   const activeThreadRef = useActiveThreadRefFromRoute();
   const paneThreadRefs = useChatPaneStore(
@@ -631,7 +625,6 @@ function Toasts({ position }: { position: ToastPosition }) {
                   ? "not-data-expanded:[--toast-calc-height:var(--toast-frontmost-height)] data-expanded:[--toast-calc-height:max(var(--toast-frontmost-height,var(--toast-height)),var(--toast-height))]"
                   : "[--toast-calc-height:max(var(--toast-frontmost-height,var(--toast-height)),var(--toast-height))]",
                 "[--toast-gap:--spacing(3)] [--toast-peek:--spacing(3)] [--toast-scale:calc(max(0,1-(var(--toast-index)*.1)))] [--toast-shrink:calc(1-var(--toast-scale))]",
-                // Base UI measures with height:auto; --toast-height as min-height would prevent shrinking.
                 visibleIndex > 0
                   ? "not-data-expanded:h-(--toast-calc-height) data-expanded:h-auto"
                   : "h-auto",
@@ -646,7 +639,6 @@ function Toasts({ position }: { position: ToastPosition }) {
                 "data-[position*=top]:data-[position*=right]:data-starting-style:transform-[translateX(calc(100%+var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
                 "data-ending-style:opacity-0",
                 "motion-safe:data-ending-style:[transition:transform_180ms_var(--ease-in),opacity_180ms_var(--ease-in),height_150ms]",
-                // A swiped toast keeps the finger's momentum instead of easing in from rest.
                 "data-ending-style:data-swipe-direction:[transition-timing-function:var(--ease-out)]",
                 "data-ending-style:not-data-limited:not-data-swipe-direction:transform-[translateY(calc(100%+var(--toast-inset)))]",
                 "data-[position*=top]:data-[position*=right]:data-ending-style:not-data-limited:not-data-swipe-direction:transform-[translateX(calc(100%+var(--toast-inset)))_translateY(var(--toast-calc-offset-y))]",
@@ -695,8 +687,6 @@ function Toasts({ position }: { position: ToastPosition }) {
               </div>
               <Toast.Content
                 className={cn(
-                  // overflow-x:clip preserves visible vertical overflow; hidden would force overflow-y:auto
-                  // and clip detail panels.
                   "pointer-events-auto min-h-0 overflow-y-visible pl-3.5 text-sm transition-opacity duration-250 [overflow-x:clip] data-expanded:opacity-100",
                   stackedActionLayout
                     ? "flex flex-col gap-2 py-2.5 pr-3.5"

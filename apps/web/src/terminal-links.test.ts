@@ -347,7 +347,6 @@ describe("resolvePathLinkTarget", () => {
     expect(resolveTerminalLinkTarget(link?.text ?? "", "/repo")).toBe(target);
   });
 
-  // regression: #36005 OSC 8 file URIs were joined onto the cwd as relative paths
   it("does not resolve an OSC 8 file URI target against the cwd", () => {
     expect(resolveTerminalLinkTarget("file:///var/tmp/report.txt", "/workspace/project")).toBe(
       "file:///var/tmp/report.txt",

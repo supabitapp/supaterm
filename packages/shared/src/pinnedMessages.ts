@@ -6,7 +6,6 @@ import {
 import * as DateTime from "effect/DateTime";
 
 const PREVIEW_LENGTH = 160;
-// MARKDOWN_LINK rescans to the line's end from every unmatched `[`, so parse only what a preview can use.
 const PREVIEW_SOURCE_LENGTH = 2_000;
 const LEADING_MARKDOWN = /^\s*(?:#{1,6}\s+|>\s*|[-*+]\s+|\d+[.)]\s+)/;
 const MARKDOWN_LINK = /!?\[([^\]]*)\]\([^)]*\)/g;
@@ -22,7 +21,6 @@ export function isPinnableMessageItem(item: OrchestrationV2TurnItem): item is Pi
 }
 
 function pinnedMessagePreview(text: string): string {
-  // Clients hide the stand-in prompt of an attachment-only message, so the pin does too.
   if (isAttachmentOnlyBootstrapPrompt(text)) return "";
   const plain = replaceComposerContextReferences(text, (reference) => reference.label);
   for (const line of plain.split("\n")) {

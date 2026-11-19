@@ -46,7 +46,6 @@ export function HtmlRenderFrame(props: {
       if (entry) setWidth(entry.contentRect.width);
     });
   };
-  // Client fonts can exceed the server-measured height and cause nested scrolling.
   const [contentHeight, setContentHeight] = useState<number>();
   const height = htmlRenderFrameHeight(props.htmlRender, width, contentHeight);
   const fileName = htmlRenderFileName(title);
@@ -57,7 +56,6 @@ export function HtmlRenderFrame(props: {
     mimeType: "text/html",
     disposition: "inline" as const,
   };
-  // The frame keeps the first URL it loads, so later mints do not reload the page.
   const [loaded, setLoaded] = useState<{ src: string; expiresAt: number } | null>(null);
   const assetUrl = useLongLivedAssetUrl(loaded === null ? props.environmentId : null, resource);
   if (loaded === null && assetUrl._tag === "Success") {
@@ -68,8 +66,6 @@ export function HtmlRenderFrame(props: {
   const refresh = useAssetUrlRefresh(props.environmentId, resource);
   const [expandedSrc, setExpandedSrc] = useState<string | null>(null);
   const { onFullscreenChange, onSelection } = props;
-  // Tied to the viewer's lifetime: unmounting while expanded must still release
-  // the timeline's follow pin, which a close handler alone never reaches.
   const expanded = expandedSrc !== null;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds the parent's fullscreen pin while expanded and releases it on collapse or unmount
   useEffect(() => {
@@ -105,7 +101,6 @@ export function HtmlRenderFrame(props: {
                         id: attachmentId,
                         name: fileName,
                         mimeType: "text/html",
-                        // Unknown here; the preview leaves it out.
                         sizeBytes: 0,
                         htmlRender: true,
                       })

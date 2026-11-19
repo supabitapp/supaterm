@@ -1,8 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - plain Node script run by hand after a cue change.
-/**
- * React Native has no Web Audio, so mobile plays WAV renders of the web dictation cues.
- * Math.random is seeded, so a rerun only changes the files when cuelume or a cue does.
- */
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
@@ -59,7 +55,6 @@ const browser = await chromium.launch();
 try {
   await NodeFSP.mkdir(outputDirectory, { recursive: true });
   for (const [cue, [sound, options]] of Object.entries(VOICE_INPUT_CUE_SOUNDS)) {
-    // cuelume keeps one AudioContext per page, so each cue gets a fresh one.
     const page = await browser.newPage();
     await page.route(`${ORIGIN}/**`, async (route) => {
       const pathname = new URL(route.request().url()).pathname;
@@ -80,7 +75,6 @@ try {
         };
         Object.defineProperty(navigator, "userActivation", { value: { hasBeenActive: true } });
         const contexts: OfflineAudioContext[] = [];
-        // cuelume only renders into a running context; an offline one runs once rendering starts.
         window.AudioContext = function RenderingContext() {
           const context = new OfflineAudioContext(1, sampleRate * seconds, sampleRate);
           Object.defineProperty(context, "state", { get: () => "running" });

@@ -23,7 +23,6 @@ import { randomUUID } from "./utils";
 
 const CLIENT_ID_STORAGE_KEY = "supaterm.backgroundActivity.clientId";
 const REPORT_INTERVAL_MS = 25_000;
-// Shorter than the interval, so a report that never settles cannot hold up the next one.
 const REPORT_TIMEOUT_MS = 15_000;
 const LEASE_TTL_MS = 45_000;
 const RECENT_INTERACTION_WINDOW_MS = LEASE_TTL_MS;

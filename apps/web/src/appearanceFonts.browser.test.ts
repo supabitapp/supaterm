@@ -16,7 +16,6 @@ function renderedFontSize(style: (probe: HTMLElement) => void): string {
 
 const composerFontSize = () =>
   renderedFontSize((probe) => {
-    // The composer editor's own size class.
     probe.className = "text-(length:--font-size-prompt,var(--text-sm))";
   });
 
@@ -45,7 +44,6 @@ describe("applyAppearanceFontVariables", () => {
 
       applyAppearanceFontVariables(root, { ...preferences, separate: true });
       expect(composerFontSize()).toBe("14px");
-      // iOS zooms into inputs under 16px.
       expect(touchComposerFontSize()).toBe("16px");
     } finally {
       if (style === null) root.removeAttribute("style");
@@ -80,7 +78,6 @@ describe("applyAppearanceFontVariables", () => {
       }
     };
     try {
-      // `0. ` in a 14px monospace font is about 25px, past the 20px default.
       expect(gutter("monospace")).toBeGreaterThan(24);
       expect(gutter("sans-serif")).toBe(20);
     } finally {

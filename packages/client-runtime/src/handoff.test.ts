@@ -154,7 +154,6 @@ describe("pending context handoff", () => {
   it("stays hidden while the thread's timeline is empty", () => {
     const empty = { ...projection, visibleTurnItems: [] };
     expect(resolvePendingHandoff(empty, { instanceId: to, model: "first" }, [])).toBeNull();
-    // Paging can leave a window of only tool rows after the prompt.
     const toolRowsOnly = {
       ...projection,
       visibleTurnItems: [{ item: { type: "command_execution" } }],
@@ -231,7 +230,6 @@ describe("model switch change", () => {
         providers,
       ),
     ).toBeNull();
-    // A cataloged model without an effort control ignores stale effort options.
     expect(
       resolveModelSwitchChange(
         {

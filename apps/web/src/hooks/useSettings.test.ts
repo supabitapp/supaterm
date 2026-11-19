@@ -176,7 +176,6 @@ describe("persistClientSettingsPatch", () => {
     expect(persistenceMocks.setClientSettings).toHaveBeenNthCalledWith(2, secondSettings);
   });
 
-  // regression: #35010 a save in one tab reverted settings another tab saved after it loaded
   it("keeps a setting another tab saved after this tab loaded", async () => {
     vi.stubGlobal("window", new EventTarget());
     try {

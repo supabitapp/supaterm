@@ -226,7 +226,6 @@ export class GnomeCaptureSetup {
       if (state.status !== "not-installed" && state.status !== "update-required")
         throw new Error(state.message);
       await installGnomeCaptureBundle(this.paths);
-      // GNOME discovers a newly installed local extension at the next login.
       return;
     }
     if (action === "enable-extension" && state.status !== "disabled")

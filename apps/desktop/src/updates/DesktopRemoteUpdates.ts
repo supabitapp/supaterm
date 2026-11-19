@@ -205,12 +205,7 @@ export const listen: Effect.Effect<
           requestId: request.requestId,
           channel: request.channel,
         });
-        // A switch saves its track first, so the step machine never sees the old track's offer.
-        // The saved track is the user's intent and stays even if this request fails: a track saved
-        // toward Stable never offers an older build outside a guarded switch.
         if (request.channel !== undefined) {
-          // A reinstall restarts every backend, but the requesting server checked only its own
-          // database. A WSL backend keeps its own, so cross tracks only where all can be checked.
           const current = yield* updates.getState;
           if (
             desktopUpdateChannelOf(current.currentVersion) !== request.channel &&
@@ -246,8 +241,6 @@ export const listen: Effect.Effect<
             Deferred.await(cancellation).pipe(Effect.as(false)),
           );
           if (!switched) return;
-          // A host already running the target only needed its track saved; installing a newer
-          // build here would restart it without the dialog having said so.
           const state = yield* updates.getState;
           if (request.targetVersion === state.currentVersion) {
             yield* publishReport(state, { outcome: "up-to-date" }, request.requestId);
@@ -257,7 +250,6 @@ export const listen: Effect.Effect<
         const { latest, changes } = yield* updates.subscribe;
         const disabledReason = Option.getOrNull(yield* updates.disabledReason);
         let attempts: RemoteDesktopUpdateAttempts = { checks: 0, downloads: 0 };
-        // State events can precede reservation release; re-enqueue refused actions so they retry after release.
         const retries = yield* Queue.unbounded<DesktopUpdateState>();
         const retryLater = (state: DesktopUpdateState) =>
           Effect.sleep(ACTION_RETRY_DELAY).pipe(
@@ -266,8 +258,6 @@ export const listen: Effect.Effect<
             Effect.forkScoped,
           );
 
-        // A host leaving its build's track may need an older build, down to the checked release;
-        // the updater offers nothing below it.
         const crossing = (state: DesktopUpdateState) =>
           request.channel !== undefined &&
           request.targetVersion !== undefined &&
@@ -302,9 +292,6 @@ export const listen: Effect.Effect<
               );
               return false;
             case "install": {
-              // The download event fires before its action releases the
-              // updater reservation. Wait until the prepared install can
-              // be committed by the client in a separate RPC.
               if (yield* updates.isActionActive) {
                 yield* retryLater(state);
                 return false;
@@ -337,8 +324,6 @@ export const listen: Effect.Effect<
               return true;
             }
             case "done": {
-              // A switch that leaves the host on its old track, or below its checked release, did
-              // not reach it; a track-only host already at the release is done.
               const done =
                 request.targetVersion !== undefined &&
                 next.outcome === "up-to-date" &&
@@ -515,7 +500,6 @@ export const listen: Effect.Effect<
         result.state.downloadedVersion === claim.prepared.downloadedVersion &&
         (yield* updates.isInstallActive)
       ) {
-        // Join the existing install; reconnect and target-version checks prove its handoff.
         yield* logInfo("remote update commit joining an in-progress install", {
           requestId: commit.requestId,
         });
@@ -528,7 +512,6 @@ export const listen: Effect.Effect<
         }
         return;
       }
-      // Installation kills this backend; only transport loss followed by the target version proves handoff.
     }).pipe(
       Effect.ensuring(clearActiveRequest(commit.requestId)),
       Effect.catchCause((cause) =>

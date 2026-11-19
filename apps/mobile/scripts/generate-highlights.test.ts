@@ -6,8 +6,6 @@ import { HIGHLIGHTS_LANGUAGE_IDS, HIGHLIGHTS_THEME_STYLES } from "../src/lib/hig
 import { computeHighlightsData } from "./generate-highlights.mts";
 
 describe("generate highlights", () => {
-  // Token and language IDs are the native build's ABI. Bumping
-  // @pierre/highlights without regenerating would mislabel every token.
   it("matches the installed @pierre/highlights", async () => {
     const data = await computeHighlightsData();
     const nativeSource = NodeFS.readFileSync(

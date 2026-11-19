@@ -60,8 +60,6 @@ export const makeClaudeFastModeAvailability = Effect.fn("makeClaudeFastModeAvail
         enabled(settings?.env?.CLAUDE_CODE_SKIP_FAST_MODE_ORG_CHECK)
       )
         return false;
-      // The probe never opts in, so its reason stops at sdk_opt_in_required. Claude Code caches
-      // its org check here and enforces it even when a gateway or token serves inference.
       const account = yield* readJson(accountConfigPath, AccountConfig);
       return account?.penguinModeOrgEnabled === false;
     });

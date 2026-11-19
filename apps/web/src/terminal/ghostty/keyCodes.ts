@@ -1,8 +1,5 @@
 import { isMacPlatform, US_SHIFTED_TO_UNSHIFTED_KEYS } from "@supaterm/shared/keybindings";
 
-// This order mirrors GhosttyKey in ghostty/vt/key/event.h. The values are
-// intentionally derived from the official W3C-aligned enum instead of
-// maintaining a second keyboard protocol.
 const ghosttyKeyboardCodes = [
   "Unidentified",
   "Backquote",
@@ -190,7 +187,6 @@ export function ghosttyKeyForCode(code: string): number {
   return codeToGhosttyKey.get(code) ?? 0;
 }
 
-// With NumLock off, keypad digits report navigation keys; Ghostty encodes those as keypad variants.
 const NUMPAD_NAVIGATION_KEYS = new Map<string, number>(
   (
     [
@@ -238,7 +234,6 @@ export function loadGhosttyKeyboardLayoutMap(): Promise<GhosttyKeyboardLayoutMap
   return promise;
 }
 
-// Browsers omit consumed modifiers; macOS Option composes layout characters too.
 export function ghosttyConsumedMods(
   event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey">,
   platform = navigator.platform,
@@ -265,7 +260,6 @@ export function ghosttyUnshiftedCodepoint(
     if (lowercase !== event.key && [...lowercase].length === 1) {
       return lowercase.codePointAt(0) ?? 0;
     }
-    // Without layout data, the unshifted character is unknown; guessing corrupts Kitty alternate keys.
     return 0;
   }
   return event.key.codePointAt(0) ?? 0;

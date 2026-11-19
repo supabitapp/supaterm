@@ -53,7 +53,6 @@ import {
 import { commandDisplayText } from "../work-log/commandLabel.ts";
 import { formatSubagentDisplayTitle } from "./subagentDisplay.ts";
 
-// Preparing runs show their workspace setup instead.
 const PROVIDER_STARTING_RUN_STATUSES = new Set(["starting", "running"]);
 
 const EMPTY_EXTENSION_STATUSES: NonNullable<OrchestrationV2ProviderSession["extensionStatuses"]> =
@@ -136,8 +135,6 @@ function summarizeThreadRun(
       projection.messages.findLast(
         (message) => message.runId === run.id && message.role === "assistant",
       )?.id ?? null,
-    // A run counts as running before its provider opens; until a turn appears,
-    // the provider can still be launching for minutes.
     ...(turnStatus === undefined
       ? PROVIDER_STARTING_RUN_STATUSES.has(run.status)
         ? { providerStartingLabel: providerStartingLabel(projection, run) }
@@ -245,7 +242,6 @@ export function formatModelSelectionEffort(
     const value = getProviderOptionStatedValue(id, current, reportedSelection);
     if (value === undefined && id !== "variant") continue;
     if (typeof value === "boolean") continue;
-    // Bypass picker normalization so an obsolete choice cannot become a catalog default.
     const label = getProviderOptionCurrentLabel(
       { ...descriptor, currentValue: value },
       current,
@@ -369,7 +365,6 @@ export function deriveThreadStructureRuntime(
       pullRequests: projection.thread.pullRequests,
     }),
   );
-  // A pull request watch can hold a thread that never ran.
   if (latestRun === null && !backgroundWorkHoldsRun) return null;
   const activeRunId =
     latestMatchingRun(projection, (run) => isOrchestrationV2RunInterruptible(run.status))?.id ??
@@ -400,7 +395,6 @@ export interface UsageLimitNoticeRows {
   readonly providerNoticeItemId: ThreadStructureTurnItem["id"] | null;
 }
 
-// Claude Code's own limit messages, such as "You've hit your 5-hour limit · resets 7:10am".
 const PROVIDER_LIMIT_NOTICE =
   /^(?:You[’']ve hit your (?:(?:5-hour|session|weekly|usage) )?limit|You[’']re out of extra usage|Claude AI usage limit reached)(?: · resets (?:[1-9]|1[0-2])(?::[0-5]\d)?(?:am|pm)(?: \([A-Za-z0-9_+-]+(?:\/[A-Za-z0-9_+-]+)*\))?)?\.?$/i;
 
@@ -530,7 +524,6 @@ export function presentRunStop(
   let active: ThreadStructure["runs"][number] | null = null;
   let latest: ThreadStructure["runs"][number] | null = null;
   for (const candidate of projection.runs) {
-    // Queued follow-ups never ran, so they hold no Stop of their own.
     if (candidate.status !== "queued" && candidate.ordinal > (latest?.ordinal ?? -1))
       latest = candidate;
     if (
@@ -589,7 +582,6 @@ export function soleWatchedPullRequest<
   return watched !== undefined && others.length === 0 ? watched : null;
 }
 
-// The Claude adapter forces a stuck query closed after 10 seconds.
 export const BACKGROUND_WORK_STOP_RETRY_AFTER_MS = 10_000;
 
 export interface BackgroundWorkStopRequest {
@@ -637,7 +629,6 @@ export function presentPendingBackgroundWork(
           (task.kind === "command" || task.kind === "monitor") && !isWatchTaskId(task.taskId),
       };
     })
-    // `map` returned a new array; Hermes has no `toSorted`.
     .sort(
       (left, right) =>
         BACKGROUND_WORK_KINDS[left.kind].order - BACKGROUND_WORK_KINDS[right.kind].order,

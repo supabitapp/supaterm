@@ -39,10 +39,8 @@ const MULTI_CLICK_MS = 500;
 const MULTI_CLICK_SLOP_PX = 4;
 const WHEEL_LINE_PX = 16;
 const MAX_PIXEL_RATIO = 2;
-// Reuse nearby probe answers: slow replies arrive too late after touch-end to raise the iOS keyboard.
 const PROBE_REUSE_PX = 24;
 const PROBE_REUSE_MS = 10_000;
-// A sentinel makes backspace fire input; Gboard keydown supplies only keyCode 229.
 const SENTINEL = "\u200b";
 const AGENT_CURSOR_ACTIVE_MS = 700;
 const AGENT_CURSOR_SVG = `<svg width="20" height="20" viewBox="0 0 24 24" ${ICON_SVG_ROOT_ATTRIBUTES} color="#3b82f6"><g color="#fff">${iconSvgElements(MousePointerFilled)}</g>${iconSvgElements(MousePointer)}</svg>`;
@@ -202,7 +200,6 @@ export function start(configuration: PreviewStreamConfiguration) {
           probe = null;
           if (current.end === "panned") return;
           if (current.end === "acted" && current.editable === result.editable) return;
-          // Late answers can raise Android's keyboard; iOS needs another tap.
           if (result.editable) input.focus({ preventScroll: true });
           else input.blur();
         },
@@ -256,7 +253,6 @@ export function start(configuration: PreviewStreamConfiguration) {
   });
   observer.observe(container);
 
-  // iOS keeps its layout viewport under the keyboard; resize to the visual viewport.
   const visualViewport = window.visualViewport;
   const followVisualViewport = () => {
     if (!visualViewport) return;
@@ -409,7 +405,6 @@ export function start(configuration: PreviewStreamConfiguration) {
     if (event.pointerType !== "touch") {
       const point = pagePoint(event.clientX, event.clientY, mouseButtons !== 0);
       if (!point) return;
-      // Chorded presses and releases arrive as pointermove while another button is held.
       const changed = mouseButtons ^ (event.buttons & 7);
       if (mouseButtons !== 0 && changed !== 0) {
         flushMouse();
@@ -485,7 +480,6 @@ export function start(configuration: PreviewStreamConfiguration) {
     }
     const point = pagePoint(event.clientX, event.clientY, false);
     if (!point) return;
-    // Focusing inside the tap's user activation is what lets iOS raise the keyboard.
     if (answered?.editable === true) input.focus({ preventScroll: true });
     else if (answered?.editable === false) input.blur();
     if (answered) answered.end = answered.editable === null ? "late" : "acted";
@@ -523,7 +517,6 @@ export function start(configuration: PreviewStreamConfiguration) {
     const shortcut = event.ctrlKey || event.metaKey;
     if (shortcut && event.key.toLowerCase() === "v") return;
     if (event.shiftKey && event.key === "Insert") return;
-    // Enter carries "\r" like Puppeteer's key table, so forms submit and textareas break lines.
     const text = shortcut
       ? undefined
       : [...event.key].length === 1
@@ -540,7 +533,6 @@ export function start(configuration: PreviewStreamConfiguration) {
       ...(action === "down" && text !== undefined ? { text } : {}),
       modifiers: previewStreamModifiers(event),
     });
-    // Some Android keyboards edit the textarea even when keydown is prevented.
     keySent =
       action === "down" &&
       !shortcut &&
@@ -588,13 +580,11 @@ export function start(configuration: PreviewStreamConfiguration) {
     input.addEventListener("input", onInput);
     input.addEventListener("compositionend", onCompositionEnd);
     input.addEventListener("focus", resetInput);
-    // Copying the input would put its sentinel on this device's clipboard.
     input.addEventListener("copy", preventDefault);
     input.addEventListener("cut", preventDefault);
     resetInput();
   }
 
-  // WebKit reports no support on a video that has not loaded yet; check the prototype.
   const videoPrototype: PresentationVideo = HTMLVideoElement.prototype;
   const pictureInPictureSupported =
     interactive &&
@@ -603,7 +593,6 @@ export function start(configuration: PreviewStreamConfiguration) {
     ((document.pictureInPictureEnabled === true &&
       typeof videoPrototype.requestPictureInPicture === "function") ||
       typeof videoPrototype.webkitSetPresentationMode === "function");
-  // WebKit revokes activation after return; start picture in picture before awaiting. Prepare paused video before the tap.
   let video: PresentationVideo | null = null;
   let track: CanvasCaptureMediaStreamTrack | null = null;
   const pictureInPictureActive = () =>
@@ -617,7 +606,6 @@ export function start(configuration: PreviewStreamConfiguration) {
       active: pictureInPictureActive(),
       ...(detail ? { detail } : {}),
     });
-  // Called after each paint. A frame drawn before the player attached is lost, so retry.
   const sendPictureInPictureFrame = () => {
     if (video && (video.readyState === HTMLMediaElement.HAVE_NOTHING || pictureInPictureActive())) {
       track?.requestFrame();
@@ -629,7 +617,6 @@ export function start(configuration: PreviewStreamConfiguration) {
     const element: PresentationVideo = document.createElement("video");
     element.muted = true;
     element.playsInline = true;
-    // Under the canvas at full size: WebKit pauses muted video it considers off screen.
     element.srcObject = stream;
     for (const name of [
       "enterpictureinpicture",
@@ -658,7 +645,6 @@ export function start(configuration: PreviewStreamConfiguration) {
       reportPictureInPicture("The page has not shown yet. Try again in a moment.");
       return;
     }
-    // The page may have changed since the video's last frame. WebKit captures only on a draw.
     track?.requestFrame();
     canvas.getContext("2d")?.drawImage(canvas, 0, 0);
     const fail = (error: unknown) => {

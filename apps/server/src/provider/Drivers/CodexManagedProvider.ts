@@ -134,8 +134,6 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
             managedAuth,
           );
           const credentials = yield* runtime.auth.access;
-          // Another server can replace the saved profile while the native probe runs.
-          // Never send that account's token with the launch profile's catalog labels.
           if (
             (yield* runtime.auth.profileKey(credentials)) !== effective.revision ||
             (yield* runtime.auth.profileKey(saved.value)) !== effective.revision
@@ -235,14 +233,10 @@ export const makeManagedCodexProvider = Effect.fn("makeManagedCodexProvider")(fu
   );
   yield* runtime.auth.controller.subscribe("managed-codex-snapshot").pipe(
     Stream.filter((state) => ["idle", "succeeded", "failed", "cancelled"].includes(state.phase)),
-    // Sign-out closes the scope of an in-flight probe, which fails that refresh
-    // with an interrupt. Keep listening so the sign-out's own idle still refreshes.
     Stream.runForEach(() => snapshot.refresh.pipe(Effect.ignoreCause({ log: true }))),
     Effect.forkScoped,
   );
   const resolveRuntime = runtime.auth.controller.withAccess!(runtime.resolve);
-  // Launch settings bind the refresh command to the signed-in profile. The registry
-  // already wraps openSession in withAccess, so resolve without re-entering it.
   const models = snapshot.getSnapshot.pipe(Effect.map((value) => value.models));
   const orchestrationAdapter = yield* createCodexAdapterV2(input, {
     onUsageLimits: (update) => snapshot.applyUsageLimits(update),

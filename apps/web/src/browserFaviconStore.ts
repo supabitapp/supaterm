@@ -170,7 +170,6 @@ function mergeBrowserFaviconState(
   };
 }
 
-/** Server threads name their project in the shell; drafts in the composer draft store. */
 function useFaviconProjectRefForThread(threadRef: ScopedThreadRef): ScopedProjectRef | null {
   const shell = useQuietThreadShell(threadRef);
   const draftProjectRef = useComposerDraftStore((state) => {

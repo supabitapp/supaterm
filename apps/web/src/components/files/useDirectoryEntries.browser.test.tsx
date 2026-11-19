@@ -111,20 +111,18 @@ function setup() {
 
 it("coalesces 20 overlapping refreshes", async () => {
   const state = setup();
-  // The hook probe does not navigate.
   await using _screen = await render(<state.Probe />, { router: false });
   await state.settle(0);
   await act(async () => {
     for (let index = 0; index < 20; index++) state.view.refresh();
   });
   for (let index = 1; index < state.calls.length; index++) await state.settle(index);
-  expect(state.calls).toHaveLength(3); // Initial load, active refresh, one final rescan.
+  expect(state.calls).toHaveLength(3);
   expect(state.view.isPending).toBe(false);
 });
 
 it("rescans mutations during both the initial listing and the follow-up", async () => {
   const state = setup();
-  // The hook probe does not navigate.
   await using _screen = await render(<state.Probe />, { router: false });
   await act(async () => state.view.refresh());
   await state.settle(0);
@@ -155,7 +153,6 @@ it("rescans mutations during both the initial listing and the follow-up", async 
 
 it("shares the follow-up promise and does not resolve callers before the final listing", async () => {
   const state = setup();
-  // The hook probe does not navigate.
   await using _screen = await render(<state.Probe />, { router: false });
   let completed = false;
   const first = state.view.load("", true);
@@ -176,7 +173,6 @@ it("retains the four-query concurrency bound across directories and refreshes", 
     kind: "directory" as const,
   }));
   const state = setup();
-  // The hook probe does not navigate.
   await using _screen = await render(<state.Probe />, { router: false });
   await state.settle(0, folders);
   await act(async () => {
@@ -208,7 +204,6 @@ it("retains the four-query concurrency bound across directories and refreshes", 
 
 it("does not start a queued follow-up after unmount", async () => {
   const state = setup();
-  // The hook probe does not navigate.
   await using screen = await render(<state.Probe />, { router: false });
   await act(async () => state.view.refresh());
   await screen.unmount();
@@ -230,7 +225,6 @@ it("reads a folder that failed while unreachable again once a new session is up"
     <RegistryContext.Provider value={appAtomRegistry}>
       <ReconnectProbe />
     </RegistryContext.Provider>,
-    // The hook probe does not navigate.
     { router: false },
   );
   await expect.element(screen.getByText("Environment is reconnecting.")).toBeInTheDocument();
@@ -243,7 +237,6 @@ it("reads a folder that failed while unreachable again once a new session is up"
 
 it("reloads a removed folder when it reappears under the same name", async () => {
   const state = setup();
-  // The hook probe does not navigate.
   await using _screen = await render(<state.Probe />, { router: false });
   const folder = { path: "src", kind: "directory" } as const;
   await state.settle(0, [folder]);

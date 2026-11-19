@@ -68,7 +68,6 @@ function stdoutSpawner(onSpawn: (command: string, args: ReadonlyArray<string>) =
   });
 }
 
-// The `#!/bin/sh` stub below cannot be resolved as an executable on Windows.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
 
 it.layer(layerTest)("GrokDriver", (it) => {
@@ -114,7 +113,6 @@ it.layer(layerTest)("GrokDriver", (it) => {
         executable: binaryPath,
         args: ["update"],
         lockKey: "grok",
-        // npm 12 otherwise skips the postinstall that installs the new binary.
         env: expect.objectContaining({ npm_config_allow_scripts: "@xai-official/grok" }),
       }),
     },
@@ -170,9 +168,6 @@ it.layer(layerTest)("GrokDriver", (it) => {
     });
   }
 
-  // `grok update` installs into `$GROK_HOME/bin`, so an instance GROK_HOME that does not own
-  // binaryPath would update a different copy and leave the verified binary outdated.
-  // `target` is where `bin/grok` links; null is a copied binary, as the Windows installer leaves.
   const scriptInstallCases = [
     { target: "grok-1.0.77", downloads: false, owner: ".grok" },
     { target: "../downloads/grok-linux-x86_64", downloads: true, owner: ".grok" },
@@ -223,7 +218,6 @@ it.layer(layerTest)("GrokDriver", (it) => {
     );
   }
 
-  // An `npx supaterm` server inherits npm_config_user_agent, which Grok ranks above `[cli] installer`.
   it.effect.skipIf(windowsHost)("keeps a script install off the npm updater under npx", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -253,7 +247,6 @@ it.layer(layerTest)("GrokDriver", (it) => {
         config: { ...GrokDriver.defaultConfig(), binaryPath },
       });
       const updateEnv = (yield* instance.snapshot.resolveMaintenance()).update?.env ?? {};
-      // The maintenance runner spawns with extendEnv, layering this over the server's process.env.
       const env: NodeJS.ProcessEnv = {
         npm_config_user_agent: "npm/11.6.2 node/v24.11.0",
         ...updateEnv,

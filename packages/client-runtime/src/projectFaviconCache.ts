@@ -221,8 +221,6 @@ export function createProjectFaviconCache(input: {
     await Promise.all(pending);
   };
 
-  // A download that started before the clear sees the revision change and is discarded;
-  // one that starts during the clear waits for it, so it cannot repopulate storage.
   const clear = async (environmentId?: EnvironmentId) => {
     if (environmentId === undefined) generation += 1;
     else

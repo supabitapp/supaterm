@@ -158,7 +158,6 @@ export function useReviewDiffData(input: {
                   environmentId,
                   input: {
                     cacheKey: scope,
-                    // Newer preview revisions refresh patches read under an older one.
                     preview: { cwd },
                     request: {
                       cwd,

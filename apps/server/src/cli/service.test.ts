@@ -72,7 +72,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
           targetVersion: packageJson.version,
         },
       },
-      // This home's newer state must not ask for --allow-downgrade first.
       {
         command,
         label: "another home's service",

@@ -103,7 +103,6 @@ export function buildHomeListFilterMenu(props: HomeListFilterMenuInput): HomeLis
             : ("off" as const),
         onPress: () => props.onEnvironmentChange(environment.environmentId),
       })),
-      // Here rather than top level, so the iOS filter pills, which list only submenus, reach it too.
       {
         type: "action",
         title: "Hide offline environments",

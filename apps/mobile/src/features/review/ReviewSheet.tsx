@@ -321,7 +321,6 @@ function ReviewFileNavigator({ files, sectionId, onSelectFile, ref }: ReviewFile
         <LegendList
           renderScrollComponent={NativeScrollView}
           data={files}
-          // Rows keep their callback until extraData changes; it reads collapsed files.
           extraData={[selectedFileId, handleSelectFile]}
           keyExtractor={(file) => file.id}
           estimatedItemSize={64}
@@ -391,10 +390,6 @@ export function ReviewSheet(props: ReviewSheetProps) {
     draftMessage,
     draftContext,
   });
-  // Resolution returns null while Expo registers the native view (or forever
-  // when the binary lacks it). Rendering a null component type crashes the
-  // app, so callers must fall back — ThreadFeed's ReviewCommentCard does the
-  // same check.
   const [NativeReviewDiffView] = useState(() => resolveNativeReviewDiffView());
   const nativeReviewDiffViewRef = useRef<NativeReviewDiffViewHandle>(null);
   const showcasedReviewDrawRef = useRef<string | null>(null);
@@ -404,9 +399,6 @@ export function ReviewSheet(props: ReviewSheetProps) {
     await refreshSelectedSection().finally(() => setIsPullRefreshing(false));
   };
   const isRefreshing = isPullRefreshing || isSelectedSectionPending || areFilePatchesPending;
-  // A refresh that starts programmatically adds its height to the native top inset and
-  // subtracts it when it ends. If topContentInset changes in between, the inset ends up
-  // short and the content sits under the header, so the fallback ScrollView starts over.
   const [fallbackInset, setFallbackInset] = useState(topContentInset);
   const [fallbackScrollViewKey, setFallbackScrollViewKey] = useState(0);
   if (fallbackInset !== topContentInset) {
@@ -683,10 +675,6 @@ export function ReviewSheet(props: ReviewSheetProps) {
               showsVerticalScrollIndicator={false}
               className="flex-1"
               refreshControl={
-                // The native diff surface owns pull-to-refresh via onPullToRefresh;
-                // the raw fallback (and empty states) need an explicit control —
-                // iOS has no other refresh affordance here (the explicit
-                // "Refresh current diff" menu is Android-only).
                 <RefreshControl
                   refreshing={isRefreshing}
                   onRefresh={() => void handlePullToRefresh()}

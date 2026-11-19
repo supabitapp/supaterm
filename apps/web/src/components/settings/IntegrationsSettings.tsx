@@ -180,8 +180,6 @@ const APPEARANCE_LABELS: Readonly<Record<PreviewAppearancePreference, string>> =
 
 const zoomLabel = (zoomFactor: number) => `${Math.round(zoomFactor * 100)}%`;
 
-/** IPC carries reason tokens inside messages; treat unknown tokens as read failures without exposing raw
- * text. */
 class ProfileLimitReachedError extends Error {
   constructor() {
     super("Browser profile limit reached.");
@@ -227,7 +225,6 @@ async function importBrowserCookiesIntoTarget(
               (profile) => profile.id === input.target.profileId,
             );
             if (existing) return current;
-            // The profile cap may be reached during import; enforce it against the updater's latest settings.
             if (current.browserProfiles.length >= BROWSER_PROFILE_MAX_COUNT) {
               throw new ProfileLimitReachedError();
             }
@@ -248,8 +245,6 @@ async function importBrowserCookiesIntoTarget(
             persisted.browserProfiles.find((profile) => profile.id === input.target.profileId)
               ?.name ?? source.name;
         } catch (cause) {
-          // Clear the new target's partition on registration failure so imported cookies cannot outlive its
-          // profile.
           await clearBrowserProfileData(bridge, [environmentId], input.target.profileId).catch(
             () => undefined,
           );
@@ -286,7 +281,6 @@ const viewportSelectValue = (viewport: PreviewViewportSetting): string => {
   return RESPONSIVE_VALUE;
 };
 
-/** Inline options lack an items map; bare SelectValue would display the stored fill token. */
 const viewportSelectLabel = (viewport: PreviewViewportSetting): string => {
   const value = viewportSelectValue(viewport);
   if (value === FILL_VALUE) return "Fill panel";
@@ -344,7 +338,6 @@ function BrowserViewportSetting({ disabled }: { readonly disabled: boolean }) {
     });
   };
 
-  // Commit on blur to avoid persisting valid intermediate dimensions and rewriting settings per keystroke.
   const commitDimension = (axis: "width" | "height", value: number | null) => {
     if (value === null || !isValidDimension(value)) return;
     const next = { ...presentedSize, [axis]: value };
@@ -997,7 +990,6 @@ function DeviceIntegrationControls({
                     status={platformSetupStatus(state, "android")}
                   />
                 </div>
-                {/* Remote hosts report their own warnings in the device host list below. */}
                 <DeviceHostDiagnostics
                   hosts={state.hosts.filter((host) => host.kind === "local")}
                   hostStatuses={state.hostStatuses}
@@ -1160,11 +1152,9 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
   const userProfiles = useClientSettings((settings) => settings.browserProfiles);
   const defaultProfileId = useClientSettings((settings) => settings.browserDefaultProfileId);
   const settingsHydrated = useClientSettingsHydrated();
-  // Profile edits pair with profile data on disk, so they save for this device in every scope.
   const updateSettings = useUpdatePrimarySettings();
   const updateDefaultProfile = useUpdateScopedSettings();
   const { scope } = useSettingsScope();
-  // The default profile is a device preference, which a project cannot override.
   const defaultProfileReadOnly = scope.kind === "project" || scope.kind === "checkout";
   const { environments, isReady: environmentsReady } = useEnvironments();
   const primaryEnvironment = usePrimaryEnvironment();
@@ -1209,7 +1199,6 @@ function BrowserProfilesSetting({ disabled }: { readonly disabled: boolean }) {
   const createProfile = (baseName: string) => {
     if (!settingsHydrated || importInFlightRef.current) return undefined;
     const currentProfiles = getClientSettings().browserProfiles;
-    // Check live settings; repeated clicks before render can bypass the disabled control.
     if (currentProfiles.length >= BROWSER_PROFILE_MAX_COUNT) return undefined;
     const resolvedProfiles = resolveBrowserProfiles(currentProfiles);
     const taken = new Set(resolvedProfiles.map((profile) => profile.name));

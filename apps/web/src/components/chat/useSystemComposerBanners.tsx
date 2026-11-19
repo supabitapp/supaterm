@@ -82,14 +82,11 @@ export function useSystemComposerBanners(input: SystemComposerBannersInput) {
     activeEnvironmentConnectionPhase === "reconnecting"
       ? (activeEnvironment?.environmentId ?? null)
       : null;
-  // Each reconnect attempt gets its own grace period, including a later one to
-  // the same environment.
   const reconnectWarningGraceElapsed = useEnvironmentStateHeldFor(
     activeReconnectingEnvironmentId,
     ENVIRONMENT_RECONNECT_WARNING_GRACE_MS,
   );
   const handleReconnectActiveEnvironment = async (environmentId: EnvironmentId) => {
-    // A retry does nothing while the environment is switched off.
     const result =
       activeEnvironment?.entry.enabled === false
         ? await setEnvironmentEnabled({ environmentId, enabled: true })

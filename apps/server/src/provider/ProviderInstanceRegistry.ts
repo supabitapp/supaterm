@@ -51,7 +51,6 @@ interface RegistryState {
 const entryEqual = (a: ProviderInstanceConfig, b: ProviderInstanceConfig): boolean =>
   Equal.equals(a, b);
 
-/** Conflicting saved flags must preserve any explicit disable. */
 const resolveEntryEnabled = (entry: ProviderInstanceConfig, typedConfig: unknown): boolean => {
   const rawConfigEnabled = providerInstanceConfigEnabledFlag(entry.config);
   if (entry.enabled === false || rawConfigEnabled === false) {
@@ -169,7 +168,6 @@ const makeReconcile = <R>(input: {
         nextRaw.map(([raw]) => ProviderInstanceId.make(raw)),
       );
 
-      // Close changed/removed scopes before replacements to preserve one live scope per id.
       const removedIds: Array<ProviderInstanceId> = [];
       const replacedIds = new Set<ProviderInstanceId>();
       for (const [instanceId, live] of previousEntries) {
@@ -278,10 +276,6 @@ export const makeProviderInstanceRegistry = Effect.fn(
     input.drivers.map((driver) => [driver.driverKind, driver]),
   );
 
-  // Capture the enclosing scope so per-instance child scopes can be
-  // attached to it at `reconcile` time. Without this, `reconcile`
-  // called later (e.g. from the hydration layer) would attach child
-  // scopes to the *caller's* scope instead of the registry's.
   const parentScope = yield* Scope.Scope;
 
   const driverContext = yield* Effect.context<R>();

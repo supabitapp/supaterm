@@ -8,7 +8,6 @@ const decode = (dataUrl: string) =>
   Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64").toString("utf8");
 
 const PATH = `<path d="M 40 220 L 220 40 L 400 220 L 220 400 Z"/>`;
-// Strokes with currentColor and switches the root color per scheme with @media.
 const ISSUE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 440" fill="none" stroke="currentColor" stroke-width="9"><style>:root{color:#111827}@media(prefers-color-scheme:dark){:root{color:#F8FAFC}}</style>${PATH}</svg>`;
 
 describe("resolveProjectFaviconColorScheme", () => {

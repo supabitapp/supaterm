@@ -1,15 +1,9 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import type { VectorBitmap, VectorRequest } from "./vector-pictures";
 import type { Method } from "./worker-rpc";
 
-// What the Word preview's window and its document worker say to each other. The window keeps only the page column, the
-// text layer's DOM and the painted bitmaps; the engine, its fonts, the layout and the painting live in the worker.
-
 /** Where a link in the document leads. */
 export type WordLink =
-  /** A web or mail address the system browser opens. */
   | { readonly kind: "external"; readonly url: string }
-  /** A bookmark in the same document, such as a table of contents entry's heading. */
   | { readonly kind: "internal"; readonly bookmark: string };
 
 /**
@@ -50,12 +44,7 @@ export const layerFont = "sans-serif";
 
 /** One step of the rest of the layout. */
 export type WordLayoutStep =
-  /** More of the document is left to lay out. */
   | { readonly done: false }
-  /**
-   * The whole document is laid out. `kept` tells, per page, whether the page is the one shown so far, so its row and
-   * bitmap can stay; a page the full layout changed paints again.
-   */
   | {
       readonly done: true;
       readonly pages: readonly WordPageSize[];

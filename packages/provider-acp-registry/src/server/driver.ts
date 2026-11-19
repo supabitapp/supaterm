@@ -66,7 +66,6 @@ import * as AcpRegistryAuthenticationState from "./authenticationState.ts";
 
 const DRIVER_KIND = ProviderDriverKind.make("acpRegistry");
 const decodeSettings = Schema.decodeSync(AcpRegistrySettings);
-// Cache only successful authenticated probes so sign-in changes remain visible.
 const PROBE_SUCCESS_TTL_MS = 15 * 60 * 1_000;
 const PROBE_PROVISIONAL_TTL_MS = 30 * 1_000;
 
@@ -103,9 +102,6 @@ export function updateAcpRegistryEnrichmentCache(input: {
 }): AcpRegistryEnrichmentCache {
   const { cache, configuration, customModels, now } = input;
   if (cache.entry === null) {
-    // No probe has landed yet, but the live session published its
-    // configuration to the snapshot. Advance the cache epoch so a probe that
-    // was still in flight cannot overwrite that newer state when it lands.
     return { ...cache, generation: cache.generation + 1 };
   }
   const provider = applyAcpRegistryLiveConfiguration(
@@ -116,9 +112,6 @@ export function updateAcpRegistryEnrichmentCache(input: {
   if (Equal.equals(provider, cache.entry.provider)) return cache;
   return {
     ...cache,
-    // The live session advanced the provider past what an in-flight probe
-    // started from; bump the epoch so the probe discards its stale result
-    // instead of overwriting this entry and publishing it.
     generation: cache.generation + 1,
     entry: {
       ...cache.entry,
@@ -165,8 +158,6 @@ function modelsFromDiscovery(
     discovery === undefined || discovery.configOptions.length === 0
       ? EMPTY_CAPABILITIES
       : createModelCapabilities({ optionDescriptors: discovery.configOptions });
-  // Model-specific options describe only the session's current model; other
-  // models keep the shared ones plus what an earlier session reported for them.
   const modelOptionIds = new Set(discovery?.modelOptionIds ?? []);
   const shared = (discovery?.configOptions ?? []).filter(
     (descriptor) => !modelOptionIds.has(descriptor.id),
@@ -174,7 +165,6 @@ function modelsFromDiscovery(
   const sharedIds = new Set(shared.map((descriptor) => descriptor.id));
   const capabilitiesFor = ({ id: slug, reasoningEffort }: AcpRegistryProbeModel) => {
     if (slug === discovery?.currentModelId) return capabilities;
-    // The levels a model advertises replace the ones an earlier session reported.
     const own = (
       previousModels.find((model) => model.slug === slug)?.capabilities?.optionDescriptors ?? []
     ).filter(
@@ -353,13 +343,7 @@ export function applyAcpRegistryLiveConfiguration(
   previousModels: ReadonlyArray<ServerProviderModel> = provider.models,
 ): ServerProvider {
   const { message: _staleProbeMessage, ...snapshot } = provider;
-  // session/load may omit models (Kimi returns `{}`); keep the probed list
-  // and apply any live option descriptors to it.
   const probedModels = provider.models.filter((model) => !model.isCustom);
-  // A cold-start session can report one placeholder model before its catalog
-  // settles, while the probe may already have observed the full catalog. A
-  // single model enumerated by an explicit select is not that fallback but
-  // the agent's deliberate statement, so it wins over the probe catalog.
   const liveCatalogIsProvisional =
     configuration.models.length === 1 &&
     !configuration.modelsFromModelSelect &&
@@ -482,11 +466,9 @@ export function buildCheckedAcpRegistrySnapshot(
       input.settings.source === "local"
         ? (input.probe?.probe.agentVersion ?? readiness.version)
         : readiness.version,
-    // Failed discovery is a warning: an installed agent may still run real turns.
     status: probeFailed ? "warning" : readiness.status,
     auth: input.probe
       ? {
-          // Discovery sessions and an empty auth-method list do not prove sign-in.
           status: "unknown",
           canLogout: input.probe.probe.sessionManagement.canLogout,
         }
@@ -682,8 +664,6 @@ export const AcpRegistryDriver: ProviderDriver<AcpRegistrySettings, AcpRegistryD
         environment,
         processEnvironment,
       });
-    // Refreshes rebuild the snapshot from the probe, so per-model options
-    // learned from earlier sessions are kept here.
     const learnedModels = yield* Ref.make<ReadonlyArray<ServerProviderModel>>([]);
     const applyLiveConfiguration = (
       provider: ServerProvider,
@@ -731,7 +711,6 @@ export const AcpRegistryDriver: ProviderDriver<AcpRegistrySettings, AcpRegistryD
             }),
           );
     });
-    // A local executable's version comes only from probing it, so readiness checks reuse the last report.
     const reportedLocalVersion = yield* Ref.make<string | null>(null);
     const checkProvider = checkAcpRegistryProviderReadiness(readinessInput).pipe(
       Effect.provideService(AcpRegistrySupport.AcpRegistryCatalog, catalog),
@@ -814,7 +793,6 @@ export const AcpRegistryDriver: ProviderDriver<AcpRegistrySettings, AcpRegistryD
       getSettings: snapshotSettings.getSettings,
       streamSettings: snapshotSettings.streamSettings,
       haveSettingsChanged: haveProviderSnapshotSettingsChanged,
-      // Inspection may fetch the registry when its disk cache is missing; creation must not wait on that.
       initialSnapshot: () => buildInitialAcpRegistrySnapshot(readinessInput),
       checkProvider,
       enrichSnapshot: Effect.fn("enrichSnapshot")(function ({

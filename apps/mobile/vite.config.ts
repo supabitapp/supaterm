@@ -103,7 +103,6 @@ export default defineConfig({
                 ...babelConfig,
                 presets: babelConfig.presets.map(([name, options]: [string, object]) => [
                   require.resolve(name),
-                  // Vite runs in Node; inline Babel helpers instead of Metro runtime imports.
                   { ...options, enableBabelRuntime: false },
                 ]),
                 filename: id,
@@ -128,7 +127,6 @@ export default defineConfig({
         test: {
           name: "react",
           include: reactTests,
-          // Native components mock React Native and render through react-dom in these tests.
           environment: "jsdom",
           setupFiles: ["../../packages/shared/src/testing/providerEnv.ts"],
         },

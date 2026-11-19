@@ -137,7 +137,6 @@ describe("OpenCode version probe", () => {
       const unreachable = HttpClient.make((request) =>
         Effect.die(`should not be reached for ${request.url}`),
       );
-      // A fetch failure that echoes the full request URL, as Node's does.
       const refused = HttpClient.make((request) =>
         Effect.fail(
           new HttpClientError.HttpClientError({

@@ -68,7 +68,6 @@ const olderDoneBeforeAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.withLabel(`mobile:older-done-before:${environmentId}`),
   ),
 );
-// Whether any of these environments leaves older done threads out, so short queries matter.
 const anyOlderDoneAtom = Atom.family((environmentIdsKey: string) =>
   Atom.make((get) =>
     (JSON.parse(environmentIdsKey) as ReadonlyArray<EnvironmentId>).some(
@@ -152,7 +151,6 @@ export function useComposerPullRequestSearch(input: {
         })
       : null,
   );
-  // Only the host: the URL's full repository path would not match the project's selector.
   const exactEntry = exact.data
     ? { ...exact.data, host: legacyThreadPullRequestKey(exact.data).host }
     : null;
@@ -224,11 +222,9 @@ export function useThreadSearch(
   readonly query: string;
   readonly isPending: boolean;
 } {
-  // A pasted wall of text searches by its start rather than failing the request.
   const normalizedQuery = query.trim().slice(0, THREAD_SEARCH_QUERY_MAX_LENGTH).trim();
   const debouncedQuery = useDebouncedValue(normalizedQuery, THREAD_SEARCH_DEBOUNCE_MS);
   const anyOlderDone = useAtomValue(anyOlderDoneAtom(JSON.stringify(environmentIds)));
-  // Messages need a word of three or more letters; older done titles match from two.
   const canSearch =
     environmentIds.length > 0 &&
     ((scope.titlesOnly !== true && messageSearchTokens(normalizedQuery).long.length > 0) ||
@@ -241,20 +237,16 @@ export function useThreadSearch(
     searchKey === null ? EMPTY_THREAD_SEARCH_ATOM : threadSearch.results(searchKey),
   );
   const isPending = canSearch && (normalizedQuery !== debouncedQuery || result.isLoading);
-  // What fast environments returned shows without waiting for a slow one;
-  // callers keep shown rows in place with `nextShownOrder`.
   const ready =
     settledQuery !== null &&
     (!result.isLoading || result.matches.length > 0 || result.rows.length > 0)
       ? { query: settledQuery, matches: result.matches }
       : null;
-  // Kept from earlier renders: React's pattern for information from previous renders.
   const [previous, setPrevious] = useState<SettledThreadSearch | null>(null);
   if (ready !== null && previous?.matches !== ready.matches) setPrevious(ready);
   const visible = canSearch
     ? visibleThreadSearch(normalizedQuery, ready, previous)
     : { query: "", matches: EMPTY_THREAD_SEARCH_MATCHES };
-  // The shown results' rows stay mounted until newer results replace them.
   const shownKey = visible.query === "" ? null : searchKeyOf(visible.query);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mounts the shown search results' rows into the shared thread registry until newer results replace them
   useEffect(() => {
@@ -446,7 +438,6 @@ export function useComposerPathSearch(target: ComposerPathSearchTarget) {
     normalizedTarget.cwd === debouncedTarget.cwd;
 
   return {
-    // Entries from another checkout must not be offered while the new one is debounced.
     entries: isSameCheckout ? (result.data?.entries ?? []) : [],
     error:
       !hasTarget || fileAccess.isPending

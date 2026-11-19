@@ -16,7 +16,6 @@ export interface PreviewViewportPreset {
 
 type PreviewViewportPresetDefinition = Omit<PreviewViewportPreset, "id">;
 
-// Chromium EmulatedDevices.ts CSS viewport sizes in Chrome DevTools default-device order.
 const PREVIEW_VIEWPORT_PRESET_DEFINITIONS = {
   "iphone-se": {
     label: "iPhone SE",

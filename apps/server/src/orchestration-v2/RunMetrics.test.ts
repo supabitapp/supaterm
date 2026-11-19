@@ -29,7 +29,6 @@ import { makeRunOutcomeRecorder } from "./RunMetrics.ts";
 const at = (iso: string) => DateTime.makeUnsafe(iso);
 const threadId = ThreadId.make("thread:metrics");
 
-// Each test labels its runs with its own provider, since the metric registry is shared.
 const runUpdated = (
   sequence: number,
   provider: string,
@@ -54,7 +53,6 @@ const runUpdated = (
   },
 });
 
-// Prepare inside the transaction, record after its commit, as the EventSink does.
 const commitWith =
   (recorder: ReturnType<typeof makeRunOutcomeRecorder<unknown>>) =>
   (events: ReadonlyArray<OrchestrationV2StoredEvent>) =>
@@ -73,7 +71,6 @@ const runSnapshots = (provider: string) =>
 describe("makeRunOutcomeRecorder", () => {
   it.effect("records a finished run once, labelled, with its queue wait and duration", () =>
     Effect.gen(function* () {
-      // A subagent thread's first run carries no delegatedTaskId; only its lineage says delegated.
       const recorder = makeRunOutcomeRecorder(() => Effect.succeed(true));
       const record = commitWith(recorder);
       const finished = {
@@ -84,10 +81,8 @@ describe("makeRunOutcomeRecorder", () => {
       };
 
       yield* record([runUpdated(1, "p1", { ...finished, status: "running", completedAt: null })]);
-      // A transaction that rolls back prepares and never records; it must not reserve the run.
       yield* recorder.prepare([runUpdated(2, "p1", finished)]);
       yield* record([runUpdated(2, "p1", finished)]);
-      // Later updates to a finished run, such as its checkpoint, are not another run.
       yield* record([runUpdated(3, "p1", finished)]);
 
       const snapshots = yield* runSnapshots("p1");
@@ -111,7 +106,6 @@ describe("makeRunOutcomeRecorder", () => {
 
   it.effect("does not count a rollback of a run that already finished", () =>
     Effect.gen(function* () {
-      // A fresh recorder stands in for a restart, which forgets the runs already counted.
       const record = commitWith(makeRunOutcomeRecorder(() => Effect.succeed(false)));
       yield* record([
         runUpdated(1, "p2", {
@@ -212,7 +206,6 @@ describe("EventSink run outcomes", () => {
                     yield* Effect.serviceOption(sql.transactionService),
                   );
                   yield* Deferred.succeed(lookupEntered, inTransaction);
-                  // Outside the transaction this read would wait on the writer it is racing.
                   if (inTransaction) yield* Deferred.await(releaseLookup);
                 }
                 return yield* store.getThread(id);

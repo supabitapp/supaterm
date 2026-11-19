@@ -55,7 +55,6 @@ const closeIfOpen = (fd: number) => {
   }
 };
 
-// Windows auto-closes the inherited fd; POSIX reopens it, leaving the original for the test to close.
 const openBootstrapInputFd = (filePath: string) =>
   Effect.acquireRelease(
     Effect.sync(() => NodeFS.openSync(filePath, "r")),
@@ -101,7 +100,6 @@ it.layer(NodeServices.layer)("readBootstrapEnvelope", (it) => {
         `${yield* encodeTestEnvelopeSchema({ mode: "desktop" })}\n`,
       );
 
-      // The fallback stream auto-closes asynchronously; a finalizer would race and cause EBADF.
       const fd = NodeFS.openSync(filePath, "r");
 
       openSyncInterceptor.failPath = `/proc/self/fd/${fd}`;

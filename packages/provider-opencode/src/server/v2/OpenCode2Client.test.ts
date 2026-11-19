@@ -45,7 +45,6 @@ const utf8Basic = (password: string) =>
   `Basic ${Buffer.from(`opencode:${password}`, "utf8").toString("base64")}`;
 
 describe("OpenCode2Client authorization", () => {
-  // OpenCode requires UTF-8 Basic auth; btoa rejects or misencodes non-ASCII.
   it.effect("encodes non-ASCII passwords as UTF-8", () =>
     Effect.gen(function* () {
       assert.strictEqual(yield* authorizationFor("pässwörd"), utf8Basic("pässwörd"));

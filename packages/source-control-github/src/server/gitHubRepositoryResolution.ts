@@ -108,7 +108,6 @@ export function parseGitHubRepositorySelector(
   selector: string,
   defaultHost: string,
 ): GitHubRepositoryLocator | null {
-  // Like gh, a clone URL's `.git` comes off the path, before any trailing slash, query or fragment.
   const withoutGitSuffix = (path: string) => path.replace(/\.git\/*$/i, "");
   const trimmed = selector.trim();
   if (/^https?:\/\//i.test(trimmed)) {
@@ -155,7 +154,6 @@ export function parsePullRequestReference(
   return { kind: "branch", headSelector: trimmed };
 }
 
-// An additional dot is a real DNS host, never a github.com SSH alias.
 const GITHUB_DOT_COM_SSH_ALIAS = /^github\.com-[a-z0-9_-]+$/u;
 
 function apiHostForSshAlias(host: string): string | null | undefined {
@@ -181,8 +179,6 @@ function apiHostForHint(host: string, remotes: ReadonlyArray<{ readonly url: str
     const matching = remotes.filter(
       (remote) => normalizeGitRemoteUrl(remote.url).split("/")[0] === normalized,
     );
-    // A hint carries no transport; an HTTPS remote or missing evidence must not select
-    // the github.com endpoint and credentials for a dotted host.
     if (matching.length === 0 || matching.some((remote) => !isSshRemoteUrl(remote.url)))
       return normalized;
   }

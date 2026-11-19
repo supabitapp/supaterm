@@ -34,7 +34,6 @@ export function SheetHeader(props: SheetHeaderProps) {
   );
 }
 
-/** A sheet that can't be closed with its button can't be swiped away either. */
 function SheetDismissGuard(props: { readonly dismissDisabled: boolean | undefined }) {
   return props.dismissDisabled === undefined ? null : (
     <NativeStackScreenOptions options={{ gestureEnabled: !props.dismissDisabled }} />
@@ -47,8 +46,6 @@ function NativeSheetHeader(props: SheetHeaderProps) {
   const dismissLabel = props.accessibilityLabel ?? (props.onCancel ? "Cancel" : "Close");
   const confirmation = props.confirm;
 
-  // Toolbar children are parsed as native items, so keep the actual Button
-  // elements here instead of hiding them behind another component.
   return (
     <>
       <NativeStackScreenOptions

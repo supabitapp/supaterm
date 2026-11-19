@@ -126,8 +126,6 @@ const decodeError = Schema.decodeUnknownOption(TranscriptionError);
 
 export type VoiceUploadResponse = { readonly status: number; readonly body: unknown };
 
-// The server keeps a refusal as the outcome of its upload id, so sending the same upload
-// again only replays it; the user retries under a new id.
 function refusal(error: TranscriptionError): VoiceUploadError {
   return new VoiceUploadError(
     error.reason,
@@ -154,7 +152,6 @@ const unreachable = (cause: unknown) =>
     cause,
   });
 
-// A failed RPC surfaces as a tagged value, not necessarily a decoded class instance.
 async function prepareUpload(
   prepare: () => Promise<TranscriptionPrepareUploadResult>,
 ): Promise<TranscriptionPrepareUploadResult> {
@@ -232,7 +229,6 @@ export function createServerVoiceTranscriber(input: {
   return {
     prepare: async ({ signal }) => {
       const started = input.startLive?.() ?? null;
-      // Finishing or handing off takes the stream over; anything else leaves it to be dropped.
       let used = false;
       const abandon = () => {
         if (started === null || used) return;

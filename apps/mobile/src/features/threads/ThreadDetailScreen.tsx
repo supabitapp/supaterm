@@ -330,9 +330,6 @@ export interface ThreadDetailScreenProps {
   readonly showContent?: boolean;
 }
 
-/** Signals what changes while the thread is on screen: a send failing, the
- * agent asking for input, and the turn finishing or failing. A user stop
- * stays silent, and so does state that only arrives while the thread loads. */
 function useThreadOutcomeHaptics(state: {
   readonly threadKey: string;
   readonly live: boolean;
@@ -376,13 +373,8 @@ function useThreadOutcomeHaptics(state: {
   }, [threadKey, live, run, pendingRequestId, composerError]);
 }
 
-// iOS questions overlay the controls; Android questions stack with child approvals.
 const ComposerPanels = Platform.OS === "android" ? Animated.ScrollView : Animated.View;
 
-/**
- * Hands the feed the screen width measured for a native column; elsewhere keeps the inherited one.
- * Always the same element, so the feed below is not remounted when the width arrives.
- */
 function ColumnWidth(props: { readonly width: number | null; readonly children: React.ReactNode }) {
   const inherited = useWorkspaceSettledContentWidth();
   return (
@@ -400,9 +392,6 @@ const USER_INPUT_TOGGLE_TIMING = {
   easing: Easing.out(Easing.cubic),
 };
 
-// A scheduled wake can happen without a newer server update, so the tracker
-// is told when one takes effect. The shell's updatedAt ticks while a run
-// streams; the tracker follows it outside React.
 const wakeAwareVisitShell = Atom.family((key: string) => {
   const ref = parseThreadKey(key);
   return Atom.make((get) => {
@@ -432,11 +421,8 @@ const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
   Atom.withLabel("mobile-thread-run-stop:empty"),
 );
 
-// Past the composer's height animation.
 const COMPOSER_HEIGHT_SETTLE_MS = COMPOSER_TRANSITION_DURATION_MS + 40;
 
-// Anchors, follow state and pending scrolls belong to one thread, so the body
-// remounts when the thread changes.
 export function ThreadDetailScreen(props: ThreadDetailScreenProps) {
   const [statusRequests, setStatusRequests] = useState<
     Record<string, BackgroundWorkStopRequest | undefined>
@@ -468,8 +454,6 @@ function ThreadDetailBody(
   const sidebarSearchActive =
     deviceType === "duo-unfolded" &&
     workspace?.state.tabs[workspace.state.selectedTab].searchMode === "active";
-  // Keep the last input owner through keyboard dismissal, so closing sidebar
-  // search cannot briefly lift the composer into the keyboard's closing frame.
   const [composerOwnsKeyboard, setComposerOwnsKeyboard] = useState(false);
   if (sidebarSearchActive && composerOwnsKeyboard) setComposerOwnsKeyboard(false);
   const navigation = useNavigation();
@@ -514,9 +498,6 @@ function ThreadDetailBody(
   const insets = useSafeAreaInsets();
   const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
   const liveKeyboardHeight = useKeyboardState((state) => state.height);
-  // Android can swallow IME hide callbacks when backgrounded mid-hide, freezing the keyboard's
-  // height and visibility open. An input that kept focus is exempt, since Android restores its
-  // keyboard and no event would lift the quarantine; so Back then Home mid-hide still strands it.
   const [keyboardStateSuspect, setKeyboardStateSuspect] = useState(false);
   const ownedInputFocusedRef = useRef(false);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to AppState on Android to mark keyboard state suspect when the app resumes
@@ -588,8 +569,6 @@ function ThreadDetailBody(
   }, [composerEditorRef, editingRunId]);
   const listRef = useRef<LegendListRef>(null);
   const feedTouchStartRef = useRef<{ pageX: number; pageY: number } | null>(null);
-  // Aborted when the screen hides or unmounts; a hidden Activity pane keeps its state but re-runs
-  // effects when shown, so each show arms a fresh scope.
   const threadScope = useRef(new AbortController());
   const [composerExpanded, setComposerExpanded] = useState(false);
   const [composerMenuOpen, setComposerMenuOpen] = useState(false);
@@ -598,9 +577,6 @@ function ThreadDetailBody(
   if (sendingWithKeyboard && !isKeyboardVisible) setSendingWithKeyboard(false);
   const [isAtEnd, setIsAtEnd] = useState(true);
   const [composerHeight, setComposerHeight] = useState<number | null>(null);
-  // The composer animates its height and reports a layout every frame. The feed follows those
-  // frames on the UI thread through onComposerLayout; this is only an estimate, so committing
-  // each frame would re-render the whole screen for the length of the animation.
   const composerHeightSettle = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleComposerHeightChange = (height: number) => {
     setComposerHeight((current) => current ?? height);
@@ -610,21 +586,15 @@ function ThreadDetailBody(
       setComposerHeight(height);
     }, COMPOSER_HEIGHT_SETTLE_MS);
   };
-  // Keep the bottom padding fixed while the keyboard animates. Changing it at
-  // keyboardDidHide makes the composer land low, then jump back above the safe area.
   const bottomBarInset = useDuoBottomBarInset();
   const hasSidebarTabBar = useSidebarWorkspaceTabs() === "picker";
-  // A pushed screen temporarily inherits the outgoing tab bar's safe area.
-  // Use the window edge so hiding that bar cannot move the composer mid-push.
   const bottomSafeArea =
     Platform.OS === "ios" ? (windowMetrics?.safeArea.bottom ?? insets.bottom) : insets.bottom;
-  // The pill already adds its own gutter; iPad and Duo align its edge with the native bar.
   const alignedBottomInset =
     bottomBarInset ??
     (Platform.OS === "ios" && Platform.isPad
       ? Math.max(bottomSafeArea, 12) - (layout.usesSplitView ? 5 : 0)
       : undefined);
-  // The Duo's floating sidebar pill ends three points below the composer's usual gutter.
   const composerBottomInset = Math.max(
     0,
     (alignedBottomInset !== undefined
@@ -654,7 +624,6 @@ function ThreadDetailBody(
       ? NO_RUN_STOP_ATOM
       : environmentThreadDetails.runStopAtom(selectedThreadDetailRef),
   );
-  // A background Stop matters only while that work is still pending.
   const runStop =
     anyRunStop?.background && props.selectedThread.pendingBackgroundTasks.length === 0
       ? null
@@ -666,7 +635,6 @@ function ThreadDetailBody(
     useAtomValue(orchestrationEnvironment.forceStopThread.permissionAtom(props.environmentId)) &&
     props.serverConfig?.environment.capabilities.threadForceStop === true;
   const [forceStoppingKey, setForceStoppingKey] = useState<string | null>(null);
-  // The run that ignored Stop, so a confirmation left open cannot hit a newer run.
   const forceStop = async (runId: RunId | undefined) => {
     const threadKey = selectedThreadKey;
     setForceStoppingKey(threadKey);
@@ -720,7 +688,6 @@ function ThreadDetailBody(
     return () => clearTimeout(timer);
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Re-arm if timer clamping fires before the wake time.
   }, [snoozed, snoozedUntil, lifecycleNow]);
-  // The usage-limit recovery card shows this snooze and its Wake now.
   const lifecycleSnoozed =
     snoozed &&
     !limitRecoveryOwnsSnooze({
@@ -888,7 +855,6 @@ function ThreadDetailBody(
     if (connectionStatus !== null && showConnectionStatus && !props.draftMode) {
       return connectionStatus;
     }
-    // Before the request check: an agent stuck on an approval may also ignore Stop.
     if (runStop !== null && ready) {
       const unresponsive = runStop.state === "unresponsive";
       return {
@@ -958,9 +924,6 @@ function ThreadDetailBody(
   };
   const floatingStatus = deriveFloatingStatus(contentPresentationKind === "ready");
   const showWorkingControl = floatingStatus !== null;
-  // The pill appears once messages load. Reserving its room while they load lets the feed lay
-  // out once; room that appears mid-load moves the end the feed is settling toward. A pending
-  // request hides the pill once loaded, so a shell that reports one reserves nothing.
   const reservesStatusRoom =
     contentPresentationKind === "loading" &&
     !props.selectedThread.hasPendingApprovals &&
@@ -974,7 +937,6 @@ function ThreadDetailBody(
     devicePreviews.length > 0 ||
     browserTabs.tabs.length > 0;
   const selectedThreadFeed = props.selectedThreadFeed;
-  // A queued-run edit, question or approval owns the composer, and its send carries no fresh session.
   const freshSessionAvailable =
     !props.draftMode &&
     props.canOperateThread &&
@@ -1000,7 +962,6 @@ function ThreadDetailBody(
         ? 14
         : 0);
   const composerOverlapHeight = composerHeight ?? composerChrome + composerBottomInset;
-  // The last collapse toggle; it only applies to the request it was made on.
   const [userInputToggle, setUserInputToggle] = useState<{
     readonly requestId: RuntimeRequestId;
     readonly collapsed: boolean;
@@ -1017,8 +978,6 @@ function ThreadDetailBody(
     readonly threadKey: string;
     readonly now: number;
   } | null>(null);
-  // A pending approval or question is part of the key: once it is answered,
-  // from this client or any other, the agent resumes and spends quota.
   const usageLimitsKey = [
     selectedThreadKey,
     props.selectedThread.modelSelection.instanceId,
@@ -1047,8 +1006,6 @@ function ThreadDetailBody(
           },
     );
   const dismissUsageLimits = () => setUsageLimitsPanel(null);
-  // A send may resolve after navigating away, so only the originating
-  // thread's panel is cleared; a panel opened elsewhere in the meantime stays.
   const clearUsageLimitsFor = (threadKey: string) =>
     setUsageLimitsPanel((current) =>
       current !== null && current.threadKey === threadKey ? null : current,
@@ -1056,15 +1013,12 @@ function ThreadDetailBody(
   const userInputToggled =
     userInputToggle !== null && userInputToggle.requestId === activeUserInputRequestId;
   const userInputCollapsed = userInputToggled && userInputToggle.collapsed;
-  // A height React sets from keyboard state lags the sticky translation by a Yoga pass and
-  // flashes over the nav header on the way up, so the usage panel reserves the keyboard instead.
   const [lastKnownKeyboardHeight, setLastKnownKeyboardHeight] = useState(0);
   if (liveKeyboardHeight > 0 && liveKeyboardHeight !== lastKnownKeyboardHeight) {
     setLastKnownKeyboardHeight(liveKeyboardHeight);
   }
   const reservedKeyboardHeight =
     lastKnownKeyboardHeight > 0 ? lastKnownKeyboardHeight : ESTIMATED_KEYBOARD_HEIGHT;
-  // Waiting for a visibility render misses the first keyboard frames.
   const keyboardStickyEnabled =
     Platform.OS === "ios"
       ? deviceType !== "duo-unfolded" || (composerOwnsKeyboard && !sidebarSearchActive)
@@ -1073,13 +1027,10 @@ function ThreadDetailBody(
   const contentInsetEndAdjustment = useSharedValue(estimatedOverlayHeight);
   const onComposerLayout = useCallback(
     (event: LayoutChangeEvent) => {
-      // The composer already animates its measured height on each layout.
       contentInsetEndAdjustment.set(event.nativeEvent.layout.height);
     },
     [contentInsetEndAdjustment],
   );
-  // Android lays the screen out below its opaque header and reports a zero
-  // header height, so the window height overstates the room by the header.
   const [screenHeight, setScreenHeight] = useState<number | null>(null);
   const [screenWidth, setScreenWidth] = useState<number | null>(null);
   const handleScreenLayout = (event: LayoutChangeEvent) => {
@@ -1091,28 +1042,22 @@ function ThreadDetailBody(
   };
   const screenAreaHeight = screenHeight ?? windowHeight;
   const draftViewportHeight = screenAreaHeight - navigationHeaderHeight - liveKeyboardHeight;
-  // The question card reads the keyboard frame on the UI thread, in the same frame the sticky
-  // view translates, so it gets the full height while the keyboard is closed and never crosses
-  // the header while the keyboard moves.
   const { height: keyboardTranslation } = useReanimatedKeyboardAnimation();
   const pendingUserInputMaxHeight = useDerivedValue(() =>
     derivePendingUserInputMaxHeight({
       windowHeight: screenAreaHeight,
       keyboardHeight: keyboardStickyEnabled ? -keyboardTranslation.value : 0,
       navigationHeaderHeight,
-      // An in-flow question shares the room above it with the floating control.
       composerOverlapHeight:
         composerBottomInset +
         (questionInFlow && showFloatingStatus ? FLOATING_WORKING_CONTROL_COVERAGE : 0),
     }),
   );
-  // A question pads itself clear of the bottom inset, below the card's own height limit.
   const questionBottomInset = activeUserInputRequestId !== null ? composerBottomInset : 0;
   const composerPanelsHeightStyle = useAnimatedStyle(() => ({
     maxHeight: pendingUserInputMaxHeight.value + questionBottomInset,
     flexGrow: 0,
   }));
-  // Questions overlay the composer on iOS; an approval sits above it, so it gives up its height.
   const approvalHeightStyle = useAnimatedStyle(() => ({
     maxHeight: derivePendingUserInputMaxHeight({
       windowHeight: screenAreaHeight,
@@ -1122,9 +1067,6 @@ function ThreadDetailBody(
     }),
     flexGrow: 0,
   }));
-  // The usage panel stacks with the composer and any approval card, so it gets
-  // whatever room they leave below the header. Measured only while it is open
-  // so typing in the composer does not re-render the screen.
   const usageLimitsOpen = usageLimitsReport !== null && activeUserInputRequestId === null;
   const [usageLimitsLayout, setUsageLimitsLayout] = useState({ overlay: 0, panel: 0 });
   const handleComposerOverlayLayout = (event: LayoutChangeEvent) => {
@@ -1143,7 +1085,6 @@ function ThreadDetailBody(
     usageLimitsLayout.overlay > 0
       ? usageLimitsLayout.overlay - usageLimitsLayout.panel
       : composerOverlapHeight;
-  // The floor keeps the close row on screen when the stack below leaves no room at all.
   const usageLimitsMaxHeight = Math.max(
     USAGE_LIMITS_PANEL_MIN_HEIGHT,
     Math.min(
@@ -1155,7 +1096,6 @@ function ThreadDetailBody(
         USAGE_LIMITS_PANEL_GAP * 2,
     ),
   );
-  // A toggle animates the card; a new request starts expanded at once.
   const userInputMotion = !userInputToggled
     ? "fresh"
     : userInputCollapsed
@@ -1168,9 +1108,6 @@ function ThreadDetailBody(
         : withTiming(userInputMotion === "collapsed" ? 0 : 1, USER_INPUT_TOGGLE_TIMING),
     [userInputMotion],
   );
-  // Collapsing the inset is instant: the sinking card still covers the strip
-  // being revealed, and animating the inset downward drifted the short-content
-  // end anchor.
   const userInputInsetProgress = useDerivedValue<number>(() => {
     if (userInputMotion === "collapsed") return 0;
     return userInputMotion === "fresh" ? 1 : withTiming(1, USER_INPUT_TOGGLE_TIMING);
@@ -1184,8 +1121,6 @@ function ThreadDetailBody(
   useAnimatedReaction(
     () => floatingCoverageTarget,
     (target, previous) => {
-      // The first run applies its target without animating; animating would move the feed's end.
-      // The target can change after the first render but before this first run.
       if (previous === null) {
         floatingControlCoverage.set(target);
         return;
@@ -1204,7 +1139,6 @@ function ThreadDetailBody(
       questionInFlow
         ? 0
         : contentInsetEndAdjustment.value +
-          // The feed's last row keeps a gap above the composer; the status row grows from it.
           Math.max(FEED_END_GAP, floatingControlCoverage.value) +
           (userInputCoverageApplies
             ? userInputInsetProgress.value * userInputCardCoverage.value
@@ -1249,7 +1183,6 @@ function ThreadDetailBody(
     }
   };
   const showContent = props.showContent ?? true;
-  // Showing the thread counts as viewing it, before its live shell arrives too.
   useAtomMount(
     threadVisitTracker(
       showContent && !props.draftMode
@@ -1279,7 +1212,6 @@ function ThreadDetailBody(
     (model) => model.slug === providerSubagentModelSlug,
   );
   const workspaceContentWidth = useWorkspaceContentWidth();
-  // Clearing animated width can retain the unfolded width after Android resumes folded.
   const composerWidthStyle = useAnimatedStyle(() =>
     isSplitLayout && workspaceContentWidth !== null
       ? {
@@ -1291,8 +1223,6 @@ function ThreadDetailBody(
         }
       : { width: "auto", right: controlInsets.right },
   );
-  // A native column resizes the screen before JS hears of it. The feed and the composer take the
-  // measured width in one render, so they change size together rather than the composer first.
   const columnWidth = usesNativeWorkspaceColumns && isSplitLayout ? screenWidth : null;
   const columnComposerWidthStyle =
     columnWidth === null
@@ -1332,8 +1262,6 @@ function ThreadDetailBody(
     const hasUserMessage = selectedThreadFeed.some(
       (entry) => entry.type === "message" && entry.message.role === "user",
     );
-    // Runs only once the send path has validated the draft and is about to deliver it, so an
-    // empty submit, a queued-message edit, or `/feedback` leaves approvals alone.
     const approvalsToDecline = props.activePendingApprovals;
     const declineBeforeDispatch =
       approvalsToDecline.length > 0 && props.activePendingUserInput === null
@@ -1357,10 +1285,7 @@ function ThreadDetailBody(
               props.respondingApprovalId === null &&
               (await declinePendingApprovals(approvalsToDecline, props.onRespondToApproval)) &&
               !scope.aborted &&
-              // A draft edited or pasted into during the decline isn't what the user sent.
               stillSendable?.() !== false &&
-              // An approval that arrived during the decline would block the redirect; the draft
-              // stays so the next send declines it too.
               !currentPendingApprovals().some(
                 (approval) =>
                   !approvalsToDecline.some((declined) => declined.requestId === approval.requestId),
@@ -1409,10 +1334,8 @@ function ThreadDetailBody(
       contentPresentationKind === "ready" &&
       (dismissingKeyboard || nextAnchorMessageId === messageId);
     if (dismissingKeyboard || followSubmission) {
-      // Commit the optimistic row before UIKit chooses the closing scroll offset.
       requestAnimationFrame(() => {
         if (scope.aborted) return;
-        // Scrolling freezes the keyboard inset, so wait until dismissal has removed it.
         void KeyboardController.dismiss()
           .then(() => {
             if (!followSubmission || scope.aborted) return;
@@ -1425,7 +1348,6 @@ function ThreadDetailBody(
     }
   };
   const { onSendVoiceMessage } = props;
-  // Declining approvals to redirect the agent is the text send path's job.
   const handleSendVoiceMessage =
     onSendVoiceMessage && clientCreation === null && props.activePendingApprovals.length === 0
       ? async (
@@ -1494,7 +1416,6 @@ function ThreadDetailBody(
     });
   };
 
-  // A queued edit's save has already read its draft, so a quote added now is lost.
   const annotationDraftKey =
     isProviderSubagent || props.draftMode || props.isSavingQueuedEdit
       ? null
@@ -1600,8 +1521,6 @@ function ThreadDetailBody(
                   queuedMessages={props.queuedMessages}
                   creatingThread={clientCreation !== null}
                   dispatchingMessageId={props.dispatchingMessageId}
-                  // A native subagent has no composer to edit a pending message in;
-                  // Cancel on the edit banner would discard it.
                   onEditPendingMessage={
                     isProviderSubagent || pendingMessageEditBlocked
                       ? null
@@ -1687,9 +1606,6 @@ function ThreadDetailBody(
             popoverHeight={composerPopoverHeight}
             inFlow={questionInFlow}
           >
-            {/* The fixed sticky host gives this bottom-anchored child a stable
-              coordinate space. Its top and height can then animate together
-              instead of the auto-sized host jumping to Yoga's destination. */}
             <Animated.View
               layout={COMPOSER_LAYOUT_TRANSITION}
               pointerEvents="box-none"
@@ -1716,9 +1632,6 @@ function ThreadDetailBody(
                       ]
               }
             >
-              {/* No paddingTop here: the overlay's measured height becomes the
-                list's bottom inset, so any padding above the pill/composer
-                pushes the resting content floor up by the same amount. */}
               <View onLayout={handleComposerOverlayLayout} className="w-full">
                 <View className="w-full self-center" style={{ maxWidth: contentMaxWidth }}>
                   <FloatingWorkingControl
@@ -1730,7 +1643,6 @@ function ThreadDetailBody(
                         : null
                     }
                     lift={floatingControlLift}
-                    // The command popover opens over the pill's slot.
                     hidden={composerMenuOpen}
                     devicePreview={
                       devicePreviews.length > 0

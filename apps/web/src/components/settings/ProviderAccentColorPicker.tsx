@@ -28,10 +28,6 @@ function ProviderCustomColorPanel(props: {
       setHexDraft(null);
     }
   }
-  // Pointer drags only preview and commit once on release, so a drag writes
-  // settings once instead of on every pointer move. Keyboard steps commit
-  // immediately because they have no release to wait for. Holds the latest
-  // dragged color, or null when no drag is in progress.
   const drag = useRef<string | null>(null);
   const startDrag = (event: PointerEvent<HTMLDivElement>) => {
     if (event.button === 0) drag.current = currentColor;
@@ -175,10 +171,6 @@ export function ProviderAccentColorPicker(props: {
 }) {
   const { description, displayName, layout = "stacked", onCommit } = props;
   const value = props.value ?? "";
-  // The draft shows a dragged or just-committed color only while `value` is
-  // still the one it was picked against, so the persisted value (or any outside
-  // change) takes over as soon as it lands. `previewing` marks a drag that has
-  // not been committed yet, which closing the popover commits.
   const [draft, setDraft] = useState<{
     readonly color: string;
     readonly base: string;
@@ -189,8 +181,6 @@ export function ProviderAccentColorPicker(props: {
   const commit = (color: string) => {
     const normalized = normalizeProviderAccentColor(color) ?? "";
     setDraft({ color: normalized, base: value, previewing: false });
-    // Not deduplicated against `value`: it is stale while an earlier commit is
-    // in flight, so returning to it must still be submitted.
     onCommit(normalized);
   };
 

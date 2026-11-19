@@ -65,7 +65,6 @@ vi.mock(import("~/assets/assetUrls"), async (original) => ({
   useAssetUrlRefresh: () => state.mintUrl,
   useAssetUrlState: () => state.assetUrl,
 }));
-// The Word engine compiles a large WebAssembly bundle; these tests only need the URL it loads.
 vi.mock(import("./OfficeFilePreview"), () => ({
   OfficeFilePreview: ({ src }: { src: string }) => <div data-testid="office-preview">{src}</div>,
 }));
@@ -231,7 +230,6 @@ describe("source file focus", () => {
     await vi.waitFor(editorHasFocus);
     const editor = deepActiveElement() as HTMLElement;
     await userEvent.keyboard("ab");
-    // @pierre/diffs 1.6.1 leaves the find match selected in the file, so typing replaces it.
     await vi.waitFor(() => expect(editor.textContent).toContain("xconst ab = 1;"));
     expect(findField.value).toBe("server");
     editorHasFocus();
@@ -287,7 +285,6 @@ describe("source file scroll", () => {
     const sourceFile = (relativePath: string, lines: number) => {
       const contents = Array.from({ length: lines }, (_, i) => `const line${i} = ${i};`).join("\n");
       state.file = { relativePath, contents, byteLength: contents.length, truncated: false };
-      // The app mounts under StrictMode, whose remount must not wipe the saved offset.
       return (
         <StrictMode>
           <div style={{ height: 400, display: "flex", flexDirection: "column" }}>
@@ -426,7 +423,6 @@ describe("rendered Markdown select all", () => {
 
     await userEvent.click(screen.getByText("Rendered file body."));
     await expectFileOnlySelection();
-    // A toggled checkbox keeps focus on an input inside the preview.
     await userEvent.click(screen.getByRole("checkbox"));
     await expectFileOnlySelection();
   });

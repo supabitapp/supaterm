@@ -1,10 +1,3 @@
-/**
- * Cursor discovers Agent Skills recursively from user and project roots but
- * its ACP command catalog only appears after opening a real session. Scanning
- * the same roots avoids starting an agent and its MCP servers just to populate
- * a composer menu.
- */
-
 import type { ServerProviderSkill } from "@supaterm/contracts";
 import * as ByteSize from "effect/ByteSize";
 import * as Effect from "effect/Effect";
@@ -156,9 +149,6 @@ const discoverSkillsInRoot = Effect.fn("discoverCursorSkillsInRoot")(function* (
       return;
     }
     visitedDirectories.add(resolvedDirectory);
-    // A symlink whose target lives outside the root is a skill package
-    // boundary: read its own SKILL.md so linked skill libraries show up, but
-    // never walk the target tree.
     const insideRoot =
       resolvedDirectory === rootDirectory ||
       resolvedDirectory.startsWith(`${rootDirectory}${path.sep}`);
@@ -204,9 +194,7 @@ const discoverSkillsInRoot = Effect.fn("discoverCursorSkillsInRoot")(function* (
       return;
     }
     for (const entry of [...entries].sort()) {
-      // Installed dependencies can exhaust the shared budget and hide unrelated skills.
       if (entry === "node_modules") continue;
-      // Files spend no directory budget, so a separate cap keeps a huge file tree bounded.
       if (input.budget.remainingStats === 0) {
         input.budget.exhausted = true;
         return;
@@ -214,8 +202,6 @@ const discoverSkillsInRoot = Effect.fn("discoverCursorSkillsInRoot")(function* (
       input.budget.remainingStats -= 1;
       const child = path.join(directory, entry);
       const info = yield* orUndefined(fileSystem.stat(child), input.budget);
-      // Only directories can hold skills, so only they spend the budget: a skill
-      // shipping many ordinary files must not hide its siblings.
       if (info?.type !== "Directory") continue;
       if (depth >= MAX_SKILL_DEPTH) continue;
       if (input.budget.remainingEntries === 0) {
@@ -249,7 +235,6 @@ const inspectCursorSkills = Effect.fn("inspectCursorSkills")(function* (
   const roots = [
     ...(cwd ? rootsBelow(cwd, "project") : []),
     ...rootsBelow(userHome, "user"),
-    // Cursor syncs its built-in skills here; same-named user and project skills win.
     { directory: path.join(userHome, ".cursor", "skills-cursor"), scope: "system" as const },
   ];
 

@@ -227,7 +227,6 @@ it.each([
   );
 });
 
-// regression: #26695 an interrupt-restart steer cancels Copilot's background agents
 it("queues a steer for a provider that cannot steer either way", () => {
   const projection = dispatchProjection(
     capabilities((current) => ({
@@ -274,7 +273,6 @@ it("queues a steer for a provider that cannot steer either way", () => {
   );
 });
 
-// regression: #27014 a Grok follow-up cancels the foreground tool the user wanted to finish
 it("does not steer a Grok follow-up by interrupting its running turn", () => {
   const grok = makeGrokAcpAdapterFlavor(
     { makeRuntime: () => Effect.never } as unknown as Parameters<
@@ -296,7 +294,6 @@ it("does not steer a Grok follow-up by interrupting its running turn", () => {
   }
 });
 
-// regression: #37326 a steered Grok follow-up waits for the turn to end instead of interjecting
 it("steers a Grok follow-up into its running turn without restarting it", () => {
   const grok = makeGrokAcpAdapterFlavor(
     { makeRuntime: () => Effect.never } as unknown as Parameters<

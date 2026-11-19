@@ -20,7 +20,6 @@ const known = vi.hoisted(
 const state = vi.hoisted(() => ({ restoredPreview: null as unknown }));
 vi.mock(import("~/state/query"), async (original) => ({
   ...(await original()),
-  // The host has not answered the preview read yet.
   useEnvironmentQuery: ((atom: unknown) => ({
     data: state.restoredPreview,
     dataUpdatedAt: 0,

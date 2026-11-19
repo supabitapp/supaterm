@@ -50,7 +50,6 @@ function Rows() {
 it("reads the panel's detail and activity once intent rests on a row for 150 ms", async () => {
   state.reads = [];
   await using screen = await render(<Rows />, {
-    // A bare hook probe; nothing here navigates.
     router: false,
   });
   using _timers = fakeTimers({ now: 0 });
@@ -68,7 +67,6 @@ it("reads the panel's detail and activity once intent rests on a row for 150 ms"
   await act(() => vi.advanceTimersByTime(149));
   expect(state.reads).toEqual([]);
   await act(() => vi.advanceTimersByTime(1));
-  // Query atoms key on JSON order: this is the order the PRs page panel reads.
   const reference = {
     projectId: row.projectId,
     repository: "owner/repo",

@@ -28,27 +28,17 @@ export interface WrappedTerminalLinkLine {
 }
 
 const URL_PATTERN = /https?:\/\/[^\s"'`<>]+/giu;
-// The default PowerShell prompt delimits its unquoted path with `PS ` and `>`.
 const POWERSHELL_PROMPT_PATH_PATTERN = /^PS ((?:[A-Za-z]:[\\/]|\\\\|\/)[^>\r\n]*)>/u;
-// Bare paths start only at a segment boundary: hover detection runs this on
-// every frame, so separator-free output must not be rescanned at every suffix.
-// Parenthesized path segments need a following slash to distinguish compiler locations.
-// A bare `name.ext` needs `:line:col` or a TS location after it, so prose and `host:port` stay text.
 const FILE_PATH_PATTERN =
   /(?:~[\\/]|\.{1,2}[\\/]|\/|[A-Za-z]:[\\/]|\\\\)[^\s"'`<>]+|(?<![\p{L}\p{M}\p{N}._$+@-])[\p{L}\p{M}\p{N}._$+@-]+(?:(?:[\\/](?:[\p{L}\p{M}\p{N}._$+@-]|\[{1,2}[\p{L}\p{M}\p{N}._-]+\]{1,2}|\([\p{L}\p{M}\p{N}._-]+\)(?=[\\/]))+)+|\.\p{L}[\p{L}\p{M}\p{N}_-]*(?=:\d+:\d|\(\d+,\d+\):\s+(?:error|warning) TS\d+:))(?:(?::\d+){1,2}|\(\d+,\d+\)(?=:\s+(?:error|warning) TS\d+:))?/gu;
 const QUOTED_FILE_PATH_PATTERN =
   /(["'`])(?<path>(?:~[\\/]|\.{1,2}[\\/]|\/|[A-Za-z]:[\\/]|\\\\|[\p{L}\p{M}\p{N}._ -]+[\\/])[^\r\n]*?|[\p{L}\p{M}\p{N}._ -]+\.[\p{L}\p{M}\p{N}_-]+(?::\d+){0,2})\1(?<position>(?::\d+){0,2})/gu;
 const TRAILING_PUNCTUATION_PATTERN = /[.,;!?]+$/;
-// Paths also drop a trailing colon: compilers end `file:line:col:` with one.
 const TRAILING_PATH_PUNCTUATION_PATTERN = /[.,;:!?]+$/;
 
 const REQUEST_ROUTE_PATTERN =
   /(?:^|[\s"'`])(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS|CONNECT|TRACE|proxying)\s+["'`]?(?:\/|[A-Za-z0-9_-]+\/)[^\s?]*\?\S*/g;
-// The tail of `redis://host/0` or `file:///a.mjs` is not a path. One-letter schemes stay drives,
-// a diff's `+` or `-` may lead, and the lookbehind keeps runs from being rescanned at every suffix.
 const SCHEME_URL_PATTERN = /(?<![A-Za-z\d+.-])[+-]?[A-Za-z][A-Za-z\d+.-]+:\/\/[^\s"'`<>]+/gu;
-// Nor is the tail of an SCP-style Git remote such as `git@github.com:acme/widgets.git`. Only a
-// path wholly inside the tail is dropped, so `src/contact@support.vue:12:3` keeps its link.
 const SCP_REMOTE_PATTERN = /(?<![\w.@-])[\w.-]+@[\w.-]+:[^\s"'`<>]+/gu;
 
 function trimClosingDelimiters(value: string, kind: TerminalLinkKind): string {
@@ -162,7 +152,6 @@ export function isTerminalUrl(value: string): boolean {
 export function resolveTerminalLinkTarget(text: string, cwd: string, hostname?: string): string {
   const fileUrl = /^file:\/\//iu.test(text) ? parseFileUrlHref(text, hostname) : null;
   if (!fileUrl) return resolvePathLinkTarget(text, cwd);
-  // Keep URI identity until consumers decode the filename, separately from its position.
   const uri = new URL(text);
   if (!fileUrl.path.startsWith("\\")) uri.hostname = "";
   return uri.href;

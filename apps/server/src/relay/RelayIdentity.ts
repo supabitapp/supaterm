@@ -24,8 +24,6 @@ export class RelayIdentity extends Context.Service<
 
 const make = Effect.gen(function* () {
   const secrets = yield* ServerSecretStore.ServerSecretStore;
-  // Nothing deletes the identity while the server runs, so once one is known it
-  // is the answer for the rest of the process.
   const known = yield* SubscriptionRef.make(Option.none<Identity>());
   const fromSecret = (secret: Uint8Array): Identity => {
     const publicKey = relayPublicKey(secret);

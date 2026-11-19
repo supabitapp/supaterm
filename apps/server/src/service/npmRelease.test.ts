@@ -31,7 +31,6 @@ const output = (stdout: string, code = 0): ProcessRunner.ProcessRunOutput => ({
 const noPublicRegistry = HttpClient.make(() =>
   Effect.die("a configured npm lookup must not fall back to public npm"),
 );
-// A fake npm on PATH decides whether npm counts as installed.
 const makeService = Effect.fnUntraced(function* (
   run: ProcessRunner.ProcessRunner["Service"]["run"],
   publicRegistry: HttpClient.HttpClient = noPublicRegistry,

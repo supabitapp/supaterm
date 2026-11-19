@@ -29,7 +29,6 @@ declare module "@tanstack/react-router" {
 
 const CITATION_HASH_PREFIX = "assistant-citation=";
 
-/** Base64url keeps router hash normalization from decoding quote whitespace or source IDs. */
 function assistantCitationHash(citation: AssistantCitation) {
   return `${CITATION_HASH_PREFIX}${Base64Url.encode(formatAssistantCitationHref(citation))}`;
 }

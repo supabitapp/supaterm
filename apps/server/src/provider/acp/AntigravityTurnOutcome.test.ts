@@ -14,7 +14,6 @@ const PLANNER_RESPONSE = 15;
 const TOOL = 8;
 const ERROR_MESSAGE = 17;
 
-// Error-step payloads trimmed from Antigravity 1.4.5 against a local Gemini endpoint.
 const errorPayload = (error: string) =>
   Buffer.concat([
     Buffer.from([0x0a, 0x24]),
@@ -22,7 +21,6 @@ const errorPayload = (error: string) =>
       `Agent execution terminated due to error.\u0012agent executor error: ${error}: ${error}\n(1) attached stack trace\n  -- stack trace:`,
     ),
   ]);
-// An unparsable reset timestamp must not hide the reset delay, nor a retry delay outrank it.
 const QUOTA_ERROR = errorPayload(
   "Error 429, Message: Quota exhausted for test model., Status: RESOURCE_EXHAUSTED, Details: [map[@type:type.googleapis.com/google.rpc.RetryInfo retryDelay:42s] map[@type:type.googleapis.com/google.rpc.ErrorInfo domain:googleapis.com metadata:map[quotaResetDelay:3600s quotaResetTimeStamp:soon] reason:QUOTA_EXHAUSTED]]",
 );
@@ -32,7 +30,6 @@ const RATE_LIMIT_ERROR = errorPayload(
 const INVALID_ARGUMENT_ERROR = errorPayload(
   "Error 400, Message: Request contains an invalid argument., Status: INVALID_ARGUMENT, Details: []",
 );
-// The model's reply quoting the agent's quota notice is an ordinary planner response.
 const QUOTED_NOTICE = Buffer.from(
   "Usage Limit Reached\n\nYou have reached your current quota for this period. Your limit will reset in 1 hour.",
 );
@@ -71,7 +68,6 @@ describe("watchAntigravityPromptOutcome", () => {
       const input = Buffer.from("Run the fixture.");
       const reply = Buffer.from("FIXTURE_OK");
 
-      // The first prompt creates the session log.
       assert.isUndefined(
         yield* turn([
           [USER_INPUT, input],
@@ -91,7 +87,6 @@ describe("watchAntigravityPromptOutcome", () => {
           resetAt: "1970-01-01T01:00:00.000Z",
         },
       );
-      // The earlier error step is outside this turn.
       assert.isUndefined(
         yield* turn(
           [
@@ -129,7 +124,6 @@ describe("watchAntigravityPromptOutcome", () => {
           retryable: false,
         },
       );
-      // A completed tool keeps its usage, and the turn still fails.
       assert.equal(
         (yield* turn(
           [
@@ -151,7 +145,6 @@ describe("watchAntigravityPromptOutcome", () => {
           [PLANNER_RESPONSE, reply],
         ]),
       );
-      // The agent maps the SDK's QUOTA_EXHAUSTED stop reason to `refusal`.
       assert.deepEqual(yield* turn([], { stopReason: "refusal" }), {
         class: "usage_limit",
         message: "You have reached your Antigravity quota for this period.",
@@ -184,7 +177,6 @@ describe("watchAntigravityPromptOutcome", () => {
         }
       };
 
-      // own.db links to a peer session; the peer's new error step is not this turn's.
       append(peer, USER_INPUT, Buffer.from("peer"));
       yield* fs.symlink(
         path.join(conversations, `${peer}.db`),
@@ -195,7 +187,6 @@ describe("watchAntigravityPromptOutcome", () => {
       assert.isUndefined(yield* linked({ stopReason: "end_turn" }));
       assert.equal((yield* linked({ stopReason: "refusal" }))?.class, "usage_limit");
 
-      // An unreadable log gives no evidence, but the agent's typed refusal still fails the turn.
       yield* fs.remove(path.join(conversations, `${own}.db`));
       yield* fs.writeFileString(path.join(conversations, `${own}.db`), "not a database");
       const corrupt = yield* watchAntigravityPromptOutcome(profileDirectory, own);

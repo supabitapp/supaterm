@@ -299,9 +299,6 @@ export function useThreadActionMenu(input: {
         if (
           deleted._tag === "Failure" &&
           !isAtomCommandInterrupted(deleted) &&
-          // A failure with the thread already gone is worktree cleanup
-          // failing after a successful delete — deleteThread has toasted
-          // that itself, and "Failed to delete thread" would be a lie.
           readThreadShell(threadRef) !== null
         ) {
           failureToast("Failed to delete thread", squashAtomCommandFailure(deleted));

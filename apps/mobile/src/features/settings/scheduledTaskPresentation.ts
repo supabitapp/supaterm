@@ -24,7 +24,6 @@ export function formatScheduledTaskInterval(everyMs: number): string {
 }
 
 function localCalendarDay(date: Date): number {
-  // Compare calendar days, not 24-hour spans: DST days can have 23 or 25 hours.
   return Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY;
 }
 

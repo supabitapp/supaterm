@@ -2,18 +2,12 @@ import * as Arr from "effect/Array";
 import * as Effect from "effect/Effect";
 import * as Socket from "effect/socket/Socket";
 
-// Old clients omit this; old servers ignore it.
 export const SOCKET_FRAME_PARTS_QUERY_PARAM = "frameParts";
 
-// WebSocket messages arrive whole. At 4,000 bytes/s each part takes about
-// 12 seconds, leaving margin before the client's 15-second liveness timeout.
 const SOCKET_FRAME_PART_BYTES = 48 * 1024;
 
-// No JSON message starts with a record separator. It marks every part but the last.
 const PART_PREFIX = "\u001e";
 
-// The RPC client only counts frames that decode to messages as liveness, and
-// ignores pongs, so each held-back part reads to it as one.
 const PART_RECEIVED_FRAME = '{"_tag":"Pong"}';
 
 /** Splits on the UTF-8 size the frame has on the wire, never inside a surrogate pair. */
@@ -21,7 +15,6 @@ export function splitSocketFrame(
   frame: string,
   partBytes = SOCKET_FRAME_PART_BYTES,
 ): Arr.NonEmptyReadonlyArray<string> {
-  // UTF-8 spends at most 3 bytes on a UTF-16 code unit.
   if (frame.length * 3 <= partBytes) return [frame];
   const parts: Array<string> = [];
   let start = 0;

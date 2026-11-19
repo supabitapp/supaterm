@@ -240,7 +240,6 @@ export const OpenInPicker = memo(function OpenInPicker({
   const remoteCapableEditors = useRemoteCapableEditors();
   const [remoteHintSeen, markRemoteHintSeen] = useRemoteOpenHint();
   const environmentLabel = useEnvironment(environmentId)?.label ?? "this machine";
-  // Remote editors run on the viewing machine; only desktop can probe that PATH.
   const effectiveEditors = remote.mode === "local-exec" ? availableEditors : remoteCapableEditors;
   const [preferredEditor, setPreferredEditor] = usePreferredEditor(effectiveEditors);
 
@@ -257,8 +256,6 @@ export const OpenInPicker = memo(function OpenInPicker({
         isFile: openInCwdIsFile,
       });
       if (url === undefined) return false;
-      // Only record hint-seen/preferred when the shell actually accepted
-      // the URL (an older desktop build can refuse the editor scheme).
       const opened = await openRemoteEditorUrl(url);
       if (!opened) return false;
       markRemoteHintSeen();
@@ -283,7 +280,6 @@ export const OpenInPicker = memo(function OpenInPicker({
     "editor.openFavorite",
   );
 
-  // Only the focused pane's picker answers the shortcut.
   const ownsPaneInput = useIsPaneInputOwner();
   const backgroundThread = use(BackgroundThreadContext);
   const options = resolveOpenInOptions(navigator.platform, effectiveEditors);
@@ -381,7 +377,6 @@ export const OpenInPicker = memo(function OpenInPicker({
           render={
             <ThreadDetailsControl
               aria-label={compact ? "Open file in preferred editor" : primaryLabel}
-              // Tooltip replaces the button data-slot, so toolbar theming needs a separate hook.
               data-toolbar-control=""
               size={isPanel ? "sm" : "xs"}
               variant={isPanel ? "ghost" : "outline"}

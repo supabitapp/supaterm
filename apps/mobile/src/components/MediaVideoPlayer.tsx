@@ -28,7 +28,6 @@ function LoadedMediaVideo(props: {
     playRequested: props.playRequested,
     attempt: 0,
   });
-  // Expo's Android player also reports completed playback as idle.
   const [loadState, setLoadState] = useState<"pending" | "complete" | "error">("pending");
   if (loadRequest.playRequested !== props.playRequested) {
     setLoadRequest({ playRequested: props.playRequested, attempt: loadRequest.attempt });
@@ -90,7 +89,6 @@ function LoadedMediaVideo(props: {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads the video source into the native player and aborts the load on cleanup
   useEffect(() => {
     const controller = new AbortController();
-    // A renewed signature is used on Retry, not as a reason to reset the native player.
     void loadSource(controller.signal, player, loadRequest.playRequested).then(
       () => {
         if (!controller.signal.aborted) setLoadState("complete");
@@ -162,7 +160,6 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
   const mediaActions = useMediaActions(props.actionsSource);
   const isFocused = useIsFocused();
   const [playbackUri, setPlaybackUri] = useState<string | null>(props.expanded ? props.uri : null);
-  // Keep an opened player mounted while signing or reconnecting temporarily has no usable URL.
   if (playbackUri === null && props.expanded && props.uri !== null) setPlaybackUri(props.uri);
   const unavailableText = props.unavailableDetail
     ? `Video unavailable. ${props.unavailableDetail}`
@@ -170,11 +167,9 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
   const [videoSize, setVideoSize] = useState<{ width: number; height: number } | null>(null);
   const [bounds, setBounds] = useState<{ width: number; height: number } | null>(null);
   const sizeSource = props.fitToVideo && isFocused && videoSize === null ? props.uri : null;
-  // Queue before the poster so early Play cannot cancel the extraction that supplies frame dimensions.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads native thumbnail dimensions independently of the poster's lifetime
   useLayoutEffect(() => {
     if (sizeSource === null) return;
-    // Thumbnails are oriented like the displayed frame, unlike VideoTrack.size.
     const controller = new AbortController();
     void loadVideoThumbnail(
       props.thumbnailKey,
@@ -221,7 +216,6 @@ function MediaVideoPlayerContent(props: MediaVideoPlayerProps) {
               mediaActions.actions.length > 0 ? "Touch and hold for media actions" : undefined
             }
             accessibilityState={{ disabled: props.uri === null || props.unavailable === true }}
-            // Stays pressable so the long-press menu still opens on a failed or unsigned tile.
             onPress={() => {
               if (props.uri !== null && !props.unavailable) {
                 props.onPlaybackStart?.();

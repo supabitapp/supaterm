@@ -60,7 +60,6 @@ export function createVcsStatusRevalidationAtomFamily<R>(input: {
     return Atom.make((get) => {
       get(wakeAtom);
       const connected = input.connected;
-      // Rebuilds only when the connection flag flips, so each reconnect refreshes once.
       if (connected !== undefined && get(connected(environmentId))) {
         void refresh(get.registry);
       }

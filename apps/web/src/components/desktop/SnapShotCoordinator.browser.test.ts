@@ -51,7 +51,6 @@ const storage = vi.hoisted(() => {
 const environmentId = EnvironmentId.make("snap-shot-environment");
 const projectRef = scopeProjectRef(environmentId, ProjectId.make("snap-shot-project"));
 
-// Tests stub globals and spy on module exports freely; disposing restores all of them.
 function setup(): Disposable {
   storage.clear();
   vi.stubGlobal("localStorage", storage);
@@ -190,7 +189,6 @@ describe("open question delivery", () => {
     using _env = setup();
     const pins = new Map();
     const resolveTarget = () => resolveSnapShotAttachmentTarget(pins, capture.id, threadRef);
-    // The drain pins a capture it never saw requested before reading it.
     expect(resolveTarget()).toEqual(threadRef);
     let untrack = () => {};
     const { bridge, acknowledgeSnapShot } = makeBridge(async () => {

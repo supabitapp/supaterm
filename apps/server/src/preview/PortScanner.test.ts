@@ -768,7 +768,6 @@ effectIt.effect("rechecks the socket owner before stopping a Linux server withou
     const scanner = yield* PortScanner.PortDiscovery;
     expect(yield* scanner.scan()).toMatchObject([{ pid: 4242, port: 8765 }]);
 
-    // The socket outlives its original holder. Its old pid now belongs to another agent job.
     holder = "5000";
     const result = yield* scanner
       .stopServer({ pid: 4242, port: 8765 })
@@ -882,7 +881,6 @@ effectIt.effect.each(["linux", "darwin"] as const)(
                     )
                   : Effect.succeed(processOutput(lsofStdout));
               }
-              // A direct child of this process, so stop refuses it without signaling anything.
               if (input.args[0] === "-A") {
                 return Effect.succeed(processOutput(`4242 ${process.pid} 4242\n`));
               }
@@ -921,13 +919,10 @@ effectIt.effect.each(["linux", "darwin"] as const)(
 
     return Effect.gen(function* () {
       const scanner = yield* PortScanner.PortDiscovery;
-      // Startup reads listeners once. With none marked, later scans stay idle.
       expect(yield* scanner.scan()).toEqual([]);
       expect(yield* scanner.scan()).toEqual([]);
       expect(lsofCalls).toBe(1);
 
-      // The agent exits before any client looks, and the first read fails; its server is still
-      // found.
       lsofStdout = `${agentListener}${otherListener}`;
       scanner.trackAgent()();
       lsofFails = true;
@@ -946,7 +941,6 @@ effectIt.effect.each(["linux", "darwin"] as const)(
       expect(yield* scanner.scan()).toHaveLength(1);
       expect(environmentReads).toBe(2);
 
-      // Stop reads its target's environment again rather than trust the cache, and still finds it.
       const stop = yield* Effect.flip(scanner.stopServer({ pid: 4242, port: agentPort }));
       expect(stop.reason).toBe("shared-group");
       expect(environmentReads).toBe(3);
@@ -964,16 +958,16 @@ effectIt.effect("stops only a job's own process group", () =>
   Effect.sync(() => {
     const serverPid = 100;
     const rows = [
-      { pid: 10, ppid: 1, pgid: 10 }, // `vp run dev`, whose job holds this server
-      { pid: 20, ppid: 10, pgid: 10 }, // the web dev server in the same job
+      { pid: 10, ppid: 1, pgid: 10 },
+      { pid: 20, ppid: 10, pgid: 10 },
       { pid: serverPid, ppid: 10, pgid: 10 },
-      { pid: 200, ppid: serverPid, pgid: 200 }, // agent CLI
-      { pid: 210, ppid: 200, pgid: 200 }, // a server it spawned without a group of its own
-      { pid: 300, ppid: 200, pgid: 300 }, // agent tool shell
-      { pid: 400, ppid: 300, pgid: 400 }, // `npm run dev &`
+      { pid: 200, ppid: serverPid, pgid: 200 },
+      { pid: 210, ppid: 200, pgid: 200 },
+      { pid: 300, ppid: 200, pgid: 300 },
+      { pid: 400, ppid: 300, pgid: 400 },
       { pid: 401, ppid: 400, pgid: 400 },
-      { pid: 500, ppid: serverPid, pgid: 500 }, // terminal shell
-      { pid: 600, ppid: 500, pgid: 600 }, // terminal job
+      { pid: 500, ppid: serverPid, pgid: 500 },
+      { pid: 600, ppid: 500, pgid: 600 },
     ];
     const table = new Map(rows.map((row) => [row.pid, row]));
     expect(PortScanner.stoppableProcessGroup(table, 401, serverPid)).toBe(400);
@@ -981,7 +975,6 @@ effectIt.effect("stops only a job's own process group", () =>
     for (const pid of [20, 210, 500, 999]) {
       expect(PortScanner.stoppableProcessGroup(table, pid, serverPid)).toBeNull();
     }
-    // The tool shell is the command; its `npm run dev &` job only inherited the name.
     const variables = new Map([
       [200, new Map<string, string>()],
       [300, new Map([["COMMAND", "a"]])],
@@ -1007,11 +1000,6 @@ server.listen(0, "127.0.0.1", () => {
 
 const AGENT_COMMAND_ENV = "SUPATERM_TEST_AGENT_COMMAND";
 
-/**
- * A real HTML server with an agent's environment, started the way an agent's tool shell starts a
- * job: under a detached shell with job control, in a group of its own. Release kills only the pids
- * it started.
- */
 const agentServer = () =>
   Effect.acquireRelease(
     Effect.callback<{
@@ -1021,7 +1009,6 @@ const agentServer = () =>
       readonly exited: Promise<void>;
     }>((resume) => {
       const env = { ...process.env, [PortScanner.AGENT_THREAD_ENV]: "thread-live" };
-      // dash ignores `set -m` without a terminal; bash, like agent tool shells, honors it.
       const child = NodeChildProcess.spawn(
         "bash",
         [
@@ -1091,7 +1078,6 @@ effectIt.live.skipIf(HostProcess.Platform.defaultValue() === "win32")(
 
       yield* scanner.stopServer({ pid: job.pid, port: job.port });
       expect(stops).toEqual([["command-live", true]]);
-      // The shell waits on its job, so it exits once the job has.
       yield* Effect.promise(() => job.exited);
       expect(isRunning(job.pid)).toBe(false);
     }).pipe(

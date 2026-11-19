@@ -17,7 +17,6 @@ const GPU_CACHE_DIRECTORIES = [
   "GPUPersistentCache",
 ];
 
-// Keyed on Electron, not Chromium: Electron patches ship Chromium backports under the same Chrome version.
 export const clearStaleGpuCaches = Effect.fn("desktop.userData.clearStaleGpuCaches")(
   function* (input: { readonly userDataPath: string; readonly electronVersion: string }) {
     const fs = yield* FileSystem.FileSystem;

@@ -43,36 +43,20 @@ import {
 const RETRY_BASE_DELAY_MS = 1_000;
 const RETRY_MAX_DELAY_MS = 30_000;
 const SESSION_LOSS_RETRY_DELAY_MS = 250;
-// A cold server with a large database can take longer than 15 seconds to
-// answer, and that is not a reason to drop a working connection.
 const CONNECTION_ESTABLISHMENT_TIMEOUT = "15 seconds";
 const synchronizationTimeout = Duration.millis(ConnectionDriver.ROUTE_SNAPSHOT_TIMEOUT_MS);
 const CONNECTION_PROBE_TIMEOUT = "15 seconds";
 const QUICK_CONNECTION_PROBE_TIMEOUT = "3 seconds";
-// A probe still unanswered this long checks the host with a fresh request. If
-// the host answers while the socket stays silent, the socket is dead.
 const SILENT_SOCKET_CHECK_AFTER = "500 millis";
 const SILENT_SOCKET_RECHECK_EVERY = "1 second";
 const FRAME_CHECK_EVERY = "100 millis";
-// Off the LAN one lost packet can stall a live socket for a second, so a remote
-// socket must stay silent this long, except after a long resume. It must end
-// before QUICK_CONNECTION_PROBE_TIMEOUT so a resume replaces a silent socket.
 const REMOTE_SILENT_SOCKET_AFTER = "2500 millis";
-// The first attempt after a system wake can start before the network is
-// usable. If its socket has not opened by then, it is retried once.
 const WAKE_RECOVERY_OPEN_TIMEOUT = "3 seconds";
-// A mobile resume after this long in the background shows stale data.
 const LONG_BACKGROUND_AFTER_MS = 10_000;
-// A host that answered a fresh request still answers when the reconnect starts right after.
 const ANSWERED_ROUTE_VALIDITY_NANOS = 10_000_000_000n;
 const BACKOFF_RESET_AFTER_MS = 30_000;
 const BETTER_ROUTE_CHECK_INTERVAL_MS = 60_000;
-// Each check of a dead route can wait out the full probe timeout, so a route
-// that keeps failing is checked half as often each time, until the network
-// changes and it may answer again.
 const SILENT_ROUTE_BACKOFF_MAX_MS = 1_800_000;
-// A better route that answered the check but then failed to connect is not
-// tried again for this long, so a flaky LAN cannot bounce the connection.
 const BETTER_ROUTE_COOLDOWN_MS = 300_000;
 
 interface SupervisorIntent {
@@ -291,9 +275,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   const connectivity = yield* Connectivity.Connectivity;
   const driver = yield* ConnectionDriver.ConnectionDriver;
   const wakeups = yield* ConnectionWakeups.ConnectionWakeups;
-  // The primary environment served this client or runs beside it on loopback,
-  // so the device reporting offline (often wrongly) never parks it. The report
-  // still probes its live session, like any other network change.
   const targetNetwork = (network: NetworkStatus): NetworkStatus =>
     network === "offline" && target._tag === "PrimaryConnectionTarget" ? "unknown" : network;
   const initialIntent: SupervisorIntent = {
@@ -302,7 +283,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     backgrounded: yield* wakeups.isBackgrounded ?? Effect.succeed(false),
   };
   const intent = yield* Ref.make(initialIntent);
-  // Wall-clock time: a monotonic clock can pause while the OS suspends the app.
   const backgroundedAt = yield* Ref.make(
     initialIntent.backgrounded ? yield* Clock.currentTimeMillis : null,
   );
@@ -325,10 +305,7 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   const answeredRoute = yield* Ref.make(Option.none<ConnectionDriver.AnsweredRoute>());
   const replacement = yield* makeReplacementSlot(driver.connect);
   const routeCooldowns = yield* Ref.make<ReadonlyMap<string, bigint>>(new Map());
-  // Outlives sessions so a reconnect shows a refusal seen earlier; a route leaves once it connects.
   const refusedRoutes = yield* Ref.make(NO_REFUSED_ROUTES);
-  // The generation keeps a check that started before a reset from recording
-  // its stale failures after it.
   const silentRoutes = yield* Ref.make({
     generation: 0,
     routes: new Map<string, SilentRoute>() as ReadonlyMap<string, SilentRoute>,
@@ -367,11 +344,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       ),
     );
 
-  /**
-   * Preflights the routes ranked above the one in use and signals the best
-   * that would connect. Routes without a cheap check (SSH) never
-   * pass, so they are fallbacks, not destinations.
-   */
   const checkBetterRoutes = Effect.fnUntraced(function* (lease: ConnectedLease) {
     if ((yield* Ref.get(intent)).backgrounded) return;
     const latest = yield* Ref.get(currentEntry);
@@ -426,7 +398,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     });
   });
 
-  // Run one check at a time and retain at most one pending trigger.
   const betterRouteChecks = yield* Queue.dropping<ConnectedLease>(1);
   const requestBetterRouteCheck = (lease: ConnectedLease) =>
     routeIndex(lease).pipe(
@@ -501,7 +472,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
             Effect.andThen(reportProgress(attempt, generation, lastFailure, progress)),
           );
     return yield* Effect.gen(function* () {
-      // A switch to a better route outranks the replacement a resume opened.
       if (next.preflight !== undefined) yield* replacement.discard;
       const adopted = yield* replacement.adopt(onProgress);
       if (adopted !== undefined) {
@@ -542,8 +512,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   });
 
   const waitForEstablishmentInterrupt = Effect.fnUntraced(function* (ignoreOffline: boolean) {
-    // A primary attempt keeps running through an offline report, so the
-    // network returning restarts it in case it stalled meanwhile.
     let deviceOffline = (yield* connectivity.status) === "offline";
     for (;;) {
       const next = yield* Queue.take(signals);
@@ -551,8 +519,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         case "DisconnectRequested":
           return false;
         case "RetryRequested":
-          // Once the loop has taken this retry's flag, the running attempt is
-          // the one the retry asked for.
           if (yield* Ref.get(resetRetryState)) {
             return false;
           }
@@ -573,7 +539,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           break;
         case "Wakeup":
           if (next.reason === "application-background") return false;
-          // The attempt this restarts may have taken the wake's recovery already.
           if (next.reason === "system-resumed") yield* Ref.set(wakeRecoveryPending, true);
           if (
             next.reason === "application-resumed" ||
@@ -624,8 +589,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   const answersQuickly = (routeKind: ConnectionRouteKind | undefined) =>
     routeKind === "loopback" || routeKind === "lan";
 
-  // Relay sockets close when iOS suspends the tunnel, and an SSH tunnel costs
-  // too much to open on speculation, so only direct routes race a replacement.
   const racesReplacementOnResume = (routeKind: ConnectionRouteKind | undefined) =>
     routeKind === "lan" || routeKind === "tailnet" || routeKind === "vpn" || routeKind === "public";
 
@@ -642,19 +605,12 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         if (next.reason === "application-active") {
           return CONNECTION_PROBE_TIMEOUT;
         }
-        // After a long suspension the data on screen is stale, so a slow
-        // answer reconnects as quickly as a missing one, even on a remote
-        // route where a reconnect takes longer than the wait it replaces.
-        // A socket from before a sleep is suspect in the same way.
         if (next.afterLongBackground === true || next.reason === "system-resumed") {
           return QUICK_CONNECTION_PROBE_TIMEOUT;
         }
         if (next.reason !== "application-resumed" && next.reason !== "network-changed") {
           return undefined;
         }
-        // Only loopback and LAN answer within 3 seconds reliably. A tailnet
-        // over DERP, a VPN, or the relay can spike past it on a live socket;
-        // a dead one is still caught early by the silent socket check.
         return answersQuickly(routeKind)
           ? QUICK_CONNECTION_PROBE_TIMEOUT
           : CONNECTION_PROBE_TIMEOUT;
@@ -668,10 +624,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   const isForegroundProbe = (next: SupervisorSignal) =>
     next._tag === "Wakeup" && next.reason === "application-active";
 
-  // Ends "silent" when the host answers a fresh request while the socket
-  // delivers nothing, as when iOS kills a suspended socket without a close
-  // event, and "alive" once the socket delivers a frame. A slow or
-  // unreachable host never ends it.
   const awaitSilentSocket = Effect.fn("EnvironmentSupervisor.awaitSilentSocket")(function* (
     lease: ConnectionDriver.EnvironmentConnectionLease,
     routeKind: ConnectionRouteKind | undefined,
@@ -679,21 +631,16 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   ) {
     const startedAt = yield* Clock.monotonicTimeNanos;
     yield* Effect.sleep(SILENT_SOCKET_CHECK_AFTER);
-    // Frames that queued while the app was suspended have drained by now, so
-    // a later frame shows the path still works.
     const framesBefore = yield* lease.session.inboundFrames;
     const socketSilent = lease.session.inboundFrames.pipe(
       Effect.map((frames) => frames === framesBefore),
     );
-    // The session only counts frames, so a host check slower than the probe
-    // deadline would otherwise hide a frame until after the socket is replaced.
     const frameArrives = Effect.sleep(FRAME_CHECK_EVERY).pipe(
       Effect.andThen(socketSilent),
       Effect.repeat({ while: (silent) => silent }),
       Effect.as("alive" as const),
     );
     const hostAnswersWhileSilent = Effect.gen(function* () {
-      // A radio still waking up or a stale pooled connection can fail one check.
       while ((yield* driver.checkHost(lease.prepared)) !== "answered") {
         yield* Effect.sleep(SILENT_SOCKET_RECHECK_EVERY);
       }
@@ -708,8 +655,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
   });
 
   const monitorConnectedLease = Effect.fnUntraced(function* (lease: ConnectedLease) {
-    // A probe answers an explicit retry here, so the retry must not also reset
-    // the backoff of a later, unrelated failure.
     const takeSignal = Queue.take(signals).pipe(
       Effect.tap((next) =>
         next._tag === "RetryRequested" ? Ref.set(resetRetryState, false) : Effect.void,
@@ -744,13 +689,9 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           ? "mobile-resume"
           : "checking",
       );
-      // A probe for an older signal can answer after the wake armed recovery.
       if (next._tag === "Wakeup" && next.reason === "system-resumed")
         yield* Ref.set(wakeRecoveryPending, true);
       let probe = yield* Effect.forkChild(lease.session.probe);
-      // A busy server can miss one foreground probe while the socket is still
-      // healthy, so the first miss asks again and only the follow-up's miss
-      // replaces the session.
       let toleratesMiss = isForegroundProbe(next);
       let replacementFiber =
         next._tag === "Wakeup" &&
@@ -759,16 +700,12 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           ? yield* replacement.start(yield* Ref.get(currentEntry))
           : undefined;
       let silentSocket: Fiber.Fiber<"silent" | "alive"> | undefined;
-      // A signal during a running check, such as a network change that kills
-      // the socket, needs a fresh check only if the running one sees a frame.
       let recheck = false;
       let longResume = isLongResume(next);
       const startSilentSocketCheck = Effect.gen(function* () {
         silentSocket = yield* Effect.forkChild(awaitSilentSocket(lease, routeKind, longResume));
         recheck = false;
       });
-      // The web and desktop foreground probe allows a busy host 15 seconds,
-      // and a busy host can answer a fresh request before a queued probe.
       const armSilentSocketCheck = Effect.fnUntraced(function* (signal: SupervisorSignal) {
         if (isForegroundProbe(signal)) return;
         if (silentSocket !== undefined) {
@@ -821,7 +758,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         }
         if (probeEvent._tag === "SocketAlive") {
           silentSocket = undefined;
-          // A frame shows the socket still works, so its probe gets the usual resume time.
           if (longResume) {
             const aliveDeadline =
               longResumeStartedAt + Duration.toNanosUnsafe(QUICK_CONNECTION_PROBE_TIMEOUT);
@@ -831,8 +767,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           continue;
         }
         if (probeEvent._tag === "SocketSilent") {
-          // The host is reachable, so replace the socket at once, even while
-          // the network reports offline.
           yield* stopProbe;
           yield* rememberAnsweredRoute(lease);
           return true;
@@ -879,8 +813,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           yield* Ref.set(pendingProbe, "mobile-resume");
         const signalTimeout = probeTimeoutFor(probeEvent.signal, routeKind);
         if (signalTimeout !== undefined) {
-          // A retry or network signal wants a definite answer, even when its
-          // own deadline lands after the foreground one.
           if (!isForegroundProbe(probeEvent.signal)) toleratesMiss = false;
           if (isLongResume(probeEvent.signal) && !longResume) {
             longResume = true;
@@ -925,8 +857,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
     );
   });
 
-  // An open socket pauses the clock; a route that fails after opening gives
-  // the next route its own time to open.
   const awaitWakeRecoveryStall = Effect.fnUntraced(function* (
     routeOpen: SubscriptionRef.SubscriptionRef<boolean>,
   ) {
@@ -978,10 +908,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           resetRetry,
         })),
       ),
-      // Every route gets a full setup timeout, after the driver has waited
-      // for routes that were slow to answer their check. Each route that
-      // reaches synchronizing adds its own snapshot budget, so a route that
-      // fails late does not eat the next route's time.
       Effect.gen(function* () {
         const setup = Duration.toNanosUnsafe(
           Duration.sum(
@@ -992,8 +918,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
             Duration.millis(routes.length > 1 ? ConnectionDriver.LATE_ROUTE_CHECK_TIMEOUT_MS : 0),
           ),
         );
-        // The desktop bounds SSH preparation, which may download a server
-        // release, so for SSH-only entries the clock stops while preparing.
         const pausesWhilePreparing = routes.every((route) => connectionRouteKind(route) === "ssh");
         const preparing = (expected: boolean) =>
           SubscriptionRef.changes(state).pipe(
@@ -1195,8 +1119,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
       if (retryRequested) {
         failureCount = 0;
         latestFailure = null;
-        // The platform's offline report can stay wrong after the network is back,
-        // so an explicit retry still tries instead of waiting for it to change.
         attemptWhileOffline = true;
       }
       const currentIntent = yield* Ref.get(intent);
@@ -1291,8 +1213,6 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
         continue;
       }
 
-      // The first loss of a live session retries almost at once; the ladder
-      // still counts it, so a host that keeps dropping sessions backs off.
       const firstLoss = outcome.established && failureCount === 0;
       failureCount += 1;
       const delayMs = firstLoss
@@ -1360,11 +1280,8 @@ export const make = Effect.fn("EnvironmentSupervisor.make")(function* (
           reason === "application-resumed" &&
           since !== null &&
           now - since >= LONG_BACKGROUND_AFTER_MS;
-        // A long suspension can hide a network change the platform never reported.
         if (reason === "network-changed" || reason === "system-resumed" || afterLongBackground)
           yield* forgetSilentRoutes;
-        // The next attempt is a post-wake attempt until a probe shows the
-        // socket survived, even across an offline wait.
         if (reason === "system-resumed") yield* Ref.set(wakeRecoveryPending, true);
         yield* signal({
           _tag: "Wakeup",

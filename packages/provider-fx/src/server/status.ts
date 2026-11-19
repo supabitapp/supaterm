@@ -39,10 +39,6 @@ const FX_MODEL_CAPABILITIES = createModelCapabilities({
   optionDescriptors: [FX_EFFORT_OPTION_DESCRIPTOR],
 });
 
-/**
- * "Default" keeps the model `fx status` reports as its alias, which the
- * adapter selects for it. `fx models` lists the rest.
- */
 const fxModels = (
   settings: FxSettings,
   defaultModel?: string,
@@ -76,7 +72,6 @@ const snapshot = (
   listed?: ReadonlyArray<string>,
 ): ServerProviderDraft => ({
   ...buildServerProvider({
-    // Gives the snapshot its version advisory; fx runs no enrichment pass.
     driver: FX_DRIVER_KIND,
     presentation: FX_PRESENTATION,
     enabled: settings.enabled,
@@ -84,8 +79,6 @@ const snapshot = (
     models: fxModels(settings, defaultModel, listed),
     probe,
   }),
-  // Every `fx acp` session is saved under `~/.fx` and ACP has no session
-  // delete, so a throwaway text-generation session would stay on disk.
   supportsTextGeneration: false,
 });
 
@@ -120,7 +113,6 @@ const runFxCli = Effect.fn("runFxCli")(function* (
   );
 });
 
-/** `fx status --json` on fx 0.0.13: `auth` names the login method, `missing` when signed out. */
 const FxStatus = Schema.fromJsonString(
   Schema.Struct({
     auth: Schema.optional(Schema.String),

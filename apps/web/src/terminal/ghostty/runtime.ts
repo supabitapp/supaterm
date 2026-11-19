@@ -101,7 +101,6 @@ export class GhosttyRuntime {
   allocOpaque(): number {
     const pointer = this.call("ghostty_wasm_alloc_opaque");
     if (pointer === 0) throw new Error("libghostty-vt failed to allocate an opaque pointer");
-    // Zero before *_new so partial-initialization cleanup cannot free a garbage pointer.
     new DataView(this.memory.buffer).setUint32(pointer, 0, true);
     return pointer;
   }
@@ -150,7 +149,6 @@ export class GhosttyRuntime {
   }
 
   private refreshMemoryViews(): void {
-    // Growing memory detaches the old buffer. Reading `memory.buffer` costs far more than this check.
     if (this.memoryU8.byteLength === 0) {
       this.memoryView = new DataView(this.memory.buffer);
       this.memoryU8 = new Uint8Array(this.memory.buffer);
@@ -233,7 +231,6 @@ export class GhosttyRuntime {
       throw new Error("libghostty-vt did not expose its callback table");
     }
     const index = table.length;
-    // WebKit grow(1, fn) stores broken type info and traps on call_indirect; table.set canonicalizes it.
     table.grow(1);
     table.set(index, trampoline);
     this.writePtyFunctionIndex = index;

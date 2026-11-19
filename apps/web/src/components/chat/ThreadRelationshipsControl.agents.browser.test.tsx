@@ -86,8 +86,6 @@ vi.mock(import("../../state/orchestration"), async (original) => {
     }),
   };
 });
-// Tooltip and hover card content renders inline so the suite can read every row's agent
-// details across many states without hovering each row.
 vi.mock(import("../ui/tooltip"), async () => {
   const { cloneElement } = await import("react");
   const passThrough = (({ children }: { children: ReactNode }) => children) as never;
@@ -129,7 +127,6 @@ async function setup() {
     current = element;
     await act(async () => screen.rerender(element));
   }
-  // The mocked hooks read `state` while rendering, so a new element picks up changes.
   const update = async () => await act(async () => screen.rerender(cloneElement(current)));
   const click = async (element: HTMLElement) => await act(async () => element.click());
   const buttons = () => [...container.querySelectorAll("button")];
@@ -155,7 +152,6 @@ async function setup() {
   const heading = () => container.querySelector("h3")?.textContent;
   const buttonsWithLabel = (matches: (label: string) => boolean) =>
     buttons().filter((button) => matches(button.getAttribute("aria-label") ?? ""));
-  // Joins rendered text nodes; `visibleOnly` drops screen-reader-only text.
   function textNodes(separator: string, visibleOnly = false) {
     const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
     const parts: string[] = [];
@@ -534,7 +530,6 @@ it("separates relationship kinds and collapses each group independently", async 
   });
   expect(state.navigate).not.toHaveBeenCalled();
 
-  // A collapsing group keeps its rows until the panel's exit animation ends.
   await toggleGroup("Forks");
   await vi.waitFor(() => expect(container.textContent).not.toContain("Forked conversation"));
   expect(rows("Parent")).toContain("Parent conversation");

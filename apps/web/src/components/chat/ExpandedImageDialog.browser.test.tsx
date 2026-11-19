@@ -43,7 +43,6 @@ describe("ExpandedImageDialog", () => {
     { opener: "keyboard", focusVisible: true },
   ])("returns $opener focus to the opener on close", async (c) => {
     await using screen = await render(<ImagePreviewOpener />, {
-      // The opener renders no links and reads no route.
       router: false,
     });
     const opener = screen.getByRole("button", { name: "Open preview" });
@@ -85,7 +84,6 @@ describe("ExpandedImageDialog", () => {
           }}
           onClose={vi.fn()}
         />,
-        // The dialog renders no links and reads no route.
         { router: false },
       );
 
@@ -104,7 +102,6 @@ describe("ExpandedImageDialog", () => {
         preview={{ images: [{ src: PIXEL, name: "shot.png", source: snapShotSource }], index: 0 }}
         onClose={onClose}
       />,
-      // The dialog renders no links and reads no route.
       { router: false },
     );
 
@@ -115,7 +112,6 @@ describe("ExpandedImageDialog", () => {
     await expect.element(screen.getByText("Accessibility data")).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
 
-    // Focus returns to the popup's trigger and opens its tooltip; leave it for a plain control.
     (
       screen.getByRole("button", { name: "Back, close image preview" }).element() as HTMLElement
     ).focus();
@@ -132,7 +128,6 @@ describe("ExpandedImageDialog", () => {
         preview={{ images: [{ src: canvas.toDataURL(), name: "large.png" }], index: 0 }}
         onClose={() => {}}
       />,
-      // The dialog renders no links and reads no route.
       { router: false },
     );
     const viewportLocator = screen.getByRole("region", { name: "large.png, zoomable image" });
@@ -147,7 +142,6 @@ describe("ExpandedImageDialog", () => {
     using _wheelListener = {
       [Symbol.dispose]: () => document.removeEventListener("wheel", recordWheel),
     };
-    // Wheels land on the viewport's center; this is the image fraction under it.
     const pointerFraction = () => {
       const viewportBounds = viewport.getBoundingClientRect();
       const imageBounds = image.getBoundingClientRect();

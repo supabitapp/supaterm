@@ -201,7 +201,6 @@ export function normalizePreviewUrl(rawUrl: string): string {
       protocol: parsed.protocol,
     });
   }
-  // Re-parse rather than swap the protocol so an explicit :443 survives as a non-default HTTP port.
   if (!hasExplicitScheme && !useHttp && isLocalLoopbackHost(parsed.hostname)) {
     return new URL(`http://${trimmed}`).href;
   }

@@ -10,8 +10,6 @@ const HEX_COLOR = /^#[\da-f]{6}$/i;
 
 const toColor = ({ h, s, v }: HsvColor) => hsvToHex(h, s, v).toUpperCase();
 
-// Drags only preview and save once on release, so a drag writes the device once instead of on
-// every pointer move. Keyboard steps and typed hex save immediately.
 function ColorPanel({
   label,
   value,

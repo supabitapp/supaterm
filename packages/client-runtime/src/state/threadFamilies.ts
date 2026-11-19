@@ -26,8 +26,6 @@ interface MountedRows {
   readonly count: number;
 }
 const EMPTY_MOUNTS: ReadonlyMap<string, MountedRows> = new Map();
-// Generation 0 is the cached shell from before this session's first authoritative snapshot. A read
-// for it would be thrown away once that snapshot lands, so it waits instead.
 const AWAITING_AUTHORITATIVE_SHELL = AsyncResult.initial<never, never>(true);
 
 /** Whether a family read can decide anything yet. Only a settled read can prove a thread is gone. */
@@ -36,7 +34,6 @@ export type ThreadFamilyRead = "pending" | "failed" | "settled";
 export function threadFamilyRead(
   result: AsyncResult.AsyncResult<OrchestrationV2ThreadFamily, unknown>,
 ): ThreadFamilyRead {
-  // A failure whose retry is in flight is pending, so callers do not restart that retry.
   if (result.waiting) return "pending";
   if (AsyncResult.isFailure(result)) return "failed";
   return AsyncResult.isSuccess(result) ? "settled" : "pending";
@@ -85,8 +82,6 @@ export function createThreadFamilyAtoms<R, ER, E>(
     ),
   );
 
-  // The generation is part of the key, so a read from before the latest authoritative snapshot is
-  // never used again, even while a new read is pending or failed.
   const familyQueryAtom = createEnvironmentQueryAtomFamily(runtime, {
     label: "environment-data:orchestration:thread-family",
     staleTimeMs: Number.POSITIVE_INFINITY,
@@ -103,9 +98,7 @@ export function createThreadFamilyAtoms<R, ER, E>(
           message: "The environment has no session.",
         });
       }
-      // A config failure fails the read: an empty family would read as "the thread is gone".
       const config = yield* session.value.initialConfig;
-      // Servers without families send every child in the shell, so absent means gone.
       if (config.shellThreadFamilies !== true) return EMPTY_FAMILY;
       return yield* request(ORCHESTRATION_V2_WS_METHODS.getThreadFamily, {
         threadId: input.threadId,
@@ -127,7 +120,6 @@ export function createThreadFamilyAtoms<R, ER, E>(
   const familyKey = (environmentId: EnvironmentId, threadId: ThreadId) =>
     JSON.stringify([environmentId, threadId]);
 
-  /** Reads the current generation's family again, so a failed read does not last the session. */
   const refresh = (
     registry: AtomRegistry.AtomRegistry,
     environmentId: EnvironmentId,
@@ -151,10 +143,6 @@ export function createThreadFamilyAtoms<R, ER, E>(
     }).pipe(Atom.withLabel(`environment-thread-family-rows:${key}`)),
   );
 
-  /**
-   * Merges `rows` behind the shell rows until the returned release runs. Reads read under `key`
-   * share one entry; each read's `snapshotSequence` decides which removals drop its rows.
-   */
   const mountRows = (
     registry: AtomRegistry.AtomRegistry,
     environmentId: EnvironmentId,
@@ -181,7 +169,6 @@ export function createThreadFamilyAtoms<R, ER, E>(
     };
   };
 
-  /** Keeps a thread's family in the merged rows until the returned release runs. */
   const mount = (
     registry: AtomRegistry.AtomRegistry,
     environmentId: EnvironmentId,
@@ -189,7 +176,6 @@ export function createThreadFamilyAtoms<R, ER, E>(
   ): (() => void) => {
     const key = familyKey(environmentId, threadId);
     const release = mountRows(registry, environmentId, `family:${key}`, familyRowsAtom(key));
-    // Mounting again after a failure retries instead of keeping the failure until reconnect.
     if (threadFamilyRead(registry.get(familyAtom(key))) === "failed") {
       refresh(registry, environmentId, threadId);
     }
@@ -208,14 +194,10 @@ export function createThreadFamilyAtoms<R, ER, E>(
       const snapshot = state === null ? null : Option.getOrNull(state.snapshot);
       const mounts = get(mountsAtom(environmentId));
       if (snapshot === null || state === null || mounts.size === 0) return snapshot;
-      // A read from before the latest authoritative snapshot can hold threads removed before it,
-      // and that snapshot cleared those removals; such reads (a cached search) wait for new ones.
       const cut = snapshot.olderDone?.asOfSequence ?? 0;
       const families = [...mounts.values()].flatMap(({ rows }) =>
         get(rows).filter((read) => read.snapshotSequence >= cut),
       );
-      // Most shell updates move only the cursor. With the same rows, removals and families, keep
-      // the merged rows so thread lists skip their rebuild.
       const unchanged =
         previous !== null &&
         previous.snapshot.threads === snapshot.threads &&
@@ -245,9 +227,7 @@ export function createThreadFamilyAtoms<R, ER, E>(
   });
 
   return {
-    /** The shell snapshot plus the rows of every mounted family. */
     snapshotAtom,
-    /** The current generation's family read, for decisions that need a settled answer. */
     familyAtom: (environmentId: EnvironmentId, threadId: ThreadId) =>
       familyAtom(familyKey(environmentId, threadId)),
     mount,

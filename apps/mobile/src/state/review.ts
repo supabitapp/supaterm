@@ -7,8 +7,6 @@ import { connectionAtomRuntime } from "../connection/runtime";
 
 const EMPTY_GIT_SECTIONS = Object.freeze<ReadonlyArray<ReviewDiffPreviewSource>>([]);
 
-// The last answered preview per worktree, so review keeps showing git sections while the live
-// query is not mounted. useReviewSections still hides them unless the session grants file reads.
 const lastGitSectionsFamily = Atom.family((key: string) =>
   Atom.make(EMPTY_GIT_SECTIONS).pipe(
     Atom.keepAlive,

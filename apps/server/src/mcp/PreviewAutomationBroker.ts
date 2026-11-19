@@ -93,11 +93,6 @@ interface PendingRequest {
   readonly context: PreviewAutomationRequestErrorContext;
 }
 
-/**
- * It lives exactly as long as the connection it names: `connectionId`/`queue`
- * identity is what makes a lease valid, so a disconnected or replaced host is
- * dropped on the next lookup.
- */
 interface HostAssignment {
   readonly clientId: ClientConnection["clientId"];
   readonly connectionId: ClientConnection["connectionId"];
@@ -380,12 +375,9 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
     completeStream = false,
   ) {
     if (completeStream) {
-      // Discard this generation's commands and complete the RPC stream so a
-      // responsive desktop can re-register after a timeout eviction.
       yield* Queue.clear(queue);
       yield* Queue.end(queue);
     } else {
-      // Replaced registrations must not reconnect and displace their successor.
       yield* Queue.shutdown(queue);
     }
     yield* Effect.forEach(
@@ -538,9 +530,6 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
       const assigned = assignments.get(assignmentKey);
       const assignedConnection = assigned ? current.clients.get(assigned.clientId) : undefined;
       const hasLiveAssignment = assignedConnection?.environmentId === input.scope.environmentId;
-      // Keep one provider session on one physical desktop runtime so a
-      // multi-step browser interaction cannot jump between independent Electron
-      // cookie/DOM state.
       const ownsTargetTab = (host: ClientConnection, visibleOnly = false) =>
         host.liveTabs.some(
           (tab) =>
@@ -573,8 +562,6 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
         if (!hasLiveAssignment) assignments.delete(assignmentKey);
         return [undefined, { ...current, assignments }] as const;
       }
-      // The environment host may install Chromium on its first open (up to
-      // ten minutes). Keep that request alive without replaying its effects.
       const timeoutMs =
         input.timeoutMs ?? (input.operation === "open" && connection.preferred ? 660_000 : 15_000);
       const canReuseAssignedTab =
@@ -635,8 +622,6 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
     });
     const awaitResponse = Effect.fn("PreviewAutomationBroker.awaitResponse")(function* () {
       const offered = yield* SynchronizedRef.modifyEffect(state, (current) => {
-        // A route can outlive its generation while another request evicts it.
-        // Serialize the live-generation check and offer with queue closure.
         if (
           current.clients.get(connection.clientId)?.queue !== connection.queue ||
           !current.pending.has(requestId)
@@ -665,17 +650,11 @@ export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
         }
         return yield* new PreviewAutomationRequestQueueClosedError(requestContext);
       }
-      // The browser starts its operation timer after delivery. Allow its timeout
-      // response to arrive before treating the entire host as unresponsive.
       const responseTimeoutMs =
         input.updateCurrentTab === false ? timeoutMs : timeoutMs + HOST_RESPONSE_GRACE_MS;
       const result = yield* Deferred.await(deferred).pipe(Effect.timeoutOption(responseTimeoutMs));
       return yield* Option.match(result, {
-        // The enclosing operation owns the span for this inline handler.
         onNone: Effect.fnUntraced(function* () {
-          // Do not replay actions: the client may have applied them. A slow metadata
-          // read changes nothing, so it must not cut the host off from the next call.
-          // The in-process server browser is shared by every thread and cannot hang its stream.
           if (
             input.updateCurrentTab !== false &&
             connection.clientId !== SERVER_BROWSER_AUTOMATION_CLIENT_ID

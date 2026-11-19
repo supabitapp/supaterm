@@ -27,7 +27,6 @@ export function folderDropTarget(input: {
   return isSavedLoopbackConnection(input.connection) ? "local" : "remote";
 }
 
-// A direct saved connection to loopback shares the desktop's filesystem; SSH forwards do not.
 function isSavedLoopbackConnection({
   target,
   httpBaseUrl,

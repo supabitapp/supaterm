@@ -31,17 +31,14 @@ export interface TurnDetail {
 export const NO_TURN_DETAIL: TurnDetail = { activity: null, messages: [], tailId: null };
 
 const ACTIVITY_MAX_LENGTH = 120;
-// Parsing is synchronous, and nobody listens to a longer message through a live region.
 const MESSAGE_MAX_LENGTH = 2_000;
 
-/** The first `maxLength` code points of `text`, or null when it has no more than that. */
 function cutText(text: string, maxLength: number): string | null {
   if (text.length <= maxLength) return null;
   const characters = Array.from(text);
   return characters.length > maxLength ? characters.slice(0, maxLength).join("") : null;
 }
 
-// On screen these labels are a path or a query beside an icon.
 function withVerb(work: WorkLogEntry, label: string) {
   if (work.itemType === "file_change") return `Editing ${label}`;
   if (work.itemType !== "file_search" && work.itemType !== "web_search") return label;
@@ -51,8 +48,6 @@ function withVerb(work: WorkLogEntry, label: string) {
 
 type MessageEntry = Extract<TimelineEntry, { kind: "message" }>;
 
-// A steer starts a new attempt in the same run. The reply it cut off also stops streaming,
-// so only one that completed before the steer finished; see completeSupersededReplyEntryIds.
 function completedBeforeSuperseded(entry: MessageEntry) {
   const item = entry.projectedItem?.item;
   const supersededAt = entry.attempt?.completedAt ?? null;
@@ -66,7 +61,6 @@ function completedBeforeSuperseded(entry: MessageEntry) {
 }
 
 function stepLabel(work: WorkLogEntry, workspaceRoot: string | undefined): string | null {
-  // Reasoning text is never read out.
   if (work.itemType === "reasoning") return "Thinking";
   const status = work.toolLifecycleStatus;
   if (status === "failed" || status === "declined" || status === "stopped") return null;
@@ -88,7 +82,6 @@ export function turnDetail(
   knownTailId: string | null,
 ): TurnDetail {
   const messages: TurnMessage[] = [];
-  // Runs and attempts the agent kept working in after the entry being looked at.
   const continuedRunIds = new Set<RunId | null>();
   const continuedAttemptIds = new Set<string>();
   const markContinued = (entry: TimelineEntry, runId: RunId | null) => {
@@ -109,16 +102,13 @@ export function turnDetail(
         activity ??= work.toolLifecycleStatus === "inProgress" ? work.label : null;
         continue;
       }
-      // Notices, todo lists and checkpoints sit beside the turn's steps without being one.
       if (work.tone !== "tool" && work.itemType !== "reasoning") continue;
       markContinued(entry, work.runId ?? null);
-      // A request is spoken as the thread's status; once answered, the step it was for goes on.
       if (work.itemType === "approval_request" || work.itemType === "user_input_request") continue;
       if (activity === undefined) activity = stepLabel(work, workspaceRoot);
       continue;
     }
     if (entry.kind === "message" && entry.message.role !== "assistant") continue;
-    // A reply, plan or rendered page is newer than any step before it.
     activity ??= null;
     const runId = timelineEntryRunId(entry);
     if (entry.kind === "message") {
@@ -136,7 +126,6 @@ export function turnDetail(
     }
     markContinued(entry, runId);
   }
-  // Nothing is known to be new when the entry last seen is gone, or there was none.
   let tailKnown = !fresh;
   if (knownTailId !== null) {
     for (; !tailKnown && index >= 0; index -= 1) tailKnown = entries[index]!.id === knownTailId;
@@ -163,7 +152,6 @@ export interface TurnDetailMemory {
   readonly tailId: string | null;
 }
 
-/** The heading every agent message has in the timeline. */
 const MESSAGE_AUTHOR = "Supaterm";
 
 /**
@@ -179,12 +167,10 @@ export function nextTurnDetailAnnouncement(
   readonly activity: string | null;
 } {
   const memory: TurnDetailMemory = {
-    // A step is spoken again after a pause for an approval or a question.
     activity: next.status === "working" ? next.activity : null,
     messages: new Map(next.messages.map((message) => [message.id, message.finished])),
     tailId: next.tailId,
   };
-  // A turn that already ended is history, however late its entries arrive.
   if (previous === null || next.level === "status" || next.status === "idle") {
     return { memory, messages: [], activity: null };
   }

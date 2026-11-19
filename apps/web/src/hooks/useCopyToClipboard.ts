@@ -146,7 +146,6 @@ export async function writeTextToClipboard(
         ]);
         return true;
       } catch {
-        // Safari/native bridges may accept HTML but reject Chromium's custom web flavor.
         const html = extraFlavors["text/html"];
         if (html) {
           try {

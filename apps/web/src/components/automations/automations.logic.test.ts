@@ -217,7 +217,6 @@ describe("fixed-time scheduled tasks", () => {
       schedule: { type: "fixed_time", timeOfDay: "14:30" },
     });
     expect(scheduleFromDraft(draft)).toEqual({ type: "fixed_time", timeOfDay: "14:30" });
-    // A native time input reports "" when it is cleared or only partly filled.
     expect(scheduleFromDraft({ ...draft, timeOfDay: "" })).toBeNull();
   });
 });
@@ -261,7 +260,6 @@ describe("one-time scheduled tasks", () => {
 
   it("keeps the saved offset when an edit stays in an hour that repeats", () => {
     vi.stubEnv("TZ", "America/Los_Angeles");
-    // 01:30 PST, the second 01:30 on 2026-11-01.
     const draft = taskToDraft({
       ...legacyTask,
       schedule: { type: "once", runAt: "2026-11-01T09:30:00.000Z" },
@@ -413,7 +411,6 @@ describe("automation labels", () => {
     expect(lastRunLabel({ lastRunStatus: "failed", lastRunAt: at(-60_000) }, now)).toBe(
       "Couldn't send",
     );
-    // A run that lands between clock ticks has a timestamp after `now`.
     expect(lastRunLabel({ lastRunStatus: "succeeded", lastRunAt: at(20_000) }, now)).toBe(
       "Sent just now",
     );

@@ -43,7 +43,6 @@ export function selectSidePulseLedState(input: {
 }): SidePulseLedState {
   let rank = 0;
   for (const thread of input.threads) {
-    // Subagent and side-chat threads reach the user through their parent's shell.
     if (
       !isListedThreadLineage(thread.lineage) ||
       thread.archivedAt !== null ||

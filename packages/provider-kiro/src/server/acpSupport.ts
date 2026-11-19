@@ -15,11 +15,6 @@ import {
 } from "@supaterm/provider-acp/server/clientPolicy";
 import * as AcpSessionRuntime from "@supaterm/provider-acp/server/AcpSessionRuntime";
 
-/**
- * Kiro's default engine is a v2 server this driver does not speak, so V3 is
- * requested. `--auth-method=cli` keeps access tokens inside Kiro. V3 rejects the
- * v2 launch flags; mode and model are set per session with `session/set_config_option`.
- */
 const KIRO_ACP_ARGS = ["acp", "--agent-engine=v3", "--auth-method=cli"] as const;
 
 /**

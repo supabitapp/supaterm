@@ -2,7 +2,6 @@ import { Atom } from "effect/reactivity";
 import { appAtomRegistry } from "./atom-registry";
 import type { AcknowledgedThreadMessage, QueuedThreadMessage } from "./thread-outbox-model";
 
-// Keep acknowledged rows until the thread catches up; command receipts can precede messages.
 export const acknowledgedThreadMessagesAtom = Atom.make<ReadonlyArray<AcknowledgedThreadMessage>>(
   [],
 ).pipe(Atom.keepAlive);

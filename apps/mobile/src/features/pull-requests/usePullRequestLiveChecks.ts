@@ -20,9 +20,7 @@ export function usePullRequestLiveChecks(
   const target = pullRequestTarget(params);
   const connected = usePullRequestConnected(target.environmentId);
   const checks = useEnvironmentQuery(detail !== null ? composerPullRequests.checks(target) : null);
-  // Both reads carry the server's observedAt; without it the poll is the fresher stream.
   const live = resolvePullRequestDetailChecks(detail, checks.data, true);
-  // A failed read keeps polling; only a host that answers "no checks" (null) stops it.
   const enabled =
     connected && live?.state === "open" && !(checks.isSuccess && checks.data === null);
   const intervalMs = pullRequestChecksRefreshIntervalMs(live?.checks ?? []);

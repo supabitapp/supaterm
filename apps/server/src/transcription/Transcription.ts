@@ -44,12 +44,9 @@ import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import { applyDictionary } from "./TranscriptionDictionary.ts";
 import { keytermCandidates } from "./TranscriptionKeyterms.ts";
 
-// At least as long as an upload URL lives, so a replayed upload finds the
-// recorded outcome instead of starting another vendor run.
 const OUTCOME_TTL_MS = 10 * 60_000;
 const MAX_ENTRIES = 64;
 const RUN_TIMEOUT_MS = (TRANSCRIPTION_MAX_SECONDS + 120) * 1000;
-// A live run starts with the recording, which can pause (a call on iOS) without counting audio.
 const LIVE_RUN_TIMEOUT_MS = (2 * TRANSCRIPTION_MAX_SECONDS + 120) * 1000;
 const RUNS_PER_INSTANCE = 2;
 const PRUNE_INTERVAL = "1 minute";
@@ -102,7 +99,6 @@ const isPendingWav = (attachmentId: string) =>
   parseThreadSegmentFromAttachmentId(attachmentId) === PENDING_ATTACHMENT_THREAD_SEGMENT &&
   parseAttachmentFileExtension(attachmentId) === "wav";
 
-/** Vendors take a primary language subtag; devices report Norwegian as `nb` or `nn`. */
 const normalizeLanguage = (tag: string | undefined) => {
   const primary = tag?.split(/[-_]/)[0]?.toLowerCase();
   if (!primary) return undefined;
@@ -198,7 +194,6 @@ const make = Effect.gen(function* () {
     return audio;
   });
 
-  // Unreadable settings fall back to the raw transcript rather than failing work already paid for.
   const readDictionary = settings.getSettings.pipe(
     Effect.map((current) => current.transcriptionDictionary),
     Effect.orElseSucceed(() => []),
@@ -211,7 +206,6 @@ const make = Effect.gen(function* () {
     })),
   );
 
-  // Every lookup is optional: a missing thread or project only drops its hints.
   const readKeyterms = Effect.fn("Transcription.readKeyterms")(function* (
     instanceId: ProviderInstanceId,
     context: TranscriptionTranscribeInput["context"],
@@ -258,15 +252,12 @@ const make = Effect.gen(function* () {
     return { providerInstanceId, language: normalizeLanguage(input.language) } satisfies RunInputs;
   });
 
-  // Never another account: an unusable instance is refused, not substituted.
   const resolveSource = Effect.fnUntraced(function* (inputs: RunInputs) {
     const instance = yield* providerInstances.getInstance(inputs.providerInstanceId);
     const backend = instance?.enabled ? instance.transcription : undefined;
     if (!instance || !backend) {
       return yield* new TranscriptionError({ reason: "sourceUnavailable" });
     }
-    // The backend reads whatever subscription login is on disk. When the check found that
-    // the CLI runs with a different login, using it would bill another account.
     const checked = (yield* instance.snapshot.getSnapshot).transcription;
     if (checked?.status === "unavailable") {
       return yield* new TranscriptionError({ reason: checked.reason ?? "unsupportedLogin" });
@@ -301,8 +292,6 @@ const make = Effect.gen(function* () {
     }),
   );
 
-  // An expired failure takes its upload with it, so a late recovery gets
-  // `audioMissing` instead of a second vendor run. Callers hold the store lock.
   const pruneExpired = Effect.fnUntraced(function* (now: number) {
     const entries = yield* Ref.get(entriesRef);
     const expiredIds = [...entries].flatMap(([id, entry]) =>
@@ -333,9 +322,6 @@ const make = Effect.gen(function* () {
               () => new TranscriptionError({ reason: "failed", cause: Cause.squash(exit.cause) }),
             ),
           } as const);
-    // Record the outcome before deleting the upload, so a failed delete can't turn a finished
-    // vendor call into a second one. Only `failed` can mean the vendor did work whose result
-    // never arrived; any other refusal spent nothing, so a resubmission simply tries again.
     const recorded = outcome._tag === "Succeeded" || outcome.error.reason === "failed";
     yield* storeLock.withPermits(1)(
       Ref.update(entriesRef, (entries) => {
@@ -413,9 +399,6 @@ const make = Effect.gen(function* () {
     },
   );
 
-  // Under the store lock throughout, so a reconnect can't start new work on the
-  // upload between dropping the entry and deleting the file. Uninterruptible, so
-  // a client that disconnects mid-cancel can't leave it half done.
   const cancel: Transcription["Service"]["cancel"] = Effect.fn("Transcription.cancel")(
     function* (input) {
       yield* storeLock

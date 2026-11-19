@@ -26,17 +26,10 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as ProcessRunner from "../processRunner.ts";
 import { isExactServiceVersion, parseServiceState, SERVICE_STATE_FILE } from "./serviceProtocol.ts";
 
-/**
- * An exact release archive unpacked into <baseDir>/runtime/versions/<version>, which the boot
- * service runs and self-update installs into before switching over. It never depends on the
- * machine's Node or npm, even when the CLI came from the `supaterm` npm package.
- */
 const PINNED_RUNTIME_DIR = "runtime";
 const PINNED_RUNTIME_INSTALL_TIMEOUT = Duration.minutes(10);
 const PINNED_RUNTIME_DOWNLOAD_STALL_TIMEOUT = Duration.minutes(1);
 const PINNED_RUNTIME_ARCHIVE_FILE = "supaterm-runtime-archive";
-// Boot-service setup and remote update can construct separate layers. Serialize
-// the complete install transaction across every caller in this process.
 const pinnedRuntimeInstallLock = Semaphore.makeUnsafe(1);
 
 export interface PinnedRuntimePaths {
@@ -126,15 +119,12 @@ interface PinnedRuntimeInstallInput {
   readonly onProgress?: (progress: PinnedRuntimeProgress) => void;
 }
 
-// GitHub release downloads intermittently answer 5xx during incidents; a retry usually lands.
 const DOWNLOAD_RETRY = { times: 3, schedule: Schedule.exponential("2 seconds") } as const;
 
 const isTransientDownloadFailure = (
   error: HttpClientError.HttpClientError | Cause.TimeoutError,
 ): boolean => {
-  // No answer or a stall means the host cannot reach the release source; retrying only delays that.
   if (error._tag === "TimeoutError") return false;
-  // Body bytes are read raw, so a DecodeError is a body that failed after the host answered.
   if (error.reason._tag === "DecodeError") return true;
   const status = error.response?.status;
   return status !== undefined && (status >= 500 || status === 429 || status === 408);
@@ -146,8 +136,6 @@ const fetchReleaseAsset = Effect.fn("cloud.pinned_runtime.fetch_release_asset")(
   step: string,
   onProgress?: (progress: PinnedRuntimeProgress) => void,
 ) {
-  // Bound stalls while holding the install lock, but allow transfers that keep
-  // receiving bytes to finish regardless of their total duration.
   return yield* httpClient.execute(HttpClientRequest.get(url)).pipe(
     Effect.flatMap(HttpClientResponse.filterStatusOk),
     Effect.timeout(PINNED_RUNTIME_DOWNLOAD_STALL_TIMEOUT),
@@ -260,8 +248,6 @@ const installFromArchive = Effect.fn("cloud.pinned_runtime.install_archive")(fun
     );
   input.onProgress?.({ stage: "extract" });
   const extractStep = "extracting the Supaterm release archive";
-  // The archive wraps everything in one directory named after its stem;
-  // strip it so the executable lands at <versionDir>/supaterm.
   yield* input.runner
     .run({
       command: cliArchiveTarCommand(input.platform, process.env),
@@ -400,23 +386,9 @@ export const ensurePinnedRuntimeInstalled = (input: PinnedRuntimeInstallInput) =
   pinnedRuntimeInstallLock.withPermit(installPinnedRuntime(input));
 
 const PINNED_RUNTIME_PRUNED_PREFIX = ".pruned-";
-/**
- * Another process may have just published a runtime it has not yet pointed anything at: an
- * update, a downgrade, or the install script between unpacking and linking. The install lock only
- * covers this process, so recently completed runtimes are left for a later prune.
- */
 const PINNED_RUNTIME_PRUNE_GRACE = Duration.hours(1);
-/**
- * One `supaterm` launcher path per line, appended by the install scripts and by any prune that finds a
- * launcher on PATH. A service does not see the installer's `SUPATERM_INSTALL_BIN_DIR` or the
- * interactive PATH, so this is how it finds a custom one, including installs that predate the file.
- */
 const PINNED_RUNTIME_LAUNCHERS_FILE = "launchers";
 
-/**
- * Starts on a fresh line whatever the file ends with when the append lands: another process's
- * append may have been cut short since this one read the file. Readers skip the blank lines.
- */
 const launcherRecords = (launchers: ReadonlyArray<string>) =>
   `\n${launchers.map((launcher) => `${launcher}\n`).join("")}`;
 
@@ -445,7 +417,6 @@ export const resolveLauncherPath = Effect.gen(function* () {
     if (directory.length === 0) continue;
     const candidate = path.resolve(cwd, directory, invokedAs);
     const info = yield* fs.stat(candidate).pipe(Effect.option);
-    // Like the shell, pass over directories and non-executable files named the same.
     if (
       Option.isSome(info) &&
       info.value.type === "File" &&
@@ -470,7 +441,6 @@ export const recordPinnedRuntimeLauncher = Effect.fn("cloud.pinned_runtime.recor
       PINNED_RUNTIME_DIR,
       PINNED_RUNTIME_LAUNCHERS_FILE,
     );
-    // Prune may run in another process, such as the service, whose working directory differs.
     const launcher = path.resolve(input.launcher);
     const recorded = yield* fs.readFileString(launchersFile).pipe(Effect.orElseSucceed(() => ""));
     if (recorded.split(/\r?\n/).includes(launcher)) return;
@@ -485,7 +455,6 @@ export function isVersionExecutable(
   candidate: string,
 ): boolean {
   const relative = path.relative(versionsDir, path.resolve(candidate));
-  // On another Windows drive, relative() returns the absolute path, like `D:\supaterm.exe`.
   return !path.isAbsolute(relative) && /^(?!\.\.)[^\\/]+[\\/]supaterm(?:\.exe)?$/i.test(relative);
 }
 
@@ -507,7 +476,6 @@ export const posixLauncherScript = (executable: string) =>
 export const readPosixLauncherTarget = Effect.fn("cloud.pinned_runtime.read_posix_launcher")(
   function* (launcher: string) {
     const fs = yield* FileSystem.FileSystem;
-    // Stat first so a runtime binary found the same way is never read whole.
     const info = yield* fs.stat(launcher).pipe(Effect.option);
     if (Option.isNone(info) || info.value.type !== "File" || info.value.size > 4096n) {
       return undefined;
@@ -550,7 +518,6 @@ export const findPosixLauncher = Effect.fn("cloud.pinned_runtime.find_posix_laun
       .pipe(Effect.orElseSucceed(() => ""));
     const cwd = yield* HostProcess.WorkingDirectory;
     const candidates = [
-      // PATH first, resolved like the shell does: it decides which supaterm the user runs.
       ...(environment["PATH"] ?? "")
         .split(":")
         .filter((directory) => directory.length > 0)
@@ -563,10 +530,8 @@ export const findPosixLauncher = Effect.fn("cloud.pinned_runtime.find_posix_laun
       ...recorded.split(/\r?\n/),
     ].filter((candidate) => path.isAbsolute(candidate));
     for (const candidate of candidates) {
-      // The script itself, so an alias that links to it keeps working.
       const script = yield* realPath(candidate);
       if (script === undefined) continue;
-      // Like the shell, pass over a script nobody can execute.
       const info = yield* fs.stat(script).pipe(Effect.option);
       if (Option.isNone(info) || (info.value.mode & 0o111) === 0) continue;
       const target = yield* readPosixLauncherTarget(script);
@@ -597,7 +562,6 @@ export const writePosixLauncher = Effect.fn("cloud.pinned_runtime.write_posix_la
   Effect.scoped,
 );
 
-/** Where the `supaterm` launchers written by the install scripts and `supaterm update` point. */
 const shellLauncherTargets = Effect.fn("cloud.pinned_runtime.shell_launcher_targets")(function* (
   baseDir: string,
 ) {
@@ -635,8 +599,7 @@ const shellLauncherTargets = Effect.fn("cloud.pinned_runtime.shell_launcher_targ
             Effect.map(windowsShimTarget),
             Effect.orElseSucceed(() => undefined),
           )
-        : // Fully resolved, through chained links and a symlinked Supaterm home alike.
-          yield* fs.realPath(launcher).pipe(Effect.orElseSucceed(() => undefined));
+        : yield* fs.realPath(launcher).pipe(Effect.orElseSucceed(() => undefined));
     if (resolved === undefined) continue;
     const scriptTarget =
       platform === "win32" ? undefined : yield* readPosixLauncherTarget(resolved);
@@ -644,8 +607,6 @@ const shellLauncherTargets = Effect.fn("cloud.pinned_runtime.shell_launcher_targ
       scriptTarget === undefined
         ? resolved
         : yield* fs.realPath(scriptTarget).pipe(Effect.orElseSucceed(() => scriptTarget));
-    // A runtime's own entry, on the macOS service PATH or recorded by an earlier prune, is no launcher.
-    // It is named as `versions/<version>/supaterm`, and neither it nor its directory is a link.
     const entryDir = path.dirname(path.resolve(launcher));
     const parent = path.dirname(entryDir);
     if (
@@ -669,11 +630,6 @@ const shellLauncherTargets = Effect.fn("cloud.pinned_runtime.shell_launcher_targ
   return targets;
 });
 
-/**
- * Resolved executables rather than command lines: a server started through the `supaterm` symlink
- * shows up as `supaterm serve`, possibly from another Supaterm home that runs this home's runtimes. Windows
- * has no symlink launcher, and its `supaterm.cmd` shim runs the absolute path, so command lines do there.
- */
 const runningExecutables = Effect.fn("cloud.pinned_runtime.running_executables")(function* () {
   const fs = yield* FileSystem.FileSystem;
   const runner = yield* ProcessRunner.ProcessRunner;
@@ -684,8 +640,6 @@ const runningExecutables = Effect.fn("cloud.pinned_runtime.running_executables")
     const executables: Array<string> = [];
     for (const pid of pids.value) {
       if (!/^\d+$/.test(pid)) continue;
-      // Unreadable ones belong to other users or are this user's non-dumpable daemons (systemd
-      // --user, ssh-agent). Neither runs a supaterm runtime, and bailing on them would never prune.
       const executable = yield* fs.readLink(`/proc/${pid}/exe`).pipe(Effect.option);
       if (Option.isSome(executable)) executables.push(executable.value);
     }
@@ -722,7 +676,6 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
   const path = yield* Path.Path;
   const versionsDir = pinnedRuntimeVersionsDir(path, input.baseDir);
   const entries = yield* fs.readDirectory(versionsDir).pipe(Effect.orElseSucceed(() => []));
-  // An interrupted prune has already renamed its runtime out of the way.
   const pruned = new Set(
     entries
       .values()
@@ -765,7 +718,6 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
         Effect.succeed(error.reason._tag === "NotFound" ? Option.none<string>() : undefined),
       ),
     );
-  // State this version cannot read may reference runtimes in ways it does not know.
   if (stateText === undefined) return pruned;
   if (Option.isSome(stateText)) {
     const state = parseServiceState(stateText.value);
@@ -777,17 +729,14 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
     }
   }
   const executables = yield* runningExecutables();
-  // Without a process list, a runtime in use would look unused.
   if (Option.isNone(executables)) return pruned;
   const platform = yield* HostProcess.Platform;
-  // Windows paths are case-insensitive, and shims and process lists need not agree on case.
   const foldCase = (value: string) => (platform === "win32" ? value.toLowerCase() : value);
   const references = [
     executables.value,
     ...(yield* shellLauncherTargets(input.baseDir)),
     ...input.references,
   ].map(foldCase);
-  // Process executables are resolved, so they name the real path of a symlinked Supaterm home.
   const realVersionsDir = yield* fs
     .realPath(versionsDir)
     .pipe(Effect.orElseSucceed(() => versionsDir));
@@ -804,8 +753,6 @@ const selectUnusedRuntimes = Effect.fn("cloud.pinned_runtime.select_unused")(fun
       continue;
     }
     const target = path.join(versionsDir, `${PINNED_RUNTIME_PRUNED_PREFIX}${version}`);
-    // Renaming first means an interrupted removal never leaves a partial tree that still carries
-    // its sentinel and would pass for a complete install.
     yield* fs.remove(target, { recursive: true, force: true }).pipe(
       Effect.andThen(fs.rename(versionDir, target)),
       Effect.andThen(Effect.sync(() => pruned.add(target))),
@@ -829,7 +776,6 @@ export const prunePinnedRuntimes = Effect.fn("cloud.pinned_runtime.prune")(funct
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  // Only selection and the renames race an install; deleting renamed trees can take a while.
   const pruned = yield* pinnedRuntimeInstallLock.withPermit(
     selectUnusedRuntimes({ ...input, references: input.references ?? [] }),
   );

@@ -3,11 +3,6 @@ import type { AnyRouter } from "@tanstack/react-router";
 import { readShownThreadKeys } from "../../chatPanes/shownThreads";
 import { useChatPaneStore } from "../../chatPanes/store";
 
-/**
- * Chat overlays (dialogs, media previews) are opened for one thread and must not
- * outlive every route and pane that shows it. Overlay modules register here when
- * they load, so the route listener can drop them without importing the overlays.
- */
 const retainers: Array<(shownThreadKeys: ReadonlySet<string>) => void> = [];
 
 export function registerThreadOverlay(

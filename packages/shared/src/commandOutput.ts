@@ -5,8 +5,6 @@ import * as Schema from "effect/Schema";
 
 type CommandExecutionItem = Extract<OrchestrationV2TurnItem, { type: "command_execution" }>;
 
-// Only builds from Oct 3 to the Oct 5 release stored raw Claude Bash envelopes; rows carry no
-// build stamp, so start time is the only discriminator. The cutoff leaves laggards four days.
 const CLAUDE_RAW_BASH_RESULT_CUTOFF = DateTime.makeUnsafe("2026-10-09T00:00:00Z");
 
 const decodeClaudeBashResult = Schema.decodeUnknownOption(

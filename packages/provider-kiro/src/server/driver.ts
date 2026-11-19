@@ -33,8 +33,6 @@ import {
 
 const DRIVER_KIND = ProviderDriverKind.make("kiro");
 const decodeKiroSettings = Schema.decodeSync(KiroSettings);
-// Kiro updates itself in the background (`kiro-cli update` reports only), so
-// Supaterm offers no one-click update.
 const MAINTENANCE = makeManualOnlyProviderMaintenanceCapabilities({
   provider: DRIVER_KIND,
   packageName: null,
@@ -120,14 +118,12 @@ export const KiroDriver: ProviderDriver<KiroSettings, KiroDriverEnv> = {
           new ProviderDriverError({
             driver: DRIVER_KIND,
             instanceId,
-            // The cause keeps the failure; the detail reaches the snapshot, so it stays fixed.
             detail: "Failed to build Kiro snapshot.",
             cause,
           }),
       ),
     );
 
-    // "Kiro default" selects the default the snapshot read from Kiro's model list.
     const orchestrationAdapter = yield* makeKiroAdapterV2Driver(
       snapshot.getSnapshot.pipe(Effect.map((current) => kiroDefaultModelId(current.models))),
     )

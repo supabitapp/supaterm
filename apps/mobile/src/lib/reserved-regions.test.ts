@@ -125,7 +125,6 @@ describe("content side insets around reserved regions", () => {
 
 describe("Duo workspace sizing", () => {
   it("shows both columns on the unfolded inner display in portrait", () => {
-    // Reported by the iOS 27.1 Duo simulator: no side bar or fold, only the hinge.
     const portrait: NativeLayoutMetrics = {
       width: 669,
       height: 951,

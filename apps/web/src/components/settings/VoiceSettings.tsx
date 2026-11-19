@@ -268,7 +268,6 @@ function listingOf(inputs: ReadonlyArray<MicrophoneInput>): MicrophoneListing {
   return { kind: "listed", inputs };
 }
 
-/** Only the latest request may land, so a slow listing never replaces a newer one. */
 function refreshListing(
   latest: { current: number },
   setListing: (next: MicrophoneListing) => void,

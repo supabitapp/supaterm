@@ -95,8 +95,6 @@ export function PullRequestMergeControls(props: {
     : "Merge unavailable";
   const nextAction =
     pr.state === "closed" ? "reopen" : pr.state === "open" && pr.isDraft ? "ready" : null;
-  // States the button itself names, instead of a reason line under it. Draft and
-  // closed offer their way forward when the viewer can take it.
   const status: {
     label: string;
     icon: AppSymbolName;
@@ -170,7 +168,6 @@ export function PullRequestMergeControls(props: {
               : {}),
       },
     });
-    // A stack can partly merge before the provider reports a failure.
     if (!AsyncResult.isSuccess(response)) refreshDetail();
     refreshActivity();
     stack.refresh();

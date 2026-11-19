@@ -1,5 +1,4 @@
 import { resolveProviderProbeTimeoutMs } from "@supaterm/provider-core/server/snapshotProbe";
-// One OpenCode 2 process serves all directories; share it across instance threads.
 import type { OpenCodeClient } from "@opencode/client/effect";
 import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
@@ -34,10 +33,6 @@ export class OpenCode2Server extends Context.Service<
   }
 >()("@supaterm/provider-opencode/server/v2/OpenCode2Server") {}
 
-/**
- * OpenCode 2 always requires one and prints a generated one to stdout
- * otherwise, so Supaterm supplies its own and keeps it in memory.
- */
 const generatePassword = Effect.gen(function* () {
   const random = yield* SecureRandom.SecureRandom;
   const bytes = yield* random.randomBytes(32);
@@ -65,7 +60,6 @@ export const httpFailureOf = (cause: unknown): HttpClientError.HttpClientError |
   return undefined;
 };
 
-// Empty 401s still reject passwords; undecodable 2xx may be 1.x HTML, not OpenCode 2.
 const describeInfoFailure = (cause: unknown) => {
   const failure = httpFailureOf(cause);
   if (failure?.reason._tag === "TransportError") {

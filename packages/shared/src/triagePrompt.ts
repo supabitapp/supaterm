@@ -5,7 +5,6 @@ const PLAYBOOK_LINK_START = `[${TRIAGE_PROMPT_FILE_NAME}](`;
 /** A draft is a triage draft while its message still links the playbook file. */
 export const isTriagePrompt = (prompt: string) => prompt.includes(PLAYBOOK_LINK_START);
 
-// `serializeComposerFileLink` encodes `)` and whitespace, so the first `)` closes the link.
 const playbookLinkEnd = (text: string, start: number) => {
   const close = text.indexOf(")", start + PLAYBOOK_LINK_START.length);
   return close === -1 ? null : close + 1;

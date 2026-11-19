@@ -98,13 +98,6 @@ import { THREAD_LIST_MOTION_DURATION } from "./thread-list-motion";
 import { ThreadListWorkingStatus } from "./thread-list-working-status";
 import { resolveThreadListV2RowStatusLabel } from "./thread-list-row-status";
 
-/**
- * Thread List v2 renders one flat native list: rich edge-to-edge rows for
- * active work and a receded done tail, all with native swipe and
- * long-press actions. State reads through colored status labels and text
- * hierarchy rather than card fills.
- */
-
 interface StatusLabel {
   readonly label: string;
   readonly icon: AppSymbolName;
@@ -177,7 +170,6 @@ const SNOOZED_MENU_ACTIONS: MenuAction[] = [
   { id: "delete", title: "Delete", image: "trash", attributes: { destructive: true } },
 ];
 
-// Archive is available before the environment config loads.
 const LEGACY_MENU_ACTIONS: MenuAction[] = [
   { id: "archive", title: "Archive", image: "archivebox" },
   { id: "delete", title: "Delete", image: "trash", attributes: { destructive: true } },
@@ -443,7 +435,6 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
   const metadataTypography = useScaledTextRole("label");
   const projectIconSize = titleTypography.fontSize * 1.25 * fontScale;
   const machineIconSize = metadataTypography.fontSize * fontScale;
-  // Android's nonlinear system text scaling can differ from the fontScale estimate.
   const [androidTitleLineHeight, setTitleLineHeight] = useState(
     titleTypography.lineHeight * fontScale,
   );
@@ -456,7 +447,6 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
   const rowAppearance = getThreadListV2RowAppearance(theme, sidebarPane, selected);
   const isDraft = pendingTask.kind === "draft";
   const projectCwd = props.project?.workspaceRoot || null;
-  // Drafts only; the reads are shared per-project atoms, and queued rows skip them.
   const projectDefaults = useNewTaskProjectDefaults(isDraft ? props.project : null);
   const draftDefaults = {
     canChooseWorkspace: !projectDefaults.isScratch,
@@ -762,7 +752,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const metadataTypography = useScaledTextRole("label");
   const projectIconSize = titleTypography.fontSize * 1.25 * fontScale;
   const machineIconSize = metadataTypography.fontSize * fontScale;
-  // Android's nonlinear system text scaling can differ from the fontScale estimate.
   const [androidTitleLineHeight, setTitleLineHeight] = useState(
     titleTypography.lineHeight * fontScale,
   );
@@ -828,7 +817,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   const selected = props.selected === true;
   const rowAppearance = getThreadListV2RowAppearance(theme, sidebarPane, selected);
   const threadKey = scopedThreadKey(thread.environmentId, thread.id);
-  // The selected thread shows its own composer in the detail pane.
   const hasUnsentDraft = useThreadHasUnsentDraft(threadKey) && !selected;
   const isRegeneratingTitle = thread.titleRegeneration != null;
 
@@ -864,15 +852,12 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
               : statusAppearance.iconTintClassName,
         };
   const recede = environmentConnected && shouldRecedeThreadRow({ status, selected });
-  // The timestamp is precomputed on the list item (same stamps the done
-  // tail sorts by) so a minute tick only re-renders rows that draw it.
   const timeLabel = props.timeLabel;
   const rowAccessibilityLabel = threadListV2RowAccessibilityLabel({
     title: thread.title,
     variant,
     woke: showsWoke,
     statusLabel: statusLabel?.label,
-    // A row whose environment is not connected shows that state where its time would be.
     timeLabel: environmentConnected ? timeLabel : (rowStatusLabel?.label ?? timeLabel),
     snoozeWakeLabel: environmentConnected && snoozedRow ? props.snoozeWakeLabelText : undefined,
     providerNameLabel,
@@ -890,7 +875,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       input: { threadId: thread.id, visitedAt: props.wokeAt },
     });
   }, [props.wokeAt, thread.environmentId, thread.id, visitThread]);
-  // VoiceOver cannot focus buttons inside the accessible row.
   const rowAccessibilityActions = useMemo(
     () => [
       ...(prBadgeLabel ? [{ name: "openPullRequests", label: prBadgeLabel }] : []),
@@ -908,9 +892,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   );
   const handleMarkDone = useCallback(() => onMarkThreadDone(thread), [onMarkThreadDone, thread]);
   const [customSnoozeOpen, setCustomSnoozeOpen] = useState(false);
-  // A recycled cell reassigns this row to another thread without remounting, so row-local UI
-  // state is dismissed when the identity changes; otherwise an open custom snooze sheet would
-  // snooze whichever thread the cell was reassigned to.
   const [boundIdentity, setBoundIdentity] = useState(threadKey);
   if (boundIdentity !== threadKey) {
     setBoundIdentity(threadKey);
@@ -930,16 +911,10 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   );
   const handleArchive = useCallback(() => onArchiveThread(thread), [onArchiveThread, thread]);
 
-  // Swipe: the v2 primary action is the lifecycle transition. Reopening a
-  // done row keeps it active until new activity clears the user override.
   const canReopen = variant === "slim";
-  // The gate's only time-dependent edge is the queued-turn grace window, so its
-  // expiry is known without a clock: evaluate at the message's own timestamp.
-  // A gate held by runtime status has no expiry, and no clock tick opens it.
   const snoozeGateExpiryMs = props.snoozeSupported
     ? resolveThreadListV2SnoozeGateExpiryMs(thread, { now: thread.latestUserMessageAt ?? "" })
     : null;
-  // The window is inclusive, so wake just past it.
   const snoozeGateNowMs = useNowAfter(snoozeGateExpiryMs === null ? null : snoozeGateExpiryMs + 1);
   const snoozeGateNow = new Date(snoozeGateNowMs).toISOString();
   const swipeActions = resolveThreadListV2SwipeActions({
@@ -1203,9 +1178,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     ],
   );
   const primaryAction = useMemo(() => {
-    // Until the environment config loads, archive is the swipe action. (Slim
-    // rows cannot occur here — unsupported environments never classify as
-    // done.)
     if (swipeActions.primary === "archive") {
       return {
         accessibilityLabel: `Archive ${thread.title}`,
@@ -1444,14 +1416,10 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         )}
         {pr ? (
           <Pressable
-            // Padding cancelled by negative margin grows the touch target into
-            // the row padding without moving the badge.
             className="-m-2.5 flex-row items-center gap-1 p-2.5"
             accessibilityRole="button"
             accessibilityLabel={prBadgeLabel ?? undefined}
             onPress={handleOpenPullRequests}
-            // Without a long-press handler a hold that opens the row's iOS
-            // context menu would also open the pull request on release.
             onLongPress={() => undefined}
             style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
           >
@@ -1584,7 +1552,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         }}
         style={rowAppearance.style}
       >
-        {/* Done history recedes: dimmed favicon + muted title. */}
         <View
           className={cn(
             THREAD_LIST_V2_ROW_CONTENT_CLASS_NAME,
@@ -1677,8 +1644,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         compactActions={variant === "slim"}
         containerStyle={rowAppearance.swipeContainerStyle}
         enableTrackpadSwipe
-        // Full swipe commits the advertised lifecycle action (Mark as done /
-        // Reopen / Wake), never the secondary action.
         fullSwipeAction="primary"
         fullSwipeWidth={props.fullSwipeWidth ?? windowWidth - 32}
         listAnimatesLayout

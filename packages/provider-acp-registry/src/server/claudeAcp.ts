@@ -77,7 +77,6 @@ const decodeDelegation = Schema.decodeUnknownOption(
   }),
 );
 
-// Claude's session_message id is the Agent/Task or SendMessage tool-use id.
 export function extractClaudeSubagentSessionEvent(
   notification: AcpSchema.SessionNotification,
 ): AcpSubagentSessionEvent | undefined {

@@ -56,7 +56,6 @@ function failedThread(
 }
 
 describe("UsageLimitRecoveryCard", () => {
-  // Older servers report ChatGPT sharing limits as provider errors and may store a reset.
   it.each([
     [CHATGPT_USAGE_LIMIT_CODE, "usage_limit", null, ["Manage usage"]],
     [CHATGPT_WORKSPACE_USAGE_LIMIT_CODE, "usage_limit", null, ["Copy request for admin"]],

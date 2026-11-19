@@ -9,7 +9,6 @@ export function ThreadPrDemandProvider(props: {
   readonly children: ReactNode;
 }) {
   const active = useAppActive();
-  // A sidebar can stay visible beside a focused detail route, so route focus cannot gate its reads.
   return (
     <ThreadPrDemandContext value={props.visible && active}>{props.children}</ThreadPrDemandContext>
   );

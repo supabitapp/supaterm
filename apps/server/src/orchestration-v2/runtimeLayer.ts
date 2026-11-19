@@ -224,7 +224,6 @@ const layerOrchestratorProvided = Orchestrator.layer.pipe(
       IdAllocator.layer,
       ProjectStore.layer,
       ProviderAdapterRegistry.layerFromProviderInstanceRegistry,
-      // Reuse the continuation worker's layer reference so memoization shares one request queue.
       ProviderContinuationRequests.layer,
       layerProviderEventIngestorProvided,
       layerRuntimePolicyProvided,
@@ -236,7 +235,6 @@ const layerOrchestratorProvided = Orchestrator.layer.pipe(
   ),
 );
 
-// One scanner serves the wizard's scan and imports, so imports can reuse its candidates.
 const layerAgentSessionScannerProvided = AgentSessionScanner.layer.pipe(
   Layer.provide(ProviderSessionRuntime.layer),
 );

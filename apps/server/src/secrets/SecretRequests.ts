@@ -1,6 +1,3 @@
-// Answers wait in the secret store until delivered; orchestration records only request status.
-// Delivery moves the value to an owner-only file that the agent's shell commands read.
-// A secret the user pasted in chat goes straight to such a file, with no card.
 import {
   CommandId,
   SecretRequestError,
@@ -41,12 +38,10 @@ const encodeStored = Schema.encodeEffect(StoredSecret);
 const decodeStored = Schema.decodeUnknownOption(StoredSecret);
 
 type SecretRequestItem = Extract<OrchestrationV2TurnItem, { readonly type: "secret_request" }>;
-/** `undefined` names the value of a request without fields. */
 type FieldName = string | undefined;
 const fieldNames = (item: SecretRequestItem): ReadonlyArray<FieldName> =>
   item.fields?.map((field) => field.name) ?? [undefined];
 
-/** The answer's value per field, or undefined when it does not answer exactly those fields. */
 function answerValues(
   item: SecretRequestItem,
   answer: Extract<SecretRequestAnswerInput["answer"], { readonly type: "save" }>,
@@ -59,7 +54,6 @@ function answerValues(
   if (Object.keys(values).length !== item.fields.length) return undefined;
   const entries: Array<readonly [string, string]> = [];
   for (const field of item.fields) {
-    // Own keys only: a field may be named `constructor`.
     const value = Object.hasOwn(values, field.name) ? values[field.name] : undefined;
     if (value === undefined) return undefined;
     entries.push([field.name, value]);
@@ -95,18 +89,15 @@ const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const threadManagement = yield* ThreadManagementService.ThreadManagementService;
-  // Beside the store's own files so the same owner-only directory and cleanup rules apply.
   const filesDir = store.directory === undefined ? undefined : path.join(store.directory, "files");
 
   const mac = yield* Mac.Mac;
-  // Keyed by the salt's hex text, as names saved by earlier versions were.
   const saltKey = yield* Mac.key(
     Mac.hmacSha256,
     new TextEncoder().encode(
       Hex.encode(yield* store.getOrCreateRandom("secret-request-salt", 32).pipe(Effect.orDie)),
     ),
   ).pipe(Effect.orDie);
-  /** Names a request's stored value and its file without exposing thread or card ids. */
   const keyFor = (threadId: ThreadId, turnItemId: string, field?: string) =>
     mac
       .sign(
@@ -126,8 +117,6 @@ const make = Effect.gen(function* () {
       keyFor(threadId, item.id, field).pipe(Effect.flatMap((key) => removeLogged(storeName(key)))),
     );
 
-  // One answer per card at a time: fields are stored one by one, so two racing answers could
-  // otherwise each keep some of their values.
   const answerLocks = yield* KeyedLock.make<string>();
 
   const answer: SecretRequests["Service"]["answer"] = Effect.fn("SecretRequests.answer")(
@@ -153,8 +142,6 @@ const make = Effect.gen(function* () {
       if (run === undefined || isOrchestrationV2RunSettled(run.status)) {
         return yield* new SecretRequestError({ reason: "agent_stopped" });
       }
-      // Stored before recording, so a card never shows saved without its values. The card is still
-      // pending under its lock, so this replaces whatever an answer that was cut off left behind.
       const values =
         input.answer.type === "decline"
           ? undefined
@@ -196,13 +183,11 @@ const make = Effect.gen(function* () {
         })
         .pipe(
           Effect.mapError((cause) => new SecretRequestError({ reason: "record_failed", cause })),
-          // Clear failed saves so the pending card can be answered again.
           Effect.tapError(() =>
             values !== undefined ? removeAnswered(input.threadId, item) : Effect.void,
           ),
         );
       if (values === undefined) return;
-      // The wait may have closed the card; delete unrecorded answers because no one receives them.
       const recorded = yield* threadManagement
         .getThreadRecords(input.threadId, ["turnItems"], {
           turnItemTypes: ["secret_request"],
@@ -230,10 +215,8 @@ const make = Effect.gen(function* () {
       ),
     );
 
-  // Serialize deliveries so concurrent retries cannot both write the same file.
   const deliveryLock = yield* Semaphore.make(1);
 
-  /** A saved value, left in the store until its file is written. */
   const readStored = Effect.fn("SecretRequests.readStored")(function* (key: string) {
     const stored = yield* store
       .get(storeName(key))
@@ -256,7 +239,6 @@ const make = Effect.gen(function* () {
     return fileSystem.makeDirectory(dir, { recursive: true, mode: 0o700 }).pipe(
       Effect.andThen(fileSystem.chmod(dir, 0o700)),
       Effect.andThen(fileSystem.remove(partial, { force: true })),
-      // `wx` never follows or replaces an existing path.
       Effect.andThen(
         fileSystem.writeFile(partial, new TextEncoder().encode(value), {
           flag: "wx",
@@ -285,8 +267,6 @@ const make = Effect.gen(function* () {
     const deliver = Effect.fn("SecretRequests.deliverFile")(function* (field: FieldName) {
       const key = yield* keyFor(input.threadId, item.id, field);
       const file = path.join(filesDir, key);
-      // The file counts as delivered only once the stored copy is gone. A retry with the same
-      // clientRequestId gets the file the first call wrote and finishes that removal.
       const removeStored = removeLogged(storeName(key)).pipe(
         Effect.flatMap((removed) =>
           removed ? Effect.succeed(file) : new SecretRequestError({ reason: "delivery_failed" }),
@@ -295,7 +275,6 @@ const make = Effect.gen(function* () {
       if (yield* fileSystem.exists(file).pipe(Effect.orElseSucceed(() => false))) {
         return yield* removeStored;
       }
-      // The stored value goes only after the file is complete, so a failed write can retry.
       const value = yield* readStored(key);
       yield* writeSecretFile(filesDir, file, value);
       return yield* removeStored;
@@ -305,7 +284,6 @@ const make = Effect.gen(function* () {
       if (fields === undefined) return { file: yield* deliver(undefined) };
       const files: Array<readonly [string, string]> = [];
       for (const field of fields) files.push([field.name, yield* deliver(field.name)]);
-      // From entries: assigning a field named `__proto__` onto an object would drop it.
       return { files: Object.fromEntries(files) };
     }).pipe(deliveryLock.withPermits(1));
   });
@@ -321,8 +299,6 @@ const make = Effect.gen(function* () {
         `pasted\u0000${input.requestNamespace}\u0000${input.requestKey}`,
       ),
     );
-    // A retry with the same clientRequestId gets the file the first call wrote, unchanged, so a
-    // command already holding that path never reads another value.
     return yield* Effect.gen(function* () {
       if (yield* fileSystem.exists(file).pipe(Effect.orElseSucceed(() => false))) return file;
       yield* writeSecretFile(filesDir, file, input.value);

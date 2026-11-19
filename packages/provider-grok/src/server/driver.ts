@@ -50,12 +50,7 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 const decodeGrokSettings = Schema.decodeSync(GrokSettings);
 
 const DRIVER_KIND = ProviderDriverKind.make("grok");
-// npm's `latest` tracks Grok's stable channel, the one `grok update` installs
-// by default, so the registry stays the source for "latest".
 const GROK_NPM_PACKAGE = "@xai-official/grok";
-// npm 12 blocks the postinstall that moves the new binary in, yet exits 0, so allow it by env.
-// Mise and Homebrew casks upgrade through their manager; `grok update` would install a second
-// copy, so a cask its brew cannot vouch for stays manual, as does a Nix store install.
 const UPDATE: ProviderMaintenanceCapabilitiesResolver = {
   resolve: Effect.fn("resolveGrokMaintenance")(function* (context) {
     if (!context) {
@@ -99,9 +94,6 @@ const UPDATE: ProviderMaintenanceCapabilitiesResolver = {
     const installDir = path.dirname(context.realCommandPath);
     const installDirName = path.basename(installDir).toLowerCase();
     const home = path.dirname(installDir);
-    // `grok update` installs under `$GROK_HOME`, so a script install keeps its own home even if the
-    // instance sets another: `<home>/bin/grok` links into `<home>/downloads`, or on Windows is a copy
-    // beside it. Only an install script creates `downloads`, so a bare `bin/grok` elsewhere is not one.
     const isScriptInstall =
       (installDirName === "downloads" && name.startsWith("grok-")) ||
       (installDirName === "bin" &&
@@ -122,8 +114,6 @@ const UPDATE: ProviderMaintenanceCapabilitiesResolver = {
         ...context.env,
         ...scriptHome,
         npm_config_allow_scripts: GROK_NPM_PACKAGE,
-        // An npx-launched server's npm_config_user_agent outranks Grok's `[cli] installer`, steering
-        // a script install to npm. The runner extends process.env; only undefined removes a key.
         npm_config_user_agent: undefined,
       },
     });

@@ -39,7 +39,6 @@ describe("record ID table", () => {
       ids: ["row:a", "row:b", 3, 0],
     });
     expect(decode(wire)).toEqual(value);
-    // The table is consumed, so a second decode of the same object cannot remap numbers.
     expect(decode(wire)).toEqual(value);
   });
 

@@ -14,9 +14,7 @@ const SPLIT_SIDEBAR_MIN_WIDTH = 280;
 const SPLIT_SIDEBAR_DEFAULT_MAX_WIDTH = 380;
 
 export const CHAT_CONTENT_MAX_WIDTH = 960;
-// Limit Android reading width for wide foldables and keyboard-open split views.
 export const ANDROID_READING_MAX_WIDTH = 640;
-// min-h-8 uses the 14px rem configured in metro.config.js.
 export const THREAD_WORK_ROW_MIN_HEIGHT = 28;
 
 export function deriveThreadArrangementSizing(input: {
@@ -45,7 +43,6 @@ export function deriveThreadWorkLogSizing(input: {
       THREAD_WORK_ROW_MIN_HEIGHT,
       Math.ceil(lineHeight * input.fontScale),
     ),
-    // Accessibility scaling can exceed authored line heights; leave those rows measured.
     fixedRowHeight:
       input.fontScale <= 1 && lineHeight <= THREAD_WORK_ROW_MIN_HEIGHT
         ? THREAD_WORK_ROW_MIN_HEIGHT
@@ -58,8 +55,6 @@ const AUXILIARY_PANE_MAX_WIDTH = 480;
 const AUXILIARY_PANE_DEFAULT_MAX_WIDTH = 320;
 const FILE_INSPECTOR_MIN_VIEWPORT_WIDTH = 820;
 const FILE_INSPECTOR_MIN_MAIN_WIDTH = 560;
-// UIKit's inspector column keeps its own width, so the sidebar steps aside only when the page
-// would get narrower than this: landscape 11" and 13" iPads keep three columns, portrait ones don't.
 export const NATIVE_INSPECTOR_MIN_MAIN_WIDTH = 320;
 
 /**
@@ -102,10 +97,6 @@ export function deriveLayout(input: {
   const { width, height } = input;
   const metrics = input.nativeMetrics;
   const usableWidth = width - (metrics?.safeArea.left ?? 0) - (metrics?.safeArea.right ?? 0);
-  // UIKit retains split columns below the generic tablet breakpoint. Native
-  // columns follow its size class while reserving room for both column minimums.
-  // Unfolded in portrait, the inner display reports neither a side bar nor a
-  // fold, only its hinge.
   const hasDuoGeometry =
     metrics &&
     (metrics.hasHinge === true ||
@@ -116,8 +107,7 @@ export function deriveLayout(input: {
       ? metrics.horizontalSizeClass === "regular" &&
         usableWidth >= SPLIT_SIDEBAR_MIN_WIDTH + 320 &&
         (input.nativeWorkspace || height >= 400)
-        ? // The native split floats its sidebar over an unfolded portrait Duo.
-          input.nativeWorkspace === true && metrics.hasHinge === true && width < height
+        ? input.nativeWorkspace === true && metrics.hasHinge === true && width < height
           ? "medium"
           : "expanded"
         : "compact"
@@ -125,8 +115,7 @@ export function deriveLayout(input: {
         ? "compact"
         : width >= EXPANDED_LAYOUT_MIN_WIDTH
           ? "expanded"
-          : // Only the Android shell floats a sidebar over a page; iOS keeps its phone stack.
-            metrics
+          : metrics
             ? "compact"
             : "medium";
 
@@ -190,12 +179,6 @@ export function alignListPaneToHinge(input: {
   return { ...layout, listPaneWidth, listPaneGap: hinge.width };
 }
 
-/**
- * Whether the workspace root must keep the primary sidebar open. Native split
- * columns keep a sidebar toggle in the empty detail header, so only they may
- * collapse it there. Compact layouts stay pinned so a reveal request (such as
- * focusing search) cannot flip the saved preference for a later split view.
- */
 /** Home's list, or the Settings list in its place, with no detail selected. */
 export function isWorkspaceListPath(pathname: string): boolean {
   return pathname === "/" || pathname === "/settings";

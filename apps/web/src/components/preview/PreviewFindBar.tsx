@@ -28,7 +28,6 @@ export function PreviewFindBar({ tabId, focusRequestId, onClose }: PreviewFindBa
     if (!previewBridge) return;
     const unsubscribe = previewBridge.onFindResult((event) => {
       if (event.tabId !== tabId) return;
-      // Chromium reports -1 for a field an update leaves unchanged.
       setResult((previous) => ({
         active: event.activeMatchOrdinal >= 0 ? event.activeMatchOrdinal : (previous?.active ?? 0),
         matches: event.matches >= 0 ? event.matches : (previous?.matches ?? 0),

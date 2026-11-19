@@ -165,7 +165,6 @@ vi.mock("../features/sharing/incoming-share-storage", () => ({
 }));
 
 import type { DraftComposerAttachment } from "../lib/composerImages";
-// Resolves the async mock up front: a dynamic import racing its factory gets the real module.
 import "../lib/composerImages";
 import {
   collectComposerContextReferences,
@@ -1131,8 +1130,6 @@ describe("mobile composer drafts", () => {
     );
   });
 
-  // Hydration is one-shot per module instance and the attachment sweep now
-  // triggers it too, so this test must observe it before any sweep test runs.
   it("hydrates generic file attachments from their saved local paths", () => {
     const file = {
       id: "file-1",
@@ -1249,7 +1246,6 @@ describe("mobile composer drafts", () => {
     appendComposerDraftAttachments(draftKey, [makeVideo("restored")], { restore: true });
     expect(appAtomRegistry.get(composerDraftsAtom)[draftKey]?.attachments).toHaveLength(2);
 
-    // Every native paste is named pasted-image.png, so only the bytes tell two pastes apart.
     const makePaste = (id: string, base64: string) => ({
       id,
       type: "image" as const,

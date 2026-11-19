@@ -269,8 +269,6 @@ export function makeHarness(options: UpdatesHarnessOptions = {}) {
         } satisfies DesktopAppSettings.DesktopAppSettings["Service"])
       : DesktopAppSettings.layer;
 
-  // Tracks the install records and update markers installs leave, so installs stay free
-  // of real disk I/O that would outrun the tests' settle loops.
   const updateMarkerContents = new Map<string, string>();
   const installRecords = new Map<string, string>();
   let previousInstallRecord = options.installRecord;
@@ -346,7 +344,6 @@ export function makeHarness(options: UpdatesHarnessOptions = {}) {
     downloadCount: () => downloadCount,
     feedUrls: (): ElectronUpdater.ElectronUpdaterFeedUrl[] => feedUrls,
     fullChangelog: () => fullChangelog,
-    /** Whether each feed check could offer an older release, and the flag now. */
     checkAllowedDowngrade,
     allowDowngrade: () => allowDowngrade,
     listenerCount: () =>

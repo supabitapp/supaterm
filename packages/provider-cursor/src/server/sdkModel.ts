@@ -40,7 +40,6 @@ export function cursorContextWindowTokens(
   modelSelection: ModelSelection,
   models: ReadonlyArray<ServerProviderModel>,
 ): number | undefined {
-  // The SDK forwards explicit values even when the catalog does not list them.
   const explicit = modelSelection.options?.find((option) => option.id === "contextWindow");
   let value = explicit?.value;
   if (explicit === undefined) {
@@ -63,7 +62,6 @@ export function cursorSdkModelSelection(
   const descriptors =
     models.find((model) => model.slug === modelSelection.model)?.capabilities?.optionDescriptors ??
     [];
-  // Some Cursor plans reject runs that leave a catalog parameter unset; Supaterm keeps Fast off until picked.
   const defaults = descriptors.flatMap((descriptor) => {
     if (explicit.some((option) => option.id === descriptor.id)) return [];
     const value = descriptor.id === "fastMode" ? false : getProviderOptionCurrentValue(descriptor);

@@ -27,13 +27,11 @@ function compactLabel(value: unknown, maxLength = MAX_LABEL_LENGTH): string | un
   const text = value.replaceAll(/\s+/g, " ").trim();
   if (text.length === 0) return undefined;
   if (text.length <= maxLength) return text;
-  // Half an emoji serializes to a lone surrogate escape, which provider JSON parsers reject.
   const last = text.charCodeAt(maxLength - 2);
   const end = last >= 0xd800 && last <= 0xdbff ? maxLength - 2 : maxLength - 1;
   return `${text.slice(0, end)}…`;
 }
 
-/** A bounded label that keeps its id suffix whole whenever it fits. */
 function labelWithId(name: unknown, fallback: string, suffix: string): string {
   const budget = MAX_LABEL_LENGTH - suffix.length;
   if (budget < 2) return compactLabel(`${fallback}${suffix}`) ?? fallback;
@@ -152,7 +150,6 @@ export function isRestartNoteSource(
   providerTurns: ReadonlyArray<Pick<ProviderTurnState, "runAttemptId" | "status">>,
 ): boolean {
   return (
-    // Failed and interrupted turns never continue; recovery-cancelled waiting runs still qualify.
     (source.status === "completed" ||
       source.status === "waiting" ||
       source.status === "cancelled") &&
@@ -265,7 +262,6 @@ export function delegatedTaskResultRun(
   const awaited = taskRuns.filter(
     (run) => !cancelledBeforeStart(run) && !(run.status === "queued" && run.queueHeld === true),
   );
-  // Executing work reports the task's state; a reordered queue can finish a newer run before an older one.
   const executing = awaited.find((run) =>
     ["preparing", "starting", "running", "waiting"].includes(run.status),
   );
@@ -296,7 +292,6 @@ export function continuationStartRetryDelayMs(
   },
 ): number | undefined {
   if (!continuationFailedBeforePrompt(run, projection.providerTurns)) return;
-  // These fail the same way however often they start.
   const failureClass = latestRootProviderFailure(run, projection.turnItems)?.class;
   if (
     failureClass === "usage_limit" ||
@@ -416,7 +411,6 @@ export function pendingRestartCancelledBackgroundWork(input: {
       (candidate.restartContinuationOfRunId === undefined ||
         isRestartNoteContinuation(candidate, input.runs, input.providerTurns, input.attempts)),
   );
-  // Earlier attempts may already have delivered the note; a steer's replacement attempt must not repeat it.
   const alreadyDelivered = input.attempts.some(
     (attempt) =>
       attempt.runId === input.run.id &&

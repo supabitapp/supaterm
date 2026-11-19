@@ -95,7 +95,6 @@ describe("loadOpenCode2Catalog", () => {
     }),
   );
 
-  // regression: #17424 only the provider list is optional; a model-list failure fails the read
   it.effect("fails the read when the model list fails", () =>
     Effect.gen(function* () {
       const error = yield* readCatalog({
@@ -108,11 +107,9 @@ describe("loadOpenCode2Catalog", () => {
     }),
   );
 
-  // regression: #30251 a busy cold OpenCode 2 holds each model read past 5 seconds, then 503s
   it.effect("lists models once OpenCode 2 finishes activating its plugins", () =>
     Effect.gen(function* () {
       const activatedAt = (yield* Clock.currentTimeMillis) + 60_000;
-      // Timings measured from OpenCode 2.2.7 on a CPU-throttled cold start.
       const listModels = Effect.gen(function* () {
         if ((yield* Clock.currentTimeMillis) >= activatedAt) {
           return yield* Effect.as(Effect.sleep("9 seconds"), MODELS_BODY);

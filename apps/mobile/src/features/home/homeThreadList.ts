@@ -83,8 +83,6 @@ export function resolveHomeProjectFilterScope(
     readonly projectGroupingMode: SidebarProjectGroupingMode;
   },
 ): HomeProjectScope | null {
-  // A legacy per-environment scratch key resolves here; the stored value is only
-  // rewritten when the user picks a filter.
   const key = resolveScratchProjectScopeKey(options.selectedProjectKey, projects, {
     sidebarProjectGroupingMode: options.projectGroupingMode,
     sidebarProjectGroupingOverrides: {},

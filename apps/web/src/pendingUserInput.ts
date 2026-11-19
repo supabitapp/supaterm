@@ -31,7 +31,6 @@ type AnswerContextRecord =
   | ReviewCommentContextRecord
   | PreviewAnnotationContextRecord;
 
-// Diff comments and preview annotations land in the thread draft even when their chip is in an answer.
 export function answerContextRecords(
   questionDraft: { referenceContexts: ReadonlyArray<ReferenceContextRecord> } | null | undefined,
   threadDraft:
@@ -68,7 +67,6 @@ export function projectPendingUserInputAnswer(
   });
 }
 
-// Question drafts retain deleted chip records for undo; only transfer referenced records.
 export function referenceContextsReferencedByAnswer(
   answer: string,
   referenceContexts: ReadonlyArray<ReferenceContextRecord>,

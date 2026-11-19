@@ -11,7 +11,6 @@ export interface ClockStore<A> {
   readonly getSnapshot: () => A;
 }
 
-// setTimeout fires immediately for delays beyond a signed 32-bit int.
 const MAX_TIMEOUT_MS = 2_147_483_647;
 
 function makeTickStore<A>(read: () => A, periodMs: number): ClockStore<A> {
@@ -19,8 +18,6 @@ function makeTickStore<A>(read: () => A, periodMs: number): ClockStore<A> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const listeners = new Set<() => void>();
 
-  // Each tick lands on a wall-clock boundary so every subscriber updates in
-  // the same frame instead of each drifting on its own phase.
   const schedule = () => {
     timer = setTimeout(
       () => {
@@ -30,8 +27,6 @@ function makeTickStore<A>(read: () => A, periodMs: number): ClockStore<A> {
           value = next;
           for (const listener of listeners) listener();
         }
-        // Listeners may unsubscribe (stopping the clock) or resubscribe (arming
-        // a fresh timer) while notified; only continue a clock nobody re-armed.
         if (listeners.size > 0 && timer === undefined) schedule();
       },
       periodMs - (Date.now() % periodMs),
@@ -72,8 +67,6 @@ export const minuteTick: ClockStore<string> = makeTickStore(
   60_000,
 );
 
-// How far each environment's clock runs ahead of this one. Timers read it on
-// every tick, so a reconnect's new reading lands without a re-render.
 const serverClockOffsets = new Map<EnvironmentId, number>();
 
 /**
@@ -131,8 +124,6 @@ interface DeadlineEntry {
   timer: ReturnType<typeof setTimeout> | undefined;
 }
 
-// The single owner of each subscribed deadline. Handles obtained before the
-// entry exists join it on subscribe, so they share its timer and notifications.
 const deadlines = new Map<number, DeadlineEntry>();
 
 function passDeadline(entry: DeadlineEntry) {

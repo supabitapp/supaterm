@@ -98,7 +98,6 @@ describe("resolveThreadReferenceCopyTarget", () => {
         }),
       ],
     });
-    // A paste keeps only the records its plain text references.
     expect(collectComposerContextReferences(target!.value)).toEqual([
       expect.objectContaining({
         kind: "thread",

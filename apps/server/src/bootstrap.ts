@@ -223,8 +223,6 @@ const makeDirectBootstrapStream = (fd: number): NodeStream.Readable => {
   }
 };
 
-// WSL-inherited stdin pipes cannot be reopened via /proc/self/fd/0 (EACCES),
-// so they must be read directly.
 const isBootstrapFdPathDuplicationError = Predicate.compose(
   Predicate.hasProperty("code"),
   (_) => _.code === "ENXIO" || _.code === "EINVAL" || _.code === "EPERM" || _.code === "EACCES",

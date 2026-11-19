@@ -1,6 +1,5 @@
 import type { ServerProviderSkill } from "@supaterm/contracts";
 
-// Claude Code sends this list with every dictation.
 const FIXED_TERMS = [
   "MCP",
   "symlink",
@@ -18,8 +17,6 @@ const FIXED_TERMS = [
   "worktree",
 ];
 
-// What people name while directing agents here, which a speech model hears as "super term",
-// "cloud", or "code X".
 const SUPATERM_TERMS = ["Supaterm", "Claude", "Codex", "Opus", "Sonnet", "Haiku", "GPT"];
 
 const isWordLength = (word: string) => word.length > 2 && word.length <= 20;
@@ -31,10 +28,6 @@ const splitWords = (value: string) =>
     .map((word) => word.trim())
     .filter(isWordLength);
 
-/**
- * Hyphenated skill names split into ordinary words the speech model already
- * knows, and enough of them would crowd everything else out of the cap.
- */
 const isSingleWordSkill = (skill: ServerProviderSkill) =>
   skill.enabled && isWordLength(skill.name) && !/[\s\-_.:]/.test(skill.name);
 
@@ -53,8 +46,6 @@ export function keytermCandidates(input: {
   const projectNames = [input.projectTitle?.trim(), input.projectFolder?.trim()].filter(
     isProjectName,
   );
-  // The speech model copies a keyterm's casing and the header keeps a term's first casing,
-  // so these go ahead of lowercase project and branch names.
   return [
     ...input.dictionaryTerms,
     ...SUPATERM_TERMS,

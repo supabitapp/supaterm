@@ -1,7 +1,3 @@
-// Grok's model and effort wire contract (grok 1.0.41): per-model efforts on `models`, a
-// `thought_level` option `reasoning_effort`, and `config_option_update` after set_model.
-// SUPATERM_GROK_MOCK_PROTOCOL picks the protocol (default 1); SUPATERM_GROK_MOCK_REJECT_EFFORT names
-// an advertised effort Grok refuses.
 import * as NodeFS from "node:fs";
 import * as NodeReadline from "node:readline";
 
@@ -35,7 +31,6 @@ const configOptions = () => [
   },
 ];
 
-// Returns an error message when Grok would refuse the switch.
 const switchTo = (modelId, effort) => {
   const model = models[modelId];
   if (model === undefined) return "Unknown Grok model";

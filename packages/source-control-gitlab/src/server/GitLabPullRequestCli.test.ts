@@ -367,7 +367,6 @@ layer("GitLabPullRequestCli.layer", (it) => {
         expect(query).toContain("not: { labels: $notLabels }");
         expect(query).not.toContain("$approvedBy");
 
-        // Beside a reviewer, GitLab would match only that reviewer's own state.
         yield* cli.listMergeRequests({
           cwd: "/w",
           repository: "acme/web",
@@ -446,14 +445,12 @@ layer("GitLabPullRequestCli.layer", (it) => {
           involvement: "all",
           viewer: "bilal",
           limit: 10,
-          // A cursor, not the host's current answer, picks the API.
           graphql: cursor?.resumeAfter === undefined,
           ...(cursor === undefined ? {} : { cursor }),
         });
 
       yield* list({ updatedBefore: "2026-07-03T00:00:00Z", delivered: 10 });
       const fellBack = yield* list();
-      // A resumed GraphQL read stays on GraphQL and fails, since REST would read `delivered` as an offset.
       const resumed = yield* Effect.result(
         list({ updatedBefore: "2026-07-03T00:00:00Z", delivered: 10, resumeAfter: "c1" }),
       );
@@ -1684,7 +1681,6 @@ layer("GitLabPullRequestCli.layer", (it) => {
           ),
         ),
       );
-      // Line 12 is added after a removed line, so GitLab's old counter there is 11, not 0.
       mockedExecute.mockReturnValueOnce(
         Effect.succeed(
           output(
@@ -1746,7 +1742,6 @@ layer("GitLabPullRequestCli.layer", (it) => {
           old_line: 4,
         },
       });
-      // sha1("src/b.ts")
       const fileHash = "e55a8d6c5dd26e72538fd71fb7695dd829c8dab5";
       expect(JSON.parse(callAt(3).stdin ?? "").position).toMatchObject({
         new_line: 12,
@@ -1912,7 +1907,6 @@ layer("GitLabPullRequestCli.layer", (it) => {
             return Effect.succeed(
               output(
                 mergeRequestJson({
-                  // A fork's pipeline runs in the source project, so its id is not the target's.
                   head_pipeline: {
                     id: 31,
                     project_id: 12,
@@ -1959,7 +1953,6 @@ layer("GitLabPullRequestCli.layer", (it) => {
             }),
           ),
         ],
-        // A full page may have left out the trigger job whose pipeline failed.
         [
           "page is full",
           Effect.succeed(output(JSON.stringify(Array.from({ length: 100 }, () => failedChild)))),
@@ -2730,7 +2723,6 @@ layer("GitLabPullRequestCli.layer", (it) => {
           ).variables;
         mockedExecute.mockImplementation((request) => {
           const { fullPath, iids } = variablesOf(request.stdin);
-          // GitLab answers only what it has (iid 3 is missing), and one project's read fails.
           const nodes = iids
             .filter((iid) => iid !== "3")
             .map((iid) => ({ iid, diffStatsSummary: { additions: Number(iid), deletions: 1 } }));
@@ -2852,7 +2844,6 @@ layer("GitLabPullRequestCli.layer", (it) => {
                     status: "success",
                     jobs: {
                       nodes: [
-                        // A trigger job without `strategy: depend` succeeds whatever its child does.
                         {
                           name: "child-pipeline",
                           status: "SUCCESS",

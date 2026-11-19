@@ -18,7 +18,6 @@ function loadEmbeddedScripts() {
   return embeddedScriptsModule;
 }
 
-// Match highlighted layout to prevent reflow when the grammar arrives.
 function PlainWords({ code }: { code: string }) {
   return code.split(/(\s+)/u).map((part, index) =>
     index % 2 === 1 || part === "" ? (

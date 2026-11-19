@@ -3,9 +3,6 @@ export interface SentImageHandoff {
   readonly aspectRatio: number;
 }
 
-// A sent image's local pixels and shape, so the pending bubble and then the delivered copy open at
-// their final size over pixels already on screen instead of a placeholder that later resizes.
-// The server re-ids attachments into the thread, so delivered images match by message and position.
 const MAX_ENTRIES = 64;
 const images = new Map<string, SentImageHandoff>();
 

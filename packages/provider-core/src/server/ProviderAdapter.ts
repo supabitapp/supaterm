@@ -127,7 +127,6 @@ export const ProviderAdapterV2Event = Schema.Union([
     /** Persist recovered activity independently of a run subscription. */
     sessionScoped: Schema.optional(Schema.Boolean),
   }),
-  /** A steer the provider queued stays `pending` until the agent reads it; `cancelled` if dropped unread. */
   Schema.Struct({
     type: Schema.Literal("steer.updated"),
     driver: ProviderDriverKind,
@@ -136,11 +135,6 @@ export const ProviderAdapterV2Event = Schema.Union([
     messageId: MessageId,
     status: Schema.Literals(["pending", "completed", "cancelled"]),
   }),
-  /**
-   * Raw output from a running command. Never persisted: the session manager
-   * hands it to the command output hub, which only clients showing the row see.
-   * The item's final output still arrives in its `turn_item.updated`.
-   */
   Schema.Struct({
     type: Schema.Literal("command_output.delta"),
     driver: ProviderDriverKind,
@@ -148,11 +142,6 @@ export const ProviderAdapterV2Event = Schema.Union([
     itemId: TurnItemId,
     chunk: Schema.String,
   }),
-  /**
-   * The provider will predict the user's next prompt for this completed run. Never persisted:
-   * the session manager hands both of these to the prompt suggestion hub. Emitted before the
-   * run's `turn.terminal`, so a client that sees the run complete finds the prediction pending.
-   */
   Schema.Struct({
     type: Schema.Literal("prompt_suggestion.expected"),
     driver: ProviderDriverKind,
@@ -631,7 +620,6 @@ export interface ProviderAdapterV2HistoricalContext {
 
 export interface ProviderAdapterV2McpTool {
   readonly name: string;
-  // Apps reject a `hostContext.toolInfo.tool` without one.
   readonly inputSchema: unknown;
   readonly _meta?: unknown;
   readonly annotations?: unknown;

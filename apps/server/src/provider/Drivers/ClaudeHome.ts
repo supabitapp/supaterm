@@ -25,9 +25,6 @@ export const resolveClaudeHomePath = Effect.fn("resolveClaudeHomePath")(function
   if (homePath.length > 0) {
     return path.resolve(expandHomePath(homePath, home));
   }
-  // The spawned CLI receives this env var verbatim (env vars are never
-  // shell-expanded), so a literal `~` stays literal, and a relative value is
-  // resolved against the subprocess's cwd.
   const inherited = environment?.CLAUDE_CONFIG_DIR?.trim() ?? "";
   if (inherited.length > 0) {
     return cwd ? path.resolve(cwd, inherited) : path.resolve(inherited);
@@ -35,8 +32,6 @@ export const resolveClaudeHomePath = Effect.fn("resolveClaudeHomePath")(function
   return path.resolve(path.join(home, ".claude"));
 });
 
-// `--resume` finds a transcript under any project directory, not only the one
-// for the current cwd, so any copy means the session already exists.
 export const hasClaudeTranscript = Effect.fn("hasClaudeTranscript")(function* (input: {
   readonly config: Pick<ClaudeSettings, "homePath">;
   readonly environment: NodeJS.ProcessEnv;
@@ -57,7 +52,6 @@ export const hasClaudeTranscript = Effect.fn("hasClaudeTranscript")(function* (i
       (project) =>
         fileSystem
           .exists(path.join(projectsDir, project, `${input.sessionId}.jsonl`))
-          // Stray files beside the project directories fail with ENOTDIR.
           .pipe(Effect.orElseSucceed(() => false)),
       { concurrency: 16, unordered: true },
     ),
@@ -77,13 +71,10 @@ export const makeClaudeEnvironment = Effect.fn("makeClaudeEnvironment")(function
   const resolvedHomePath = yield* resolveClaudeHomePath(config);
   return {
     ...resolvedBaseEnv,
-    // Changing HOME hides macOS Keychain credentials; use CLAUDE_CONFIG_DIR to keep login access.
     CLAUDE_CONFIG_DIR: resolvedHomePath,
   };
 });
 
-// A Claude Code session that launched Supaterm exports these. A claude spawned with them acts as part of
-// that session: its session id, messaging socket and token, and effort.
 const CLAUDE_HOST_SESSION_VARIABLES = [
   "CLAUDECODE",
   "CLAUDE_CODE_SESSION_ID",
@@ -113,8 +104,6 @@ export const mergeClaudeProcessEnvironment = Effect.fn("mergeClaudeProcessEnviro
     CLAUDE_CODE_ENTRYPOINT: "supaterm",
   };
   for (const name of CLAUDE_HOST_SESSION_VARIABLES) delete baseEnvironment[name];
-  // The desktop runs the server as Node through Electron. Commands Claude runs inherit its env, so
-  // an Electron app they start (Supaterm itself, VS Code) would run as Node and exit.
   delete baseEnvironment.ELECTRON_RUN_AS_NODE;
   const environment = yield* mergeProviderInstanceEnvironment(instanceEnvironment, baseEnvironment);
   const settingsEntrypoint = (yield* readClaudeSettingsEnv(config, undefined, environment))
@@ -137,9 +126,6 @@ export const hasClaudeManagedMcpConfig = Effect.fn("hasClaudeManagedMcpConfig")(
   return yield* fileSystem.exists(managedMcpConfigPath).pipe(Effect.orElseSucceed(() => false));
 });
 
-// A worktree's .git file points at <main>/.git/worktrees/<name>, whose commondir leads back to
-// <main>/.git. A bare repository has no main checkout, so its worktree keeps its own file.
-// Untraced because claudeLocalSettingsDirectory already owns the span.
 const mainCheckoutRoot = Effect.fnUntraced(function* (checkout: string) {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -159,9 +145,6 @@ const mainCheckoutRoot = Effect.fnUntraced(function* (checkout: string) {
   );
 });
 
-// Claude Code keeps .claude/settings.local.json at the repository root, or in cwd outside a
-// repository, on Windows, or when the root is home. Its owner check is skipped, so callers must
-// stay safe when Claude Code ignores the root file.
 export const claudeLocalSettingsDirectory = Effect.fn("claudeLocalSettingsDirectory")(function* (
   cwd: string,
 ) {

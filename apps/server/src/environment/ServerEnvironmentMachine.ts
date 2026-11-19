@@ -8,7 +8,6 @@ import * as ProcessRunner from "../processRunner.ts";
 const DMI_ROOT = "/sys/class/dmi/id";
 const KERNEL_RELEASE_PATH = "/proc/sys/kernel/osrelease";
 
-// SMBIOS 3.x System Enclosure types (table 17).
 const DMI_CHASSIS_KINDS: Readonly<Record<string, EnvironmentMachineKind>> = {
   "3": "desktop",
   "4": "desktop",
@@ -36,7 +35,6 @@ const DMI_CHASSIS_KINDS: Readonly<Record<string, EnvironmentMachineKind>> = {
   "35": "desktop",
 };
 
-// VMs read as cloud regardless of chassis. Match Hyper-V's product, since Surface shares its vendor.
 const VIRTUALIZATION_MARKERS = [
   "qemu",
   "kvm",
@@ -115,7 +113,6 @@ const runProbe = Effect.fn("runMachineProbe")(function* (input: {
     );
 });
 
-// Apple silicon exposes IOKit's marketing name; Intel needs the hw.model fallback.
 const detectDarwinMachineKind = Effect.fn("detectDarwinMachineKind")(function* () {
   const ioreg = yield* runProbe({ command: "ioreg", args: ["-rd1", "-n", "product"] });
   const productName = ioreg?.match(/"product-name"\s*=\s*<"([^"]+)">/)?.[1] ?? null;
@@ -135,7 +132,6 @@ const detectLinuxMachineKind = Effect.fn("detectLinuxMachineKind")(function* () 
     readOptionalFile(`${DMI_ROOT}/sys_vendor`),
     readOptionalFile(`${DMI_ROOT}/product_name`),
   ]);
-  // Check WSL first; WSL 2 presents as a Hyper-V VM in DMI.
   if (kernelRelease?.toLowerCase().includes("microsoft")) {
     return "linux";
   }

@@ -27,8 +27,6 @@ export const ConnectionCatalogDocument = Schema.Struct({
   targets: ForwardCompatibleArray(PersistedConnectionTarget),
   profiles: Schema.Array(ConnectionProfile),
   credentials: Schema.Array(StoredConnectionCredential),
-  // Pull request routing grants. The field name predates the rename and stays, so older and
-  // newer clients sharing this document keep reading and revoking the same grants.
   githubRoutingPermissions: Schema.optionalKey(Schema.Array(StoredPullRequestRoutingPermission)),
   platformLabels: Schema.Array(StoredPlatformLabel).pipe(
     Schema.withDecodingDefaultKey(Effect.succeed([])),

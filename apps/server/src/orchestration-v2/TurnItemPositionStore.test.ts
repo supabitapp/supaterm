@@ -23,7 +23,6 @@ it.effect("reuses an item's position without attempting another allocation inser
     const first = yield* positions.allocate(input);
     assert.equal(first, 1);
 
-    // BEFORE INSERT runs even when ON CONFLICT would discard the allocation.
     yield* sql`
       CREATE TEMP TRIGGER reject_redundant_position_insert
       BEFORE INSERT ON orchestration_v2_turn_item_positions

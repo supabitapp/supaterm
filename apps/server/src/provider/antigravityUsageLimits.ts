@@ -17,8 +17,6 @@ import {
 
 const DAILY_ENDPOINT = "https://daily-cloudcode-pa.googleapis.com";
 const PROD_ENDPOINT = "https://cloudcode-pa.googleapis.com";
-// The ACP runtime meters consumer tiers on the daily host and GCP-terms tiers on prod.
-// The sign-in method stands in for the tier.
 const ENDPOINTS = {
   "oauth-personal": [DAILY_ENDPOINT, PROD_ENDPOINT],
   "oauth-business": [PROD_ENDPOINT, DAILY_ENDPOINT],
@@ -110,7 +108,6 @@ function summaryResetTime(
   windowDurationMins: number | undefined,
   requestedAt: number,
 ): string | undefined {
-  // Untouched summary buckets report a rolling full-window reset.
   const untouched =
     bucket.remainingFraction === 1 &&
     bucket.description === undefined &&
@@ -128,7 +125,6 @@ function summaryWindows(summary: typeof Summary.Type, requestedAt: number) {
   for (const group of groups ?? []) {
     for (const bucket of group.buckets ?? []) {
       if (bucket.disabled) continue;
-      // Argon and Carbon are metered separately from the default Gemini buckets.
       const family = bucket.bucketId.startsWith("gemini-argon-")
         ? group.displayName?.trim() || "Gemini Argon"
         : bucket.bucketId.startsWith("gemini-carbon-")
@@ -154,7 +150,6 @@ function summaryWindows(summary: typeof Summary.Type, requestedAt: number) {
   return [...windows.values()];
 }
 
-/** Older accounts expose model quotas without a window length. Do not invent a reset cadence. */
 function modelWindows(models: typeof Models.Type) {
   const windows = new Map<string, ServerProviderUsageWindow>();
   for (const [modelId, model] of Object.entries(models.models)) {
@@ -253,8 +248,6 @@ export const makeAntigravityUsageProbe = Effect.fn("makeAntigravityUsageProbe")(
         ),
       ).pipe(Effect.flatMap(decodeTokenResponse));
       accessToken = refreshed.access_token;
-      // Each machine's sign-in has its own refresh token, so the Google
-      // account id is what lets clients merge one account across environments.
       account = yield* request(
         HttpClientRequest.get("https://www.googleapis.com/oauth2/v2/userinfo").pipe(
           HttpClientRequest.setHeaders({ Authorization: `Bearer ${accessToken}` }),
@@ -278,7 +271,6 @@ export const makeAntigravityUsageProbe = Effect.fn("makeAntigravityUsageProbe")(
     }
 
     const endpoints = ENDPOINTS[input.authMethod];
-    // Merge endpoints because quota groups differ; the metered host's reading of a bucket wins.
     const fetchWindows = Effect.fn("AntigravityUsageProbe.fetchWindows")(function* <E>(
       operation: string,
       parse: (
@@ -290,7 +282,6 @@ export const makeAntigravityUsageProbe = Effect.fn("makeAntigravityUsageProbe")(
         endpoints,
         (endpoint) =>
           Effect.gen(function* () {
-            // Capture each request after auth, so refresh latency does not widen the tolerance.
             const requestedAt = yield* Clock.currentTimeMillis;
             return yield* request(
               HttpClientRequest.post(`${endpoint}/v1internal:${operation}`).pipe(

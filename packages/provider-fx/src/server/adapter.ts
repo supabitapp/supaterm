@@ -86,7 +86,6 @@ const FxSubagentRequest = Schema.Union([
     model: Schema.optionalKey(Schema.String),
   }),
 ]);
-// fx 0.0.14 wraps the arguments in `request`; later fx sends them flat (vercel-labs/fx@df0878eb).
 const decodeFxSubagentInput = Schema.decodeUnknownOption(
   Schema.Union([FxSubagentRequest, Schema.Struct({ request: FxSubagentRequest })]),
 );
@@ -122,7 +121,6 @@ export function fxSubagentOutcome(
   };
 }
 
-/** fx streams no child frames over ACP, so each `subagent` call becomes a child thread holding its task and reply. */
 function extractFxSubagentUpdate(tool: AcpToolCallState): AcpAdapterV2SubagentUpdate | undefined {
   if (tool.data.name !== "subagent") return undefined;
   const input = decodeFxSubagentInput(tool.data.rawInput);

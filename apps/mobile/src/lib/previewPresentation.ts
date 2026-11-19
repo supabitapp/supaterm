@@ -21,8 +21,6 @@ export function usePreviewPresentation(
   presentationKey: string | null,
   onRequestClose: () => void,
 ): void {
-  // The v5 card host sits inside a legacy presentation envelope whose focus context
-  // can describe a different route. The preview belongs to this navigation route.
   const navigation = useNavigation();
   const close = useEffectEvent(onRequestClose);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the preview when its navigation route blurs; the open state belongs to the caller

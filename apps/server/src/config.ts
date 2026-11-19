@@ -21,8 +21,6 @@ import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
 import { type ReleaseChannel, releaseResourceAttributes } from "@supaterm/shared/releaseResource";
 import packageJson from "../package.json" with { type: "json" };
 
-// Official release workflows set this telemetry channel; other builds report dev.
-// Unlike __SUPATERM_BUILD_CHANNEL__, this is not the sign-in page's latest/nightly channel.
 declare const __SUPATERM_TELEMETRY_CHANNEL__: ReleaseChannel | undefined;
 const telemetryChannel: ReleaseChannel =
   typeof __SUPATERM_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __SUPATERM_TELEMETRY_CHANNEL__;
@@ -175,8 +173,6 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
   const path = yield* Path.Path;
 
   yield* fs.makeDirectory(derivedPaths.stateDir, { recursive: true });
-  // Only before the database exists: a No_COW WAL beside an existing copy-on-write database
-  // could not be reflinked into one backup folder with it. When unsure, leave the folder as is.
   if (!(yield* fs.exists(derivedPaths.dbPath).pipe(Effect.orElseSucceed(() => true)))) {
     yield* Effect.promise(() => markNoCopyOnWrite(derivedPaths.stateDir));
   }
@@ -194,7 +190,6 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
     ],
     { concurrency: "unbounded" },
   );
-  // Logs, traces and the database are written with the process umask; keep them owner-only.
   yield* fs
     .chmod(derivedPaths.stateDir, 0o700)
     .pipe(
@@ -221,9 +216,7 @@ const makeTest = Effect.fn("ServerConfig.makeTest")(function* (
   const baseDir =
     typeof baseDirOrPrefix === "string"
       ? baseDirOrPrefix
-      : // macOS temp dirs live under the /var -> /private/var symlink; storage cleanup's
-        // symlink guards compare resolved paths, so generated test dirs must be real paths.
-        yield* fs.realPath(yield* fs.makeTempDirectoryScoped({ prefix: baseDirOrPrefix.prefix }));
+      : yield* fs.realPath(yield* fs.makeTempDirectoryScoped({ prefix: baseDirOrPrefix.prefix }));
   const derivedPaths = yield* deriveServerPaths(baseDir, devUrl);
   yield* ensureServerDirectories(derivedPaths);
 

@@ -109,7 +109,6 @@ describe("replayAndBufferProjectedLiveEvents", () => {
           ),
         );
         const received = [...(yield* pull)];
-        // Hold the ACK while more durable events arrive.
         yield* PubSub.publishAll(pubsub, events.slice(1));
         yield* (yield* Deferred.await(subscribed)).shutdownHook.await;
         const overflow = yield* pull.pipe(Effect.result);

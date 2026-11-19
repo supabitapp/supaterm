@@ -40,9 +40,7 @@ type ProviderInstanceRegistryHydrationEnv =
   | ServerConfig.ServerConfig
   | Path.Path
   | FileSystem.FileSystem
-  // The Claude runner counts its CLIs as running agents for port discovery.
   | PortScanner.PortDiscovery
-  // Adapter ids read which subagent threads predate short ids.
   | SqlClient.SqlClient;
 
 export const deriveProviderInstanceConfigMap = (
@@ -57,7 +55,6 @@ export const deriveProviderInstanceConfigMap = (
     merged[instanceId] = { driver: driver.driverKind };
   }
 
-  // Probe project-enabled instances even if disabled machine-wide; project threads can still route to them.
   for (const overrides of Object.values(settings.projectSettingsOverrides)) {
     for (const [rawInstanceId, projectOverride] of Object.entries(
       overrides?.providerInstances ?? {},
@@ -99,14 +96,12 @@ export const seedDevReplayInstance = Effect.fn(
   const serverSettings = yield* Settings.ServerSettingsService;
   const existing = (yield* serverSettings.getSettings).providerInstances[DEV_REPLAY_INSTANCE_ID];
   const existingConfig = existing?.config as Record<string, unknown> | undefined;
-  // Rewritten only when stale: the node and checkout paths can move.
   if (
     existingConfig?.commandPath === commandPath &&
     (existingConfig.commandArgs as ReadonlyArray<unknown> | undefined)?.[0] === agentPath
   ) {
     return;
   }
-  // Keeps user edits, such as turning the provider off.
   const instance: ProviderInstanceConfig = {
     displayName: "Replay (dev)",
     ...existing,
@@ -127,8 +122,6 @@ const layerSettingsWatcher = (settingsChanges: Stream.Stream<ServerSettings>) =>
       const serverSettings = yield* Settings.ServerSettingsService;
       yield* settingsChanges.pipe(
         Stream.runForEach(() =>
-          // The subscription predates the seed read, so a queued change can be
-          // older than the seed. A failed current read must leave the registry intact.
           serverSettings.getSettings.pipe(
             Effect.flatMap((current) =>
               mutator.reconcile(deriveProviderInstanceConfigMap(current)),
@@ -154,7 +147,6 @@ export const layer: Layer.Layer<
     yield* seedDevReplayInstance().pipe(
       Effect.catchCause((cause) => Effect.logWarning("Dev replay agent unavailable", cause)),
     );
-    // Subscribe before the seed read so saves during registry construction are queued.
     const settingsChanges = yield* serverSettings.subscribeChanges;
     const initialSettings: ServerSettings | undefined = yield* serverSettings.getSettings.pipe(
       Effect.orElseSucceed(() => undefined),

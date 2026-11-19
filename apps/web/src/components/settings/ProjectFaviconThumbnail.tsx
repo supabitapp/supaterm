@@ -25,7 +25,6 @@ export function ProjectFaviconThumbnail(props: {
 
   return (
     <span
-      // Asset URLs require a server request, so defer acquisition until the row is visible.
       ref={
         inView
           ? undefined

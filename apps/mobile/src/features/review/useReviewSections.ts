@@ -79,8 +79,6 @@ export function useReviewSections(input: {
   const checkpointBySectionId = new Map(
     readyCheckpoints.map((checkpoint) => [getReviewSectionIdForCheckpoint(checkpoint), checkpoint]),
   );
-  // Turns show their last answered diff; the active turn's live query below overrides it.
-  // Section ids and the selection do not depend on the live query, so they are resolved first.
   const cachedSections = buildReviewSectionItems({
     checkpoints: readyCheckpoints,
     gitSections:
@@ -118,7 +116,6 @@ export function useReviewSections(input: {
           }
         : section;
     }
-    // Keep the selected section while its grant loads, without displaying cached host files.
     return fileAccess.isPending ? { ...section, diff: null, isLoading: true } : section;
   });
   const selectedSection =

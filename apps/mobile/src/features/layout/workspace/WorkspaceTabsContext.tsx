@@ -43,7 +43,6 @@ export function useWorkspaceTabs() {
 
 type MobilePreferencesResult = Atom.Type<typeof mobilePreferencesAtom>;
 
-/** Moves the selection off a tab the user has hidden or that no longer exists. */
 function resolveWorkspaceTabsSelection(
   state: WorkspaceTabsState,
   preferences: MobilePreferencesResult,
@@ -59,8 +58,6 @@ function resolveWorkspaceTabsSelection(
     : state;
 }
 
-// One model per provider. Handlers on frozen screens keep stale closures, so
-// they read the current selection from the registry at call time.
 function createWorkspaceTabsModel(selectedTab?: WorkspaceTab) {
   const stored = Atom.make(initialWorkspaceTabsState(selectedTab));
   const scrollOffsets: Record<WorkspaceSearchTab, number> = {

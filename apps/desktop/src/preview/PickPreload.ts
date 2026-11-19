@@ -51,8 +51,6 @@ const MAX_MARQUEE_ELEMENTS = 20;
 const ELEMENT_CONTEXT_TIMEOUT_MS = 5_000;
 const CONTENT_LAYER_Z_INDEX = 1;
 const CHROME_LAYER_Z_INDEX = 10;
-// Page dialogs (Radix, react-remove-scroll) dismiss, refocus or block scrolling on document events
-// that shadow retargeting attributes to the overlay host.
 const PAGE_ISOLATED_EVENTS = [
   "pointerdown",
   "focusin",
@@ -171,8 +169,6 @@ const applyAnnotationTheme = (
 
 const reportHumanPointerInput = (event: PointerEvent): void => {
   if (!event.isTrusted) return;
-  // The guest does not always take focus on a click, so the host's webview
-  // `focus` event can't be relied on to dismiss open menus and popovers.
   ipcRenderer.sendToHost(POINTER_DOWN_HOST_CHANNEL);
   ipcRenderer.send(HUMAN_INPUT_CHANNEL, {
     kind: "pointer",
@@ -194,8 +190,6 @@ const reportHumanKeyInput = (event: KeyboardEvent): void => {
 window.addEventListener("pointerdown", reportHumanPointerInput, true);
 window.addEventListener("keydown", reportHumanKeyInput, true);
 
-// Capture runs before a page can stop the event; the task delay lets every page
-// listener call preventDefault before the host is told the key went unhandled.
 const reportUnhandledShortcut = (event: KeyboardEvent): void => {
   if (!event.isTrusted || event.repeat || event.isComposing) return;
   if (!event.metaKey && !event.ctrlKey && !event.altKey && !/^F\d{1,2}$/u.test(event.key)) return;
@@ -214,8 +208,6 @@ const reportUnhandledShortcut = (event: KeyboardEvent): void => {
 
 window.addEventListener("keydown", reportUnhandledShortcut, true);
 
-// Registered before page scripts so their capture listeners never see keys typed into the
-// overlay; the closed shadow root retargets those to the host, hiding that they edit text.
 const isolateOverlayKey = (event: KeyboardEvent): void => {
   if (!activeSession || !(event.target instanceof Element) || !isAnnotationNode(event.target))
     return;
@@ -232,12 +224,10 @@ ipcRenderer.on(
   (_event, phase: unknown, x: unknown, y: unknown, button: unknown) => {
     if (phase !== "down" && phase !== "up") return;
     if (typeof x !== "number" || typeof y !== "number" || typeof button !== "number") return;
-    // Main reports presses inside a frame in that frame's coordinates.
     const inFrame = document.querySelector("iframe:hover, frame:hover, object:hover, embed:hover");
     if (phase === "up") {
       const pressed = replayedThumbPress;
       replayedThumbPress = null;
-      // A replayed press is always released, at its own point if the release lands in a frame.
       if (pressed) recordingCursor?.press(inFrame ? pressed : { x, y }, "up");
       return;
     }
@@ -419,7 +409,6 @@ function toStackFrame(frame: {
   };
 }
 
-/** React-internals lookups can remain pending forever; bound them so submit cannot stall the overlay. */
 function withCaptureTimeout<A>(promise: Promise<A>, millis: number): Promise<A | null> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
@@ -432,7 +421,6 @@ function withCaptureTimeout<A>(promise: Promise<A>, millis: number): Promise<A |
 
 const HTML_PREVIEW_MAX_CHARS = 500;
 
-/** Preserve the tag, HTML, and crop rect when React context lookup fails or stalls. */
 async function captureElement(element: Element): Promise<PickedElementPayload> {
   const base = {
     pageUrl: location.href,
@@ -629,10 +617,6 @@ function startAnnotation(sendEnabled: boolean): void {
   const strokes: PreviewAnnotationStrokeTarget[] = [];
   const styleChanges = new Map<string, PreviewAnnotationStyleChange>();
   const toolButtons = new Map<AnnotationTool, HTMLButtonElement>();
-  // Chromium draws a PDF in its own viewer frame, so pointer and key input over it
-  // never reaches this document. A transparent layer above the viewer catches the
-  // pointer and takes focus for Escape and the tool keys. A PDF has no elements to
-  // select, so it starts on Region.
   const isPdf = document.contentType === "application/pdf";
   const inputLayer = isPdf ? document.createElement("div") : null;
   if (inputLayer) {
@@ -1141,7 +1125,6 @@ function startAnnotation(sendEnabled: boolean): void {
     for (const target of selected.values()) updateSelectedVisual(target);
     queueEditorLayout();
   };
-  // A scrollbar appearing narrows the viewport without a window resize.
   const rootResizeObserver = new ResizeObserver(repaint);
 
   const removeTargetAtPoint = (x: number, y: number): boolean => {
@@ -1331,7 +1314,6 @@ function startAnnotation(sendEnabled: boolean): void {
   };
 
   const stopAtOverlay = (event: Event): void => event.stopPropagation();
-  // Focus moving from the page into the overlay targets the page element, so the host never sees it.
   const onFocusOutToOverlay = (event: FocusEvent): void => {
     if (event.relatedTarget instanceof Element && isAnnotationNode(event.relatedTarget))
       event.stopPropagation();
@@ -1412,7 +1394,6 @@ function startAnnotation(sendEnabled: boolean): void {
     pendingCapture = true;
     submit.disabled = true;
     submit.textContent = "Capturing…";
-    // Snapshot the submitted comment before context lookup lets the user edit it.
     const submittedComment = comment.value.trim();
     const submittedRegions = [...regions];
     const submittedStrokes = [...strokes];
@@ -1433,7 +1414,6 @@ function startAnnotation(sendEnabled: boolean): void {
       }),
     )
       .then((elements) => {
-        // A late submit must not reach a replacement pick's listener.
         if (finished) return;
         const annotation: PreviewAnnotationPayload = {
           id: nextId("annotation"),
@@ -1489,7 +1469,6 @@ function startAnnotation(sendEnabled: boolean): void {
   window.addEventListener("keydown", onKeyDown, { capture: true });
   window.addEventListener("scroll", repaint, { capture: true, passive: true });
   window.addEventListener("resize", repaint, { passive: true });
-  // Bubble phase, so the overlay's own handlers still see these events.
   for (const type of PAGE_ISOLATED_EVENTS)
     host.addEventListener(type, stopAtOverlay, { passive: true });
   document.documentElement.addEventListener("focusout", onFocusOutToOverlay);

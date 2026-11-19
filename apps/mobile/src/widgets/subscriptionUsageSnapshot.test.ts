@@ -174,7 +174,6 @@ describe("subscription widget expiry", () => {
   ])(
     "compares a pooled reset with its own account's observation (account $resetAccount)",
     ({ resetAccount, expiresAt, label }) => {
-      // Account 0 was observed at 12:00, account 1 at 12:05; the pooled reset is at 12:02.
       const snapshot = buildSubscriptionUsageSnapshot(
         presentations(
           [checkedAt, "2026-09-05T12:05:00.000Z"].map((accountCheckedAt, index) =>

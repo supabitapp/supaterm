@@ -18,10 +18,6 @@ interface ContextChipPresentation {
   readonly icon: ContextChipIcon | null;
 }
 
-/**
- * These are the sRGB form of the same OKLCH set web uses, so a chip looks the same on every
- * surface. See `ContextChip.tsx`.
- */
 const CONTEXT_CHIP_PRESENTATIONS = {
   image: { accent: "#0090cd", icon: "image" },
   video: { accent: "#d06217", icon: "film" },

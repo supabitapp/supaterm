@@ -6,7 +6,6 @@ import { render } from "../../test/render";
 
 const state = vi.hoisted(() => ({ navigate: vi.fn() }));
 
-// One key toggles Usage: it opens Usage elsewhere and goes back from it.
 const keybindings = compileResolvedKeybindingsConfig([
   { key: "mod+u", command: "navigation.back", when: "usagePageOpen" },
   { key: "mod+u", command: "usage.open", when: "!usagePageOpen" },
@@ -21,7 +20,6 @@ vi.mock(import("../state/server"), async (original) => {
   const { Atom } = await import("effect/reactivity");
   const { compileResolvedKeybindingsConfig: compile } =
     await import("@supaterm/shared/keybindings");
-  // Factories are hoisted above the module's own constants.
   const compiled = compile([
     { key: "mod+u", command: "navigation.back", when: "usagePageOpen" },
     { key: "mod+u", command: "usage.open", when: "!usagePageOpen" },
@@ -42,7 +40,6 @@ function MountedPalette() {
   return null;
 }
 
-// regression: #21357
 describe("usage toggle shortcut on Usage", () => {
   it("goes back", async () => {
     vi.clearAllMocks();
@@ -56,7 +53,6 @@ describe("usage toggle shortcut on Usage", () => {
     expect(back).toHaveBeenCalledOnce();
   });
 
-  // Both listeners sit on window, so the palette must not claim the key whatever their order.
   it("does not reopen Usage from the command palette", async () => {
     vi.clearAllMocks();
     using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");

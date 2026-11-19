@@ -61,7 +61,6 @@ const PI_PRESENTATION = {
 const VERSION_PROBE_TIMEOUT_MS = 10_000;
 const PI_RPC_DISCOVERY_TIMEOUT_MS = 30_000;
 const PI_TEXT_GENERATION_DISCOVERY_TIMEOUT_MS = 5_000;
-// Earlier releases persist background set_thinking_level requests as the user's global default.
 export const MINIMUM_PI_VERSION = "0.84.3";
 
 const decodePiAuthCheck = Schema.decodeUnknownOption(
@@ -78,9 +77,7 @@ const PI_DEFAULT_MODEL: ServerProviderModel = {
 interface PiDiscovery extends PiDiscoveredCommands {
   readonly models: ReadonlyArray<ServerProviderModel>;
   readonly authenticated: boolean;
-  /** Pi's active model when Pi lists no model of its provider, so it cannot start a turn. */
   readonly unavailableActiveModel: { readonly provider: string; readonly id: string } | undefined;
-  /** Pi without extensions can load no model, so text generation fails for every entry. */
   readonly textGenerationUnavailable: boolean;
 }
 
@@ -168,7 +165,6 @@ const makePiDiscoveryConnection = Effect.fnUntraced(function* (
   return connection;
 });
 
-// A failed response echoes Pi's own `command` field as the operation, so log only names we sent.
 const PI_LOGGED_RPC_OPERATIONS = new Set([
   "spawn",
   "read",
@@ -198,8 +194,6 @@ const readPiInventory = Effect.fn("PiProviderStatus.readPiInventory")(function* 
   return { stateData, modelsData, commandsData };
 }, Effect.scoped);
 
-// Text generation runs Pi with --no-extensions, so it cannot load models that an
-// extension or package registers. Listing models with that launch tells them apart.
 const discoverPiTextGenerationModelSlugs = Effect.fn(
   "PiProviderStatus.discoverPiTextGenerationModelSlugs",
 )(function* (
@@ -227,15 +221,12 @@ const discoverPiViaRpc = Effect.fn("PiProviderStatus.discoverPiViaRpc")(function
   cwd?: string,
 ) {
   const timeoutMs = resolveProviderProbeTimeoutMs("pi", PI_RPC_DISCOVERY_TIMEOUT_MS, environment);
-  // This optional probe must finish before the normal discovery deadline so
-  // it cannot discard an otherwise usable catalog and authentication state.
   const textGenerationModelSlugsFiber = yield* discoverPiTextGenerationModelSlugs(
     piSettings,
     environment,
     launchArgs,
     cwd,
   ).pipe(
-    // Pi exits before answering when launch args name a provider only an extension registers.
     Effect.catchIf(
       (error) =>
         error._tag === "PiRpcError" && (error.operation === "read" || error.operation === "exit"),
@@ -255,9 +246,6 @@ const discoverPiViaRpc = Effect.fn("PiProviderStatus.discoverPiViaRpc")(function
     timeoutMs,
     cwd,
   ).pipe(
-    // Pi's RPC mode reads stdin only after session_start, so a startup dialog (an MCP adapter asking
-    // to approve a project server) can never be answered and Pi exits. Retry declining project trust
-    // unless the user chose a trust mode, so trusted projects keep their project-local models.
     Effect.catchIf(
       (error) =>
         error._tag === "PiRpcError" &&
@@ -270,8 +258,6 @@ const discoverPiViaRpc = Effect.fn("PiProviderStatus.discoverPiViaRpc")(function
   const discoveredModels = yield* Effect.fromResult(parseDiscoveredModels(modelsData, stateData));
   const { slashCommands, skills } = parsePiDiscoveredCommands(commandsData);
   const textGenerationModelSlugs = yield* Fiber.join(textGenerationModelSlugsFiber);
-  // Pi lists only models of providers it holds credentials for, including extension, virtual and
-  // --api-key ones. Turns need only the provider's credentials, so uncatalogued model ids still run.
   const activeModel = recordField(stateData, "model");
   const activeProvider = recordString(activeModel, "provider");
   const activeModelId = recordString(activeModel, "id");
@@ -348,12 +334,6 @@ export const runPiVersionCommand = Effect.fn("PiProviderStatus.runPiVersionComma
   );
 });
 
-/**
- * Explains why Pi's active model cannot start a turn. Asks `pi auth check` whether credentials
- * are missing, without refreshing or printing them. That command cannot see
- * extension providers or a runtime --api-key, so it only refines Pi's own unavailable verdict,
- * and is skipped when launch args supply the key.
- */
 const describeUnavailablePiModel = Effect.fn("PiProviderStatus.describeUnavailablePiModel")(
   function* (
     piSettings: PiSettings,
@@ -638,7 +618,6 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
       probe: {
         installed: true,
         version,
-        // Other Pi models still work when only the default is unavailable, so keep the picker usable.
         status: discovery.authenticated ? "ready" : "warning",
         auth: { status: discovery.authenticated ? "authenticated" : "unauthenticated", type: "pi" },
         ...(message === undefined ? {} : { message }),

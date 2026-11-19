@@ -44,7 +44,6 @@ vi.mock(import("../../state/query"), async (importOriginal) => ({
   })) as never,
 }));
 
-// The thread detail atoms are real, fed by one state atom the test writes.
 vi.mock(import("../../state/threads"), async (importOriginal) => {
   const { createEnvironmentThreadDetailAtoms, EMPTY_ENVIRONMENT_THREAD_STATE } =
     await import("@supaterm/client-runtime/state/threads");
@@ -427,7 +426,6 @@ it("does not re-render while assistant text streams into the thread", async () =
     ],
   };
   const base = makeThreadProjectionFixture();
-  // Each delta replaces only the streaming reply; every other item keeps its identity.
   const timeline = makeStreamingTimelineFixture().visibleTurnItems;
   const thread = (text: string, done = false) => {
     const items = timeline.map((entry) =>

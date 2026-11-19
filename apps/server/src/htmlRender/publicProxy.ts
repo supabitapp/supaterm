@@ -19,7 +19,6 @@ for (const [network, prefix] of [
 ] as const) {
   LOCAL_ADDRESSES.addSubnet(network, prefix, "ipv4");
 }
-// Block IPv4-carrying IPv6 ranges that translators may route without checking.
 for (const [network, prefix] of [
   ["::", 96],
   ["64:ff9b:1::", 48],
@@ -31,7 +30,6 @@ for (const [network, prefix] of [
   LOCAL_ADDRESSES.addSubnet(network, prefix, "ipv6");
 }
 
-// Clash and Mihomo fake-IP DNS answers from here, inside the blocked 198.18.0.0/15.
 const FAKE_IP = new NodeNet.BlockList();
 FAKE_IP.addSubnet("198.18.0.0", 15, "ipv4");
 const MAX_FAKE_IP_HOSTS = 3;
@@ -56,7 +54,6 @@ const ipv6Groups = (address: string) => {
   );
 };
 
-// Check the translated IPv4 too, while allowing public NAT64 targets on IPv6-only networks.
 const embeddedIPv4 = (address: string) => {
   const at = NAT64.check(address, "ipv6") ? 6 : SIX_TO_FOUR.check(address, "ipv6") ? 1 : -1;
   if (at === -1) return undefined;
@@ -81,7 +78,6 @@ const isLocal = (address: string, family: number): boolean => {
   return embedded !== undefined && isLocal(embedded, 4);
 };
 
-// Connect only to checked addresses to prevent DNS rebinding.
 const publicAddresses = async (host: string, fakeIpHosts: Map<string, string>) => {
   const addresses = NodeNet.isIP(host)
     ? [{ address: host, family: NodeNet.isIP(host) }]
@@ -98,7 +94,6 @@ const publicAddresses = async (host: string, fakeIpHosts: Map<string, string>) =
   return undefined;
 };
 
-// SOCKS5 (RFC 1928) replies: success, refused by rule, host unreachable, command unsupported.
 const reply = (code: number) => Buffer.from([5, code, 0, 1, 0, 0, 0, 0, 0, 0]);
 
 const MAX_EARLY_BYTES = 64 * 1024;
@@ -177,7 +172,6 @@ export const publicProxy = Effect.acquireRelease(
           client.off("data", holdEarly);
           if (addresses === undefined) return refuse(client, 2);
           client.pause();
-          // Try all checked addresses so broken IPv6 routes do not block IPv4 access.
           const upstream = track(
             NodeNet.connect({
               host: request.host,

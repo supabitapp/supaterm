@@ -64,7 +64,6 @@ describe("V2 context window presentation", () => {
     expect(
       deriveLatestContextWindowSnapshot([current], null, activeProviderThread)?.usedTokens,
     ).toBe(2_000);
-    // Items without a provider thread predate the split and stay visible.
     expect(
       deriveLatestContextWindowSnapshot([compactionEntry(null)], null, activeProviderThread)
         ?.usedTokens,

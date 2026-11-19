@@ -25,7 +25,6 @@ export function resolveThreadTotalWorkMs(
   nowMs: number,
 ): number | null {
   if (thread.completedWorkMs === null) return null;
-  // Ended sessions count from execution start; before it, the working start is the request time.
   const hasStarted =
     thread.runtime?.status !== "preparing" && thread.runtime?.status !== "starting";
   const workingStartedAt = hasStarted ? resolveThreadWorkingStartedAt(thread) : null;

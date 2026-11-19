@@ -47,9 +47,6 @@ export function useComposerRestingTransition(
   const hasCompletedInitialLayoutRef = useRef(false);
 
   const clearOverlayPin = () => {
-    // The overlay belongs to the chat view and outlives this composer, so it
-    // is remembered from pin time rather than re-resolved through a ref that
-    // React may already have detached during unmount.
     const overlay = pinnedOverlayRef.current;
     pinnedOverlayRef.current = null;
     overlay?.style.removeProperty("height");
@@ -96,7 +93,6 @@ export function useComposerRestingTransition(
   useLayoutEffect(() => {
     isCollapsedRef.current = isCollapsed;
     isRestingRef.current = isResting;
-    // Resting can flip without a collapse transition, such as a resting composer crossing to phone width.
     if (previousCollapsedRef.current === isCollapsed)
       previousTransitionRestingRef.current = isResting;
   });
@@ -118,7 +114,6 @@ export function useComposerRestingTransition(
     );
     const action = visibleTransitionElement('[data-chat-composer-transition-actions="true"]');
     const footer = element.querySelector<HTMLElement>('[data-chat-composer-footer="true"]');
-    // A resting desktop composer shows no collapsed controls, so its footer controls fade instead.
     const continuousControls =
       !nextIsResting &&
       !previousTransitionRestingRef.current &&
@@ -171,10 +166,6 @@ export function useComposerRestingTransition(
     const nextRect = element.getBoundingClientRect();
     const nextHeight = nextRect.height;
     const nextModelStripHeight = modelStrip?.getBoundingClientRect().height ?? null;
-    // The chat view resize-observes the overlay to place the timeline
-    // inset, the scroll-to-end pill, and the mini player. Publishing the
-    // destination height here turns that feedback into one update instead
-    // of a ChatView re-render on every animation frame.
     const overlay = element.closest<HTMLElement>('[data-chat-composer-overlay="true"]');
     const overlayRect = overlay?.getBoundingClientRect();
     const overlayHeight = overlayRect?.height ?? null;
@@ -243,7 +234,6 @@ export function useComposerRestingTransition(
 
       let stripAnimation: Animation | null = null;
       if (modelStrip) shell?.setAttribute("data-model-strip-transition", "true");
-      // A resting desktop composer tucks the strip behind the input.
       const stripOpen = (collapsed: boolean, resting: boolean) => collapsed && !resting;
       const stripWasOpen = stripOpen(
         previousCollapsedRef.current,
@@ -429,9 +419,6 @@ export function useComposerRestingTransition(
         clearTransitionStyles();
       };
       void animation.finished.catch(() => undefined).then(() => finishTransition(false));
-      // A suspended document timeline can leave `finished` pending while
-      // these measurement styles remain active. Wall-clock cleanup makes
-      // the natural layout the eventual source of truth in that case.
       transitionCleanupTimeoutRef.current = window.setTimeout(
         () => finishTransition(true),
         duration + COMPOSER_RESTING_TRANSITION_CLEANUP_BUFFER_MS,
@@ -459,9 +446,6 @@ export function useComposerRestingTransition(
     const requestId = transitionLayoutRequestRef.current + 1;
     transitionLayoutRequestRef.current = requestId;
     const stateChanged = previousCollapsedRef.current !== isCollapsed;
-    // A non-Git context strip enters or leaves flow through ChatView state in
-    // an earlier layout effect. Let React flush that parent update before the
-    // FLIP reads its destination geometry, while still running before paint.
     queueMicrotask(() => {
       if (transitionLayoutRequestRef.current !== requestId) return;
       transitionToCurrentGeometry(stateChanged);
@@ -488,7 +472,6 @@ export function useComposerRestingTransition(
     if (!element) return;
 
     const body = element.querySelector<HTMLElement>('[data-chat-composer-body="true"]');
-    // Rows beside the composer in the overlay, such as the usage row, move it without resizing it.
     const overlay = element.closest<HTMLElement>('[data-chat-composer-overlay="true"]');
     const observed = [element, body, overlay].filter((target) => target !== null);
     return observeResize(observed, (entries) => {

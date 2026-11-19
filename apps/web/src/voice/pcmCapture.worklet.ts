@@ -1,6 +1,5 @@
 import { PCM_CAPTURE_PROCESSOR, Pcm16Resampler } from "./wav";
 
-// The AudioWorklet global scope, which the DOM library doesn't describe.
 declare const sampleRate: number;
 declare function registerProcessor(name: string, processor: unknown): void;
 declare class AudioWorkletProcessor {
@@ -9,7 +8,6 @@ declare class AudioWorkletProcessor {
 
 const FRAME_SAMPLES = 1_600;
 
-/** Posts 100 ms frames of 16 kHz mono PCM after "start", and the remainder plus "flushed" on "flush". */
 class PcmCaptureProcessor extends AudioWorkletProcessor {
   private readonly resampler = new Pcm16Resampler(sampleRate);
   private frame = new Int16Array(FRAME_SAMPLES);

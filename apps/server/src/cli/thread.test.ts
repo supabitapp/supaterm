@@ -157,7 +157,6 @@ it.effect("does not sign in to whatever took over a dead server's port", () =>
     });
     yield* persistServerRuntimeState({
       path: path.join(baseDir, "userdata", "server-runtime.json"),
-      // Above Linux's PID ceiling, as in pair.test.ts: no process can hold it.
       state: { ...state, pid: 4_194_305 },
     });
     using session = vi
@@ -185,7 +184,6 @@ it.effect("does not sign in to whatever took over a dead server's port", () =>
   ),
 );
 
-/** Answers each tool call with the next scripted response for that tool. */
 const scriptedTools = (script: Record<string, Array<unknown>>) => {
   const calls: Array<{ readonly tool: string; readonly args: unknown }> = [];
   const call = ((tool: string, args: unknown) => {
@@ -220,7 +218,6 @@ it.effect("--wait follows the sent run to its continuation's terminal status", (
   }),
 );
 
-/** The reads that ask whether a run after `runId` holds a message someone sent. */
 const laterRunReads = (
   laterRun: RunId,
   items: ReadonlyArray<{ readonly runId: RunId; readonly type: string }>,
@@ -248,7 +245,6 @@ it.effect("--wait lasts until background work the agent waits on wakes it and th
           resultRun: { runId: wakeRun, status: "completed" },
         },
       ],
-      // The wake run starts from a notification, which the messages view leaves out.
       supaterm_thread_read: laterRunReads(wakeRun, []),
     });
 
@@ -284,7 +280,6 @@ it.effect(
         supaterm_thread_wait: [
           { threadId, runId, status: "completed", timedOut: false },
           { threadId, runId, status: "completed", timedOut: true },
-          // The work ended, and the run it wakes is not recorded yet.
           {
             threadId,
             runId,
@@ -423,8 +418,6 @@ it.effect("start rejects a repeated --option before reaching the server", () =>
   ),
 );
 
-// Minting a session opens the target database with this checkout's migrations,
-// so a worktree must never reach the live install through the shared home.
 it.effect("a linked worktree only looks for a server in its own home", () =>
   Effect.gen(function* () {
     const root = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-thread-worktree-"));
@@ -512,8 +505,6 @@ it.effect("an installed CLI in a project's linked worktree uses the normal home"
   ),
 );
 
-// A CLI from another build would open the server's database with its own
-// migrations, and an older server does not apply the project's default mode.
 it.effect("refuses a server from another build before opening its database", () =>
   Effect.gen(function* () {
     const home = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "supaterm-thread-version-"));
@@ -543,13 +534,11 @@ it.effect("refuses a server from another build before opening its database", () 
   ),
 );
 
-/** Serves supaterm_thread_read pages the way the server does: positions count every item. */
 const timelineTools = (types: ReadonlyArray<string>) => {
   const items = types.map((type, position) => ({ position, itemId: `item-${position}`, type }));
   const served: Array<number> = [];
   const call = ((_tool: string, input: unknown) => {
     const args = input as { readonly afterPosition?: number; readonly limit: number };
-    // Scanning one match past the page keeps reads of huge fixtures linear.
     const matching: typeof items = [];
     for (let position = (args.afterPosition ?? -1) + 1; position < items.length; position++) {
       const item = items[position]!;

@@ -3,8 +3,6 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { act, render, stubGlobal, type Screen } from "../../../test/render";
 import { MediaVideoPlayer } from "./MediaVideoPlayer";
 
-// The observer never reports the video as visible, so it keeps preload="none" and never
-// requests these fake URLs; the test fires the media events itself.
 class HiddenIntersectionObserver {
   observe() {}
   disconnect() {}
@@ -50,7 +48,6 @@ describe("MediaVideoPlayer", () => {
     );
     await expectVideoSrc(screen, "/asset/changed/clip.mp4");
 
-    // A second re-sign while the changed file is still loading must not restart that load.
     await screen.rerender(
       <MediaVideoPlayer src="/asset/changed-renewed/clip.mp4" label="clip" revision="file-2" />,
     );

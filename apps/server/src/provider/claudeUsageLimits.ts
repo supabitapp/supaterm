@@ -26,10 +26,8 @@ const WINDOWS: Readonly<
   seven_day: { kind: "weekly", label: "Weekly", windowDurationMins: WEEK_MINS },
 };
 
-/** Reuse probed display names for streamed bucket types so mid-turn updates target the same row. */
 const OVERAGE_INCLUDED_EVENT_TYPE = "seven_day_overage_included";
 
-// The SDK does not yet type the spend budget returned by `get_usage`.
 const SpendMoney = Schema.Struct({
   amount_minor: Schema.Natural,
   currency: Schema.NonEmptyString,
@@ -85,7 +83,6 @@ function readSpendPercent(rateLimits: NonNullable<SDKControlGetUsageResponse["ra
   const spend = Option.getOrUndefined(
     decodeSpendBudget((rateLimits as { readonly spend?: unknown }).spend),
   );
-  // Minor-unit ratios require matching currency and scale; spend.percent is rounded.
   if (
     spend?.enabled &&
     spend.used.currency.trim().length > 0 &&
@@ -104,10 +101,6 @@ function readSpendPercent(rateLimits: NonNullable<SDKControlGetUsageResponse["ra
     : undefined;
 }
 
-/**
- * `model_scoped` shipped in the CLI after the SDK typings we pin, so it is
- * read structurally until the `.d.ts` catches up.
- */
 interface ModelScopedWindow {
   readonly display_name: string;
   readonly utilization: number | null;
@@ -192,7 +185,6 @@ export function claudeUsageResponseToLimits(input: {
     if (!window || typeof window.utilization !== "number") continue;
     windows.push(makeWindow(id, window.utilization, isoFromString(window.resets_at)));
   }
-  // The CLI's overage allowlist currently has one model; events refer to its first entry.
   let overageIncluded: string | undefined;
   for (const entry of readModelScoped(response.rate_limits)) {
     if (typeof entry.utilization !== "number") continue;

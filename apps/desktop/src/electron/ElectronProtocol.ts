@@ -68,10 +68,6 @@ export class ElectronProtocol extends Context.Service<
 function makeDesktopContentSecurityPolicy(input: DesktopProtocolRegistrationInput): string {
   const scriptSources = ["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"];
 
-  // The renderer connects directly to user-configured environments. Those environment
-  // origins are not known when this response policy is created, so restrict
-  // connections by the network schemes the client supports instead of by host.
-  // GLTFLoader fetches embedded textures through blob URLs after parsing the model.
   const connectSources = ["'self'", "blob:", "http:", "https:", "ws:", "wss:"];
 
   return [
@@ -99,9 +95,6 @@ function withContentSecurityPolicy(response: Response, policy: string): Response
   });
 }
 
-/**
- * Must run synchronously during process bootstrap, before Electron emits `ready`.
- */
 function registerDesktopSchemePrivilegesSync(): void {
   Electron.protocol.registerSchemesAsPrivileged([
     {
@@ -112,8 +105,6 @@ function registerDesktopSchemePrivilegesSync(): void {
         supportFetchAPI: true,
         corsEnabled: true,
         stream: true,
-        // Custom schemes skip Chromium's V8 code cache unless they opt in.
-        // Dev stays off: Vite serves changing code at stable URLs.
         codeCache: true,
       },
     },
@@ -162,7 +153,6 @@ const proxyRequest = Effect.fn("desktop.protocol.proxyRequest")(function* (
     return new Response(null, { status: 404 });
   }
 
-  // Assign the path so leading slashes cannot replace the configured host.
   const targetUrl = new URL(targetOrigin);
   targetUrl.pathname = requestUrl.pathname;
   targetUrl.search = requestUrl.search;

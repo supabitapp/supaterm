@@ -9,7 +9,6 @@ import * as Schema from "effect/Schema";
 
 import { loadCursorSdk, loadCursorSqlite } from "./sdk.ts";
 
-// The SDK leaves a shell-error promise unhandled, which would exit the server.
 const CURSOR_SHELL_SPAWN_MARKERS = [
   "dump_zsh_state",
   "dump_bash_state",
@@ -35,12 +34,6 @@ function isCursorShellSpawnFailure(reason: unknown): boolean {
   );
 }
 
-/**
- * The SDK writes final frames from promises nothing awaits. A closed stream rejects them
- * with WriteIterableClosedError; an ended request body rejects them with the Aborted
- * ConnectError its connect-node pump wraps around ERR_STREAM_WRITE_AFTER_END. The classes
- * are minified, so only `name` identifies them.
- */
 function isCursorClosedStreamWrite(reason: unknown): boolean {
   if (!(reason instanceof Error)) {
     return false;
@@ -55,11 +48,6 @@ function isCursorClosedStreamWrite(reason: unknown): boolean {
   );
 }
 
-/**
- * When the SDK's stall detector fires it aborts the request, then rejects a promise
- * nothing awaits. The abort is the SDK's own recovery, so it must not stop the server.
- * Only an abort raised from `onStall` counts; any other AbortError is still unexpected.
- */
 function isCursorStallAbort(reason: unknown): boolean {
   return (
     reason instanceof Error &&
@@ -99,7 +87,6 @@ const decodeCursorCliConfig = Schema.decodeEffect(
   ),
 );
 
-// Proxies without HTTP/2 need this Cursor CLI setting, which the SDK never reads itself.
 const readCursorCliUseHttp1ForAgent = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -144,7 +131,6 @@ export const layer = Layer.effect(
           process.off("unhandledRejection", onUnhandledRejection);
         }),
     );
-    // The SDK picks the agent transport per process, so no provider instance can own this.
     const useHttp1ForAgent = yield* readCursorCliUseHttp1ForAgent;
     let configured = false;
     yield* Effect.addFinalizer(() =>

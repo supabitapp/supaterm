@@ -56,10 +56,6 @@ export function hasQueuedTurnStart(
   if (Number.isNaN(messageAt)) return false;
   const nowMs = Date.parse(options.now);
   if (Number.isNaN(nowMs)) return false;
-  // Bounded on both sides: message timestamps originate on whichever device
-  // sent the message, so a clock ahead of this one yields a negative age
-  // that would otherwise hold the queued state for the whole skew. Mirrors
-  // the decider's guard.
   if (Math.abs(nowMs - messageAt) > QUEUED_TURN_START_GRACE_MS) return false;
   const turn = shell.latestRun ?? shell.latestTurn ?? null;
   if (turn === null) return true;
@@ -90,8 +86,6 @@ export function threadRaisedHandWhileSnoozed(shell: ThreadSnoozeShell): boolean 
   const request = shell.source?.pendingRuntimeRequest;
   if (shell.hasPendingApprovals || (request != null && request.kind !== "user_input")) return true;
   const questionAt = pendingQuestionAt(shell);
-  // Snoozing an existing question means "ask me later". Only a new question
-  // wakes it early; missing or invalid timestamps keep the request visible.
   if (
     (shell.hasPendingUserInput || request?.kind === "user_input") &&
     (shell.snoozedAt == null ||
@@ -165,10 +159,6 @@ export function threadWokeAt(
   if (shell.snoozedUntil == null) return null;
   const wakeAtMs = Date.parse(shell.snoozedUntil);
   if (Number.isNaN(wakeAtMs)) return null;
-  // An early hand-raise wake stays authoritative even after the scheduled
-  // wake time passes: reporting snoozedUntil then would resurface a Woke
-  // indicator the user already cleared by visiting (snoozedUntil is newer
-  // than that visit's lastVisitedAt).
   if (threadRaisedHandWhileSnoozed(shell)) {
     const failedAt = failureEdgeAt(shell);
     const questionAt = pendingQuestionAt(shell);
@@ -217,9 +207,6 @@ function snoozeTimeOfDayLabel(date: Date): string {
   return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
-// Calendar-day advance instead of adding DAY_MS: fixed millisecond offsets
-// land on the wrong local day across DST transitions (a spring-forward day
-// is 23 hours, so 23:30 + 24h skips the whole next day).
 function addSnoozeDays(base: Date, days: number): Date {
   const next = DateTime.toDate(DateTime.makeUnsafe(base));
   next.setDate(next.getDate() + days);
@@ -230,7 +217,6 @@ function pluralize(count: number, unit: string): string {
   return `${count} ${unit}${count === 1 ? "" : "s"}`;
 }
 
-/** "3 hours", "90 minutes", "2 days": the largest unit that divides evenly. */
 function formatSnoozeDuration(minutes: number): string {
   if (minutes % (24 * 60) === 0) return pluralize(minutes / (24 * 60), "day");
   if (minutes % 60 === 0) return pluralize(minutes / 60, "hour");
@@ -250,7 +236,6 @@ function snoozePresetDaysAhead(
   return (WEEKDAY_INDEX[setting.day] - now.getDay() + 7) % 7 || 7;
 }
 
-/** Labels follow the actual day gap, so a Monday option on a Sunday reads "Tomorrow". */
 function snoozePresetLabel(setting: SnoozePresetSetting, daysAhead: number): string {
   if (setting.kind === "after") return `In ${formatSnoozeDuration(setting.minutes)}`;
   if (daysAhead === 0) {
@@ -281,11 +266,9 @@ export function resolveSnoozePreset(
     daysAhead = snoozePresetDaysAhead(setting, now);
     wake = addSnoozeDays(now, daysAhead);
     wake.setHours(Number(setting.time.slice(0, 2)), Number(setting.time.slice(3)), 0, 0);
-    // A today option whose time has passed is left out until tomorrow.
     if (wake.getTime() <= now.getTime()) return null;
   }
   const label = snoozePresetLabel(setting, daysAhead);
-  // Durations and "Next week" don't name the wake day, so a wake on another day shows it.
   const labelNamesDay = setting.kind === "at" && label !== "Next week";
   const time = formatTime(wake);
   return {
@@ -304,21 +287,16 @@ export function resolveSnoozePresets(
   now: Date,
   options: SnoozePresetOptions = {},
 ): ReadonlyArray<SnoozePreset> {
-  // By minute, so a duration (which keeps the clock's seconds) and a set time in the same
-  // minute tie, and the stable sort keeps whichever comes first in settings.
   const wakeMinute = (preset: SnoozePreset) => Math.floor(Date.parse(preset.snoozedUntil) / 60_000);
   const seen = new Set<number>();
-  return (
-    (options.presets ?? DEFAULT_SNOOZE_PRESETS)
-      .flatMap((setting) => resolveSnoozePreset(setting, now, options.formatTime) ?? [])
-      // flatMap returned a new array; Hermes has no `toSorted`.
-      .sort((a, b) => wakeMinute(a) - wakeMinute(b))
-      .filter((preset) => {
-        if (seen.has(wakeMinute(preset))) return false;
-        seen.add(wakeMinute(preset));
-        return true;
-      })
-  );
+  return (options.presets ?? DEFAULT_SNOOZE_PRESETS)
+    .flatMap((setting) => resolveSnoozePreset(setting, now, options.formatTime) ?? [])
+    .sort((a, b) => wakeMinute(a) - wakeMinute(b))
+    .filter((preset) => {
+      if (seen.has(wakeMinute(preset))) return false;
+      seen.add(wakeMinute(preset));
+      return true;
+    });
 }
 
 /**
@@ -346,7 +324,6 @@ export function snoozeWakeLabel(snoozedUntil: string, options: { readonly now: s
   const nowMs = Date.parse(options.now);
   if (Number.isNaN(wakeMs) || Number.isNaN(nowMs)) return "now";
   if (wakeMs <= nowMs) return "now";
-  // Count clock minutes: callers pass a minute-floored or live `now`, and durations keep seconds.
   const minutes = Math.max(1, Math.floor(wakeMs / 60_000) - Math.floor(nowMs / 60_000));
   if (minutes < 60) return `${minutes}m`;
   if (minutes < 24 * 60) return `${Math.ceil(minutes / 60)}h`;
@@ -371,7 +348,6 @@ export function resolveCustomSnooze(input: CustomSnoozeInput, now: Date): string
   } else {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !/^\d{2}:\d{2}$/.test(input.time)) return null;
     wake = new Date(`${input.date}T${input.time}:00`);
-    // Reject rolled-over dates and nonexistent local times during DST changes.
     if (localSnoozeDate(wake) !== input.date || localSnoozeTime(wake) !== input.time) return null;
   }
   return Number.isFinite(wake.getTime()) && wake.getTime() > now.getTime()

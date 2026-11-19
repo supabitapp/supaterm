@@ -122,7 +122,6 @@ function makeTestAdapter(input: {
   readonly subagentOnlyBackgroundWork?: boolean;
   readonly holdFirstTurn?: Deferred.Deferred<void>;
   readonly releaseFirstTurn?: Deferred.Deferred<void>;
-  /** A tool call the held turn reports running before it holds. */
   readonly heldRunningToolCall?: {
     readonly id: TurnItemId;
     readonly toolName: string;
@@ -130,7 +129,6 @@ function makeTestAdapter(input: {
   readonly backgroundTasksEndWithProcess?: true;
   readonly backgroundWork?: Ref.Ref<boolean>;
   readonly closedSessions?: Ref.Ref<ReadonlyArray<string>>;
-  // ACP cannot truncate, so its rollback answers with a fresh, empty native session.
   readonly rollback?: "truncates" | "replaces_native_thread";
 }): ProviderAdapter.ProviderAdapterV2["Service"] {
   return {
@@ -187,8 +185,6 @@ function makeTestAdapter(input: {
           ...(input.backgroundWork === undefined
             ? {}
             : {
-                // Like Claude: native subagents are visible only to the session-wide
-                // probe, never to the per-thread roster probe.
                 hasPendingBackgroundWork: Ref.get(input.backgroundWork),
                 hasPendingBackgroundWorkForThread: () => Effect.succeed(false),
               }),
@@ -490,7 +486,6 @@ const waitForIdle = Effect.fn("ProviderSwitchTest.waitForIdle")(function* (
   if (isIdle(current)) {
     return current;
   }
-  // Projections commit with their events, so each later event is the only time to re-read.
   const [idle] = yield* eventSink.stream({ afterSequence }).pipe(
     Stream.mapEffect(() => orchestrator.getThreadProjection(targetThreadId)),
     Stream.filter(isIdle),
@@ -505,7 +500,6 @@ const waitForIdle = Effect.fn("ProviderSwitchTest.waitForIdle")(function* (
   return idle;
 });
 
-// Same tag as the adapter's unexported error raised when Claude never answers setMcpServers.
 class ClaudeMcpRegistrationTimeoutError extends Schema.TaggedError<ClaudeMcpRegistrationTimeoutError>()(
   "ClaudeMcpRegistrationTimeoutError",
   {},
@@ -831,7 +825,6 @@ describe("orchestration v2 provider switching", () => {
           yield* wait(3);
         }
         if (replaceNative) {
-          // Switching back to Codex already released Claude's session.
           yield* Ref.set(failResumeOnce, true);
         }
         if (scenario.includes("retry")) yield* Ref.set(failStartOnce, true);
@@ -1294,7 +1287,6 @@ describe("orchestration v2 provider switching", () => {
       const cwd = yield* checkpointWorkspace("handoff-estimate-headroom");
       const capturedTurns = yield* Ref.make<ReadonlyArray<CapturedTurn>>([]);
       const generation = yield* Ref.make(0);
-      // About 112 KB of ordinary English is about 25k tokens: a quarter of a 128k window.
       const prose = "The quick brown fox jumps over the lazy dog. ".repeat(2_500);
       const layerRegistry = ProviderAdapterRegistry.layerFromAdapters([
         makeTestAdapter({
@@ -1305,7 +1297,6 @@ describe("orchestration v2 provider switching", () => {
           responseByRunOrdinal: { 2: "Source work" },
           capturedTurns,
         }),
-        // No window and no usage, like an ACP registry agent that sends no usage_update.
         makeTestAdapter({
           instanceId: CLAUDE_MODEL_SELECTION.instanceId,
           driver: CLAUDE_DRIVER,
@@ -1367,7 +1358,6 @@ describe("orchestration v2 provider switching", () => {
           (yield* orchestrator.getThreadProjection(threadId)).runs.at(-1)?.status,
           "completed",
         );
-        // A second generation means Supaterm discarded the native session as full.
         assert.equal(yield* Ref.get(generation), 1);
       }).pipe(
         Effect.provide(
@@ -1528,7 +1518,6 @@ describe("orchestration v2 provider switching", () => {
     "keeps the latest turn when a resume fallback also delivers %s",
     (older) =>
       Effect.gen(function* () {
-        // A run that fails before its provider turn starts is retried as a missed request.
         const missed = older === "a missed request";
         const name = `resume-fallback-handoff-order${missed ? "-missed" : ""}`;
         const cwd = yield* checkpointWorkspace(name);
@@ -1674,7 +1663,6 @@ describe("orchestration v2 provider switching", () => {
       withholds: ["favourite animal is an otter"],
     },
     {
-      // Pi forks into a new native thread that still holds the kept turns.
       name: "a native rollback that forks a new native thread",
       instanceId: CLAUDE_MODEL_SELECTION.instanceId,
       driver: CLAUDE_DRIVER,
@@ -1819,7 +1807,6 @@ describe("orchestration v2 provider switching", () => {
             } else {
               yield* createThread(threadId);
             }
-            // Runs before a fresh-context run never reach a provider again.
             const first = scenario.history === "after_fresh_context" ? 2 : 1;
             if (first === 2) {
               yield* runToCompletion(1, "My home town is Oslo. Reply with only the word: noted");
@@ -1956,7 +1943,6 @@ describe("orchestration v2 provider switching", () => {
         cause: new ClaudeMcpRegistrationTimeoutError(),
       }),
     ],
-    // Claude Code ends the query with "No message found with message.uuid" before the prompt.
     [
       "a resume point Claude rejects",
       new ProviderAdapter.ProviderAdapterProtocolError({
@@ -1964,7 +1950,6 @@ describe("orchestration v2 provider switching", () => {
         detail: "Claude provider query ended before the turn could start.",
       }),
     ],
-    // Injected history is text only, so a refusal after injection must not settle the image.
     [
       "background work after native history injection",
       new ClaudeBackgroundWorkBlocksQueryReplacementError(),
@@ -2258,8 +2243,6 @@ describe("orchestration v2 provider switching", () => {
     }),
   );
 
-  // regression: #15993 supaterm_worktree_handoff releases the Claude session that runs it. Nothing
-  // was left to report how the call ended, so it stayed running and the thread stayed Waiting.
   it.live("interrupts the handoff tool call that releases its own session", () =>
     Effect.gen(function* () {
       const key = "handoff-cuts-off-tool-call";
@@ -2337,7 +2320,6 @@ describe("orchestration v2 provider switching", () => {
         yield* Deferred.await(started);
         yield* Fiber.join(toolCallRunning);
 
-        // The handoff itself is not a failure: the run completes once the session closes.
         const runSettled = yield* awaitEvent(
           (event) => event.type === "run.updated" && event.payload.status === "waiting",
         );
@@ -3174,7 +3156,6 @@ describe("orchestration v2 provider switching", () => {
           capturedTurns,
         }),
       ];
-      // Without a shared continuation key, each Claude instance owns its own native history.
       const layerRegistry = sharedHistory
         ? Layer.succeed(
             ProviderAdapterRegistry.ProviderAdapterRegistryV2,
@@ -3254,7 +3235,6 @@ describe("orchestration v2 provider switching", () => {
           const firstSession = afterQueue.providerSessions.find(
             (session) => session.providerInstanceId === CLAUDE_MODEL_SELECTION.instanceId,
           );
-          // Detaching would end the background agents, so the busy session must stay up.
           assert.deepEqual(yield* Ref.get(closedSessions), []);
           assert.equal(firstSession?.status, "ready");
           if (!sharedHistory) {
@@ -3267,7 +3247,6 @@ describe("orchestration v2 provider switching", () => {
             );
             return;
           }
-          // Resuming the native thread beside the busy session would fork its history.
           assert.deepEqual(
             afterQueue.runs.map((run) => [run.status, run.queueHeld === true]),
             [
@@ -3303,8 +3282,6 @@ describe("orchestration v2 provider switching", () => {
         assert.equal(firstSession?.status, "ready");
 
         if (background) {
-          // Native subagents live only in the adapter's roster, so the projection's
-          // pendingBackgroundTasks stays empty while the probe still reports work.
           assert.deepEqual(afterFirst.providerThreads[0]?.pendingBackgroundTasks ?? [], []);
           const refused = yield* send(2, secondSelection, ":refused").pipe(Effect.flip);
           assert.include(String(refused.cause), "still running background agents or commands");
@@ -3337,7 +3314,6 @@ describe("orchestration v2 provider switching", () => {
           projection.providerSessions.map((session) => session.providerInstanceId),
           [secondSelection.instanceId],
         );
-        // The detached event alone hides the session; the runtime must also close.
         assert.deepEqual(yield* Ref.get(closedSessions), [firstSession!.id]);
       }).pipe(
         Effect.provide(
@@ -3361,7 +3337,6 @@ describe("orchestration v2 provider switching", () => {
     }),
   );
 
-  // regression: #16000 thread setting changes must not end a Claude session's background work
   it.live.each([
     ["runtime mode", "runtime-mode"],
     ["worktree", "worktree"],
@@ -3411,7 +3386,6 @@ describe("orchestration v2 provider switching", () => {
         const afterFirst = yield* waitForIdle(threadId);
         const session = afterFirst.providerSessions[0];
         assert.equal(session?.status, "ready");
-        // The turn ended but a background subagent keeps running in the CLI process.
         yield* Ref.set(backgroundWork, true);
 
         const commandId = CommandId.make(`command:settings-background-${change}:change`);
@@ -3437,7 +3411,6 @@ describe("orchestration v2 provider switching", () => {
         yield* worker.drain();
 
         const projection = yield* orchestrator.getThreadProjection(threadId);
-        // Refusing or deferring are both fine; closing the busy process is not.
         assert.deepEqual(yield* Ref.get(closedSessions), []);
         assert.deepEqual(
           projection.providerSessions.map((candidate) => [candidate.id, candidate.status]),
@@ -3484,7 +3457,6 @@ describe("orchestration v2 provider switching", () => {
     }),
   );
 
-  // regression: a session kept by a queued hand-off is probed when a later change detaches it
   it.live(
     "refuses a later instance change while a retained hand-off session runs background work",
     () =>
@@ -3545,7 +3517,6 @@ describe("orchestration v2 provider switching", () => {
               [CLAUDE_MODEL_SELECTION.instanceId, "completed"],
             ],
           );
-          // The queued hand-off kept the busy Codex session attached.
           const codexSession = afterHandoff.providerSessions.find(
             (session) => session.providerInstanceId === CODEX_MODEL_SELECTION.instanceId,
           );
@@ -3629,7 +3600,6 @@ describe("orchestration v2 provider switching", () => {
         const cwd = yield* checkpointWorkspace(`fresh-context-${key}`);
         const capturedTurns = yield* Ref.make<ReadonlyArray<CapturedTurn>>([]);
         const closedSessions = yield* Ref.make<ReadonlyArray<string>>([]);
-        // A queued start has nobody to refuse, so a busy session must stay up.
         const backgroundWork = yield* Ref.make(queued);
         const started = yield* Deferred.make<void>();
         const release = yield* Deferred.make<void>();
@@ -3677,7 +3647,6 @@ describe("orchestration v2 provider switching", () => {
               attachments: [],
               modelSelection,
               ...options,
-              // A fresh send must never steer the running turn.
               deliveryIntent: "auto",
               dispatchMode: { type: "start_immediately" },
             });
@@ -3695,7 +3664,6 @@ describe("orchestration v2 provider switching", () => {
             branch: null,
             worktreePath: cwd,
           });
-          // Codex keeps a native thread from before the fresh run that must not resume.
           yield* send("zero", CODEX_MODEL_SELECTION);
           yield* worker.drain();
           yield* waitForIdle(freshThreadId);
@@ -3714,14 +3682,12 @@ describe("orchestration v2 provider switching", () => {
           )!;
           yield* send("beta", CLAUDE_MODEL_SELECTION, { freshContext: true });
           if (queued) {
-            // Queued before the fresh run started, so it is bound to the old conversation.
             yield* send("gamma", CLAUDE_MODEL_SELECTION);
             const waiting = yield* orchestrator.getThreadProjection(freshThreadId);
             assert.deepEqual(
               waiting.runs.map((run) => run.status),
               ["completed", "running", "queued", "queued"],
             );
-            // Steering would send it into the conversation it is meant to leave.
             const promoted = yield* orchestrator
               .dispatch({
                 type: "queued-message.promote-to-steer",
@@ -3737,7 +3703,6 @@ describe("orchestration v2 provider switching", () => {
           }
           yield* worker.drain();
           yield* waitForIdle(freshThreadId);
-          // Claude hosts one native thread per session, so an idle old one is closed.
           assert.deepEqual(yield* Ref.get(closedSessions), queued ? [] : [firstSession.id]);
           yield* Ref.set(backgroundWork, false);
           yield* send("delta", CODEX_MODEL_SELECTION);
@@ -3821,7 +3786,6 @@ describe("orchestration v2 provider switching", () => {
         yield* Effect.gen(function* () {
           const orchestrator = yield* Orchestrator.OrchestratorV2;
           const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
-          // The command ScheduledTaskService sends for a fresh-session schedule.
           const fire = (name: string) =>
             orchestrator.dispatch({
               type: "message.dispatch",
@@ -3854,7 +3818,6 @@ describe("orchestration v2 provider switching", () => {
           yield* fire("first");
           yield* worker.drain();
           yield* waitForIdle(threadId);
-          // The first run left a background command running after its turn ended.
           yield* Ref.set(backgroundWork, true);
           yield* fire("second");
           yield* worker.drain();
@@ -3864,7 +3827,6 @@ describe("orchestration v2 provider switching", () => {
             turns.find((turn) => turn.text.endsWith(`Scheduled ${name}`));
           assert.isDefined(turnFor("second"));
           assert.notEqual(turnFor("second")!.nativeThreadId, turnFor("first")!.nativeThreadId);
-          // Closing the busy session would end its background work.
           assert.deepEqual(yield* Ref.get(closedSessions), []);
         }).pipe(
           Effect.provide(
@@ -3950,7 +3912,6 @@ describe("orchestration v2 provider switching", () => {
           ["user-third", false],
         ] as const) {
           if (name === "compaction") {
-            // The user's run compacts, so later dispatches no longer read the first scheduled run's message.
             const run = (yield* orchestrator.getThreadProjection(threadId)).runs.at(-1)!;
             const compactedAt = yield* DateTime.now;
             yield* eventSink.write({
@@ -3995,7 +3956,6 @@ describe("orchestration v2 provider switching", () => {
           turnFor("scheduled")!.nativeThreadId,
           turnFor("user-first")!.nativeThreadId,
         );
-        // The scheduled run's fresh session must not replace the user's conversation.
         assert.equal(turnFor("user-second")!.nativeThreadId, turnFor("user-first")!.nativeThreadId);
         assert.equal(turnFor("user-third")!.nativeThreadId, turnFor("user-first")!.nativeThreadId);
       }).pipe(
@@ -4091,8 +4051,6 @@ describe("orchestration v2 provider switching", () => {
         yield* send("alpha", CLAUDE_MODEL_SELECTION);
         yield* Deferred.await(started);
         yield* worker.drain();
-        // Queued while no fresh run has started: gamma binds to zero's Codex thread, and
-        // delta reserves its own. Once beta starts, gamma must not take delta's thread.
         yield* send("beta", CLAUDE_MODEL_SELECTION, { freshContext: true });
         yield* send("gamma", CODEX_MODEL_SELECTION);
         yield* send("delta", CODEX_MODEL_SELECTION, { freshContext: true });
@@ -4519,8 +4477,6 @@ describe("orchestration v2 provider switching", () => {
           Stream.runHead,
         );
         yield* worker.drain();
-        // Clients whose bounded snapshot omitted the hidden queued item must
-        // receive it while the run is still queued, before it fails.
         const throughSequence = yield* eventSink.latestSequence({ threadId: rejectedThreadId });
         const failureEvents = yield* eventSink
           .stream({ threadId: rejectedThreadId, afterSequence: queuedSequence })
@@ -4542,7 +4498,6 @@ describe("orchestration v2 provider switching", () => {
         if (restored?.type === "turn-item.updated") {
           assert.deepEqual(restored.payload, {
             ...queuedItem,
-            // Its run is now the second one, so it moves into that run's positions.
             ordinal: 2_000_001,
             status: "failed",
             completedAt: restored.occurredAt,
@@ -5006,7 +4961,6 @@ describe("orchestration v2 provider switching", () => {
             sourcePoint: { type: "run", runId: source.runs[0]!.id },
             title: "Fork",
           });
-          // A first turn on another provider resolves the fork through portable context.
           yield* send(forkThreadId, "fork-claude", CLAUDE_MODEL_SELECTION);
           if (queued) {
             yield* Deferred.await(started);
@@ -5017,7 +4971,6 @@ describe("orchestration v2 provider switching", () => {
               CODEX_MODEL_SELECTION,
             );
             if (cancelled) {
-              // The cancelled run leaves its reserved Codex row behind without a native thread.
               const pending = (yield* orchestrator.getThreadProjection(forkThreadId)).runs.at(-1)!;
               yield* orchestrator.dispatch({
                 type: "queued-run.cancel",
@@ -5043,7 +4996,6 @@ describe("orchestration v2 provider switching", () => {
           const turnFor = (name: string) =>
             turns.find((turn) => turn.text.endsWith(`Prompt ${name}`))!.text;
           const switched = turnFor("fork-codex");
-          // The switched provider gets the conversation the fork shows, oldest first.
           assert.include(switched, "Prompt source");
           const positions = ["Prompt source", "release marker is violet", "Prompt fork-claude"].map(
             (text) => switched.indexOf(text),
@@ -5052,7 +5004,6 @@ describe("orchestration v2 provider switching", () => {
             positions,
             positions.toSorted((a, b) => a - b),
           );
-          // Claude already saw the inherited rows, so its return only carries the Codex run.
           const returned = turnFor("fork-claude-again");
           assert.include(returned, "Prompt fork-codex");
           assert.notInclude(returned, "Prompt source");

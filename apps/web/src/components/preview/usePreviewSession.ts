@@ -49,8 +49,6 @@ const previewSessionSyncAtom = Atom.family((threadKey: string) => {
       if (result.waiting || !AsyncResult.isSuccess(result)) return;
       reconcilePreviewServerSessions(threadRef, result.value);
       if (!readThreadPreviewState(threadRef).listLoaded) {
-        // An event overtook the first list. Retry the authoritative baseline;
-        // do not declare a partial event-only index ready for surface cleanup.
         queueMicrotask(() => {
           if (!disposed) get.refresh(sessionsAtom);
         });
@@ -84,9 +82,6 @@ const previewSessionSyncAtom = Atom.family((threadKey: string) => {
     get.mount(eventsAtom);
     queueMicrotask(() => {
       if (disposed) return;
-      // The cached list can predate an automation-created tab. Keep the local
-      // snapshot visible until an authoritative refresh arrives instead of
-      // reconciling against a stale empty result when the panel first mounts.
       const current = get.once(sessionsAtom);
       if (!AsyncResult.isInitial(current) && !current.waiting) get.refresh(sessionsAtom);
       if (eventsVersion === 0) applyLatestEvent(initialEvent);
@@ -100,9 +95,6 @@ export function usePreviewSession(threadRef: ScopedThreadRef): void {
 
 const inactiveAtom = Atom.make(() => undefined);
 
-// Discover background tabs without listing every thread at startup. Keep each
-// sync while the thread has tabs so later events still arrive while chat is
-// absent, then release it so closed previews stop costing a list and a fan-out.
 const desktopHostedPreviewSyncAtom = Atom.family((environmentId: EnvironmentId) => {
   const eventsAtom = previewEnvironment.events({ environmentId, input: {} });
   return Atom.make((get) => {
@@ -118,8 +110,6 @@ const desktopHostedPreviewSyncAtom = Atom.family((environmentId: EnvironmentId) 
         if (releaseByThreadId.has(threadId)) return;
         const threadKey = scopedThreadKey(scopeThreadRef(environmentId, ThreadId.make(threadId)));
         const unmount = get.registry.mount(previewSessionSyncAtom(threadKey));
-        // The opening event may not be applied yet, so wait until a tab has
-        // been seen. A pending local close can still be cancelled and restored.
         let hadSessions = false;
         const unwatch = get.registry.subscribe(
           previewStateAtom(threadKey),

@@ -72,7 +72,6 @@ export const scratchFolderRoot = (baseDir: string, path: Path.Path) =>
 
 export type ScratchError = ScratchUnavailableError | ScratchFolderError | ScratchProjectError;
 
-// The spawner checks cwd before spawning, so NotFound from spawn itself means a missing executable.
 const isMissingExecutable = (cause: unknown) =>
   PlatformError.isPlatformError(cause) &&
   cause.reason._tag === "NotFound" &&
@@ -170,7 +169,6 @@ function escapeXml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-// ProjectFaviconResolver finds assets/icon.svg on every clone.
 function namedProjectIconSvg(name: string): string {
   const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
   const initials =
@@ -232,7 +230,6 @@ const make = Effect.gen(function* () {
   const projects = yield* ProjectService.ProjectService;
   const random = yield* SecureRandom.SecureRandom;
 
-  // Non-recursive mkdir atomically claims a name; racers move on after AlreadyExists.
   const claimFreeFolder = Effect.fnUntraced(function* <E>(
     folderFor: (attempt: number) => Effect.Effect<Option.Option<string>, E>,
     onError: (folder: string, cause: PlatformError.PlatformError) => E,
@@ -252,7 +249,6 @@ const make = Effect.gen(function* () {
     }
   });
 
-  // Scratch inside a checkout would inherit its git status and checkpoints; require a data dir outside work trees.
   const [probe, invalidate] = yield* Effect.cachedInvalidateWithTTL(
     gitWorkflow.repositoryRoot(config.baseDir).pipe(
       Effect.catchIf(isGitMissing, () => Effect.succeed(null)),
@@ -269,7 +265,6 @@ const make = Effect.gen(function* () {
         },
       ),
     ),
-    // A failed git check (say, a timeout on a busy machine) is not an answer; ask again next time.
     Exit.match({ onSuccess: () => Duration.infinity, onFailure: () => Duration.zero }),
   );
   const scratchProbe = probe.pipe(
@@ -280,7 +275,6 @@ const make = Effect.gen(function* () {
     ),
     Effect.onInterrupt(() => invalidate),
   );
-  // A symlinked scratch folder lets the No project live at either the link or its target.
   const scratchProjectRoot = (root: string) =>
     fileSystem.realPath(root).pipe(
       Effect.flatMap((target) =>
@@ -321,7 +315,6 @@ const make = Effect.gen(function* () {
           workspaceRoot,
         })
         .pipe(
-          // bootstrap reads before locking; racing creates return the winner in a conflict.
           Effect.catchTags({
             ProjectConflictError: (conflict) =>
               Effect.succeed({
@@ -332,7 +325,6 @@ const make = Effect.gen(function* () {
           Effect.mapError((cause) => new ScratchProjectError({ workspaceRoot, cause })),
         );
       if (bootstrapped.created) {
-        // Set once at create, so a user's own icon choice is never overwritten.
         yield* projects
           .update({
             commandId: CommandId.make(`scratch-project-icon:${id}`),
@@ -444,8 +436,6 @@ const make = Effect.gen(function* () {
       path.join(cwd, "assets", "icon.svg"),
       namedProjectIconSvg(name),
     );
-    // Force explicit filenames so global ignore rules cannot drop them, and keep
-    // core.safecrlf=true from refusing the LF files under CRLF conversion.
     yield* git.execute({
       operation: "ManagedProjectFolders.add",
       cwd,
@@ -490,7 +480,6 @@ const make = Effect.gen(function* () {
         workspaceRoot,
       })
       .pipe(
-        // Re-check ownership before deleting rejected creations; interruption after commit or conflicts can leave an owner.
         Effect.tapError((error) =>
           error._tag === "ProjectConflictError"
             ? Effect.void

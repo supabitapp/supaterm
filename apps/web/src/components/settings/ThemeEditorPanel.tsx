@@ -282,8 +282,6 @@ const PANEL_MARGIN = 8;
 const PANEL_MIN_WIDTH = 280;
 const PANEL_MIN_HEIGHT = 220;
 
-/** Keeps the panel horizontally inside the viewport. Vertically only its header must stay
- * visible, so users can park the panel low to see the app behind it. */
 function clampPanelPosition(
   viewport: { readonly width: number; readonly height: number },
   x: number,
@@ -300,12 +298,10 @@ function clampPanelPosition(
 
 const readWindowViewport = () => ({ width: window.innerWidth, height: window.innerHeight });
 
-// Kept out of the component: the compiler cannot lower a throw inside try/catch.
 function retireMergedTheme(retired: ThemeDefinition, mergeTarget: ThemeDefinition) {
   try {
     removeCustomTheme(retired.id);
   } catch (cause) {
-    // Restore the pre-merge target on retirement failure; leaving the persisted merge would collide on retry.
     try {
       updateCustomTheme(mergeTarget);
     } catch {}
@@ -355,8 +351,6 @@ export function ThemeEditorPanel({
   const [isInspecting, setIsInspecting] = useState(false);
   const [selectedRole, setSelectedRole] = useState<ThemeColorRole | null>(null);
   const [usageCount, setUsageCount] = useState<number | null>(null);
-  // The rendered width is CSS-sized unless the user resized the panel, so the position
-  // remembers the width measured at the last drag or resize.
   const [position, setPosition] = useState<{ x: number; y: number; width: number } | null>(null);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -374,7 +368,6 @@ export function ThemeEditorPanel({
     width: number;
     height: number;
   } | null>(null);
-  // Seed during render so the first open frame cannot preview the previous session's colors.
   const [seededOpen, setSeededOpen] = useState(false);
   if (seededOpen !== open) {
     setSeededOpen(open);
@@ -396,7 +389,6 @@ export function ThemeEditorPanel({
 
       setName(editingTheme?.label ?? seedName ?? "");
       setActiveAppearance(nextAppearance);
-      // Open unmanaged themes in advanced mode to preserve imported or hand-tuned colors.
       setIsAdvanced(sourceTheme !== null && sourceTheme.managed !== true);
       setSimpleColorsDirtyByAppearance({ light: false, dark: false });
       setShouldRegenerateGuidedColors(sourceTheme !== null && sourceTheme.managed !== true);
@@ -483,8 +475,6 @@ export function ThemeEditorPanel({
     if (isAdvanced) setShouldRegenerateGuidedColors(true);
   };
 
-  // A color edit also rewrites derived roles, so cancelling restores the whole snapshot rather than
-  // replaying the previous value through updateColor.
   const startColorEdit = () => {
     colorEditSnapshotRef.current = {
       colorsByAppearance,
@@ -550,7 +540,6 @@ export function ThemeEditorPanel({
     const highlightedRoles = selectedHighlightRolesKey.split(",") as Array<ThemeColorRole>;
     const refreshHighlights = () => setUsageCount(highlightThemeRoleUsage(highlightedRoles));
     refreshHighlights();
-    // Each refresh snapshots the whole tree twice; throttle streaming and virtualization mutations.
     const MIN_REFRESH_INTERVAL_MS = 500;
     let refreshFrame: number | null = null;
     let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -685,7 +674,6 @@ export function ThemeEditorPanel({
     };
     const cancelInspection = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      // Esc leaves inspection only; Settings must not see it and close too.
       event.preventDefault();
       event.stopImmediatePropagation();
       clearHover();
@@ -900,7 +888,6 @@ export function ThemeEditorPanel({
 
   const renderAppearanceButton = (appearance: ThemeAppearance) => {
     const lockReason = appearanceLockReason(appearance);
-    // Use aria-disabled so locked modes remain hoverable for explanatory tooltips.
     const button = (
       <Toggle aria-disabled={lockReason !== null} value={appearance}>
         {appearance === "light" ? "Light" : "Dark"}
@@ -1034,8 +1021,6 @@ export function ThemeEditorPanel({
     );
   };
 
-  // Geometry is stored as the user left it and fitted to the current viewport here, so a
-  // window that shrinks and grows back returns the panel to where it was.
   const viewport = useViewportSize();
   const shownSize = size && {
     width: Math.max(PANEL_MIN_WIDTH, Math.min(size.width, viewport.width - PANEL_MARGIN * 2)),
@@ -1077,8 +1062,6 @@ export function ThemeEditorPanel({
     const rect = panelRef.current?.getBoundingClientRect();
     if (!rect) return;
     event.preventDefault();
-    // Resize from where the panel is drawn, so a position clamped after the window shrank, or bottom-right
-    // parking, can't make the top-left corner slide.
     const next = clampPanelPosition(readWindowViewport(), rect.x, rect.y, rect.width);
     setPosition({ ...next, width: rect.width });
     resizeStartRef.current = {
@@ -1124,7 +1107,6 @@ export function ThemeEditorPanel({
       )}
       data-theme-editor-panel
       onKeyDown={(event) => {
-        // Popups opened from the editor are portaled outside it and handle their own Esc.
         if (event.key !== "Escape" || event.defaultPrevented) return;
         if (!event.currentTarget.contains(event.target as Node)) return;
         event.stopPropagation();

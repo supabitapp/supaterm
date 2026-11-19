@@ -23,8 +23,6 @@ it.effect.each(["merge", "disable-auto-merge"] as const)(
           TestSourceControlHost.layer({
             process: {
               run: (input) => {
-                // glab prefers a remote named `gitlab` to `origin`. The checkout's
-                // selected repository must still own every request and mutation.
                 const host = input.env?.GITLAB_HOST ?? otherHost;
                 const path = input.args[1];
                 const mutation =
@@ -641,7 +639,6 @@ describe("optional activity reads", () => {
         const { comments, reviewThreads, overviewThreads } =
           yield* provider.getChangeRequestActivity(reference);
 
-        // Clients that require a thread path must never receive one without it.
         expect(reviewThreads.map(({ id }) => id)).toEqual(["file"]);
         expect(overviewThreads?.map(({ id }) => id)).toEqual(["overview"]);
 
@@ -999,7 +996,6 @@ describe("review decisions", () => {
         expect(listed).not.toHaveProperty("listStates");
         expect(listed.items[0]?.reviewDecision).toBe("changes-requested");
 
-        // An unreadable version leaves the list on REST rather than failing it, and stays known.
         const unreadable = yield* providerReading(
           Effect.fail(
             new GitLabPullRequestCli.GitLabMergeRequestReadError({

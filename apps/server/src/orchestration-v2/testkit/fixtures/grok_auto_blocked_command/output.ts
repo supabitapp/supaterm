@@ -23,7 +23,6 @@ interface Frame {
   readonly result?: unknown;
 }
 
-// Grok Auto asks only clients declaring a prompting type; others silently receive "Auto mode blocked this action".
 export function assertGrokAutoBlockedCommandOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,
@@ -80,7 +79,6 @@ export function assertGrokAutoBlockedCommandOutput(
   )?.frame.result;
   assert.deepEqual(answer, { outcome: { outcome: "selected", optionId: "allow-once" } });
 
-  // Grok saves always-allow project-wide; do not offer it as session approval.
   const approval = projection.turnItems.find(
     (item) => item.type === "approval_request" && item.requestId === request.id,
   );

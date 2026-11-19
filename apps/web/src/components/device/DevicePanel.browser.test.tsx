@@ -62,7 +62,6 @@ const deviceState: DeviceServiceState = {
   revision: 1,
 };
 let currentState = deviceState;
-// One probe per environment, however many views mount it; each probe sends one list.
 vi.mock("~/state/device", async () => {
   const Effect = await import("effect/Effect");
   const { AsyncResult, Atom } = await import("effect/reactivity");
@@ -203,7 +202,6 @@ describe("DevicePanel host probe", () => {
   it("probes the hosts once while setup shows inside the panel", async () => {
     setup();
     currentState = { ...deviceState, onboardingCompleted: false };
-    // An environment no other test probed, so its probe starts fresh.
     const threadRef = { ...threadA, environmentId: EnvironmentId.make("environment-setup") };
     await using _screen = await render(devicePanel(threadRef), { container });
 

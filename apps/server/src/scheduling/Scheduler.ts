@@ -48,7 +48,6 @@ const make = Effect.gen(function* () {
           return next;
         }),
     );
-    // Due work waits for startup recovery, which would cancel runs it started.
     yield* forkParked(run);
   });
   const tick = Ref.get(sources).pipe(

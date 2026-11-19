@@ -40,7 +40,6 @@ const DEFAULT_API_BASE_URL = "https://api.bitbucket.org/2.0";
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const BITBUCKET_API_REQUEST_TIMEOUT = "30 seconds";
-/** A sweep over many branches would otherwise reach Bitbucket as one burst of lookups. */
 const CONCURRENCY = 4;
 
 const BitbucketApiEnvConfig = Config.all({
@@ -52,7 +51,6 @@ const BitbucketApiEnvConfig = Config.all({
   apiToken: Config.String("SUPATERM_BITBUCKET_API_TOKEN").pipe(Config.option),
 });
 
-// Server and Data Center use a different API; a custom Cloud endpoint must be explicit.
 export const BitbucketServesHost = Config.String("SUPATERM_BITBUCKET_API_BASE_URL").pipe(
   Config.option,
   Config.map(
@@ -545,7 +543,6 @@ type BitbucketCredential =
   | { readonly kind: "access-token"; readonly accessToken: string }
   | { readonly kind: "api-token"; readonly email: string; readonly apiToken: string };
 
-/** Invalid header values can throw errors containing credentials; treat them as unset. */
 const HEADER_SAFE = /^[\x21-\x7e]+$/u;
 
 function credentialFrom(input: {
@@ -650,7 +647,6 @@ export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const limits = yield* SourceControlRateLimit.SourceControlRateLimit;
   const slots = yield* Semaphore.make(CONCURRENCY);
-  // The repository host PullRequestService keys its own backoff under, so both share one pause.
   const rateLimitKey = {
     provider: SourceControlProviderKind.make("bitbucket"),
     host: "bitbucket.org",
@@ -674,7 +670,6 @@ export const make = Effect.gen(function* () {
       ),
     ),
     Effect.catch((error) =>
-      // No cause: a settings decode error can quote a hand-edited token.
       Effect.logWarning("failed to read Bitbucket credentials from settings", {
         operation: error.operation,
       }).pipe(
@@ -696,12 +691,6 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  /**
-   * Every request waits for one of the shared slots, then honors the pause a 429 starts for the
-   * whole host. Each queued lookup would otherwise spend its own 429 and keep the quota exhausted.
-   * Background reads fail at once while paused; a write or an interactive read has a user waiting
-   * on it, so it still goes out.
-   */
   const throttled = Effect.fn("BitbucketApi.throttled")(
     function* <A, R>(method: string, effect: Effect.Effect<A, BitbucketApiError, R>) {
       const interactive = yield* SourceControlRateLimit.Interactive;
@@ -774,7 +763,6 @@ export const make = Effect.gen(function* () {
     readonly repository?: string;
   }) {
     if (input.context?.provider.kind === "bitbucket" && !servesProvider(input.context.provider)) {
-      // Falling back to another remote could act on a different repository.
       return yield* new BitbucketRepositoryRemoteNotFoundError({ cwd: input.cwd });
     }
     if (input.repository !== undefined) {
@@ -910,8 +898,6 @@ export const make = Effect.gen(function* () {
       repository: input.sourceRepositoryName,
       ...(input.context ? { context: input.context } : {}),
     }).pipe(Effect.map(normalizeRepositoryCloneUrls));
-    // Git fetches from a remote's first URL; `config --get` returns the last of several, and
-    // `git remote -v` applies `insteadOf` rewrites.
     const originRemoteUrl = yield* git
       .execute({
         operation: "BitbucketApi.readOriginRemoteUrl",
@@ -939,7 +925,6 @@ export const make = Effect.gen(function* () {
     return origin !== null && origin === apiOrigin ? value : null;
   };
 
-  /** Redirects forward auth headers; restrict them to the configured Bitbucket. */
   const send = (input: {
     readonly method: "GET" | "POST" | "PUT" | "DELETE";
     readonly url: string;
@@ -960,7 +945,6 @@ export const make = Effect.gen(function* () {
           : input.method === "DELETE"
             ? HttpClientRequest.make("DELETE")(url)
             : HttpClientRequest.put(url);
-    // Diff endpoints return patches, not JSON.
     const withBody =
       input.body === undefined
         ? base
@@ -995,8 +979,6 @@ export const make = Effect.gen(function* () {
       send({ ...input, redirects: 0 }).pipe(
         Effect.flatMap((response) =>
           HttpClientResponse.matchStatus({
-            // Read through the body stream rather than `text`, so an oversized diff is stopped as
-            // it arrives instead of being materialized whole and then cut.
             "2xx": (success) =>
               collectUint8StreamText({
                 stream: success.stream,
@@ -1018,7 +1000,6 @@ export const make = Effect.gen(function* () {
             orElse: (failed) => responseError("request", failed),
           })(response),
         ),
-        // This also caps redirect hops: no request can finish headers then stall its body forever.
         Effect.timeout(BITBUCKET_API_REQUEST_TIMEOUT),
         Effect.catchTags({
           TimeoutError: (cause) =>
@@ -1029,7 +1010,6 @@ export const make = Effect.gen(function* () {
 
   return BitbucketApi.of({
     request,
-    // Bitbucket answers anonymous /user with 401, so without a credential there is nothing to ask.
     probeAuth: currentCredential.pipe(
       Effect.flatMap((credential) =>
         credential === null

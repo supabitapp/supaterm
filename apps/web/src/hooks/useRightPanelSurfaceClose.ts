@@ -63,7 +63,6 @@ export function useRightPanelSurfaceClose(input: {
       }
     }
   };
-  // The active surface closes last so the panel does not flash through it.
   const finishClose = (toClose: readonly RightPanelSurface[]) => {
     if (!threadRef) return;
     const store = useRightPanelStore.getState();
@@ -72,8 +71,6 @@ export function useRightPanelSurfaceClose(input: {
       (left, right) => Number(left.id === activeId) - Number(right.id === activeId),
     );
     for (const surface of ordered) {
-      // Releasing a browser drops its session, which prunes the tab automatically; close it
-      // first so the close stays a user action that hides the panel after the last tab.
       store.closeSurface(threadRef, surface.id);
       releaseSurfaceResources(threadRef, surface);
     }

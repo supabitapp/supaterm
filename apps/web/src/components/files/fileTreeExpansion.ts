@@ -104,7 +104,6 @@ export function coalesceReentrantCalls(run: () => void): () => void {
 }
 
 const EXPANDED_DIRECTORIES_STORAGE_KEY = "supaterm.fileTreeExpandedDirectories";
-// Roots are kept most recent first and capped so worktrees that come and go do not grow storage.
 const MAX_STORED_ROOTS = 20;
 const StoredExpandedDirectories = Schema.Array(
   Schema.Struct({ root: Schema.String, paths: Schema.Array(Schema.String) }),

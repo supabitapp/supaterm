@@ -213,7 +213,6 @@ describe("GitCafePullRequestProvider changed paths", () => {
     },
   );
 
-  // getDiff cases guard parity with the existing patch path; getDiffFilePaths must refuse the same pages.
   it.effect.each(
     (["getDiff", "getDiffFilePaths"] as const).flatMap((method) =>
       [{ version: 5 }, { headOid: baseOid }, { comparisonBaseOid: headOid }].map((changed) => ({
@@ -649,7 +648,6 @@ describe("GitCafePullRequestProvider", () => {
       });
       assertRequestId(server.sent.at(-1)?.body);
 
-      // GitCafe rejects a null body; an empty review leaves it out.
       yield* provider.submitReview({ ...target, verdict: "approve", body: "", comments: [] });
       assert.notProperty(server.sent.at(-1)?.body as object, "body");
       assertRequestId(server.sent.at(-1)?.body);
@@ -819,15 +817,12 @@ describe("GitCafePullRequestProvider", () => {
         [8],
       );
       assert.strictEqual(server.sent.at(-1)!.query.get("authors"), '["act_synced"]');
-      // Once seen, the actor is narrowed by straight away.
       const sentBefore = server.sent.length;
       yield* list("synced");
       assert.deepStrictEqual(
         server.sent.slice(sentBefore).map((request) => request.query.get("authors")),
         [null, '["act_synced"]'],
       );
-      // An author on none of the pages it reads gets nothing rather than unnarrowed rows a
-      // continuation would count against a different listing.
       const missing = yield* list("nobody");
       assert.deepStrictEqual(missing, { items: [], truncated: false, continues: false });
     }).pipe(Effect.provide(server.layer));
@@ -1005,7 +1000,6 @@ describe("GitCafePullRequestProvider", () => {
         "GET /repos/owner/repo/pulls/7/labels": { items: [], next: null },
         "GET /repos/owner/repo/pulls/7/status": {
           merge: { conflicts: "none", fastForward: null, strategies: [] },
-          // GitCafe counts the cancelled run's failure beside the re-run that passed.
           checks: { pending: 0, failing: 1, total: 2 },
         },
         [`GET /repos/owner/repo/commits/${headOid}/checks`]: checks,
@@ -1030,7 +1024,6 @@ describe("GitCafePullRequestProvider", () => {
       );
       assert.strictEqual(detail.checksState, "passing");
 
-      // A listing cut off at the page limit may hide a failure, so GitCafe's counts decide.
       const truncated = yield* detailWith((request) => ({
         items,
         next: String(Number(request.query.get("after") ?? 0) + 1),
@@ -1151,7 +1144,6 @@ describe("GitCafePullRequestProvider", () => {
     return Effect.gen(function* () {
       const provider = yield* GitCafePullRequestProvider.make;
       const list = yield* provider.listReviewerCandidates(target);
-      // The author, alice, cannot review her own pull request.
       assert.deepStrictEqual(
         list.candidates.map((c) => [c.id, c.login, c.isRequested, c.isBot ?? false]),
         [
@@ -1248,7 +1240,6 @@ describe("GitCafePullRequestProvider", () => {
       })),
     });
     const server = fakeGitCafe({
-      // A comment moves the version without moving the compared commits.
       "GET /repos/owner/repo/pulls/7": () => ({ ...pull, ...tips, version: 4 + pullReads++ }),
       "GET /repos/owner/repo/pulls/7/changes": (request: SentRequest) => ({
         version: 4,
@@ -1270,11 +1261,9 @@ describe("GitCafePullRequestProvider", () => {
       server.sent.filter((request) => request.path.endsWith(suffix)).length;
     return Effect.gen(function* () {
       const provider = yield* GitCafePullRequestProvider.make;
-      // A listing that stops before its last page holds nothing for its commits.
       yield* provider.getChangeRequestSummary!(target);
       listingCut = false;
       hunksDown = true;
-      // Unread hunks leave the lines unknown, and are read again next time.
       const unread = yield* provider.getChangeRequestSummary!(target);
       assert.strictEqual(unread.additions, undefined);
       hunksDown = false;
@@ -1282,14 +1271,11 @@ describe("GitCafePullRequestProvider", () => {
       const second = yield* provider.getChangeRequestSummary!(target);
       assert.deepInclude(first, { additions: 6, deletions: 2, changedFiles: 2 });
       assert.deepInclude(second, { additions: 6, deletions: 2, changedFiles: 2 });
-      // Neither the head nor the target tip moved, so the file list is not read again.
       assert.deepStrictEqual([reads("/changes"), reads("/diff-files")], [4, 3]);
-      // The target branch advancing keeps the merge base, so only the file list is read.
       tips = { ...tips, observedBaseOid: mainTip };
       const third = yield* provider.getChangeRequestSummary!(target);
       assert.deepInclude(third, { additions: 6, deletions: 2, changedFiles: 2 });
       assert.deepStrictEqual([reads("/changes"), reads("/diff-files")], [5, 3]);
-      // A landed parent layer retargets the pull and moves the comparison base under the same head.
       comparisonBaseOid = landedBase;
       tips = { targetBranch: "trunk", observedBaseOid: mainTip };
       const fourth = yield* provider.getChangeRequestSummary!(target);

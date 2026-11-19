@@ -86,12 +86,10 @@ export async function applyNativeShowcaseOrientation(
 ): Promise<boolean> {
   const controls = nativeShowcaseControls();
   if (!controls?.applyShowcaseOrientation || !controls.getInterfaceOrientation) {
-    // Older binaries cannot change orientation; report success to avoid endless retries.
     return true;
   }
   try {
     await controls.applyShowcaseOrientation(orientation);
-    // Confirm async geometry changes so requests made before foreground activation can retry.
     await new Promise((resolve) => setTimeout(resolve, 500));
     return (await controls.getInterfaceOrientation()) === orientation;
   } catch {

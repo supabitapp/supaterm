@@ -124,7 +124,6 @@ describe("Android workspace navigation", () => {
     back();
     expect(state.routes).toEqual(pullRequestOverThread.routes.slice(0, 2));
 
-    // Confirming a Git action from the inline inspector can duplicate the current thread.
     state = apply(parent, StackActions.push("Thread", thread.params));
     back();
     expect({ routes: names(state), index: state.index }).toEqual({ routes: ["Home"], index: 0 });
@@ -205,7 +204,6 @@ describe("Android workspace navigation", () => {
   it("resets from the navigation container before any navigation action", () => {
     const root = router.getInitialState(options);
     const actions: RootStackResetAction[] = [];
-    // The container only learns the root state after the first action.
     resetAndroidWorkspace({
       dispatch: (action) => actions.push(action),
       getParent: () => undefined,

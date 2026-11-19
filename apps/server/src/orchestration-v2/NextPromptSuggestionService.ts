@@ -23,8 +23,6 @@ import * as ThreadManagementService from "./ThreadManagementService.ts";
 
 const NO_SUGGESTION: OrchestrationV2SuggestNextPromptResult = { suggestion: null };
 
-// A suggestion is for a conversation the user is in the middle of, not an older thread they are
-// browsing.
 const FRESHNESS = Duration.hours(6);
 
 class SuggestionKey extends Data.Class<{
@@ -49,7 +47,6 @@ const make = Effect.gen(function* () {
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const providerPredictions = yield* PromptSuggestionHub.PromptSuggestionHub;
 
-  // Checked on every request, cached answers included: the thread can move on at any time.
   const isAwaitingReply = Effect.fn("NextPromptSuggestionService.isAwaitingReply")(function* (
     key: SuggestionKey,
   ) {
@@ -63,7 +60,6 @@ const make = Effect.gen(function* () {
     const latest = runs.find((candidate) => candidate.id === latestRunId);
     if (run?.status !== "completed" || run.completedAt === null || latest === undefined)
       return false;
-    // A message promoted to Steer leaves its queued run cancelled before it started, still the latest.
     const steeredPastLatest =
       latest.status === "cancelled" && latest.startedAt === null && run.ordinal < latest.ordinal;
     if (latest !== run && !steeredPastLatest) return false;
@@ -71,15 +67,11 @@ const make = Effect.gen(function* () {
     return DateTime.isGreaterThan(run.completedAt, DateTime.subtractDuration(now, FRESHNESS));
   });
 
-  // Claude and Codex predict next prompts from the whole turn and its warm prompt cache. Other
-  // providers have no prediction and get no suggestion.
   const predict = Effect.fn("NextPromptSuggestionService.predict")(function* (key: SuggestionKey) {
     const predicted = Option.getOrNull(yield* providerPredictions.await(key));
     return predicted === null ? null : sanitizeNextPrompt(predicted);
   });
 
-  // Every client showing the thread asks about the same run; they share one wait. An
-  // interrupted wait is not kept, so the next request waits again.
   const suggestions = yield* Cache.makeWith(predict, {
     capacity: 256,
     timeToLive: (exit) => (Exit.isSuccess(exit) ? FRESHNESS : Duration.zero),

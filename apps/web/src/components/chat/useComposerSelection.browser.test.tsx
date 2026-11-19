@@ -40,7 +40,6 @@ import { deriveEffectiveComposerModelState, useComposerDraftStore } from "../../
 import { AppAtomRegistryProvider, appAtomRegistry } from "../../rpc/atomRegistry";
 import { useComposerSelection } from "./useComposerSelection";
 
-// Kept alive so a shell set before the hook mounts is still there when it saves a pick.
 const shellAtom = Atom.family((_threadId: string) => Atom.make<unknown>(null).pipe(Atom.keepAlive));
 
 function setup() {
@@ -69,7 +68,6 @@ const providers: ReadonlyArray<ServerProvider> = [
   },
 ];
 
-// The hook reads only the thread's identity and stored selection.
 function cursorThread(id: string) {
   return { environmentId, id: ThreadId.make(id), modelSelection: stored } as EnvironmentThreadShell;
 }

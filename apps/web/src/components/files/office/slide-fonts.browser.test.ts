@@ -11,7 +11,6 @@ function relationships(type: string, target: string) {
   return `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/></Relationships>`;
 }
 
-/** A one-slide deck whose text box has one paragraph per run, each in its own family. */
 async function deck(runs: readonly { text: string; family: string }[]) {
   const paragraphs = runs
     .map(
@@ -56,10 +55,8 @@ it("lays slide text out with heavy stand-ins, and draws text no bundled face cov
     primitive.kind === "textBox" ? primitive.lines.flatMap((line) => line.runs) : [],
   );
 
-  // Arial Black's only stand-in is a bold face, which its regular text draws with rather than Arial's.
   expect(heavy?.fontFamily).not.toBe(plain?.fontFamily);
   expect(plain?.glyphs).toHaveLength(5);
-  // The app does not ship the CJK font add-on, so Japanese text has no bundled face either.
   expect(japanese?.text).toBe("日本語のテキスト");
   expect(japanese?.glyphs).toEqual([]);
   expect(thai?.text).toBe("ภาษาไทย");

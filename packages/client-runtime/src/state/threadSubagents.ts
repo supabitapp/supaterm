@@ -47,8 +47,6 @@ export function deriveThreadTurnSubagents(
         : latest,
     first,
   );
-  // Ordinal, not array position: a reordered queue can leave the projection's runs out of order.
-  // Queued and never-started runs have not replaced anything yet.
   const latestStartedRun = projection.runs.reduce<Projection["runs"][number] | null>(
     (latest, run) =>
       run.startedAt !== null &&
@@ -94,7 +92,6 @@ export function resolveSubagentPillSegment(
   turn: ThreadTurnSubagents | null,
 ): SubagentPillSegment | null {
   if (turn === null) return null;
-  // Finished agents stay reachable until a later turn replaces them; workflows always stay reachable.
   if (
     !turn.turnActive &&
     !turn.latestTurn &&

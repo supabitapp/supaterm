@@ -1336,7 +1336,6 @@ it.effect("wakes a settled run whose native subagent ran on its own provider thr
     const childProviderThreadId = ProviderThreadId.make(`provider-thread:${threadId}:child`);
     const providerSessionId = ProviderSessionId.make(`session:${threadId}`);
     const subagentId = NodeId.make(`node:${threadId}:subagent`);
-    // An older thread on the same Codex session is recovered first and stops it.
     const sibling = yield* createThread("a-shared-session");
     yield* createRun(sibling, "completed");
     for (const boundThreadId of [sibling, threadId]) {
@@ -1468,7 +1467,6 @@ it.effect("leaves a finished delegated child's background roster to the child", 
     const recovery = yield* ProviderRuntimeRecovery.ProviderRuntimeRecoveryService;
     const sql = yield* SqlClient.SqlClient;
     const now = yield* DateTime.now;
-    // The parent sorts first, so it is reconciled before the child.
     const parent = yield* createThread("delegation");
     yield* createRun(parent, "completed");
     const child = yield* createThread("delegation:child", {
@@ -1527,7 +1525,6 @@ it.effect("leaves a finished delegated child's background roster to the child", 
         ],
       },
     });
-    // Finalizing a delegated task records the child's provider thread on the parent's row.
     const taskId = NodeId.make(`node:${parent}:task`);
     yield* projections.apply({
       id: EventId.make(`event:${parent}:task`),
@@ -1634,7 +1631,6 @@ it.effect("startup ends the provider turn of a native child root it cancels", ()
         completedAt: null,
       },
     });
-    // A native subagent's turn belongs to no run attempt.
     yield* projections.apply({
       id: EventId.make(`event:${threadId}:provider-turn`),
       type: "provider-turn.updated",

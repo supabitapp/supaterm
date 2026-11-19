@@ -34,7 +34,6 @@ function themedFaviconUrlForPage(
   }
 }
 
-/** Accepts image URLs supplied by a trusted provider event. */
 function explicitFaviconUrl(rawUrl: string | null | undefined): string | null {
   if (!rawUrl || rawUrl.length > 4096) return null;
   try {

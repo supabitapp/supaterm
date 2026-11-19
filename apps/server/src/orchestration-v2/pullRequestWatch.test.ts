@@ -11,7 +11,6 @@ import {
   pullRequestWatchMessage,
 } from "./pullRequestWatch.ts";
 
-// These cases read the head once or at one moment, so the no-checks notice never comes due.
 const evaluatePullRequestWatch = (
   ...args: Parameters<typeof evaluate> extends [...infer Head, number] ? Head : never
 ) => evaluate(...args, 0);
@@ -334,7 +333,6 @@ describe("evaluatePullRequestWatch", () => {
     const first = evaluatePullRequestWatch(watch(), gated, noRemarks);
     assert.deepEqual(first.changes, [{ kind: "checks-awaiting-approval", checks: [approval] }]);
 
-    // GitHub's approval read can answer empty while the rest of the checks read fine.
     const missing = evaluatePullRequestWatch(first.next, detail({ checks: [bot] }), noRemarks);
     assert.deepEqual(missing.changes, []);
     assert.isFalse(missing.next.passed);
@@ -390,7 +388,6 @@ describe("evaluatePullRequestWatch", () => {
       { kind: "checks-passed", count: 1, required: false, pending: [] },
     ]);
 
-    // Approved, the run's jobs carry their own names under the run's URL.
     const job = { ...check("lint", "success"), url: `${run(1)}/job/7` };
     const pending = { ...check("test", "pending"), url: `${run(1)}/job/8` };
     const required = { ...bot, required: true };
@@ -546,7 +543,6 @@ describe("evaluatePullRequestWatch", () => {
     ]);
   });
 
-  // regression: #23712 required checks woke the agent early and the rest finishing never did
   it("wakes again when the other checks finish after the required ones passed", () => {
     const required = (name: string, status: PullRequestCheck["status"]) => ({
       ...check(name, status),
@@ -581,14 +577,12 @@ describe("evaluatePullRequestWatch", () => {
       ),
       ["checks-passed"],
     );
-    // A later advisory job running and passing is not more news.
     const botPending = detail({ checks: [...done.checks, check("bot", "pending")] });
     const churn = evaluatePullRequestWatch(final.next, botPending, noRemarks);
     assert.deepEqual(churn.changes, []);
     const botDone = detail({ checks: [...done.checks, check("bot", "success")] });
     assert.deepEqual(evaluatePullRequestWatch(churn.next, botDone, noRemarks).changes, []);
 
-    // A pending check that turns required on the next read still finishes with one wake.
     const promoted = detail({
       checks: [required("test", "success"), required("e2e", "success")],
     });
@@ -598,14 +592,12 @@ describe("evaluatePullRequestWatch", () => {
     ]);
     assert.deepEqual(evaluatePullRequestWatch(gated.next, promoted, noRemarks).changes, []);
 
-    // Nothing else was pending when the required ones passed, so nothing more is owed.
     const green = evaluatePullRequestWatch(watch(), done, noRemarks);
     assert.deepEqual(green.changes, [
       { kind: "checks-passed", count: 1, required: true, pending: [] },
     ]);
     assert.deepEqual(evaluatePullRequestWatch(green.next, botDone, noRemarks).changes, []);
 
-    // An advisory failure already reported must not hold back the wake owed to the rest.
     const budget = check("budget", "failure");
     const told = evaluatePullRequestWatch(
       watch(),
@@ -657,7 +649,6 @@ describe("evaluatePullRequestWatch", () => {
     );
     assert.deepEqual(lateLint.changes, [{ kind: "checks-finished", failing: [labels, lint] }]);
 
-    // A failure after everything else finished says so, and its rerun still owes the wake.
     const sonar = check("sonar", "cancelled");
     const early = evaluatePullRequestWatch(
       watch(),
@@ -676,7 +667,6 @@ describe("evaluatePullRequestWatch", () => {
     assert.deepEqual(recovered.changes, [{ kind: "checks-finished", failing: [sonar] }]);
     assert.deepEqual(evaluatePullRequestWatch(recovered.next, rerun, noRemarks).changes, []);
 
-    // The required checks passing later keeps the wake owed to a failed check's rerun.
     const unitFailed = check("unit", "failure");
     const required = { ...labels, status: "success" as const };
     const bothFailed = evaluatePullRequestWatch(
@@ -959,7 +949,6 @@ describe("evaluatePullRequestWatch", () => {
       summary: "#1: removed from merge queue",
     });
     assert.deepEqual(evaluatePullRequestWatch(first.next, dropped, noRemarks).changes, []);
-    // A read without queue news keeps the removal already told.
     const quiet = evaluatePullRequestWatch(first.next, green, noRemarks);
     assert.deepEqual(evaluatePullRequestWatch(quiet.next, dropped, noRemarks).changes, []);
 
@@ -1046,7 +1035,6 @@ describe("evaluatePullRequestWatch", () => {
   };
 
   it("does not tell a watch saved before the no-checks clock that its seen head has none", () => {
-    // Such a watch may have seen this head's checks pending, which records nothing.
     const legacy = watch({ headSha: "aaaaaaaaaa" });
     assert.isTrue(anHourLater(legacy, detail({ checks: [] })).every((kinds) => kinds.length === 0));
     const pushed = anHourLater(legacy, detail({ headSha: "bbbbbbbbbb", checks: [] }));
@@ -1083,7 +1071,6 @@ describe("evaluatePullRequestWatch", () => {
     assert.isFalse(pending([ci, check("CodeRabbit", "success")]));
     assert.isFalse(pending([ci, check("CodeRabbit", "failure")]));
     assert.isFalse(pending([ci, check("deploy", "action-required")]));
-    // A failed read keeps the last answer, as does one with only an unreadable approval check.
     assert.isFalse(pending([], watch({ headSha: "aaaaaaaaaa", checksPending: false })));
     const unreadable = { ...check("approvals", "action-required"), placeholder: true };
     assert.isTrue(pending([unreadable], watch({ headSha: "aaaaaaaaaa", checksPending: true })));
@@ -1103,7 +1090,6 @@ describe("evaluatePullRequestWatch", () => {
     assert.isTrue(pushed(true));
     assert.isTrue(pushed(false));
 
-    // Once the no-checks window passes, the watch stops waiting for them.
     for (const checksAlwaysReport of [true, false]) {
       let current = watch({ headSha: "aaaaaaaaaa" });
       for (const minute of [0, 20]) {
@@ -1121,7 +1107,6 @@ describe("evaluatePullRequestWatch", () => {
       assert.isFalse(current.checksPending);
     }
 
-    // A watch with no answer waits on an empty list only while the no-checks clock runs.
     const unanswered = (checksAwaitedSince: string | null) =>
       evaluatePullRequestWatch(
         watch({ headSha: "bbbbbbbbbb", checksAwaitedSince }),

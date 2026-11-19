@@ -64,7 +64,6 @@ function tryResolveClaudeModelCatalog(
   };
 }
 
-// The manifest keeps Ultracode as an effort level because released servers read it from main.
 export function withUltracodeToggle(
   capabilities: ModelCapabilities | null,
 ): ModelCapabilities | null {
@@ -80,7 +79,6 @@ export function withUltracodeToggle(
   const ultracodeByDefault =
     (effort.currentValue ?? effort.options.find((option) => option.isDefault)?.id) === "ultracode";
   const hasXhigh = effort.options.some((option) => option.id === "xhigh");
-  // Ultracode ran at xhigh, so a model that offered it keeps xhigh, and its default moves there.
   const options = effort.options.flatMap(({ isDefault, ...option }) => {
     if (option.id === "ultracode") {
       return hasXhigh
@@ -193,7 +191,6 @@ export function claudeReportedModels(
   const models: Array<ServerProviderModel> = [];
   for (const info of reported) {
     const slug = info.value.trim();
-    // `default` is Claude Code's pointer at its own default model, not a model.
     if (!slug || slug === "default") continue;
     const ids = [slug, info.resolvedModel ?? ""].flatMap((id) => {
       const normalized = stripClaudeContextWindowSuffix(id).toLowerCase();
@@ -213,7 +210,6 @@ export function claudeReportedModels(
                 id: "effort",
                 label: "Reasoning",
                 type: "select",
-                // `default` is not an effort, so choosing it sends none and Claude Code picks.
                 options: [
                   { id: "default", label: "Default", isDefault: true },
                   ...efforts.map((id) => ({ id, label: CLAUDE_EFFORT_LABELS[id] ?? id })),
@@ -241,8 +237,6 @@ export function resolveClaudeCatalogModel(
   );
 }
 
-// Cloud backends decorate first-party ids: Bedrock adds a region prefix and a
-// version ("us.anthropic.claude-opus-4-6-v1"), Vertex adds "@<date>".
 function stripClaudeBackendDecoration(wireModel: string): string {
   return wireModel
     .replace(/^(?:[a-z-]+\.)?anthropic\./, "")
@@ -388,12 +382,6 @@ const CLAUDE_CODE_FAMILY_ALIASES: ReadonlySet<string> = new Set([
   "fable",
 ]);
 
-/**
- * Names the model a `modelSettings` key caps the way Claude Code does, which is narrower than the
- * catalog's aliases: only a family alias (optionally `[1m]`) resolves as an alias, and any other key
- * names the most specific model id it contains, so `claude-opus-5-5-20260101` and Bedrock ids match
- * while `claude-opus-5.5` matches nothing.
- */
 function resolveClaudeModelSettingsKey(
   catalog: ClaudeModelCatalog,
   key: string,
@@ -415,7 +403,6 @@ function resolveClaudeModelSettingsKey(
   return match;
 }
 
-/** Keys `modelSettings` caps by canonical slug, keeping the lowest cap when several keys name one model. */
 function resolveClaudeModelMaxEffortLevels(
   catalog: ClaudeModelCatalog,
   levels: ReadonlyMap<string, ClaudeEffortLevel> | undefined,
@@ -446,7 +433,6 @@ export function capClaudeCatalogEffort(
     modelMaxEffortLevels: resolveClaudeModelMaxEffortLevels(catalog, source.modelMaxEffortLevels),
   }));
   return models.map((model) => {
-    // Custom model labels are user-authored, so they are left alone.
     if (model.isCustom || !model.capabilities?.optionDescriptors) return model;
     const modelMaxEffortLevel = resolvedSources.reduce<ClaudeEffortLevel | undefined>(
       (lowest, source) => {

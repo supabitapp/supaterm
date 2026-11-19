@@ -79,8 +79,6 @@ export const transcribeRecording = Effect.fn("cli.transcribe.recording")(functio
             (cause) => new CliServerUnreachableError({ origin: tools.origin, cause }),
           ),
         );
-      // A lost response doesn't mean lost work: asking again with the same
-      // upload joins the run or returns its outcome instead of paying twice.
       return yield* tools
         .call(
           "supaterm_transcription_transcribe",

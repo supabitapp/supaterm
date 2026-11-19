@@ -104,11 +104,6 @@ const kiroNotification = (method: string, params: unknown): Frame => ({
   frame: { kind: "notification", method, params },
 });
 
-/**
- * Kiro CLI 2.27.0 (KAS 0.66.22) `initialize` result, recorded with
- * `kiro-cli acp --agent-engine=v3 --auth-method=cli`. Only the extension
- * method list is shortened and the log paths dropped.
- */
 const KIRO_V3_INITIALIZE = {
   protocolVersion: 1,
   agentCapabilities: {
@@ -140,7 +135,6 @@ const KIRO_V3_INITIALIZE = {
   ],
 };
 
-/** A deployment that advertises no Kiro extensions at all. */
 const KIRO_V3_INITIALIZE_WITHOUT_EXTENSIONS = {
   protocolVersion: 1,
   agentCapabilities: {
@@ -167,8 +161,6 @@ const modeOption = {
   currentValue: "vibe",
   options: [option("vibe", "Default"), option("spec", "Spec"), option("plan", "Plan")],
 };
-// Recorded sessions without a signed-in account carry no `model` option; the
-// migration guide documents it as `configId: "model"`.
 const modelOption = (currentValue: string) => ({
   type: "select",
   id: "model",
@@ -178,10 +170,6 @@ const modelOption = (currentValue: string) => ({
   options: [option("auto", "Auto"), option("claude-sonnet", "Claude Sonnet")],
 });
 
-/**
- * Kiro's `model` option as 2.27.0 advertises it (fixtures/kiro_model_switch),
- * trimmed to three choices. Each choice's `_meta.kiro` names its effort levels.
- */
 const kiroModelChoice = (
   value: string,
   name: string,
@@ -223,12 +211,6 @@ const kiroModelOption = (currentValue: string) => ({
     kiroModelChoice("claude-sonnet-4.5", "Claude Sonnet 4.5"),
   ],
 });
-/**
- * Kiro's effort option as kiro-cli 2.27.0 advertised it to a direct ACP probe
- * on Claude Opus 5.5: a `thought_level` select with id `effortLevel`, present
- * only while a model with effort runs and starting at that model's default
- * level. No replay fixture records it yet.
- */
 const effortOption = (currentValue: string, levels: ReadonlyArray<string>) => ({
   type: "select",
   id: "effortLevel",
@@ -243,7 +225,6 @@ const configResult = (configOptions: ReadonlyArray<unknown>) =>
   answer("session/set_config_option", { configOptions });
 const reasoning = (value: string) => [{ id: "reasoningEffort", value }];
 
-/** Kiro's `session/new` result, recorded from 2.27.0 and trimmed to what Supaterm reads. */
 const sessionSetup = (configOptions: ReadonlyArray<unknown>) => ({
   _meta: { schemaVersion: "1.0.0", id: SESSION_ID, agentMode: "vibe", source: "local" },
   sessionId: SESSION_ID,
@@ -258,13 +239,11 @@ const sessionSetup = (configOptions: ReadonlyArray<unknown>) => ({
   configOptions,
 });
 
-/** What Kiro sends right after `initialize` and around `session/new`, all unknown to Supaterm. */
 const kiroSessionNoise: ReadonlyArray<Frame> = [
   kiroNotification("_kiro/mcp/status", { sessionId: SESSION_ID, servers: [] }),
   kiroNotification("_kiro/sessions/changed", { upserted: [], deleted: [] }),
 ];
 
-// Kiro advertises `sessionCapabilities.close`, so Supaterm closes the session on teardown.
 const closeSession: ReadonlyArray<Frame> = [
   outbound("session/close", { sessionId: SESSION_ID }),
   answer("session/close", {}),
@@ -284,7 +263,6 @@ const openSessionFrames = (input: {
   outbound("session/new", { cwd: "<workspace>", mcpServers: "<any>" }),
   ...kiroSessionNoise,
   answer("session/new", sessionSetup(input.configOptions)),
-  // Supervised threads run Kiro with Autopilot off, its native ask-first posture.
   outbound("session/set_config_option", {
     sessionId: SESSION_ID,
     configId: "autopilot",
@@ -301,26 +279,21 @@ const runKiroScript = Effect.fn("runKiroScript")(function* (input: {
   readonly scenario: string;
   readonly frames: ReadonlyArray<Frame>;
   readonly model?: string;
-  /** Option selections (e.g. reasoningEffort) for the session and `startTurn`. */
   readonly options?: ModelSelection["options"];
   readonly runtimeMode?: RuntimeMode;
-  /** Holds the script's inbound frames at labels the test releases. */
   readonly replayGate?: ProviderReplayGate;
   readonly testHooks?: Parameters<typeof makeKiroAdapterV2>[0]["testHooks"];
-  /** Wraps the runtime's `session/cancel` send. */
   readonly wrapCancel?: (
     send: AcpSessionRuntime.AcpSessionRuntime["Service"]["cancel"],
   ) => AcpSessionRuntime.AcpSessionRuntime["Service"]["cancel"];
   readonly drive: (session: {
     readonly events: Stream.Stream<ProviderAdapterV2Event, ProviderAdapterV2Error>;
     readonly startTurn: Effect.Effect<void, ProviderAdapterV2Error>;
-    /** Starts turn `ordinal` (from 1) on `model`, with `options` if given. */
     readonly startTurnOn: (
       ordinal: number,
       model: string,
       options?: ModelSelection["options"],
     ) => Effect.Effect<void, ProviderAdapterV2Error>;
-    /** Runs Supaterm's compact action as turn `ordinal`. */
     readonly compact: (ordinal: number) => Effect.Effect<void, ProviderAdapterV2Error>;
     readonly interrupt: (
       providerTurnId: ProviderTurnId,
@@ -374,7 +347,6 @@ const runKiroScript = Effect.fn("runKiroScript")(function* (input: {
       ),
     ...(input.testHooks === undefined ? {} : { testHooks: input.testHooks }),
   });
-  // Held frames must not outlive a failed drive and wedge teardown.
   yield* Effect.addFinalizer(() => Effect.sync(() => input.replayGate?.releaseAll()));
   const threadId = ThreadId.make(`thread-kiro-${input.scenario}`);
   const modelSelection = {
@@ -463,7 +435,6 @@ const runKiroScript = Effect.fn("runKiroScript")(function* (input: {
       respond: (requestId, decision) => session.respondToRuntimeRequest({ requestId, decision }),
     });
   }).pipe(Effect.scoped);
-  // Closing the session stops the replay agent; every scripted frame must be used.
   yield* makeAcpReplayCompletenessAssertion(fileSystem, statusPath, transcript);
 });
 
@@ -487,7 +458,6 @@ describe("KiroAdapterV2", () => {
         outbound("initialize"),
         answer("initialize", KIRO_V3_INITIALIZE_WITHOUT_EXTENSIONS),
         outbound("session/new", { cwd: "<workspace>", mcpServers: "<any>" }),
-        // No autopilot option advertised, so Supaterm sends no config write.
         answer("session/new", sessionSetup([modeOption])),
         turnPrompt,
         update({
@@ -500,7 +470,6 @@ describe("KiroAdapterV2", () => {
         Effect.gen(function* () {
           yield* startTurn;
           assert.equal(terminalStatus(yield* collectTurn(events)), "completed");
-          // `_kiro/session/compact` is not advertised, so Supaterm must not send it.
           const compacted = yield* Effect.exit(compact(2));
           const error = Exit.isFailure(compacted) ? Cause.squash(compacted.cause) : undefined;
           assert.instanceOf(error, ProviderAdapterTurnStartError);
@@ -532,7 +501,6 @@ describe("KiroAdapterV2", () => {
         }),
         turnPrompt,
         answer("session/prompt", { stopReason: "end_turn" }),
-        // "Kiro default" is Kiro's `auto`, so the session leaves the named model.
         outbound("session/set_config_option", {
           sessionId: SESSION_ID,
           configId: "model",
@@ -547,7 +515,6 @@ describe("KiroAdapterV2", () => {
       ],
       drive: ({ events, startTurnOn }) =>
         Effect.gen(function* () {
-          // The session already runs `auto`, so the first default turn sends no write.
           for (const [ordinal, model] of [
             [1, "default"],
             [2, "claude-sonnet"],
@@ -567,13 +534,10 @@ describe("KiroAdapterV2", () => {
         outbound("initialize"),
         answer("initialize", KIRO_V3_INITIALIZE),
         outbound("session/new", { cwd: "<workspace>", mcpServers: "<any>" }),
-        // On `auto` Kiro offers no effort option.
         answer(
           "session/new",
           sessionSetup([modeOption, kiroModelOption("auto"), autopilotOption("on")]),
         ),
-        // Turn 1: the model write's result is the first to advertise effort,
-        // at the model's default, so the chosen level goes out after it.
         setConfig("model", "claude-opus-5.5"),
         configResult([
           modeOption,
@@ -597,15 +561,12 @@ describe("KiroAdapterV2", () => {
         ]),
         turnPrompt,
         answer("session/prompt", { stopReason: "end_turn" }),
-        // Turn 2: same model and effort, so nothing is written.
         turnPrompt,
         answer("session/prompt", { stopReason: "end_turn" }),
-        // Turn 3: a model without effort drops the option; no effort write.
         setConfig("model", "claude-sonnet-4.5"),
         configResult([modeOption, kiroModelOption("claude-sonnet-4.5"), autopilotOption("off")]),
         turnPrompt,
         answer("session/prompt", { stopReason: "end_turn" }),
-        // Turn 4: back on an effort model, Kiro starts at its default again.
         setConfig("model", "claude-opus-5.5"),
         configResult([
           modeOption,
@@ -648,10 +609,7 @@ describe("KiroAdapterV2", () => {
         outbound("initialize"),
         answer("initialize", KIRO_V3_INITIALIZE),
         outbound("session/new", { cwd: "<workspace>", mcpServers: "<any>" }),
-        // Kiro 2.27.0 leaves `model` out of `session/new`.
         answer("session/new", sessionSetup([modeOption, autopilotOption("on")])),
-        // Written before Kiro advertised anything: the result carries neither
-        // the model nor its effort, and an effort write now would be ignored.
         setConfig("model", "claude-opus-5.5"),
         configResult([modeOption, autopilotOption("on")]),
         update({
@@ -702,8 +660,6 @@ describe("KiroAdapterV2", () => {
           "session/new",
           sessionSetup([modeOption, kiroModelOption("auto"), autopilotOption("on")]),
         ),
-        // Turn 1 asks for xhigh, which Opus 4.6 does not offer: no effort
-        // write, and the turn runs at Kiro's default.
         setConfig("model", "claude-opus-4.6"),
         configResult([
           modeOption,
@@ -720,7 +676,6 @@ describe("KiroAdapterV2", () => {
         ]),
         turnPrompt,
         answer("session/prompt", { stopReason: "end_turn" }),
-        // Turn 2 picks max, which it offers.
         setConfig("effortLevel", "max"),
         configResult([
           modeOption,
@@ -762,7 +717,6 @@ describe("KiroAdapterV2", () => {
           frame: {
             kind: "request",
             method: "session/request_permission",
-            // Kiro 2.27's options for a write (kiro_supervised_transcript.ndjson).
             params: {
               sessionId: SESSION_ID,
               toolCall: { toolCallId: "call-1", title: "Write File", kind: "edit" },
@@ -774,8 +728,6 @@ describe("KiroAdapterV2", () => {
             },
           },
         },
-        // The card offered no "this session" choice, so the answer is one-time
-        // rather than Kiro's workspace-wide `allow_always`.
         {
           type: "expect_outbound",
           label: "session/request_permission.result",
@@ -816,13 +768,10 @@ describe("KiroAdapterV2", () => {
         outbound("initialize"),
         answer("initialize", KIRO_V3_INITIALIZE),
         outbound("session/new", { cwd: "<workspace>", mcpServers: "<any>" }),
-        // Kiro has already listed its models, without the thread's custom one.
         answer(
           "session/new",
           sessionSetup([modeOption, modelOption("auto"), autopilotOption("on")]),
         ),
-        // Shapes from kiro-cli 2.27.0, probed live with this id: Kiro takes
-        // the write and fails the prompt.
         setConfig("model", "claude-opus-9"),
         configResult([modeOption, modelOption("claude-opus-9"), autopilotOption("on")]),
         setConfig("autopilot", "off"),
@@ -860,7 +809,6 @@ describe("KiroAdapterV2", () => {
 });
 
 describe("KiroAdapterV2 agents", () => {
-  // A user agent from `~/.kiro/agents` whose config sets `"model": "claude-sonnet-4.5"`.
   const agentModeOption = (currentValue: string) => ({
     ...modeOption,
     currentValue,
@@ -881,8 +829,6 @@ describe("KiroAdapterV2 agents", () => {
           "session/new",
           sessionSetup([agentModeOption("vibe"), kiroModelOption("auto"), autopilotOption("on")]),
         ),
-        // Shapes from kiro-cli 2.27.0, probed live: switching to an agent runs
-        // the agent's own model.
         setConfig("mode", "reviewer"),
         configResult([
           agentModeOption("reviewer"),
@@ -903,7 +849,6 @@ describe("KiroAdapterV2 agents", () => {
         ]),
         turnPrompt,
         answer("session/prompt", { stopReason: "end_turn" }),
-        // Turn 2 picks Spec; its model is the thread's again.
         setConfig("mode", "spec"),
         configResult([
           agentModeOption("spec"),
@@ -932,7 +877,6 @@ describe("KiroAdapterV2 agents", () => {
         outbound("initialize"),
         answer("initialize", KIRO_V3_INITIALIZE),
         outbound("session/new", { cwd: "<workspace>", mcpServers: "<any>" }),
-        // A new session has not advertised `model` yet.
         answer("session/new", sessionSetup([agentModeOption("vibe"), autopilotOption("on")])),
         setConfig("mode", "reviewer"),
         configResult([
@@ -968,7 +912,6 @@ describe("KiroAdapterV2 agents", () => {
         outbound("initialize"),
         answer("initialize", KIRO_V3_INITIALIZE),
         outbound("session/new", { cwd: "<workspace>", mcpServers: "<any>" }),
-        // No `mode` write: the replay agent fails on any frame not scripted here.
         answer(
           "session/new",
           sessionSetup([agentModeOption("vibe"), kiroModelOption("auto"), autopilotOption("on")]),
@@ -989,15 +932,10 @@ describe("KiroAdapterV2 agents", () => {
 });
 
 describe("KiroAdapterV2 early Stop", () => {
-  // Stop holds its cancel until Kiro starts the prompt, for at most 2 s.
-  // Replay gates hold Kiro's frames until Stop is holding; reaching a gate's
-  // label means every frame before it was handled. The test clock moves only
-  // where a test adjusts it, so the 2 s bound releases a cancel nowhere else.
   const kiroInfo = (label: string, kiro: Record<string, unknown>): Frame => ({
     ...update({ sessionUpdate: "session_info_update", _meta: { kiro } }),
     label,
   });
-  // Shapes recorded from Kiro 2.27 (fixtures/queued_turn/kiro_transcript.ndjson).
   const messageIdEcho = kiroInfo("message-id", {
     userMessageId: "message-2",
     kind: "user_message_id_assigned",
@@ -1018,18 +956,12 @@ describe("KiroAdapterV2 early Stop", () => {
       ? event.providerTurn.id
       : undefined;
 
-  /**
-   * Runs a Kiro turn and presses Stop as soon as it runs. Once Stop holds its
-   * cancel, `drive` gets the replay gate, a receipt for the cancel Supaterm sends,
-   * and Stop's exit.
-   */
   const earlyStop = (input: {
     readonly frames: ReadonlyArray<Frame>;
     readonly gates: ReadonlyArray<string>;
     readonly drive: (stop: {
       readonly replayGate: ProviderReplayGate;
       readonly cancelSent: Deferred.Deferred<void>;
-      /** Completed once the cancel was written, right before Stop's acknowledgement wait. */
       readonly cancelWritten: Deferred.Deferred<void>;
       readonly stopFiber: Fiber.Fiber<Exit.Exit<void, ProviderAdapterV2Error>>;
     }) => Effect.Effect<void>;
@@ -1045,7 +977,6 @@ describe("KiroAdapterV2 early Stop", () => {
         testHooks: {
           onCancelHeld: () => Deferred.succeed(cancelHeld, undefined).pipe(Effect.asVoid),
         },
-        // `cancelSent` marks the decision to cancel, `cancelWritten` the write.
         wrapCancel: (send) =>
           Deferred.succeed(cancelSent, undefined).pipe(
             Effect.andThen(send),
@@ -1081,8 +1012,6 @@ describe("KiroAdapterV2 early Stop", () => {
             );
             yield* Deferred.await(cancelHeld);
             yield* input.drive({ replayGate, cancelSent, cancelWritten, stopFiber: stop });
-            // Stop decides the run's outcome. A Stop Kiro never acknowledges leaves the
-            // turn open, since Kiro may still be working, for the user to Force stop.
             if (Exit.isSuccess(yield* Fiber.join(stop))) {
               assert.equal(terminalStatus(yield* Fiber.join(turn)), "interrupted");
             } else {
@@ -1092,10 +1021,6 @@ describe("KiroAdapterV2 early Stop", () => {
       });
     }).pipe(Effect.provide(testLayer), Effect.scoped);
 
-  /**
-   * Lets Kiro's frames through one gate at a time. No cancel may go out
-   * before the last gate's frame, and Stop must succeed.
-   */
   const releaseInOrder = (input: {
     readonly frames: ReadonlyArray<Frame>;
     readonly gates: ReadonlyArray<string>;
@@ -1141,8 +1066,6 @@ describe("KiroAdapterV2 early Stop", () => {
 
   it.effect("does not take the previous prompt's late context usage as the start", () =>
     releaseInOrder({
-      // Kiro reports the finished prompt's context usage after answering it,
-      // so it can arrive once the next `session/prompt` went out.
       gates: ["previous-context-usage", "turn-start"],
       expectCancel: true,
       frames: [
@@ -1160,9 +1083,6 @@ describe("KiroAdapterV2 early Stop", () => {
 
   it.effect("does not take Kiro's background cloud-config fetch as the start", () =>
     releaseInOrder({
-      // Kiro 2.31 fetches an Identity Center account's cloud config as a tool
-      // call of its own, which can arrive once `session/prompt` went out
-      // (frames reported by @hstern; the tool call id is invented).
       gates: ["cloud-config", "cloud-config-done", "turn-start"],
       expectCancel: true,
       frames: [
@@ -1234,7 +1154,6 @@ describe("KiroAdapterV2 early Stop", () => {
           assert.isFalse(yield* Deferred.isDone(cancelSent), "the echo must not release Stop");
           yield* TestClock.adjust("1 millis");
           yield* Deferred.await(cancelSent);
-          // Kiro acknowledges, and Stop still has its own time to see it.
           replayGate.release("focus");
           assert.isTrue(Exit.isSuccess(yield* Fiber.join(stopFiber)));
         }),
@@ -1244,13 +1163,11 @@ describe("KiroAdapterV2 early Stop", () => {
   it.effect("fails a Stop Kiro never acknowledges after the 10 s wait and keeps the turn", () =>
     earlyStop({
       gates: [],
-      // Kiro never starts the prompt and never answers it.
       frames: [messageIdEcho, cancel],
       drive: ({ cancelWritten, stopFiber }) =>
         Effect.gen(function* () {
           yield* TestClock.adjust("2 seconds");
           yield* Deferred.await(cancelWritten);
-          // The acknowledgement wait gets its full 10 s after the cancel.
           yield* TestClock.adjust("9999 millis");
           assert.isUndefined(stopFiber.pollUnsafe(), "Stop must still wait for Kiro's answer");
           yield* TestClock.adjust("1 millis");
@@ -1270,9 +1187,6 @@ describe("KiroAdapterV2 early Stop", () => {
 });
 
 describe("KiroAdapterV2 MCP tools", () => {
-  // Probed live on Kiro 2.33.1 against a stdio MCP server named supaterm, without
-  // the permission round trip. Kiro titles the call "@supaterm/html_render", names
-  // it in `tool_id`, and keeps only the result's text.
   it.effect(
     "shows Supaterm's html_render as Supaterm's tool with the page Supaterm published",
     () =>
@@ -1322,7 +1236,6 @@ describe("KiroAdapterV2 MCP tools", () => {
           ],
           drive: ({ events, startTurn }) =>
             Effect.gen(function* () {
-              // Supaterm's MCP server records the page when Kiro calls html_render.
               yield* mcpSessions.recordHtmlRender(
                 ThreadId.make("thread-kiro-mcp-html-render"),
                 args,
@@ -1355,9 +1268,6 @@ describe("KiroAdapterV2 MCP tools", () => {
 });
 
 describe("KiroAdapterV2 unknown model", () => {
-  // Recorded live from Kiro 2.27.0 with the thread on a model id the account
-  // lacks. Kiro has not advertised `model` yet, so Supaterm sends the id; Kiro
-  // accepts it and fails the prompt with its own explanation.
   it.effect("fails the turn with Kiro's own unavailable-model message", () =>
     Effect.gen(function* () {
       const recorded = yield* readProviderReplayTranscript(
@@ -1385,7 +1295,6 @@ describe("KiroAdapterV2 unknown model", () => {
       yield* runKiroScript({
         scenario: "unknown-model",
         model: "not-a-kiro-model",
-        // As recorded: Kiro already runs on Autopilot, so Supaterm writes only the model.
         runtimeMode: "full-access",
         frames: [
           ...(frames as ReadonlyArray<Frame>),
@@ -1424,7 +1333,6 @@ describe("Kiro permission policy", () => {
   it("keeps Autopilot on only for an unrestricted Full access thread", () => {
     assert.equal(kiroAutopilotValue(policy({ runtimeMode: "full-access" })), "on");
     assert.equal(kiroAutopilotValue(policy({ runtimeMode: "approval-required" })), "off");
-    // An explicit override restricts Full access, so Kiro's review stays on.
     assert.equal(
       kiroAutopilotValue(policy({ runtimeMode: "full-access", approvalPolicy: "on-request" })),
       "off",
@@ -1457,8 +1365,6 @@ describe("Kiro permission policy", () => {
       ),
       "allow",
     );
-    // With no one-time choice, approving would save a rule beyond the thread,
-    // so the request goes to the user, whose card can still allow it.
     const alwaysOnly = writeRequest([
       { optionId: "always-accept", name: "Always allow", kind: "allow_always" },
       { optionId: "reject", name: "Deny", kind: "reject_once" },

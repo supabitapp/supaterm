@@ -26,8 +26,6 @@ export function resolveDefaultWorktreeBaseBranch(
   );
 }
 
-// Canonical form is `supaterm/<8 hex>`. `supaterm-<8 hex>` is the fallback when a
-// plain `supaterm` branch blocks the namespace.
 const TEMP_WORKTREE_BRANCH_PATTERN = new RegExp(`^${WORKTREE_BRANCH_PREFIX}[-/][0-9a-f]{8}$`);
 
 export function sanitizeBranchFragment(raw: string): string {
@@ -159,7 +157,6 @@ const stripGitSuffix = (path: string) => path.replace(/\.git$/i, "");
 
 function canonicalPathSegment(segment: string): string {
   try {
-    // Lowercase before encoding: lowercasing the escape `%C3%84` never reaches the `Ä` it names.
     return encodeURIComponent(decodeURIComponent(segment).toLowerCase()).toLowerCase();
   } catch {
     return segment.toLowerCase();
@@ -192,7 +189,6 @@ export function parseGitRemoteRepository(
 
   if (/^(?:ssh|https?|git):\/\//i.test(normalized)) {
     try {
-      // Apply suffix policy to the path: `.git` may sit before a query or fragment.
       const url = new URL(value.trim().toLowerCase());
       const repositorySegments = dropSuffix(url.pathname.replace(/\/+$/, ""))
         .split("/")
@@ -205,7 +201,6 @@ export function parseGitRemoteRepository(
     }
   }
 
-  // A userless one-letter prefix is a Windows drive, not an SCP host.
   const scpStyleHostAndPath = /^[a-z]:/i.test(normalized)
     ? null
     : /^(?:[a-zA-Z0-9._-]+@)?(\[[0-9a-f:.]+\]|[^@:/\\\s[\]]+):\/?([^/\s]+(?:\/[^/\s]+)+)$/i.exec(
@@ -217,7 +212,6 @@ export function parseGitRemoteRepository(
   const path = canonicalRepositoryPath(scpPath);
   if (!scpHost.startsWith("[")) return { host: scpHost, path };
   try {
-    // Spell an IPv6 host as the URL branch does, so `[::1]:a/b` and `ssh://[::1]/a/b` share a key.
     return { host: new URL(`ssh://${scpHost}`).hostname, path };
   } catch {
     return null;
@@ -250,8 +244,6 @@ export interface GitRemoteVerboseUrls {
 export function parseGitRemoteVerboseOutput(output: string): ReadonlyArray<GitRemoteVerboseEntry> {
   const remotes: GitRemoteVerboseEntry[] = [];
   for (const line of output.split(/\r?\n/)) {
-    // Git uses a tab before the URL and one space before the direction; both can occur in URLs.
-    // Partial clones append the promisor filter, e.g. `(fetch) [blob:none]`.
     const match = /^(\S+)\t(.+) \((fetch|push)\)(?:\s+\[[^\]]+\])?$/.exec(line);
     if (!match) continue;
     const [, name, url, direction] = match;
@@ -363,7 +355,6 @@ function isTrueGitConfigValue(value: string): boolean {
   const scale =
     numeric[3] === "k" ? 1024 : numeric[3] === "m" ? 1024 ** 2 : numeric[3] === "g" ? 1024 ** 3 : 1;
   const number = magnitude * scale * (numeric[1] === "-" ? -1 : 1);
-  // Git's boolean parser accepts integers only within its signed 32-bit range.
   return number !== 0 && number >= -2147483648 && number <= 2147483647;
 }
 
@@ -372,7 +363,6 @@ export function isBareGitConfig(configText: string): boolean {
   let bare = false;
   for (const rawLine of gitConfigLines(configText)) {
     let line = rawLine.trim();
-    // Git accepts the first setting on the section header's own line.
     const header = /^\[\s*([^\]]*?)\s*\](.*)$/.exec(line);
     if (header !== null) {
       inCore = header[1]!.toLowerCase() === "core";
@@ -394,8 +384,6 @@ export function parseOriginUrlFromGitConfig(configText: string): string | null {
   for (const rawLine of gitConfigLines(configText)) {
     let line = rawLine.trim();
     if (line.length === 0 || line.startsWith("#") || line.startsWith(";")) continue;
-    // Git preserves case in quoted remote subsections but lowercases legacy dotted ones,
-    // and accepts the first setting on the section header's own line.
     const header = /^\[\s*remote(?:\s+"([^"]+)"|\.([^\]\s]+))\s*\](.*)$/i.exec(line);
     if (header) {
       section = header[1] ?? header[2]?.toLowerCase() ?? null;
@@ -418,7 +406,6 @@ export function parseOriginUrlFromGitConfig(configText: string): string | null {
   return originUrl ?? firstRemoteUrl;
 }
 
-// Replace only Git-rejected whitespace; nonbreaking spaces are valid ref characters.
 export function sanitizeNewRefName(rawName: string): string {
   return rawName.trim().replace(/[ \t\n\r\f\v]+/g, "-");
 }

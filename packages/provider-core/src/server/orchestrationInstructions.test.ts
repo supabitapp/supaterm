@@ -32,7 +32,6 @@ describe("Supaterm device instructions", () => {
   });
 
   it("keep the failure rule from taking over or closing a session another thread holds", () => {
-    // agent-device's DEVICE_IN_USE advice is to rerun with the owner's --session or close it first.
     assert.include(
       SUPATERM_DEVICE_TOOL_INSTRUCTIONS,
       "follow its advice once, but never reuse or close another session; if it still fails,",

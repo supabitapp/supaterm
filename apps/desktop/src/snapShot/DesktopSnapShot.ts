@@ -418,8 +418,6 @@ async function requestMacSnapShotPermissions(
 }
 
 function snapShotImageSize(png: Buffer, fallback: Electron.Rectangle): Electron.Size {
-  // Capture backends already validate or encode the PNG. Reading its header
-  // avoids decoding every pixel again just to size accessibility coordinates.
   const size = readImageDimensions(png);
   if (size) return size;
   return {
@@ -684,7 +682,6 @@ async function showCaptureFeedback(
   platform: NodeJS.Platform,
   destinationWindowBounds?: Electron.Rectangle,
 ): Promise<boolean> {
-  // Wayland does not let this client position overlays on another app's window.
   if (platform === "linux") return false;
   const bounds = snapShotFlashBounds(active, platform);
   const animationsEnabled =
@@ -819,7 +816,6 @@ export const make = Effect.gen(function* () {
   const transition = new SnapShotTransition({
     showWindow: showCaptureWindow,
     waitForCompositorFrame: environment.platform === "win32",
-    // Transparent Windows surfaces must not resize while their compositor animation is running.
     boundOverlayToCaptureDisplays: environment.platform !== "linux",
     alwaysOnTopLevel: environment.platform === "linux" ? undefined : "pop-up-menu",
   });
@@ -902,8 +898,6 @@ export const make = Effect.gen(function* () {
     const imageTempPath = path.join(captureDirectory, `${id}.tmp.png`);
 
     return yield* Effect.gen(function* () {
-      // Retire feedback before reading screen pixels, so a rapid capture cannot
-      // photograph the previous capture's overlay.
       closeLinuxFeedback();
       flash.dispose();
       transition.dispose();
@@ -1137,9 +1131,6 @@ export const make = Effect.gen(function* () {
       transition.dispose();
       closeLinuxFeedback();
     }
-    // Every client-settings save lands here. Only the fields that decide which
-    // shortcut listener runs may tear it down; a font-size change must not
-    // uninstall a global keyboard hook or drop an approved portal session.
     const shortcutInputsChanged =
       settings.snapShotEnabled !== previousSettings.snapShotEnabled ||
       settings.snapShotIncludeAccessibility !== previousSettings.snapShotIncludeAccessibility ||

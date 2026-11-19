@@ -26,7 +26,6 @@ const isTextQuestion = Schema.is(
     description: Schema.optional(Schema.String),
   }),
 );
-// The companion only carries a free-form answer, never a title we can show.
 const isCustomCompanion = Schema.is(
   Schema.Struct({
     type: Schema.Literal("string"),
@@ -37,7 +36,6 @@ const isCustomCompanion = Schema.is(
 const questionId = /^q\d+$/;
 const companionSuffix = "_custom";
 
-// Intake appends file references to a user's answer; keep them with the custom text.
 const splitAttachments = (value: string) => {
   const marker = value.indexOf("\n\n");
   if (marker < 0) return undefined;
@@ -51,9 +49,6 @@ type Option = OrchestrationV2UserInputQuestion["options"][number];
 const findChoice = (options: ReadonlyArray<Option>, value: string) =>
   options.find((option) => option.value === value);
 
-// OpenCode 2.1 asks through ACP with a `qN` choice field plus a `qN_custom` companion.
-// Multi-select forms stay with the generic mapping: it keeps the companion as its own
-// question, and clients cannot yet send selected choices and custom text as one answer.
 export const extractOpenCodeElicitationForm: NonNullable<
   AcpAdapterV2Flavor["extractElicitationForm"]
 > = (request) => {
@@ -75,7 +70,6 @@ export const extractOpenCodeElicitationForm: NonNullable<
     if (hasCompanion && !isCustomCompanion(companion)) return undefined;
     if (!isTextQuestion(field)) return undefined;
     const fieldChoices = isChoiceQuestion(field) ? field.oneOf : undefined;
-    // Unsupported choice schemas belong to the generic mapping.
     if (
       fieldChoices === undefined &&
       ("enum" in field || "oneOf" in field || "anyOf" in field || "items" in field)
@@ -97,7 +91,6 @@ export const extractOpenCodeElicitationForm: NonNullable<
       allowCustomAnswer: hasCompanion || options.length === 0,
     });
   }
-  // Recognize only question forms with a choice; leave every other schema to the ACP fallback.
   if (choices === 0) return undefined;
   return {
     questions,

@@ -18,12 +18,10 @@ import * as CheckoutCloner from "./CheckoutCloner.ts";
 import { makeGitVcsDriverCore } from "./GitVcsDriverCore.ts";
 import { makeWorktreeCheckoutCache } from "./worktreeCheckoutCache.ts";
 
-// Tests close their own scope first, so background cache builds finish before the temp folder goes.
 const layerTest = ServerConfig.layerTest(process.cwd(), {
   prefix: "supaterm-worktree-checkout-cache-test-",
 }).pipe(Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)));
 
-// macOS clones for real; elsewhere `cp -a` stands in, keeping mtimes like a clone does.
 const testCloner = Effect.gen(function* () {
   const native = yield* CheckoutCloner.CheckoutCloner.pipe(Effect.provide(CheckoutCloner.layer));
   return (
@@ -94,7 +92,6 @@ const setup = Effect.gen(function* () {
         { fastCheckout },
       ),
     ).pipe(Effect.map(({ worktree }) => worktree.path));
-  // Whether the last creation of `name` checked out with Git rather than cloning.
   const checkedOutWithGit = (name: string) =>
     spawned.some(
       (args) =>
@@ -112,7 +109,6 @@ const setup = Effect.gen(function* () {
   };
 });
 
-// Every tracked file and its type, mode and contents, so two checkouts can be compared.
 const snapshot = (worktreePath: string) =>
   sh(worktreePath, ["ls-files", "-z"])
     .split("\0")
@@ -127,7 +123,6 @@ const snapshot = (worktreePath: string) =>
       ];
     });
 
-// Git's recorded stat data matches each file, so status will not re-read them.
 const indexMatchesFiles = (worktreePath: string) => {
   const debug = sh(worktreePath, ["ls-files", "--debug"]);
   for (const block of debug.split(/\n(?=\S)/)) {
@@ -140,7 +135,6 @@ const indexMatchesFiles = (worktreePath: string) => {
   return true;
 };
 
-// The feature is macOS-only; the fixtures need symlinks.
 describe.skipIf(!symlinksSupported)("worktree checkout cache", () => {
   it.effect("clones a cached checkout that matches what git worktree add writes", () =>
     Effect.gen(function* () {
@@ -154,7 +148,6 @@ describe.skipIf(!symlinksSupported)("worktree checkout cache", () => {
       assert.equal(sh(fast, ["status", "--porcelain"]), "");
       assert.equal(sh(fast, ["rev-parse", "--abbrev-ref", "HEAD"]), "fast");
       assert.isTrue(indexMatchesFiles(fast));
-      // The clone has its own files: editing one leaves the cache and the other worktree alone.
       NodeFS.writeFileSync(NodePath.join(fast, "README.md"), "changed\n");
       assert.equal(sh(stock, ["status", "--porcelain"]), "");
     }).pipe(Effect.scoped, Effect.provide(layerTest)),
@@ -286,7 +279,6 @@ describe.skipIf(!symlinksSupported)("worktree checkout cache", () => {
         sh(fixture.repo, ["config", "core.autocrlf", "true"]),
     },
     {
-      // Moving the cached checkout forward would keep README.md's old line endings.
       name: "attributes changed since the cached commit",
       change: (fixture: { cacheDir: string; repo: string; root: string }) => {
         NodeFS.appendFileSync(
@@ -297,10 +289,8 @@ describe.skipIf(!symlinksSupported)("worktree checkout cache", () => {
       },
     },
     {
-      // On a case-insensitive volume the new file would land in the cached `src` folder.
       name: "a new folder's name differs only in case",
       change: (fixture: { cacheDir: string; repo: string; root: string }) => {
-        // Plumbing, because a case-insensitive volume cannot hold both folders.
         NodeFS.writeFileSync(NodePath.join(fixture.root, "b.txt"), "b\n");
         const blob = sh(fixture.repo, ["hash-object", "-w", NodePath.join(fixture.root, "b.txt")]);
         sh(fixture.repo, ["update-index", "--add", "--cacheinfo", `100644,${blob},Src/b.txt`]);
@@ -308,7 +298,6 @@ describe.skipIf(!symlinksSupported)("worktree checkout cache", () => {
       },
     },
     {
-      // Git would run this hook during its own checkout, with its own environment.
       name: "the move adds a post-index-change hook",
       change: (fixture: { cacheDir: string; repo: string; root: string }) => {
         const hook = NodePath.join(fixture.repo, ".hooks", "post-index-change");
@@ -320,7 +309,6 @@ describe.skipIf(!symlinksSupported)("worktree checkout cache", () => {
       },
     },
     {
-      // The cached tree has the rule but no matching file; the move would run the filter itself.
       name: "the move adds a file that uses a filter",
       change: (fixture: { cacheDir: string; repo: string; root: string }) => {
         NodeFS.writeFileSync(NodePath.join(fixture.repo, "asset.gen"), "generated\n");

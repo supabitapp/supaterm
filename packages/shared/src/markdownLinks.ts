@@ -14,13 +14,9 @@ import {
 
 const RELATIVE_PATH_PREFIX_PATTERN = /^(~\/|\.{1,2}\/)/;
 
-// Names may use any script (`線性代數/考試.pdf`) and routing punctuation (`posts.$id.tsx`,
-// `(group)/[id]/+page.svelte`, `@scope/pkg`). The final segment is optional so an explicit
-// folder link may end in `/` (`patches/`, `docs/My Folder/`). A bare name with no slash still fails.
 const RELATIVE_FILE_PATH_PATTERN =
   /^(?:[\p{L}\p{M}\p{N}._$+@()[\]-]+(?: +[\p{L}\p{M}\p{N}._$+@()[\]-]+)*\/)+(?:[\p{L}\p{M}\p{N}._$+@()[\]-]+(?: +[\p{L}\p{M}\p{N}._$+@()[\]-]+)*(?::\d+(?::\d+|-\d+)?)?)?$/u;
 
-// No `@` here: `me@example.com` is an address, not a file.
 const RELATIVE_FILE_NAME_PATTERN =
   /^[\p{L}\p{M}\p{N}._$+()[\]-]+(?: +[\p{L}\p{M}\p{N}._$+()[\]-]+)*\.[\p{L}\p{M}\p{N}_-]+(?::\d+(?::\d+|-\d+)?)?$/u;
 
@@ -32,10 +28,6 @@ const POSITION_ONLY_PATTERN = /^\d+(?::\d+|-\d+)?$/;
 
 const INLINE_CODE_WHITESPACE_PATTERN = /\s/;
 
-// Inline code with spaces is a file only when it is absolute and every word is a plain name:
-// `/Users/me/Mobile Documents/a - b.md` is, `/usr/bin/python3 -m venv .venv` (a flag) is not.
-// A space only in the last segment reads as a command (`/usr/local/bin/node server.js`), so it
-// must sit under a user root, and nothing after a bin folder counts.
 const SPACED_ABSOLUTE_PATH_ROOT_PATTERN = /^(?:\/|~\/|[A-Za-z]:[\\/])/;
 const SPACED_PATH_BODY_PATTERN =
   /^(?:[\p{L}\p{M}\p{N}._$+@()[\]-]+(?: (?!-+\p{L})[\p{L}\p{M}\p{N}._$+@()[\]-]+)*(?:[\\/]|$))+$/u;
@@ -56,7 +48,6 @@ function isSpacedAbsoluteFilePath(text: string): boolean {
 }
 
 const PATH_SEPARATOR_PATTERN = /[\\/]/;
-// Agents shorten long paths with a `...` or `…` segment, which no file chip can open.
 const ELIDED_PATH_SEGMENT_PATTERN = /(?:^|[\\/])(?:\.{3,}|…)(?:[\\/]|$)/;
 
 const FILE_EXTENSION_PATTERN = /\.[A-Za-z0-9_-]+$/;
@@ -182,7 +173,6 @@ const COUNTRY_HOSTNAME_TLDS = new Set([
   "tr",
   "sg",
   "hk",
-  // C++ sources end in `.cc`, so `allocator.cc:217` names a file, not a host and port.
   "cc",
 ]);
 
@@ -216,8 +206,6 @@ export function inlineCodeFilePathCandidate(codeText: string): string | null {
     isWindowsAbsolutePath(candidate);
   if (!hasExplicitPathShape) {
     const withoutPosition = candidate.replace(POSITION_SUFFIX_PATTERN, "");
-    // Markdown destinations accept `patches/`. Inline code still needs a
-    // file-shaped final segment, so a trailing slash stays plain code.
     if (withoutPosition.endsWith("/")) return null;
     const firstSegment = withoutPosition.split("/")[0] ?? withoutPosition;
     if (looksLikeHostname(firstSegment, hasPosition)) return null;
@@ -229,7 +217,6 @@ export function inlineCodeFilePathCandidate(codeText: string): string | null {
     if (VERSION_SUFFIX_PATTERN.test(basename)) return null;
     if (!FILE_EXTENSION_PATTERN.test(basename)) {
       if (!hasPosition) return EXTENSIONLESS_FILE_NAMES.has(basename) ? candidate : null;
-      // A `:line` suffix alone does not make `I/W217:220` a file reference.
       if (
         withoutPosition.includes("/") &&
         !ANY_FILE_EXTENSION_PATTERN.test(basename) &&
@@ -337,8 +324,6 @@ export function parseMarkdownFileLink(href: string): FilePathPosition | null {
   if (path.length === 0 || hasExternalScheme(path)) return null;
 
   const position = parseFilePathLink(path, hash);
-  // `src\a.ts` is Windows-relative. A link that already parses keeps its spelling, since POSIX
-  // names may contain `\`; a rooted `\\host` or `\foo` would change root if rewritten.
   if (position || /^[\\/]/.test(path) || isWindowsAbsolutePath(path)) return position;
   return path.includes("\\") ? parseFilePathLink(path.replaceAll("\\", "/"), hash) : null;
 }
@@ -393,8 +378,6 @@ function markdownLinkTailScanner(markdown: string) {
   };
 }
 
-// micromark's own nesting limit. It also keeps link scanning linear: a scan only runs past another
-// link's opening parenthesis while that parenthesis counts toward this depth.
 const MAX_BARE_DESTINATION_PAREN_DEPTH = 32;
 
 function bareMarkdownLinkDestinationEnd(markdown: string, start: number): number | null {
@@ -420,7 +403,6 @@ function bareMarkdownLinkDestinationEnd(markdown: string, start: number): number
 function markdownLinkDestinationScanner(markdown: string) {
   const whitespaceEnd = markdownRunEndFinder(markdown, /\S/g);
   const angleEnd = markdownRunEndFinder(markdown, /[>\n]/g);
-  // Separate caches keep scans moving forward when angle destinations fall back to bare ones.
   const angleTail = markdownLinkTailScanner(markdown);
   const bareTail = markdownLinkTailScanner(markdown);
   return (start: number) => {
@@ -440,7 +422,6 @@ function markdownLinkDestinationScanner(markdown: string) {
   };
 }
 
-// The composer escapes brackets in labels (`[\[id\].tsx](...)`), and `\]` does not close one.
 function unescapedLabelEnd(markdown: string, start: number): number {
   let end = markdown.indexOf("]", start);
   while (end !== -1) {
@@ -462,7 +443,6 @@ export function extractMarkdownLinkHrefs(markdown: string): string[] {
     const labelEnd = unescapedLabelEnd(markdown, labelStart + 1);
     if (labelEnd === -1) break;
 
-    // Skip a failed label once; nested openings share its closing bracket.
     cursor = labelEnd + 1;
     const destination = scanDestination(cursor);
     if (!destination) continue;
@@ -484,8 +464,6 @@ export function resolveMarkdownFileLinkTarget(
 
   const pathWithPosition = formatFilePathPosition(target);
   if (!isRelativeFilePath(pathWithPosition)) {
-    // Opening a network path makes Windows sign in to its host with the user's
-    // NTLM credentials, so only the project's own share becomes a file link.
     return isNetworkPath(target.path) && workspaceRelativeFilePath(target.path, cwd) === null
       ? null
       : pathWithPosition;
@@ -498,8 +476,6 @@ export function isWindowsDrivePathHref(href: string): boolean {
   return /^[A-Za-z]:[\\/]/.test(safeDecodeURIComponent(href));
 }
 
-// Bare prose paths need a filesystem root or a position, so `/api/users.json` stays a route,
-// and a file-shaped last segment.
 export function absoluteFilePathMatches(text: string): Array<{ index: number; path: string }> {
   const paths: Array<{ index: number; path: string }> = [];
   for (const match of text.matchAll(/(^|[\s(["'])(\/[^\s<>"'`]+)/g)) {
@@ -521,14 +497,12 @@ export function absoluteFilePathMatches(text: string): Array<{ index: number; pa
       end -= 1;
     }
     const path = source.slice(0, end);
-    // Trimming `/tmp/a/....` to `/tmp/a/` would hide its elided segment.
     if (path.endsWith("/") && source.startsWith("...", end)) continue;
     if (
       !POSIX_FILE_ROOT_PREFIXES.some((prefix) => path.startsWith(prefix)) &&
       !POSITION_SUFFIX_PATTERN.test(path)
     )
       continue;
-    // Prose ends a path at whitespace, so `/Users/me/Library/Application Support/...` must not link.
     const basename = path.slice(path.lastIndexOf("/") + 1);
     if (
       !POSITION_SUFFIX_PATTERN.test(path) &&

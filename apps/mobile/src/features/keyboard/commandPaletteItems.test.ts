@@ -32,8 +32,6 @@ const keys = (results: ReadonlyArray<{ readonly key: string }>) =>
 
 describe("filterCommandPaletteItems", () => {
   it("ranks like the web palette, whole words first, with every token required", () => {
-    // A thread active today outranks a project that matches as well, but not
-    // one whose whole name was typed.
     expect(keys(filterCommandPaletteItems(items, "mobile", [], NOW))).toEqual([
       "mac:one",
       "project",

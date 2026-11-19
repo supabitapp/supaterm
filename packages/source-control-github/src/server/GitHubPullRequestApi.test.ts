@@ -24,13 +24,11 @@ import { KnownWorkflowRuns } from "./gitHubConditionalChecks.ts";
 
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
-// GitHub's field-level reviewer refusal; the surrounding response data is synthetic.
 const refusedReviewer = {
   type: "FORBIDDEN",
   message: "Resource not accessible by integration",
   path: ["repository", "pullRequest", "reviewRequests", "nodes", 0, "requestedReviewer"],
 };
-// What GitHub answers for a pull request that has no `refs/pull/<number>/head`.
 const unresolvedPullRef = {
   type: "NOT_FOUND",
   message: "Could not resolve head ref 'refs/pull/7/head'.",
@@ -161,7 +159,6 @@ const mockHttp = Layer.succeed(
         }),
         Effect.orDie,
       );
-      // Empty mutation mocks still need the selected GraphQL root field.
       const body =
         answer.body === "{}" && sent.query.startsWith("mutation ")
           ? encodeJson(mutationAnswer(sent.query))
@@ -513,7 +510,6 @@ function restCallsTo(needle: string): ReadonlyArray<GitHubRest.GitHubRestInput> 
   );
 }
 
-/** Route before the node-ID lookup, whose document is contained in this scope query. */
 const SUBJECT_SCOPE_QUERY = "PullRequestSubject";
 const subjectScope = (subjectId: string, pullRequestId: string) => ({
   data: {
@@ -615,7 +611,6 @@ function workflowApprovalRoutes(
   );
 }
 
-/** Node IDs stay cached after the first test. */
 const NODE_ID_QUERY = "PullRequestNodeId";
 const nodeIdAnswer = (id: string) => ({ data: { repository: { pullRequest: { id } } } });
 
@@ -1296,7 +1291,6 @@ layer("GitHubPullRequestApi.layer", (it) => {
       assert.deepStrictEqual(second, first);
       expect(callAt(0)).not.toHaveProperty("ifNoneMatch");
       expect(callAt(1)).toMatchObject({ ifNoneMatch: 'W/"v1"' });
-      // Another account never revalidates the first account's answer.
       expect(callAt(2)).not.toHaveProperty("ifNoneMatch");
     }),
   );
@@ -1420,10 +1414,6 @@ layer("GitHubPullRequestApi.layer", (it) => {
     }),
   );
 
-  /**
-   * Lists a repository GitHub will not return, answering credential lookups in turn (the last
-   * answer repeats; `undefined` is no credential), and returns the error with the tokens sent.
-   */
   const listUnreadableRepository = (
     ...lookups: ReadonlyArray<
       | { readonly token: string; readonly source: GitHubCredentials.GitHubCredentialSource }
@@ -1490,7 +1480,6 @@ layer("GitHubPullRequestApi.layer", (it) => {
 
   it.effect("names the credential GitHub would not return a repository to", () =>
     Effect.gen(function* () {
-      // The saved token is replaced mid-read; every request still goes out with the one named.
       const saved = yield* listUnreadableRepository(
         { token: "first", source: "settings" },
         { token: "replaced", source: "settings" },
@@ -2019,8 +2008,6 @@ layer("GitHubPullRequestApi.layer", (it) => {
 
   it.effect("skips the rows already delivered at a tied boundary before applying the limit", () =>
     Effect.gen(function* () {
-      // Twenty pull requests share the boundary instant, then five are older. GitHub's search
-      // has no qualifier for a row number, so the boundary always comes back from its start.
       const repository = { nameWithOwner: "acme/web" };
       const tied = rows(20, 1, () => ({ repository }));
       const older = rows(5, 21, () => ({ updatedAt: "2026-07-01T00:00:00Z", repository }));
@@ -2089,7 +2076,6 @@ layer("GitHubPullRequestApi.layer", (it) => {
         11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
       ]);
 
-      // Rows seen earlier that no longer match must not count as skipped, or the rest is lost.
       const moved = { updatedBefore: "2026-07-01T00:00:00Z", delivered: 10 };
       const listedPastMoved = yield* cli.listPullRequests({
         cwd: "/w",
@@ -2376,7 +2362,6 @@ layer("GitHubPullRequestApi.layer", (it) => {
           autoMergeEnabled: queued,
           ...(queued ? { autoMergeMethod: "merge" } : {}),
         });
-        // The action-state read and the mutation; no re-read of the pull request.
         expect(mockedExecute).toHaveBeenCalledTimes(2);
       }),
   );
@@ -3191,7 +3176,6 @@ layer("GitHubPullRequestApi.layer", (it) => {
 
       assert.isFalse(diff.truncated);
       assert.isNull(diff.nextCursor);
-      // The refusal covers one file's read too.
       assert.isUndefined(diff.withheldFilesReadable);
       expect(diff.patch).toContain("diff --git a/src/file1.ts b/src/file1.ts");
       expect(diff.patch).toContain("diff --git a/src/file2.ts b/src/file2.ts");
@@ -4156,7 +4140,6 @@ layer("GitHubPullRequestApi.layer", (it) => {
       });
 
       expect(callAt(0)).toMatchObject({ operationName: "ReviewThreads" });
-      // Later pages ask for the threads alone and keep the first page's PR-wide fields.
       const later = callAt(1);
       assert(later.kind === "graphql");
       expect(later).toMatchObject({

@@ -231,7 +231,6 @@ export const AcpRegistrySetProviderInput = Schema.Struct({
   providerId: AcpRegistryProviderId,
   apiType: AcpRegistryProviderProtocol,
   baseUrl: AcpRegistryUrl,
-  // Write-only secrets. Provider list responses intentionally cannot carry headers.
   headers: Schema.optionalKey(
     Schema.Record(
       TrimmedNonEmptyString.check(Schema.isMaxLength(128)),
@@ -268,14 +267,12 @@ export const AcpRegistryProbeModel = Schema.Struct({
   id: AcpRegistryProbeText,
   name: AcpRegistryProbeText,
   description: AcpRegistryProbeDescription,
-  // The reasoning control the agent advertises for this model; null when it has none.
   reasoningEffort: Schema.optionalKey(Schema.NullOr(ProviderOptionDescriptor)),
 });
 export type AcpRegistryProbeModel = typeof AcpRegistryProbeModel.Type;
 
 export const AcpRegistryProbeResult = Schema.Struct({
   instanceId: ProviderInstanceId,
-  // `ready` requires a disposable ACP session/new probe, not passive auth detection.
   ready: Schema.Literal(true),
   icon: Schema.NullOr(AcpRegistryUrl),
   agentVersion: Schema.optionalKey(AcpRegistryProbeText),
@@ -283,7 +280,6 @@ export const AcpRegistryProbeResult = Schema.Struct({
   models: Schema.Array(AcpRegistryProbeModel).check(Schema.isMaxLength(256)),
   currentModelId: Schema.NullOr(AcpRegistryProbeText),
   configOptions: Schema.Array(ProviderOptionDescriptor).check(Schema.isMaxLength(16)),
-  // configOptions ids that describe only the current model (ACP thought_level / model_config).
   modelOptionIds: Schema.optionalKey(
     Schema.Array(AcpRegistryProbeText).check(Schema.isMaxLength(16)),
   ),

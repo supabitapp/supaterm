@@ -60,7 +60,6 @@ export function xAiPromptCompleteFromSessionUpdate(
     return null;
   }
   const promptId = nonEmptyString(update.prompt_id) ?? nonEmptyString(update.promptId);
-  // Require prompt identity to avoid matching background completions or unrelated turns.
   if (promptId === undefined || promptId.startsWith(XAI_TASK_COMPLETED_PROMPT_ID_PREFIX)) {
     return null;
   }
@@ -247,11 +246,9 @@ export function isXAiMonitorTool(toolCall: AcpToolCallState): boolean {
   const rawInput = unknownRecord(toolCall.data.rawInput);
   const variant = nonEmptyString(rawInput?.variant)?.toLowerCase();
   if (variant === "monitor") return true;
-  // Start ACK titles can be generic; the structured Monitor envelope remains authoritative.
   const rawOutput = unknownRecord(toolCall.data.rawOutput);
   const outputType = nonEmptyString(rawOutput?.type)?.toLowerCase();
   if (outputType === "monitor") return true;
-  // Older clients send plain Text ACKs; these still identify the monitor after title rewrites.
   return isXAiMonitorStartAck(xAiToolOutputText(toolCall));
 }
 
@@ -312,9 +309,6 @@ export function extractXAiBackgroundTaskCompletion(toolCall: AcpToolCallState): 
   const text = xAiToolOutputText(toolCall);
   const status = statusFromGetOutputTool(toolCall, text);
   const appendOutput = resultFromGetOutputTool(toolCall, text) ?? "";
-  // Prefer the completed identity from the result/header over the request list
-  // (one call can poll multiple task_ids).
-  // Command task ids can be `call-<uuid>-<index>`; subagent ids stay UUID-only.
   const resultTaskId =
     structuredTaskIdFromGetOutputTool(toolCall) ?? resultTaskIdFromGetOutputTool(toolCall, text);
   if (resultTaskId !== undefined) {
@@ -354,7 +348,6 @@ export function extractXAiKilledBackgroundTasks(toolCall: AcpToolCallState): Rea
   const legacy = title.includes("kill_command_or_subagent") || variant === "kill";
   if (!legacy && variant !== "killtask" && rawOutput?.type !== "KillTask") return [];
   if (toolCall.status !== "completed") return [];
-  // Grok nests the outcome under Result; only a missing, killed or already_exited one ends the task.
   const outcome = rawOutput?.outcome ?? unknownRecord(rawOutput?.Result)?.outcome;
   if (!legacy && outcome !== undefined && outcome !== "killed" && outcome !== "already_exited")
     return [];
@@ -557,9 +550,6 @@ function resolveXAiAcpToolTitle(toolCall: AcpToolCallState): string | undefined 
   return nonEmptyString(toolCall.title);
 }
 
-/** Grok 1.0.41 monitor ticks report exit_code 0 before ending via _x.ai/task_completed. */
-// Grok calls MCP tools through its `use_tool` built-in as "<server>__<tool>" and wraps results as
-// { type: "MCP", output: { OkayOutput } | { Error } }; rewrite both into the generic ACP MCP shapes.
 function normalizeXAiMcpToolCall(toolCall: AcpToolCallState): AcpToolCallState {
   const meta = unknownRecord(toolCall.data.meta);
   const rawInput = unknownRecord(toolCall.data.rawInput);
@@ -616,7 +606,6 @@ export function normalizeXAiAcpToolCallState(incoming: AcpToolCallState): AcpToo
   const outputType = nonEmptyString(rawOutput?.type)?.toLowerCase();
   const reportedRunning = withTitle.status === "inProgress" || withTitle.status === "pending";
   if (outputType === "bash" && !reportedRunning) {
-    // Keep exit-code keys aligned with adapter commandExitCode.
     const exitCode = ["exit_code", "exitCode", "code"]
       .map((key) => rawOutput?.[key])
       .find((value) => typeof value === "number" && Number.isInteger(value));
@@ -682,7 +671,6 @@ export function extractXAiAcpBackgroundToolMutation(
   const endedRe = new RegExp(`Monitor\\s+["']?(${XAI_UUID_RE})["']?\\s+ended`, "gi");
   for (const endedMatch of text.matchAll(endedRe)) {
     if (endedMatch[1] === undefined) continue;
-    // Only the monitor header describes outcome; output can contain error words without failure.
     const outcomeClause = (endedMatch[0] ?? "").trim();
     const afterHeader = text.slice((endedMatch.index ?? 0) + endedMatch[0].length);
     const outcomeTail = afterHeader.split(/\n/)[0] ?? "";
@@ -721,7 +709,6 @@ function stripLeadingBalancedParenGroup(text: string): string {
 export function extractXAiAcpSubagentEndNotice(text: string): XAiAcpSubagentEndNotice | undefined {
   const match = text.match(new RegExp(`Background subagent\\s+["']?(${XAI_UUID_RE})["']?`, "i"));
   if (match?.[1] === undefined) return undefined;
-  // Skip balanced descriptor parentheses so nested titles cannot supply false outcome verbs.
   const tail = stripLeadingBalancedParenGroup(text.slice((match.index ?? 0) + match[0].length));
   if (/completed successfully/i.test(tail)) {
     return { childSessionId: match[1], status: "completed" };
@@ -832,7 +819,6 @@ function statusFromGetOutputTool(
       return "running";
     }
   }
-  // A completed poll RPC does not end its task without task-level status or exit code.
   return "running";
 }
 
@@ -1031,7 +1017,6 @@ function grokPlanSessionPrefixes(host: GrokPlanPathHost): ReadonlySet<string> {
   addGrokSessionPrefix(prefixes, "~", true);
   addGrokSessionPrefix(prefixes, environment.HOME ?? "", true);
   addGrokSessionPrefix(prefixes, environment.USERPROFILE ?? "", true);
-  // ACP mock and isolated Grok spawns use a HOME that is not the server process home.
   addGrokSessionPrefix(prefixes, "/tmp/mock-home", true);
   const grokHome = environment.GROK_HOME ?? "";
   addGrokSessionPrefix(prefixes, grokHome, false);
@@ -1319,7 +1304,6 @@ function promptResponseFromXAi(
   };
 }
 
-// Grok completion can beat the prompt RPC error; carry its agentResult failure.
 function xAiPromptFailure(
   notification: XAiPromptCompleteNotification,
 ): EffectAcpErrors.AcpRequestError | null {
@@ -1469,7 +1453,6 @@ const rememberCompletedXAiPromptId = (
 
 export const makeXAiPromptCompletionRuntime = Effect.fn("makeXAiPromptCompletionRuntime")(
   function* (runtime: AcpSessionRuntime.AcpSessionRuntime["Service"]) {
-    // Grok multiplexes session updates on extension methods that permit only one handler.
     const sessionNotificationHandlers = new Map<
       string,
       (params: unknown) => Effect.Effect<void, EffectAcpErrors.AcpError>
@@ -1592,7 +1575,6 @@ export const makeXAiPromptCompletionRuntime = Effect.fn("makeXAiPromptCompletion
         );
       }),
       cancel: Effect.gen(function* () {
-        // Cancellation must bypass start so it can reach a stalled runtime.
         yield* abortPendingPromptCompletions(pendingXAiPromptCompletionsRef);
         yield* runtime.cancel;
       }),

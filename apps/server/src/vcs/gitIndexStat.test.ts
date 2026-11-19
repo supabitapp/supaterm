@@ -17,8 +17,6 @@ const git = (cwd: string, args: ReadonlyArray<string>, env: NodeJS.ProcessEnv = 
     encoding: "utf8",
   });
 
-// A repository whose checkout in `source` was written by Git with its own index, then copied
-// to `copy` the way a clone would: same contents and mtimes, new inodes and ctimes.
 const makeCopiedCheckout = Effect.acquireRelease(
   Effect.sync(() => {
     const root = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "git-index-stat-"));
@@ -44,7 +42,6 @@ const makeCopiedCheckout = Effect.acquireRelease(
       ["-c", "index.version=2", `--work-tree=${source}`, "read-tree", "--reset", "-u", tree],
       env,
     );
-    // Old mtimes keep every entry clear of Git's racy-clean re-read.
     for (const name of ["a.txt", "nested/b.txt", "run.sh", ".gitattributes"]) {
       NodeFS.utimesSync(NodePath.join(source, name), 1_000_000, 1_000_000);
     }
@@ -55,7 +52,6 @@ const makeCopiedCheckout = Effect.acquireRelease(
     );
     const copy = NodePath.join(root, "copy");
     NodeChildProcess.execFileSync("cp", ["-a", source, copy]);
-    // Setup ran the filter itself; only reads after this point count.
     NodeFS.rmSync(NodePath.join(root, "clean-runs"), { force: true });
     return { root, repo, source, sourceIndex, copy };
   }),
@@ -71,7 +67,6 @@ const statAll = (root: string, paths: ReadonlyArray<string>) =>
     }
   });
 
-// The feature is macOS-only; the fixtures need symlinks.
 describe.skipIf(!symlinksSupported)("restatIndex", () => {
   it.effect("makes Git trust copied files without reading them", () =>
     Effect.gen(function* () {

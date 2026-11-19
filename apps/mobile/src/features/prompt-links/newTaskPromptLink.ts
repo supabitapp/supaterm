@@ -53,8 +53,6 @@ import {
   withoutPromptLinkParams,
 } from "./prompt-link-model";
 
-// Found at any depth, both in the parsed link and on the live stack, so the two never disagree on
-// whether the link has landed.
 const NEW_TASK_ROUTE = "NewTaskProject";
 const NEW_TASK_ROUTES = [NEW_TASK_ROUTE];
 
@@ -65,8 +63,6 @@ type LinkedDraftRequest = {
   readonly pullRequest: PromptLinkPullRequest | null;
 };
 
-// A cold launch from a link has no projects or threads yet. Matching then would offer to clone a
-// repository the user already has.
 const shellsSettledAtom = Atom.make((get) => get(workspaceStateAtom).shellsSettled).pipe(
   Atom.withLabel("mobile:prompt-link-shells-settled"),
 );
@@ -98,8 +94,6 @@ export function takeNewTaskPromptLink(
 export function resolvePendingNewTaskPromptLink(state: NavigationState | undefined): void {
   if (pendingLink === null) return;
   const step = stepPendingPromptLink(pendingLink, {
-    // A screen pushed above New task (such as Add project) drops the link, so it never lands
-    // over the wrong screen.
     screenOnStack: findStackRoute(state, NEW_TASK_ROUTE)?.focused === true,
     ready: appAtomRegistry.get(shellsSettledAtom),
   });
@@ -119,7 +113,6 @@ function dropPendingLink(): void {
   stopWaitingForShells = null;
 }
 
-/** Dispatches as the new-task screen would, so `replace` swaps that screen out. */
 function dispatchFromNewTask(action: StackActionType): void {
   const root = rootNavigationRef.getRootState();
   const screen = findStackRoute(root, NEW_TASK_ROUTE);
@@ -175,8 +168,6 @@ function openThread(
   }
 }
 
-// A pull request's thread can be an older done thread no shell holds, so ask every
-// connected environment with the repository. A lookup on another one would wait forever.
 async function findServerPullRequestThread(
   projects: ReadonlyArray<EnvironmentProject>,
   pullRequest: PromptLinkPullRequest,
@@ -207,7 +198,6 @@ async function findServerPullRequestThread(
   const lookups = projects.flatMap((project) =>
     connected.has(project.environmentId) ? [lookup(project)] : [],
   );
-  // The most recent project wins without waiting for the lookups after it.
   for (const lookup of lookups) {
     const thread = await lookup;
     if (thread) return thread;
@@ -318,7 +308,6 @@ async function openScratchDraft(request: LinkedDraftRequest) {
 }
 
 function cloneRepository(repository: PromptLinkRepository, request: LinkedDraftRequest) {
-  // The clone screen lets the user pick another environment before cloning.
   const environmentId =
     appAtomRegistry.get(environmentProjects.projectsAtom)[0]?.environmentId ??
     appAtomRegistry.get(workspaceConnections.environmentsAtom)[0]?.environmentId ??

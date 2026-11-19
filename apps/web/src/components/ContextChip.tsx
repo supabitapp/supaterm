@@ -30,7 +30,6 @@ const contextChipVariants = cva(
         thread: "[--context-chip-accent:var(--context-chip-thread)]",
         model: "[--context-chip-accent:var(--context-chip-model)]",
         citation: "[--context-chip-accent:var(--context-chip-citation)]",
-        // PDF red reads as the invalid state, so only the icon carries it.
         "doc-pdf": "[--context-chip-accent:var(--foreground)]",
         "doc-word": "[--context-chip-accent:var(--context-chip-doc-word)]",
         "doc-spreadsheet": "[--context-chip-accent:var(--context-chip-doc-spreadsheet)]",

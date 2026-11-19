@@ -76,7 +76,6 @@ const make = Effect.gen(function* () {
   const setupScriptRunner = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
   const vcsStatusBroadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
 
-  // Serialize handoffs per thread to avoid creating two worktrees and orphaning one.
   const handoffThreadsInFlight = new Set<string>();
 
   const requireThreadScope = (scope: McpInvocationScope) =>
@@ -240,7 +239,6 @@ const make = Effect.gen(function* () {
 
     const ids = yield* handoffIds(scope);
 
-    // Mask interruption after worktree creation through setup; binding can detach and interrupt the caller.
     return yield* Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
         const worktree = yield* restore(
@@ -281,7 +279,6 @@ const make = Effect.gen(function* () {
         ).pipe(Effect.ignoreCause({ log: true }));
 
         const recheckAndBind = Effect.gen(function* () {
-          // A concurrent UI binding may have landed during git work; do not orphan a second worktree.
           const recheck = yield* loadThread(scope);
           if (recheck.thread.worktreePath !== null) {
             return yield* alreadyInWorktree(recheck.thread.worktreePath);
@@ -300,7 +297,6 @@ const make = Effect.gen(function* () {
               branch: worktree.worktree.refName,
               worktreePath,
               expectedWorktreePath: null,
-              // Binding detaches the session and ends the caller; a later send could lose the race.
               ...(input.continuationPrompt === undefined
                 ? {}
                 : {
@@ -323,7 +319,6 @@ const make = Effect.gen(function* () {
               ),
             );
         }).pipe(
-          // Do not remove on interruption alone; the thread binding may already have committed.
           Effect.onError((cause) =>
             Cause.hasInterruptsOnly(cause) ? Effect.void : removeCreatedWorktree,
           ),
@@ -395,7 +390,6 @@ const make = Effect.gen(function* () {
     function* (callerScope, input) {
       yield* requireCapability(callerScope);
       const scope = yield* requireThreadScope(callerScope);
-      // Acquire and register cleanup atomically so cancellation cannot strand the guard until restart.
       return yield* Effect.uninterruptibleMask((restore) =>
         Effect.suspend(() => {
           if (handoffThreadsInFlight.has(scope.thread.threadId)) {
@@ -440,7 +434,6 @@ const make = Effect.gen(function* () {
   const listRefs: WorktreeMcpService["Service"]["listRefs"] = Effect.fn(
     "WorktreeMcpService.listRefs",
   )(function* ({ worktreePath, workspaceRoot, ...refs }) {
-    // Storage cleanup removes a worktree but keeps its path on the thread.
     const cwd =
       worktreePath !== null && (yield* fileSystem.exists(worktreePath))
         ? worktreePath

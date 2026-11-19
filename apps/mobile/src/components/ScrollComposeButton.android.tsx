@@ -86,7 +86,6 @@ export function ScrollComposeButton(props: {
           </Box>
         </NativeThemeHost>
       </View>
-      {/* The visual host is wider than the button; only this target intercepts list touches. */}
       <Pressable
         onPress={props.onPress}
         accessibilityRole="button"

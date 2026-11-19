@@ -42,13 +42,11 @@ function elapsedMs(startedAt: string | null, endMs: number): number | null {
   return Math.max(0, endMs - start);
 }
 
-/** Mounted only while setup runs, so finished setups never subscribe to the tick. */
 function LiveElapsed({ startedAt }: { startedAt: string }) {
   const elapsed = elapsedMs(startedAt, useNowSecond());
   return elapsed === null ? null : <>{formatDuration(elapsed)}</>;
 }
 
-/** A finished duration, or a ticking one while setup is still running. */
 function Elapsed({
   startedAt,
   endedAt,
@@ -212,7 +210,6 @@ function StageRow({
             <span className="shrink-0 text-xs text-muted-foreground tabular-nums empty:hidden">
               <Elapsed
                 startedAt={stage.startedAt}
-                // A stage interrupted by the setup ending stops with it.
                 endedAt={stage.endedAt ?? setupEndedAt}
                 live={setupRunning}
               />

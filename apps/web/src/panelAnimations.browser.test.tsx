@@ -107,7 +107,6 @@ async function setup(fakeClock = true) {
   pendingFrames = [];
   reducedMotion = false;
   mediaListeners = new Set();
-  // Frames are stepped by hand so each assertion lands between two paints.
   vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
     pendingFrames.push(callback);
     return pendingFrames.length;

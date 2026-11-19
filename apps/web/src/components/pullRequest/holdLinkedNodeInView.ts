@@ -27,7 +27,6 @@ export function holdLinkedNodeInView(
     scroller.addEventListener(type, stop, { passive: true, signal: controller.signal });
   }
   align();
-  // Activity can load after the click; by then the user may be typing elsewhere.
   const active = document.activeElement;
   if (
     !(active instanceof HTMLElement) ||

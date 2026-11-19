@@ -114,7 +114,6 @@ export { DraftId };
 
 const COMPOSER_PERSIST_DEBOUNCE_MS = 300;
 
-// Keep the immutable state until flush.
 type ComposerPersistState = { capturedState: ComposerDraftStoreState };
 
 const composerDraftBaseStorage =
@@ -122,7 +121,6 @@ const composerDraftBaseStorage =
 
 interface ComposerDraftWrite {
   readonly text: string;
-  /** This tab's own state as of the write; entries it still matches were not edited here. */
   readonly local: PersistedComposerDraftStoreState;
   readonly merged: PersistedComposerDraftStoreState;
 }
@@ -157,7 +155,6 @@ function mergeDraftRecord<V>(
   return merged;
 }
 
-/** Writes only what this tab changed since its last write over what other tabs saved since. */
 function mergeComposerDraftStates(
   stored: PersistedComposerDraftStoreState,
   local: PersistedComposerDraftStoreState,
@@ -223,8 +220,6 @@ const composerPersistStorage: PersistStorage<ComposerPersistState> = {
     if (typeof raw !== "string") {
       return null;
     }
-    // Parsed persisted JSON. `merge` normalizes it from unknown,
-    // so the cast mirrors the one zustand's createJSONStorage performs.
     return JSON.parse(raw) as StorageValue<ComposerPersistState>;
   },
   setItem: (name, value) => composerDebouncedStorage.setItem(name, value),
@@ -262,7 +257,6 @@ export function composerFileNeedsReattach(file: ComposerFileAttachment): boolean
   return file.file === null && file.uploadedAttachmentId === undefined;
 }
 
-/** Strips upload ids another environment owns; local bytes re-upload, byte-less files need reattaching. */
 function clearStaleFileUploadMetadata(
   draft: ComposerThreadDraftState,
   environmentId: EnvironmentId | null,
@@ -334,16 +328,9 @@ const PersistedComposerThreadDraftState = Schema.Struct({
   previewAnnotations: Schema.optionalKey(Schema.Array(PreviewAnnotationPayloadSchema)),
   reviewComments: Schema.optionalKey(Schema.Array(ReviewCommentContextSchema)),
   referenceContexts: Schema.optionalKey(Schema.Array(ReferenceContextRecordSchema)),
-  /** Drafts saved before model chips kept thread records here. */
   threadContexts: Schema.optionalKey(Schema.Array(ThreadContextRecord)),
-  // Keyed by `ProviderInstanceId` so custom provider instances round-trip. The record's values
-  // are NOT `Schema.optionalKey`: a branded-string Record is an index signature, which Schema
-  // rejects with it, and a missing entry already means "no selection for this instance".
   modelSelectionByProvider: Schema.optionalKey(Schema.Record(ProviderInstanceId, ModelSelection)),
   activeProvider: Schema.optionalKey(Schema.NullOr(ProviderInstanceId)),
-  // True only when a human picked this selection in the composer. Seeded
-  // selections (project default / sticky) leave it unset so later seeds can
-  // replace them.
   modelSelectionExplicit: Schema.optionalKey(Schema.Boolean),
   runtimeMode: Schema.optionalKey(RuntimeMode),
   interactionMode: Schema.optionalKey(ProviderInteractionMode),
@@ -857,7 +844,6 @@ function createEmptyThreadDraft(): ComposerThreadDraftState {
   };
 }
 
-/** Keep these content fields aligned with composerDraftHasUserContent. */
 function composerDraftContent({
   modelSelectionByProvider: _modelSelectionByProvider,
   activeProvider: _activeProvider,
@@ -973,27 +959,14 @@ function normalizeProviderDriverKind(value: unknown): ProviderDriverKind | null 
   return isProviderDriverKind(value) ? value : null;
 }
 
-/**
- * Permissive validator — the schema layer owns authoritative validation; this
- * is used inline to gate typed writes to the draft's instance-keyed maps
- * without pulling the full Effect Schema runtime into the hot path.
- */
 const PROVIDER_INSTANCE_ID_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
 
-/**
- * Coerce an arbitrary persisted value into a valid `ProviderInstanceId`
- * routing key, such as `codex` or a custom `codex_personal` instance.
- */
 function normalizeProviderInstanceId(value: unknown): ProviderInstanceId | null {
   if (typeof value !== "string") return null;
   if (!PROVIDER_INSTANCE_ID_PATTERN.test(value)) return null;
   return value as ProviderInstanceId;
 }
 
-/**
- * Permissive on purpose: descriptors decide which option ids matter for a
- * provider/model, so entries outside them are harmless and ignored downstream.
- */
 function coerceProviderOptionSelections(
   value: unknown,
 ): ReadonlyArray<ProviderOptionSelection> | undefined {
@@ -1014,16 +987,12 @@ function coerceProviderOptionSelections(
   return out.length > 0 ? out : undefined;
 }
 
-// Returns a model selection whose `instanceId` is a valid
-// `ProviderInstanceId` slug, or `null` when the instance id or model is
-// unusable.
 function normalizeModelSelection(value: unknown): NormalizedModelSelection | null {
   const candidate = value && typeof value === "object" ? (value as Record<string, unknown>) : null;
   const instanceId = normalizeProviderInstanceId(candidate?.instanceId);
   if (instanceId === null || typeof candidate?.model !== "string") {
     return null;
   }
-  // Instance-scoped picks are already resolved slugs; a custom slug can match a static alias.
   const model = normalizeCustomModelSlug(candidate.model);
   if (!model) {
     return null;
@@ -1039,7 +1008,6 @@ type NormalizedModelSelection = Omit<ModelSelection, "instanceId"> & {
   readonly instanceId: ProviderInstanceId;
 };
 
-// Static aliases are shared across instances; exact custom slugs and catalog aliases are not.
 function composerModelIdentity(
   input: {
     providers: ReadonlyArray<ServerProvider>;
@@ -1109,7 +1077,6 @@ export function deriveEffectiveComposerModelState(input: {
           { preserveUnavailableSelection: preserveThreadModel },
         )
       : null) ??
-    // Antigravity has no static model or cross-account catalog fallback.
     (input.selectedProvider === "antigravity" && input.selectedInstanceId ? "" : null) ??
     resolveAppModelSelection(
       input.selectedProvider,
@@ -1122,7 +1089,6 @@ export function deriveEffectiveComposerModelState(input: {
   const instanceSelection = input.selectedInstanceId
     ? draft?.modelSelectionByProvider?.[input.selectedInstanceId]
     : undefined;
-  // Legacy driver-keyed drafts belong to the default instance.
   const legacySelection =
     input.selectedInstanceId &&
     input.selectedInstanceId !== defaultInstanceIdForDriver(input.selectedProvider)
@@ -1148,7 +1114,6 @@ export function deriveEffectiveComposerModelState(input: {
         activeSelection.model,
       ))
     : baseModel;
-  // Base options belong to the base model, so a draft pick of another model gets none of them.
   const draftPicksOtherModel =
     !!activeSelection?.model &&
     composerModelIdentity(input, activeSelectionInstanceId, activeSelection.model) !==
@@ -1157,8 +1122,6 @@ export function deriveEffectiveComposerModelState(input: {
         baseSelection?.instanceId ?? activeSelectionInstanceId,
         baseSelection?.model,
       );
-  // An existing thread's options, even none, outrank the project's. Next to draft options, they
-  // fill in only for the model they were stored with.
   const draftOptions = modelSelectionByProviderToOptions(draft?.modelSelectionByProvider);
   const storedIsShownModel =
     baseSelection != null &&
@@ -1355,7 +1318,6 @@ export function resolveComposerDraftKey(
 
 const QUEUED_RUN_EDIT_DRAFT_PREFIX = "queued-edit:";
 
-// Thread and run ids both contain colons, so the run id is encoded to keep the thread key parseable.
 export function queuedRunEditDraftId(threadRef: ScopedThreadRef, runId: string): DraftId {
   return DraftId.make(
     `${QUEUED_RUN_EDIT_DRAFT_PREFIX}${scopedThreadKey(threadRef)}:${encodeURIComponent(runId)}`,
@@ -1441,9 +1403,6 @@ function createDraftThreadState(
     checkoutPullRequest?: DraftCheckoutPullRequest | null;
   },
 ): DraftThreadState {
-  // A project change (including switching environments within a logical
-  // project) invalidates machine-specific context: the branch may not exist
-  // there and the worktree path certainly doesn't.
   const projectChanged =
     existingThread !== undefined &&
     (existingThread.environmentId !== projectRef.environmentId ||
@@ -1464,8 +1423,6 @@ function createDraftThreadState(
     options?.startFromOrigin === undefined
       ? (existingThread?.startFromOrigin ?? false)
       : options.startFromOrigin;
-  // Manual or automatic routing picks among one logical project's machines,
-  // so a draft moved to another logical project starts from the default.
   const environmentSelection =
     options?.environmentSelection ??
     (existingThread?.logicalProjectKey === logicalProjectKey
@@ -1505,7 +1462,6 @@ function createDraftThreadState(
   };
 }
 
-/** An explicit value wins; otherwise a checkout's pull request stays with its project. */
 function resolveCheckoutPullRequest(
   existing: DraftThreadState | undefined,
   explicit: DraftCheckoutPullRequest | null | undefined,
@@ -1727,8 +1683,6 @@ function normalizePersistedDraftsByThreadKey(
 export function partializeComposerDraftStoreState(
   state: ComposerDraftStoreState,
 ): PersistedComposerDraftStoreState {
-  // Persist only mapped, promoting, or content-holding draft sessions. Drop a zombie's composer
-  // blob WITH it, or model/mode-only entries would persist forever keyed to a dead session.
   const mappedDraftKeys = new Set(
     Object.values(state.logicalProjectDraftThreadKeyByLogicalProjectKey),
   );
@@ -2267,10 +2221,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               previousThreadKeyForLogicalProject === undefined
                 ? undefined
                 : nextDraftThreadsByThreadKey[previousThreadKeyForLogicalProject];
-            // A draft with typed text or attachments stays alive unmapped — the
-            // sidebar draft rows list every such session, so "new thread" can
-            // mint a fresh draft without destroying the one the user walked
-            // away from.
             if (
               previousThreadKeyForLogicalProject &&
               previousThreadKeyForLogicalProject !== draftId &&
@@ -2554,9 +2504,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               return state;
             }
             const current = state.stickyModelSelectionByProvider[normalized.instanceId];
-            // Model-only picker updates omit options (same contract as
-            // setModelSelection). Keep the last sticky traits so Fast/Normal
-            // survives Composer 2 → 2.5 and new chats.
             const nextSelection =
               normalized.options !== undefined
                 ? normalized
@@ -2718,7 +2665,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           const threadKey = scopedThreadKey(threadRef);
           set((state) => {
             const draft = state.draftsByThreadKey[threadKey];
-            // A newer pick, even of the same model, is still waiting for its own reply.
             if (
               !draft?.activeProvider ||
               draft.modelSelectionByProvider[draft.activeProvider] !== modelSelection
@@ -2755,8 +2701,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
             const base = existing ?? createEmptyThreadDraft();
 
             const nextMap = { ...base.modelSelectionByProvider };
-            // Traits apply to the model the composer shows, which on a started
-            // thread is the thread's model rather than a stored seed.
             nextMap[instanceKey] = createModelSelection(
               instanceKey,
               normalizeCustomModelSlug(options?.model) ??
@@ -2775,8 +2719,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
                 base.modelSelectionByProvider[instanceKey] ??
                 createModelSelection(instanceKey, fallbackModel);
               const rememberedModel = normalizeCustomModelSlug(options?.model) ?? stickyBase.model;
-              // Traits for another shown model belong in per-model memory only;
-              // the sticky selection keeps its own model's traits.
               const appliesToSticky = rememberedModel === stickyBase.model;
               if (providerOpts) {
                 if (appliesToSticky) {
@@ -2927,7 +2869,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
                 existingIds.has(image.id) ||
                 (!options?.allowDuplicates && existingDedupKeys.has(dedupKey))
               ) {
-                // Avoid revoking a blob URL that's still referenced by an accepted image.
                 if (!acceptedPreviewUrls.has(image.previewUrl)) {
                   revokeObjectPreviewUrl(image.previewUrl);
                 }
@@ -3310,8 +3251,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           const current = get().draftsByThreadKey[threadKey];
           const alreadyPresent =
             current?.previewAnnotations.some((entry) => entry.id === annotation.id) ?? false;
-          // The handler updates the same draft through `setPrompt`. Calling it from
-          // inside the updater lets the outer update overwrite the inserted reference.
           const placedAtCaret =
             !alreadyPresent &&
             options?.appendReference !== false &&
@@ -3378,8 +3317,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
           const shouldPlaceReference =
             options?.appendReference !== false &&
             (!alreadyPresent || options?.allowDuplicateReference === true);
-          // See addPreviewAnnotation: editor insertion writes the prompt through this store and
-          // must complete before the record update reads the draft it is extending.
           const placedAtCaret =
             shouldPlaceReference &&
             options?.insertAtCaret !== false &&
@@ -3665,7 +3602,6 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
               { ...destination, ...composerDraftContent(source) },
               destinationEnvironmentId,
             );
-            // Moved images still use these blob URLs at the destination; do not revoke them.
             const nextSource: ComposerThreadDraftState = {
               ...source,
               ...composerDraftContent(createEmptyThreadDraft()),
@@ -3745,16 +3681,13 @@ export function subscribeComposerDraftModelReconciliation(input: {
     const threadKeys = get(threadKeysAtom);
     const matches: Array<readonly [string, ComposerThreadDraftState]> = [];
     for (const [key, draft] of Object.entries(state.draftsByThreadKey)) {
-      // Local drafts can materialize a shell before their first turn is submitted.
       if (state.draftThreadsByThreadKey[key] || draft.activeProvider === null) continue;
       const ref = parseScopedThreadKey(key);
       const pick = draft.modelSelectionByProvider[draft.activeProvider];
       if (!ref || !pick || !threadKeys.has(key)) continue;
       const thread = get(input.threadShellAtom(ref));
       if (!thread || !draftModelPickMatchesThread(pick, thread.modelSelection)) continue;
-      // The pick can match an old model while an earlier pick in flight still replaces it.
       if (get(input.pendingThreadIdsAtom(ref.environmentId)).has(ref.threadId)) continue;
-      // Status and selection must come from the same emission; derived atoms can update apart.
       const shell = AsyncResult.getOrElse(get(input.shellStateAtom(ref.environmentId)), () => null);
       if (shell?.status !== "live") continue;
       const authoritativeThread = Option.getOrNull(shell.snapshot)?.threads.find(
@@ -3975,7 +3908,6 @@ export function subscribeDraftThreadPromotion(input: {
   readonly threadRefsAtom: Atom.Atom<ReadonlyArray<ScopedThreadRef>>;
   readonly threadShellAtom: (ref: ScopedThreadRef) => Atom.Atom<DraftPromotionShell | null>;
 }): () => void {
-  // Only the draft threads: prompt edits replace the store state on every keystroke.
   const draftThreadsAtom = Atom.make(composerDraftStore.getState().draftThreadsByThreadKey);
   const unsubscribeDrafts = composerDraftStore.subscribe((state, previous) => {
     if (state.draftThreadsByThreadKey === previous.draftThreadsByThreadKey) {

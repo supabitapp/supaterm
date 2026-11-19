@@ -79,7 +79,6 @@ describe("AcpMcpOverAcpBridge", () => {
         connectionId: connected.connectionId,
         method: "notifications/initialized",
       });
-      // Calls during a close are refused; a rejected close restores the connection for a retry.
       const rejected = yield* bridge
         .disconnect({ connectionId: connected.connectionId })
         .pipe(Effect.flip, Effect.forkChild);

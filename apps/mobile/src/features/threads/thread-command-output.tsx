@@ -15,7 +15,6 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { orchestrationEnvironment } from "../../state/orchestration";
 import { useEnvironmentQuery } from "../../state/query";
 
-// Within this many points of the end still counts as following the output.
 const FOLLOW_SLACK = 8;
 
 /**
@@ -27,7 +26,6 @@ export function useCommandOutputStreaming(
   projectedItem: OrchestrationV2ProjectedTurnItem,
 ): boolean {
   const isCommand = projectedItem.item.type === "command_execution";
-  // Shares the panel's subscription, and re-renders only when availability changes.
   const unavailable = useAtomValue(
     isCommand
       ? orchestrationEnvironment.v2.commandOutput({
@@ -53,7 +51,6 @@ export function ThreadCommandOutput(props: {
 }) {
   const { data, error } = useEnvironmentQuery(props.output);
   const scrollRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
-  // Follow new output until the reader scrolls up; scrolling back down resumes.
   const followRef = useRef(true);
   const text = data?.output.text ?? "";
   const spans = useMemo(
@@ -101,8 +98,7 @@ export function ThreadCommandOutput(props: {
             span.style === null ? (
               span.text
             ) : (
-              // Spans are rebuilt from scratch on every update and never reorder.
-              // oxlint-disable-next-line react/no-array-index-key
+              // oxlint-disable-next-line react/no-array-index-key -- Spans are rebuilt from scratch on every update and never reorder.
               <Text key={index} style={span.style}>
                 {span.text}
               </Text>

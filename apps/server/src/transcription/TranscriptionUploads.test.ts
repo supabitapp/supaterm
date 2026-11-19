@@ -49,7 +49,6 @@ const submit = (commandId: string) => ({
   messageId: MessageId.make(`message-${commandId}`),
 });
 
-/** What the fake vendor does with a live dictation once it starts. */
 type LivePlan =
   | { readonly _tag: "refuse" }
   | {
@@ -150,7 +149,6 @@ const wavOf = (pcm: Uint8Array) => {
 
 const frame = (byte: number) => new Uint8Array(3_200).fill(byte);
 
-/** A client connection: `sent` is what the server wrote, close codes as numbers. */
 const connect = Effect.fnUntraced(function* (
   relativeUrl: string,
   revoked: Effect.Effect<void> = Effect.never,
@@ -195,7 +193,6 @@ const prepareStream = Effect.fnUntraced(function* (uploadId: string) {
   return yield* uploads.prepareStream({ uploadId, providerInstanceId: INSTANCE }, "session-1");
 });
 
-/** Collects a streamed dictation the way a client does once its stream is finished. */
 const collect = Effect.fnUntraced(function* (
   uploadId: string,
   body?: Uint8Array,
@@ -343,7 +340,6 @@ describe("TranscriptionUploads", () => {
         const again = yield* prepare({ submit: submit("command-2") });
         const pending = yield* Effect.forkChild(upload(tokenOf(first.relativeUrl), AUDIO_BODY));
         yield* Queue.take(harness.transcribing);
-        // A client sending the audio again can't read the answer until its body is taken.
         const resentRead = yield* Deferred.make<void>();
         const resent = AUDIO_BODY.pipe(
           Stream.concat(Stream.fromEffectDrain(Deferred.succeed(resentRead, undefined))),

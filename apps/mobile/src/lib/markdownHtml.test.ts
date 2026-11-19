@@ -76,7 +76,6 @@ describe("HTML in native Markdown", () => {
   });
 
   it("treats an unclosed fence in an HTML block as code through the end", () => {
-    // Sized so the quadratic rescan cannot finish within the test timeout.
     const fences = Array.from({ length: 40_000 }, () => "```x y").join("\n");
     const markdown = `<details>\n<img src="before.png">\n${fences}\n<img src="after.png">\n</details>`;
     const result = markdownHtmlContent(markdown);
@@ -88,7 +87,6 @@ describe("HTML in native Markdown", () => {
   it("keeps <br> line breaks in a table cell without breaking the row", () => {
     const markdown =
       "| Status | Preview URL |\n| - | - |\n| Done | <a href='https://commit.example.com'>Commit</a><br><a href='https://branch.example.com'>Branch</a> |\n| • One<br/>• Two<BR />**Three** | `<br>` |";
-    // md4c decodes the reference to a newline in the cell's text, as remark does.
     expect(markdownForNativeRendering(markdown, ENRICHED_INLINE_FILE_LINK_REGEX)).toContain(
       "| • One&#10;• Two&#10;**Three** | `<br>` |",
     );
@@ -369,7 +367,6 @@ describe("file embeds in native thread and file Markdown", () => {
 });
 
 describe("Windows paths in native Markdown", () => {
-  // regression: #23722 Markdown escapes ate the separator before `.supaterm` and `_build`
   it("keeps backslashes in Windows image and link destinations", async () => {
     const image = String.raw`C:\work\.supaterm\_build\shot.png`;
     const link = String.raw`\\server\share\.supaterm\notes.md`;

@@ -59,7 +59,6 @@ export function composerEditorChips(input: {
       token.type === "mention" ? token.value : contextRecordFileName(record),
     );
     return {
-      // The Android editor routes chip taps only for the token types it knows.
       type: token.type === "mention" || token.type === "skill" ? token.type : "context",
       source: token.source,
       start: token.start,

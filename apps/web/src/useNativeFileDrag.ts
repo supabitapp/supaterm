@@ -24,7 +24,6 @@ export function useNativeFileDrag(
     draggable: enabled || undefined,
     onDragStart: (event: DragEvent<HTMLElement>) => {
       if (!enabled) return;
-      // Electron replaces the HTML drag with a native file drag.
       event.preventDefault();
       event.stopPropagation();
       let released = false;

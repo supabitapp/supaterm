@@ -12,7 +12,6 @@ import * as AttachmentClaims from "./AttachmentClaims.ts";
 import * as ThreadLaunch from "./ThreadLaunchService.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
 
-// These failures precede commitCommand; generic dispatch errors can follow commits and remain ambiguous.
 function dispatchWasNotAccepted(
   error: Orchestrator.OrchestratorV2Error | ThreadManagement.ThreadManagementError,
 ) {
@@ -97,8 +96,6 @@ export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(
       })
       .pipe(
         Effect.tap((result) => {
-          // Replayed receipts refer to the first answer; release this attempt's unused copies only with a resolved item.
-          // Missing questionAnswer means no accepted attachments; missing resolution leaves delivery ambiguous.
           const answeredItems = result.storedEvents.flatMap(({ event }) =>
             event.type === "turn-item.updated" &&
             event.payload.type === "user_input_request" &&
@@ -129,11 +126,9 @@ export const dispatchCommand = Effect.fn("ThreadMessageIntake.dispatchCommand")(
     (command.type !== "queued-run.edit" || command.attachments === undefined)
   )
     return yield* threads.dispatch(command);
-  // An accepted edit's retry replays its receipt even if a later cleanup removed its files.
   if (command.type === "queued-run.edit" && !(yield* threads.hasReceipt(command.commandId))) {
     const config = yield* ServerConfig.ServerConfig;
     const fileSystem = yield* FileSystem.FileSystem;
-    // A stale view can keep a file that another client's edit dropped and deleted.
     for (const attachment of command.attachments ?? []) {
       if (AttachmentClaims.attachmentIsPendingUpload(attachment)) continue;
       const path = resolveAttachmentPath({ attachmentsDir: config.attachmentsDir, attachment });
@@ -242,13 +237,11 @@ export const launchThread = Effect.fn("ThreadMessageIntake.launchThread")(functi
         if (error._tag === "ThreadManagementProviderInstanceDisabledError") {
           return AttachmentClaims.releaseClaimedAttachments(claimed.claimedPaths);
         }
-        // Project/receipt reads precede dispatch; create-thread errors can wrap post-message reads and prove nothing alone.
         const notAccepted =
           error.operation === "resolve-project" ||
           error.operation === "read-receipt" ||
           ((error.operation === "create-thread" || error.operation === "dispatch-message") &&
             (isOrchestratorError(error.cause) || isThreadManagementError(error.cause)) &&
-            // Projection errors under create-thread can occur after the message commit.
             (error.operation !== "create-thread" ||
               error.cause._tag !== "OrchestratorProjectionError") &&
             dispatchWasNotAccepted(error.cause));

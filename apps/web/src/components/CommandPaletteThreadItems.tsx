@@ -72,7 +72,6 @@ function useConnectedThreadSearch(query: string) {
   const environmentIds: ReadonlyArray<EnvironmentId> = environments
     .filter((environment) => environment.connection.phase === "connected")
     .map((environment) => environment.environmentId);
-  // The palette matches environment names when there are several; older rows must match the same.
   const environmentLabels =
     environments.length > 1
       ? Object.fromEntries(
@@ -105,7 +104,6 @@ export function useCommandPaletteThreadItems(input: {
   const messageSearch = useConnectedThreadSearch(threadSearchQuery);
   const { projectByKey } = useProjectLookups();
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
-  // Ranking is relative to when the palette opened, so rows do not reorder as time passes.
   const [now] = useState(() => Date.now());
 
   const { environments } = useEnvironments();
@@ -159,8 +157,6 @@ export function useCommandPaletteThreadItems(input: {
       );
     },
     runThread: async (thread) => {
-      // A pick sends its open with the query, always, so the server records
-      // it; the thread view then skips its own open. The open thread is no pick.
       const isOpen =
         activeThread?.environmentId === thread.environmentId && activeThread.id === thread.id;
       if (threadSearchQuery.trim().length > 0 && !threadSearchQuery.startsWith(">") && !isOpen) {
@@ -202,12 +198,10 @@ export function useCommandPaletteThreadItems(input: {
   ).flatMap((match) => {
     const item = itemForMatch(match);
     if (!item) return [];
-    // The snippet replaces the project line, so a message row is as tall as a title row.
     const { description: _description, ...rest } = item;
     return [
       {
         ...rest,
-        // When the matching message was written, not when the thread last moved.
         ...(match.messageCreatedAt
           ? { timestamp: formatRelativeTimeLabel(match.messageCreatedAt) }
           : {}),
@@ -216,7 +210,6 @@ export function useCommandPaletteThreadItems(input: {
           snippet: match.snippet,
           query: messageSearch.query,
         },
-        // Opens the thread with find on the word at the matched message, so it is in view.
         run: async () => {
           await item.run();
           openThreadFindOnQuery(
@@ -228,7 +221,6 @@ export function useCommandPaletteThreadItems(input: {
     ];
   });
 
-  // Rows already shown keep their places when a slower environment answers.
   const [shownOrder, setShownOrder] = useState<ShownOrder | null>(null);
   const order = nextShownOrder(
     shownOrder,

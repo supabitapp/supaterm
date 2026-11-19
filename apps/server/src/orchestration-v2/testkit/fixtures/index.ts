@@ -755,7 +755,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
     name: "acp_elicitation",
     buildInput: planQuestionsInput,
     providers: [
-      // Grok Build uses removed session/elicitation; cover the registry driver until it supports standard elicitation/create.
       {
         driver: ProviderDriverKind.make("acpRegistry"),
         transcriptFile: new URL("./acp_elicitation/registry_transcript.ndjson", import.meta.url),
@@ -940,7 +939,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
           "./tool_call_read_only_on_request/codex_transcript.ndjson",
           import.meta.url,
         ),
-        // gpt-6-luna declines the write under a read-only sandbox, so nothing asks for approval.
         modelSelection: { ...CODEX_MODEL_SELECTION, model: "gpt-6-sol" },
         runtimePolicyOverride: READ_ONLY_ON_REQUEST_POLICY,
         assertOutput: assertToolCallReadOnlyOnRequestOutput,
@@ -1023,7 +1021,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
           "./tool_call_restricted_granular/codex_transcript.ndjson",
           import.meta.url,
         ),
-        // gpt-6 uses shell writes; gpt-5.6-terra triggers this fixture's apply_patch approval.
         modelSelection: { ...CODEX_MODEL_SELECTION, model: "gpt-5.6-terra" },
         runtimePolicyOverride: RESTRICTED_GRANULAR_POLICY,
         assertOutput: assertToolCallRestrictedGranularOutput,
@@ -1047,7 +1044,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
       {
         driver: ProviderDriverKind.make("codex"),
         transcriptFile: new URL("./subagent/codex_transcript.ndjson", import.meta.url),
-        // gpt-5.6-luna still runs multi-agent v1 (collabAgentToolCall); subagent_v2 covers v2.
         modelSelection: { ...CODEX_MODEL_SELECTION, model: "gpt-5.6-luna" },
         runtimePolicyOverride: READ_ONLY_ON_REQUEST_POLICY,
         assertOutput: assertSubagentOutput,
@@ -1080,7 +1076,6 @@ export const ORCHESTRATOR_REPLAY_FIXTURES: ReadonlyArray<OrchestratorReplayFixtu
       {
         driver: ProviderDriverKind.make("codex"),
         transcriptFile: new URL("./subagent_continue/codex_transcript.ndjson", import.meta.url),
-        // gpt-5.6-luna still runs multi-agent v1 (collabAgentToolCall); subagent_v2 covers v2.
         modelSelection: { ...CODEX_MODEL_SELECTION, model: "gpt-5.6-luna" },
         assertOutput: assertSubagentContinueOutput,
       },

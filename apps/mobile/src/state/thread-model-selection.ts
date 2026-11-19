@@ -22,12 +22,9 @@ export function selectThreadModel(
   value: ModelSelection,
 ): void {
   const threadKey = scopedThreadKey(ref.environmentId, ref.threadId);
-  // Its own object, so an older reply for an equal pick cannot release this one.
   const modelSelection = { ...value };
   updateComposerDraftSettings(threadKey, { modelSelection });
   const thread = appAtomRegistry.get(environmentThreadShells.threadShellAtom(ref));
-  // Another instance replaces the live session, which may hold an open question; that pick
-  // still waits for a sent message.
   if (
     thread?.modelSelection.instanceId !== modelSelection.instanceId ||
     !readEnvironmentScope(ref.environmentId, AuthOrchestrationOperateScope)
@@ -40,7 +37,6 @@ export function selectThreadModel(
     { environmentId: ref.environmentId, input: { threadId: ref.threadId, modelSelection } },
     { label: "change model", reportFailure: true, reportDefect: true },
   ).then((result) => {
-    // Released on the reply, so a later change from another client shows.
     if (result._tag === "Success") {
       releaseComposerDraftModelSelection(threadKey, modelSelection);
     } else {

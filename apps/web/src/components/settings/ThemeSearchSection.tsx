@@ -103,8 +103,6 @@ export function createThemeSearch(
   let debounce: ReturnType<typeof setTimeout> | null = null;
   let request: AbortController | null = null;
   let install: AbortController | null = null;
-  // Record successful searches only; rerun after install only for changed query/sort to preserve install
-  // errors.
   let shownKey: string | null = null;
   let handledKey: string | null = null;
   let interrupted = false;
@@ -180,7 +178,6 @@ export function createThemeSearch(
   );
 
   return {
-    /** An unsettled query would hit Open VSX for text that is no longer visible, so typing waits. */
     setQuery(nextQuery: string) {
       const trimmed = nextQuery.trim();
       if (trimmed === query) return;
@@ -199,10 +196,8 @@ export function createThemeSearch(
       sortBy = nextSort;
       if (debounce === null) settle();
     },
-    /** Enter or re-picking the current suggestion searches again even for the shown key. */
     searchNow() {
       if (install !== null || signal.aborted || query === "") return;
-      // A pending debounce for the same key would otherwise restart this search.
       cancelDebounce();
       handledKey = keyOf();
       interrupted = false;

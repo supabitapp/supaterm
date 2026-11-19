@@ -1,6 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - publish commits and rollbacks
-// move exact directory entries with rename, which the FileSystem service does
-// not expose atomically.
 import * as NodeFS from "node:fs";
 
 import {
@@ -130,8 +128,6 @@ const resolveThemePaths = Effect.fnUntraced(function* (explicitBaseDir: Option.O
     (value) => value.trim().length > 0,
   );
   const configuredBaseDir = Option.orElse(explicitBaseDir, () => envHome);
-  // A dev server with an implicit home keeps its state in `dev`; follow it unless a
-  // `userdata` server is running too, the same order `supaterm pair` checks.
   let paths = yield* resolveSettingsPaths(configuredBaseDir);
   if (Option.isNone(configuredBaseDir) && !(yield* hasLiveServer(paths.serverRuntimeStatePath))) {
     const devPaths = yield* resolveSettingsPaths(Option.none(), true);
@@ -196,16 +192,11 @@ const publishThemeFile = Effect.fn(function* (input: {
 
   const fileBasename = path.basename(input.filePath, ".json");
   const themeId = Option.getOrElse(input.explicitId, () => fileBasename);
-  // The same rules the watcher applies when it reads the directory back, so a
-  // publish cannot report success for a file that will then be skipped.
   if (!isEnvironmentThemeId(themeId) || UNPUBLISHABLE_THEME_IDS.has(themeId)) {
     return yield* new ThemeFileIdInvalidError({ themeId, filePath: input.filePath });
   }
 
   const destinationPath = path.join(input.themesDir, `${themeId}.json`);
-  // Neither ends in `.json`, so the watcher never mistakes them for themes.
-  // Both names carry the pid, so concurrent publishers of one id cannot
-  // unlink or restore over each other's staging and rollback copies.
   const backupPath = `${destinationPath}.rollback-${process.pid}`;
   const stagingPath = `${destinationPath}.staging-${process.pid}`;
   yield* fs
@@ -215,9 +206,6 @@ const publishThemeFile = Effect.fn(function* (input: {
   const publishFailure = (cause: unknown) =>
     new ThemePublishError({ themesDir: input.themesDir, cause });
 
-  // O_EXCL after clearing a stale leftover, so nothing at that predictable name is ever followed
-  // or written through. Written verbatim: even an added newline could push a file at the size
-  // limit past it and have the watcher skip what was just accepted.
   const stagedIno = yield* Effect.try({
     try: () => {
       try {
@@ -238,10 +226,6 @@ const publishThemeFile = Effect.fn(function* (input: {
     catch: publishFailure,
   });
 
-  // Whatever occupies the destination -- a theme, a symlink, anything -- is
-  // moved aside in one atomic step rather than inspected and then replaced:
-  // there is no window between a check and the commit, and rollback restores
-  // that exact directory entry instead of a re-read of it.
   const hadPrevious = yield* Effect.try({
     try: () => {
       try {
@@ -260,9 +244,6 @@ const publishThemeFile = Effect.fn(function* (input: {
       NodeFS.unlinkSync(stagingPath);
     } catch {}
     try {
-      // The destination is touched only while it is empty or still holds
-      // the exact file this process put there; a concurrent publisher's
-      // newer file wins, and this process's obsolete copy is discarded.
       const destinationIno = (() => {
         try {
           return NodeFS.lstatSync(destinationPath).ino;
@@ -295,11 +276,6 @@ const publishThemeFile = Effect.fn(function* (input: {
   return { themeId, revert, cleanup };
 });
 
-/**
- * The mobile default is absent on purpose -- web and desktop cannot resolve it
- * and mobile does not follow this setting, so naming it would be the silent
- * no-op this check exists to stop.
- */
 const resolvableThemeIds = Effect.fn(function* (themesDir: string) {
   const published = yield* readPublishedThemes(themesDir);
   return [...BUILT_IN_THEME_IDS, ...published.map((theme) => theme.id)].toSorted();
@@ -329,9 +305,6 @@ const themeSetCommand = Command.make("set", {
       }
       const paths = yield* resolveThemePaths(flags.baseDir);
 
-      // Path-shaped first, existence second. Deciding on existence alone would
-      // make `supaterm theme set ocean` publish ./ocean whenever the cwd happens to
-      // hold a file by that name, instead of selecting the built-in.
       const looksLikePath =
         target.endsWith(".json") ||
         target.includes("/") ||

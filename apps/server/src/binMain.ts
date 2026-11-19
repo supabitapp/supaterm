@@ -1,11 +1,7 @@
 import { enableCliCompileCache } from "./cliCompileCache.ts";
 
-// Packaged builds load this graph with require(esm): top-level await anywhere in it breaks them.
-// ACP agents spawn `acp-mcp-bridge` per session and `acp-mcp-call` per tool call, so those fast
-// paths dispatch before the full CLI module graph (seconds of evaluation) loads.
 export async function runCliCommand() {
   const command = process.argv[2];
-  // Install the socket guard before importing code that can open outbound connections.
   const { ignoreMacosTypeOfServiceEinval } = await import("./outboundHttp.ts");
   ignoreMacosTypeOfServiceEinval();
   if (command === "__document-text") {
@@ -16,7 +12,6 @@ export async function runCliCommand() {
       if (error instanceof Error && "code" in error && /^E[A-Z0-9]+$/.test(String(error.code))) {
         throw error;
       }
-      // Exit 2 identifies document rejections; OS and process failures remain retryable.
       process.exitCode = 2;
     }
   } else if (command === "__managed-chatgpt-token") {
@@ -27,7 +22,6 @@ export async function runCliCommand() {
     await runAcpMcpCliFastPath(command, process.argv.slice(3));
   } else {
     enableCliCompileCache();
-    // Windows desktop launches without stdin; attach before reading, except on fast paths using pipes.
     const { attachConsoleStdin } = await import("./cli/consoleStdin.ts");
     attachConsoleStdin();
     const importStart = performance.now();

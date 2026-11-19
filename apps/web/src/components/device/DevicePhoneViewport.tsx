@@ -51,7 +51,6 @@ export function DevicePhoneViewport(props: {
     viewerRef.current?.setScreen(props.screen, props.profile);
   }, [props.screen, props.profile, props.model, props.accessory]);
 
-  // The 3D viewer lives as long as its canvas; later prop changes are pushed into it above.
   const mountViewer = (canvas: HTMLCanvasElement | null) => {
     const host = canvas?.parentElement;
     if (!canvas || !host) return;

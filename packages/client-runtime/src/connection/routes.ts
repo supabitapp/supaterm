@@ -243,9 +243,7 @@ export function upsertRoute(
   const id = connectionRouteId(route.target);
   return routes.some((existing) => connectionRouteId(existing.target) === id)
     ? routes.map((existing) => (connectionRouteId(existing.target) === id ? route : existing))
-    : // A route paired at a new address, such as localhost beside a saved
-      // 127.0.0.1, goes first among its kind so its fresh credential connects.
-      insertRoute(routes, route, { aheadOfSameKind: true });
+    : insertRoute(routes, route, { aheadOfSameKind: true });
 }
 
 export function findRouteToSameAddress(
@@ -518,9 +516,6 @@ function credentialRoute(
   return routes.find((route) => connectionRouteId(route.target) === credentialId);
 }
 
-// A token goes to plain HTTP outside the tailnet only when it was paired that way. A
-// relay-paired token stays off plain HTTP tailnet addresses too: its direct path to the
-// host is the relay's end-to-end encrypted tunnel, never a bare HTTP request.
 function plainHttpAllowed(
   routes: ReadonlyArray<ConnectionRoute>,
   credentialId: string,

@@ -89,8 +89,6 @@ export function PullRequestListGroups({
   sweepingKeys: ReadonlySet<string>;
   onCloseSweepStart: (entry: EnvironmentPullRequestEntry, event: PointerEvent) => void;
 }) {
-  // Every row mounts tooltips and actions; painting a first screenful before the rest keeps
-  // opening the page from blocking on the whole list.
   const shownGroups = useDeferredValue(groups, firstPaintGroups(groups));
   const counts = new Map(groups.map((group) => [group.key, group.entries.length]));
   return (

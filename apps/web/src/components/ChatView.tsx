@@ -580,7 +580,6 @@ export default function ChatView(props: ChatViewProps) {
       messageId: pin.messageId,
     }));
   });
-  // Only the shell-less fallback needs these; with a shell, the shell carries them.
   const fallbackDetailRef = serverThreadShell === null ? routeThreadDetailRef : null;
   const fallbackUpdatedAt = useThreadUpdatedAt(fallbackDetailRef);
   const fallbackLastVisitedAt = useThreadLastVisitedAt(fallbackDetailRef);
@@ -673,8 +672,6 @@ export default function ChatView(props: ChatViewProps) {
   const clientSettingsHydrated = useClientSettingsHydrated();
   const timestampFormat = settings.timestampFormat;
   const navigate = useNavigate();
-  // Selects primitives: an object here is new on every router store update, which
-  // re-renders ChatView on unrelated navigation state changes.
   const citationHref = useLocation({ select: (location) => location.href });
   const citationKey = useLocation({
     select: (location) => location.state.assistantCitationActivation ?? location.state.__TSR_key,
@@ -791,7 +788,6 @@ export default function ChatView(props: ChatViewProps) {
   const viewportUsesPlanSidebarSheet = useMediaQuery(RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY);
   const prefersPlanSidebarSheet = viewportUsesPlanSidebarSheet || paneScope?.narrow === true;
   const isMobileViewport = useMediaQuery("max-sm");
-  // Focusing the composer without a tap raises the on-screen keyboard on touch devices.
   const isCoarsePointer = useMediaQuery({ pointer: "coarse" });
   const threadPanelPopoverAnchorRef = useRef<HTMLElement | null>(null);
   const [terminalUiLaunchContext, setTerminalUiLaunchContext] =
@@ -898,7 +894,6 @@ export default function ChatView(props: ChatViewProps) {
     : undefined;
   const isServerThread = serverThread !== null;
   const activeThread = serverThread ?? pendingThreadCreation?.message.shell ?? localDraftThread;
-  // A side chat's parent: its lineage parent once forked, or the thread its draft will fork.
   const sideChatParentRef = (() => {
     const parentThreadId =
       activeThread?.lineage.sideChat === true
@@ -951,8 +946,6 @@ export default function ChatView(props: ChatViewProps) {
     return scopeThreadRef(parentSubagentEnvironmentId, parentSubagentThreadId);
   })();
   const parentSubagentThread = useQuietThreadShell(parentSubagentThreadRef);
-  // A workflow coordinator's thread opens with its script; the plan that replaces it lives on
-  // the parent's coordinator row, so the parent's detail loads only for such a thread.
   const workflowOpeningParentId =
     serverProjection === null
       ? null
@@ -1011,8 +1004,6 @@ export default function ChatView(props: ChatViewProps) {
   const canCheckoutPullRequestIntoThread =
     canWriteSourceControl && isLocalDraftThread && !isSideChat;
   const activeThreadId = activeThread?.id ?? null;
-  // Prefer the larger of turn-item-committed ids and projection messages so
-  // env lock does not unlock while turn items lag projection hydration.
   const activeMessageCount = isServerThread
     ? Math.max(committedServerMessageIds.size, serverProjection?.messages.length ?? 0)
     : 0;
@@ -1062,7 +1053,6 @@ export default function ChatView(props: ChatViewProps) {
     serverRuntime?.status === "failed" && serverRuntime.lastErrorClass === "usage_limit"
       ? (activeThreadShell?.latestRun ?? null)
       : null;
-  // The recovery banner offers Wake now for a snooze it set.
   const limitRecoveryHoldsSnooze = limitRecoveryOwnsSnooze({
     runId: limitRecoveryRun?.runId,
     resetAt: serverRuntime?.usageLimitResetAt,
@@ -1082,10 +1072,6 @@ export default function ChatView(props: ChatViewProps) {
     setTimelineAnchor({ threadKey: activeThreadKey, messageId: null });
   }
   const timelineAnchorMessageId = timelineAnchor.messageId;
-  // LegendList sizes the anchored end-space filler for the geometry at anchor
-  // time and never recomputes it, so a lingering anchor leaves stale filler
-  // height behind the composer — phantom scroll range on threads whose content
-  // fits.
   const anchorRunSettled = (() => {
     if (timelineAnchorMessageId === null) return false;
     const anchorRun = serverProjection?.runs.find(
@@ -1346,7 +1332,6 @@ export default function ChatView(props: ChatViewProps) {
     advertisedFileAttachmentBytes === null
       ? null
       : clampFileAttachmentUploadBytes(advertisedFileAttachmentBytes);
-  // A side chat runs in its parent's checkout, so it never picks its own.
   const envLocked =
     isSideChat ||
     (Boolean(activeThread) &&
@@ -1443,7 +1428,6 @@ export default function ChatView(props: ChatViewProps) {
     setLocalServerErrorsByThreadKey,
     setLocalDraftErrorsByDraftId,
   });
-  // Main-thread surfaces show this reason; `/side` sent anyway gets it as a toast.
   const sideChatDisabledReason = useSideChatBlockedReason({
     environmentId,
     thread: serverThread,
@@ -1485,8 +1469,6 @@ export default function ChatView(props: ChatViewProps) {
     composerRef,
     setThreadError,
   });
-  // A pending approval or question is part of the key: once it is answered,
-  // from this client or any other, the agent resumes and spends quota.
   const usageLimitsKey =
     activeProviderInstanceId === null || (isServerThread && activeThread === undefined)
       ? null
@@ -1563,10 +1545,6 @@ export default function ChatView(props: ChatViewProps) {
     ? DateTime.formatIso(runningCompaction.startedAt)
     : activeWorkStartedAt;
   const activeRunPreparing = activeActivityRun?.status === "preparing";
-  // The server queues a message behind a run that is still preparing its
-  // worktree or starting its agent, so a send during setup waits there and
-  // starts on its own instead of being refused. Before the server has the
-  // thread, a send waits in the outbox behind the pending task creating it.
   const sendQueuesBehindSetup = isServerThread
     ? activeRunPreparing || activeActivityRun?.status === "starting"
     : pendingThreadCreation !== null;
@@ -1623,9 +1601,6 @@ export default function ChatView(props: ChatViewProps) {
           plans: serverProjection.plans,
         }),
   };
-  // The structure has no assistant or reasoning text, so those rows stay out of
-  // ChatView's own entries (anchoring, rewind, prompt history); ThreadTimeline
-  // renders every row from the live turn items.
   const serverTimelineRows = serverVisibleTurnItems.filter(isCompleteTurnItemRow);
   const hasStreamedTimelineRows =
     isServerThread && serverTimelineRows.length !== serverVisibleTurnItems.length;
@@ -1694,7 +1669,6 @@ export default function ChatView(props: ChatViewProps) {
   );
   const turnDiffSummaries = useThreadCheckpointSummaries(routeThreadDetailRef);
   const availableRevertTurnCounts = deriveAvailableRevertTurnCounts(serverProjection);
-  // A paged history window cannot identify the first loaded run as the thread start.
   const threadStartCheckpointAvailable =
     !serverThreadHistory.hasMoreHistory &&
     findRevertCheckpoint(serverProjection?.checkpoints ?? [], 0) !== undefined;
@@ -1783,13 +1757,9 @@ export default function ChatView(props: ChatViewProps) {
     }
   }, [environmentId, gitStatusCwd, liveIsGitRepo]);
   const isGitRepo = liveIsGitRepo ?? recallCheckoutIsRepo(environmentId, gitStatusCwd) ?? true;
-  // A provider-native subagent cannot take messages: a status bar replaces the
-  // composer and its strips. Its approvals and questions are asked on the
-  // top-level parent thread.
   const showProviderSubagentBar = isProviderSubagent;
   const composerMounted = !showProviderSubagentBar;
   const providerSubagentModels = selectedProviderEntry?.models ?? EMPTY_PROVIDER_MODELS;
-  // Providers can report a dated id or alias (claude-haiku-4-5-20251001).
   const providerSubagentModelSlug = selectedProviderEntry
     ? resolveSelectableModel(
         selectedProviderEntry.driverKind,
@@ -1831,7 +1801,6 @@ export default function ChatView(props: ChatViewProps) {
     isDraftHero: isDraftHeroState,
     contextStripMounted: mountComposerContextStrip,
   });
-  // A resting composer is a bare input, so the meter's strips close with it.
   const showComposerContextStrip =
     shouldShowComposerContextStrip({
       ...composerContextStripInput,
@@ -1959,7 +1928,6 @@ export default function ChatView(props: ChatViewProps) {
   const sendAppMessageStable = useStableCallback(sendAppMessage);
   const queuedRunsControlRef = useRef<QueuedRunsControlHandle>(null);
   const threadOutboxControlRef = useRef<ThreadOutboxControlHandle>(null);
-  // Outbox messages have not reached the server yet, so they are newer than any queued run.
   const editLatestQueuedMessage = (repeat: boolean) =>
     !queuedRunEdit.isEditing &&
     !queuedRunEdit.outbox.isEditing &&
@@ -2051,8 +2019,6 @@ export default function ChatView(props: ChatViewProps) {
   const threadPanelInlineOpen = useRightPanelStore((state) =>
     selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, activeThreadRef, "inline"),
   );
-  // Selects only the mode, so canvas resizes rerender the chat view only when the
-  // card switches presentation.
   const threadPanelPresentation = useStore(
     chatCanvasStore,
     (state) =>
@@ -2266,9 +2232,6 @@ export default function ChatView(props: ChatViewProps) {
     let frame: number | null = null;
     const onWindowFocus = () => {
       if (frame !== null) window.cancelAnimationFrame(frame);
-      // The element that held focus receives it again after the window's own event, and the
-      // composer ignores that same frame so a restored focus does not lift a scroll-collapsed
-      // composer. Wait one more frame so this focus counts as a request to expand it.
       frame = window.requestAnimationFrame(() => {
         frame = window.requestAnimationFrame(() => {
           frame = null;
@@ -2309,8 +2272,6 @@ export default function ChatView(props: ChatViewProps) {
   });
   const isSelectingWorktreeBase =
     !activeWorktreePath && (sendEnvMode === "worktree" || multipleModelSelections !== null);
-  // Keep the default lookup unfiltered: searching the picker must not change
-  // the base branch submitted by an otherwise untouched draft.
   const worktreeBaseRefs = usePaginatedBranches({
     environmentId,
     cwd: isSelectingWorktreeBase && !selectedThreadBranch ? gitStatusCwd : null,
@@ -2372,10 +2333,6 @@ export default function ChatView(props: ChatViewProps) {
       composerTimelineInsetRef.current = nextInset;
       setComposerTimelineInset(nextInset);
     }
-    // The terminal drawer and empty placeholder lay out against the expanded composer, remembered
-    // while the mobile strip is collapsed so they stay still as focus moves; a collapsed strip can
-    // still grow, so the reservation follows it up. A hero overlay fills the pane, so only its
-    // stack counts.
     const stack = composerOverlayElement?.querySelector<HTMLElement>(
       '[data-chat-composer-stack="true"]',
     );
@@ -2402,7 +2359,6 @@ export default function ChatView(props: ChatViewProps) {
             overlayHeight: nextHeight,
             mainSurfaceTop: mainSurface.getBoundingClientRect().top,
             button: button.getBoundingClientRect(),
-            // A resting composer keeps its docked banners mounted but hidden.
             attachments: Array.from(
               composerOverlayElement.querySelectorAll<HTMLElement>(
                 '[data-composer-banner-surface="attached"]',
@@ -2415,9 +2371,6 @@ export default function ChatView(props: ChatViewProps) {
     setScrollToEndClearance(clearance);
   };
   const publishComposerOverlayHeightStable = useStableCallback(publishComposerOverlayHeight);
-  // The composer reports its resting flag from a layout effect, which runs
-  // before this component's own layout effects and before any resize
-  // observation, so every measurement below sees the flag for its layout.
   const onComposerRestingChange = (resting: boolean) => {
     composerRestingRef.current = resting;
     setComposerResting(resting);
@@ -2428,7 +2381,6 @@ export default function ChatView(props: ChatViewProps) {
     readonly overlay: HTMLDivElement;
     readonly composerMounted: boolean;
   } | null>(null);
-  // A thread switch or a composer mount/unmount re-measures the overlay for the new timeline.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the composer overlay element before paint for a new thread or composer mount
   useLayoutEffect(() => {
     if (!composerOverlayElement) return;
@@ -2459,9 +2411,6 @@ export default function ChatView(props: ChatViewProps) {
   useLayoutEffect(() => {
     if (!composerOverlayElement) return;
 
-    // A drawer or tray easing its height resizes the overlay every frame. Publishing only the
-    // landed height keeps ChatView and the timeline to one render per resize; meanwhile a
-    // growing composer briefly overlaps the timeline end and a shrinking one leaves a gap.
     let settling = false;
     let disposed = false;
     const updateHeight = () => {
@@ -2478,7 +2427,6 @@ export default function ChatView(props: ChatViewProps) {
     };
 
     updateHeight();
-    // The hero overlay fills the pane, so the composer's own growth only shows on its stack.
     const stack = isDraftHeroState
       ? composerOverlayElement.querySelector<HTMLElement>('[data-chat-composer-stack="true"]')
       : null;
@@ -2604,7 +2552,6 @@ export default function ChatView(props: ChatViewProps) {
     serverConfig,
     runtimeMode,
     isWorking,
-    // A waiting run is checkpoint drain; Stop there reaches its background work.
     runIsLive: (isWorking && activeRuntime?.status !== "waiting") || phase === "connecting",
     pendingBackgroundTasks,
     activePendingApproval,
@@ -2665,7 +2612,6 @@ export default function ChatView(props: ChatViewProps) {
     : null;
   const freshSessionAvailable =
     activeMessageCount > 0 && serverConfig?.environment.capabilities.freshContext === true;
-  // While a question or approval owns the composer, its text answers that, not the agent.
   const freshSessionCommandAvailable =
     freshSessionAvailable && activePendingApproval === null && pendingUserInputs.length === 0;
   const freshSessionArmed = useFreshSessionArmed(routeThreadKey);
@@ -2758,7 +2704,6 @@ export default function ChatView(props: ChatViewProps) {
     const extensionStatusItems = extensionStatusBanner === null ? [] : [extensionStatusBanner];
     const usageLimitsItems = usageLimitsBanner === null ? [] : [usageLimitsBanner];
     const projectCloneItems = projectCloneBannerItem === null ? [] : [projectCloneBannerItem];
-    // An approval's feedback goes to that approval; the armed session waits for the next message.
     const freshSessionItems =
       freshSessionAvailable && freshSessionArmed && activePendingApproval === null
         ? [freshSessionBannerItem(() => disarmFreshSession(routeThreadKey))]
@@ -3411,7 +3356,6 @@ export default function ChatView(props: ChatViewProps) {
       </TooltipProvider>
     ) : null,
     widthStorageKey: `supaterm:preview-panel-width:${activeThreadKey}`,
-    // A sheet is modal, so in a split only the pane in use shows its own.
     sheetOpen: rightPanelOpen && ownsPaneInput,
     sheetContainer: paneScope?.element,
     sheetAnimationDurationMs: panelAnimationsActive ? panelAnimationDurationMs : 0,
@@ -3660,7 +3604,6 @@ export default function ChatView(props: ChatViewProps) {
                       onOpenThread={onOpenRelatedThreadStable}
                       parentThreadLink={parentThreadLink}
                       workflowOpening={workflowOpening}
-                      // Forking a side chat would drop its parent's history on portable providers.
                       {...(isSideChat ? {} : { onForkFromRun: onForkFromRunStable })}
                       supportsConversationRollback={supportsConversationRollback}
                       threadStartCheckpointAvailable={threadStartCheckpointAvailable}
@@ -4004,9 +3947,6 @@ export default function ChatView(props: ChatViewProps) {
                           <div className="px-3 pt-1">{composerUsageMeter}</div>
                         ) : null}
                         {isDraftHeroState && composerBannerItems.length > 0 ? (
-                          // Out of flow, like the headline, so a notice never moves the centered composer.
-                          // Short windows pin the composer to the bottom, where an out-of-flow notice
-                          // would fall off-screen, so there it takes space and lifts the composer.
                           <div className="absolute inset-x-0 top-full flex flex-col gap-1 [@media(max-height:34rem)]:static [@media(max-height:34rem)]:pt-4">
                             <DetachedComposerBanners items={composerBannerItems} />
                           </div>
@@ -4171,7 +4111,6 @@ export default function ChatView(props: ChatViewProps) {
   );
 }
 
-// Chromium on Linux pastes PRIMARY into the focused editable unless the middle mouseup is cancelled.
 function preventMiddleClickPasteOutsideEditable(event: ReactMouseEvent) {
   if (event.button !== 1 || isEditableFocused(event.target)) return;
   event.preventDefault();

@@ -106,8 +106,6 @@ const NO_DEVICE_SCREEN_ATOM = Atom.make<DeviceScreenSize | null>(null).pipe(
   Atom.withLabel("device-stream-screen:none"),
 );
 
-// The source size a resize in progress lays the frame out from, so a source that changes shape
-// under a held handle cannot resize the player by itself. One slot: one pointer resizes one player.
 const useHeldSourceSize = create<{
   readonly key: string;
   readonly source: PreviewMiniPlayerSize;
@@ -116,8 +114,6 @@ const useHeldSourceSize = create<{
 const streamedSourceKey = (threadRef: ScopedThreadRef, sourceKey: string) =>
   `${scopedThreadKey(threadRef)}\u0000${sourceKey}`;
 
-// The mini player's device stream view, named so the canvas can read the
-// screen size that view reports.
 const miniPlayerDeviceViewId = (
   threadRef: ScopedThreadRef,
   source: Extract<PreviewMiniPlayerSource, { kind: "device" }>,
@@ -163,7 +159,6 @@ function useBrowserMiniPlayerSource(threadRef: ScopedThreadRef | null, tabId: st
           fittedSourceContent,
           layoutZoomFactor,
         );
-  // Streamed tabs stay hidden, and reserve no chat space, until their first frame paints.
   const visible =
     pageVisible && (!serverTab || (runtimeTabId !== null && stream?.frameTabId === runtimeTabId));
   return {
@@ -261,7 +256,6 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
     threadRef,
     previewMiniPlayerSourceKey(browserMiniPlayerSource(tabId)),
   );
-  // Hiding the page unmounts its stream, so the next reveal waits for a fresh first frame.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears this stream's entry in the shared streamed-source store when the page hides or the source changes
   useEffect(() => {
     if (!pageVisible) return;
@@ -441,7 +435,6 @@ function DeviceMiniPlayer({
   );
 }
 
-/** Match native clipping and DOM radii to align their separately composited edges. */
 function MiniPlayerShell({
   threadRef,
   miniPlayer,
@@ -464,11 +457,9 @@ function MiniPlayerShell({
   readonly label: string;
   readonly onClose: () => void;
   readonly onOpenInPanel: () => void;
-  /** Only the browser source docks the way the preview toggle shortcut does. */
   readonly openInPanelShortcut?: string | null;
   readonly pillActions?: ReactNode;
   readonly recording?: boolean;
-  /** Keep the stream measurable before its first frame without showing a floating card. */
   readonly visible?: boolean;
   readonly cornerRadius?: (frame: PreviewMiniPlayerSize) => number;
   readonly children: (frame: PreviewMiniPlayerFrame) => ReactNode;
@@ -476,7 +467,6 @@ function MiniPlayerShell({
   const canvas = useChatCanvas();
   const gestureRef = useRef<PreviewMiniPlayerGesture | null>(null);
   const captureRef = useRef<HTMLElement | null>(null);
-  // Touch toggles the pill after the tap's click so that click cannot land on the newly opened pill.
   const [pillOpen, setPillOpen] = useState(false);
   const handleTappedRef = useRef(false);
   const handleRef = useRef<HTMLDivElement | null>(null);
@@ -510,7 +500,6 @@ function MiniPlayerShell({
   const radius = frame ? cornerRadius(frame) : PREVIEW_MINI_PLAYER_CORNER_RADIUS;
   const pillInset = Math.max(8, Math.round(radius * 0.55));
 
-  /** Every way a gesture stops comes through here; returns the gesture it ended. */
   const finishGesture = () => {
     const gesture = gestureRef.current;
     if (!gesture) return null;
@@ -620,7 +609,6 @@ function MiniPlayerShell({
       !gesture.moved;
   };
 
-  // Capture can go without a release or cancel: the handle is replaced, or the platform takes it.
   const handleLostCapture = (event: ReactPointerEvent<HTMLElement>) => {
     if (
       gestureRef.current?.pointerId === event.pointerId &&

@@ -72,7 +72,6 @@ describe.skipIf(hostPlatform !== "linux")("bundled libsecret helper", () => {
     expect(header.toString("hex", 0, 6)).toBe("7f454c460201");
     expect(header.readUInt16LE(18)).toBe({ x64: 62, arm64: 183 }[hostArch]);
     expect(NodeFS.statSync(output).mode & 0o111).not.toBe(0);
-    // Invalid arguments exit before the real executable could contact a keyring.
     expect(NodeChildProcess.spawnSync(output, []).status).toBe(64);
   });
 

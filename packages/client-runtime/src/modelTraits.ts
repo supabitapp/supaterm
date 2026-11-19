@@ -59,7 +59,6 @@ export function getDescriptorStringValue(
   return typeof value === "string" ? value : null;
 }
 
-// Prompt-injected levels such as Ultrathink still work when typed, but pickers do not offer them.
 export function selectableProviderOptionChoices(
   descriptor: Extract<ProviderOptionDescriptor, { type: "select" }>,
 ) {
@@ -150,9 +149,6 @@ export function buildTraitsTriggerLabel(input: {
     }
   }
 
-  // Only fall back to text when speed is genuinely the sole trait. Keying off an
-  // empty label list alone would also catch descriptors that resolved to no
-  // label at all.
   if (labels.length === 0 && speedFallbackLabel !== null) {
     return speedFallbackLabel;
   }

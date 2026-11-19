@@ -20,12 +20,10 @@ import { attachmentDocumentPresentation } from "./attachmentDocumentPresentation
 
 const isLocalUri = (uri: string) => /^(file|content):/.test(uri);
 
-/** Signed asset URLs live for an hour; treat anything older than this as worth re-minting. */
 const STALE_URL_MS = 5 * 60_000;
 
 interface AttachmentTextKey {
   readonly uri: string;
-  /** When a remote `uri` was signed; null for local files. */
   readonly authorizedAt: number | null;
   readonly environmentId: EnvironmentId | null;
   readonly resource: AssetResource;
@@ -37,7 +35,6 @@ async function readAttachmentText(key: AttachmentTextKey, signal: AbortSignal) {
   if (isLocalUri(key.uri)) {
     return readFilePreviewResponse({ ok: true, body: new File(key.uri).readableStream() }, signal);
   }
-  // Reauthorize before source reads; the opening URL may have expired.
   let target = key.uri;
   if (key.authorizedAt === null || Date.now() - key.authorizedAt > STALE_URL_MS) {
     const refreshed =
@@ -57,8 +54,6 @@ async function readAttachmentText(key: AttachmentTextKey, signal: AbortSignal) {
   return readFilePreviewResponse(response, signal);
 }
 
-// Plain-object keys compare structurally (Effect `Equal`/`Hash`). Unmounting the
-// last reader interrupts the read, which aborts the fetch.
 const attachmentTextAtom = Atom.family((key: AttachmentTextKey) =>
   Atom.make(
     Effect.tryPromise({
@@ -162,7 +157,6 @@ export function useAttachmentDocument(input: {
     kind,
     ...presentation,
     uri,
-    /** Native viewers resolve their own fresh URL from this instead of reusing `uri`. */
     resource,
     content,
     table,

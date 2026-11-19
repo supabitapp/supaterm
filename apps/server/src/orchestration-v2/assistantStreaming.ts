@@ -1,23 +1,16 @@
 import type { ResponseStreamingMode } from "@supaterm/contracts";
 import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 
-// List fences can open at any indentation; closers may be at most three spaces deeper.
-// A backtick fence's info string cannot contain a backtick, so "```npm test``` runs" is inline code.
 const MARKDOWN_FENCE_PATTERN = /^( *)(`{3,}(?![^`\r\n]*`)|~{3,})/;
-// CommonMark blank lines contain only spaces and tabs.
 const BLANK_LINE_PATTERN = /^[ \t]*$/;
-// Require trailing space so partial list markers cannot match during streaming.
 const LIST_ITEM_START_PATTERN = /^[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t]/;
 const SECTION_TITLE_PATTERN = /^ {0,3}(?:#{1,6}(?:[ \t]|$)|\*\*(?:[^*]|\*(?!\*))+\*\*:?$)/;
-// Unindented ATX headings end preceding paragraphs and lists without blank lines; bold lines do not.
 const TOP_LEVEL_HEADING_PATTERN = /^#{1,6}(?:[ \t]|$)/;
 
-// Matches LIST_ITEM_START_PATTERN on the trimmed partial line without copying it.
 const PARTIAL_LIST_ITEM_START_PATTERN = /[ \t]*(?:[-*+]|\d{1,9}[.)])[ \t][ \t\r]*[^ \t\r]/y;
 
 interface AssistantTextScan {
   readonly text: string;
-  // Start of the partial line; every line before it has been scanned.
   readonly lineStart: number;
   readonly openFence: { readonly marker: string; readonly indent: number } | null;
   readonly boundary: number;
@@ -41,7 +34,6 @@ function trimLineEnd(text: string, start: number, end: number): string {
   return text.slice(start, end);
 }
 
-/** Scans the terminated lines of `text`, resuming after `previous` when `text` extends it. */
 function advanceScan(previous: AssistantTextScan, text: string): AssistantTextScan {
   const resumed = text.startsWith(previous.text);
   let { openFence, boundary, lineStart, titleAwaitingContent } = resumed ? previous : EMPTY_SCAN;
@@ -71,7 +63,6 @@ function advanceScan(previous: AssistantTextScan, text: string): AssistantTextSc
         indent <= openFence.indent + 3 &&
         line.length === indent + marker.length
       ) {
-        // CommonMark: a closing fence carries no info string.
         openFence = null;
         boundary = newline + 1;
       }
@@ -91,7 +82,6 @@ function advanceScan(previous: AssistantTextScan, text: string): AssistantTextSc
   return { text, lineStart, openFence, boundary, titleAwaitingContent };
 }
 
-// The partial line may still change, so its list item start is checked here, not kept in the scan.
 function readyBoundary(scan: AssistantTextScan): number {
   if (scan.openFence === null && scan.lineStart > 0 && !scan.titleAwaitingContent) {
     PARTIAL_LIST_ITEM_START_PATTERN.lastIndex = scan.lineStart;
@@ -109,8 +99,6 @@ export function splitBufferedAssistantText(text: string): { ready: string; rest:
   return { ready: text.slice(0, boundary), rest: text.slice(boundary) };
 }
 
-// Long enough to ride out normal gaps between chunks; short enough that text written before a
-// long tool call or background wait does not look lost.
 const ASSISTANT_IDLE_FLUSH_MS = 800;
 
 type StreamedMessage = {
@@ -122,7 +110,6 @@ type StreamedMessage = {
 interface StreamTrack {
   readonly text: string;
   readonly at: number;
-  // Latest snapshot whose text has not all been delivered yet.
   readonly held: ProviderAdapter.ProviderAdapterV2Event | null;
   readonly dueAt: number;
   readonly scan: AssistantTextScan;
@@ -161,8 +148,6 @@ export function makeAssistantStreamingFilter(
   idleFlushMs = ASSISTANT_IDLE_FLUSH_MS,
 ) {
   const tracks = new Map<string, StreamTrack>();
-  // Earliest deadline of any held snapshot, or earlier: a newer snapshot only pushes its own
-  // deadline later, so the cache stays O(1) per event and is recomputed when it comes due.
   let nextDueAt: number | null = null;
   const track = (key: string, value: StreamTrack) => {
     tracks.set(key, value);
@@ -204,8 +189,6 @@ export function makeAssistantStreamingFilter(
       const scan = advanceScan(previous?.scan ?? EMPTY_SCAN, message.text);
       const boundary = readyBoundary(scan);
       const ready = boundary === -1 ? "" : message.text.slice(0, boundary);
-      // An idle delivery may already show more than the next boundary; never shrink it. A
-      // provider rewrite or truncation is not a prefix and replaces it.
       if (delivered.startsWith(ready)) return hold(scan);
       track(key, {
         text: ready,
@@ -217,7 +200,6 @@ export function makeAssistantStreamingFilter(
       return withText(event, ready);
     },
     nextIdleFlushAt: (): number | null => nextDueAt,
-    /** Returns the held snapshots due by `now` and counts them as delivered. */
     takeIdleFlushes(now: number): ReadonlyArray<ProviderAdapter.ProviderAdapterV2Event> {
       const due: Array<ProviderAdapter.ProviderAdapterV2Event> = [];
       nextDueAt = null;

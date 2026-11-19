@@ -38,8 +38,6 @@ it.layer(NodeServices.layer)("external package dependency closure", (it) => {
     NodeURL.fileURLToPath(new URL("../../apps/server/", import.meta.url)),
   ]).pipe(Effect.cached, Effect.runSync);
 
-  // Runtime-external only. The build-only entries resolve `bun:*` and are never
-  // loaded by Node, so their closure genuinely does not need to be external.
   const isRuntimeExternal = isRuntimeExternalCliDependency;
 
   it.effect("keeps every runtime dependency of an external package external too", () =>
@@ -69,7 +67,6 @@ it.layer(NodeServices.layer)("external package dependency closure", (it) => {
     }),
   );
 
-  // The stage installs only externals the server lists, so a required peer must be reachable from them.
   it.effect("stages a provider for every required peer of a staged external", () =>
     Effect.gen(function* () {
       const installed = [...(yield* installedPackages).values()];

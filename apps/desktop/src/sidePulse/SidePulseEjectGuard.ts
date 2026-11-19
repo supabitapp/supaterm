@@ -17,13 +17,11 @@ const INSTALLED_BINARY = "/Library/Application Support/Supaterm/sidepulse-eject-
 const LOG_FILE = "/Library/Logs/Supaterm/sidepulse-eject-guard.log";
 const BINARY_NAME = "supaterm-sd-eject-guard";
 
-// macOS shows this above "Enter your password to allow this."
 export const INSTALL_PROMPT =
   "Supaterm wants to install a background helper that keeps SidePulse connected when your Mac wakes from sleep.";
 export const UNINSTALL_PROMPT =
   "Supaterm wants to remove the background helper that keeps SidePulse connected after sleep.";
 
-// AppleScript error -128 is the user choosing Cancel in the password prompt.
 const USER_CANCELED = /\(-128\)\s*$/;
 
 const { logWarning } = makeComponentLogger("desktop-sidepulse");
@@ -54,7 +52,6 @@ const daemonPlist = `<?xml version="1.0" encoding="UTF-8"?>
 </plist>
 `;
 
-// Root writes the plist itself: a user-written copy could be swapped while the prompt is open.
 const installScript = (bundledBinary: string) =>
   [
     "set -e",

@@ -62,7 +62,6 @@ const ModelRequest = Schema.Struct({
 });
 const decodeModelRequest = Schema.decodeUnknownSync(Schema.fromJsonString(ModelRequest));
 
-/** The model and effort writes Grok received, in wire order. */
 function modelWrites(requestLogPath: string): ReadonlyArray<string> {
   return NodeFS.readFileSync(requestLogPath, "utf8")
     .split("\n")
@@ -78,11 +77,6 @@ function modelWrites(requestLogPath: string): ReadonlyArray<string> {
     });
 }
 
-/**
- * Opens a Grok session on the first selection, then runs one turn per later
- * selection on the same live session. Returns the model and effort writes each
- * step sent.
- */
 const writesPerSelection = (
   selections: ReadonlyArray<ModelSelection>,
   agentEnvironment: Readonly<Record<string, string>>,
@@ -208,8 +202,6 @@ const writesPerSelection = (
   }).pipe(Effect.scoped, Effect.provide(layerTest));
 
 describe("Grok reasoning effort", () => {
-  // Grok's session starts at xhigh on grok-4.6. grok-4.6-fast offers only
-  // high and low, and resets to high when a switch carries no effort.
   const selections = [
     select("grok-4.6", "low"),
     select("grok-4.6", "high"),

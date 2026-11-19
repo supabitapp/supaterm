@@ -84,7 +84,6 @@ const EMPTY_REPOSITORY_IDENTITY_ATOM = Atom.make<RepositoryIdentity | null>(null
   Atom.withLabel("web-thread-repository-identity:empty"),
 );
 
-// Every visible reply reads this, so it changes only with the project's repository, not each turn.
 const threadRepositoryIdentityAtom = Atom.family((key: string) =>
   Atom.make((get) => {
     const ref = parseThreadKey(key);
@@ -164,7 +163,6 @@ const EMPTY_CHILD_TITLES_ATOM = Atom.make(EMPTY_CHILD_TITLES).pipe(
   Atom.withLabel("web-subagent-child-titles:empty"),
 );
 
-// Held while unchanged, so links in a streaming thread re-render only when its children change.
 const subagentChildTitlesAtomFamily = Atom.family((key: string) => {
   const ref = parseThreadKey(key);
   let previous = EMPTY_CHILD_TITLES;

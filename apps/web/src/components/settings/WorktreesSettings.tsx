@@ -27,7 +27,6 @@ export function WorktreesSettingsPanel() {
   );
 }
 
-/** Shows only when every machine in scope is a Mac, since only macOS servers honor it. */
 function FastWorktreeCheckoutRow() {
   const { connectedEnvironments } = useSettingsScope();
   const settings = useScopedSettings();

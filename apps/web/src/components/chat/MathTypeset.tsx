@@ -5,8 +5,6 @@ import type { ReactNode } from "react";
 import { LRUCache } from "../../lib/lruCache";
 import { escapeLiteralPercents } from "./MathTypeset.logic";
 
-// Virtualized threads remount messages while scrolling; cached markup keeps
-// that from typesetting the same formulas again. "" records a parse error.
 const typesetCache = new LRUCache<string>(1000, 4 * 1024 * 1024);
 
 function typeset(tex: string, display: boolean): string {
@@ -17,7 +15,6 @@ function typeset(tex: string, display: boolean): string {
     displayMode: display,
     output: "htmlAndMathml" as const,
     throwOnError: true,
-    // No \href, \url, \htmlClass, or other commands that emit active HTML.
     trust: false,
     strict: "ignore" as const,
     maxSize: 20,
@@ -31,9 +28,7 @@ function typeset(tex: string, display: boolean): string {
     if (repaired !== tex) {
       try {
         html = katex.renderToString(repaired, options);
-      } catch {
-        // Unfinished or unsupported TeX stays readable as its source.
-      }
+      } catch {}
     }
   }
   typesetCache.set(key, html, (key.length + html.length) * 2);
@@ -44,6 +39,5 @@ function typeset(tex: string, display: boolean): string {
 export default function MathTypeset(props: { tex: string; display: boolean; fallback: ReactNode }) {
   const html = typeset(props.tex, props.display);
   if (!html) return props.fallback;
-  // KaTeX escapes the TeX it renders, and `trust: false` keeps it from emitting links or attributes.
   return <span dangerouslySetInnerHTML={{ __html: html }} />;
 }

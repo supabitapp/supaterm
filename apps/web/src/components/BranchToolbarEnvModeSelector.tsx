@@ -67,7 +67,6 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
       ? (activeWorktreePath ?? workspaceRoot)
       : null;
   const workspaceDisplayName = resolveWorkspaceDisplayName(workspacePath);
-  // The panel names the workspace kind only when it is not the project folder.
   const workspaceKind = activeWorktreePath ? "Worktree" : null;
   const lockedWorkspaceKind = forceNewWorktree ? "Worktree" : workspaceKind;
   const selectWorkspaceKind =
@@ -298,7 +297,6 @@ export const BranchToolbarEnvModeSelector = memo(function BranchToolbarEnvModeSe
   );
 });
 
-/** The pinned workspace exposes its branch as a copy action while retaining path copying. */
 function WorkspaceBranchCopyRow({
   branch,
   workspaceKind,

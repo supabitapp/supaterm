@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - a one-off maintenance script with no
-// Effect runtime; it only calls the GitHub CLI and writes one file.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
@@ -7,7 +6,6 @@ import * as NodeURL from "node:url";
 
 const MIN_RECORDED_SECONDS = 0.5;
 const SERVER_SHARD_JOB = /^Test Server \d+$/;
-// Runner timestamp, then Vitest's default reporter line for the run start or a finished file.
 const RUN_START = /^(\S+Z)\s+RUN\s+v/;
 const FILE_RESULT = /^(\S+Z)\s+[✓❯×]\s+(\S+\.test\.\w+) \(\d+ tests?[^)]*\)\s+\d+ms$/;
 
@@ -41,8 +39,6 @@ const jobIds = gh(
   .map(([id]) => id!);
 if (jobIds.length === 0) throw new Error(`CI run ${runId} has no Test Server jobs.`);
 
-// Server files run one at a time, so the gap between consecutive results is a file's whole
-// cost, including the imports the reported test time leaves out.
 const seconds = new Map<string, number>();
 for (const jobId of jobIds) {
   const log = gh(

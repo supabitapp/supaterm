@@ -109,7 +109,6 @@ const local: OrchestrationV2TurnItem[] = [
     result: "partial result",
   }),
 ];
-// A fork's inherited row may name a message id this thread also has; its record lives elsewhere.
 const inherited = assistantMessage("inherited", "m-assistant", "hi there", PARENT);
 
 const projection = {

@@ -16,8 +16,6 @@ export const runtimeIdentity = () =>
     NodeV8.cachedDataVersionTag(),
   ].join("-");
 
-// Node 24's portable key is CRC32 of the one-byte ESM type followed by the relative filename.
-// Generation verifies this against files produced by the packaged engine before shipping them.
 export const cacheKey = (active: string, filename: string) =>
   NodeZlib.crc32(NodePath.relative(active, filename), NodeZlib.crc32(Buffer.from([1])))
     .toString(16)
@@ -54,7 +52,6 @@ export function seedPreparedCache(prepared: string, active: string, runtime: str
         cacheKey(active, NodePath.join(NodePath.dirname(prepared), entry.module)),
       );
       try {
-        // Node replaces cache files atomically. A directory link would instead allow writes into signed resources.
         if (process.platform === "win32") NodeFS.linkSync(source, destination);
         else NodeFS.symlinkSync(source, destination);
       } catch {}
@@ -71,7 +68,6 @@ export function enablePreparedServerCache(entry: string, cacheRoot: string): boo
     const archive = entry.match(/^(.*[\\/](?:app|server)\.asar)[\\/]/)?.[1];
     if (!archive) return false;
     const resources = NodeFS.realpathSync(NodePath.dirname(archive));
-    // Keep different installations and builds separate without reading or copying their source files.
     const prepared = NodePath.join(resources, "server-compile-cache");
     if (process.env.APPIMAGE && !NodeFS.existsSync(NodePath.join(prepared, "manifest.json")))
       return false;
@@ -85,7 +81,6 @@ export function enablePreparedServerCache(entry: string, cacheRoot: string): boo
           if (!candidate.isDirectory() || !candidate.name.startsWith("appimage-")) continue;
           const abandoned = NodePath.join(cacheRoot, "server", candidate.name);
           let hasStaleLink = false;
-          // Node nests files under an engine/UID directory and can replace links with regular files.
           const removable = NodeFS.readdirSync(abandoned, { withFileTypes: true }).every(
             (engine) =>
               engine.isDirectory() &&
@@ -112,15 +107,12 @@ export function enablePreparedServerCache(entry: string, cacheRoot: string): boo
           );
           if (removable && hasStaleLink) NodeFS.rmSync(abandoned, { recursive: true, force: true });
         }
-      } catch {
-        // Concurrent removal or restricted permissions must not prevent enabling this launch's cache.
-      }
+      } catch {}
     }
     const directory = process.env.APPIMAGE
       ? NodeFS.mkdtempSync(NodePath.join(cacheRoot, "server", "appimage-"))
       : NodePath.join(cacheRoot, "server", identity);
     if (process.env.APPIMAGE) {
-      // Each mount has different module paths; discard its links rather than accumulating caches.
       process.once("exit", () => {
         try {
           NodeFS.rmSync(directory, { recursive: true, force: true });
@@ -160,7 +152,6 @@ export async function generatePreparedServerCache(resourcesInput: string): Promi
   const server = servers[0];
   if (!server) throw new Error("Missing bundled server entry");
   await import(NodeURL.pathToFileURL(NodePath.join(dist, cli)).href);
-  // The CLI loads the server dynamically; importing its declarative layers does not launch them.
   await import(NodeURL.pathToFileURL(NodePath.join(dist, server)).href);
   NodeModule.flushCompileCache();
   const active = NodeModule.getCompileCacheDir()!;

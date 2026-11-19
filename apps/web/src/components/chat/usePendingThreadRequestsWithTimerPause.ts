@@ -23,7 +23,6 @@ import { readPendingUserInputDraft, usePendingThreadRequests } from "./usePendin
 
 type PendingThreadRequestsInput = Parameters<typeof usePendingThreadRequests>[0];
 
-/** Pauses the auto-dismiss timer of the question the making render saw, once per question. */
 function makeQuestionTimerPause(input: {
   readonly environmentId: EnvironmentId;
   readonly activeThreadId: ThreadId | null;
@@ -77,7 +76,6 @@ function makeQuestionTimerPause(input: {
   };
 }
 
-/** Whether typing `value` changes a custom answer the question accepts. */
 function changesPendingCustomAnswer(input: {
   readonly activePendingUserInput: PendingUserInput | null;
   readonly activePendingDraftAnswers: Record<string, PendingUserInputDraftAnswer>;

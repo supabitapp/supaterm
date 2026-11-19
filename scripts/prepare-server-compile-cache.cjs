@@ -4,13 +4,11 @@ const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
 
-// afterPack runs before signing and installer creation, against the final ASAR layout.
 module.exports = async ({ appOutDir, electronPlatformName, arch, packager }) => {
   if (!["darwin", "win32", "linux"].includes(electronPlatformName)) {
     console.log(`[server-compile-cache] Skipping unsupported target ${electronPlatformName}`);
     return;
   }
-  // Generating the cache runs the bundle, and a PR preview's bundle must never run next to signing secrets.
   if (process.env.SUPATERM_DESKTOP_UNTRUSTED_BUNDLE === "true") {
     console.log("[server-compile-cache] Skipping untrusted bundle");
     return;
@@ -47,8 +45,6 @@ module.exports = async ({ appOutDir, electronPlatformName, arch, packager }) => 
   env.SUPATERM_HOME = state;
   let result;
   try {
-    // Run a script file, not -e: -e defines a global __filename of "[eval]", which
-    // @effect/platform-node passes to createRequire and fails on.
     const runner = path.join(state, "prepare-server-compile-cache-runner.cjs");
     fs.writeFileSync(
       runner,

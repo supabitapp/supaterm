@@ -35,7 +35,6 @@ export function DesktopAppActivationCoordinator() {
         () => undefined,
       );
     });
-    // Skip readiness if React runs cleanup before this subscription can receive requests.
     queueMicrotask(() => {
       if (subscribed) void activation.setReady(true).catch(() => undefined);
     });

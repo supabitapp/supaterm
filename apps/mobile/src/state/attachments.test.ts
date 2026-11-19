@@ -98,7 +98,6 @@ describe("attachment mutation grants", () => {
         }),
       );
       yield* Effect.promise(() => transferStarted.promise);
-      // Interrupting deletes the fresh mint, which the revoked grant must refuse.
       yield* Fiber.interrupt(cycle);
       expect(state.create).toHaveBeenCalledOnce();
       expect(state.remove).not.toHaveBeenCalled();

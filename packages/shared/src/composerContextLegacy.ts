@@ -156,10 +156,6 @@ function elementRecord(entry: ParsedEntry, index: number): ElementContextRecord 
 
 function previewRecord(body: string, index: number): PreviewAnnotationContextRecord | null {
   const lines = body.split("\n");
-  // A legacy comment was written verbatim, so it can run over several lines and hold blank
-  // lines and markup of its own. Its value is every line up to the next field or the block that
-  // follows it — anything else is text the author typed, and dropping it loses instructions the
-  // chip that replaces this block cannot show.
   const FIELD_PREFIXES = ["Preview annotation:", "Id: ", "Page: ", "Comment: ", "Targets: "];
   const BLOCK_DELIMITER =
     /^<\/?(?:terminal_context|element_context|preview_annotation|review_comment)\b/;
@@ -271,7 +267,6 @@ function stripTrailing(
   return { text: text.slice(0, match.index).replace(/\n+$/, ""), match };
 }
 
-/** Review source can contain literal closing tags inside its dynamically sized code fence. */
 function replaceReviewBlocks(
   text: string,
   replace: (whole: string, attributes: string, body: string) => string,
@@ -280,7 +275,6 @@ function replaceReviewBlocks(
   const openings = new RegExp(REVIEW_OR_CONTEXT_BLOCK);
   let consumed = 0;
   for (let opening = openings.exec(text); opening; opening = openings.exec(text)) {
-    // Other context blocks own their payload, including any review-shaped source text.
     if (opening[2]) continue;
     const bodyStart = openings.lastIndex;
     const boundaries = /^(`{3,})([^\n]*)$|<\/review_comment>/gm;
@@ -318,7 +312,6 @@ export function upgradeLegacyContextMessage(text: string): UpgradedLegacyContext
   const previewBodies: string[] = [];
   const reviews: ReviewCommentContextRecord[] = [];
 
-  // A literal private-use token in the message must never be mistaken for our placeholder.
   let reviewToken = REVIEW_TOKEN;
   while (text.includes(reviewToken)) reviewToken += reviewToken;
   const reviewTokenPattern = new RegExp(`${reviewToken}(\\d+)${reviewToken}`, "g");
@@ -331,10 +324,6 @@ export function upgradeLegacyContextMessage(text: string): UpgradedLegacyContext
     return `${reviewToken}${reviews.length - 1}${reviewToken}`;
   });
 
-  // Blocks were appended in send order (terminal, element, preview, review), so they peel
-  // off the end in reverse. Each peel exposes the next block as trailing.
-  // Peel reviews only when they hide another trailing context block. A review at the end
-  // of ordinary prose can still be inline; keep its original spacing and line breaks.
   const trailingReviewTokens: number[] = [];
   const tokens = trailingReviewTokenPattern.exec(rest);
   if (tokens && tokens[0].length > 0) {
@@ -438,7 +427,6 @@ export function upgradeLegacyContextMessage(text: string): UpgradedLegacyContext
         : appended.join(" ");
 
   const records = [...terminals, ...elements, ...previews, ...reviews];
-  // Conversion is atomic: keep the source if any record would be dropped on the wire.
   if (!isLegacyContextRecords(records)) return { text, records: [] };
   return {
     text: upgradedText,

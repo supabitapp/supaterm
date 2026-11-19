@@ -52,7 +52,6 @@ export function filterCommandPaletteItems(
   const candidates = actionsOnly ? items.filter((item) => item.kind === "action") : items;
   if (!normalizedQuery) return candidates.filter((item) => item.kind !== "project");
 
-  // On equal match classes, groups keep this order, as on web.
   const kinds = ["action", "thread", "project"] as const;
   const groups = rankSearchGroups(
     kinds.map((kind) => ({ group: kind, items: candidates.filter((item) => item.kind === kind) })),
@@ -63,14 +62,12 @@ export function filterCommandPaletteItems(
       const match = item.threadSearch
         ? scoreThreadSearch(normalizedQuery, item.threadSearch, now, options)
         : scoreSearchTerms(normalizedQuery, [item.title, ...item.searchTerms], options);
-      // The open thread, listed last, does not decide where its group sits.
       return match && item.secondary ? { ...match, groupQuality: 0 } : match;
     },
   );
   const threadsMatch = groups.some(({ group }) => group === "thread");
   const ranked = groups.flatMap(({ group, ranked: entries }) =>
     [...entries]
-      // Stable, so rank order holds otherwise.
       .sort(
         (left, right) =>
           Number(left.item.secondary ?? false) - Number(right.item.secondary ?? false),
@@ -84,7 +81,6 @@ export function filterCommandPaletteItems(
             : entries.length,
       )
       .map(({ item, match }): CommandPaletteResult => {
-        // Built only for the rows shown.
         const matchHint = match.explain?.();
         return { ...item, titleRanges: match.ranges, ...(matchHint ? { matchHint } : {}) };
       }),
@@ -95,7 +91,6 @@ export function filterCommandPaletteItems(
   const threadByKey = new Map(
     items.flatMap((item) => (item.kind === "thread" ? [[item.key, item] as const] : [])),
   );
-  // `messageMatchKeys` arrive cut to what the palette shows; see `nextShownOrder`.
   const fromMessages = messageMatchKeys.flatMap((key) => {
     const item = threadByKey.get(key);
     return item && !listed.has(key) ? [{ ...item, fromMessages: true }] : [];

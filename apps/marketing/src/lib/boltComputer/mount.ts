@@ -70,7 +70,6 @@ export function mountBoltComputer(
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
   let settings = initial;
   let look = lookOf(settings);
-  // Off screen it holds the still pose, so the canvas stays current for anything that reads it.
   let onScreen = true;
   const still = () => reducedMotion || settings.paused || !onScreen;
   const sim = new BoltComputerSim(Math.random(), settings.state, restAfter);

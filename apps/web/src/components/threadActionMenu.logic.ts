@@ -189,10 +189,6 @@ export function buildThreadActionMenuItems(
           },
         ]
       : []),
-    // A submenu with the current option checked, not a one-shot action:
-    // this is a setting, and it sits with the other per-thread settings
-    // rather than the lifecycle verbs above. Never keeps long-running
-    // threads out of the done shelf no matter how quiet they get.
     {
       id: "auto-mark-done",
       label: "Automatic completion",
@@ -228,8 +224,6 @@ export function buildThreadActionMenuItems(
             ? { id: "unpin-project" as const, label: "Unpin project", icon: "pin-off" }
             : { id: "pin-project" as const, label: "Pin project", icon: "pin" },
         ]),
-    // Archive keeps the conversation under Settings > Archived threads, unlike Delete, so it
-    // sits beside Delete without borrowing its destructive styling.
     {
       id: "archive",
       label: "Archive thread",

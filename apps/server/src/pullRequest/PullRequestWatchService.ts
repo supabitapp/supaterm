@@ -109,7 +109,6 @@ const make = Effect.gen(function* () {
           .resolve(project.workspaceRoot)
           .pipe(Effect.map((repositoryIdentity) => ({ ...project, repositoryIdentity })));
 
-  // Keep the registration span stable across the service extraction.
   const setWatching = Effect.fn("PullRequestsToolkit.setWatching")(function* (input: {
     readonly threadId: ThreadId;
     readonly target: PullRequestTarget;
@@ -154,7 +153,6 @@ const make = Effect.gen(function* () {
               : Effect.void,
           ),
           Effect.catchTags({
-            // Host and transport errors can recover while the watch is active.
             PullRequestOperationError: () => Effect.void,
           }),
         );

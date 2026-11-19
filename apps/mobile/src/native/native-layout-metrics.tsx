@@ -7,18 +7,13 @@ import { NativeLayoutObserver } from "./NativeLayoutObserver";
 const IS_PAD = Platform.OS === "ios" && Platform.isPad;
 
 const NativeLayoutContext = createContext<NativeLayoutMetrics | null>(null);
-// Separate from the metrics so device checks skip every resize and safe-area update.
 const DeviceTypeContext = createContext<DeviceType>(
   deriveDeviceType({ isPad: IS_PAD, metrics: null }),
 );
-// Binaries without the native no-hinge fallback never report metrics on ordinary
-// iPhones running iOS 27.1 or later; consumers stop waiting at this deadline.
 export const NATIVE_METRICS_TIMEOUT_MS = 1000;
 const NativeLayoutMetricsDeadlineContext = createContext<number>(0);
-// Column reservations come from UIKit's layout, outside the resizing navigator.
 export const NativeColumnLayoutMetricsContext = createContext<NativeLayoutMetrics | null>(null);
 
-// The latest metrics outside React, for decisions made before the first screen renders.
 let latestMetrics: NativeLayoutMetrics | null = null;
 const metricsWaiters = new Set<(metrics: NativeLayoutMetrics) => void>();
 
@@ -85,8 +80,6 @@ export function useDeviceType() {
 export function useDuoBottomBarInset() {
   const deviceType = useDeviceType();
   const metrics = use(NativeColumnLayoutMetricsContext);
-  // Sheets have no rail to align with and can report zero for the bar region.
-  // Their controls must keep using the sheet's bottom safe area.
   const inset = metrics?.bottomBarInset;
   return isDuoDevice(deviceType) && inset !== undefined && inset > 0 ? inset : undefined;
 }

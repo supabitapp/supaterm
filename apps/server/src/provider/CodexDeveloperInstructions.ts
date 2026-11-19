@@ -19,12 +19,6 @@ const normalizeAvailability = (
 ): SupatermToolAvailability =>
   typeof availability === "boolean" ? { browser: availability, device: false } : availability;
 
-/**
- * Describing `preview_*` or `device_*` tools that aren't in the turn's tool list would be worse
- * than saying nothing: the instructions actively steer the model away from Playwright,
- * agent-browser, and raw simctl/adb, so leaving them in would talk it out of the only automation
- * it still has.
- */
 const toolInstructions = (availability: boolean | SupatermToolAvailability): string => {
   const tools = normalizeAvailability(availability);
   return [

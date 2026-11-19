@@ -546,7 +546,6 @@ export function layer(
     readonly assertCompleteOnFinalize?: boolean;
   },
 ) {
-  // Empty HOME prevents skill discovery from using the host's skills.
   const layerHostEnvironment = Layer.effect(
     HostProcess.Environment,
     Effect.gen(function* () {
@@ -748,7 +747,6 @@ export const recordCursorAgentSdkReplayTranscript = Effect.fn(
     model: cursorSdkModelSelection(input.modelSelection),
     mode: interactionMode === "plan" ? "plan" : "agent",
   } as const;
-  // Agents search parent directories too; normalize the recording host's temp layout.
   const replacements: ReadonlyArray<readonly [string, string]> = [
     [input.cwd, input.transcriptCwd ?? `/tmp/cursor-replay-${input.scenario}`],
     [input.cwd.slice(0, input.cwd.lastIndexOf("/")), "/tmp"],
@@ -790,7 +788,6 @@ export const recordCursorAgentSdkReplayTranscript = Effect.fn(
     }
   };
 
-  // Hold frames after tool-call-started until run.cancel. Append without waiting because updates can arrive during send.
   let awaitingToolStart = input.interruptAfterToolStart === true;
   let heldUntilCancel: Array<ProviderReplayEntry> | undefined;
 
@@ -883,7 +880,6 @@ export const recordCursorAgentSdkReplayTranscript = Effect.fn(
     }
     if (input.interruptAfterToolStart === true) {
       yield* awaitSignal(toolStarted, "Cursor SDK tool-call-started before interrupt");
-      // Synchronous tool-call-started cancellation crashes @cursor/sdk with AbortError (1.0.22, 1.0.31, 1.0.32); defer 10 ms.
       yield* Effect.sleep("10 millis");
       const cancelling = yield* run.cancel.pipe(Effect.forkChild({ startImmediately: true }));
       yield* Deferred.succeed(cancelSent, undefined);

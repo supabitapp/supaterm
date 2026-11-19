@@ -24,7 +24,6 @@ const makeTarget = (
 const makeRelay = (target: CdpRelayTarget, write: (raw: string) => void) =>
   createCdpRelayConnection(target, write, () => {});
 
-// Each relay reply resolves after a few microtasks; one macrotask lets them all land.
 // oxlint-disable-next-line supaterm/no-real-time-wait-in-tests -- a zero-delay macrotask boundary, not a wait for time
 const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
 
@@ -108,8 +107,6 @@ describe("CDP relay", () => {
     ]);
   });
 
-  // Playwright enables focus emulation on every page it connects to, and Chromium then
-  // counts the guest as captured: a preview the panel hides keeps its timers unthrottled.
   it("acknowledges Playwright's focus emulation without forcing it onto the guest", async () => {
     const send = vi.fn(async () => ({}));
     const written: Array<Record<string, unknown>> = [];
@@ -208,15 +205,12 @@ describe("CDP relay extra sessions", () => {
       ["supaterm-preview-page", 1],
       [extra, 1],
     ]);
-    // A session that has not acknowledged its frame gets only the newest one, on its ack.
     for (let i = 2; i < 100; i++) frame(i);
     expect(delivered()).toEqual([]);
-    // Frames every session is busy for stay unacknowledged, so Chromium pauses at its in-flight limit.
     expect(nativeAcks).toEqual([1]);
     ack(extra, 1);
     await settle();
     expect(delivered()).toEqual([[extra, 99]]);
-    // Each consumer ack lets Chromium send one more frame.
     expect(nativeAcks).toEqual([1, 2]);
     ack(extra, 99);
     await settle();
@@ -229,7 +223,6 @@ describe("CDP relay extra sessions", () => {
     frame(101);
     expect(delivered()).toEqual([]);
     expect(send.mock.calls.some(([method]) => method === "Page.screencastFrameAck")).toBe(false);
-    // A restart keeps the unacknowledged frame's slot until its own acknowledgement.
     relay.receive(JSON.stringify({ id: 7, method: "Page.stopScreencast", sessionId: extra }));
     relay.receive(JSON.stringify({ id: 8, method: "Page.startScreencast", sessionId: extra }));
     await settle();
@@ -239,7 +232,6 @@ describe("CDP relay extra sessions", () => {
     ack(extra, 100);
     await settle();
     expect(delivered()).toEqual([[extra, 102]]);
-    // Other events still reach a session while its frame is unacknowledged.
     relay.event("Page.loadEventFired", { timestamp: 1 }, undefined);
     expect(delivered().map(([session]) => session)).toEqual(["supaterm-preview-page", extra]);
   });
@@ -376,7 +368,6 @@ describe("CDP relay downloads", () => {
 });
 
 describe("CDP relay payload budget", () => {
-  // 2,048 references to one 40 KiB string: about 80 MiB once serialized, little memory here.
   const oversized = Array(2048).fill("x".repeat(40 * 1024));
 
   it("fails only an oversized reply and still returns a large screenshot", async () => {
@@ -436,8 +427,6 @@ describe("CDP relay payload budget", () => {
 
 describe("CDP relay reconnects", () => {
   it("reports the page's default execution context to every connection", async () => {
-    // Electron keeps one debugger attached, so Runtime stays enabled after a client drops,
-    // and the native Runtime.enable announces contexts again only after Runtime.disable.
     let runtimeEnabled = false;
     let current: CdpRelayConnection | undefined;
     const context = {

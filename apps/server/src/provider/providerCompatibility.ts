@@ -115,7 +115,6 @@ export function applyProviderCompatibility(
       resolveProviderCompatibility(fallback, snapshot.driver, latestVersion))
     : undefined;
   const updateCommand = snapshot.versionAdvisory?.updateCommand;
-  // The maintenance resolver emits this command only for confirmed Homebrew installs.
   const needsHomebrewRefresh =
     updateCommand?.startsWith("brew upgrade ") &&
     (advisory?.status === "unsupported" || advisory?.status === "broken") &&

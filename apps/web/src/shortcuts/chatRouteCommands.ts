@@ -66,8 +66,6 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
   };
   const readPreviewOpen = () => {
     const threadRef = readRouteThreadRef();
-    // Store-only on purpose: the URL-aware arbitration lives in ChatView's
-    // preview toggle, which the action bus reaches.
     return threadRef
       ? selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, threadRef) === "preview"
       : false;
@@ -154,8 +152,6 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
         previewOpen: readPreviewOpen(),
       };
     },
-    // The oldest Escape scope on chat routes, so a dialog, a drag or the
-    // pull request list claims the key first.
     onKeyDown: (event) => {
       if (event.key !== "Escape") return false;
       const selection = useThreadSelectionStore.getState();

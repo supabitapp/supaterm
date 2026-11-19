@@ -25,8 +25,6 @@ const render = <A>(layer: string, run: () => Promise<A>) =>
 const resized = (channel: IconChannel, artwork: Buffer, size: number) =>
   render(`${channel}-${size}`, () => sharp(artwork).resize(size, size).png().toBuffer());
 
-// Launchers show the middle two thirds of the adaptive canvas, so legacy icons and in-app
-// branding use that crop.
 const visible = (channel: IconChannel, artwork: Buffer) =>
   render(`${channel}-legacy`, () => {
     const side = Math.floor((SCREEN_ART_SIZE * 2) / 3);

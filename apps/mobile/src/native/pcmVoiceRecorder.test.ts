@@ -14,7 +14,6 @@ const native = vi.hoisted(() => {
       },
       prepare: async () => ({ uri: "file:///recording.wav" }),
       record: () => undefined,
-      // 200 ms of 16 kHz 16-bit audio: 6,400 bytes.
       stop: async () => ({ uri: "file:///recording.wav", durationMs: 200 }),
       getStatus: () => null,
       release: () => undefined,

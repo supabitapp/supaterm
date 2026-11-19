@@ -27,8 +27,6 @@ export function queuedRunsInDeliveryOrder(
     );
   const completions = queued.filter((run) => automaticCompletionMessageIds.has(run.userMessageId));
   const messages = queued.filter((run) => !automaticCompletionMessageIds.has(run.userMessageId));
-  // Completions and messages each keep their queue order and interleave by request time,
-  // so neither kind can hold the other back while more of it keeps arriving.
   const ordered: Array<OrchestrationV2Run> = [];
   let completionIndex = 0;
   let messageIndex = 0;

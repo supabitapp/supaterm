@@ -356,14 +356,12 @@ describe("V2 session presentation", () => {
       );
 
     it("keeps rewound and stopped runs editable at the previous visible checkpoint", () => {
-      // Runs 1 and 3 were rewound; run 5 stopped without capturing a checkpoint.
       expect(targets([2, 4, 5], [checkpoint(2), checkpoint(3, "stale"), checkpoint(4)])).toEqual({
         "user-2": 0,
         "user-4": 2,
         "user-5": 4,
       });
       expect(targets([2], [checkpoint(1, "stale")])).toEqual({ "user-2": 0 });
-      // Without file snapshots, missing checkpoints still pin the conversation.
       expect(targets([1, 2], [checkpoint(1, "missing"), checkpoint(2, "missing")])).toEqual({
         "user-1": 0,
         "user-2": 1,
@@ -439,7 +437,6 @@ describe("V2 session presentation", () => {
     it("hides edit when the predecessor is unavailable or the run is unsettled", () => {
       expect(targets([1, 2], [checkpoint(2)])).toEqual({ "user-1": 0 });
       expect(targets([1, 2], [checkpoint(1, "stale"), checkpoint(2)])).toEqual({ "user-1": 0 });
-      // Earlier history is paged out, so the first loaded run's predecessor is unknown.
       expect(
         targets([4, 5], [checkpoint(4), checkpoint(5)], { threadStartCheckpointAvailable: false }),
       ).toEqual({ "user-5": 4 });
@@ -1980,7 +1977,6 @@ describe("incremental v2 timeline entries", () => {
 
   it("keeps every other entry when streaming plan text changes", () => {
     const fixture = makeStreamingWorkTimelineFixture("proposed_plan");
-    // Codex emits `plan.updated` with each delta, so the artifact array is rebuilt too.
     const plans = (markdown: string) => [streamingPlanArtifact(fixture, markdown, "active")];
     let input = {
       visibleTurnItems: withStreamedText(

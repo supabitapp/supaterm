@@ -50,7 +50,6 @@ const clientLaunchHarness = (input: {
   readonly newWorktreesStartFromOrigin?: boolean;
   readonly fallbackModel?: ModelSelection;
   readonly providers?: readonly ServerProvider[];
-  /** Where Settings saves a project's model; the legacy project field stays null. */
   readonly overrideModel?: ModelSelection;
   readonly launched: Array<ThreadLaunch.ThreadLaunchInput>;
   readonly workspaceRoot?: string;
@@ -62,7 +61,6 @@ const clientLaunchHarness = (input: {
     instanceId: ProviderInstanceId.make("claudeAgent"),
     model: "claude-opus",
   };
-  // The project's own default model, which a test can clear between launches.
   const projectDefaults: { model: ModelSelection | null } = {
     model: input.overrideModel === undefined ? modelSelection : null,
   };
@@ -101,7 +99,6 @@ const clientLaunchHarness = (input: {
       capabilities: new Set(["orchestration" as const]),
     }),
     Layer.mock(ThreadManagement.ThreadManagementService)({
-      // A thread exists once a launch started it.
       getThreadShell: (threadId) => {
         const launch = input.launched.find((candidate) => candidate.threadId === threadId);
         return Effect.succeed(
@@ -257,7 +254,6 @@ it.effect(
 
 it.effect("a launch steps an inherited mode down to the provider's, and refuses one it lacks", () =>
   Effect.gen(function* () {
-    // Pi offers no Auto; a mode a provider lacks would run as Supervised.
     const pi = ProviderInstanceId.make("pi");
     const launchPi = Effect.fn("test.launchPi")(function* (runtimeMode?: RuntimeMode) {
       const launched: Array<ThreadLaunch.ThreadLaunchInput> = [];
@@ -409,12 +405,9 @@ it.effect("a launch retried with the same clientRequestId replays the first one"
     yield* launch(undefined);
     yield* launch(undefined);
     const ids = launched.map((input) => [input.commandId, input.threadId]);
-    // The same key sends the same command and thread ids, which the launch
-    // service replays instead of starting a second thread.
     expect(ids[0]).toEqual(ids[1]);
     expect(ids[0]?.[0]).toMatch(/^mcp:launch:[0-9a-f]{64}$/);
     expect(ids[2]).not.toEqual(ids[0]);
-    // Without a key every launch is new.
     expect(ids[3]).not.toEqual(ids[4]);
   }),
 );
@@ -436,7 +429,6 @@ it.effect("a launch key of any length or content gives a short id and never a de
         .handle("supaterm_thread_launch", { title: "Fix", projectId, clientRequestId })
         .pipe(Stream.unwrap, Stream.runCollect, Effect.provide(dependencies));
 
-    // Percent-encoding would grow this six times; scratch folders are named from the id.
     yield* launch("\u00e9".repeat(256));
     expect(launched.map((input) => input.commandId)).toEqual([
       expect.stringMatching(/^mcp:launch:[0-9a-f]{64}$/),
@@ -834,7 +826,6 @@ it.effect("an agent's clone is not cut off while git is still transferring", () 
       Layer.provide(
         Layer.mock(GitVcsDriver.GitVcsDriver)({
           invalidateRefs: () => Effect.void,
-          // Like the real driver, the clone fails once it outlives the deadline it was given.
           execute: (input) =>
             Deferred.succeed(started, undefined).pipe(
               Effect.andThen(Deferred.await(transferred)),
@@ -875,7 +866,6 @@ it.effect("an agent's clone is not cut off while git is still transferring", () 
       })
       .pipe(Stream.unwrap, Stream.runCollect, Effect.provide(repositories), Effect.forkChild);
     yield* Deferred.await(started);
-    // A large repository over a slow link; agents' MCP calls get a far longer budget.
     yield* TestClock.adjust("10 minutes");
     yield* Deferred.succeed(transferred, undefined);
 

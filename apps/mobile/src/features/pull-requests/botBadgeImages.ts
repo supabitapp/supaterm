@@ -1,4 +1,3 @@
-/** Only asset paths are bot badges; keep same-host screenshots and all inline markdown images. */
 const BOT_BADGE_PREFIXES = [
   "static.devin.ai/assets/",
   "cursor.com/assets/images/",
@@ -35,7 +34,6 @@ const BOT_BADGE_PREFIXES = [
   "vercel.com/api/www/avatar",
   "app.netlify.com/qr-code/",
   "workers.cloudflare.com/logo.svg",
-  // Cloudflare Pages reuses one old GitHub upload as its logo.
   "user-images.githubusercontent.com/23264/106598434-9e719e00-654f-11eb-9e59-6167043cfa01.png",
   "qr.expo.dev/",
 ];

@@ -15,7 +15,6 @@ export function MediaActionsMenu(props: {
   readonly style?: StyleProp<ViewStyle>;
 }) {
   if (props.media.actions.length === 0) return props.children ?? null;
-  // Android's normal anchored menu lives in the app-root portal, behind native modals.
   const nativeAndroidMenu = props.inModal && Platform.OS === "android";
   const MediaMenu = nativeAndroidMenu ? MenuView : Menu;
   return (

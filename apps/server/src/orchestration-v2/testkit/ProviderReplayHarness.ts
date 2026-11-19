@@ -302,7 +302,6 @@ export function layerWithRegistry<Error>(
           Layer.provide(RuntimePolicy.layer),
         );
   const layerDatabase = options.databaseLayer ?? SqlitePersistence.layerMemory;
-  // Share one continuation queue across adapters, orchestrator, and worker through layer memoization.
   const layerContinuationRequests =
     options.runContinuationWorker === true ? ProviderContinuationRequests.layer : Layer.empty;
   const layerProvidedRegistry = registryLayer.pipe(
@@ -560,7 +559,6 @@ export function layerWithRegistry<Error>(
   if (options.runEffectWorker === false) {
     return layerReplayRuntime;
   }
-  // Build recovery before runtime so it commits before the effect worker claims work.
   const layerStartupRecovery: Layer.Layer<
     never,
     MigrationError | PlatformError.PlatformError | SqlError

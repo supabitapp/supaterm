@@ -88,7 +88,6 @@ export class MacPermissionHelper {
     const bundle = macAppBundlePath(Electron.app.getPath("exe"));
     if (!bundle) return;
     if (owner?.isDestroyed()) return;
-    // Finder can return generic icons for mounted artifacts; use the packaging PNG.
     const appIcon = iconPaths
       .map((iconPath) => Electron.nativeImage.createFromPath(iconPath))
       .find((image) => !image.isEmpty());

@@ -8,8 +8,6 @@ import * as Semaphore from "effect/Semaphore";
 
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 
-// WSL's plain Node cannot read server.asar. Electron's patched fs also reads its unpacked native siblings.
-
 export type WslServerTreeResult =
   | { readonly ok: true; readonly root: string }
   | { readonly ok: false; readonly reason: string; readonly fatal: boolean };
@@ -123,7 +121,6 @@ export const make = Effect.gen(function* () {
   const extract = Effect.gen(function* () {
     yield* Effect.log(`[wsl-server-tree] Extracting ${serverRoot} to ${versionDir}...`);
     yield* fs.makeDirectory(treeRoot, { recursive: true });
-    // A sibling temp directory permits atomic rename; explicit cleanup avoids a scoped finalizer failing after the move.
     const partialDir = yield* fs.makeTempDirectory({
       directory: treeRoot,
       prefix: `.${version}.extract-`,
@@ -150,7 +147,6 @@ export const make = Effect.gen(function* () {
     .withPermits(1)(
       needsExtraction
         ? Effect.gen(function* () {
-            // Delete completeness first: a locked Windows file can leave a half-deleted tree that must not be reused.
             yield* fs.remove(join(versionDir, MARKER_FILE_NAME), { force: true });
             yield* fs.remove(treeRoot, { recursive: true, force: true });
           }).pipe(

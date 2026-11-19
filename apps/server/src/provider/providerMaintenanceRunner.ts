@@ -42,9 +42,6 @@ import type { ProviderMaintenanceCapabilities } from "@supaterm/provider-core/se
 import { collectUint8StreamText } from "@supaterm/provider-core/server/collectStreamText";
 const isServerProviderUpdateError = Schema.is(ServerProviderUpdateError);
 
-// Native updaters (`claude update`) download a ~300 MB binary without printing
-// progress, and killing one mid-download leaves a truncated binary that the
-// next run treats as installed. Allow a slow connection to finish.
 const UPDATE_TIMEOUT_MINUTES = 30;
 const UPDATE_TIMEOUT_MS = UPDATE_TIMEOUT_MINUTES * 60_000;
 const UPDATE_OUTPUT_MAX_BYTES = 10_000;
@@ -116,15 +113,11 @@ const runProviderMaintenanceCommandWithSpawner = Effect.fn("ProviderMaintenanceR
     const collectCommandResult = Effect.fn("ProviderMaintenanceRunner.collectCommandResult")(
       function* () {
         const env = input.env ? { env: input.env, extendEnv: true } : {};
-        // On Windows the update tools are batch shims (e.g. `npm` -> `npm.cmd`), which a bare
-        // ChildProcess.spawn cannot launch (spawn npm ENOENT); resolveSpawnCommand finds the
-        // real `.cmd` and routes it through the shell.
         const resolved = yield* resolveSpawnCommand(input.command, input.args, env);
         const child = yield* input.spawner
           .spawn(
             ChildProcess.make(resolved.command, resolved.args, {
               shell: resolved.shell,
-              // Nothing answers an update command, so one that reads stdin must see EOF, not wait.
               stdin: "ignore",
               ...env,
             }),
@@ -266,8 +259,6 @@ function commandOutput(result: ProviderMaintenanceCommandResult): string | null 
   return truncateText(output, UPDATE_OUTPUT_MAX_BYTES);
 }
 
-// Updaters report on stderr, but may follow their error with hints (`claude update`
-// ends with "Try running claude doctor"), so prefer the last line naming an error.
 function failureReason(result: ProviderMaintenanceCommandResult): string | null {
   const streams = [result.stderr, result.stdout].map((output) =>
     output
@@ -337,8 +328,6 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
       onProgress,
       ...(update.env ? { env: update.env } : {}),
     });
-  // Instances with other homes or accounts can still run the binary this update replaces. The
-  // lock key names the package manager location, so other drivers there keep their own package.
   const instancesSharingInstallation = Effect.fn(
     "ProviderMaintenanceRunner.instancesSharingInstallation",
   )(function* (instanceId: ProviderInstanceId, provider: ProviderDriverKind, lockKey: string) {
@@ -464,7 +453,6 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
 
     const runProviderUpdate = Effect.fn("ProviderMaintenanceRunner.runProviderUpdate")(
       function* () {
-        // Uninterruptible, so a dropped request cannot leave settled set without the state.
         const finish = (state: ServerProviderUpdateState) =>
           Ref.set(settled, true).pipe(
             Effect.andThen(setUpdateState(state)),
@@ -487,9 +475,6 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
               ).pipe(Effect.asVoid);
             yield* setRunningMessage("Checking for the latest version");
 
-            // The cached capabilities chose the lock; re-derive ownership
-            // now so the command that runs matches the executable as it is
-            // at click time, not as it was at the last health refresh.
             const fresh = yield* providerRegistry.getProviderMaintenanceCapabilitiesForInstance(
               instanceId,
               provider,
@@ -507,7 +492,6 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
             }
 
             const manifest = yield* manifestService.current;
-            // Check compatibility against what an unpinned command would install now.
             const candidateVersion =
               targetVersion ??
               (yield* invalidateLatestProviderVersion(fresh).pipe(
@@ -633,8 +617,6 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
               instanceId,
               "post-update",
             );
-            // A missing version alone is not held against it, since Cursor's `about` probe can
-            // fail transiently on a healthy binary.
             const couldNotVerify =
               verifiedProviders.length === 0 ||
               verifiedProviders.some((verifiedProvider) => {
@@ -700,10 +682,8 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
         run: runProviderUpdate(),
       })
       .pipe(
-        // A dropped request interrupts the update; a "running" state would spin until restart.
         Effect.onInterrupt(() =>
           Effect.gen(function* () {
-            // A finished state stays, even if the request drops while it is being written.
             if (yield* Ref.get(settled)) return;
             yield* setUpdateState(
               makeUpdateState({

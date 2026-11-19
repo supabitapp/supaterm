@@ -122,7 +122,6 @@ export function ThreadQueueMessage(props: {
   );
 }
 
-/** Who sent a queued message, as its sent form shows it in the thread. */
 function QueuedRunSender(props: {
   readonly environmentId: EnvironmentId;
   readonly message: NonNullable<QueuedThreadRun["message"]>;
@@ -245,7 +244,6 @@ function QueueAttachmentThumbnail(props: {
   const resource = queueAttachmentResource(props.attachment);
   const url = useAssetUrl(props.environmentId, resource);
   return (
-    // Its own press target, so tapping an image previews it instead of editing the message.
     <Pressable
       accessibilityRole="imagebutton"
       accessibilityLabel={`Open ${props.attachment.name}`}

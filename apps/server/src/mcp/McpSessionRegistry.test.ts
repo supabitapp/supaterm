@@ -23,7 +23,6 @@ const fakeEnvironment = ServerEnvironment.ServerEnvironment.of({
   getDescriptor: Effect.die("unused"),
 });
 
-// Without `now`, the registry reads the Effect Clock (TestClock in these tests).
 const makeRegistry = (now: (() => number) | undefined, httpServer = fakeHttpServer) =>
   McpSessionRegistry.__testing
     .make({
@@ -140,7 +139,6 @@ it.effect("expires credentials once their session stops showing signs of life", 
     const token = issued.config.authorizationHeader.replace(/^Bearer\s+/, "");
     timestamp += 101;
     expect(yield* registry.resolve(token)).toBeUndefined();
-    // Once a request found it expired, clocks moving back don't bring it back; a provider turn does.
     timestamp = 1_000;
     expect(yield* registry.resolve(token)).toBeUndefined();
     yield* registry.touch(ThreadId.make("thread-2"));
@@ -162,7 +160,6 @@ it.effect("a backward wall clock step neither extends nor revives credentials", 
 
     yield* TestClock.setTime(10_000);
     const extended = yield* issueToken("thread-extended");
-    // setTime backwards moves wall time only; adjust moves both clocks.
     yield* TestClock.setTime(1_000);
     yield* TestClock.adjust(101);
     expect(yield* registry.resolve(extended)).toBeUndefined();

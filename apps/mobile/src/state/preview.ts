@@ -79,7 +79,6 @@ const threadPreviewTabsAtom = Atom.family((threadKey: string) => {
   return Atom.make((get) => {
     let disposed = false;
     let state = EMPTY_TABS;
-    // Lists can land after events they predate; replay newer events on each list.
     let list: PreviewListResult | null = null;
     let events: ReadonlyArray<PreviewEvent> = [];
     const publish = (next: ThreadPreviewTabs) => {
@@ -108,7 +107,6 @@ const threadPreviewTabsAtom = Atom.family((threadKey: string) => {
       const event = result.value;
       if (list?.serverEpoch === event.serverEpoch && event.revision <= list.revision) return;
       events = [...events.slice(1 - MAX_REPLAY_EVENTS), event];
-      // A restarted server resets revisions; only a fresh list is authoritative.
       if (state.serverEpoch !== null && event.serverEpoch !== state.serverEpoch) {
         get.refresh(listAtom);
         return;

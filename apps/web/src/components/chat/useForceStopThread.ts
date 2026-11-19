@@ -21,7 +21,6 @@ export function useForceStopThread(environmentId: EnvironmentId) {
     useServerConfigs().get(environmentId)?.environment.capabilities.threadForceStop === true;
   const canForceStop = permitted && supported;
   const [stoppingThreadId, setStoppingThreadId] = useState<ThreadId | null>(null);
-  /** Pass the run that ignored Stop, so a Force stop left open cannot hit a newer run. */
   const forceStopThread = async (threadId: ThreadId, runId?: RunId) => {
     if (!canForceStop || stoppingThreadId !== null) return;
     setStoppingThreadId(threadId);

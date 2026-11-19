@@ -121,7 +121,6 @@ export const StoredOutboxEntry = Schema.Struct({
   pauseUntil: Schema.Number,
 });
 
-// Older clients skip version 3, so they never deliver a voice message as an empty text one.
 export function encodeStoredOutboxEntry(
   entry: Omit<typeof StoredOutboxEntry.Type, "schemaVersion">,
 ) {

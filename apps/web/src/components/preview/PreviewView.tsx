@@ -208,8 +208,6 @@ export function PreviewView({
         : findActiveBrowserRecordingRuntimeTabId(threadRef, tabId)
       : null;
   const snapshot = tabId ? (previewState.sessions[tabId] ?? null) : null;
-  // Server tabs stream to every client when the server owns a headless page; an attached
-  // primary desktop can render its own page natively while the server drives it.
   const nativeServerTab = useRendersServerTabNatively(threadRef.environmentId, snapshot);
   const isServerTab = snapshot?.runtime === "server" && !nativeServerTab;
   const serverOwnsRendering = snapshot?.runtime === "server";
@@ -231,11 +229,9 @@ export function PreviewView({
   const [serverControlledTabId, setServerControlledTabId] = useState<string | null>(null);
   const serverInputDisabled = isServerTab && serverControlledTabId !== runtimeTabId;
   const [serverFrameTabId, setServerFrameTabId] = useState<string | null>(null);
-  // A desktop page that mounted before its tab went headless leaves its stale state here.
   const desktopOverlay =
     tabId && !isServerTab ? (previewState.desktopByTabId[tabId] ?? null) : null;
   const layoutZoomFactor = useBrowserLayoutZoomFactor(desktopOverlay?.zoomFactor ?? 1);
-  // A new Electron tab is Idle until its first URL commits, while the server already has it Loading.
   const desktopNavStatus =
     !serverOwnsRendering && desktopOverlay?.navStatus._tag !== "Idle"
       ? desktopOverlay?.navStatus
@@ -253,15 +249,12 @@ export function PreviewView({
   const controller = desktopOverlay?.controller ?? "none";
   const viewport = snapshot?.viewport ?? FILL_PREVIEW_VIEWPORT;
   const browserDefaults = useBrowserDefaults();
-  // Passing the snapshot's raw `undefined` through would reach the IPC layer
-  // as "every profile".
   const activeProfileId = snapshot?.profileId ?? DEFAULT_BROWSER_PROFILE_ID;
   const activeProfileName = previewProfileName(browserDefaults.profiles, activeProfileId);
   const panelRect = useBrowserSurfaceStore((state) =>
     runtimeTabId ? (state.byTabId[runtimeTabId]?.rect ?? null) : null,
   );
 
-  /** Resolves to the profile of the tab that loaded the URL, or null when nothing opened. */
   const navigateToResolvedUrl = async (resolvedUrl: string) => {
     if (isServerTab && serverSurfaceRef.current) {
       if (serverInputDisabled) return null;
@@ -291,7 +284,6 @@ export function PreviewView({
       : null;
   };
 
-  // Incognito visits stay out of the project's persisted history.
   const isHistoryProfile = (profileId: string | null) =>
     profileId !== null && profileId !== INCOGNITO_BROWSER_PROFILE_ID;
 
@@ -398,7 +390,6 @@ export function PreviewView({
     setFind((previous) => ({ tabId: runtimeTabId, requestId: (previous?.requestId ?? 0) + 1 }));
   };
 
-  // Otherwise focus falls to the body and the next find shortcut misses the preview.
   const closeFind = () => {
     setFind(null);
     if (runtimeTabId) focusPreviewPage(runtimeTabId);
@@ -431,7 +422,6 @@ export function PreviewView({
       target,
       browserResponsiveViewportForToggle({
         defaults: browserDefaults,
-        // Only BrowserSurfaceSlot publishes a store rect; streamed tabs measure their own box.
         panelRect: isServerTab
           ? (serverSurfaceBoxRef.current?.getBoundingClientRect() ?? null)
           : panelRect,
@@ -820,9 +810,6 @@ export function PreviewView({
       void previewBridge.cancelPickElement(runtimeTabId).catch(() => undefined);
       return;
     }
-    // Snapshot whatever the user was focused on (typically the chat composer
-    // textarea or the chrome-row pick button) BEFORE main steals focus into the
-    // guest webContents.
     const previouslyFocused =
       typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null;
     const pickRequest = { cancelled: false };
@@ -846,7 +833,6 @@ export function PreviewView({
         } catch {}
       }
     };
-    // A failed pick is dropped silently; finishPick still releases the picker.
     const bridge = previewBridge;
     void settlePromise(async () => {
       await bridge.setAnnotationSendEnabled(
@@ -855,23 +841,15 @@ export function PreviewView({
           readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope),
       );
       if (pickRequest.cancelled) return;
-      // Main's WebContents.focus() cannot move the embedder's DOM focus into a guest, so key
-      // presses would stay in the app; only focusing the <webview> element hands them to the page.
       focusPreviewWebview(runtimeTabId);
       const result = await bridge.pickElement(runtimeTabId);
       if (!result || pickRequest.cancelled) return;
-      // Nothing that happens after this point (a second picker click, a tab
-      // change, unmount) may discard it, so the pick stops being cancellable
-      // here rather than in finishPick.
       if (pickActiveRef.current === pickRequest) {
         pickActiveRef.current = null;
         setPickActive(false);
         submitted = true;
       }
       const { annotation: picked, submission, screenshotFailed = false } = result;
-      // The annotation is still sendable when its optional crop stalls or fails, so warn and keep
-      // going. The stored copy drops the screenshot on failure, otherwise the prompt would tell
-      // the agent a crop is attached when none was sent.
       const capture = capturePreviewAnnotationScreenshot(picked);
       const cropDropped = screenshotFailed || capture.status === "failed";
       const annotation = capture.status === "failed" ? { ...picked, screenshot: null } : picked;
@@ -932,8 +910,6 @@ export function PreviewView({
     };
   }, [runtimeTabId]);
 
-  // Subscribe only while visible; `toggle-panel` is owned by ChatView's
-  // URL-aware handler regardless of whether the panel is currently mounted.
   const isPaneInputOwner = usePaneInputOwner();
   const onPreviewAction = useEffectEvent(
     (action: Parameters<Parameters<typeof subscribePreviewAction>[0]>[0]) => {
@@ -1090,7 +1066,6 @@ export function PreviewView({
                   setServerControlledTabId(control?.controller === "you" ? runtimeTabId : null)
                 }
                 onPopup={(popupTabId) => showPreviewPopup(threadRef, popupTabId, "panel")}
-                // Stays connected under the empty state so a URL picked there reaches the page.
                 className="absolute inset-0 h-full w-full"
               />
             </div>

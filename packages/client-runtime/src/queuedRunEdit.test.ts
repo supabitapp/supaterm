@@ -129,8 +129,6 @@ describe("makeQueuedRunEditStore", () => {
     expect(exits).toEqual([{ threadKey: "env:thread", text: "newer" }]);
   });
 
-  // The server orders saves by arrival, not by edit age, so a second save could
-  // land before the first and then be overwritten by it.
   it("keeps the save claimed until it settles, even when the edit is begun again or ended", () => {
     const { registry, store, begin } = setup();
     begin();
@@ -161,10 +159,7 @@ describe("makeQueuedRunEditStore", () => {
     expect(registry.get(store.savingAtom)).toEqual({});
   });
 
-  // The runs read the thread's detail, a live server subscription; a thread
-  // with no edit open must not keep it.
   it("holds the thread's runs only while an edit is open and watching", () => {
-    // The registry removes idle nodes in a scheduled task; the test runs those tasks itself.
     const tasks: Array<() => void> = [];
     const registry = AtomRegistry.make({
       scheduleTask: (task) => {
@@ -273,7 +268,6 @@ describe("makeQueuedRunsAtom", () => {
 
   it("keeps an archived thread's edit open, ending it only when the run leaves the queue", () => {
     const { registry, snapshot, detail, store, exits } = setupWatched();
-    // The shell drops archived threads, but their queue stays editable.
     registry.set(snapshot, { threads: [] });
     registry.set(snapshot, { threads: [thread({ archivedAt: "2026-10-24T00:00:00Z" })] });
     expect(exits).toEqual([]);

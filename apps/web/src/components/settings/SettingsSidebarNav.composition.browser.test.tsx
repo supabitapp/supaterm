@@ -62,9 +62,9 @@ it("opens search from the physical Slash and F keys on non-US layouts", async ()
   const search = page.getByRole("combobox", { name: "Search settings" });
 
   for (const { init, opens } of [
-    { init: { key: "/", code: "Digit7", shiftKey: true }, opens: true }, // German Shift+7
-    { init: { key: ".", code: "Slash" }, opens: true }, // Russian Slash key
-    { init: { key: "а", code: "KeyF", ctrlKey: true }, opens: true }, // Russian Ctrl+F
+    { init: { key: "/", code: "Digit7", shiftKey: true }, opens: true },
+    { init: { key: ".", code: "Slash" }, opens: true },
+    { init: { key: "а", code: "KeyF", ctrlKey: true }, opens: true },
     { init: { key: "?", code: "Slash", shiftKey: true }, opens: false },
   ]) {
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();

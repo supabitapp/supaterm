@@ -118,7 +118,6 @@ export const waitForHttpReady = Effect.fn("shared.httpReadiness.waitForHttpReady
         requestUrl,
         attempts: attempt,
       }),
-    // The enclosing operation owns the span for this inline handler.
     onNone: Effect.fnUntraced(function* () {
       const lastFailure = yield* Ref.get(lastProbeFailure);
       yield* Effect.logWarning("httpReadiness.timedOut", {

@@ -12,7 +12,6 @@ export const PROMPT_STASH_STORAGE_KEY = "supaterm:prompt-stash:v2";
 const PROMPT_STASH_STORAGE_VERSION = 2;
 
 export const MAX_STASH_ENTRIES = 20;
-// Share localStorage's ~5MB quota with drafts; record oversized attachments in droppedImageNames.
 export const MAX_STASH_ENTRY_ATTACHMENT_CHARS = 2_700_000;
 
 const StashEntrySchema = Schema.Struct({
@@ -35,7 +34,6 @@ type PersistedPromptStashState = typeof PersistedPromptStashState.Type;
 
 const decodePersistedPromptStashState = Schema.decodeUnknownSync(PersistedPromptStashState);
 
-// Encoders cannot survive reload; clear orphaned counts so entries remain restorable.
 function clearOrphanedPendingImages(entry: PromptStashEntry): PromptStashEntry {
   if (!entry.pendingImageCount) return entry;
   return {
@@ -71,7 +69,6 @@ export function partitionStashAttachments(
   return { kept, droppedNames };
 }
 
-// Accessing localStorage itself can throw SecurityError before get/set.
 function resolveBaseStorage(): { storage: StateStorage; durable: boolean } {
   try {
     if (typeof localStorage !== "undefined") {
@@ -85,7 +82,6 @@ const { storage: baseStashStorage, durable: storageIsDurable } = resolveBaseStor
 
 const unpersistedFinalizedEntryIds = new Set<string>();
 
-// Clear the composer only after a durable write; debounce cannot confirm durability.
 function persistEntries(entries: ReadonlyArray<PromptStashEntry>): {
   written: boolean;
   durable: boolean;
@@ -123,10 +119,6 @@ function readPersistedEntries(): ReadonlyArray<PromptStashEntry> | null {
   return readStoredEntries()?.map(clearOrphanedPendingImages) ?? null;
 }
 
-/**
- * Starts each write from storage so other tabs' stashes, takes and finalized images survive.
- * Local encoding and failed finalize writes retain ownership while the stored entry exists.
- */
 function latestEntries(memory: ReadonlyArray<PromptStashEntry>): ReadonlyArray<PromptStashEntry> {
   const stored = readStoredEntries();
   if (!stored) return memory;
@@ -177,7 +169,6 @@ export const usePromptStashStore = create<PromptStashStoreState>()((set, get) =>
     const nextEntries = [entry, ...latestEntries(get().entries)];
     const evicted = nextEntries.length > MAX_STASH_ENTRIES ? (nextEntries.pop() ?? null) : null;
     const { written, durable } = persistEntries(nextEntries);
-    // Failed writes must not duplicate the intact composer; eviction also commits only on success.
     if (!written) {
       return { evicted: null, written: false, durable: false };
     }

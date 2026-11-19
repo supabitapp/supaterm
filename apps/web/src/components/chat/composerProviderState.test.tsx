@@ -371,7 +371,6 @@ describe("getComposerReasoningStep", () => {
       modelOptions: selections(["effort", "medium"]),
     });
     const prompt = "Ultrathink:\n  Fix the bug";
-    // A typed Ultrathink sits above the pickable levels, so up wraps and down lands on the top level.
     for (const [direction, to] of [
       [-1, "high"],
       [1, "medium"],
@@ -445,7 +444,6 @@ describe("getComposerReasoningStep", () => {
         to: "medium",
       },
       {
-        // OpenCode reports "default" when no variant was chosen.
         label: "reported value outside the catalog",
         modelOptions: undefined,
         reportedModelSelection: {

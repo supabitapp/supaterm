@@ -1,6 +1,3 @@
-// An in-process environment for app render scenarios: a fetch stub for its HTTP API and a
-// session that answers the shell, thread and config subscriptions from fixtures. Other RPCs
-// stay pending so nothing retries on timers. Everything above the wire is the app's own.
 import {
   AuthStandardClientScopes,
   EnvironmentId,
@@ -59,7 +56,6 @@ const descriptor = {
   environmentId: ENVIRONMENT_ID,
   label: "Render scenarios",
   platform: { os: "linux", arch: "x64" },
-  // A matching version, since a mismatch adds an update banner a typical user never sees.
   serverVersion: APP_VERSION,
   orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
   capabilities: { repositoryIdentity: true },
@@ -109,7 +105,6 @@ const baseServerConfig: ServerConfig = {
   }),
   keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
 };
-// A server only leaves threads out of the shell when it serves their families.
 const serverConfig = (): ServerConfig => ({
   ...baseServerConfig,
   keybindings,
@@ -256,7 +251,6 @@ function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
     creationSource: "web",
     latestRunId: latest?.id ?? null,
     activeRunId: null,
-    // Idle reads as waiting on the user, which shows a per-second duration in the sidebar.
     status: latest ? "completed" : "idle",
     pendingRuntimeRequest: null,
     latestVisibleMessage: null,
@@ -332,7 +326,6 @@ function projectionOf(thread: FakeThread): OrchestrationV2ThreadProjection {
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
-// Keyed by thread id: a live thread subscription's queue, for pushing events to it.
 const threadSubscribers = new Map<string, Queue.Queue<OrchestrationV2ThreadStreamItem>>();
 let terminalMetadataSubscriber: Queue.Queue<TerminalMetadataStreamEvent> | null = null;
 let threads: ReadonlyArray<FakeThread> = [];
@@ -357,7 +350,6 @@ const subscribe = <A>(first: ReadonlyArray<A>, register?: (queue: Queue.Queue<A>
     }),
   );
 
-// The app's config subscription outlives a test's render, so a later fake pushes its keybindings.
 const subscribeServerConfig = () =>
   subscribe<ServerConfigStreamEvent>(
     [{ version: 1, type: "snapshot", config: serverConfig() }],
@@ -390,8 +382,6 @@ const shellSnapshot = (): OrchestrationV2ShellSnapshot => ({
 });
 
 const handlers: Record<string, (input: never) => unknown> = {
-  // Recorded, and accepted only when the scenario asks, since a pending command holds every
-  // later command on its thread. Accepted commands' events never arrive.
   [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command: OrchestrationV2Command) =>
     Effect.suspend(() => {
       dispatched.push(command);
@@ -420,7 +410,6 @@ const handlers: Record<string, (input: never) => unknown> = {
       (queue) => {
         threadSubscribers.set(thread.id, queue);
 
-        // A replaced subscription closes after its successor registers.
         return () => {
           if (threadSubscribers.get(thread.id) === queue) threadSubscribers.delete(thread.id);
         };
@@ -447,7 +436,6 @@ const handlers: Record<string, (input: never) => unknown> = {
   [WS_METHODS.subscribeServerConfig]: subscribeServerConfig,
 };
 
-// Unanswered calls stay pending, like a server that has not replied yet.
 const client = new Proxy(handlers, {
   get: (target, method: string) =>
     target[method] ??
@@ -534,7 +522,6 @@ export function installFakeEnvironment(
         expiresAt: "2099-01-01T00:00:00.000Z",
       });
     }
-    // The client loads the shell and opened threads over HTTP before subscribing.
     if (url.pathname === "/api/orchestration/shell")
       return json(encodeShellSnapshot(shellSnapshot()));
     const bounded = BOUNDED_SNAPSHOT_PATH.exec(url.pathname);

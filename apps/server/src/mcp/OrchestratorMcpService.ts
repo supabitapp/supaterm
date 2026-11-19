@@ -137,7 +137,6 @@ import {
 import * as Metrics from "../observability/Metrics.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 
-// Return recoverable handles before common MCP client timeouts expire.
 const DEFAULT_WAIT_TIMEOUT_MS = 30_000;
 const MAX_WAIT_TIMEOUT_MS = 45_000;
 const SECRET_REQUEST_TIMEOUT_MS = 60 * 60 * 1_000;
@@ -153,8 +152,6 @@ const DEFAULT_THREAD_READ_LIMIT = 10;
 const DEFAULT_THREAD_RUN_LIMIT = 10;
 const DEFAULT_THREAD_ITEM_MAX_CHARS = 500;
 const THREAD_PULL_REQUEST_PREVIEW_LIMIT = 5;
-// Claude Code saves MCP results over ~25k tokens to a file instead of showing them. Bytes, not
-// chars: CJK text runs near one token per char, which a char budget lets through at 30k tokens.
 const THREAD_READ_RESULT_MAX_BYTES = 30_000;
 
 interface ResolvedTarget {
@@ -267,7 +264,6 @@ const delegatedTaskPrefix = "thread:delegated-task:";
 const suggestedThreadId = (threadId: ThreadId) => {
   if (!threadId.startsWith(delegatedTaskPrefix)) return ThreadId.make(`mcp:${threadId}`);
   const rest = threadId.slice(delegatedTaskPrefix.length);
-  // encodeURIComponent throws on lone surrogates, which a JSON string can carry.
   if (!rest.isWellFormed()) return null;
   const encoded = encodeURIComponent(rest);
   return encoded === rest ? null : ThreadId.make(`${delegatedTaskPrefix}${encoded}`);
@@ -322,7 +318,6 @@ function threadManagementFailure(error: unknown): OrchestratorMcpFailure {
   }
 }
 
-// Without a reason, a Stop reads as the user's (see RunExecutionService.USER_STOP_REASON).
 function agentStopReason(reason: string | undefined): string {
   return reason === undefined ? "Stopped by an agent" : `Stopped by an agent: ${reason}`;
 }
@@ -346,18 +341,9 @@ function scheduledTaskSummary(task: ScheduledTask): OrchestratorMcpScheduledTask
   };
 }
 
-/**
- * Large catalogs (OpenCode, Cursor, Pi) can list hundreds of models, so agents
- * get a short list by default and search for the rest. These providers have
- * small official catalogs, so all their current models are listed.
- */
 const FULL_CATALOG_DRIVERS: ReadonlySet<string> = new Set(["codex", "claudeAgent", "muse", "grok"]);
 const LISTED_MODEL_LIMIT = 8;
 
-/**
- * Lists visible models, keeping pinned models and limiting large catalogs by default.
- * Whole provider words select the provider; partial words filter models when any match.
- */
 function listCapabilityModels(input: {
   readonly provider: ServerProvider;
   readonly preferences:
@@ -372,14 +358,12 @@ function listCapabilityModels(input: {
     .toSorted((a, b) => (rank.get(a.slug) ?? rank.size) - (rank.get(b.slug) ?? rank.size));
   const { instanceId, driver, displayName } = input.provider;
   const providerText = `${instanceId} ${driver} ${displayName ?? ""}`.toLowerCase();
-  // Whole ids like "codex-work" and their parts both name the provider.
   const providerWords = new Set([
     ...providerText.split(/\s+/),
     ...providerText.split(/[^\p{L}\p{N}]+/u),
   ]);
   const modelText = (model: ServerProviderModel) =>
     `${model.slug} ${model.name} ${model.subProvider ?? ""}`.toLowerCase();
-  // Part of a provider word ("agent" in "claudeAgent") names the provider unless a model matches it.
   const modelTerms = input.searchTerms.filter(
     (term) =>
       !providerWords.has(term) &&
@@ -403,7 +387,6 @@ function listCapabilityModels(input: {
   return { listed, omitted: visible.length - listed.length };
 }
 
-/** Names advertised slugs to retry with: same last `/` segment first, else a short list. */
 function advertisedModelsHint(models: ReadonlyArray<ServerProviderModel>, requested: string) {
   const lastSegment = (slug: string) => slug.slice(slug.lastIndexOf("/") + 1).toLowerCase();
   const wanted = lastSegment(requested);
@@ -423,7 +406,6 @@ function advertisedModelsHint(models: ReadonlyArray<ServerProviderModel>, reques
   }.`;
 }
 
-/** Option ids and allowed values are all a delegating agent needs; labels are UI copy. */
 function capabilityModelOption(descriptor: ProviderOptionDescriptor): OrchestratorMcpModelOption {
   const defaultValue = getProviderOptionCurrentValue(descriptor);
   return {
@@ -489,7 +471,6 @@ function providerConstraints(
   return constraints;
 }
 
-/** supaterm_thread_launch keeps a selection as given, so it can hold options its model does not have. */
 function knownOptions(
   options: ReadonlyArray<ProviderOptionSelection> | undefined,
   descriptors: ReadonlyArray<ProviderOptionDescriptor> | undefined,
@@ -498,11 +479,6 @@ function knownOptions(
   return options.filter((option) => descriptors.some((descriptor) => descriptor.id === option.id));
 }
 
-/**
- * Models without descriptors skip the descriptor checks (mirroring how model slugs are only
- * validated when the provider advertises models), but duplicate ids always fail: downstream
- * consumers disagree on whether the first or last value of a duplicated id wins.
- */
 function invalidOptionSelections(
   selections: ReadonlyArray<ProviderOptionSelection>,
   descriptors: ReadonlyArray<ProviderOptionDescriptor> | undefined,
@@ -628,7 +604,6 @@ function pendingTaskApproval(
         (run) =>
           !isOrchestrationV2RunSettled(run.status) &&
           (run.delegatedTaskId === taskId ||
-            // Legacy tasks own only their original run, not later turns in the child thread.
             (run.delegatedTaskId === undefined && run.id === originalRun?.id)),
       )
       .map((run) => run.id),
@@ -654,7 +629,6 @@ function pendingTaskApproval(
   return approval;
 }
 
-/** Every task `directAppOwnedChildTasks` can return, so callers load only those. */
 function directChildTaskIds(
   target: Pick<OrchestrationV2ThreadProjection, "thread" | "runs">,
   returnedRunIds: ReadonlySet<RunId | null>,
@@ -701,7 +675,6 @@ function directAppOwnedChildTasks(
   );
 }
 
-// The child's transfers include the results it sent, so the parent's transfers are never read.
 function taskResultTransfer(
   parentThreadId: ThreadId,
   child: Pick<OrchestrationV2ThreadProjection, "runs" | "contextTransfers">,
@@ -769,8 +742,6 @@ function latestTerminalResultRun(
       .filter((message) => message.notification?.source.kind === "monitor")
       .map((message) => message.runId),
   );
-  // A restart-cut run, and each cut run before it in the chain, has no outcome while a
-  // continuation is pending, live, or ran to a result.
   const runsById = new Map(projection.runs.map((run) => [run.id, run]));
   const supersededRunIds = new Set<RunId>();
   const supersede = (runId: RunId | undefined) => {
@@ -1007,7 +978,6 @@ function threadSnooze(
   };
 }
 
-// Provider-internal links (parentTaskId, providerInstanceId) stay out of agent results.
 function threadBackgroundWork(
   thread: Pick<OrchestrationV2ThreadShell, "blockedOnThreadWait" | "pendingBackgroundTasks">,
 ): Required<Pick<OrchestratorMcpThreadListItem, "blockedOnThreadWait" | "pendingBackgroundTasks">> {
@@ -1060,7 +1030,6 @@ function threadPullRequests(
   };
 }
 
-// Awaited background work keeps a thread live after its turn ends, as auto-mark-done and the sidebar treat it.
 function threadStatus(
   activeStatus: OrchestratorMcpThreadListItem["status"] | null | undefined,
   settledStatus: OrchestratorMcpThreadListItem["status"],
@@ -1267,7 +1236,6 @@ function turnItemText(item: OrchestrationV2TurnItem): string | null {
   }
 }
 
-/** A cut inside a surrogate pair would leave half an emoji on each page. */
 function textPageEnd(text: string | null, offset: number, maxChars: number): number {
   const end = offset + maxChars;
   if (text === null || end >= text.length) return end;
@@ -1319,7 +1287,6 @@ function timelineItem(input: {
 
 const jsonBytes = (value: unknown) => Buffer.byteLength(JSON.stringify(value), "utf8");
 
-/** The longest prefix length in [low, high] that `fits`, or `low - 1`. */
 function longestFitting(low: number, high: number, fits: (length: number) => boolean): number {
   let best = low - 1;
   while (low <= high) {
@@ -1334,7 +1301,6 @@ function longestFitting(low: number, high: number, fits: (length: number) => boo
   return best;
 }
 
-/** The item with its text cut, and an oversized title too, until its JSON fits `maxBytes`. */
 function timelineItemWithin(
   input: Parameters<typeof timelineItem>[0],
   maxBytes: number,
@@ -1347,7 +1313,6 @@ function timelineItemWithin(
   const item = longestText(input.row.item.title);
   const title = item.title;
   if (title === null || jsonBytes(item) <= maxBytes) return item;
-  // Half the budget for the title keeps `textOffset` pages of the text useful.
   const cutTitle = (chars: number) =>
     title.slice(0, chars === 0 ? 0 : textPageEnd(title, 0, chars));
   const titleChars = longestFitting(
@@ -1358,16 +1323,11 @@ function timelineItemWithin(
   return longestText(cutTitle(Math.max(titleChars, 0)));
 }
 
-/**
- * The items, read from the end the caller pages toward, whose result fits
- * THREAD_READ_RESULT_MAX_BYTES; `start` is the first kept index. Never empty for a non-empty page.
- */
 function timelineItemsWithinBudget(
   envelope: Omit<OrchestratorMcpThreadReadResult, "items">,
   inputs: ReadonlyArray<Parameters<typeof timelineItem>[0]>,
   newestFirst: boolean,
 ): { readonly items: Array<OrchestratorMcpThreadTimelineItem>; readonly start: number } {
-  // An oversized envelope (say, a huge thread title) must not starve items to one char per read.
   const budget = Math.max(
     THREAD_READ_RESULT_MAX_BYTES - jsonBytes({ ...envelope, items: [] }),
     THREAD_READ_RESULT_MAX_BYTES / 2,
@@ -1457,13 +1417,11 @@ const make = Effect.gen(function* () {
         ),
       );
 
-  // Runs on every MCP call, and long threads hold thousands of records; callers need only active runs.
   const loadCallerRecords = <K extends "runs">(threadId: ThreadId, fields: ReadonlyArray<K>) =>
     loadThreadRecords(threadId, fields, {
       runStatuses: ThreadManagementService.ACTIVE_RUN_STATUSES,
     });
 
-  // A dispatcher thread holds thousands of tasks, each with its full prompt; read only the ones named.
   const loadTasks = (threadId: ThreadId, taskIds: ReadonlyArray<NodeId>) =>
     threadManagement.getThreadRecords(threadId, ["subagents"], { subagentIds: taskIds }).pipe(
       Effect.map(({ subagents }) => subagents),
@@ -1526,7 +1484,6 @@ const make = Effect.gen(function* () {
     if (shell === null || shell.deletedAt !== null) {
       return yield* threadNotFound(threadManagement, threadId, `Thread ${threadId} was not found.`);
     }
-    // Keeps legacy import and project validation; callers read only the thread row.
     return yield* threadManagement
       .getProjectThreadRecords({ projectId: shell.projectId, threadId }, [])
       .pipe(Effect.mapError(threadManagementFailure));
@@ -1536,7 +1493,6 @@ const make = Effect.gen(function* () {
     K extends "runs",
   >(scope: McpInvocationScope, threadId: ThreadId, callerFields: ReadonlyArray<K>) {
     const caller = yield* loadCaller(scope, callerFields);
-    // Only the thread row: the caller's own record holds just its active runs.
     const target: Pick<OrchestrationV2ThreadProjection, "thread"> =
       caller.parent !== undefined && threadId === caller.parent.thread.id
         ? caller.parent
@@ -1544,10 +1500,6 @@ const make = Effect.gen(function* () {
     return { ...caller, target } as const;
   });
 
-  /**
-   * A thread caller writes to another thread only while its own run is live,
-   * so a credential that outlived its session cannot reach across threads.
-   */
   const assertLiveCallerForOtherThread = (
     scope: McpInvocationScope,
     parent: Pick<OrchestrationV2ThreadProjection, "thread" | "runs"> | undefined,
@@ -1576,7 +1528,6 @@ const make = Effect.gen(function* () {
     );
     const activeRun = ThreadManagementService.latestActiveRun(parent);
     if (parent.thread.archivedAt === null && activeRun === undefined) {
-      // Decide from this one fresh snapshot: a run may have started since `parent` was read.
       return threadManagement.getThreadShell(parent.thread.id).pipe(
         Effect.mapError(threadManagementFailure),
         Effect.flatMap((shell) =>
@@ -1610,7 +1561,6 @@ const make = Effect.gen(function* () {
       );
     }
     const input = { projectId: shell.projectId, threadId };
-    // Acknowledging a caller's child-task result matches it against every run and transfer.
     if (
       parent !== undefined &&
       shell.lineage.parentThreadId === parent.thread.id &&
@@ -1626,7 +1576,6 @@ const make = Effect.gen(function* () {
         .pipe(Effect.mapError(threadManagementFailure));
       return { parent, target, shell, runCount: target.runs.length } as const;
     }
-    // Long threads hold thousands of runs; the read shows only the recent and active ones.
     const [records, runCount] = yield* Effect.all([
       threadManagement.getProjectThreadRecords(input, ["runs", "runtimeRequests"], {
         latestRunLimit: runLimit,
@@ -1649,11 +1598,6 @@ const make = Effect.gen(function* () {
   const loadOrchestrationCapableInstanceIds = () =>
     providerAdapters.list().pipe(Effect.map((instanceIds) => new Set(instanceIds)));
 
-  /**
-   * Provider snapshots only re-probe while a client is in the foreground, so an
-   * unattended agent can see a provider as unavailable after it was fixed.
-   * Re-probe the requested instance once before refusing it.
-   */
   const assertTargetEnabledForProject = (
     parent: Pick<OrchestrationV2ThreadProjection, "thread">,
     commandId: CommandId,
@@ -1690,11 +1634,6 @@ const make = Effect.gen(function* () {
     readonly parent: Pick<OrchestrationV2ThreadProjection, "thread">;
     readonly target: OrchestratorMcpTarget | undefined;
     readonly providers: ReadonlyArray<ServerProvider>;
-    /**
-     * Set only when the dispatching command already has a receipt: it can only replay the
-     * recorded result, so filtering by the project's current settings would just refuse a no-op
-     * retry. The dispatch must use the same command id that was checked for the receipt.
-     */
     readonly skipProjectEnablementFilter?: boolean;
   }): Effect.fn.Return<ResolvedTarget, OrchestratorMcpFailure> {
     const requestedInstanceId = input.target?.providerInstanceId;
@@ -1862,7 +1801,6 @@ const make = Effect.gen(function* () {
           "runtimeRequests",
           "nodes",
         ],
-        // Progress reads only active or undelivered tasks under the child.
         { messageRoles: ["user"], omitSettledLeafNodes: true, omitSettledSubagents: true },
       )
       .pipe(Effect.mapError(threadManagementFailure));
@@ -1893,7 +1831,6 @@ const make = Effect.gen(function* () {
       childRun,
       heldForRestart ? taskResultRun : undefined,
     );
-    // Only the task's own result looks back for its report, and only among its own runs.
     const reportRuns =
       task.result === null && taskResultRun !== undefined
         ? delegatedTaskReportRuns(childControls, taskResultRun)
@@ -1937,8 +1874,7 @@ const make = Effect.gen(function* () {
               : childRun,
           )
         : workState === "result_available"
-          ? // A cancelled task's finished turn settles it as interrupted.
-            task.cancelledRunId !== undefined && runStatus === "completed"
+          ? task.cancelledRunId !== undefined && runStatus === "completed"
             ? "interrupted"
             : runStatus
           : runStatus === "queued" || runStatus === "starting"
@@ -2071,8 +2007,6 @@ const make = Effect.gen(function* () {
           "orchestration_error",
           `Unable to watch delegated task ${taskId}: ${errorMessage(error)}`,
         );
-      // Sequences are global, so one cursor taken before the first read
-      // replays anything either thread records after it.
       const afterSequence = yield* threadManagement
         .getThreadEventSequence(scope.thread.threadId)
         .pipe(Effect.mapError(streamError));
@@ -2080,7 +2014,6 @@ const make = Effect.gen(function* () {
       if (endsTaskWait(initial)) {
         return Option.some(initial);
       }
-      // One stream per event type, so transcript events never fill a buffer.
       return yield* Stream.mergeAll(
         TASK_WAKE_EVENTS.map(({ thread, eventType }) =>
           threadManagement
@@ -2127,17 +2060,14 @@ const make = Effect.gen(function* () {
       const remoteDefault = yield* gitDriver
         .resolveDefaultBranchName(cwd, remoteName)
         .pipe(Effect.orElseSucceed(() => null));
-      // Fetch does not update a recorded HEAD, so it can outlive the branch it names.
       for (const branch of remoteDefault === null
         ? conventional
         : [remoteDefault, ...conventional]) {
-        // Launch resolves a bare name through a local branch's upstream, or else assumes `origin`.
         if (yield* refExists(cwd, `refs/remotes/${remoteName}/${branch}`)) {
           return `${remoteName}/${branch}`;
         }
       }
     }
-    // Local-only repositories, or a remote with neither a usable HEAD nor a conventional branch.
     for (const branch of conventional) {
       if (yield* refExists(cwd, `refs/heads/${branch}`)) return branch;
     }
@@ -2167,11 +2097,6 @@ const make = Effect.gen(function* () {
     },
   );
 
-  /**
-   * A scheduled task the caller may change: one whose runs execute at modes no
-   * broader than the caller's own, so editing its prompt cannot run work above
-   * the caller's limits.
-   */
   const loadScheduledTask = Effect.fn("OrchestratorMcpService.loadScheduledTask")(function* (
     scheduledTaskId: ScheduledTask["id"],
     limits: {
@@ -2216,7 +2141,6 @@ const make = Effect.gen(function* () {
       }
       const modelSelection =
         parent?.thread.modelSelection ?? (yield* projectDefaultModelSelection(project));
-      // Never end on a lone high surrogate, which renders as a broken character.
       const derivedTitle = (input.prompt.split("\n")[0]?.trim() ?? "")
         .slice(0, 80)
         .replace(/[\uD800-\uDBFF]$/, "");
@@ -2239,8 +2163,6 @@ const make = Effect.gen(function* () {
         interactionMode: limits.interactionMode,
         createdBy: "agent",
         creationSource: "mcp",
-        // Scope the idempotency key by provider session so two callers
-        // reusing the same clientRequestId cannot collide on one task row.
         ...(input.clientRequestId === undefined
           ? {}
           : {
@@ -2298,8 +2220,6 @@ const make = Effect.gen(function* () {
               : "bindToCurrentThread binds to this thread, which belongs to a different project.",
           );
         }
-        // A save keeps a bound thread unless the task goes back to new threads, so this pair
-        // would leave runs in the old thread.
         if (
           input.bindToCurrentThread === false &&
           input.freshSession === true &&
@@ -2316,9 +2236,6 @@ const make = Effect.gen(function* () {
             : input.bindToCurrentThread && parent !== undefined
               ? parent.thread.id
               : null;
-        // Binding or unbinding changes where runs execute, so the workspace strategy
-        // must follow: unbinding a root-strategy task would otherwise run loose
-        // prompts in the shared project checkout. A kept binding keeps the workspace.
         const workspaceStrategy =
           (threadId === null) === (existing.threadId === null)
             ? existing.workspaceStrategy
@@ -2395,7 +2312,6 @@ const make = Effect.gen(function* () {
           "`fields` opens a card for the user to fill in. Leave out `value`.",
         );
       }
-      // A secret the user already pasted needs no card: it goes straight to a file.
       if (input.value !== undefined) {
         const file = yield* secretRequests
           .savePasted({
@@ -2445,9 +2361,6 @@ const make = Effect.gen(function* () {
             ),
           );
       yield* record("pending");
-      // Only this call can hand the agent its file, so the card must not
-      // outlive it: a failed wait or an aborted call closes it as cancelled,
-      // and a timeout closes it as timed out.
       const closeCard = (timedOut: boolean) =>
         record("cancelled", timedOut).pipe(
           Effect.catch((error) =>
@@ -2482,7 +2395,6 @@ const make = Effect.gen(function* () {
       });
 
       const answered = yield* Effect.gen(function* () {
-        // Taken after the pending record: earlier answers show in the first read, later ones replay.
         const afterSequence = yield* threadManagement
           .getThreadEventSequence(threadId)
           .pipe(Effect.mapError(watchError));
@@ -2511,7 +2423,6 @@ const make = Effect.gen(function* () {
           Stream.runHead,
         );
       }).pipe(
-        // The longest a provider lets one tool call run, so the card stays open until then.
         Effect.timeoutOption(Duration.millis(SECRET_REQUEST_TIMEOUT_MS)),
         Effect.map(Option.flatten),
         Effect.onExit((exit) => (Exit.isSuccess(exit) ? Effect.void : closeCard(false))),
@@ -2567,7 +2478,6 @@ const make = Effect.gen(function* () {
         runtimeMode: limits.runtimeMode,
         interactionMode: limits.interactionMode,
         providers: providers.map((provider) => {
-          // Snapshots list instances any project enables; delegate_task checks the caller's project.
           const enabledForCaller =
             parent === undefined ||
             resolveProjectProviderInstanceEnabled(
@@ -2678,9 +2588,6 @@ const make = Effect.gen(function* () {
               failure("invalid_request", "Unable to resolve the parent checkout commit."),
             ),
           );
-        // Launch preparation creates the worktree from the project root, so a
-        // parent checkout in another repository (such as a Git folder inside
-        // Scratch) would hand it a commit it cannot find.
         if (parent.thread.worktreePath !== null) {
           yield* gitDriver
             .resolveCommit({ cwd: project.workspaceRoot, revision: base.commitSha })
@@ -2791,7 +2698,6 @@ const make = Effect.gen(function* () {
         );
       const delivered = (waited: Option.Option<OrchestratorMcpDelegateTaskResult>) =>
         Option.isSome(waited) && isTerminalTaskStatus(waited.value.status);
-      // The finalizer runs uninterruptibly, so a cancel right after the wait returns still upgrades.
       const waited = yield* waitForTask(scope, taskId, timeoutMs).pipe(
         Effect.onExit((exit) =>
           Exit.isSuccess(exit) && delivered(exit.value) ? Effect.void : upgradeWake,
@@ -2895,8 +2801,6 @@ const make = Effect.gen(function* () {
             (run.delegatedTaskId !== input.taskId && run.id !== current.childRunId)
           )
             continue;
-          // Stop preserves the queue for Resume. Cancelling a task must also
-          // remove that task's queued turn, including a previously held one.
           yield* threadManagement
             .dispatch({
               type: "queued-run.cancel",
@@ -2934,8 +2838,6 @@ const make = Effect.gen(function* () {
           ),
         ),
       );
-      // A follow-up that lost its child run stays running on the parent, while its
-      // status here comes from the child's last run. Stop on the parent cancels that task.
       const cancelOrphan = Effect.gen(function* () {
         if (parentTask?.runId == null || !isOrchestrationV2WorkActive(parentTask.status))
           return false;
@@ -2958,7 +2860,6 @@ const make = Effect.gen(function* () {
         return subagents.some((task) => task.id === input.taskId && task.status === "cancelled");
       }).pipe(Effect.mapError(threadManagementFailure));
       if (isTerminalTaskStatus(current.status)) {
-        // The child can still run work for another turn, so it is stopped either way.
         yield* stopWithinLimit;
         const cancelled = yield* cancelOrphan;
         yield* disposeCompletionDelivery;
@@ -3100,11 +3001,9 @@ const make = Effect.gen(function* () {
                     ),
                   ),
                 );
-              // A receipt can appear after target resolution; use the committed thread's selection.
               const resolvedModelSelection = (yield* threadManagement
                 .getThreadRecords(threadId, [])
                 .pipe(Effect.mapError(threadManagementFailure))).thread.modelSelection;
-              // A replayed creation that carried no prompt has no run yet.
               if (
                 initialMessage !== undefined &&
                 !created.storedEvents.some(({ event }) => event.type === "run.created")
@@ -3223,7 +3122,6 @@ const make = Effect.gen(function* () {
         })
         .pipe(Effect.mapError(listFailure));
       const nowMs = yield* Clock.currentTimeMillis;
-      // An empty list is no filter: clients that fill every optional field send `[]`.
       const statuses =
         input.statuses === undefined || input.statuses.length === 0
           ? null
@@ -3235,13 +3133,11 @@ const make = Effect.gen(function* () {
           (thread) =>
             titleContains === undefined || thread.title.toLocaleLowerCase().includes(titleContains),
         )
-        // Only a snooze that ends later can hold, so the rest skip building a shell.
         .filter(
           (thread) =>
             input.snoozed !== true ||
             (thread.snoozedUntil != null && DateTime.toEpochMillis(thread.snoozedUntil) > nowMs),
         );
-      // Shells are the costly part, so build them only for the threads the page needs.
       const shellsOf = (threads: ReadonlyArray<{ readonly id: ThreadId }>) =>
         threads.length === 0
           ? Effect.succeed([])
@@ -3262,7 +3158,6 @@ const make = Effect.gen(function* () {
         total = candidates.length;
         page = yield* shellsOf(candidates.slice(cursor, cursor + limit));
       } else {
-        // Status and snooze state are derived from the shell.
         const filtered = (yield* shellsOf(candidates))
           .filter((thread) => statuses === null || statuses.has(listedThreadStatus(thread)))
           .filter(
@@ -3290,7 +3185,6 @@ const make = Effect.gen(function* () {
       const view = input.view ?? "messages";
       const limit = input.limit ?? DEFAULT_THREAD_READ_LIMIT;
       const maxChars = input.maxCharsPerItem ?? DEFAULT_THREAD_ITEM_MAX_CHARS;
-      // Client callers (the CLI, outside MCP clients) page forward from a cursorless read.
       const newestFirst =
         input.beforePosition !== undefined ||
         (input.afterPosition === undefined && scope.thread !== undefined);
@@ -3365,7 +3259,6 @@ const make = Effect.gen(function* () {
               target,
               returnedRunIds,
             );
-      // A read past the end of an item's text shows the agent nothing to acknowledge.
       const readPastEnd = (input.textOffset ?? 0) > 0 && items.every((item) => !item.text);
       if (parent !== undefined && scope.thread !== undefined && tasks.length > 0 && !readPastEnd) {
         for (const task of tasks) {
@@ -3486,7 +3379,6 @@ const make = Effect.gen(function* () {
             task.childThreadId === input.threadId &&
             task.completionDelivery?.state !== "disposed",
         );
-      // A child waiting on a question or approval needs an answer, not a wake.
       const childRequests = ownedTask
         ? (yield* threadManagement
             .getThreadRecords(input.threadId, ["runtimeRequests"])
@@ -3515,7 +3407,6 @@ const make = Effect.gen(function* () {
       if (input.stop === true) {
         const commandId = stableCommandId({ scope, requestKey: key, operation: "thread-stop" });
         const reason = agentStopReason(input.reason);
-        // The cause goes to the log; the caller learns only that the stop failed.
         const stopFailed = (error: unknown) =>
           Effect.logWarning("orchestrator-mcp.thread-stop-failed", {
             threadId: input.threadId,
@@ -3536,12 +3427,9 @@ const make = Effect.gen(function* () {
             reason,
           })
           .pipe(Effect.catch(stopFailed));
-        // A retry with the same clientRequestId repeats only the stops that failed.
         yield* threadManagement
           .stopDelegatedTasks({ threadId: input.threadId, commandId, reason })
           .pipe(Effect.catch(stopFailed));
-        // The run this stop interrupted, from its own events, so a retry reports the same run
-        // even if another has started since. Held queued runs are not the run it interrupted.
         const interrupted = stopped.storedEvents.find(
           ({ event }) =>
             (event.type === "run.updated" && event.payload.status === "interrupted") ||

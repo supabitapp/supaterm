@@ -24,10 +24,6 @@ export const withWorkspaceLease = <A, E, R>(
     );
   });
 
-// A restore rewrites files under its directory, so it must exclude provider
-// startup in any overlapping workspace: symlink aliases, parents, and children.
-// Kept apart from withWorkspaceLease because that lease is non-reentrant and
-// restores call Git work that leases the project root.
 interface Reservation {
   readonly cwd: string;
   readonly kind: "restore" | "turn-start";
@@ -36,8 +32,6 @@ interface Reservation {
 const reservations = new Set<Reservation>();
 let reservationReleased = Deferred.makeUnsafe<void>();
 
-// path.relative folds win32 drive-letter case and treats a POSIX backslash as
-// part of a name, unlike a raw prefix check.
 const contains = (path: Path.Path, parent: string, child: string) => {
   const relative = path.relative(parent, child);
   return (
@@ -69,9 +63,6 @@ const release = (reservation: Reservation) =>
     Deferred.doneUnsafe(released, Effect.void);
   });
 
-// A worktree removed by storage cleanup is recreated inside the reserved
-// section, so resolve its nearest existing ancestor: a symlink alias above it
-// must still canonicalize the same on both sides. Walks at most the path depth.
 const canonicalize = (
   fileSystem: FileSystem.FileSystem,
   path: Path.Path,

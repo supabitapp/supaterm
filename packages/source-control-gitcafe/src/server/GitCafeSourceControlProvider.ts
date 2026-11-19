@@ -80,7 +80,6 @@ const cliDiscovery = {
     const failure = cliFailure(input.stderr) ?? cliFailure(input.stdout);
     if (failure)
       return providerAuth({
-        // Forbidden/offline responses do not establish that a login is gone.
         status:
           failure.code === "AUTHENTICATION_REQUIRED" || failure.status === 401
             ? "unauthenticated"
@@ -315,7 +314,6 @@ export const make = Effect.gen(function* () {
           );
           for (const pull of page.items) {
             if (pull.sourceBranch !== branch || items.length >= limit) continue;
-            // List rows omit fork identity; read matching branches in full.
             const detail = yield* getPull({
               cwd: input.cwd,
               reference: `https://${target.host}/${target.repository}/pulls/${pull.number}`,
@@ -344,7 +342,6 @@ export const make = Effect.gen(function* () {
             ? `${source.owner}/${target.repository.split("/")[1]}`
             : target.repository);
         const branch = SourceControlProvider.sourceBranch(input);
-        // GitCafe names the head by its repository's id, so the head repository is looked up first.
         const head = yield* read(
           "createChangeRequest",
           input.cwd,
@@ -413,8 +410,6 @@ export const make = Effect.gen(function* () {
         },
         RepositoryAdmission,
       );
-      // GitCafe admits a repository asynchronously and answers while admission is still running,
-      // so wait for it to settle the way `cafe repo create --clone` does.
       const settled = (state: string) => state === "complete" || state === "blocked";
       const resource = settled(pending.state)
         ? pending
@@ -452,7 +447,6 @@ export const make = Effect.gen(function* () {
       );
       return repository.defaultBranch;
     }),
-    // `cafe` has no forced checkout.
     checkoutChangeRequest: Effect.fn("GitCafeSourceControlProvider.checkoutChangeRequest")(
       function* (input) {
         const pull = yield* getPull(input);
@@ -493,7 +487,6 @@ export const make = Effect.gen(function* () {
             yield* git.execute({
               operation: "GitCafeSourceControlProvider.checkoutChangeRequest",
               cwd: input.cwd,
-              // The upstream is recorded next, through the host's serialized config write.
               args: [
                 "checkout",
                 "--no-track",

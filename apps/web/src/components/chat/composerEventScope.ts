@@ -16,7 +16,6 @@ export function useComposerMenuProps() {
 
   return {
     ...composerFloatingLayerProps,
-    // Focusing the editor on a touch device opens the on-screen keyboard, so the menu keeps its own focus return.
     finalFocus:
       composerRef && !isCoarsePointer
         ? () => {

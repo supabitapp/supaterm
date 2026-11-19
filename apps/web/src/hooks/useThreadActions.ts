@@ -99,7 +99,6 @@ function topOfPinnedRunOrderKey(): string | undefined {
   return pinOrderKeyBetween(null, firstKey) ?? undefined;
 }
 
-// A lapsed or hand-raised snooze already woke the thread, so Undo must not restore it.
 function undoSnapshot<Shell extends ThreadSnoozeShell>(
   thread: Shell,
   now = new Date().toISOString(),
@@ -144,10 +143,6 @@ export async function navigateAfterThreadDeletion(navigate: () => Promise<void>)
   }
 }
 
-/**
- * Marks a thread unread. thread.mark-unread rewinds the server-side visited
- * watermark, syncing the marker to every device.
- */
 function useMarkThreadUnread() {
   const markThreadUnreadMutation = useAtomCommand(threadEnvironment.markUnread, {
     reportFailure: false,
@@ -175,7 +170,6 @@ export function useAcknowledgeThreadWoke() {
   };
 }
 
-// These Undos restore a thread's place in the list, which archiving or deleting it ends.
 const LIST_PLACEMENT_UNDO_KINDS = ["mark-done", "snooze", "pin"];
 
 function expireThreadUndos(target: ScopedThreadRef, kinds: readonly string[]) {
@@ -379,7 +373,6 @@ export function useThreadActions() {
       failureTitle: "Failed to undo archive",
     });
 
-    // The focused pane takes a new draft as before; a pane in the background just closes.
     closePaneShowingThread(threadRef, { remember: true, onlyInBackground: true });
     if (shouldNavigateToDraft && router.state.location.href === requestingRouteHref) {
       const navigationResult = await settlePromise(() =>
@@ -458,7 +451,6 @@ export function useThreadActions() {
             }),
           )
         : undefined;
-    // Deleting a thread also deletes its side chats, which share its worktree.
     const removedIds = new Set<ThreadId>(deletedIds);
     for (const entry of threads) {
       if (entry.lineage.sideChat === true && entry.lineage.parentThreadId === threadRef.threadId) {
@@ -475,8 +467,6 @@ export function useThreadActions() {
       survivingThreads,
       threadRef.threadId,
     );
-    // A shell that leaves idle subagent children out cannot prove nobody else uses the worktree,
-    // so the server's list decides. A failed read keeps the worktree.
     if (orphanedWorktreePath !== null && environmentConfig?.shellThreadFamilies === true) {
       const occupants = await loadWorktreeThreadIds({
         environmentId: threadRef.environmentId,
@@ -540,8 +530,6 @@ export function useThreadActions() {
     }
 
     const deletedThreadIds = deletedIds ?? new Set<ThreadId>();
-    // Decided before the delete is sent: the thread's pane may close itself as soon as the
-    // deletion reaches this client, before the command's response does.
     const shownInSplit = isThreadShownInSplit(threadRef);
     const currentRouteThreadRef = getCurrentRouteThreadRef();
     const shouldNavigateToFallback =
@@ -555,8 +543,6 @@ export function useThreadActions() {
       now: new Date().toISOString(),
     });
     let navigatedDuringDelete = false;
-    // The missing-thread redirect and the index draft replace this entry; any other history
-    // action while the delete is pending is the user's own choice, which must win.
     const stopWatchingHistory = router.history.subscribe(({ action }) => {
       if (action.type !== "REPLACE") navigatedDuringDelete = true;
     });
@@ -571,7 +557,6 @@ export function useThreadActions() {
     refreshArchivedThreadsForEnvironment(threadRef.environmentId);
     releaseComposerDraftUploads(threadRef);
     clearComposerDraftForThread(threadRef);
-    // The server deletes the thread's side chats with it.
     for (const entry of threads) {
       if (entry.lineage.sideChat !== true || entry.lineage.parentThreadId !== threadRef.threadId) {
         continue;
@@ -660,16 +645,12 @@ export function useThreadActions() {
             : message,
         }),
       );
-      // The thread was deleted. Cleanup has its own toast; returning its
-      // failure would make callers incorrectly report a thread deletion error.
     }
     return deleteResult;
   };
 
   const reopenThread = async (target: ScopedThreadRef, restoreReopenedAt?: string | null) => {
     ThreadUndo.invalidate("mark-done", scopedThreadKey(target));
-    // reason "user" pins the thread active: auto-mark-done (PR merged /
-    // inactivity) stays suppressed until real activity clears the pin.
     return reopenThreadMutation({
       environmentId: target.environmentId,
       input: {
@@ -680,7 +661,6 @@ export function useThreadActions() {
     });
   };
 
-  /** Turns automatic completion (inactivity, merged PR) on or off for one thread. */
   const setThreadAutoMarkDone = async (target: ScopedThreadRef, enabled: boolean) => {
     return setThreadAutoMarkDoneMutation({
       environmentId: target.environmentId,
@@ -689,13 +669,8 @@ export function useThreadActions() {
   };
 
   const sendPin = async (target: ScopedThreadRef, opts: { orderKey?: string } = {}) => {
-    // Every pin path places the thread at the top of the arranged run:
-    // callers with a better anchor (the sidebar, which knows the displayed
-    // order) pass their own key; everyone else (chat header, context menus)
-    // gets the default so the same action never places differently.
     const orderKey = opts.orderKey ?? topOfPinnedRunOrderKey();
     ThreadUndo.invalidate("pin", scopedThreadKey(target));
-    // Pinning reopens and wakes the thread, so older Done or Snoozed undos would fight this pin.
     ThreadUndo.invalidate("mark-done", scopedThreadKey(target));
     ThreadUndo.invalidate("snooze", scopedThreadKey(target));
     return pinThreadMutation({
@@ -773,8 +748,6 @@ export function useThreadActions() {
       "mark-done",
       resolved && undoSnapshot(resolved.thread, now),
     );
-    // An older unpin/snooze Undo would re-pin or re-snooze, and the server
-    // treats either as a promotion that reopens; marking done supersedes them.
     ThreadUndo.invalidate("pin", scopedThreadKey(target));
     ThreadUndo.invalidate("snooze", scopedThreadKey(target));
     const action = ThreadUndo.begin("mark-done", scopedThreadKey(target));

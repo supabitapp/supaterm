@@ -36,7 +36,6 @@ export function useThreadFindPositionReader({
   readonly rows: MessagesTimelineRow[];
   readonly contentInsetEndAdjustment: number;
 }) {
-  // Layout effect so a find opened right after a thread switch reads this viewport.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- attaches the timeline viewport's position reader to the thread find registry
   useLayoutEffect(() => {
     if (!timelineViewportElement) return;

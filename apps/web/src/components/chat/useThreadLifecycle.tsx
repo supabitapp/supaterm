@@ -179,8 +179,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   });
   const serverConfigLoaded = serverConfig !== null;
   const activeThreadPinned = serverConfigLoaded && activeThreadShell?.pinnedAt != null;
-  // A clock read in render would stay frozen in the compiler's cache, so the
-  // snooze checks read a snapshot that moves when the wake time changes or passes.
   const snoozeClock = new Date(
     useNowAfter(Date.parse(activeThreadShell?.snoozedUntil ?? "") || null),
   ).toISOString();
@@ -220,7 +218,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       return;
     const threadKey = scopedThreadKey(activeThreadRef);
     setReopeningThreadKey(threadKey);
-    // Commands settle into a result, so this always runs.
     const result = await reopenThreadMutation({
       environmentId: activeThreadRef.environmentId,
       input: { threadId: activeThreadRef.threadId, reason: "user" },
@@ -257,7 +254,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       recovery.runId === activeThreadShell?.latestRun?.runId &&
       activeThreadShell?.snoozedUntil != null &&
       Date.parse(activeThreadShell.snoozedUntil) === Date.parse(recovery.resetAt);
-    // Commands settle into a result, so this always runs.
     const result = await (recoveryOwnsSnooze
       ? updateThreadMetadata({
           environmentId: activeThreadRef.environmentId,
@@ -386,9 +382,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     }
   };
   const handleSwitchCheckoutToThreadStable = useStableCallback(handleSwitchCheckoutToThread);
-  // The stack renders items[0] front-most, so order is priority and the parked-thread banner goes
-  // last. Background work can outlive the turn and its stop button, so its banner is the only
-  // visible stop while no run is live.
   const activeBackgroundTasks = activeThread ? pendingBackgroundTasks : [];
   const [backgroundWorkStops, setBackgroundWorkStops] = useState<
     Record<string, BackgroundWorkStopRequest | undefined>
@@ -446,10 +439,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     const threadRef = scopeThreadRef(environmentId, threadId);
     const isEnvironmentLive = () =>
       appAtomRegistry.get(environmentShell.stateValueAtom(environmentId)).status === "live";
-    // The shell can leave idle subagent children out, so absence is not deletion there: the
-    // route decides from the thread's own detail.
     const shellOmitsChildren = serverConfig?.shellThreadFamilies === true;
-    // A just-launched child can reach this timeline before its shell syncs.
     if (!shellOmitsChildren && isEnvironmentLive() && readThreadShell(threadRef) === null) {
       const location = router.latestLocation;
       await waitForThreadShell(threadRef, RELATED_THREAD_SHELL_WAIT_MS);
@@ -466,7 +456,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       toastManager.add({ type: "info", title: "This thread is no longer available" });
       return;
     }
-    // A side chat and its parent sit side by side; where there is no room, one replaces the other.
     const opensSideChat =
       shell?.lineage.sideChat === true && shell.lineage.parentThreadId === activeThread?.id;
     const opensParent =
@@ -546,7 +535,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const anyRunStop = useAtomValue(
     threadDetailRef ? environmentThreadDetails.runStopAtom(threadDetailRef) : NO_RUN_STOP_ATOM,
   );
-  // A background Stop matters only while that work is still pending.
   const runStop = anyRunStop?.background && activeBackgroundTasks.length === 0 ? null : anyRunStop;
   const runStopBanner =
     activeThread && runStop !== null
@@ -566,21 +554,16 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         pullRequests: activeThread.pullRequests,
         tasks: activeBackgroundTasks,
         outputHandle: backgroundTaskOutputHandle,
-        // Interrupt stops the active run first, not this work; the composer owns that Stop.
         stopDisabled: runIsLive || !canOperateThread || isStoppingBackgroundWork,
         stopping: isStoppingBackgroundWork,
         onStop: handleStopBackgroundWorkStable,
         onOpenThread: onOpenRelatedThreadStable,
       })
     : null;
-  // Done, snoozed, and woke are thread state, so each gets a quiet line after the last message
-  // instead of a banner. Dismissing a wake acknowledges it like the sidebar pill does. Memoized
-  // because it is the timeline's list footer; nowMinute keeps the relative time fresh.
   const activeDoneAt = activeThreadShell?.doneAt;
   const activeSnoozedUntil = activeThreadShell?.snoozedUntil;
   const threadStatusLine = (() => {
     const nowMs = Date.parse(`${nowMinute}:00.000Z`);
-    // Same rounding as the sidebar's snoozed shelf, so both read the same hour.
     const snoozeWake = activeSnoozedUntil
       ? snoozeWakeLabel(activeSnoozedUntil, { now: `${nowMinute}:00.000Z` })
       : null;
@@ -638,7 +621,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
       );
     },
     "thread.pin": ({ event }) => {
-      // An open project list pins its highlighted project with this key instead.
       if (isInOpenProjectList(event?.target ?? null)) return false;
       if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return false;
       if (!isServerThread || !activeThreadRef || !serverConfigLoaded) return;
@@ -667,7 +649,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   return {
     shortcuts,
     activeBranchMismatchKey,
-    // A Stop that went unanswered needs the user; one in progress is the thread's work.
     backgroundWorkBanner: runStop?.state === "stopping" ? runStopBanner : backgroundWorkBanner,
     childInputBanner: runStop?.state === "unresponsive" ? runStopBanner : childInputBanner,
     goalBanner,

@@ -184,7 +184,6 @@ function AutomationRow({
     <TableRow
       className={cn(canOperate && "cursor-pointer")}
       onClick={(event) => {
-        // Controls in the row and its portaled menu handle their own clicks.
         if (
           !(event.target instanceof Element) ||
           !event.currentTarget.contains(event.target) ||

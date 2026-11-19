@@ -18,12 +18,9 @@ import { triageSourceCacheDir, writeTriageSession } from "./triageSession.ts";
 
 const SUPATERM_REPOSITORY_URL = "https://github.com/supabitapp/supaterm";
 
-// No tty: a credential prompt would hang until the timeout, so git must fail
-// instead. An empty GIT_ASKPASS also skips core.askPass and SSH_ASKPASS helpers.
 const GIT_ENV = {
   GIT_TERMINAL_PROMPT: "0",
   GIT_ASKPASS: "",
-  // English messages without overriding LC_CTYPE, which a global post-checkout hook inherits.
   LANGUAGE: "C",
 } satisfies NodeJS.ProcessEnv;
 
@@ -58,7 +55,6 @@ export const pickSourceRef = (lsRemoteOutput: string, version: string) => {
       .map(([commit, ref]) => [ref, commit]),
   );
   const tag = `v${version}`;
-  // Annotated tags list the tag object first and the commit as `^{}`.
   const tagCommit = commits.get(`refs/tags/${tag}^{}`) ?? commits.get(`refs/tags/${tag}`);
   if (tagCommit !== undefined) return { ref: tag, commit: tagCommit };
   const mainCommit = commits.get("refs/heads/main");
@@ -71,23 +67,15 @@ const make = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const sourceDir = triageSourceCacheDir(config.baseDir, path);
-  // Beside the cache, not in it: the playbook has agents prune the cache, and a
-  // clone in progress must not look like a stale entry. Same filesystem, so the
-  // finished clone moves in with a rename.
   const stagingDir = `${sourceDir}-staging`;
   const serverVersion = packageJson.version;
 
   const runGit = (operation: string, cwd: string, args: ReadonlyArray<string>, timeoutMs: number) =>
     git.execute({ operation: `TriageService.${operation}`, cwd, args, timeoutMs, env: GIT_ENV });
 
-  // Clones outlive the request that started them: a fresh clone takes tens of
-  // seconds, and the user is writing their description meanwhile.
   const serviceScope = yield* Effect.scope;
-  // Clones a previous server process left half done.
   yield* fs.remove(stagingDir, { recursive: true }).pipe(Effect.ignore);
 
-  // Fetches the exact commit `ls-remote` resolved, so the folder the session
-  // names is the one that appears even when main moves meanwhile.
   const cloneSource = Effect.fn("TriageService.cloneSource")(function* (commit: string) {
     yield* fs.makeDirectory(stagingDir, { recursive: true });
     const staging = yield* fs.makeTempDirectory({ directory: stagingDir, prefix: "clone-" });
@@ -107,22 +95,18 @@ const make = Effect.gen(function* () {
         600_000,
       );
       yield* runGit("checkoutSource", staging, ["checkout", "--quiet", "FETCH_HEAD"], 600_000);
-      yield* fs.rename(staging, directory).pipe(
-        // A concurrent session cloned the same commit first; keep theirs.
-        Effect.catch((error) =>
-          fs
-            .exists(directory)
-            .pipe(Effect.flatMap((exists) => (exists ? Effect.void : Effect.fail(error)))),
-        ),
-      );
-    }).pipe(
-      // Gone after a successful rename; otherwise a failed or losing clone.
-      Effect.ensuring(fs.remove(staging, { recursive: true }).pipe(Effect.ignore)),
-    );
+      yield* fs
+        .rename(staging, directory)
+        .pipe(
+          Effect.catch((error) =>
+            fs
+              .exists(directory)
+              .pipe(Effect.flatMap((exists) => (exists ? Effect.void : Effect.fail(error)))),
+          ),
+        );
+    }).pipe(Effect.ensuring(fs.remove(staging, { recursive: true }).pipe(Effect.ignore)));
   });
 
-  // Release tags never move, so one lookup serves every later session. Builds
-  // with no tag track main, which does move, so they look it up each time.
   let releaseSource: { readonly ref: string; readonly commit: string } | undefined;
   const resolveSource = Effect.fn("TriageService.resolveSource")(function* () {
     if (releaseSource !== undefined) return releaseSource;
@@ -131,7 +115,6 @@ const make = Effect.gen(function* () {
       "resolveSourceRef",
       sourceDir,
       ["ls-remote", SUPATERM_REPOSITORY_URL, tag, `${tag}^{}`, "refs/heads/main"],
-      // Triage still starts without source; a dead network should not stall it.
       5_000,
     );
     const source = pickSourceRef(listed.stdout, serverVersion);
@@ -139,12 +122,8 @@ const make = Effect.gen(function* () {
     return source;
   });
 
-  // Commits with a clone running, so sessions started meanwhile share it.
   const cloning = new Set<string>();
 
-  // The playbook's own layout: one folder per commit under the source cache, so
-  // the agent finds and reuses this clone instead of making another. The folder
-  // appears only once the clone is complete.
   const startSourceClone = Effect.fn("TriageService.startSourceClone")(function* () {
     yield* fs.makeDirectory(sourceDir, { recursive: true });
     const source = yield* resolveSource();
@@ -157,9 +136,6 @@ const make = Effect.gen(function* () {
     }
     const directory = path.join(sourceDir, source.commit);
     if (yield* fs.exists(directory)) {
-      // Our clones appear only when complete, but an agent may have cloned
-      // here by hand and stopped partway.
-      // Without its own .git, rev-parse would read a parent repository.
       const head = (yield* fs.exists(path.join(directory, ".git")))
         ? yield* runGit("checkSource", directory, ["rev-parse", "HEAD"], 10_000).pipe(
             Effect.map((result) => result.stdout.trim()),

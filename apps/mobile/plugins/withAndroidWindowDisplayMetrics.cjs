@@ -1,9 +1,5 @@
 const { withMainActivity } = require("expo/config-plugins");
 
-// React Native measures text with application-display density, which differs
-// from the activity on external displays. Expo constructs its root after
-// onCreate, resetting those metrics; ReactHost resets them on configuration
-// changes too. Rebind after both, before text is measured.
 const DISPLAY_METRICS_METHODS = `
   // Expo constructs the root view after onCreate; its constructor resets metrics.
   override fun setContentView(view: View?) {
@@ -53,7 +49,6 @@ module.exports = function withAndroidWindowDisplayMetrics(config) {
       DISPLAY_METRICS_METHODS,
       "the MainActivity class declaration",
     );
-    // Extend the tablet-orientation override, after ReactHost resets metrics.
     const overrideStart = contents.indexOf(
       "override fun onConfigurationChanged(newConfig: Configuration) {",
     );

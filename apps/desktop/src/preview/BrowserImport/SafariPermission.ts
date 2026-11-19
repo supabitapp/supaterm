@@ -17,7 +17,6 @@ export const safariPermissionCheck = Effect.gen(function* () {
     if (!safari || context.platform !== "darwin") return false;
     const defaultJar = yield* resolveCookieDatabase(safari, context, ".");
     if (defaultJar !== undefined) return yield* safariAccessGranted(defaultJar);
-    // Rediscover named profiles after a grant; TCC may have hidden their metadata.
     const profiles = yield* listSourceProfiles(safari, context);
     for (const profile of profiles) {
       const jar = yield* resolveCookieDatabase(safari, context, profile.directory);

@@ -44,7 +44,6 @@ export function isMentionableProvider(
   );
 }
 
-// Mentions end at whitespace, so `:`, `/` and `-` join words, as in `@claude:opus`.
 function mentionSearchQueries(query: string): ReadonlyArray<string> {
   const spaced = normalizeSearchQuery(query.replace(/[:/]+/gu, " "));
   const unhyphenated = normalizeSearchQuery(spaced.replace(/-+/gu, " "));
@@ -68,7 +67,6 @@ export function matchComposerModelItems(
   query: string,
 ): ComposerModelItem[] {
   for (const words of mentionSearchQueries(query)) {
-    // Literal words only: fuzzy model hits would crowd file results out of the `@` menu.
     const tokens = words.split(/\s+/u);
     const literal = candidates.filter((candidate) => {
       const haystack = Object.values(searchable(candidate)).join(" ").toLowerCase();

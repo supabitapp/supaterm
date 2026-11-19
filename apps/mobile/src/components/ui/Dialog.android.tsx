@@ -36,9 +36,6 @@ type DialogRequest =
 
 type PresentedDialog = DialogRequest & { readonly id: number };
 
-// App services raise dialogs before the root mounts, so the request lives in
-// the module and the Host renders whatever is current. One dialog shows at a
-// time: a new request replaces the presented one.
 let presented: PresentedDialog | null = null;
 let nextPresentationId = 0;
 const listeners = new Set<() => void>();
@@ -52,7 +49,6 @@ function submitRequest(dialog: DialogRequest) {
   setPresented({ ...dialog, id: ++nextPresentationId });
 }
 
-/** Closes the dialog only if it is still the one the action came from. */
 function dismiss(id: number) {
   if (presented?.id === id) setPresented(null);
 }
@@ -162,7 +158,6 @@ function DialogPresentation(props: DialogPresentationProps) {
     },
   ];
   const destructive = actions.some((action) => action.style === "destructive");
-  // Error text colors can be pastel in dark themes. Filled actions need a white-label contrast pair.
   const destructiveFill = themeColorWithContrast(colors["--color-danger-foreground"], "#ffffff");
   const renderAction = (action: AlertButton, index: number) => {
     const isDestructive = action.style === "destructive";

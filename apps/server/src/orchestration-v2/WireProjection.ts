@@ -23,7 +23,6 @@ import {
   toolOutputIndicatesFailure,
 } from "@supaterm/shared/toolOutput";
 
-// A checkpoint over vendored or generated trees can list 15k+ files; the card needs a prefix.
 const MAX_WIRE_CHECKPOINT_FILES = 200;
 const MAX_DETAIL_STRING_BYTES = 32_768;
 const MAX_DYNAMIC_VALUE_BYTES = 16_384;
@@ -41,9 +40,7 @@ function truncateDetail(
   ) {
     return value;
   }
-  // The marker counts toward the cap, so projecting truncated text again leaves it unchanged.
   const budget = maxBytes - TRUNCATION_MARKER_BYTES;
-  // UTF-8 needs at least one byte per UTF-16 unit; encode only a potentially fitting prefix.
   const prefix = Buffer.from(value.slice(0, budget), "utf8")
     .subarray(0, budget)
     .toString("utf8")
@@ -82,7 +79,6 @@ function summarizeDynamicValue(value: unknown): unknown {
     serialized = "Unserializable tool output";
   }
 
-  // Splitting and normalizing every line can allocate far more than the input.
   const start = /\S/u.exec(serialized)?.index;
   let firstLine = start === undefined ? "Large tool output" : "";
   let pendingSpace = false;
@@ -108,7 +104,6 @@ function summarizeDynamicValue(value: unknown): unknown {
 
 type CheckpointFiles = Pick<OrchestrationV2Checkpoint, "files" | "filesTotal">;
 
-// Same input, same output object: snapshot compaction relies on shared item identity.
 const cappedCheckpointFiles = new WeakMap<object, object>();
 
 function capCheckpointFiles<T extends CheckpointFiles>(value: T): T {
@@ -165,8 +160,6 @@ export function projectTurnItemForWire(item: OrchestrationV2TurnItem): Orchestra
     }
     case "command_execution": {
       const { output, ...projected } = item;
-      // A successful search can print "ENOENT" or "exit code 2", so output text
-      // decides only when the provider reported no exit code.
       const failed =
         item.exitCode === undefined
           ? item.outputIndicatesFailure === true ||
@@ -230,7 +223,6 @@ function boundDynamicValue(value: unknown): unknown {
     : truncateDetail(json, MAX_ON_DEMAND_BYTES);
 }
 
-/** Preserve ordered image markers in truncated output so clients can load images by index. */
 function boundToolResult(output: unknown): unknown {
   const omitted = omitToolOutputImageData(output);
   const bounded = boundDynamicValue(omitted);
@@ -251,7 +243,6 @@ function boundToolOutput(output: unknown): unknown {
   const app =
     MCP_APP_OUTPUT_KEY in output ? readMcpAppReference(output[MCP_APP_OUTPUT_KEY]) : undefined;
   if (app === undefined) return boundToolResult(output);
-  // The app receives this result, so its image data stays unless it is too large to send.
   const fits = boundDynamicValue(output.result) === output.result;
   return {
     [MCP_APP_OUTPUT_KEY]: app,
@@ -344,8 +335,6 @@ export function projectDomainEventForWire(
         : event;
 }
 
-// Keyed on the stored event PubSub hands every subscriber, so all of them share one projection
-// and LiveStreamBudget sizes it once. Consumers must not mutate the shared result.
 const projectedStoredEvents = new WeakMap<OrchestrationV2StoredEvent, OrchestrationV2StoredEvent>();
 
 export function projectStoredEventForWire(
@@ -402,7 +391,6 @@ export function makeLiveBodyDeduper(): (
     remember(subagents, id, { prompt, result });
   return (item) => {
     if (item.kind === "snapshot") {
-      // The client now holds exactly these records; their bodies are never blanked.
       const { messages, checkpoints, subagents: records } = item.projection;
       for (const message of messages) remember(messageText, message.id, message.text);
       for (const checkpoint of checkpoints)

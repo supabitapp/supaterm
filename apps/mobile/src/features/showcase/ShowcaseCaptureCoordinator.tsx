@@ -57,7 +57,6 @@ import {
 import { retryShowcaseOperation } from "./showcaseRetry";
 
 const SHOWCASE_ENABLED = process.env.EXPO_PUBLIC_SHOWCASE === "1";
-// Native launch requests (pairing links, scene switches) have no change event.
 const NATIVE_POLL_MS = 250;
 const READY_SETTLE_MS = 500;
 const SPLIT_VIEW_CAPTURE = Platform.OS === "ios" && Platform.isPad;
@@ -121,7 +120,6 @@ export function installShowcaseCapture(
     closeMenu(): void;
     setToolsButtonVisible(visible: boolean): void;
   }>("ExpoDevMenu");
-  // The dev menu can open after bundle loading and block orientation requests.
   const devMenuTimer = setInterval(() => {
     devMenu?.closeMenu();
     devMenu?.setToolsButtonVisible(false);
@@ -168,8 +166,6 @@ export function installShowcaseCapture(
     const scene = getNativeShowcaseScene();
     if (scene && scene !== requestedScene) {
       requestedScene = scene;
-      // A native draw belongs only to the scene request that produced it. In
-      // particular, revisiting review must wait for its newly mounted surface.
       clearShowcaseRenderSignal();
     }
   };
@@ -209,7 +205,6 @@ export function installShowcaseCapture(
     }
     if (scene === "terminal") Keyboard.dismiss();
     let frame: number | null = null;
-    // Two frames after the settle delay so the scene has been drawn, not just committed.
     const settleTimer = setTimeout(() => {
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
@@ -243,8 +238,6 @@ export function installShowcaseCapture(
       themeMode,
       themeId,
     });
-    // The write patches preferences optimistically, so the step it triggers sees
-    // it. A failed save rolls the patch back, and the next step writes again.
     const themePatch =
       launchRequestRead && storedPreferences
         ? showcaseThemePatch({ themeMode, themeIds, requestedTheme })
@@ -269,7 +262,6 @@ export function installShowcaseCapture(
 
     if (screenScene !== null && hasFixture && showcaseThread && rootState) {
       const navigation = { requestedScene: screenScene, scene, thread: showcaseThread };
-      // Arriving forgets the target, so leaving the scene again navigates back.
       if (scene === screenScene) {
         lastNavigation = null;
       } else if (shouldNavigateToShowcaseScene(lastNavigation, navigation)) {
@@ -281,7 +273,6 @@ export function installShowcaseCapture(
       }
     }
 
-    // Read only while the thread screen keeps the thread mounted.
     const threadState =
       scene === "thread" && showcaseThread
         ? appAtomRegistry.get(
@@ -304,15 +295,12 @@ export function installShowcaseCapture(
       renderSignal: render.signal,
       renderReports: render.reports,
     });
-    // The harness waits on the capture it requested, which can share a screen with another.
     updateReadiness(
       readinessKey === null ? null : `${requestedScene}|${readinessKey}`,
       requestedScene,
     );
   };
 
-  // Steps write atoms they also observe; a nested change reruns the step once
-  // the current one finishes instead of interleaving with it.
   let stepping = false;
   let stepAgain = false;
   function evaluate() {

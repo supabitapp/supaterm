@@ -7,9 +7,6 @@ import { type AtomCommand, runAtomCommand } from "./runtime.ts";
 import { claimThreadOpen } from "./threadSearch.ts";
 import type { VisitThreadInput } from "../operations/commands.ts";
 
-// During an active turn the thread's updatedAt advances several times per
-// second, and every server-side visit is a full command dispatch plus a
-// broadcast to all shell subscribers.
 export const VISIT_DISPATCH_THROTTLE_MS = 10_000;
 
 const IDLE_TRACKER: Atom.Atom<void> = Atom.make(undefined).pipe(
@@ -56,14 +53,7 @@ export function createThreadVisitTracker(options: ThreadVisitTrackerOptions) {
     const ref = parseThreadKey(key);
     return Atom.make((get) => {
       const registry = get.registry;
-      // Showing the thread is the open, whether or not its shell has arrived;
-      // the shell only decides when the server hears about it.
-      // Recorded even when the server cannot take opens, so recents follow
-      // it. A palette pick already sent the open with its query.
       let openPending = claimThreadOpen(ref.environmentId, ref.threadId, Date.now());
-      // Dedupe per watermark: the shell updates again before the command's echo
-      // lands. It also keeps a mark-unread on the open thread sticky, since the
-      // rewind leaves updatedAt untouched.
       let lastDispatchedUpdatedAt: string | null = null;
       let lastAcceptedUpdatedAt: string | null = null;
       let retryPending = false;
@@ -113,7 +103,6 @@ export function createThreadVisitTracker(options: ThreadVisitTrackerOptions) {
             accept(visitedAt);
             return;
           }
-          // Keep acceptance across a subsequent mark-unread, even if the ack was lost.
           if (
             lastAcceptedUpdatedAt !== null &&
             Date.parse(lastAcceptedUpdatedAt) >= Date.parse(visitedAt)
@@ -150,7 +139,6 @@ export function createThreadVisitTracker(options: ThreadVisitTrackerOptions) {
           retryPending = false;
           openPending = false;
         }
-        // A rejected visit waits for a new session, even if streaming changes the shell.
         if (retryPending && registry.get(sessionGenerationAtom) === lastDispatchGeneration) return;
         const elapsed = Date.now() - lastDispatchAt;
         if (retryPending && elapsed < VISIT_DISPATCH_THROTTLE_MS) {
@@ -160,8 +148,6 @@ export function createThreadVisitTracker(options: ThreadVisitTrackerOptions) {
           );
           return;
         }
-        // The open rides on the first visit the server hears, however late
-        // the shell arrives, so it still counts toward search ranking.
         if (openPending) {
           openPending = false;
           dispatch(shell, visitedAt, true);
@@ -169,7 +155,6 @@ export function createThreadVisitTracker(options: ThreadVisitTrackerOptions) {
         }
         const lastVisitedAtMs = shell.lastVisitedAt ? Date.parse(shell.lastVisitedAt) : NaN;
         if (!Number.isNaN(lastVisitedAtMs) && lastVisitedAtMs >= updatedAtMs) {
-          // Already seen, so a later mark-unread stays sticky even when no open was sent.
           if (lastDispatchedUpdatedAt === null || Date.parse(lastDispatchedUpdatedAt) < updatedAtMs)
             lastDispatchedUpdatedAt = visitedAt;
           return;
@@ -197,8 +182,6 @@ export function createThreadVisitTracker(options: ThreadVisitTrackerOptions) {
         );
       };
 
-      // `subscribe`, not `get`: a rebuild would reset the open and throttle
-      // state on every streaming tick.
       get.subscribe(options.threadShellAtom(ref), onShell, { immediate: true });
       get.subscribe(sessionGenerationAtom, () =>
         onShell(registry.get(options.threadShellAtom(ref))),

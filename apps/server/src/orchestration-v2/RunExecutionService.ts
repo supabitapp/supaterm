@@ -61,7 +61,6 @@ import { userFacingDatabaseErrorMessage } from "./UserFacingErrors.ts";
 
 export interface ProviderEventRoutingState {
   readonly ownedThreadIds: ReadonlySet<ThreadId>;
-  // After root settlement, new children belong to the live run unless their coordinator still holds this run open.
   readonly rootTurnEnded: boolean;
   readonly workflowMemberParents: ReadonlyMap<ThreadId, ThreadId>;
   readonly ownedProviderThreadIds: ReadonlySet<ProviderThreadId>;
@@ -148,7 +147,6 @@ export function selectInheritedBackgroundTurnItems(input: {
 
 type SubagentTurnItem = Extract<OrchestrationV2TurnItem, { readonly type: "subagent" }>;
 
-// Tool calls that only a live provider process can end.
 const processBoundToolCallTypes: ReadonlySet<OrchestrationV2TurnItem["type"]> = new Set([
   "command_execution",
   "dynamic_tool",
@@ -233,8 +231,6 @@ export const cascadeTerminalizeRunOwnedSubagents = Effect.fn(
   IdAllocator.IdAllocatorV2AllocationError
 > {
   const events: Array<OrchestrationV2DomainEvent> = [];
-  // Prefer lifetime linkage over currently-open rows: subagent/turn-item
-  // snapshots may terminalize before the linked child-thread node settles.
   const childThreadIds = new Set(input.open.linkedChildThreadIds);
   for (const item of [...input.open.subagents.values(), ...input.open.turnItems.values()]) {
     if (item.childThreadId !== null) {
@@ -408,8 +404,6 @@ export function routeProviderEvent(
   const ownsChildThread = (threadId: ThreadId): boolean =>
     threadId !== input.threadId && ownsThread(threadId);
   const ownsRun = (runId: string | null): boolean => runId === input.runId;
-  // ACP plan ids are session-scoped, so a turn can update a plan an earlier turn of this
-  // thread reported. Only an active root turn adopts those rows, never a lingering run.
   const adoptsEarlierPlan = (threadId: ThreadId): boolean =>
     threadId === input.threadId && !state.rootTurnEnded;
   const addProviderThread = (providerThreadId: ProviderThreadId): ProviderEventRoutingState => ({
@@ -505,7 +499,6 @@ export function routeProviderEvent(
       }
       const belongs = ownsRun(event.subagent.runId) || ownsChildThread(event.subagent.threadId);
       const coordinator = event.subagent;
-      // Resumes reattribute child threads to the live run, which may not have observed their creation.
       const adopted =
         ownsRun(coordinator.runId) &&
         !state.rootTurnEnded &&
@@ -579,7 +572,6 @@ export function routeProviderEvent(
     case "command_output.delta":
     case "prompt_suggestion.expected":
     case "prompt_suggestion.ready":
-      // The session manager routes these to their hubs; runs never see them.
       return [false, state];
     case "turn.terminal":
       return event.providerTurnId === state.rootProviderTurnId
@@ -722,9 +714,7 @@ export const layer: Layer.Layer<
         readonly loadRunInterruptReason?: () => Effect.Effect<string | undefined, never>;
         readonly openRunOwnedSubagents?: OpenRunOwnedSubagentProjection;
         readonly openRunOwnedSubagentsTerminal?: ProviderTerminalEvent;
-        // Root turn snapshot written with the run when Supaterm ends the run itself.
         readonly abandonedProviderTurn?: OrchestrationV2ProviderTurn;
-        // Stored root tool calls still open when the provider runtime was lost; nothing else ends them.
         readonly lostToolCalls?: ReadonlyArray<OrchestrationV2TurnItem>;
         readonly terminal: ProviderTerminalEvent;
         readonly completedAt?: DateTime.Utc;
@@ -810,7 +800,6 @@ export const layer: Layer.Layer<
             : [];
         const persistedStatus =
           input.terminal.status === "completed" ? "waiting" : input.terminal.status;
-        // Omit delegatedCompletion; the startup snapshot must not overwrite newer acknowledgements, successors, or Stop barriers.
         const { delegatedCompletion: _delegatedCompletion, ...runWithoutDelegatedCompletion } =
           input.run;
         const finalizedRun: OrchestrationV2Run = {
@@ -835,7 +824,6 @@ export const layer: Layer.Layer<
         const checkpointCaptureCommandId = CommandId.make(
           `command:effect:checkpoint.capture:${input.run.id}`,
         );
-        // Stopped runs capture rollback points for the next message; enqueue before later starts on this effect lane.
         const finalization = {
           effects:
             input.terminal.status === "completed" ||
@@ -907,7 +895,6 @@ export const layer: Layer.Layer<
                   },
                 ]
               : []),
-            // Codex reports a hook that stops the turn as completed; keep its reason visible.
             ...(input.terminal.status === "completed" && input.terminal.reason !== undefined
               ? [
                   {
@@ -1034,7 +1021,6 @@ export const layer: Layer.Layer<
     const captureRunBaseline = Effect.fn("RunExecutionService.captureBaseline")(function* (
       input: RunBaselineInput,
     ) {
-      // Side chats share the parent's worktree; a snapshot would capture the parent's edits.
       if (input.appThread.lineage.sideChat === true) return;
       yield* checkpointService
         .captureBaseline({
@@ -1060,7 +1046,6 @@ export const layer: Layer.Layer<
           Effect.map(Fiber.join),
         ),
       startRootRun: Effect.fn("RunExecutionService.startRootRun")(function* (input) {
-        // Startup failure and stream shutdown can report the same attempt.
         const refreshAfterTurn = yield* Effect.cached(
           finalizationObserver.refreshAfterTurn(input.appThread.projectId).pipe(
             Effect.catchCause((cause) =>
@@ -1206,17 +1191,11 @@ export const layer: Layer.Layer<
           ReadonlySet<OrchestrationV2TurnItem["id"]>
         >(new Set(inheritedBackgroundTurnItemsById.keys()));
         const openRunOwnedSubagents = yield* Ref.make(emptyOpenRunOwnedSubagentProjection());
-        // Open tool calls on the root thread, to end from their stored rows if the runtime is lost.
         const openRootToolCalls = new Set<TurnItemId>();
-        // The last stored root snapshot still reports background work, by flag or task roster.
         let rootSnapshotPendingWork = false;
-        // Owned child threads whose last snapshot reported pending work, such as a queued native
-        // continuation. Unlike the root's, these must hold the stream past owner loss.
         const childSnapshotPendingWork = new Set<ProviderThreadId>();
         let rootTurnOwnershipChecked = false;
         const assistantStreaming = makeAssistantStreamingFilter(responseStreamingMode);
-        // Set when ingestion ends or finalization settles the run's open items, which a later
-        // streaming snapshot must not reopen.
         let idleFlushClosed = false;
         const workspaceHandedOff = Effect.suspend(() =>
           input.shouldFinalizeRun === undefined || input.hasWorkspaceMoved === undefined
@@ -1243,8 +1222,6 @@ export const layer: Layer.Layer<
                 ? {}
                 : {
                     shouldFinalizeRun: input.shouldFinalizeRun,
-                    // Stop may commit between the ownership read and this
-                    // terminal write. Gate the events and checkpoint together.
                     writeIfRunCurrent: {
                       activeAttemptId: input.attempt.id,
                       expectedStatus: "running" as const,
@@ -1270,10 +1247,6 @@ export const layer: Layer.Layer<
                 (cause) => new RunExecutionIngestError({ runId: input.run.id, cause }),
               ),
             );
-          // A workspace handoff detaches the session and stops the turn that asked
-          // for it: the run completes, while its native subagents still settle
-          // as interrupted. The completed write refuses in the same transaction
-          // as a stored Stop request, so a racing Stop stays authoritative.
           const handedOff = terminal.status === "interrupted" && (yield* workspaceHandedOff);
           if (!handedOff || !(yield* writeTerminal({ ...terminal, status: "completed" }))) {
             yield* writeTerminal(terminal);
@@ -1284,7 +1257,6 @@ export const layer: Layer.Layer<
           }
           yield* Ref.set(rootRunFinalized, true);
         });
-        // The stored rows of the work this run still tracks as open on the given threads.
         const loadTrackedWork = Effect.fn("RunExecutionService.loadTrackedWork")(function* (
           threadIds: Iterable<ThreadId>,
         ) {
@@ -1328,8 +1300,6 @@ export const layer: Layer.Layer<
             [...turnItems.values()].filter((item) => openRootToolCalls.has(item.id)),
           ),
         );
-        // Subagents and tool calls that outlived the root run die with the provider runtime. Stop
-        // can settle them meanwhile, so each write holds only while its stored row is unchanged.
         const endWorkLostAfterRootRun = Effect.fn("RunExecutionService.endWorkLostAfterRootRun")(
           function* (completedAt: DateTime.Utc) {
             const allocateEventId = () =>
@@ -1403,7 +1373,6 @@ export const layer: Layer.Layer<
               ),
             ),
         );
-        // Runs for every provider event, including streamed text updates; avoid a per-event span.
         const trackChildLifecycle = Effect.fnUntraced(function* (
           event: ProviderAdapter.ProviderAdapterV2Event,
           deliverable: boolean,
@@ -1441,10 +1410,6 @@ export const layer: Layer.Layer<
                 return next;
               });
             }
-            // Preserve childThreadId linkage for the root-run lifetime even after the subagent
-            // row terminalizes, so open child-thread nodes can still be proven linked on a
-            // later root interrupt. A provider records nested native subagents on the child
-            // thread, runless; they die with this run too.
             if (
               belongsToRootRun ||
               (belongsToOwnedChildThread &&
@@ -1570,11 +1535,7 @@ export const layer: Layer.Layer<
           const childSubagents = yield* Ref.get(activeChildSubagents);
           return childSubagents.size === 0;
         });
-        // Claude background Bash has no turn-item projection. Use only the
-        // thread-scoped probe: session-wide pending work (siblings, wake
-        // buffers, session subagents) must not pin this root subscription.
         const threadHasPendingBackgroundWork = Effect.gen(function* () {
-          // The live probe reads adapter state, which can be ahead of the events consumed here.
           if (rootSnapshotPendingWork) {
             return true;
           }
@@ -1595,17 +1556,12 @@ export const layer: Layer.Layer<
             terminal.status !== "completed" &&
             !childTurnsContinue(terminal)
           ) {
-            // A failed turn can leave background work running in a live provider process.
             return (
               terminal.status !== "failed" ||
               (yield* Ref.get(providerThreadOwnerLost)) ||
               !(yield* threadHasPendingBackgroundWork)
             );
           }
-          // Newly owned items depend on adapters emitting a non-terminal event before the root
-          // terminal. Owner loss (a newer run claimed lastRunOrdinal) must not close this stream
-          // while these sets are non-empty: turn_item.updated writes are not ownership-gated, so
-          // late completions still land.
           const backgroundItems = yield* Ref.get(activeBackgroundTurnItems);
           if (backgroundItems.size > 0 || childSnapshotPendingWork.size > 0) {
             return false;
@@ -1617,10 +1573,7 @@ export const layer: Layer.Layer<
         });
 
         const reservedHeldTurnItemIds = new Set<TurnItemId>();
-        // Ends once the root turn and the children it drives settle. Background commands such
-        // as a dev server keep this consumer alive afterwards and must not pin preview focus.
         const endPreviewActivity = yield* previewAgentActivity.begin(input.run.threadId);
-        // Per-event routing and lifecycle bookkeeping share the run's tracing boundary.
         const routeEvent = Effect.fnUntraced(function* (
           event: ProviderAdapter.ProviderAdapterV2Event,
         ) {
@@ -1686,7 +1639,6 @@ export const layer: Layer.Layer<
               activeChildProviderTurns,
               (current) => new Set([...current].filter((id) => routing.ownedProviderTurns.has(id))),
             );
-            // Routing now rejects the moved thread's snapshots, so none would clear its entry.
             for (const id of childSnapshotPendingWork) {
               if (!routing.ownedProviderThreadIds.has(id)) childSnapshotPendingWork.delete(id);
             }
@@ -1697,7 +1649,6 @@ export const layer: Layer.Layer<
           }
           return { event, accepted };
         });
-        // Per-event ingestion avoids adding a span for every provider snapshot.
         const ingestDelivered = Effect.fnUntraced(function* (
           event: ProviderAdapter.ProviderAdapterV2Event,
           deliveredEvent: ProviderAdapter.ProviderAdapterV2Event,
@@ -1737,9 +1688,6 @@ export const layer: Layer.Layer<
           }
           return storedEvents.length;
         });
-        // The timer only wakes ingestion. The flush runs as an ingestion step outside any provider
-        // batch, so it stays ordered with routing and snapshots, and a write has committed when
-        // it returns.
         const idleFlushTicks = yield* Queue.dropping<{
           readonly type: "idle_flush";
           readonly at: number;
@@ -1771,22 +1719,15 @@ export const layer: Layer.Layer<
           idleFlushWake = undefined;
           return wake === undefined ? Effect.void : Fiber.interrupt(wake.fiber);
         });
-        // Per-tick ingestion avoids adding a span for every idle wake.
         const flushIdleAssistantText = Effect.fnUntraced(function* (wokeAt: number) {
-          // A tick means its timer slept until `wokeAt`, but the wall clock can still read up
-          // to a millisecond earlier; trusting it would keep the finished wake and never re-arm.
           const now = Math.max(DateTime.toEpochMillis(yield* DateTime.now), wokeAt);
-          // A wake due by now has fired; a later deadline needs a new one.
           if (idleFlushWake !== undefined && idleFlushWake.at <= now) idleFlushWake = undefined;
           if (idleFlushClosed) return;
           const rootSettled = yield* Ref.get(rootRunFinalized);
           for (const event of assistantStreaming.takeIdleFlushes(now)) {
-            // Settling the root run closed its messages; only children may still stream.
             if (rootSettled && streamedThreadId(event) === input.run.threadId) continue;
-            // The held text's child may have been handed to another run since it arrived.
             if (!routeProviderEvent(event, routeIdentity, yield* Ref.get(eventRouting))[0])
               continue;
-            // A failed write fails ingestion like any provider write.
             yield* ingestDelivered(event, event);
             yield* trackChildLifecycle(event, true);
           }
@@ -1823,8 +1764,6 @@ export const layer: Layer.Layer<
           const shouldStartProviderTurn = input.shouldStartProviderTurn;
           if (deliveredEvent && startedRootTurn !== undefined && shouldStartProviderTurn) {
             rootTurnOwnershipChecked = true;
-            // Stop plans under this lock from stored turns. Storing the first turn and rechecking
-            // the attempt under it means Stop either saw the turn or already settled the run.
             const [stored, owned] = yield* threadCommands.withLock(
               input.run.threadId,
               Effect.all([
@@ -1921,8 +1860,6 @@ export const layer: Layer.Layer<
               Effect.gen(function* () {
                 const terminal = yield* Ref.get(terminalEvent);
                 if (terminal === null) {
-                  // A session release interrupts or fails the stream; a clean
-                  // end without a terminal means the run would never settle.
                   return yield* new RunExecutionIngestError({
                     runId: input.run.id,
                     cause: new ProviderAdapter.ProviderAdapterEventStreamError({
@@ -1936,8 +1873,6 @@ export const layer: Layer.Layer<
                 yield* finalizeRootRun(terminal);
               }),
             ),
-            // Server shutdown interrupts the subscription and leaves the run to
-            // restart recovery; every other failure fails the run.
             Effect.catchCauseIf(
               (cause) => !Cause.hasInterruptsOnly(cause),
               (cause) =>
@@ -1946,8 +1881,6 @@ export const layer: Layer.Layer<
                   const routing = yield* Ref.get(eventRouting);
                   const rootProviderTurn = yield* Ref.get(latestRootProviderTurn);
                   const squashed = Cause.squash(cause);
-                  // An exclusive session closes when its thread detaches, and no terminal
-                  // follows. The process is gone, so a handoff settles here with no interrupt.
                   if (
                     isRunExecutionIngestError(squashed) &&
                     isProviderEventStreamError(squashed.cause) &&
@@ -1986,8 +1919,6 @@ export const layer: Layer.Layer<
                     runId: input.run.id,
                     cause,
                   });
-                  // An adapter fails its stream when its runtime is gone. A failed write, or a session Supaterm
-                  // released or saw end, leaves work that can still report or that the releaser settles.
                   const runtimeLost =
                     isRunExecutionIngestError(squashed) &&
                     isProviderEventStreamError(squashed.cause) &&
@@ -1997,7 +1928,6 @@ export const layer: Layer.Layer<
                     return;
                   }
                   const providerThread = yield* Ref.get(latestProviderThread);
-                  // Stop background work too; the failed consumer cannot persist terminal events.
                   const abandonedProviderTurn =
                     routing.rootProviderTurnId !== null && !routing.rootTurnEnded
                       ? yield* input.session
@@ -2016,9 +1946,6 @@ export const layer: Layer.Layer<
                                   { runId: input.run.id, cause: interruptCause },
                                 ).pipe(Effect.as(false)),
                             ),
-                            // A failed interrupt leaves the stored turn running so the next start
-                            // retries it. The snapshot is cached before it is published, so it may
-                            // not be stored: replay a terminal one as-is.
                             Effect.map((interrupted) =>
                               !interrupted || rootProviderTurn === null
                                 ? null
@@ -2074,7 +2001,6 @@ export const layer: Layer.Layer<
                     failureItemPersisted: false,
                     refreshAfterTurn,
                   }).pipe(
-                    // Storage failures can be defects; retry both failure channels.
                     Effect.catchCause((writeCause) =>
                       Effect.gen(function* () {
                         if (Cause.hasInterruptsOnly(writeCause)) {
@@ -2090,7 +2016,6 @@ export const layer: Layer.Layer<
                               cause: writeCause,
                             },
                           );
-                          // Persistent storage failures must not flood the same disk.
                           nextRetryWarningAt = DateTime.add(now, { minutes: 10 });
                         }
                         return yield* Effect.fail(writeCause);
@@ -2103,8 +2028,6 @@ export const layer: Layer.Layer<
                         ),
                       ),
                     }),
-                    // Startup may cancel the consumer and fail its own terminal
-                    // write. Only service shutdown or the atomic gate ends recovery.
                     Effect.forkIn(scope),
                     Effect.flatMap(Fiber.join),
                   );
@@ -2201,8 +2124,6 @@ export const layer: Layer.Layer<
                 ))
               : input.session.startTurn(turnInput);
         yield* Effect.andThen(shouldStart, startTurn).pipe(
-          // Wait for acceptance so abandoned startup cannot leave a refresher
-          // on the already-detached ingestion fiber.
           Effect.tap(() =>
             Fiber.await(providerEventFiber).pipe(
               Effect.raceFirst(touchMcpCredential.pipe(Effect.delay("1 hour"), Effect.forever)),

@@ -211,7 +211,6 @@ export function sourceControlHostSearchItems(
   });
 }
 
-/** For settings that apply to every host. */
 const SOURCE_CONTROL_HOST_LABELS = sourceControlClients.definitions
   .map((definition) => definition.label)
   .join(" ");
@@ -685,19 +684,15 @@ export const SETTINGS_SEARCH_ITEMS = [
       "appearance colors palette custom import light dark",
       BUILT_IN_THEMES.map((theme) => theme.label).join(" "),
     ],
-    // The light and dark theme pickers sit directly under the scheme tiles;
-    // the section is the stable scroll destination for both.
     targetId: "appearance",
   },
   {
-    // Prefixed because the slider control already owns the `appearance-contrast` id.
     id: "setting-appearance-contrast",
     title: "Contrast",
     to: "/settings/appearance",
     searchTerms: ["colors borders interface"],
   },
   {
-    // Prefixed because the slider control already owns the `glass-opacity` id.
     id: "setting-glass-opacity",
     title: "Glass opacity",
     to: "/settings/appearance",
@@ -1038,7 +1033,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "review-guide-model",
     title: "Review guide model",
     to: "/settings/source-control",
-    // Hidden until review guides are on, so a search lands on the switch that shows it.
     targetId: "review-guides",
     searchTerms: ["pull request pr guided review guide brief maintainer"],
     environmentOnly: true,
@@ -1190,7 +1184,6 @@ const SPLIT_SETTINGS_PATHS: ReadonlySet<string> = new Set([
   "/settings/connections",
   ...Object.keys(RENAMED_SETTINGS_PATHS),
 ]);
-// Section anchors that moved but are not search results themselves.
 const MOVED_SECTION_ANCHORS: Readonly<Record<string, SettingsPath>> = {
   "authorized-clients": "/settings/access",
   threads: "/settings/threads",
@@ -1356,8 +1349,6 @@ export function searchSettings(
     .map(({ item }) => item);
 }
 
-// Font smoothing only renders on macOS, so a search jump to it elsewhere
-// must not flip the section - the target would never mount to be scrolled to.
 const ADVANCED_TYPOGRAPHY_TARGET_IDS: ReadonlySet<string> = new Set([
   "prompt-font",
   "terminal-font",

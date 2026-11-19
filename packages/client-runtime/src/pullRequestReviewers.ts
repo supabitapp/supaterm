@@ -3,7 +3,6 @@ import type {
   PullRequestReviewerCandidateList,
 } from "@supaterm/contracts";
 
-// Loaded rows retain the request state updated by mutations.
 export function mergeReviewerCandidates(
   loaded: ReadonlyArray<PullRequestReviewerCandidate>,
   searched: ReadonlyArray<PullRequestReviewerCandidate>,
@@ -21,7 +20,6 @@ export function mergeReviewerCandidates(
         candidate.login.toLowerCase().includes(needle) ||
         (candidate.name ?? "").toLowerCase().includes(needle),
     ),
-    // The host matched these on its own terms, an email for one, so they are not narrowed again.
     ...searched.filter((candidate) => !known.has(key(candidate))),
   ];
 }
@@ -69,7 +67,6 @@ export function reviewerCandidateView(
 } {
   const query = input.query.trim();
   const hostQuery = hostReviewerQuery(input);
-  // Only once the debounce has caught up, or rows matching the previous text would linger.
   const searched = hostQuery !== null && hostQuery === query;
   const candidates = mergeReviewerCandidates(
     input.loaded?.candidates ?? [],

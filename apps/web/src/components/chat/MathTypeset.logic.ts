@@ -17,13 +17,11 @@ export function escapeLiteralPercents(tex: string): string {
           const bodyStart = index + (starred ? 7 : 6);
           let close = bodyStart;
           while (close < tex.length && ![delimiter, "\n", "\r"].includes(tex[close]!)) close++;
-          // KaTeX rejects a \verb that does not close on its own line.
           if (tex[close] !== delimiter) return tex;
           index = close + 1;
           continue;
         }
       }
-      // A control symbol such as `\%` or `\\` is two characters.
       index += 2;
     } else if (char === "%" && index > 0 && !/\s/.test(tex[index - 1]!)) {
       repaired += `${tex.slice(copied, index)}\\%`;

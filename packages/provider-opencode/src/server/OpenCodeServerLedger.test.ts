@@ -29,7 +29,6 @@ const groupExists = (pgid: number) => {
   }
 };
 
-// A group of zombies can be reaped between a check and the kill, so ESRCH just means it is gone.
 const killGroup = (pgid: number) =>
   Effect.sync(() => {
     try {
@@ -39,13 +38,8 @@ const killGroup = (pgid: number) =>
     }
   });
 
-// libuv ignores a failed setsid(), which happens when the new pid equals the id of a group
-// that still has members (such as a sleep orphaned by an earlier test). The child would then
-// share the test worker's group, so the script first confirms it leads its own group and exits
-// with 97 before starting anything if it does not.
 const groupLeaderGuard = `pgid="$(ps -o pgid= -p $$ 2>&1 | tr -d ' ')"; [ "$pgid" = "$$" ] || { echo "ungrouped:$pgid"; exit 97; }; echo grouped; `;
 
-// Yields the group, or a description of why this shell cannot be used as one.
 const spawnGroupLeader = (args: ReadonlyArray<string>, script: string) =>
   Effect.gen(function* () {
     const child = NodeChildProcess.spawn("/bin/sh", ["-c", groupLeaderGuard + script, ...args], {
@@ -57,8 +51,6 @@ const spawnGroupLeader = (args: ReadonlyArray<string>, script: string) =>
     const grouped = yield* Deferred.make<true | string>();
     const exited = yield* Deferred.make<NodeJS.Signals | null>();
     child.once("exit", (_code, signal) => Deferred.doneUnsafe(exited, Effect.succeed(signal)));
-    // "close" fires after stdout drains, so a guard line always lands first. It only fires before
-    // "grouped" when the shell died without starting the script, such as from a signal.
     child.once("close", (code, signal) =>
       Deferred.doneUnsafe(
         grouped,
@@ -81,8 +73,6 @@ const spawnGroupLeader = (args: ReadonlyArray<string>, script: string) =>
     return result === true ? { pid, exited: Deferred.await(exited) } : result;
   });
 
-// A pid colliding with a live group id is rare, so a few retries clear it. Repeated failures
-// mean the guard itself is broken (for example a missing or BusyBox `ps`).
 const GROUP_LEADER_ATTEMPTS = 5;
 
 const spawnGroup = (args: ReadonlyArray<string>, script = "sleep 600 & wait") =>
@@ -114,7 +104,6 @@ const recordFromDeadServer = (stateDir: string, server: { readonly pid: number }
   });
 
 const hostPlatform = HostProcess.Platform.defaultValue();
-// procps accepts the same `ps` flags as macOS, so Linux also covers the macOS path.
 const observedPlatforms: ReadonlyArray<NodeJS.Platform> =
   hostPlatform === "linux" ? ["linux", "darwin"] : hostPlatform === "darwin" ? ["darwin"] : [];
 
@@ -151,7 +140,6 @@ describe.each(observedPlatforms)("OpenCodeServerLedger observing as %s", (platfo
       const orphan = yield* spawnGroup(SERVE_ARGS);
       yield* recordFromDeadServer(stateDir, orphan);
       const entryPath = path.join(stateDir, "opencode-servers", `${orphan.pid}.json`);
-      // The same process, seen while it still ran the wrapper that then exec'd the server.
       const entry = yield* fs.readFileString(entryPath);
       yield* fs.writeFileString(
         entryPath,
@@ -177,7 +165,6 @@ describe.each(observedPlatforms)("OpenCodeServerLedger observing as %s", (platfo
       const gate = path.join(stateDir, "gate");
       const ready = path.join(stateDir, "ready");
       NodeChildProcess.execFileSync("mkfifo", [gate, ready]);
-      // The wrapper's child is recorded before it execs and stopped after.
       const wrapper = yield* spawnGroup(
         SERVE_ARGS,
         `(read _ < '${gate}'; exec /bin/sh -c 'echo > "${ready}"; sleep 600 & wait' "$0" "$@") & exit 0`,
@@ -351,17 +338,12 @@ describe.skipIf(observedPlatforms.length === 0)("OpenCode server startup", () =>
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 
-  // Runs on the test clock, which never advances here: a teardown that sleeps
-  // out its grace instead of watching the group would never finish.
   it.effect("stops a running server as soon as its group exits", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-opencode-stop-" });
       const binaryPath = path.join(tempDir, "opencode");
-      // The background child shares the leader's group. The leader reaps it before exiting, so no
-      // zombie keeps the group alive under an init that does not reap. The trap is set after the
-      // fork: a child forked with the trap already set can swallow the signal before it execs.
       yield* fs.writeFileString(
         binaryPath,
         [

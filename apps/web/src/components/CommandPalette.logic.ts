@@ -436,7 +436,6 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
   /** Makes the environment searchable; pass it only with two or more environments. */
   environmentLabelOf?: (thread: TThread) => string | null;
 }): CommandPaletteActionItem[] {
-  // Callers order these: recents by last use, search results by rank.
   const visibleThreads = input.threads.filter(
     (thread) => thread.archivedAt === null && !isSidebarHiddenThread(thread),
   );
@@ -490,7 +489,6 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
       },
       leadingContent ? { titleLeadingContent: leadingContent } : {},
       trailingContent ? { titleTrailingContent: trailingContent } : {},
-      // Last in its group: picking the thread already open does nothing.
       isCurrent ? { secondary: true } : {},
       {
         run: async () => {
@@ -519,8 +517,6 @@ function rankPaletteItem(
   readonly pickedExactly?: boolean;
 } | null {
   const match = scorePaletteItem(item, normalizedQuery, now, options);
-  // A row listed last in its group (a keybinding setting, the open thread)
-  // does not decide where the group sits.
   return match && item.secondary ? { ...match, groupQuality: 0 } : match;
 }
 
@@ -531,8 +527,6 @@ function scorePaletteItem(
   options: { readonly typos: boolean },
 ) {
   if (item.threadSearch) return scoreThreadSearch(normalizedQuery, item.threadSearch, now, options);
-  // The title names the item; search terms are keywords. Ranges index the
-  // first term, so they only highlight a title that is that term.
   const name = typeof item.title === "string" ? item.title : item.searchTitle;
   const terms =
     name !== undefined && name !== item.searchTerms[0]
@@ -593,8 +587,6 @@ export function filterCommandPaletteGroups(input: {
 
   const searchableGroups = [...baseGroups];
   const searchesEverything = !input.isInSubmenu && !isActionsFilter;
-  // On equal match classes, groups keep this order: threads, what people search
-  // for most, right after commands.
   if (searchesEverything) {
     if (input.allOptions && input.allOptions.nestedItems.length > 0) {
       searchableGroups.push({
@@ -633,14 +625,12 @@ export function filterCommandPaletteGroups(input: {
   );
   const threadsMatch = ranked.some(({ group }) => group.value === "threads-search");
   const groups = ranked.map(({ group, ranked }): CommandPaletteGroup => {
-    // Secondary items stay below the rest; the sort is stable, so score order holds.
     const limit =
       group.value === "threads-search"
         ? PALETTE_THREAD_LIMIT
         : group.value === "nested-search" || (searchesEverything && threadsMatch)
           ? PALETTE_SECONDARY_LIMIT
           : ranked.length;
-    // Hints are built only for the rows shown.
     const items = ranked
       .toSorted(
         (left, right) =>
@@ -649,7 +639,6 @@ export function filterCommandPaletteGroups(input: {
       .slice(0, limit)
       .map(({ item, match }) => {
         if (match.ranges.length > 0) return item;
-        // Built only for the rows shown.
         const matchHint = match.explain?.();
         return matchHint ? { ...item, matchHint } : item;
       });
@@ -658,7 +647,6 @@ export function filterCommandPaletteGroups(input: {
 
   if (!searchesEverything) return groups;
   const listed = new Set(groups.flatMap((group) => group.items.map((item) => item.value)));
-  // The items arrive cut to what the palette shows; see `nextShownOrder`.
   const messageItems = (input.threadMessageItems ?? []).filter((item) => !listed.has(item.value));
   return messageItems.length === 0
     ? groups
@@ -677,7 +665,6 @@ export function buildNestedSearchItems(
   return items.flatMap((parent) => {
     if (parent.kind !== "submenu" || typeof parent.title !== "string") return [];
     const stem = parent.title.replace(/(\.\.\.|…)$/u, "");
-    // A query that only names the submenu ("new thread in") wants the submenu row itself.
     if (foldSearchQuery(stem).startsWith(foldedQuery)) return [];
     const prefix = stem === parent.title ? `${stem}: ` : `${stem.trimEnd()} `;
     return parent.groups.flatMap((group) =>
@@ -687,7 +674,6 @@ export function buildNestedSearchItems(
         const title = `${prefix}${name}`;
         if (topLevelNames.has(title)) return [];
         const { searchTitle: _searchTitle, ...rest } = child;
-        // Only the combined title: child keywords like "theme" would list every theme.
         return [{ ...rest, title, searchTerms: [title] }];
       }),
     );

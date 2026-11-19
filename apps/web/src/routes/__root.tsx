@@ -76,7 +76,6 @@ export const Route = createRootRoute({
 
     const authGateState = await resolveInitialServerAuthGateState();
     if (authGateState.status === "authenticated") {
-      // Idempotent, so every navigation can ask for it.
       void configureClientTracing();
     }
     if (
@@ -115,8 +114,6 @@ function RootRouteNotFoundView() {
 }
 
 function RootRouteView() {
-  // Above every branch: app services raise toasts for the whole page, so the surface they write to
-  // must not unmount when the root switches branches (for example /welcome to the app shell).
   return (
     <ToastProvider>
       <AnchoredToastProvider>
@@ -130,7 +127,6 @@ function RootRouteBranch() {
   const pathname = useLocation({ select: (location) => location.pathname });
   const { authGateState } = Route.useRouteContext();
   const primaryEnvironmentAuthenticated = authGateState.status === "authenticated";
-  // A sync IPC read; the setting only changes across a relaunch.
   const [localEnvironmentDisabled] = useState(isLocalEnvironmentDisabled);
   const hostedPromptLinkLanding = useHostedPromptLinkLanding(
     authGateState.status === "hosted-static",
@@ -144,8 +140,6 @@ function RootRouteBranch() {
     return <Outlet />;
   }
 
-  // Ahead of first-run onboarding, which would otherwise send a new visitor to the welcome
-  // wizard and lose the link.
   if (hostedPromptLinkLanding !== null) {
     return hostedPromptLinkLanding;
   }
@@ -204,10 +198,7 @@ function RootRouteBranch() {
         {primaryEnvironmentAuthenticated ? (
           <EventRouter skipInitialBootstrapNavigation={returningFromWelcome} />
         ) : null}
-        {/* Hosted Nightly is "hosted-static", not authenticated, and needs it too. */}
         {appShell}
-        {/* Above the router: a theme draft is judged by walking the app, so the
-          editor has to survive navigation away from settings. */}
         <ThemeEditorHost />
       </FirstRunGate>
     </>
@@ -217,7 +208,6 @@ function RootRouteBranch() {
 function RootRouteErrorView({ error }: ErrorComponentProps) {
   const router = useRouter();
   const message = errorMessage(error);
-  // Router pathname rather than window.location: desktop uses hash history, where the window path is always "/".
   const pathname = useLocation({ select: (location) => location.pathname });
   const report = errorReport(error, pathname);
 
@@ -292,9 +282,6 @@ function errorDetails(error: unknown): string {
 
 const MAX_ERROR_CAUSE_DEPTH = 5;
 
-/**
- * Takes the pathname only so tokens in the query never land on the clipboard.
- */
 function errorReport(error: unknown, pathname: string): string {
   const lines = [
     `${APP_DISPLAY_NAME} ${APP_VERSION}`,

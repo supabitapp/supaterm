@@ -100,7 +100,6 @@ const operationOf = (
   if (method === "GET" && path === "/api/skill") return { type: "skill.list", input: query };
   if (session !== null) {
     const [, sessionID, rest = ""] = session;
-    // The client sends absent optional fields as `null`; recordings omit them.
     const fields = Object.entries((body ?? {}) as Record<string, unknown>).filter(
       ([, value]) => value !== null,
     );
@@ -171,7 +170,6 @@ const replayHttpClient = (
           query,
           raw === undefined ? undefined : decodeJson(raw),
         );
-        // HTTP streams and requests use separate connections; deliver prior recorded inbound data before matching requests.
         if (operation.type !== "event.subscribe") await controller.untilInboundDelivered();
         if (operation.type === "session.prompt") onPrompt?.(operation.input);
         await controller.expectOutbound(operation);
@@ -189,7 +187,6 @@ const replayHttpClient = (
           });
           return new Response(body, { headers: { "content-type": "text/event-stream" } });
         }
-        // Recorded responses are the raw HTTP bodies; `null` is an empty 204.
         const body = await controller.response(operation.type);
         if (typeof body === "object" && body !== null && "imageBase64" in body) {
           return new Response(Buffer.from(String(body.imageBase64), "base64"), {

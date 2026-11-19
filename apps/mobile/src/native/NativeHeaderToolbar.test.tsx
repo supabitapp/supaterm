@@ -18,10 +18,7 @@ const harness = vi.hoisted(() => ({
   openedDocuments: [] as string[],
 }));
 
-// Native headers retain the actions materialized when navigation applies options. Like React
-// Navigation, the header renders again only when the options are no longer shallowly equal.
 vi.mock("@react-navigation/native", async () => {
-  // vi.mock factories run before the file's imports.
   const { createContext, use } = await vi.importActual<typeof import("react")>("react");
   const navigation = {
     setOptions(options: HeaderOptions) {
@@ -43,7 +40,6 @@ vi.mock("@react-navigation/native", async () => {
   };
   const navigationContext = createContext<typeof navigation | undefined>(navigation);
   return {
-    // Outside a workspace tab slot the header writes to the route's navigation.
     NavigationRouteContext: createContext(undefined),
     NavigationContext: navigationContext,
     useNavigation: () =>
@@ -61,8 +57,6 @@ import { NativeStackScreenOptions } from "./StackHeader";
 
 let root: Root | null = null;
 
-// Like React Navigation's NavigationStateContext, whose default value throws when
-// read. React restores a context's default outside render, so layout effects see it.
 const ContainerStateContext = createContext<object>({
   get getIsInitial(): never {
     throw new Error("Couldn't find a navigation context.");

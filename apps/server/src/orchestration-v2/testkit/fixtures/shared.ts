@@ -503,7 +503,6 @@ export function materializeFixtureInput(input: {
     const runIdFor = (runOrdinal: number) =>
       idAllocator.derive.run({ threadId: ids.threadId, ordinal: runOrdinal });
 
-    // A `set_model` step changes the selection every later message carries.
     let modelSelection = input.modelSelection;
     const pushDispatch = (
       command: OrchestrationV2Command,
@@ -543,7 +542,6 @@ export function materializeFixtureInput(input: {
       }),
     );
 
-    // Multiple requests keep runs busy between answers; wait for each request, not thread idle.
     const answersNext = (stepIndex: number) => {
       const next = input.fixtureInput.steps[stepIndex + 1]?.type;
       return next === "approve_next_runtime_request" || next === "answer_next_user_input_request";
@@ -562,9 +560,7 @@ export function materializeFixtureInput(input: {
                   (nextStep.type === "restart" && nextStep.targetRunIndex === runIndex) ||
                   (nextStep.type === "release_replay_gate_after_waiting" &&
                     nextStep.targetRunIndex === runIndex) ||
-                  // Continuations start while busy; waiting for idle would deadlock.
                   (nextStep.type === "await_run_status" && nextStep.targetRunIndex > runIndex) ||
-                  // Held open until the test clock moves, so it cannot go idle first.
                   nextStep.type === "finish_held_run")) ||
               nextStep?.type === "approve_next_runtime_request" ||
               nextStep?.type === "answer_next_user_input_request";

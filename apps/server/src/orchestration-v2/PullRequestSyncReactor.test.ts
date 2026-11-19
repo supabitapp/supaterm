@@ -439,10 +439,6 @@ const stackLayer = (number: number) => ({
   state: "open" as const,
 });
 
-/**
- * Stack 80 starts as #18 and #20; `grow` pushes #83 on top. `cachedRead` behaves like
- * `PullRequestReadCache`: a read is kept for 60 s and invalidating the reference drops it.
- */
 function makeGrowingStack() {
   let layers = [stackLayer(18), stackLayer(20)];
   const entries = new Map<number, { readonly layers: typeof layers; expiresAt: number }>();
@@ -516,10 +512,8 @@ const requestAndApply = Effect.fn("requestPullRequestSyncHarness")(function* (
   yield* applyRecordedSyncs(fixture);
 });
 
-/** A thread with an open pull request whose merge command marks the end of earlier events. */
 const MERGING_THREAD = ThreadId.make("merging");
 
-/** The link commands `events` dispatch, read once the reactor has handled them all. */
 const linksFrom = Effect.fn("linksFrom")(function* (
   fixture: Harness,
   reactor: PullRequestSyncReactor.PullRequestSyncReactor["Service"],
@@ -545,7 +539,6 @@ describe("PullRequestSyncReactor", () => {
       class SweptLink {
         readonly swept = true;
       }
-      // Like PullRequestReadCache's revisions: a lookup fiber, kept for good, forked from the reader.
       const kept = yield* Cache.makeWith(() => Effect.void, {
         capacity: 1,
         timeToLive: () => Duration.infinity,
@@ -892,7 +885,6 @@ describe("PullRequestSyncReactor", () => {
         const reactor = yield* startAndSweep(fixture);
         assert.deepStrictEqual(yield* Ref.get(fixture.syncCommands), []);
 
-        // An unchanged old PR uses main's five-minute quiet polling cadence.
         yield* TestClock.adjust("5 minutes");
         yield* Queue.take(fixture.snapshotReads);
         yield* reactor.drain;
@@ -1050,7 +1042,6 @@ describe("PullRequestSyncReactor", () => {
 
       yield* Effect.gen(function* () {
         const reactor = yield* startAndSweep(fixture);
-        // Closed within the day, or with no close time, keeps the fifteen-minute cadence.
         assert.deepStrictEqual(yield* reads, [3, 4]);
         for (let index = 0; index < 15; index += 1) yield* sweepAgain(fixture, reactor);
         assert.deepStrictEqual(yield* reads, [3, 3, 4, 4]);
@@ -1307,7 +1298,6 @@ describe("PullRequestSyncReactor", () => {
         base: "main",
         layers: layers.map(stackLayer),
       });
-      // #50 is merged and not due until #1's stack read shows it a different layer list.
       const merged = makeLink(
         50,
         { state: "merged", mergedAt: NOW },
@@ -1318,7 +1308,6 @@ describe("PullRequestSyncReactor", () => {
       const synced1 = yield* Deferred.make<void>();
       const fixture = yield* makeHarness({
         snapshot: makeSnapshot([
-          // Another host takes 24 of the 25 shared slots and #1 the last one.
           ...Array.from({ length: 24 }, (_, index) =>
             makeThread(`thread-${index + 2}`, {
               pullRequests: [makeLink(index + 2, null, { host: "gitlab.example.com" })],
@@ -1328,10 +1317,8 @@ describe("PullRequestSyncReactor", () => {
           makeThread("thread-50", { pullRequests: [merged] }),
         ]),
         batchesReads: () => false,
-        // #1 reads once all 25 slots are taken; the other 24 hold theirs until #1 has synced.
         summary: (input) =>
           Ref.updateAndGet(started, (count) => count + 1).pipe(
-            // Forked, so #1 resumes only after the sweep has handed out its next slot.
             Effect.tap((count) =>
               count === 25 ? Effect.forkChild(Deferred.succeed(full, undefined)) : Effect.void,
             ),
@@ -1550,7 +1537,6 @@ describe("PullRequestSyncReactor", () => {
         ]);
         const readsBeforeGrowth = (yield* Ref.get(fixture.stackCalls)).length;
 
-        // #83 is pushed on top and linked; only its own link starts without a snapshot.
         stack.grow();
         yield* linkPullRequest83(fixture);
         yield* sweepAndApply(reactor);
@@ -1564,7 +1550,6 @@ describe("PullRequestSyncReactor", () => {
         const readsAfterGrowth = (yield* Ref.get(fixture.stackCalls)).slice(readsBeforeGrowth);
         assert.deepStrictEqual(readsAfterGrowth.map((ref) => ref.number).toSorted(), [18, 20, 83]);
 
-        // Every member agrees now, so a further sweep reads no stack.
         yield* sweepAndApply(reactor);
         assert.strictEqual(
           (yield* Ref.get(fixture.stackCalls)).length,
@@ -1584,7 +1569,6 @@ describe("PullRequestSyncReactor", () => {
         snapshot: makeSnapshot([makeThread("one", { pullRequests: [makeLink(18)] })]),
         invalidate: stack.invalidate,
         stack: stack.cachedRead,
-        // #18's summary stays in flight until #83 has read its stack, flagged #18 and synced.
         summary: (input) =>
           (holdSummary && input.number === 18 ? Deferred.await(synced83) : Effect.void).pipe(
             Effect.as(makeSummary(input, { updatedAt: NOW })),
@@ -1597,12 +1581,9 @@ describe("PullRequestSyncReactor", () => {
         const reactor = yield* startAndSweep(fixture);
         yield* applyRecordedSyncs(fixture);
 
-        // 30 s later a state change refreshes #18, which caches its two-layer read until 90 s.
         yield* TestClock.adjust("30 seconds");
         yield* requestAndApply(fixture, reactor, 18);
 
-        // #83 is pushed on top and linked as the scheduled sweep at 60 s starts, so that sweep
-        // reads #83 for the first time while #18's summary is still in flight.
         stack.grow();
         yield* linkPullRequest83(fixture);
         holdSummary = true;
@@ -1624,8 +1605,6 @@ describe("PullRequestSyncReactor", () => {
   it.effect("leaves stacks in other repositories alone when their ids match", () =>
     Effect.gen(function* () {
       yield* TestClock.setTime(Date.parse(NOW));
-      // Without a host id the GitHub decoder falls back to the stack number, so two
-      // repositories can both report stack "3".
       const otherLink = makeLink(7, null, {
         repository: "owner/other",
         url: "https://github.com/owner/other/pull/7",
@@ -1720,7 +1699,6 @@ describe("PullRequestSyncReactor", () => {
             [9],
           );
           yield* Ref.update(fixture.snapshots, (snapshot) => applySync(snapshot, commands));
-          // Recovered quiet open pull requests return to the five-minute cadence.
           for (let index = 0; index < 5; index += 1) yield* sweepAgain(fixture, reactor);
           assert.deepStrictEqual(
             (yield* Ref.get(fixture.summaryCalls))
@@ -1753,7 +1731,6 @@ describe("PullRequestSyncReactor", () => {
         for (let index = 0; index < 5; index += 1) yield* sweepAgain(fixture, reactor);
         const afterSweeps = yield* unsupportedReads;
 
-        // A refresh another link asks for must not re-read the unsupported one as well.
         yield* reactor.requestSync(makeLink(9));
         yield* Queue.take(fixture.snapshotReads);
         yield* reactor.drain;
@@ -1810,7 +1787,6 @@ describe("PullRequestSyncReactor", () => {
             occurredAt: DateTime.makeUnsafe(NOW),
             payload: makeLink(9),
           });
-          // Let the event consumer finish even when it correctly queues no sweep.
           yield* TestClock.adjust(0);
           yield* reactor.drain;
           const afterLinkUpdate = yield* missingReads;
@@ -1923,7 +1899,6 @@ describe("PullRequestSyncReactor", () => {
           yield* reactor.drain;
           assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, backedOffReads + 1);
 
-          // The refresh failed at minute 4 with the backoff doubled to 8 minutes.
           yield* sweepFor(fixture, reactor, 7);
           assert.strictEqual((yield* Ref.get(fixture.summaryCalls)).length, backedOffReads + 1);
           yield* sweepAgain(fixture, reactor);
@@ -2020,7 +1995,6 @@ describe("PullRequestSyncReactor", () => {
         const agent = ThreadId.make("agent");
         yield* Queue.offerAll(fixture.domainEvents, [
           commandRan(agent, "git status && echo 'then git push'", undefined, "status"),
-          // A watch that has not read its checks yet has no answer to forget.
           commandRan(ThreadId.make("unread"), "git push", undefined, "unread-push"),
           commandRan(agent, "cd app && git -C . push --force-with-lease", undefined, "push"),
           commandRan(agent, '/bin/zsh -lc "gh stack submit --auto"', undefined, "stack"),

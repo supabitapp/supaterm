@@ -116,7 +116,6 @@ export function clearQuestionAttachmentDraft(key: DraftId): void {
   });
 }
 
-/** Clears the thread's question attachment drafts for every request outside `pendingRequestIds`. */
 function pruneResolvedQuestionAttachmentDrafts(
   environmentId: EnvironmentId,
   threadId: ThreadId,
@@ -132,11 +131,6 @@ function pruneResolvedQuestionAttachmentDrafts(
   }
 }
 
-/**
- * Stop cancels an open question and a provider timeout expires it; neither sent
- * the typed answers, so they move to the thread's own draft (not a queued-message
- * edit the composer may be showing) with the thread chips they reference.
- */
 function returnUnsentAnswersToThreadDraft(
   environmentId: EnvironmentId,
   threadId: ThreadId,
@@ -170,9 +164,6 @@ function returnUnsentAnswersToThreadDraft(
   store.addReferenceContexts(target, referenceContexts, { appendReference: false });
 }
 
-// Resolution can come from anywhere: another device, an interrupt, the turn
-// ending, or a reload over drafts for requests resolved meanwhile. One listener,
-// so unsent answers and their chips are read before their drafts are pruned.
 onThreadRequestsResolved(({ environmentId, threadId, pendingRequestIds, unansweredRequestIds }) => {
   returnUnsentAnswersToThreadDraft(environmentId, threadId, unansweredRequestIds);
   usePendingUserInputAnswers.setState(

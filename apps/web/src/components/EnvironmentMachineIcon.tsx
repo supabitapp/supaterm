@@ -3,12 +3,9 @@ import { CloudIcon, type IconProps, LaptopIcon, MonitorIcon, ServerIcon } from "
 import { useId, type FunctionComponent, type SVGProps } from "react";
 import { LinuxIcon } from "./Icons";
 
-// Read once per renderer, not per icon: long environment lists do no native IPC work.
 const nativeMachineIcons =
   typeof window === "undefined" ? {} : (window.desktopBridge?.getEnvironmentMachineIcons() ?? {});
 
-// SVG fallbacks follow the icon set's 24 unit grid and prop surface so every client
-// can draw Apple hardware even when native symbols are unavailable.
 function MachineGlyph(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -26,7 +23,6 @@ function MachineGlyph(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-/** An alpha mask lets the native glyph inherit the same tint as every other icon. */
 function NativeMachineIcon({ source, ...props }: SVGProps<SVGSVGElement> & { source: string }) {
   const maskId = useId();
   return (

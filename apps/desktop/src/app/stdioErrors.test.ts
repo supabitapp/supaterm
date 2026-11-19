@@ -11,7 +11,6 @@ it.each(["EPIPE", "ENOSPC"])("ignores %s on console output", (code) => {
   assert.doesNotThrow(() => handleStdioError(errorWithCode(code)));
 });
 
-// Node reports EDQUOT as UNKNOWN because libuv has no name for it.
 it.skipIf(EDQUOT_ERRNO === undefined)("ignores EDQUOT on console output", () => {
   assert.doesNotThrow(() => handleStdioError(errorWithCode("UNKNOWN", -(EDQUOT_ERRNO ?? 0))));
 });

@@ -35,8 +35,6 @@ export async function waitForDraftHeroTransition(): Promise<void> {
   ]);
 }
 
-// Only a mobile view transition flushes `update` (its new snapshot must show it) and returns a
-// promise; otherwise it runs inline so its state batches with the caller's. Errors never block.
 export function runMobileComposerTransition(
   update: () => void,
   options: { active: boolean; durationMs: number },

@@ -54,7 +54,6 @@ const state = vi.hoisted(() => ({
   toast: vi.fn(),
 }));
 
-// Session grants come from the server; each test drives them through these atoms.
 vi.mock(import("@supaterm/client-runtime/state/session"), async (original) => {
   const actual = await original();
   return {
@@ -112,12 +111,10 @@ vi.mock(import("~/lib/composerDraftUploads"), async (original) => ({
   ...(await original()),
   releaseProjectDraftUploads: state.releaseUploads,
 }));
-// No toaster is mounted in these tests; the guard's error toast is read at this seam.
 vi.mock(import("../ui/toast"), async (original) => {
   const actual = await original();
   return { ...actual, toastManager: { ...actual.toastManager, add: state.toast } };
 });
-// These sections have separate data sources and their own tests.
 vi.mock(import("./ProjectDefaultsSettings"), async (original) => ({
   ...(await original()),
   ProjectDefaultsSettings: (() => null) as never,
@@ -258,7 +255,6 @@ async function mountPanel(search: Omit<SettingsScopeSearch, "project"> = {}) {
   await router.load();
   await using stack = new AsyncDisposableStack();
   const screen = stack.use(
-    // The panel's own route tree validates settings search params, which the default router lacks.
     await render(
       <RegistryContext.Provider value={appAtomRegistry}>
         <RouterProvider router={router} />
@@ -293,7 +289,6 @@ async function mountSettings(search: SettingsScopeSearch) {
     }),
   });
   await router.load();
-  // The settings route tree above validates scope search params, which the default router lacks.
   const screen = await render(
     <RegistryContext.Provider value={appAtomRegistry}>
       <RouterProvider router={router} />
@@ -321,7 +316,6 @@ async function rename(screen: Screen, title: string) {
   await userEvent.keyboard("{Enter}");
 }
 
-// The recheck reports the denial by toast; seeing it proves the recheck ran.
 async function expectProjectAccessDeniedToast(title: string) {
   await vi.waitFor(() =>
     expect(state.toast).toHaveBeenCalledWith(
@@ -429,7 +423,6 @@ describe("project settings permissions", () => {
       scopeProjectRef(primaryId, primaryProject!.id),
       draftId,
     );
-    // "Add to another machine" hands the open draft to the new checkout this way.
     drafts.setDraftThreadContext(draftId, {
       projectRef: scopeProjectRef(remoteId, remoteProject!.id),
       environmentSelection: "manual",
@@ -474,8 +467,6 @@ describe("project settings permissions", () => {
     await using screen = await mountPanel();
     await userEvent.fill(nameInput(screen), "Renamed");
     await grant(remoteId, AsyncResult.success(session([])));
-    // Chromium takes focus off a newly disabled input without firing blur. Send the
-    // focusout so the save attempt runs and hits the same recheck as a real blur.
     await act(async () => {
       nameInput(screen).dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
     });
@@ -631,7 +622,6 @@ it("opens the fallback search target across all environments from a checkout", a
     history: createMemoryHistory({ initialEntries: [`/settings/threads?${query}#fallback-model`] }),
   });
   await router.load();
-  // This route needs the real scope-retention middleware used by settings search.
   await using _screen = await render(
     <RegistryContext.Provider value={appAtomRegistry}>
       <RouterProvider router={router} />

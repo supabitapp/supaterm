@@ -54,7 +54,6 @@ it.live("a failed agent launch points at the prompt it could not run", () =>
     NodeFS.writeFileSync(NodePath.join(binDir, "codex"), FAILING_AGENT_POSIX, { mode: 0o755 });
     NodeFS.writeFileSync(NodePath.join(binDir, "codex.cmd"), FAILING_AGENT_WINDOWS);
     yield* Effect.acquireRelease(
-      // PATH holds only the fake agent, so a broken fixture can never fall through to a real codex.
       Effect.sync(() => {
         vi.stubEnv("PATH", binDir);
         vi.stubEnv("CODEX_HOME", codexHome);

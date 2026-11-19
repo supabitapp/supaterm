@@ -27,7 +27,6 @@ const notFound = (method: string, path: string) =>
     pathOrDescriptor: path,
   });
 
-/** An Ubuntu host with the userns restriction on, the browser installed, and a system font. */
 const runSetupAsRoot = (input: { readonly profile: string | undefined }) => {
   const files = new Map([
     [USERNS_RESTRICTION, "1\n"],

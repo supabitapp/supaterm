@@ -7,8 +7,6 @@ const NativeControls = requireOptionalNativeModule<{
 
 let protectedDataAvailable: Promise<void> | undefined;
 
-// A locked iOS background launch cannot read startup storage. Cache readiness
-// for this launch only; later device locks do not pause an initialized runtime.
 export function whenProtectedDataAvailable(): Promise<void> {
   protectedDataAvailable ??= new Promise((resolve) => {
     const isAvailable = NativeControls?.isProtectedDataAvailable;
@@ -27,9 +25,7 @@ export function whenProtectedDataAvailable(): Promise<void> {
       (available) => {
         if (available) done();
       },
-      () => {
-        // A failed check does not establish readiness; activation still can.
-      },
+      () => {},
     );
   });
   return protectedDataAvailable;

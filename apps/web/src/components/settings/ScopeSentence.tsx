@@ -73,14 +73,12 @@ export function ScopeSentence({ lead, ...props }: ScopeSentenceProps) {
   }
   return (
     <p className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 px-3 text-sm text-muted-foreground sm:px-4">
-      {/* Each connective stays with its picker so a wrap never strands "on". */}
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="shrink-0">{lead}</span>
         <ProjectScopeMenu {...props} />
       </span>
       <span className="flex min-w-0 items-center gap-1.5">
         <span className="shrink-0">
-          {/* A legacy checkout link names one environment without `machine`. */}
           {props.value.machine || props.scope.kind === "checkout" ? "on" : "across"}
         </span>
         <EnvironmentScopeMenu {...props} />

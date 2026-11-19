@@ -1,4 +1,3 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import { pipe } from "effect/Function";
 import type { BundledFontProvider } from "@betteroffice/docx/layout";
 import {
@@ -11,9 +10,6 @@ import {
   type BundledFontScript,
 } from "@betteroffice/fonts";
 
-// Every face loads from the app's own files, so no font request leaves the machine. The Chinese, Japanese and Korean
-// faces are an add-on the app does not ship (see `fonts-cjk.ts`), yet the font package still maps East Asian families
-// such as Microsoft YaHei or Yu Gothic Medium to them, so every lookup passes through `shippedFace`.
 function shipped(script: BundledFontScript) {
   return !script.startsWith("cjk-");
 }
@@ -46,10 +42,6 @@ function shippedFace(face: BundledFontFace | undefined) {
   return face && (!face.script || shipped(face.script)) ? face : undefined;
 }
 
-/**
- * The substitute an application picks for a family it lacks. Only a weight variant of an East Asian family, such as
- * Yu Mincho Light, resolves to a face the app does not ship; its name without the weight still tells serif from sans.
- */
 function lastResortFace(
   family: string,
   bold: boolean,

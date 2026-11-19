@@ -1,8 +1,3 @@
-/**
- * Expo's GraphQL API for Expo Simulators sessions. The operations in
- * `ExpoApi.graphql` are the ones eas-cli's `simulator:*` commands send; their
- * client is generated from `schema/expo.graphql` (`vp run generate`).
- */
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -60,11 +55,6 @@ export class ExpoInvalidCredentialError extends Schema.TaggedError<ExpoInvalidCr
   }
 }
 
-/**
- * Expo credentials are printable ASCII. Anything else (the redacted
- * placeholder, a pasted newline) would fail inside fetch with the header
- * value in its message, so it is refused here.
- */
 const credential = (
   source: ExpoCredentialSource,
   header: ExpoCredential["header"]["name"],
@@ -96,7 +86,6 @@ export class ExpoApiError extends Schema.TaggedError<ExpoApiError>()("ExpoApiErr
   }
 }
 
-/** `eas login` and `expo login` keep the session secret here. */
 const ExpoState = Schema.fromJsonString(
   Schema.Struct({
     auth: Schema.optional(
@@ -152,18 +141,12 @@ export interface CreateEasSessionInput {
   readonly maxIdleTimeMinutes: number;
 }
 
-/** Sends every operation with the resolved credential. */
 class ExpoAuth extends GraphQLMiddleware.Service<ExpoAuth>()(
   "supaterm/server/device/ExpoApi/ExpoAuth",
 ) {}
 
 const ExpoGroup = ExpoApiGraphQLGroup.middleware(ExpoAuth);
 
-/**
- * Expo's answer as an `ExpoApiError`, which has no cause: a transport error's
- * holds the request with its credential header, and a decode error's can
- * quote session tokens. These errors also travel to clients as RPC defects.
- */
 const toExpoApiError = (
   operation: string,
   credential: ExpoCredential,
@@ -172,9 +155,6 @@ const toExpoApiError = (
   const reason = error.reason;
   const status =
     reason._tag === "TransportError" || reason._tag === "ResponseError" ? reason.status : undefined;
-  // Expo user errors have `errorType: "USER"`, no `isTransient`, and null data (eas-cli's rule).
-  // Apollo's `code` is unreliable: Expo also uses INTERNAL_SERVER_ERROR for user errors.
-  // GraphQL errors at 5xx, beside data, or caused by Expo may follow a request that ran.
   const errors = reason._tag === "ResponseError" ? reason.errors : [];
   const fault = errors.some(
     ({ extensions }) =>
@@ -193,8 +173,6 @@ const toExpoApiError = (
       status < 500 &&
       !uncertain &&
       (status >= 400 || reason._tag === "ResponseError"));
-  // Expo's own messages are the reason the user acts on, but nothing promises
-  // they never echo a request: the credential is cut out, and they are bounded.
   const secret = Redacted.value(credential.header.value);
   const token = secret.replace(/^Bearer /, "");
   const scrub = (text: string) =>
@@ -322,7 +300,6 @@ export const makeExpoApi = (http: HttpClient.HttpClient, credential: ExpoCredent
             name: input.name,
             maxRunTimeMinutes: input.maxRunTimeMinutes,
             maxIdleTimeMinutes: input.maxIdleTimeMinutes,
-            // Expo only issues the preview host's API URL when preview access is configured.
             corsOrigins: ["http://localhost"],
           },
         }),

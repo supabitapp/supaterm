@@ -14,7 +14,6 @@ function fileName(path: string): string {
   return path.slice(path.lastIndexOf("/") + 1);
 }
 
-/** Return null for unmatched subsequences; server-matched entries still render without highlights. */
 function findMatchIndices(value: string, query: string): number[] | null {
   if (!query) return [];
 

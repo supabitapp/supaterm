@@ -81,7 +81,6 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useAtomCommand } from "../../state/use-atom-command";
 
 function KeybindingPill({ value }: { value: string }) {
-  // Keys dedupe repeated parts; a literal "+" in a shortcut splits into empty strings.
   const seenParts = new Map<string, number>();
   const parts = value.split("+").map((part) => {
     const seen = seenParts.get(part) ?? 0;
@@ -733,7 +732,6 @@ function useKeybindingRowEditor({
     when: whenDraftExpression,
   });
 
-  // Giving an unassigned row a shortcut brings back its default condition.
   const setKeyDraft = (next: string, patch: Partial<KeybindingRowDraftState> = {}) =>
     setDraft({
       ...patch,
@@ -756,7 +754,6 @@ function useKeybindingRowEditor({
     if (event.key === "Tab" && !isRecording) return;
     event.preventDefault();
     if (event.key === "Escape") {
-      // An unhandled Escape closes the settings page.
       event.stopPropagation();
       const field = event.currentTarget;
       flushSync(() =>
@@ -768,7 +765,6 @@ function useKeybindingRowEditor({
             : {}),
         }),
       );
-      // The field may unmount for the pill; focus would otherwise drop to the page.
       if (pillRef.current) pillRef.current.focus();
       else field.blur();
       return;
@@ -900,7 +896,6 @@ function WhenClauseControl({
   onChange: (value: KeybindingWhenNode | undefined) => void;
   onValidityChange: (valid: boolean) => void;
 }) {
-  // Closing unmounts the builder, which drops an unparsed draft and keeps the last valid value.
   const handleOpenChange = (open: boolean) => {
     if (!open) onValidityChange(true);
   };
@@ -947,7 +942,6 @@ function KeybindingRowMenu({
 }) {
   const canReset = row.source === "Custom" && row.defaultKey !== null;
   const canUnassign = row.source === "Default";
-  // Reset to default is the way back; removing would drop the default for good.
   const canRemove = row.source !== "Default" && !row.isUnassigned;
 
   return (
@@ -1121,7 +1115,6 @@ function useNewKeybindingDraft({
     if (event.key === "Tab" && !isRecording) return;
     event.preventDefault();
     if (event.key === "Escape") {
-      // An unhandled Escape closes the settings page.
       event.stopPropagation();
       setDraft({ keyDraft: "", isRecording: false });
       event.currentTarget.blur();
@@ -1349,7 +1342,6 @@ function keybindingAnchorIds(rows: ReturnType<typeof buildKeybindingRows>) {
   return ids;
 }
 
-// Cache rows in a separate hook so the compiler does not rebuild them per search keystroke.
 function useKeybindingCatalog() {
   const serverKeybindings = useSettingsScope().environment?.serverConfig?.keybindings;
   const merged = mergeWithDefaultKeybindings(serverKeybindings ?? []);

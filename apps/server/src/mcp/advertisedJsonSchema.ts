@@ -9,7 +9,6 @@ const isNullSchema = (value: unknown) =>
 const isBareAnyOf = (value: unknown): value is { anyOf: Array<unknown> } =>
   Predicate.isObject(value) && Array.isArray(value.anyOf) && Object.keys(value).length === 1;
 
-// A `Schema.fromJsonString` fallback. Advertised beside object shapes, it invites stringified input.
 const isJsonStringSchema = (value: unknown) =>
   Predicate.isObject(value) &&
   value.type === "string" &&
@@ -20,7 +19,6 @@ const SAFE_INTEGER_BOUNDS: Record<string, number> = {
   minimum: Number.MIN_SAFE_INTEGER,
 };
 
-// Gemini rejects function declarations whose enums hold anything but strings.
 const isNonStringEnum = (key: string, value: unknown) =>
   key === "enum" && Array.isArray(value) && value.some((item) => typeof item !== "string");
 
@@ -31,7 +29,6 @@ const tagOf = (branch: JsonObject, key: string): unknown => {
     : undefined;
 };
 
-/** One object for a tagged union of objects: each property once, the tag listing every value. */
 const mergeTaggedObjects = (branches: ReadonlyArray<unknown>): JsonObject | undefined => {
   if (branches.length < 2) return undefined;
   const objects = branches.filter(

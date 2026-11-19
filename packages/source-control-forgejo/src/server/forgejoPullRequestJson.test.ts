@@ -73,9 +73,7 @@ describe("forgejoChangeRequest", () => {
     const head = { ref: "refs/pull/7/head", label: "feature" };
     const repo = { full_name: "maria/project" };
     assert.strictEqual(headBranch({ ...head, repo }, 0), "feature");
-    // A deleted fork leaves no repository to say whose `feature` that was.
     assert.strictEqual(headBranch({ ...head, repo: null }), "refs/pull/7/head");
-    // An AGit label is a `user/topic` name, not a branch.
     assert.strictEqual(headBranch({ ...head, label: "alice/topic", repo }, 1), "refs/pull/7/head");
   });
 

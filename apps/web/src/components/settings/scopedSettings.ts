@@ -139,7 +139,6 @@ export interface ScopedSettingsTarget {
 export function resolveScopedSettingsTargets(
   scope: ResolvedSettingsScope,
   connectedEnvironments: readonly ScopedSettingsEnvironment[],
-  // A member absent here has no file tier yet; null is a missing or invalid file.
   projectFiles?: ReadonlyMap<string, SupatermProjectFile | null>,
 ): readonly ScopedSettingsTarget[] {
   const byId = new Map(
@@ -281,7 +280,6 @@ export function planScopedSettingsPatch(
   ) as ServerSettingsPatch;
   const serverKeys = Object.keys(serverPatch);
   const { connectedEnvironments } = selectScopedSettingsEnvironments(scope, environments, null);
-  // Client settings are stored per device, so a project has nowhere to keep an override.
   const unscopableKeys = isProjectScope
     ? [
         ...(refusesClientKeys ? clientKeys : []),
@@ -298,9 +296,6 @@ export function planScopedSettingsPatch(
         ? unscopableKeys.length > 0
           ? []
           : projectOverrideWrites(scope, environments, (current, settings, projectId) => {
-              // Object-valued keys arrive as partial patches (the writing style
-              // rows send one field); an override entry stores the whole value,
-              // so complete the patch from the target's effective value.
               const effective = resolveProjectSettings(settings, projectId).settings;
               const next: Record<string, unknown> = { ...current };
               for (const [key, value] of Object.entries<unknown>(serverPatch)) {
@@ -314,8 +309,6 @@ export function planScopedSettingsPatch(
                   };
                   continue;
                 }
-                // A picker's "Inherit" sends null; for keys whose override
-                // cannot store null that means remove the override.
                 if (
                   value === null &&
                   !isNullableProjectSettingsOverride(key as ProjectScopedServerSettingKey)
@@ -493,11 +486,6 @@ function writeWasDropped(value: unknown, before: unknown, saved: unknown): boole
   return !unchanged && Equal.equals(saved, before);
 }
 
-/**
- * An older server drops keys it does not know, top-level or nested, and still
- * succeeds. Left unreported, the row stays mixed forever. Override removals
- * are patch-only, so there is no stored value to compare them against.
- */
 function droppedSettingKeys(write: ScopedServerWrite, saved: ServerSettings | undefined) {
   if (saved === undefined) return [];
   return Object.entries(write.patch).flatMap(([key, value]) =>
@@ -574,7 +562,6 @@ export function createScopedSettingsWriter(
         const save = (queues.get(environmentId) ?? Promise.resolve()).then(async () => {
           const copy = readSettings(environmentId);
           const response = responses.get(environmentId);
-          // A copy equal to one of our earlier responses is a delayed echo, older than the latest.
           const isOwnEcho = (settings: ServerSettings) =>
             response?.saved.some((saved) => Equal.equals(saved, settings)) === true;
           const continues =
@@ -587,7 +574,6 @@ export function createScopedSettingsWriter(
           const result = await persistServer({ environmentId, input: { patch: write.patch } });
           const savedCopy = readSettings(environmentId);
           if (result._tag === "Success" && result.value !== undefined && savedCopy !== null) {
-            // A changed copy may be a newer remote push or the delayed echo of our previous save.
             if (
               savedCopy === copy ||
               Equal.equals(savedCopy, settings) ||
@@ -637,7 +623,6 @@ async function persistScopedSettingsPlan(
 ) {
   if (plan.hasClientWrite) persistClient(plan.clientPatch);
   const results = await Promise.allSettled(plan.serverWrites.map(persistWrite));
-  // A queued write is replanned before it is sent, so judge the write that was sent.
   const writes = results.map((result, index) =>
     result.status === "fulfilled" ? result.value.write : plan.serverWrites[index]!,
   );

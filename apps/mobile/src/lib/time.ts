@@ -1,4 +1,3 @@
-// Host timestamps may carry UTC offsets or mixed fractions, so text order is not time order.
 export function compareTimestamps(left: string, right: string): number {
   return (Date.parse(left) || 0) - (Date.parse(right) || 0);
 }
@@ -39,6 +38,5 @@ export function msUntilRelativeTimeChange(
   const elapsedMs = Math.max(0, nowMs - timestamp);
   const unitMs = elapsedMs < 3_600_000 ? 60_000 : elapsedMs < 86_400_000 ? 3_600_000 : 86_400_000;
   const nextChangeMs = timestamp + (Math.floor(elapsedMs / unitMs) + 1) * unitMs;
-  // Far-future timestamps must not overflow setTimeout's signed 32-bit delay.
   return Math.min(nextChangeMs - nowMs, 86_400_000);
 }

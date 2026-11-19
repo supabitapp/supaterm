@@ -1,7 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off - Runs synchronously in the process "exit" event, where nothing async completes.
 import * as NodeFS from "node:fs";
 
-// Matches the backend's quit budget: SIGTERM, 5 s grace, SIGKILL, 1 s wait.
 const TERMINATE_GRACE_MS = 5_000;
 const KILL_WAIT_MS = 1_000;
 
@@ -13,7 +12,6 @@ const readProc = (path: string): string | undefined => {
   }
 };
 
-// Chromium launches helpers from its own threads, so each thread's children file is read.
 const childPids = (pid: number): ReadonlyArray<number> => {
   let tasks: ReadonlyArray<string>;
   try {
@@ -29,14 +27,12 @@ const childPids = (pid: number): ReadonlyArray<number> => {
   );
 };
 
-// A zygote rewrites its argv into one space-separated title.
 const isZygote = (pid: number): boolean =>
   (readProc(`/proc/${pid}/cmdline`) ?? "")
     .replaceAll("\0", " ")
     .split(" ")
     .includes("--type=zygote");
 
-// A zombie has already released its memory mappings.
 const isRunning = (pid: number): boolean => {
   const stat = readProc(`/proc/${pid}/stat`);
   if (stat === undefined) return false;

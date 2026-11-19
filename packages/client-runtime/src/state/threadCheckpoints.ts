@@ -45,8 +45,6 @@ export function deriveThreadCheckpointSummaries(
       }
       nextMessageIndex = messages.length - 1;
     }
-    // Resume the reverse scan only as far as this checkpoint needs. Recent
-    // checkpoints must not force a traversal of unrelated older history.
     while (nextMessageIndex >= 0 && assistantMessageIdsByRun.get(checkpoint.runId) === undefined) {
       const message = messages[nextMessageIndex--]!;
       const { runId, role } = message;

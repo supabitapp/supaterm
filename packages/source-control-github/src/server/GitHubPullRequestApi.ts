@@ -344,7 +344,6 @@ const isRefusedRequestedReviewersOnly = (error: unknown): boolean =>
   isGraphQlClientError(error) &&
   error.reason._tag === "ResponseError" &&
   error.reason.status === 200 &&
-  // A missing pull ref can come along; the retried read tolerates it.
   error.reason.errors.every((graphQlError) => {
     const { path, type } = graphQlError;
     return (
@@ -371,10 +370,6 @@ const isMissingPullRefOnly = <E>(
   error.reason.status === 200 &&
   error.reason.errors.every(isMissingPullRef);
 
-/**
- * GitHub can lack `refs/pull/<number>/head` for a pull request it otherwise answers, and then
- * fails only the comparison against it. The rest of that answer stands, its comparison unknown.
- */
 const toleratingMissingPullRef =
   <A, R2>(decode: (data: unknown) => Effect.Effect<A, Schema.SchemaError, R2>) =>
   <E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -386,10 +381,8 @@ const toleratingMissingPullRef =
 const decodePullRequestCore = Schema.decodeUnknownEffect(PullRequestCore.result);
 const decodePullRequestActionState = Schema.decodeUnknownEffect(PullRequestActionState.result);
 
-/** A large pull request can produce a multi-megabyte patch; past this it is truncated. */
 const DIFF_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const WITHHELD_FILE_DIFF_MAX_OUTPUT_BYTES = 32 * 1024 * 1024;
-// Withheld files are mostly minified bundles; megabyte lines would freeze the client's layout.
 const WITHHELD_FILE_MAX_LINE_LENGTH = 1_000;
 const DIFF_TIMEOUT = Duration.seconds(60);
 const DIFF_FILE_MAX_OUTPUT_BYTES = 1024 * 1024;
@@ -407,10 +400,6 @@ interface GitHubPullRequestListPage<Item = GitHubPullRequestListItem> {
   readonly endCursor: string | null;
 }
 
-/**
- * Pages of up to a hundred until `rows` have arrived or GitHub has no more. Each page asks
- * for only the rows still missing, so the last one does not overshoot.
- */
 const collect = Effect.fn("GitHubPullRequestApi.collect")(function* <Item, E>(
   rows: number,
   page: (after: string | null, rows: number) => Effect.Effect<GitHubPullRequestListPage<Item>, E>,
@@ -426,7 +415,6 @@ const collect = Effect.fn("GitHubPullRequestApi.collect")(function* <Item, E>(
     pages.push(read);
     const next = read.endCursor;
     if (next === null) break;
-    // `truncated` also covers a cursor GitHub repeated before `rows` arrived.
     if (seen.has(next) || countRows(pages) >= rows) {
       truncated = true;
       break;
@@ -443,10 +431,8 @@ const collect = Effect.fn("GitHubPullRequestApi.collect")(function* <Item, E>(
 
 const PULL_REQUEST_FALLBACK_MAX_ROWS = 1_000;
 
-// Larger pages make GitHub drop patches and report those files as 0/0.
 const DIFF_FILES_PAGE_SIZE = 30;
 const FILES_VIEWED_MAX_PAGES = 5;
-/** Files cleared or restored per request; a reader rarely ticks more than a page of them at once. */
 const FILES_VIEWED_PER_REQUEST = 100;
 
 export const NODE_ID_CACHE_CAPACITY = 128;
@@ -469,16 +455,7 @@ export interface GitHubPullRequestStat {
   readonly deletions: number;
 }
 
-/**
- * Aliased lookups per request. Measured over a hundred rows: one request carrying all hundred
- * takes ~5.2s, four of twenty-five in parallel ~2.1s. `GitHubRequestPolicy` bounds how many run at once.
- */
 const STAT_ALIASES_PER_REQUEST = 25;
-/**
- * The background sync asks for every linked pull request at once, and each read reaches the
- * resolver after its own cache check, so a batch needs a moment longer than one scheduler
- * tick to gather them.
- */
 const SUMMARY_BATCH_WINDOW = "10 millis";
 
 export type GitHubListInvolvement = PullRequestInvolvement | "involved";
@@ -873,11 +850,6 @@ function parseRepositorySelector(value: string): {
   return { name: parts.at(-1) ?? "", owner: parts.at(-2) ?? "" };
 }
 
-/**
- * The cursor arrives from the reader as a string and goes straight into a request path, so
- * it is parsed rather than trusted; the length bound keeps a page number out of exponential
- * notation.
- */
 function diffCursorPage(cursor: string): number | null {
   return /^[1-9][0-9]{0,6}$/.test(cursor) ? Number(cursor) : null;
 }
@@ -889,11 +861,6 @@ const REVIEW_QUALIFIERS = {
   none: "none",
 } as const;
 
-/**
- * Values a reader typed are quoted, and the one character that could end the quoted value early
- * is dropped rather than escaped: no GitHub label or login holds a double quote, so there is
- * nothing to preserve and everything to lose.
- */
 function qualifierValue(value: string): string {
   return `"${value.replaceAll('"', "").trim()}"`;
 }
@@ -904,7 +871,6 @@ function filterQualifiers(
 ): ReadonlyArray<string> {
   if (filters === undefined) return [];
   return [
-    // One qualifier per group, its names joined by commas — GitHub's own OR.
     ...(filters.labels ?? []).flatMap((group) =>
       group.length === 0 ? [] : [`label:${group.map(qualifierValue).join(",")}`],
     ),
@@ -955,8 +921,6 @@ function matchesUnsortedListing(
   const matchesState = input.state === "all" || item.state === input.state;
   const viewer = input.viewer.toLowerCase();
   const authored = item.author?.login.toLowerCase() === viewer;
-  // A row names no assignees, mentions or commenters, so of what `involves:` matches, only
-  // authorship can be checked here.
   const matchesInvolvement: Record<GitHubListInvolvement, boolean> = {
     all: true,
     authored,
@@ -974,11 +938,6 @@ function matchesUnsortedListing(
 
 const SEARCH_REPOSITORY = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/;
 
-/**
- * A name is written into the query as itself, and a name holding a space could otherwise end
- * the `repo:` qualifier and start a qualifier of its own — so an unaddressable one refuses the
- * whole read rather than being escaped into something GitHub might still read.
- */
 function searchQuery(input: {
   readonly repositories: ReadonlyArray<string>;
   readonly state: PullRequestListState;
@@ -1008,7 +967,6 @@ function searchQuery(input: {
   ].join(" ");
 }
 
-/** The two revisions a file is expanded between: a pull request's base and head, or a commit's parent and itself. */
 const decodeRevisionRefs = Schema.decodeUnknownOption(
   Schema.fromJsonString(
     Schema.Struct({
@@ -1020,19 +978,16 @@ const decodeRevisionRefs = Schema.decodeUnknownOption(
   ),
 );
 
-/** Where a pull request's head forked off its base, the commit its patch is computed from. */
 const decodeMergeBase = Schema.decodeUnknownOption(
   Schema.fromJsonString(
     Schema.Struct({ merge_base_commit: Schema.Struct({ sha: Schema.String }) }),
   ),
 );
 
-// GitHub has no fast-forward-only merge; the service refuses methods a host does not advertise.
 const GRAPHQL_MERGE_METHODS: Partial<
   Record<PullRequestMergeMethod, "MERGE" | "SQUASH" | "REBASE">
 > = { merge: "MERGE", squash: "SQUASH", rebase: "REBASE" };
 
-/** Every GraphQL read and write this module makes, through GitHub's auth and rate limits. */
 const PullRequestGraphQLGroup = GraphQLGroup.merge(
   PullRequestBatchesGraphQLGroup,
   GraphQLGroup.make(LenientPullRequestSearch, LenientPullRequestList),
@@ -1094,7 +1049,6 @@ export const make = Effect.gen(function* () {
               const cached = routingIdentities.get(key);
               if (cached !== undefined && now - cached.at < 10 * 60_000)
                 return { ...credential, ...cached.value };
-              // Pin verification so an auth switch cannot poison its cache entry.
               const identity = yield* api
                 .rest({ host, operation: "getRoutingIdentity", path: "user", allowReserve: true })
                 .pipe(
@@ -1102,7 +1056,6 @@ export const make = Effect.gen(function* () {
                     decodeRoutingIdentity(response.body).pipe(Effect.mapError(unavailable)),
                   ),
                   Effect.catchTags({
-                    // The enclosing operation owns the span for this inline handler.
                     GitHubApiResponseError: Effect.fnUntraced(function* (error) {
                       if (error.status !== 403) return yield* error;
                       const { viewer } = yield* client.RoutingIdentityViewer({}).pipe(
@@ -1163,11 +1116,6 @@ export const make = Effect.gen(function* () {
   const readError = (cwd: string, operation: string, cause: unknown) =>
     new GitHubPullRequestReadError({ cwd, operation, cause });
 
-  /**
-   * Runs one generated GraphQL call against `host`, reported as `operation`. GitHub's `errors`
-   * fail it as a not found, or a response error with GitHub's messages; an answer that does not
-   * decode is a read error against `operation`.
-   */
   const graphql =
     (input: {
       readonly cwd: string;
@@ -1198,7 +1146,6 @@ export const make = Effect.gen(function* () {
         ),
       );
 
-  /** Fails a read GitHub answered with nothing for the pull request it was asked about. */
   const found =
     (input: { readonly host: string; readonly operation: string }) =>
     <A>(value: A | null): Effect.Effect<A, GitHubRequestPolicy.GitHubApiNotFoundError> =>
@@ -1211,11 +1158,6 @@ export const make = Effect.gen(function* () {
           )
         : Effect.succeed(value);
 
-  /**
-   * The pages of a cursor connection, read one after another until GitHub has no more,
-   * `maxPages` have been read, or `until` is satisfied. `truncated` says pages remained when
-   * reading stopped; a cursor GitHub hands back a second time stops the read as truncated too.
-   */
   const readPages = Effect.fn("GitHubPullRequestApi.readPages")(function* <Page, E, R>(
     stream: Stream.Stream<Page, E | GraphQLClientError.GraphQLClientError, R>,
     options: {
@@ -1229,7 +1171,6 @@ export const make = Effect.gen(function* () {
     const pages: Page[] = [];
     let repeated = false;
     yield* stream.pipe(
-      // `pages` fails a cursor GitHub hands back unchanged, which would page forever.
       Stream.catch((error) =>
         isGraphQlClientError(error) && error.reason._tag === "PaginationError"
           ? Stream.sync(() => {
@@ -1252,13 +1193,6 @@ export const make = Effect.gen(function* () {
     return { pages, truncated: repeated || (last !== undefined && options.hasNextPage(last)) };
   });
 
-  /**
-   * The pull request's own node id, which is what a mutation against the pull request itself is
-   * addressed by: a reaction on its description, or a rewrite of its words.
-   *
-   * A pull request keeps its node id for life, so it is remembered rather than re-read: a reader
-   * ticking files viewed would otherwise pay a GraphQL round trip per press.
-   */
   const nodeIds = new Map<string, string>();
 
   const pullRequestNodeId = (input: {
@@ -1292,11 +1226,6 @@ export const make = Effect.gen(function* () {
     );
   };
 
-  /**
-   * A subject id is trusted to be whatever node it names, and that node can hang off any pull
-   * request on the host — so the mutation itself would write wherever the id actually belongs,
-   * not wherever the request says it does, unless this confirms the two agree first.
-   */
   const subjectBelongsToPullRequest = (input: {
     readonly cwd: string;
     readonly repository: string;
@@ -1311,7 +1240,6 @@ export const make = Effect.gen(function* () {
       .pipe(graphql({ ...input, allowReserve: true }), Effect.map(isSubjectOfPullRequest));
   };
 
-  /** Decodes an answer, reporting a failure against the read that made it. */
   const decodeWith = <A>(
     cwd: string,
     operation: string,
@@ -1324,7 +1252,6 @@ export const make = Effect.gen(function* () {
       : Effect.fail(readError(cwd, operation, decoded.failure));
   };
 
-  /** A REST read whose JSON answer is decoded the same way. */
   const restRead = <A>(input: RestReadInput<A>): Effect.Effect<A, GitHubPullRequestApiError> =>
     api
       .rest({ host: input.host, operation: input.operation, path: input.path })
@@ -1334,10 +1261,6 @@ export const make = Effect.gen(function* () {
         ),
       );
 
-  // The last ETag and body of each polled REST read, so an unchanged answer comes back as a
-  // 304, which GitHub does not charge. Keyed by the credential the request is pinned to, so a
-  // validator never revalidates another account's body. A 304 writes the entry back, so one
-  // that is still polled outlives its time to live.
   const validators = yield* Cache.make({
     capacity: 512,
     timeToLive: "1 hour",
@@ -1400,8 +1323,6 @@ export const make = Effect.gen(function* () {
       })
       .pipe(
         Effect.flatMap((response) => {
-          // Checked before decoding: a byte-truncated response is a JSON prefix, which would
-          // fail to parse.
           if (response.truncated) {
             return Effect.fail(
               readError(
@@ -1419,8 +1340,6 @@ export const make = Effect.gen(function* () {
           );
         }),
         Effect.map((files) => {
-          // Counted before decoding, so a page whose files all failed to decode still moves on
-          // rather than pointing the reader back at the page it just read.
           const morePages = files.rawCount >= DIFF_FILES_PAGE_SIZE;
           return {
             patch: files.patch,
@@ -1473,9 +1392,6 @@ export const make = Effect.gen(function* () {
           ...(input.commit === undefined ? {} : { commit: input.commit }),
         });
       }
-      // A pull request's patch runs from the merge base, and the base branch may have moved on
-      // since, so its old side is read there. Page 2 of a compare leaves out the file list; a
-      // failed read falls back to the base branch tip.
       const oldRef =
         input.commit === undefined && input.changeType !== "new"
           ? yield* api
@@ -1534,14 +1450,8 @@ export const make = Effect.gen(function* () {
       return { oldContents, newContents };
     });
 
-  /** `isRequired` is asked for on github.com only: an older Enterprise server may not know it. */
   const asksRequired = (host: string) => host.toLowerCase() === "github.com";
 
-  /**
-   * Every check context of the head commit, a page at a time, for a rollup the detail read cut at
-   * its first hundred. Each page names the head it read, so a push mid-walk fails rather than
-   * mixing two revisions' checks.
-   */
   const readAllCheckContexts = Effect.fn("GitHubPullRequestApi.readAllCheckContexts")(function* (
     input: Parameters<GitHubPullRequestApi["Service"]["getPullRequestDetail"]>[0],
     allowReserve: boolean,
@@ -1576,8 +1486,6 @@ export const make = Effect.gen(function* () {
     return { contexts, truncated: first.nextCursor === null || after !== null };
   });
 
-  // GitHub refuses a requested-reviewer list holding a team the viewer cannot see. Remember the
-  // refusal so later reads of that pull request skip straight to the read without reviewers.
   const refusedReviewers = yield* Cache.make({
     capacity: 512,
     timeToLive: "10 minutes",
@@ -1693,8 +1601,6 @@ export const make = Effect.gen(function* () {
       const known = yield* KnownWorkflowRuns;
       if (known !== null && known.headSha === input.headSha) {
         return known.runs.flatMap((run) =>
-          // A run waiting on a maintainer reports `completed` with an `action_required`
-          // conclusion; the `status=action_required` query matches either.
           (run.conclusion === "action_required" || run.status === "action_required") &&
           run.head_branch === input.headBranch
             ? [
@@ -1787,7 +1693,6 @@ export const make = Effect.gen(function* () {
         { concurrency: 2 },
       ).pipe(Effect.map(([, runs]) => runs));
 
-  /** The mutations that only need the pull request's node id. */
   const simpleActionMutations = {
     "disable-auto-merge": (pullRequestId: string) =>
       client
@@ -1811,7 +1716,6 @@ export const make = Effect.gen(function* () {
         .pipe(Effect.map((result) => result.reopenPullRequest?.pullRequest)),
   } satisfies Partial<Record<PullRequestAction, unknown>>;
 
-  /** The mutation already landed, so a reply that does not decode only loses the summary. */
   const actionSummary = <E, R>(
     effect: Effect.Effect<PullRequestActionSummary | null | undefined, E, R>,
   ) =>
@@ -1823,12 +1727,6 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  /**
-   * Runs batched lookups for one read on `host`. The resolver groups them by host and credential.
-   * GitHub saying one pull request does not exist fails that lookup as not found; any other client
-   * failure is a read error against `operation`, and a request policy failure (a rate limit, a
-   * refused credential) passes through as itself.
-   */
   const batchedRead = <A, E, R>(
     input: { readonly cwd: string; readonly host: string; readonly operation: string },
     effect: Effect.Effect<A, E, R>,
@@ -1857,12 +1755,6 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  /**
-   * Summaries asked for together, on one host under one credential, share aliased GraphQL reads
-   * of twenty-five: the background sync reads every linked pull request each minute, and one read
-   * apiece is most of what it spends. A pull request GitHub cannot find fails on its own; the
-   * rest of its batch still answers.
-   */
   const summaryResolver = GraphQLResolver.aliased(client.PullRequestSummary, {
     batchKey: GitHubGraphQlClient.batchKey,
   }).pipe(
@@ -1899,8 +1791,6 @@ export const make = Effect.gen(function* () {
       ),
   );
 
-  // Every watched pull request on a host in one read per pass. A pull request the batch has no
-  // answer for gets null, and its watch reads it in full; a failed request fails every entry.
   const watchFingerprintResolver = GraphQLResolver.aliased(client.PullRequestWatchFingerprint, {
     batchKey: GitHubGraphQlClient.batchKey,
   }).pipe(
@@ -1924,8 +1814,6 @@ export const make = Effect.gen(function* () {
       );
     };
 
-  // Rows already on a page, enriched with what the listing query leaves out. They are many, so
-  // their lookups share aliased requests of twenty-five, four at a time.
   const statsResolver = GraphQLResolver.aliased(client.PullRequestStats, {
     batchKey: GitHubGraphQlClient.batchKey,
   }).pipe(RequestResolver.batchN(STAT_ALIASES_PER_REQUEST));
@@ -1938,8 +1826,6 @@ export const make = Effect.gen(function* () {
     RequestResolver.setDelay(SUMMARY_BATCH_WINDOW),
     RequestResolver.batchN(STAT_ALIASES_PER_REQUEST),
   );
-  // A burst of ticks is one request, each file under its own alias. GitHub has no bulk form of
-  // `markFileAsViewed`/`unmarkFileAsViewed`, which each take a single path.
   const setFileViewedResolver = GraphQLResolver.aliased(client.SetFileViewed, {
     batchKey: GitHubGraphQlClient.batchKey,
   }).pipe(RequestResolver.batchN(FILES_VIEWED_PER_REQUEST));
@@ -1974,8 +1860,6 @@ export const make = Effect.gen(function* () {
         pageInfo: { hasNextPage: page.endCursor !== null, endCursor: page.endCursor },
       });
       const stacks = input.host.toLowerCase() === "github.com";
-      // Search cannot exclude numbers, so the rows already delivered at the boundary come back
-      // first; read past them so they do not use up the limit.
       const seenAt = new Set(input.cursor?.seenAt ?? []);
       const isSeen = (item: GitHubPullRequestListItem) =>
         item.updatedAt === input.cursor?.updatedBefore && seenAt.has(item.number);
@@ -1987,11 +1871,9 @@ export const make = Effect.gen(function* () {
           (continues
             ? client
                 .PullRequestSearch({
-                  // The reader's own words are in the query.
                   q: query,
                   first: pageRows(rows),
                   after,
-                  // Stack badges come from their own batched read below, for the rows that stay.
                   stacks: false,
                   stats: true,
                 })
@@ -2007,8 +1889,6 @@ export const make = Effect.gen(function* () {
                   stats: true,
                 })
                 .pipe(
-                  // A repository the viewer cannot see answers as an empty page, which is what
-                  // `gh pr list` printed for it too.
                   Effect.map((result) =>
                     toPage(toPullRequestRows(result.repository?.pullRequests)),
                   ),
@@ -2030,8 +1910,6 @@ export const make = Effect.gen(function* () {
             }
             return Effect.succeed({
               items: items.slice(0, input.limit),
-              // One row over the page size is the probe for a next page, and it is
-              // counted before decoding: a skipped malformed row must not end paging.
               truncated:
                 cutShort ||
                 (continues
@@ -2041,8 +1919,6 @@ export const make = Effect.gen(function* () {
             });
           }),
         );
-      // Unindexed repositories silently return no search rows, and search can fail while the
-      // listing answers. The listing cannot apply a text query or an `updated:<=` cursor.
       const listingServes = input.cursor === undefined && (input.query?.trim().length ?? 0) === 0;
       const listed = read(true).pipe(
         Effect.matchEffect({
@@ -2051,7 +1927,6 @@ export const make = Effect.gen(function* () {
           onFailure: (error) =>
             listingServes && isGitHubServerError(error) ? read(false) : Effect.fail(error),
         }),
-        // Match the search query's host support, and enrich only rows that survived paging.
         Effect.filterOrElse(
           (batch) => !stacks || batch.items.length === 0,
           (batch) =>
@@ -2069,7 +1944,6 @@ export const make = Effect.gen(function* () {
                     const stack = pullRequest == null ? undefined : toStackMembership(pullRequest);
                     return stack === undefined ? item : { ...item, stack };
                   }),
-                  // Optional badges must not take down a listing that already read successfully.
                   Effect.catch((error) =>
                     Effect.logWarning("Pull request stack membership enrichment failed", {
                       operation: "listPullRequestStackMemberships",
@@ -2089,9 +1963,6 @@ export const make = Effect.gen(function* () {
             ),
         ),
       );
-      // GitHub answers a private repository the token cannot see as missing, and its error names
-      // the credential that request carried. The credential is pinned for the whole read, so a
-      // token changed mid-read does not split it.
       const host = normalizeHost(input.host);
       return api.credential(host).pipe(
         Effect.flatMap(({ token, fingerprint, source }) =>
@@ -2117,8 +1988,6 @@ export const make = Effect.gen(function* () {
           operation: "searchPullRequests",
         });
       }
-      // Search cannot exclude numbers, so the rows already delivered at the boundary come back
-      // first; read past them so they do not use up the limit.
       const seenAt = new Set(
         (input.cursor?.seenAt ?? []).map(
           ({ repository, number }) => `${repository.trim().toLowerCase()}#${number}`,
@@ -2139,7 +2008,6 @@ export const make = Effect.gen(function* () {
               graphql({ ...input, operation: "searchPullRequests" }),
               Effect.map(({ search }) => {
                 const page = toPullRequestRows(search);
-                // A short page that says it has more is where this read stops, not a gap to read past.
                 const short = page.endCursor !== null && page.rawCount < pageRows(rows);
                 if (short) endedShort = true;
                 return {
@@ -2196,8 +2064,6 @@ export const make = Effect.gen(function* () {
             operation: "listPullRequestStats",
           });
         }
-        // A repository or pull request GitHub answered nothing for is left out, which leaves the
-        // row with whatever it already had.
         const stats = yield* Effect.forEach(
           lookups,
           ({ changeRequest, lookup }) =>
@@ -2242,7 +2108,6 @@ export const make = Effect.gen(function* () {
     listUnfinishedWorkflowRuns: Effect.fn("GitHubPullRequestApi.listUnfinishedWorkflowRuns")(
       function (input) {
         const { owner, name } = parseRepositorySelector(input.repository);
-        // Read with every pull request detail, so revalidate it.
         return revalidatedRestRead({
           cwd: input.cwd,
           host: input.host,
@@ -2255,7 +2120,6 @@ export const make = Effect.gen(function* () {
 
     getPullRequestStack: Effect.fn("GitHubPullRequestApi.getPullRequestStack")(function (input) {
       const { owner, name } = parseRepositorySelector(input.repository);
-      // Polled by the pull request sync for every linked pull request, so revalidate it.
       return revalidatedRestRead({
         cwd: input.cwd,
         host: input.host,
@@ -2274,8 +2138,6 @@ export const make = Effect.gen(function* () {
             decode: (raw) => decodePullRequestStacksJson(`[${raw}]`),
           });
         }),
-        // Hosts without the stacks preview return 404. Other failures must preserve the
-        // previously synced stack and let the caller retry.
         Effect.catchTags({
           GitHubApiNotFoundError: () => Effect.succeed(null),
         }),
@@ -2294,7 +2156,6 @@ export const make = Effect.gen(function* () {
         let withComments = true;
         let withReviews = true;
         const target = { ...input, operation: "getPullRequestActivity" };
-        // Both remark lists page on their own; a page asks only for the ones with more to give.
         const readPage = Effect.fn("GitHubPullRequestApi.readActivityPage")(function* (
           page: number,
         ) {
@@ -2383,8 +2244,6 @@ export const make = Effect.gen(function* () {
           maxResponseBytes,
           timeout: DIFF_TIMEOUT,
         });
-      // GitHub has no per-file diff, so a withheld file is cut from the whole patch here and
-      // only its section reaches the client.
       if (input.path !== undefined) {
         const path = input.path;
         return fullDiff(WITHHELD_FILE_DIFF_MAX_OUTPUT_BYTES).pipe(
@@ -2417,7 +2276,6 @@ export const make = Effect.gen(function* () {
           ? Effect.fail(new GitHubDiffCursorError({ cwd: input.cwd }))
           : filesPage(page);
       }
-      // A withheld file is read from the whole diff, so it is readable unless GitHub refused that.
       const readableFirstPage = () =>
         filesPage(1).pipe(
           Effect.map((slice): GitHubPullRequestDiffSlice => ({
@@ -2434,8 +2292,6 @@ export const make = Effect.gen(function* () {
             ? readableFirstPage()
             : Effect.succeed({ patch: response.body, truncated: false, nextCursor: null }),
         ),
-        // Above 300 changed files (or about 20,000 lines), GitHub returns 406; use the paged
-        // files API. That refusal also covers a single file's read, so none is offered.
         Effect.catchTags({
           GitHubApiResponseError: (error) => filesPage(1).pipe(Effect.mapError(() => error)),
         }),
@@ -2490,7 +2346,6 @@ export const make = Effect.gen(function* () {
         const dismissalCursor = first.nextDismissalCursor;
         let cursor = first.nextCursor;
         let page = 1;
-        // Later pages carry the threads alone; the PR-wide fields above come from the first.
         while (cursor !== null && page < REVIEW_THREAD_PAGES) {
           const later: Pick<
             GitHubReviewThreadPage,
@@ -2516,7 +2371,6 @@ export const make = Effect.gen(function* () {
             readonly dismissalsByReviewId: ReadonlyMap<string, string>;
           }> = [];
           const seen = new Set<string>();
-          // Carries on from the thread read's own cursor, which `GraphQLClient.pages` cannot.
           while (after !== null && pages.length < REVIEW_THREAD_PAGES && !seen.has(after)) {
             seen.add(after);
             const read: {
@@ -2644,7 +2498,6 @@ export const make = Effect.gen(function* () {
       function (input) {
         const { owner, name } = parseRepositorySelector(input.repository);
         const parsed = /^\d+$/.test(input.query ?? "") ? Number(input.query) : 0;
-        // GraphQL validates `$number: Int!` even when `@include` skips the lookup.
         const exact = parsed > 0 && parsed <= 2_147_483_647;
         const search = (lookup: boolean) =>
           client.RepositoryReferences({
@@ -2655,7 +2508,6 @@ export const make = Effect.gen(function* () {
             exact: lookup,
           });
         return search(exact).pipe(
-          // A missing number fails the whole query, which would discard the search results.
           Effect.catchIf(
             (error) => exact && isNotFoundOnly(error),
             () => search(false),
@@ -2741,7 +2593,6 @@ export const make = Effect.gen(function* () {
               reason: "source-unavailable",
             });
           }
-          // Already gone, which is what was asked for.
           if (repository.ref === null) return;
           if (
             repository.defaultBranchRef === null ||
@@ -2884,8 +2735,6 @@ export const make = Effect.gen(function* () {
       }
       return Effect.gen(function* () {
         const { owner, name } = parseRepositorySelector(input.repository);
-        // Read fresh rather than from the node id cache: merging and updating act on the head
-        // as it stands now, and the merge queue decides which mutation a merge is.
         const target = { ...input, operation: "runPullRequestAction" };
         const state = yield* client
           .PullRequestActionState({
@@ -2902,7 +2751,6 @@ export const make = Effect.gen(function* () {
           );
         if (action === "update-branch") {
           if (state.baseRef?.compare?.behindBy === 0) return;
-          // GitHub updates with a merge commit unless asked to rebase, which is its own default.
           return yield* client
             .UpdatePullRequestBranch({
               pullRequestId: state.id,
@@ -2930,7 +2778,6 @@ export const make = Effect.gen(function* () {
               Effect.map((result) => result.repository?.pullRequest ?? null),
               Effect.flatMap(found(target)),
             );
-          // GitHub's merge queue chooses its own message and ignores custom text.
           if (!message.isMergeQueueEnabled) {
             const cleaned = removeAgentCredits(message.viewerMergeBodyText);
             if (cleaned !== message.viewerMergeBodyText) {
@@ -2939,8 +2786,6 @@ export const make = Effect.gen(function* () {
             }
           }
         }
-        // Merge queues always use auto-merge. A PR that became ready since detail loaded
-        // merges directly, matching `gh pr merge --auto`.
         const auto =
           state.isMergeQueueEnabled === true ||
           (action === "enable-auto-merge" &&
@@ -3063,8 +2908,6 @@ export const make = Effect.gen(function* () {
         const target = { ...input, operation: "setPullRequestFilesViewed" };
         return pullRequestNodeId(target).pipe(
           Effect.flatMap((pullRequestId) =>
-            // One aliased document for the burst: top-level mutation fields run in write order,
-            // so the last word about a path is the one that sticks.
             Effect.forEach(
               input.files,
               (file) =>
@@ -3132,8 +2975,6 @@ export const make = Effect.gen(function* () {
               ...(input.maintainerCanModify === undefined
                 ? {}
                 : { maintainerCanModify: input.maintainerCanModify }),
-              // A field the caller did not name is left out of the request entirely, so GitHub
-              // keeps the words that are there rather than being asked for an empty one.
               ...(input.title === undefined ? {} : { title: input.title }),
               ...(input.body === undefined ? {} : { body: input.body }),
             })

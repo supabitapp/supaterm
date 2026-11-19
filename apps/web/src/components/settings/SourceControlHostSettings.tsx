@@ -43,7 +43,6 @@ export function SourceControlHostSettings({
   };
 
   return (
-    // Locked while saving, so an edit made mid-request is not overwritten by the saved value.
     <fieldset disabled={saving || !canWriteSettings} className="contents">
       {!canWriteSettings ? (
         <p className="text-xs text-muted-foreground">

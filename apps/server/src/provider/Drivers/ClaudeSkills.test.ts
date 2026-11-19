@@ -11,7 +11,6 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import { discoverClaudeSkills as discoverSkills } from "./ClaudeSkills.ts";
 import { planClaudeSkillDispatch } from "./ClaudeSkillDispatch.ts";
 
-// Windows makes the managed directory fixture-controlled without reading host policy or skills.
 const discoverClaudeSkills = (
   ...[config, cwd, environment = {}]: Parameters<typeof discoverSkills>
 ) =>
@@ -31,7 +30,6 @@ const writeSkill = Effect.fn(function* (
   yield* fs.writeFileString(path.join(skillDir, "SKILL.md"), contents);
 });
 
-// Synced rows named pstack and PSTACK need separate folders.
 const caseSensitiveTempDir = !NodeFS.existsSync(NodeOS.tmpdir().toUpperCase());
 
 it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
@@ -230,7 +228,6 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      // Real path: macOS temp dirs sit behind a /var -> /private/var symlink.
       const tempDir = yield* fs.realPath(
         yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-claude-skills-" }),
       );
@@ -664,7 +661,6 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
         ],
       );
 
-      // Managed enabledPlugins entries lock their plugin name against inline copies.
       const programFiles = path.join(workspace, "program-files");
       yield* fs.makeDirectory(path.join(programFiles, "ClaudeCode"), { recursive: true });
       yield* fs.writeFileString(
@@ -959,7 +955,6 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
 
       const skills = yield* discoverClaudeSkills({ homePath: configDir }, undefined);
 
-      // Claude falls back to directory names without frontmatter, but skips malformed frontmatter.
       assert.deepEqual(
         skills.map((skill) => skill.name),
         ["no-frontmatter"],
@@ -1014,7 +1009,6 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
       const workspace = path.join(tempDir, "workspace");
       yield* fs.makeDirectory(workspace, { recursive: true });
 
-      // The CLI resolves relative CLAUDE_CONFIG_DIR against workspace cwd.
       yield* writeSkill(
         path.join(workspace, "relative-config", "skills"),
         "relative-skill",
@@ -1136,7 +1130,6 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
           ["---", `name: ${name}`, "---", "", "# Body"].join("\n"),
         );
       }
-      // Claude ignores the entire override map when any value is an unknown string or boolean.
       yield* fs.writeFileString(
         path.join(configDir, "settings.json"),
         '{ "skillOverrides": { "unknown-mode": "some-future-mode", "boolean-false": false, "sibling-off": "off" } }',
@@ -1174,12 +1167,10 @@ it.layer(NodeServices.layer)("discoverClaudeSkills", (it) => {
       yield* fs.makeDirectory(path.join(repo, ".git"), { recursive: true });
       yield* fs.makeDirectory(path.join(repo, ".claude"), { recursive: true });
       yield* fs.makeDirectory(path.join(workspace, ".claude"), { recursive: true });
-      // The CLI ignores the root's plain settings.json from a nested cwd.
       yield* fs.writeFileString(
         path.join(repo, ".claude", "settings.json"),
         '{ "skillOverrides": { "cwd-off-root-on": "off" } }',
       );
-      // The root local file outranks the workspace local file, as in the CLI.
       yield* fs.writeFileString(
         path.join(repo, ".claude", "settings.local.json"),
         '{ "skillOverrides": { "root-off": "off", "root-off-cwd-on": "off", "cwd-off-root-on": "on" } }',

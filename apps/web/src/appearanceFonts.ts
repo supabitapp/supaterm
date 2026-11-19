@@ -18,8 +18,6 @@ const DEFAULT_SANS_FONT_STACK = `"${DEFAULT_SANS_FONT_FAMILY}", -apple-system, B
 
 export const DEFAULT_CODE_FONT_FAMILY = "JetBrains Mono";
 
-// Concrete names first: some engines alias `ui-monospace` to the
-// proportional system UI font, which would break every code surface.
 const DEFAULT_CODE_FONT_STACK = `"${DEFAULT_CODE_FONT_FAMILY}", "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace`;
 
 export const TYPOGRAPHY_ADVANCED_STORAGE_KEY = "supaterm:typography-advanced";
@@ -146,7 +144,6 @@ function clampCodeFontSize(value: number): number {
 }
 
 const FONT_PROBE_TEXT = "mmmmmmmmMMWli1O0@# fjord";
-// The widest single-digit `ol` marker; CSS can't measure it to size the list gutter.
 const LIST_MARKER_PROBE_TEXT = "0. ";
 const PROBE_FONT_SIZE = 16;
 let fontProbeContext: CanvasRenderingContext2D | null | undefined;
@@ -243,12 +240,8 @@ export async function queryInstalledFontFamilies(): Promise<InstalledFontFamilie
   try {
     const fonts = await query.call(window);
     const families = [...new Set(fonts.map((font) => font.family))]
-      // Dot-prefixed families are macOS-internal UI faces; selecting one is
-      // never intended and most refuse to render for web content anyway.
       .filter((family) => !family.startsWith("."))
       .sort((left, right) => left.localeCompare(right));
-    // A denied permission check resolves with an empty list instead of
-    // throwing; no machine has zero fonts, so treat empty as denied.
     if (families.length === 0) return { families: [], status: "denied" };
     installedFamiliesCache = { families, status: "granted" };
     return installedFamiliesCache;

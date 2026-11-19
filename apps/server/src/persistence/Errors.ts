@@ -83,7 +83,6 @@ function sqliteCondition(cause: unknown): string | undefined {
   return undefined;
 }
 
-// Keep rejected payloads out of diagnostics; report only schema issue tags or normalized driver conditions.
 function describeSqlCause(cause: unknown): string | undefined {
   if (Schema.isSchemaError(cause)) return summarizeSchemaIssue(cause.issue);
   return sqliteCondition(cause);

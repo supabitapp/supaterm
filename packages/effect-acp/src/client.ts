@@ -32,7 +32,6 @@ import { makeChildStdio, makeTerminationError } from "./_internal/stdio.ts";
 const decodeElicitationRequest = Schema.decodeUnknownEffect(
   Schema.Union([AcpSchemaV2.CreateElicitationRequest, AcpSchemaV1.CreateElicitationRequest]),
 );
-// ACP session notices postdate the pinned v1.21 and v2 alpha.3 schemas, so they arrive as unknown updates.
 const decodeNoticeUpdate = Schema.decodeUnknownOption(
   Schema.Struct({
     sessionUpdate: Schema.Literal("notice"),
@@ -516,7 +515,6 @@ function normalizeSessionUpdate(
 function normalizeV1SessionUpdate(
   notification: AcpSchemaV1.SessionNotification,
 ): AcpSchema.SessionNotification {
-  // v1 passes unknown updates through raw, so a malformed notice must not reach consumers as one.
   if ((notification.update.sessionUpdate as string) === "notice") {
     const notice = decodeNoticeUpdate(notification.update);
     return {
@@ -531,7 +529,6 @@ function normalizeV1SessionUpdate(
     };
   }
   const update = notification.update;
-  // v1 defines a null tool name as unchanged; v2 consumers read null as a clear.
   if (
     (update.sessionUpdate === "tool_call" || update.sessionUpdate === "tool_call_update") &&
     update.name === null
@@ -1079,8 +1076,6 @@ export const make = Effect.fn("effect-acp/AcpClient.make")(function* (
   );
 
   yield* RpcServer.make(AcpRpcs.CompatClientRpcs, { disableFatalDefects: true }).pipe(
-    // runHandler logs handler defects with their method. A reporter inherited
-    // from the caller (a WebSocket request, say) would log them again.
     Effect.provideService(ErrorReporter.CurrentErrorReporters, new Set()),
     Effect.provideService(RpcServer.Protocol, transport.serverProtocol),
     Effect.provide(layerClientHandler),
@@ -1107,9 +1102,6 @@ export const make = Effect.fn("effect-acp/AcpClient.make")(function* (
             rpc[AGENT_METHODS.initialize](toNegotiatingInitializeRequest(payload)),
           ).pipe(
             Effect.map((response) => {
-              // ACP v1 protocolVersion values were not generation identifiers in
-              // every shipped agent. Antigravity, for example, reports version 2
-              // with the v1 agentInfo/agentCapabilities response shape.
               const isV2 = isV2InitializeResponse(response);
               negotiatedProtocolGeneration = isV2 ? 2 : 1;
               const normalized = isV2

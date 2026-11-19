@@ -18,7 +18,6 @@ export const LocalDeviceHostAddresses = Context.Reference<ReadonlySet<string>>(
   },
 );
 
-/** Unwraps IPv4-mapped IPv6 (`::ffff:127.0.0.1`, `::ffff:7f00:1`) to plain IPv4. */
 const unmapIPv4 = (address: string) => {
   if (NodeNet.isIP(address) !== 6) return address;
   let canonical: string;
@@ -50,7 +49,6 @@ export const isLocalSshDeviceHost = Effect.fn("isLocalSshDeviceHost")(function* 
       return [line.slice(0, separator), line.slice(separator + 1).trim()];
     }),
   );
-  // A local forwarded port or a proxy can lead to a different machine.
   if (
     config.get("port") !== "22" ||
     ["proxycommand", "proxyjump"].some((key) => config.has(key) && config.get(key) !== "none")

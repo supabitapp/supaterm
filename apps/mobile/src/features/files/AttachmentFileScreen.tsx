@@ -76,12 +76,10 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
     if (navigation.canGoBack()) navigation.goBack();
   };
   const { uri, resource } = document;
-  // A file only the native viewer can show opens it as soon as the file resolves.
   if (nativeViewer === "pending" && uri) {
     setNativeViewer("open");
     setNativeOpen(true);
   }
-  // Mint a fresh URL: cached URLs may expire in the background before Quick Look or ACTION_VIEW opens.
   const nativeSource = ((): FilePreviewSource | null => {
     const kind = nativeKind ?? "document";
     const base = { kind, name: params.name, mimeType: params.mimeType };
@@ -259,7 +257,6 @@ export function AttachmentFileScreen(props: AttachmentFileScreenProps) {
         isLocal={localAttachment !== null}
         refresh={refresh}
         environmentId={environmentId}
-        // Entries go to the thread's chat composer, also from a question-answer draft.
         draftKey={threadDraftKey ?? draftKey}
         maxAttachmentBytes={
           capabilities?.fileAttachments

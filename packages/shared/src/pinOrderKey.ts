@@ -1,8 +1,3 @@
-/**
- * Fractional order keys for the sidebar's Pinned section. Keys are lowercase
- * digit strings compared as plain strings; a smaller key sorts higher. Shared
- * so the server places an agent-issued pin the same way a client pin is placed.
- */
 const PIN_ORDER_DIGITS = "abcdefghijklmnopqrstuvwxyz";
 
 function isValidPinOrderKey(key: string): boolean {
@@ -10,13 +5,9 @@ function isValidPinOrderKey(key: string): boolean {
   for (const char of key) {
     if (!PIN_ORDER_DIGITS.includes(char)) return false;
   }
-  // A trailing minimum digit would leave no room to sort a key immediately
-  // before this one; generators never produce it, so treat it as corrupt.
   return key.at(-1) !== PIN_ORDER_DIGITS[0];
 }
 
-/** Midpoint of two digit strings interpreted as fractions in (0, 1).
-    "" stands for the open bound on either side. Requires a < b. */
 function pinOrderMidpoint(a: string, b: string): string {
   if (b !== "" && a >= b) throw new Error("pinOrderMidpoint: bounds out of order");
   if (b !== "") {

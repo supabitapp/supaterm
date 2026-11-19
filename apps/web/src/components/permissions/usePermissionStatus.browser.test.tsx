@@ -22,11 +22,9 @@ function PermissionProbe({
 
 describe("usePermissionStatus", () => {
   it("does not start a new check when the component re-renders", async () => {
-    // A check that never settles keeps the interval from adding calls, so any
-    // extra call can only come from the subscription restarting.
     const check = vi.fn(() => new Promise<{ screen: boolean }>(() => {}));
     await using screen = await render(<PermissionProbe check={check} label="first" />, {
-      router: false, // the hook does not touch routing
+      router: false,
     });
     await screen.rerender(<PermissionProbe check={check} label="second" />);
     await screen.rerender(<PermissionProbe check={check} label="third" />);
@@ -39,7 +37,7 @@ describe("usePermissionStatus", () => {
     const first = vi.fn(() => new Promise<{ screen: boolean }>(() => {}));
     const second = vi.fn(async () => ({ screen: true }));
     await using screen = await render(<PermissionProbe check={first} label="probe" />, {
-      router: false, // the hook does not touch routing
+      router: false,
     });
     await screen.rerender(<PermissionProbe check={second} label="probe" enabled={false} />);
     await screen.rerender(<PermissionProbe check={second} label="probe" />);

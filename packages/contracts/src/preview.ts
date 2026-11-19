@@ -258,7 +258,6 @@ const PreviewEventBaseSchema = Schema.Struct({
   tabId: PreviewTabId,
   createdAt: Schema.String,
   serverEpoch: TrimmedNonEmptyString,
-  /** Monotonic server state revision shared with PreviewListResult. */
   revision: PositiveInt,
 });
 

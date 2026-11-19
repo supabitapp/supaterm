@@ -192,7 +192,6 @@ const makeSshBroker = Effect.fn("clientRuntime.connection.broker.makeSsh")(funct
         actual: profile.environmentId,
       });
     }
-    // Each pairing adds a session on the host, so connects reuse the saved token.
     const saved = Option.getOrUndefined(yield* credentials.get(target.connectionId));
     const savedToken = saved !== undefined && isBearerCredential(saved) ? saved.token : undefined;
     const prepared = yield* ssh.prepare({

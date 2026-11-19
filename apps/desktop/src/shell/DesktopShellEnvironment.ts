@@ -32,7 +32,6 @@ type EnvironmentPatch = Record<string, string>;
 
 interface ProbeBudget {
   readonly timeout: Duration.Duration;
-  // One longer wait for the first login shell that times out.
   readonly slowTimeout?: Duration.Duration;
   readonly terminateGrace: Duration.Duration;
 }
@@ -88,7 +87,6 @@ export class DesktopShellEnvironmentCommandTimeoutError extends Schema.TaggedErr
 export class DesktopShellEnvironment extends Context.Service<
   DesktopShellEnvironment,
   {
-    // Desktop owns discovery, including on cache misses; the backend receives updates over fd4.
     readonly installIntoProcess: Effect.Effect<boolean>;
     readonly awaitDiscovery: Effect.Effect<boolean>;
     /** Whether the user's own login shell, not a fallback, gave the PATH a new terminal gets. */
@@ -130,7 +128,6 @@ const ANDROID_SDK_ENV_NAMES = ["ANDROID_HOME", "ANDROID_SDK_ROOT"] as const;
 const FALLBACK_LC_CTYPE = "en_US.UTF-8";
 const WINDOWS_SHELL_CANDIDATES = ["pwsh.exe", "powershell.exe"] as const;
 const LOGIN_SHELL_TIMEOUT = Duration.seconds(5);
-// A profile can be slow only while the machine boots; one longer wait covers it.
 const SLOW_LOGIN_SHELL_TIMEOUT = Duration.seconds(20);
 const LAUNCHCTL_TIMEOUT = Duration.seconds(2);
 const PROCESS_TERMINATE_GRACE = Duration.seconds(1);
@@ -139,13 +136,10 @@ const STARTUP_PROBE: ProbeBudget = {
   slowTimeout: SLOW_LOGIN_SHELL_TIMEOUT,
   terminateGrace: PROCESS_TERMINATE_GRACE,
 };
-// Retries block nothing, so they outlast pyenv's 60 s wait on its rehash lock, and SIGTERM gets
-// time to run the exit trap that releases it. A SIGKILL leaves the lock for two minutes.
 const RETRY_PROBE: ProbeBudget = {
   timeout: Duration.minutes(2),
   terminateGrace: Duration.seconds(10),
 };
-// A Mac asleep at launch fails the first probe on wake, and nothing else would probe again.
 const DISCOVERY_RETRY_DELAY = Duration.seconds(30);
 const DISCOVERY_RETRIES = 10;
 
@@ -155,7 +149,6 @@ const trimNonEmpty = (value: string | null | undefined): Option.Option<string> =
     Option.filter((entry) => entry.length > 0),
   );
 
-// POSIX directory names may begin or end with whitespace; mergePathValues trims only on Windows.
 const nonEmptyPath = (value: string | null | undefined): Option.Option<string> =>
   Option.fromNullishOr(value).pipe(Option.filter((entry) => entry.length > 0));
 
@@ -323,7 +316,6 @@ const runCommandOutput = Effect.fn("desktop.shellEnvironment.runCommandOutput")(
   );
   const output = yield* Fiber.join(fiber).pipe(
     Effect.timeoutOption(input.timeout),
-    // Interrupting awaits the child's exit, which a shell stuck in the kernel never reaches.
     Effect.ensuring(Fiber.interrupt(fiber).pipe(Effect.forkDetach)),
   );
   if (Option.isSome(output)) {
@@ -522,7 +514,6 @@ const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosix
       "XDG_CURRENT_DESKTOP",
       "XDG_SESSION_DESKTOP",
       "XDG_SESSION_TYPE",
-      // Forward mise's PATH delta too, or mise x can rebuild PATH into a recursive same-named wrapper.
       "__MISE_DIFF",
     ] as const;
     for (const name of shellPreferredEnvNames) {
@@ -540,7 +531,6 @@ const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosix
       "XDG_DATA_HOME",
       "XDG_RUNTIME_DIR",
       "WAYLAND_DISPLAY",
-      // Shell CA settings are required by Node/OpenSSL builds without bundled roots for registry TLS.
       "SSL_CERT_FILE",
       "SSL_CERT_DIR",
       "NODE_EXTRA_CA_CERTS",
@@ -552,8 +542,6 @@ const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosix
       }
     }
 
-    // The device host picks the Android SDK from ANDROID_HOME before ANDROID_SDK_ROOT,
-    // so a profile-only ANDROID_HOME must not shadow an inherited ANDROID_SDK_ROOT.
     if (ANDROID_SDK_ENV_NAMES.every((name) => Option.isNone(trimNonEmpty(config.env[name])))) {
       for (const name of ANDROID_SDK_ENV_NAMES) {
         const value = trimNonEmpty(shellEnvironment[name]);
@@ -563,7 +551,6 @@ const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosix
       }
     }
 
-    // Hydrate locale variables together; inherited LC_ALL can override LANG or LC_CTYPE.
     if (
       config.platform === "darwin" &&
       LOCALE_ENV_NAMES.every((name) => Option.isNone(trimNonEmpty(config.env[name])))
@@ -575,7 +562,6 @@ const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosix
         }
       }
 
-      // launchd lacks locale; UTF-8 LC_CTYPE fixes pbcopy's MacRoman decoding without changing C formatting or collation.
       if (LOCALE_ENV_NAMES.every((name) => Option.isNone(trimNonEmpty(config.env[name])))) {
         config.env.LC_CTYPE = FALLBACK_LC_CTYPE;
       }
@@ -605,7 +591,6 @@ const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosix
   },
 );
 
-/** `fromUserShell` is false when only a fallback shell answered, whose PATH can miss folders. */
 interface ShellDiscovery {
   readonly prepared: boolean;
   readonly fromUserShell: boolean;
@@ -687,7 +672,6 @@ export const make = Effect.gen(function* () {
   });
   const probe = Effect.fn("desktop.shellEnvironment.refresh")(
     function* (budget: ProbeBudget) {
-      // Refresh from the inherited baseline so removed cached paths and values do not survive.
       const fresh = { ...inherited };
       const discovery = yield* installShellEnvironment({
         env: fresh,
@@ -718,7 +702,6 @@ export const make = Effect.gen(function* () {
     Effect.provideService(FileSystem.FileSystem, fileSystem),
     Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
   );
-  // A fallback shell's PATH can miss folders the user's own shell adds, so keep asking that shell.
   const awaitsUserShell = listUserShells(inherited).length > 0;
   const settled = ({ prepared, fromUserShell }: ShellDiscovery) =>
     fromUserShell || (prepared && !awaitsUserShell);
@@ -749,7 +732,6 @@ export const make = Effect.gen(function* () {
         const cached = Object.fromEntries(
           CACHED_ENV_NAMES.flatMap((name) => {
             const value = cache.value.environment[name];
-            // mise's metadata must describe the cached PATH entries restored alongside it.
             if (name !== "PATH" && name !== "__MISE_DIFF" && inherited[name] !== undefined)
               return [];
             return typeof value === "string" ? [[name, value]] : [];

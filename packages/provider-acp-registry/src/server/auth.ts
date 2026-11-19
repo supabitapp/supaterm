@@ -131,7 +131,6 @@ export const makeAcpRegistryAuth = Effect.fn("makeAcpRegistryAuth")(function* (o
         );
       if (inspected.status !== "ready")
         return yield* failure("methods", "Prepare this ACP agent before signing in.");
-      // Path overrides can change in place; cache discovery only for registry versions.
       if (inspected.version !== null && knownMethods?.version === inspected.version)
         return knownMethods.methods;
       const resolved = yield* resolve;
@@ -306,8 +305,6 @@ export const makeAcpRegistryAuth = Effect.fn("makeAcpRegistryAuth")(function* (o
         if (method.type === "terminal") {
           yield* Scope.close(runtimeScope, Exit.void);
           yield* runTerminal(resolved, method, context).pipe(Effect.scoped);
-          // Terminal login is a separate invocation. Reconnect after it exits so
-          // the ACP process reads the credentials its login command persisted.
           const verifiedRuntime = yield* makeRuntime(resolved.spawn);
           yield* context.verifying;
           yield* verifiedRuntime
@@ -333,8 +330,6 @@ export const makeAcpRegistryAuth = Effect.fn("makeAcpRegistryAuth")(function* (o
                 ),
               );
           }
-          // Legacy env_var methods use the secret-backed environment fields in
-          // provider settings. Never send their ID to authenticate.
           yield* context.verifying;
           yield* runtime
             .start()
@@ -377,7 +372,6 @@ export const makeAcpRegistryAuth = Effect.fn("makeAcpRegistryAuth")(function* (o
   ).pipe(Effect.andThen(options.onChanged(false)));
   return yield* ProviderAuthFlow.make({
     instanceId: options.instanceId,
-    // ACP omits credential scope; assume an agent's instances share credentials in this environment.
     credentialBinding: { owner: "provider", key: `acp:${agentKey}` },
     methods,
     ...(options.settings.authMethodId ? { defaultMethodId: options.settings.authMethodId } : {}),

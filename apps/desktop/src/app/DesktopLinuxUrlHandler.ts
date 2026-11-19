@@ -12,9 +12,6 @@ import * as DesktopAssets from "./DesktopAssets.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import { makeComponentLogger } from "./DesktopObservability.ts";
 
-// The AppImage's .desktop entry is named by the user's integration tool (e.g.
-// appimagekit_<hash>-….desktop), so app.setAsDefaultProtocolClient's setDesktopName-based id
-// cannot match it and the browser prompts "Choose an application" on every OAuth callback.
 const { logInfo, logWarning } = makeComponentLogger("desktop-linux-url-handler");
 
 export class DesktopLinuxUrlHandlerRegistrationError extends Schema.TaggedError<DesktopLinuxUrlHandlerRegistrationError>()(
@@ -59,9 +56,6 @@ const escapeDesktopEntryString = (value: string): string =>
     .replaceAll("\r", "\\r")
     .replaceAll("\t", "\\t");
 
-// Exec values are unescaped twice by implementations: first the general
-// string-value rules, then the Exec quoting rules — so writing composes the
-// layers in reverse.
 export function escapeDesktopEntryExecArgument(value: string): string {
   const quoted = value
     .replaceAll("\\", () => "\\\\")
@@ -72,14 +66,11 @@ export function escapeDesktopEntryExecArgument(value: string): string {
   return escapeDesktopEntryString(`"${quoted}"`);
 }
 
-// Legacy xdg-open looks up the first Exec word without unquoting it.
 const escapeUrlHandlerExecTarget = (value: string): string =>
   /[ \t\n"'\\><~|&;$*?#()`]/.test(value)
     ? escapeDesktopEntryExecArgument(value)
     : escapeDesktopEntryString(value.replaceAll("%", "%%"));
 
-// The AppImage integration entry owns the window identity. This
-// hidden URL-only entry must not compete with it for StartupWMClass matching.
 export function renderUrlHandlerDesktopEntry(input: {
   readonly displayName: string;
   readonly execTarget: string;
@@ -114,8 +105,6 @@ function parseUrlHandlerExecTarget(entry: string): string | null {
 
 const APPIMAGE_NAME_VERSION = /\d+\.\d+\.\d+/u;
 
-// An updater from before version-free AppImage names deletes its own file and installs the update
-// beside it under the new name. The previous launch's entry still names the path launchers use.
 export function replacedVersionedAppImagePath(input: {
   readonly previousEntry: string;
   readonly appImagePath: string;
@@ -167,10 +156,6 @@ export const make = Effect.gen(function* () {
   const themeIconDir = environment.path.join(hicolorDir, LINUX_THEME_ICON_SIZE, "apps");
 
   const writeDesktopEntry = Effect.gen(function* () {
-    // Distribution packages that run on a shared Electron set
-    // SUPATERM_DESKTOP_LAUNCHER_PATH, because process.execPath is that Electron.
-    // Inside the mounted AppImage, process.execPath points at a transient
-    // /tmp/.mount_* path — the handler must launch the AppImage itself.
     const execTarget = environment.desktopLauncherPath.pipe(
       Option.orElse(() => environment.appImagePath),
       Option.getOrElse(() => process.execPath),
@@ -181,8 +166,6 @@ export const make = Effect.gen(function* () {
       scheme,
       ...(environment.isPackaged ? { iconPath } : {}),
     });
-    // Pre-ready setup normally wrote this already. Avoid truncating a valid
-    // entry while the portal may be reading it during startup.
     const existing = yield* fileSystem
       .readFileString(desktopEntryPath)
       .pipe(Effect.orElseSucceed(() => null));
@@ -330,9 +313,7 @@ export const make = Effect.gen(function* () {
     yield* Effect.gen(function* () {
       const { png } = yield* assets.iconPaths;
       if (Option.isNone(png)) return;
-      // The AppImage mount is temporary; the chooser needs the icon after exit.
       yield* fileSystem.makeDirectory(iconsDir, { recursive: true });
-      // Electron's copyFile from app.asar extracts to a temp file it never deletes.
       yield* fileSystem.writeFile(iconPath, yield* fileSystem.readFile(png.value));
     }).pipe(
       Effect.catch((error) =>
@@ -343,10 +324,6 @@ export const make = Effect.gen(function* () {
     yield* installThemeIcons;
 
     yield* updateDesktopDatabase.pipe(
-      // Some MIME implementations, including GIO, use mimeinfo.cache to verify
-      // that a desktop entry is associated with a scheme. Cache refresh is
-      // independently best-effort so a missing update-desktop-database executable
-      // does not prevent xdg-mime from recording the requested default.
       Effect.catch((error) =>
         logWarning("desktop MIME cache refresh failed", {
           applicationsDir: environment.linuxApplicationsDir,

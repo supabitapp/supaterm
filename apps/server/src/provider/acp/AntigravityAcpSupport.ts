@@ -65,10 +65,6 @@ function compareVersions(left: ReadonlyArray<number>, right: ReadonlyArray<numbe
   return 0;
 }
 
-/**
- * 1.4.2 through 1.4.5 create or overwrite skills/system/run-workflow/SKILL.md in the workspace
- * unless `run_workflow` is disabled. Older builds offer the tool and leave the file alone.
- */
 function antigravityWritesRunWorkflowSkill(version: string | null | undefined): boolean {
   const parsed = parseAntigravityVersion(version);
   return (
@@ -86,7 +82,6 @@ export function isQualifiedAntigravityRelease(version: string | null | undefined
   return version?.trim() === "1.4.5";
 }
 
-// `agy acp` 1.5.1 offers every model to every ACP client; older runtimes allowlist editors.
 const OPEN_MODEL_ACCESS_RELEASE = [1, 5, 1] as const;
 
 /**
@@ -147,7 +142,6 @@ export const makeAntigravityAcpRuntime = Effect.fn("makeAntigravityAcpRuntime")(
         antigravitySessionMeta(initializeResult, input.sessionSystemPromptAppend),
       clientCapabilities: {
         ...input.clientCapabilities,
-        // Advertising writes swaps the agent's diff edits for whole-file client_edit_file.
         fs: {
           readTextFile:
             input.clientFileReads === true && !isQualifiedAntigravityRelease(input.runtimeVersion),
@@ -208,10 +202,6 @@ export function antigravityThinkingConfig(
   return option?.type === "select" ? option : undefined;
 }
 
-/**
- * Runtime 1.4 lists `gemini-3.8-flash` where 1.3 listed `gemini-3.8-flash-high`. The agent
- * still accepts the old IDs, so pass them through; the current model may have no thinking option.
- */
 function legacyAntigravityFamily(
   configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption>,
   model: string,
@@ -298,13 +288,8 @@ const AUDIO_MIME_TYPES = new Set([
   "audio/webm",
 ]);
 const ANTIGRAVITY_MAX_AUDIO_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-// The agent inlines linked video bytes into one model request, so keep it under the inline limit.
 const ANTIGRAVITY_MAX_VIDEO_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 
-/**
- * Only Gemini takes video. The evidence is the session's resolved model, so an account default
- * counts once the agent reports it; opaque ids such as `agy-model` need a Gemini display name.
- */
 function antigravityModelAcceptsVideo(
   model: { readonly id: string; readonly name: string | undefined } | undefined,
 ): boolean {
@@ -389,7 +374,6 @@ export const buildAntigravityPrompt = Effect.fn("buildAntigravityPrompt")(functi
 > {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  // The agent runs on this host.
   const platform = yield* HostProcess.Platform;
   const blocks: Array<EffectAcpSchema.ContentBlock> = [];
   const text = input.input?.trim();
@@ -401,7 +385,6 @@ export const buildAntigravityPrompt = Effect.fn("buildAntigravityPrompt")(functi
       attachment.type === "file" &&
       "source" in attachment &&
       attachment.source?._tag === "pasted-text";
-    // The text already carries the path; keep folded pastes lazy so agents can search without embedding the whole file.
     const mimeType = attachment.mimeType.toLowerCase().split(";", 1)[0] ?? "";
     const image = attachment.type === "image" && IMAGE_MIME_TYPES.has(mimeType);
     const audio = attachment.type === "file" && AUDIO_MIME_TYPES.has(mimeType);
@@ -410,8 +393,6 @@ export const buildAntigravityPrompt = Effect.fn("buildAntigravityPrompt")(functi
       attachment.type === "file" &&
       mimeType === "video/mp4" &&
       isQualifiedAntigravityRelease(input.agentVersion) &&
-      // The agent turns a file URI into a path with unquote(urlparse(uri).path), which drops
-      // Windows drives and UNC hosts. Keep the saved path there until Google fixes it.
       platform !== "win32" &&
       antigravityModelAcceptsVideo(input.currentModel);
     const textFile =

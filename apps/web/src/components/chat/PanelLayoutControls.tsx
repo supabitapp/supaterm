@@ -16,7 +16,6 @@ import { useMobileSidebarSheetMounted } from "../ui/sidebar";
 import { Toggle } from "../ui/toggle";
 import { Tooltip, TooltipPopup, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
 
-/** Matches the right inset of `ThreadPanelHeaderControl`. */
 const THREAD_PANEL_HEADER_INSET_PX = 12;
 
 export interface PanelLayoutControlsProps {
@@ -229,7 +228,6 @@ export function WorkspaceTitlebarControls(props: {
     const panel = toggle?.ownerDocument.querySelector("[data-preview-panel-mode='inline']");
     const timing = panel?.getAnimations()[0]?.effect?.getTiming();
     if (!toggle || !panel || !timing) return;
-    // The header's toggle was just removed, so slide this one in from where it sat.
     const headerRight = panel.getBoundingClientRect().left - THREAD_PANEL_HEADER_INSET_PX;
     const offset = headerRight - toggle.getBoundingClientRect().right;
     const animation = toggle.animate(
@@ -253,7 +251,6 @@ export function WorkspaceTitlebarControls(props: {
         {props.showMaximizeControl ? (
           <span
             aria-hidden={!props.rightPanelOpen}
-            // Fading out on close would show it beside the thread details toggle that replaces it.
             className={cn(
               "flex shrink-0",
               props.rightPanelOpen &&

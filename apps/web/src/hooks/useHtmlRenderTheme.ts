@@ -29,7 +29,6 @@ function resolveActiveThemeColors(
 
 export function useHtmlRenderTheme() {
   const { theme, resolvedTheme, themeHalves } = useTheme();
-  // Custom and published palettes can be edited in place, under an unchanged preference.
   const colors = useSyncExternalStore(
     subscribeToCustomThemes,
     () => resolveActiveThemeColors(theme, themeHalves, resolvedTheme),

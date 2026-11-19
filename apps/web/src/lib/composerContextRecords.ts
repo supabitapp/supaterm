@@ -49,13 +49,11 @@ import type { ReviewCommentContext } from "~/reviewCommentContext";
 
 const PREVIEW_LABEL_MAX_CHARS = 48;
 
-// Truncate selections to wire bounds before persistence to avoid send-time encoding failures.
 const TRUNCATION_MARKER = "\n… truncated …";
 
 function clampContextText(value: string, max: number): string {
   if (value.length <= max) return value;
   let end = Math.max(0, max - TRUNCATION_MARKER.length);
-  // Never end on a lone high surrogate.
   const last = value.charCodeAt(end - 1);
   if (last >= 0xd800 && last <= 0xdbff) end -= 1;
   return `${value.slice(0, end)}${TRUNCATION_MARKER}`;

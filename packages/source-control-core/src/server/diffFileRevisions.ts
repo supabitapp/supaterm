@@ -9,7 +9,6 @@ interface Entry {
   newPath: string | null;
   deleted: boolean;
   revision: string | null;
-  /** After the first hunk, content can resemble file headers. */
   inBody: boolean;
 }
 
@@ -25,7 +24,6 @@ function quotedEnd(rest: string): number {
   return -1;
 }
 
-/** Git terminates names with a literal tab and escapes tabs within names. */
 function sidePath(rest: string, prefix: string): string | null {
   const tab = rest.indexOf("\t");
   const token = tab === -1 ? rest : rest.slice(0, tab);
@@ -39,7 +37,6 @@ function headerSide(token: string, prefix: string): string | null {
   return path.startsWith(prefix) ? path.slice(prefix.length) : null;
 }
 
-/** Match equal sides for ambiguous unquoted paths; renames state paths separately. */
 function headerPaths(rest: string): readonly [string | null, string | null] {
   if (rest.startsWith(QUOTE)) {
     const end = quotedEnd(rest);
@@ -141,7 +138,6 @@ export function diffFileSection(patch: string, path: string): string | null {
   while (start !== -1) {
     const end = nextEntry(patch, start);
     const section = end === -1 ? patch.slice(start) : patch.slice(start, end);
-    // Only the header names the file; hunks can be megabytes.
     const hunk = section.indexOf("\n@@");
     const [entry] = parseEntries(hunk === -1 ? section : section.slice(0, hunk));
     if (entry !== undefined && (entry.newPath ?? entry.oldPath) === path) return section;

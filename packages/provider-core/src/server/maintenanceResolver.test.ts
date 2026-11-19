@@ -42,8 +42,6 @@ import {
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
 
 const driver = (value: string) => ProviderDriverKind.make(value);
-// These write `#!/bin/sh` stubs and evaluate them with darwin/linux path
-// semantics; a Windows temp path cannot be split on `:`.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
 const makeTempDir = (name: string) =>
   SecureRandom.SecureRandom.pipe(
@@ -148,7 +146,6 @@ function stdoutSpawner(
 
 type MiseLatestAnswer = string | { readonly stdout?: string; readonly exitCode?: number } | "hang";
 
-/** A `mise` answering `which`, `ls --json --installed [tool]`, and `latest`, recording each call. */
 function miseSpawner(
   answers: {
     readonly which: string;
@@ -175,8 +172,6 @@ function miseSpawner(
       stdout = latest.stdout ?? "";
       exitCode = latest.exitCode ?? 0;
     } else if (args[0] === "ls") {
-      // `mise ls --json <tool>` lists one tool's installs; without a tool, every tool's.
-      // A registry short name also lists installs configured under a backend, like `npm:<pkg>`.
       const tool = args.slice(1).find((arg) => !arg.startsWith("-"));
       const configured = tool
         ? Object.keys(answers.installed).find((name) => name.replace(/^[^:]+:/, "") === tool)
@@ -207,17 +202,12 @@ function miseSpawner(
   });
 }
 
-/**
- * A mise binary on its own PATH dir and an install of `package-tool` 1.0.0 in its data dir,
- * with the `latest` link mise keeps pointing at the newest install.
- */
 function miseFixture(
   tempDir: string,
   options: {
     readonly misePresent?: boolean;
     readonly tool?: string;
     readonly dataDir?: string;
-    /** The backend name the config requests the tool by, such as `npm:package-tool`. */
     readonly backend?: string;
   } = {},
 ) {
@@ -239,7 +229,6 @@ function miseFixture(
   const latestDir = NodePath.join(toolDir, "latest");
   let installPath = "";
   let binaryPath = "";
-  /** Installs `version` and points `latest` at it, as `mise upgrade` does. */
   const install = (version: string) => {
     installPath = NodePath.join(toolDir, version);
     binaryPath = NodePath.join(installPath, "bin", "package-tool");
@@ -270,7 +259,6 @@ function miseFixture(
   };
 }
 
-/** A mise shim: a link named for the tool that points at mise itself. */
 function linkShim(tempDir: string, misePath: string, name: string) {
   const shimPath = NodePath.join(tempDir, "mise", "shims", name);
   NodeFS.mkdirSync(NodePath.dirname(shimPath), { recursive: true });
@@ -357,7 +345,6 @@ it.layer(
     ),
   );
 
-  // npm-global installs ask `npm outdated` instead; see the npm-global cases below.
   it.effect.each([
     { install: "native", stdout: '"1.2.0"', exitCode: 0, latest: "1.2.0" },
     { install: "manual", stdout: '["1.2.0"]', exitCode: 0, latest: "1.2.0" },
@@ -455,7 +442,6 @@ it.layer(
           }).pipe(
             Effect.provideService(
               ChildProcessSpawner.ChildProcessSpawner,
-              // `vp i -g` runs the npm beside Vite+'s Node; `npm view` ignores min-release-age.
               stdoutSpawner((command, args) => {
                 if (command === "vp") {
                   return JSON.stringify({
@@ -486,7 +472,6 @@ it.layer(
           latestVersion: "1.1.0",
         });
         expect((yield* advise({}, "1.2.0"))?.latestVersion).toBe("1.2.0");
-        // Install never uses the system Node `vp env off` reports, so this falls back to `npm view`.
         expect(
           (yield* advise(
             { npm_config_min_release_age: "7", VP_HOME: "system-first" },
@@ -687,7 +672,6 @@ it.layer(
           "@example",
           "package-tool",
         ]);
-        // A version manager's Node, which only the provider's settings put on PATH.
         const providerEnv = { PATH: NodePath.join(tempDir, "bin") };
 
         const capabilities = yield* resolveProviderMaintenanceCapabilitiesEffect(
@@ -749,10 +733,6 @@ it.layer(
     ).toBeNull();
   });
 
-  // The Codex Windows installer exposes `%LOCALAPPDATA%\\Programs\\OpenAI\\Codex\\bin`
-  // as a junction into `%CODEX_HOME%\\packages\\standalone\\current\\bin`. Node's
-  // realpath follows junctions, so the real path carries the standalone marker
-  // even though the visible path does not.
   it.effect("recognizes a Windows standalone install through its junctioned bin dir", () =>
     Effect.gen(function* () {
       const visiblePath =
@@ -929,8 +909,6 @@ it.layer(
     }),
   );
 
-  // Chocolatey publishes behind npm, so comparing against the registry would
-  // report an update `choco upgrade` cannot install yet.
   it.effect("compares a Chocolatey Claude install against choco search", () =>
     Effect.gen(function* () {
       const probes: Array<{ command: string; args: ReadonlyArray<string> }> = [];
@@ -1093,7 +1071,6 @@ it.layer(
     }),
   );
 
-  // `vp env off` makes each shim run the next matching executable on PATH instead.
   it.effect.each([
     {
       name: "a system_first shim (VP_HOME layout) to a later install",
@@ -1471,7 +1448,6 @@ it.layer(
           packageToolUpdate,
           { binaryPath: link, env: { PATH: npmBinDir } },
         ).pipe(
-          // The updater's npm comes from the provider's PATH.
           Effect.provideService(HostProcess.Environment, { PATH: "" }),
           Effect.provideService(
             ChildProcessSpawner.ChildProcessSpawner,
@@ -1527,7 +1503,6 @@ it.layer(
       expected: "1.0.0",
     },
     {
-      // bun prints only its banner both when nothing is outdated and when the registry fails.
       case: "the npm fallback when bun reports no row",
       row: null,
       expected: "1.2.0",
@@ -1710,7 +1685,6 @@ it.layer(
     "prefers npm ownership over the Node keg the package lives under",
     () =>
       Effect.gen(function* () {
-        // `brew install node` keeps npm globals inside the node keg.
         const tempDir = yield* makeTempDir("supaterm-homebrew-node-capabilities");
         const keg = NodePath.join(tempDir, "Cellar", "node", "22.1.0");
         const target = NodePath.join(
@@ -1861,7 +1835,6 @@ it.layer(
       name: "codex",
       prefix: "/usr/local",
     });
-    // A plain /usr/local/bin binary is not evidence of Homebrew.
     expect(homebrewOwnershipFromCommandPath("/usr/local/bin/codex")).toBeNull();
     expect(homebrewOwnershipFromCommandPath("/srv/Cellar/claude/1.0.0/bin/claude")).toMatchObject({
       prefix: "/srv",
@@ -2062,7 +2035,6 @@ it.layer(
         }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, noSpawn));
         expect(mise.update).toBeNull();
 
-        // A mise command wrapper is a symlink to the mise binary, not to the tool.
         const miseBinary = NodePath.join(tempDir, "usr", "bin", "mise");
         writeExecutable(miseBinary);
         const wrapper = NodePath.join(
@@ -2088,7 +2060,6 @@ it.layer(
     { name: "its latest link", via: "latest" },
     { name: "a latest link in a custom data dir", via: "latest", dataDir: "data" },
     { name: "a shim", via: "shim" },
-    // `mise upgrade package-tool` skips a tool configured by its backend name.
     { name: "a shim to a backend-configured install", via: "shim", backend: "npm:package-tool" },
   ])(
     "upgrades the mapped mise tool through $name requested as latest",
@@ -2122,7 +2093,6 @@ it.layer(
           args: ["upgrade", upgradeTool],
         });
         expect(spawned).toContainEqual([mise.misePath, "which", "package-tool"]);
-        // Resolution proves ownership but never asks mise for releases.
         expect(spawned.some((args) => args[1] === "latest")).toBe(false);
       }),
     { skip: !symlinksSupported || windowsHost },
@@ -2246,7 +2216,6 @@ it.layer(
         let binaryPath = mise.latestBinaryPath;
         let installed = mise.installed("pinned" in fixture ? { requested_version: "1.0.0" } : {});
         if ("inactive" in fixture) {
-          // Configured to 1.0.0 while mise resolves its active 2.0.0 instead.
           binaryPath = mise.binaryPath;
           const inactive = { ...installed["package-tool"]![0]!, active: false };
           mise.install("2.0.0");
@@ -2299,7 +2268,6 @@ it.layer(
         }).pipe(
           Effect.provideService(
             ChildProcessSpawner.ChildProcessSpawner,
-            // mise resolves the npm global through its Node; no `package-tool` tool is installed.
             miseSpawner({ which: binaryPath, installed: {} }, []),
           ),
         );
@@ -2329,7 +2297,6 @@ it.layer(
           Effect.provideService(
             ChildProcessSpawner.ChildProcessSpawner,
             miseSpawner(
-              // mise's `minimum_release_age` can hold it behind npm's 1.2.0.
               { which: mise.binaryPath, latest: "1.1.0", installed: mise.installed() },
               spawned,
             ),

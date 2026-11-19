@@ -27,7 +27,6 @@ function isRegisteredService(registeredUrl: string, serverUrl: string): boolean 
   ) {
     return false;
   }
-  // A wildcard listener covers only its own address family's loopback; `localhost` could be either.
   return (
     registered.hostname === configured.hostname ||
     (registered.hostname === "0.0.0.0" && configured.hostname === "127.0.0.1") ||
@@ -56,15 +55,11 @@ export const replaceOutdatedService = Effect.fn("OpenCode2Service.replaceOutdate
       "opencode",
       "service.json",
     );
-    // `Service.incumbent` would send the local service's password to the configured URL, which may
-    // be another machine. `discover` only contacts the address in the local registration.
     const service = yield* Service.discover({ file });
     if (service === undefined || !isRegisteredService(service.url, input.serverUrl)) return;
 
-    // Configured variables below can change PATH, which a bare name would then resolve against.
     const executable = yield* resolveCommandPath(input.binaryPath, { env: input.environment });
     if (executable === null) return;
-    // A scope of its own keeps the service alive when Supaterm's systemd unit stops.
     const launch = yield* (yield* AgentScope).wrap({
       command: executable,
       args: ["serve", "--service"],
@@ -78,7 +73,6 @@ export const replaceOutdatedService = Effect.fn("OpenCode2Service.replaceOutdate
       extendEnv: true,
       bypassNpmShim: true,
     });
-    // The service spawns without a shell; stopping it first would leave nothing running.
     if (command.shell) {
       return yield* Effect.logWarning("OpenCode service cannot be replaced through a shell shim");
     }
@@ -92,7 +86,6 @@ export const replaceOutdatedService = Effect.fn("OpenCode2Service.replaceOutdate
         ),
       )
       .pipe(Effect.option, Effect.map(Option.flatMap(decodeServiceConfig)));
-    // The CLI passes configured variables but never lets them move the registration file.
     const { XDG_STATE_HOME: _state, ...configured } = Option.getOrUndefined(config)?.env ?? {};
     const env: Record<string, string> = {};
     for (const [name, value] of Object.entries({ ...input.environment, ...configured })) {
@@ -101,14 +94,11 @@ export const replaceOutdatedService = Effect.fn("OpenCode2Service.replaceOutdate
 
     if ((yield* Service.discover({ file, version })) !== undefined) return;
 
-    // `ensure` with a version would kill every new service whose version never matches the probe,
-    // and being interrupted between the stop and the start would leave no service running.
     yield* Service.stop({ file, pty: "handoff" }).pipe(
       Effect.andThen(
         Service.ensure({
           file,
           command: [command.command, ...command.args],
-          // Supaterm Desktop's backend sets this; undefined overrides the inherited value at spawn.
           env: { ...env, ELECTRON_RUN_AS_NODE: undefined } as unknown as Record<string, string>,
         }),
       ),

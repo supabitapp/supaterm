@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - `node:crypto` implements the
-// OSCrypt primitives Chromium uses; Effect has no equivalent.
 import * as NodeCrypto from "node:crypto";
 
 import * as NodeSqliteClient from "@supaterm/shared/nodeSqliteClient";
@@ -26,7 +25,6 @@ import {
   type ImportedCookie,
 } from "./CookieDatabase.ts";
 
-/** OSCrypt's CBC mode uses a fixed IV of 16 spaces rather than a per-record one. */
 const AES_CBC_IV = Buffer.alloc(16, 0x20);
 const AES_GCM_NONCE_LENGTH = 12;
 const AES_GCM_TAG_LENGTH = 16;
@@ -73,7 +71,6 @@ const decodeSchemaVersion = Schema.decodeUnknownEffect(
   Schema.Tuple([Schema.Struct({ value: SchemaVersion })]),
 );
 
-/** Preserve unspecified SameSite; guessing no_restriction would widen cookie scope. */
 const sameSiteFromColumn = (value: number): ImportedCookie["sameSite"] => {
   if (value === 0) return "no_restriction";
   if (value === 1) return "lax";
@@ -81,14 +78,12 @@ const sameSiteFromColumn = (value: number): ImportedCookie["sameSite"] => {
   return "unspecified";
 };
 
-/** Convert microseconds in SQL: node:sqlite refuses integers beyond JavaScript's safe range. */
 const WEBKIT_EPOCH_OFFSET_SECONDS = 11_644_473_600;
 const toUnixSeconds = (webkitSeconds: number): number | undefined => {
   if (webkitSeconds <= 0) return undefined;
   return webkitSeconds - WEBKIT_EPOCH_OFFSET_SECONDS;
 };
 
-// Chromium 127+ prefixes plaintext with the host-key SHA-256 to bind its domain.
 const stripDomainBinding = (
   plaintext: Buffer,
   domain: string,
@@ -149,14 +144,12 @@ export function decryptChromiumValue(
   const prefix = buffer.subarray(0, 3).toString("latin1");
   const payload = buffer.subarray(3);
 
-  // Windows v10 uses AES-256-GCM; app-bound v20 records have no key here.
   if (platform === "win32") {
     return prefix === "v10" && keys.gcmV10
       ? decryptGcm(payload, keys.gcmV10, domain, schemaVersion)
       : null;
   }
 
-  // Retry the empty-passphrase key used by some Linux clients (crbug.com/1195256).
   if (prefix === "v10") {
     if (!keys.cbcV10) return null;
     return (
@@ -181,7 +174,6 @@ export const readChromiumCookieDatabase = Effect.fn("ChromiumCookies.readChromiu
   function* (snapshotPath: string, keys: ChromiumKeyMaterial, platform: NodeJS.Platform) {
     const result = yield* Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      // Chromium razes a damaged jar to a file with no tables and rebuilds it on its next write.
       const tables =
         yield* sql`select 1 from sqlite_master where type = 'table' and name = 'cookies'`;
       if (tables.length === 0) return { rows: [], schemaVersion: 0 };

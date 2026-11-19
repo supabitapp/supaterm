@@ -38,7 +38,6 @@ import type {
 } from "./azureDevOpsPullRequestJson.ts";
 import { definition } from "../shared/definition.ts";
 
-/** A file the blob batch missed pays for two Python startups. */
 const DIFF_FILE_CONCURRENCY = 4;
 
 /** Readers share a spawn budget across requests. */
@@ -46,7 +45,6 @@ export const MAX_DIFF_SPAWNS = 2 * DIFF_FILE_CONCURRENCY;
 
 export const LOCATION_CACHE_CAPACITY = 128;
 
-/** A version's change list can run to thousands of paths. */
 const CHANGES_CACHE_CAPACITY = 32;
 
 /**
@@ -55,7 +53,6 @@ const CHANGES_CACHE_CAPACITY = 32;
  */
 export const BLOB_BATCH_FILES = 100;
 
-/** Least recently used goes first. */
 function remember<V>(cache: Map<string, V>, capacity: number, key: string, value: V): V {
   cache.delete(key);
   if (cache.size >= capacity) {
@@ -72,7 +69,6 @@ function recall<V>(cache: Map<string, V>, key: string): V | undefined {
   return held;
 }
 
-/** The blobs a file's two sides need, as the change list names them. */
 function blobIdsOf(change: AzureDevOpsChangeEntry): ReadonlyArray<string> {
   const ids: string[] = [];
   if (change.changeKind !== "new" && change.originalObjectId !== null) {
@@ -86,18 +82,14 @@ const CAPABILITIES: PullRequestCapabilities = {
   diff: true,
   comment: false,
   actions: [...definition.changeRequestActions],
-  // Azure has no rebase strategy.
   mergeMethods: ["merge", "squash"],
-  // `az repos pr list` has no text filter.
   search: false,
   reactions: false,
   mentions: false,
   referenceSigils: [],
   review: { inlineComment: false, reply: false, resolve: false, verdicts: [] },
-  // Reviewer candidates require separate identity/graph APIs and permissions.
   reviewers: { request: true, listCandidates: false, searchCandidates: false },
   edit: { changeRequest: true, comment: false },
-  // Azure's viewed marks use an undocumented endpoint and are invalidated by each push.
   viewedFiles: "environment",
 };
 
@@ -107,11 +99,6 @@ const UNAVAILABLE_REQUIREMENT = {
   unauthenticated: "Azure CLI is not signed in. Run `az login` and retry.",
 };
 
-/**
- * Azure DevOps states no permission anywhere `az repos pr show` or `az repos pr list` reach: the
- * answer lives in the security namespaces, behind identity descriptors and token paths that would
- * be several calls per pull request to resolve.
- */
 const AZURE_DEVOPS_VIEWER_PERMISSIONS: PullRequestViewerPermissions = {
   actions: CAPABILITIES.actions,
   comment: CAPABILITIES.comment,
@@ -141,7 +128,6 @@ function toChangeRequest(pullRequest: AzureDevOpsPullRequest): ProviderChangeReq
     state: pullRequest.state,
     isDraft: pullRequest.isDraft,
     mergeability: pullRequest.mergeability,
-    // Azure omits line counts; computing them requires both sides of every file.
     additions: 0,
     deletions: 0,
     createdAt: pullRequest.createdAt,
@@ -149,7 +135,6 @@ function toChangeRequest(pullRequest: AzureDevOpsPullRequest): ProviderChangeReq
     mergedAt: pullRequest.state === "merged" ? pullRequest.closedAt : null,
     updatedAt: pullRequest.updatedAt,
     reviewRequestLogins: pullRequest.reviewRequestLogins,
-    // Azure keeps labels on work items rather than on the pull request.
     labels: [],
   };
 }
@@ -201,13 +186,10 @@ export const make = Effect.gen(function* () {
 
   const EMPTY_DIFF_SLICE: ProviderDiffSlice = { patch: "", truncated: false, nextCursor: null };
 
-  // PR locations are immutable; every pull request read records one so later reads can skip it.
   const locations = new Map<string, AzureDevOpsRepositoryLocation>();
-  // A pushed iteration never changes, so neither do its commits nor its change list.
   const knownIterations = new Map<string, ReadonlyArray<AzureDevOpsIteration>>();
   const iterationChanges = new Map<string, AzureDevOpsPullRequestCli.AzureDevOpsIterationChanges>();
 
-  // Reads still running, so a location lookup joins one instead of spawning its own az process.
   const pendingLocations = new Map<
     string,
     Deferred.Deferred<
@@ -252,7 +234,6 @@ export const make = Effect.gen(function* () {
         Effect.map((pullRequest) => pullRequest.location),
       );
       const pending = pendingLocations.get(key);
-      // A read that failed or was interrupted under another request is retried here.
       return pending === undefined
         ? ownRead
         : Deferred.await(pending).pipe(Effect.catchCause(() => ownRead));
@@ -265,7 +246,6 @@ export const make = Effect.gen(function* () {
       isDraft: pullRequest.isDraft,
     });
 
-  /** A later slice names its iteration, which the list it was cut from already holds. */
   const diffScope = Effect.fn("AzureDevOpsPullRequestProvider.diffScope")(function* (input: {
     readonly cwd: string;
     readonly number: number;
@@ -309,7 +289,6 @@ export const make = Effect.gen(function* () {
 
   const EMPTY_ITEM: AzureDevOpsItemContent = { contents: "", isBinary: false };
 
-  /** Azure fails reads of absent files. */
   const readTexts = (input: {
     readonly cwd: string;
     readonly location: AzureDevOpsRepositoryLocation;
@@ -340,7 +319,6 @@ export const make = Effect.gen(function* () {
       Effect.map(([oldItem, newItem]): AzureDevOpsFileTexts => ({
         oldContents: oldItem.contents,
         newContents: newItem.contents,
-        // Encoded bytes cannot identify binaries; trust Azure's metadata.
         binary: oldItem.isBinary || newItem.isBinary,
       })),
     );
@@ -369,7 +347,6 @@ export const make = Effect.gen(function* () {
     kind: SourceControlProviderKind.make("azure-devops"),
     capabilities: CAPABILITIES,
     unavailableRequirement: UNAVAILABLE_REQUIREMENT,
-    // The bare repository name repeats across an organization; the project path does not.
     repositoryKey: ({ canonicalKey }) => canonicalKey,
 
     getViewer: (input) =>
@@ -396,7 +373,6 @@ export const make = Effect.gen(function* () {
             items: batch.items.map(toChangeRequest),
             truncated: batch.truncated,
             cursorAdvance: batch.cursorAdvance,
-            // Azure's ordering is stable across offset-based pages.
             continues: true,
           })),
         ),
@@ -427,7 +403,6 @@ export const make = Effect.gen(function* () {
     getChangeRequestSummary: Effect.fn("AzureDevOpsPullRequestProvider.getChangeRequestSummary")(
       function* (input) {
         const pullRequest = yield* readPullRequest(input);
-        // Undefined keeps the last known state; null would claim no checks exist.
         const checksState = yield* readChecks(input, pullRequest).pipe(
           Effect.map((checks) => rollupCheckStatuses(checks.map((check) => check.status))),
           Effect.orElseSucceed(() => undefined),
@@ -516,8 +491,6 @@ export const make = Effect.gen(function* () {
 
     getViewerPermissions: () => Effect.succeed(AZURE_DEVOPS_VIEWER_PERMISSIONS),
 
-    // `input.commit` is deliberately dropped: Azure states no commit list on a pull request, so
-    // the Code tab has nothing to scope itself to and always asks for the whole change.
     getDiff: Effect.fn("AzureDevOpsPullRequestProvider.getDiff")(
       function* (input) {
         const cursor = parseAzureDevOpsDiffCursor(input.cursor);
@@ -546,7 +519,6 @@ export const make = Effect.gen(function* () {
         let edits = 0;
         let index = cursor?.fileIndex ?? 0;
         let full = false;
-        // Prefetched files beyond the slice must be read again.
         const batchWidth = () => {
           if (sections.length === 0) return DIFF_FILE_CONCURRENCY;
           const admits = (left: number, spent: number) =>
@@ -584,7 +556,6 @@ export const make = Effect.gen(function* () {
               location: scope.location,
               objectIds: changes.slice(index, blobsUntil).flatMap(blobIdsOf),
             }).pipe(
-              // Per-file reads then answer, or fail, for each file.
               Effect.catchTags({
                 AzureDevOpsPullRequestNotFoundError: () => Effect.succeed(new Map()),
                 AzureDevOpsCommandFailedError: () => Effect.succeed(new Map()),
@@ -602,7 +573,6 @@ export const make = Effect.gen(function* () {
                   ? readTexts({ cwd: input.cwd, location: scope.location, iteration, change })
                   : Effect.succeed(held);
               }).pipe(
-                // Auth, rate-limit and CLI failures must reach the caller.
                 Effect.catchTags({
                   AzureDevOpsPullRequestNotFoundError: () => Effect.succeed(null),
                   AzureDevOpsCommandFailedError: () => Effect.succeed(null),
@@ -613,7 +583,6 @@ export const make = Effect.gen(function* () {
             { concurrency: DIFF_FILE_CONCURRENCY },
           );
           for (const { change, texts } of read) {
-            // Synchronous diffs need yields to let other server work run.
             yield* Effect.yieldNow;
             const file =
               texts === null
@@ -624,7 +593,6 @@ export const make = Effect.gen(function* () {
             edits += file.edits;
             truncated = truncated || file.truncated;
             index += 1;
-            // Add a file before checking budgets so oversized files cannot stall the cursor.
             if (
               bytes >= MAX_DIFF_SLICE_BYTES ||
               edits + MAX_FILE_DIFF_EDITS > MAX_DIFF_SLICE_EDITS ||
@@ -669,11 +637,6 @@ export const make = Effect.gen(function* () {
       Effect.mapError(fail("getDiffFileContents")),
     ),
 
-    /**
-     * A path the change does not carry is at the empty revision, which is where a file the pull
-     * request deletes sits. When the change was too long to follow to its end, those paths are left
-     * out instead: reporting them as deleted would clear a file nobody has read.
-     */
     getFileRevisions: Effect.fn("AzureDevOpsPullRequestProvider.getFileRevisions")(
       function* (input) {
         const revisions = new Map<string, string>();

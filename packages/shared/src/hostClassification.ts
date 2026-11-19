@@ -66,9 +66,6 @@ const isPrivateIpv4Address = (parts: readonly number[]): boolean =>
 const isSpecialPurposeIpv4Address = (parts: readonly number[]): boolean =>
   isPrivateIpv4Address(parts) ||
   parts[0]! >= 224 ||
-  // Deliberately suppress the whole protocol-assignment block. IANA marks
-  // .9 and .10 globally reachable, but privacy-safe false negatives are
-  // preferable to disclosing another special-purpose address by mistake.
   (parts[0] === 192 && parts[1] === 0 && parts[2] === 0) ||
   (parts[0] === 192 && parts[1] === 0 && parts[2] === 2) ||
   (parts[0] === 192 && parts[1] === 88 && parts[2] === 99) ||
@@ -135,8 +132,6 @@ const PRIVATE_FAVICON_TLDS = [
 const INTERNAL_HOST_LABELS: ReadonlySet<string> = new Set(["corp", "internal", "intranet"]);
 
 export const isPublicFaviconHost = (host: string): boolean => {
-  // A single trailing dot is a valid absolute DNS name. Repeated trailing
-  // dots are malformed and can conceal legacy numeric forms such as 127.1.
   if (host.endsWith("..")) return false;
   const normalized = normalizeHostname(host);
   if (isPrivateNetworkHost(normalized)) return false;

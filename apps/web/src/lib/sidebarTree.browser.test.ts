@@ -123,7 +123,6 @@ describe("sidebar keyboard navigation", () => {
     using tree = setup();
     const shelf = tree.row("shelf:settled");
     shelf.setAttribute("aria-expanded", "false");
-    // A collapsed shelf still renders the open thread.
     const open = tree.row("thread", "shelf:settled");
     tree.install();
     shelf.focus();
@@ -157,7 +156,6 @@ describe("sidebar keyboard navigation", () => {
     for (let index = 0; index < 20; index++) tree.row(`row-${index}`).style.display = "block";
     tree.install();
     settle.focus();
-    // Settling moves the row to the shelf at the bottom and removes the focused button.
     settle.remove();
     settled.remove();
     const moved = tree.row("settled");
@@ -180,9 +178,7 @@ describe("sidebar keyboard navigation", () => {
       first.focus();
       await userEvent.click(target);
       expect(document.activeElement).toBe(document.body);
-      // A status change re-renders the list while the user works elsewhere.
       tree.row(`second-${target.tagName}`);
-      // The list's mutation observer callback is queued ahead of this continuation.
       await Promise.resolve();
       expect(document.activeElement).toBe(document.body);
     }

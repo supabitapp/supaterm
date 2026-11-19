@@ -624,7 +624,6 @@ describe("pools", () => {
       now,
     );
     const [pooledWeekly] = pool?.windows ?? [];
-    // Pro 20x holds 20 of the pool's 21 capacity parts.
     expect(pooledWeekly?.remainingPercent).toBe(5);
     expect(
       pooledWeekly?.resets.map(({ member, restoresPercent }) => [
@@ -706,7 +705,6 @@ describe("pools", () => {
       ["env-a:b", 20],
     ]);
     expect(week).toMatchObject({ id: "seven_day", remainingPercent: 80, members: [{}] });
-    // Codex reports `primary` for both its five-hour and (on Go) monthly window.
     const mixed = collectLimitPools(
       [
         ...collectLimitAccounts(input),

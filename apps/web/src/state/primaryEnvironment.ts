@@ -18,7 +18,6 @@ export const hostEnvironmentIdAtom = Atom.make<string | null>(null).pipe(
   Atom.withLabel("web-host-environment-id"),
 );
 
-// Without a primary, only the service sharing the desktop app's Supaterm home supplies themes.
 export function createThemeEnvironmentIdAtom(input: {
   readonly primaryEnvironmentIdAtom: Atom.Atom<EnvironmentId | null>;
   readonly hostEnvironmentIdAtom: Atom.Atom<string | null>;

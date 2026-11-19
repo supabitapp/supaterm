@@ -75,7 +75,6 @@ describe("buildFileLinkParentSuffixByPath", () => {
     const suffixConstructions = joins.mock.calls.length;
 
     expect(result).toEqual(new Map(paths.map((path, i) => [path, `pkg-${i}/src`])));
-    // Count work instead of elapsed time so a pairwise scan fails on every machine.
     expect(suffixConstructions).toBeLessThan(paths.length * 20);
   });
 });
@@ -94,7 +93,6 @@ describe("parseFileUrlHref", () => {
       "box-node",
     ],
     ["file://localhost/home/me/notes.md", "/home/me/notes.md", ""],
-    // GNU `ls --hyperlink` names the machine's own hostname.
     ["file://box-node/var/tmp/report.txt", "/var/tmp/report.txt", "", "Box-Node"],
     ["file://1234/var/tmp/report.txt", "/var/tmp/report.txt", "", "1234"],
     ["file://böx/var/tmp/report.txt", "/var/tmp/report.txt", "", "böx"],

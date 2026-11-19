@@ -14,8 +14,6 @@ import { subscribePreviewAction } from "./preview/previewActionBus";
 const navigateHistory = vi.hoisted(() => vi.fn());
 vi.mock("../navigationHistory", () => ({ canNavigateHistory: () => true, navigateHistory }));
 
-// Chromium starts a gesture scroll, and Electron reports its begin, only for a
-// wheel event the page did not preventDefault; it then scrolls the latched scroller.
 function trackpad() {
   const begin = new Set<() => void>();
   const end = new Set<() => void>();
@@ -189,7 +187,6 @@ function panel(activeSurface: RightPanelSurface) {
     deviceAvailable: true,
     children: (
       <div data-testid="surface-content">
-        {/* Stands in for ServerBrowserSurface, whose page canvas handles thumb buttons itself. */}
         <canvas data-testid="page-canvas" onMouseUp={(event) => event.preventDefault()} />
         <InputGroup>
           <InputGroupInput aria-label="Address" />
@@ -201,8 +198,6 @@ function panel(activeSurface: RightPanelSurface) {
   return <RightPanelTabs {...props} />;
 }
 
-// Chromium focuses on an uncancelled mousedown and runs history back/forward on an
-// uncancelled button 3/4 mouseup.
 function releaseThumbButton(
   target: Element,
   button: 3 | 4,
@@ -241,11 +236,9 @@ describe("right panel thumb buttons", () => {
 
     expect(releaseThumbButton(tabStrip, 3)).toEqual(STAYS_PUT);
     expect(releaseThumbButton(content, 4)).toEqual(STAYS_PUT);
-    // The address addon focuses its input on press; a thumb press must leave focus alone.
     expect(releaseThumbButton(screen.getByTestId("address-addon").element(), 3)).toEqual(STAYS_PUT);
     expect(actions).toEqual(["back", "forward", "back"]);
 
-    // The page canvas already went back in the tab; the panel must not go back a second time.
     releaseThumbButton(screen.getByTestId("page-canvas").element(), 3);
     expect(actions).toEqual(["back", "forward", "back"]);
   });

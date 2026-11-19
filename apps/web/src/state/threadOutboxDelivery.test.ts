@@ -342,7 +342,6 @@ describe("durable thread outbox", () => {
     const h = harness();
     const outbox = h.create();
     await outbox.enqueueMany([message("z-first"), message("a-second")]);
-    // IndexedDB reads records in primary-key order, not insertion order.
     vi.mocked(h.storage.load).mockImplementation(async () =>
       [...h.records.values()].sort((a, b) => a.id.localeCompare(b.id)),
     );

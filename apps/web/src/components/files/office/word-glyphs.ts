@@ -41,7 +41,6 @@ export function withWholeMissingGlyphs(
       }, [])
       .map((primitive) => (missing(primitive) ? fitted(primitive, measure) : primitive));
 
-  // Watermark primitives lead the body and count apart, so they join apart.
   const marks = join(page.primitives.slice(0, page.watermarkPrimitiveCount ?? 0));
 
   return {
@@ -72,7 +71,6 @@ function missing(primitive: DisplayPrimitive | undefined): primitive is GlyphRun
   );
 }
 
-/** Neighbours in the document on one baseline whose runs differ only in their text and where it sits. */
 function continues(previous: GlyphRunPrimitive, next: GlyphRunPrimitive) {
   return (
     previous.docEnd !== undefined &&
@@ -93,7 +91,6 @@ function style(run: GlyphRunPrimitive) {
   });
 }
 
-/** Glyphs whose clusters, UTF-8 offsets into their run's text, now follow `before`. */
 function shifted(glyphs: GlyphRunPrimitive["glyphs"], before: string) {
   const offset = new TextEncoder().encode(before).length;
 
@@ -115,7 +112,6 @@ function fitted(run: GlyphRunPrimitive, measure: OffscreenCanvasRenderingContext
 
   if (width <= room || room <= 0) return run;
 
-  // Smaller rather than narrower, so emoji keep their shape.
   return {
     ...run,
     fallbackFont: font.replace(

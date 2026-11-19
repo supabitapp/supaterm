@@ -76,7 +76,6 @@ const ProjectIconName = TrimmedNonEmptyString.check(
 
 const ProjectEmoji = TrimmedNonEmptyString.check(Schema.isMaxLength(32));
 
-// Grapheme-count validation belongs to the server command boundary, not snapshot decoding.
 export const ProjectMonogramText = TrimmedNonEmptyString.check(
   Schema.isMaxLength(32),
   Schema.isPattern(/^[\p{L}\p{N}][\p{L}\p{N}\p{M}\u200c\u200d]*$/u),
@@ -87,8 +86,6 @@ const ProjectSymbolIcon = Schema.Struct({
   name: ProjectIconName,
   color: ProjectIconColor,
 });
-// Projects saved before Supaterm switched icon sets name a Lucide icon; clients map
-// those names onto the current set.
 const ProjectLucideIcon = Schema.Struct({
   kind: Schema.Literal("lucide"),
   name: ProjectIconName,
@@ -152,7 +149,6 @@ export const Project = Schema.Struct({
   projectIcon: Schema.optional(Schema.NullOr(ReceivedProjectIcon)),
   defaultModelSelection: Schema.NullOr(ModelSelection),
   defaultThreadEnvMode: Schema.optional(Schema.NullOr(ThreadEnvMode)),
-  // Opt-in because background sync performs network I/O and may move the checkout.
   autoPull: Schema.optional(Schema.Boolean),
   scripts: Schema.Array(ProjectScript),
   pinnedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
@@ -254,7 +250,6 @@ export type ProjectSearchEntriesResult = typeof ProjectSearchEntriesResult.Type;
 
 export const ProjectSearchContentsInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
-  // Preserve whitespace because it is significant in content queries.
   query: Schema.String.check(
     Schema.isNonEmpty(),
     Schema.isMaxLength(PROJECT_SEARCH_CONTENTS_QUERY_MAX_LENGTH),
@@ -299,8 +294,6 @@ export const ProjectListEntriesResult = Schema.Struct({
 });
 export type ProjectListEntriesResult = typeof ProjectListEntriesResult.Type;
 
-// Untracked files git ignores. Wholly ignored folders such as `node_modules`
-// are left out, so the list stays small enough to pick from.
 export const ProjectListIgnoredFilesInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
   /** Case-insensitive path substring, applied before the listing cap. */
@@ -431,9 +424,7 @@ export class ProjectListEntriesError extends Schema.TaggedError<ProjectListEntri
 
 export const ProjectReadFileInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
-  // Workspace-relative or absolute host path; only workspace-relative paths are writable.
   relativePath: Schema.NonEmptyString.check(Schema.isMaxLength(PROJECT_READ_FILE_PATH_MAX_LENGTH)),
-  // Optional files can be absent without failing the read.
   allowMissing: Schema.optional(Schema.Boolean),
 });
 export type ProjectReadFileInput = typeof ProjectReadFileInput.Type;
@@ -443,7 +434,6 @@ export const ProjectReadFileResult = Schema.Struct({
   contents: Schema.String,
   byteLength: NonNegativeInt,
   truncated: Schema.Boolean,
-  // Omitted by older servers; false only for an absent optional file.
   exists: Schema.optional(Schema.Boolean),
 });
 export type ProjectReadFileResult = typeof ProjectReadFileResult.Type;

@@ -63,10 +63,6 @@ export function ThreadDetailsCard({
   const density = resolveThreadDetailsCardDensity(height, contentHeights);
   const measureDetailsCard = canvas?.measureDetailsCard;
   const cardWidth = preferredPlacement?.width;
-  // The mode derives from canvas measurements, the preview frame and the
-  // inline flag, which live in three stores, so no single write site sees the
-  // card leave popover mode. A flag left set would reopen the popover unasked
-  // when the card returns to popover mode.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the popover flag in the right panel store when the derived mode turns inline
   useLayoutEffect(() => {
     if (mode === "inline" && popoverOpen)
@@ -74,19 +70,13 @@ export function ThreadDetailsCard({
   }, [mode, popoverOpen, threadRef]);
   const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null);
   const { environmentId, threadId } = threadRef;
-  // Re-measures when the density or measurement key changes, so each density's
-  // height is measured once it renders.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- measures the card's DOM height via ResizeObserver and reports it to the canvas
   useLayoutEffect(() => {
     const element = contentElement;
     if (!element || density === "essential") return;
-    // A disclosure resizes the content every frame while it animates, so a resize measures
-    // once its transitions settle instead of re-rendering the panel per frame.
     const measure = () => {
       const frame = element.closest<HTMLElement>("[data-thread-details-card]");
       const next = element.offsetHeight + (frame ? frame.offsetHeight - frame.clientHeight : 0);
-      // PR lists, servers, lineage and automations scroll as they grow. Counting them toward
-      // density would hide the section and workspace controls when the user asks to see more.
       const lists = element.querySelectorAll<HTMLElement>(
         "[data-thread-relationships-panel], [data-thread-details-pr-list], [data-thread-automations-panel], [data-thread-details-server-overflow]",
       );
@@ -98,8 +88,6 @@ export function ThreadDetailsCard({
           ? current
           : { key: measurementKey, heights: { ...heights, [density]: fittingHeight } };
       });
-      // Only the laid-out DOM knows the full card height, and the canvas keeps preview
-      // frames clear of it, so it is reported from this measure effect.
       if (density === "full" && cardWidth !== undefined) {
         measureDetailsCard?.({
           threadRef: { environmentId, threadId },
@@ -187,9 +175,6 @@ export function ThreadDetailsCard({
           {renderCard}
         </InlineThreadDetails>
       ) : null}
-      {/* Rendered in both modes: base-ui keeps a popup that unmounts mid-open
-          mounted, because its exit animation never finishes. Staying in the tree
-          lets it close cleanly when the card switches inline. */}
       <PopoverPopup
         {...(mode === "popover" ? detailsArea : {})}
         role="dialog"
@@ -200,7 +185,6 @@ export function ThreadDetailsCard({
         }}
         anchor={anchor}
         align="end"
-        // Lines the card up with the inline card: the panel pads its card by 8px.
         alignOffset={THREAD_DETAILS_CARD_GAP - 8}
         collisionAvoidance={{ side: "shift", align: "shift", fallbackAxisSide: "none" }}
         side="bottom"
@@ -220,7 +204,6 @@ export function ThreadDetailsCard({
 
 type PresenceProps = ReturnType<typeof usePresence>["props"];
 
-/** Keyed by thread, so switching threads shows or removes the card without an entrance. */
 function InlineThreadDetails({
   areaProps,
   open,

@@ -99,7 +99,6 @@ export function UsageModelDialog({
               ))}
             </dl>
 
-            {/* Unpriced cost is unknown, not zero, so its trend shows tokens. */}
             <UsageProviderChart
               providers={providers}
               days={chartWindow.days}

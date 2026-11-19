@@ -19,7 +19,6 @@ vi.mock(import("./useScopedSettings"), async (original) => ({
   useScopedSettings: (() => DEFAULT_UNIFIED_SETTINGS) as never,
   useUpdateScopedSettings: (() => state.updateSettings) as never,
 }));
-// The previews mount Ghostty and Shiki, which this test does not exercise.
 vi.mock(import("./SettingsFontPreviews"), () => ({
   CodeFontPreview: () => <div />,
   PromptFontPreview: () => <div />,
@@ -49,7 +48,6 @@ describe("TypographySection", () => {
   it("waits for IME composition to end before Enter commits a font family", async () => {
     using _storage = setup(null);
     await using screen = await render(<TypographySection />);
-    // The field also commits on a 400ms debounce, which must not stand in for Enter.
     using _timers = fakeTimers();
     const family = screen.getByRole("textbox", { name: "Interface font family" });
     await family.fill("serif");

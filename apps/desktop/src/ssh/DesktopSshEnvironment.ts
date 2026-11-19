@@ -96,13 +96,10 @@ export const resolveDesktopSshCliRunner = (
   };
 };
 
-// Remote servers record this ID as their owner, so it has to outlive restarts,
-// updates and edits to a saved connection. Without a stored one there is none.
 export const readOrCreateLauncherId = Effect.fn("desktop.ssh.readOrCreateLauncherId")(
   function* (filePath: string) {
     const fileSystem = yield* FileSystem.FileSystem;
     const random = yield* SecureRandom.SecureRandom;
-    // Any other read failure may hide a stored ID, which a new one would overwrite.
     const stored = yield* fileSystem.readFileString(filePath).pipe(
       Effect.catchIf(
         (cause) => cause.reason._tag === "NotFound",

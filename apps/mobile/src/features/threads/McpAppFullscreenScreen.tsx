@@ -133,7 +133,6 @@ function McpAppFullscreen({
   const conversation = useThreadShell(scopeThreadRef(environmentId, conversationThreadId));
   const awaitingUser =
     conversation?.hasPendingApprovals === true || conversation?.hasPendingUserInput === true;
-  // A request for the user is server state with no local handler to react in.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the focused screen through the navigator when the server asks the user for input or approval
   useEffect(() => {
     if (awaitingUser && focused && !exitPending.current) navigation.goBack();

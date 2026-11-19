@@ -117,7 +117,6 @@ const rolledBackRun = Schema.decodeSync(OrchestrationV2Run)({
   contextHandoffId: null,
 });
 
-// Serves the orchestration HTTP routes over real stores; `allowed` gates the read scope.
 const serveOrchestrationHttp = (allowed: () => boolean) =>
   Effect.gen(function* () {
     const runtime = ProviderReplayHarness.layerWithRegistry(
@@ -277,8 +276,6 @@ it.effect("exports full history with size, scope, and missing-thread checks", ()
       WHERE turn_item_id = ${commandItemId}
     `;
     const fill = (bytes: number) => sql`printf('%.*c', ${bytes}, 'x')`;
-    // Stored bytes the export drops do not count, and neither does a row SQLite cannot parse:
-    // only what the export keeps can reject it.
     yield* setCommandPayload(sql`json_set(
       payload_json, '$.output', 'x',
       '$.droppedLegacyField', ${fill(PROVIDER_SEND_TURN_MAX_FILE_BYTES + 1)}
@@ -289,8 +286,6 @@ it.effect("exports full history with size, scope, and missing-thread checks", ()
       sql`replace(payload_json, '"droppedLegacyField":', ${deepField} || '"droppedLegacyField":')`,
     );
     expect((yield* read(thread.id)).status).toBe(200);
-    // Tool output over the limit rejects the export, here as the content array a dynamic tool
-    // stores. Its only read is the size.
     yield* sql`
       UPDATE orchestration_v2_projection_turn_items SET type = 'dynamic_tool'
       WHERE turn_item_id = ${commandItemId}
@@ -311,7 +306,6 @@ it.effect("exports full history with size, scope, and missing-thread checks", ()
     ).toBeInstanceOf(ThreadManagementService.ThreadTranscriptTooLargeError);
     expect(reads).toEqual([expect.stringContaining("octet_length(payload_json)")]);
     expect((yield* read(thread.id)).status).toBe(400);
-    // The export leaves a rolled back run out, so its output cannot reject it.
     yield* eventSink.write({
       events: [
         {
@@ -385,7 +379,6 @@ it.effect("leaves older done threads out of the HTTP shell only when asked", () 
     );
     expect(cut.olderDone?.counts).toEqual([{ projectId: thread.projectId, count: 1 }]);
 
-    // A client that holds rows the socket can replay from keeps them; any other cursor reloads.
     expect(full.projectIdentities).toBeTypeOf("string");
     expect(yield* shell(`?resumeFrom=${full.snapshotSequence}`)).toEqual({ resumable: true });
     expect(yield* shell(`?resumeFrom=${full.snapshotSequence - 1}`)).toEqual({ resumable: true });

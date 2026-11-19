@@ -133,7 +133,6 @@ function ReclaimRow({
   const reclaim = useAtomCommand(serverEnvironment.reclaimDatabaseSpace);
   const [confirming, setConfirming] = useState(false);
   const [requested, setRequested] = useState(false);
-  // A failed repair reports back after the restart, which ends the wait.
   const restarting = requested && status.reclaimFailure === undefined;
   const minutes = databaseReclaimMinutes(status);
   const amount = formatGiB(status.reclaimableBytes);

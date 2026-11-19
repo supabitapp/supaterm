@@ -105,8 +105,6 @@ export function SidebarUpdateCapsule({
             />
           }
         />
-        {/* w-0 keeps the label out of the capsule's minimum width, so a shared footer row
-            can squeeze the label but never push the action past the sidebar edge. */}
         <span className="pointer-events-none relative w-0 min-w-0 flex-1 truncate pl-3 text-xs">
           <span className={cn(view.tone === "failed" && "text-destructive")}>{view.label}</span>
           {view.slow ? (

@@ -143,7 +143,6 @@ describe("ACP registry replay fixtures", () => {
               : command,
           );
           if (isFirstTurn) {
-            // Wait for the committed terminal event before switching models.
             yield* orchestrator.streamStoredEvents.pipe(
               Stream.filter(
                 ({ event }) => event.type === "run.updated" && event.payload.status === "completed",
@@ -160,8 +159,6 @@ describe("ACP registry replay fixtures", () => {
             Stream.runHead,
           );
         } else {
-          // Failed opens retry on the outbox schedule. Advance to each recorded
-          // deadline, draining effects instead of polling the projection.
           for (let attempt = 0; attempt < 10; attempt++) {
             yield* worker.drain();
             const next = yield* worker.nextClaimableAt();

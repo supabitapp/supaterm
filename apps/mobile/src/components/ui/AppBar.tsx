@@ -64,7 +64,6 @@ export function AppBar(props: AppBarProps) {
       : null;
   const navigation = use(NavigationContext);
   const route = use(NavigationRouteContext);
-  // A thread opened from another thread sits on it, not beside the list, so it keeps Back.
   const threadBelow = useSyncExternalStore(
     (onChange) => navigation?.addListener("state", onChange) ?? (() => {}),
     () => {
@@ -107,8 +106,6 @@ export function AppBar(props: AppBarProps) {
     (search.compactToolbar ?? !layout.usesSplitView) &&
     usesNativeMailSearchToolbar;
   const visibleMenus = compactSearch ? (menus?.slice(1) ?? []) : (menus ?? []);
-  // Where the mail toolbar isn't used, the Duo keeps search at the bottom of the pane like its
-  // workspace lists; elsewhere inline search is a button in the bar.
   const duoBottomSearch =
     search !== undefined &&
     !compactSearch &&

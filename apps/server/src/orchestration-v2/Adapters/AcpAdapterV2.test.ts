@@ -155,7 +155,6 @@ describe("acpPerTurnPromptUsage", () => {
         reasoningTokens: 3,
       },
     );
-    // Antigravity 1.4.5: its harness reports prompt tokens without the 24 cached ones.
     assert.deepEqual(
       acpPerTurnPromptUsage(
         {
@@ -225,7 +224,6 @@ describe("acpPerTurnPromptUsage", () => {
   });
 
   it("caps cache writes at the input left over after cache reads", () => {
-    // Each counter fits under input alone, but together they exceed it.
     assert.deepEqual(
       acpPerTurnPromptUsage(
         {
@@ -285,9 +283,7 @@ describe("acpToolCallDiffPatch", () => {
       },
     ];
     assert.isUndefined(acpToolCallDiffPatch(content));
-    // An omitted preview is not re-diffed from the bare snippets either.
     assert.isUndefined(acpToolCallDiffPatch([{ ...content[0], patch: { format: "omitted" } }]));
-    // A status block beside the snippet must not hide it.
     for (const blocks of [
       content,
       [{ type: "content", content: { type: "text", text: "Edited." } }, ...content],
@@ -298,7 +294,6 @@ describe("acpToolCallDiffPatch", () => {
         newStr: "const target = 100;",
       });
     }
-    // Beside another diff, the snippet is neither a patch nor a placed edit.
     const twoDiffs = [
       ...content,
       {
@@ -630,7 +625,6 @@ const makePromptInactivityHarness = Effect.fnUntraced(function* (input: {
     natives,
     providerThread,
     startTurn,
-    /** A turn still running makes the next start fail, without waiting on time. */
     nextTurnRejected: (ordinal: number) =>
       startTurn(ordinal).pipe(
         Effect.flip,
@@ -772,7 +766,6 @@ const makeInstructionCompactionHarness = Effect.fnUntraced(function* (
           }
         : {}),
       registerExtensions: makeCopilotSubagentRouting().registerExtensions,
-      // Routes updates tagged with a Devin subagent context to that child session.
       normalizeSessionUpdate: normalizeDevinSessionUpdate,
       makeRuntime: makeMockRuntime({
         childProcessSpawner,
@@ -781,7 +774,6 @@ const makeInstructionCompactionHarness = Effect.fnUntraced(function* (
         environment,
         wrapRuntime: (runtime) => ({
           ...runtime,
-          // The captured handlers deliver frames between turns, while no prompt is in flight.
           handleSessionUpdate: (next) =>
             Effect.sync(() => {
               sessionUpdate = next;
@@ -792,11 +784,9 @@ const makeInstructionCompactionHarness = Effect.fnUntraced(function* (
                 copilotSessionEvent = next as typeof copilotSessionEvent;
               }
             }).pipe(Effect.andThen(runtime.handleExtNotification(method, payload, next))),
-          // Make compaction during prompt completion deterministic at the adapter boundary.
           prompt: (payload, options) =>
             runtime.prompt(payload, options).pipe(
               Effect.tap(() => runtime.drainEvents),
-              // Grok's local cancel reports `cancelled` even when the agent never saw the prompt.
               Effect.map((result) => {
                 if (nextPromptStopReason === undefined) return result;
                 const stopReason = nextPromptStopReason;
@@ -898,7 +888,6 @@ const makeAdvertisedCompactionHarness = Effect.fnUntraced(function* (
     new URL("../../../scripts/acp-mock-agent.ts", import.meta.url),
   );
   const protocolEvents = yield* Queue.unbounded<EffectAcpProtocol.AcpProtocolLogEvent>();
-  // Resolves after the adapter records what the agent advertised, so the refusal is deterministic.
   const commandsPublished = yield* Deferred.make<void>();
   const instanceId = ProviderInstanceId.make("acp-test-advertised-compaction");
   const threadId = ThreadId.make("thread-acp-advertised-compaction");
@@ -1066,7 +1055,6 @@ const runFormElicitation = (input: {
     return { questions, response: responses[0] };
   });
 
-/** Submits like the web and mobile clients: an option's `value`, else its label. */
 const optionValues = (question: OrchestrationV2UserInputQuestion | undefined) =>
   question?.options.map((option) => option.value ?? option.label);
 
@@ -1257,8 +1245,6 @@ describe("AcpAdapterV2", () => {
         inputTokens: 60,
         outputTokens: 15,
       });
-      // Continuation attach: drains wake traffic and finalizes without ever
-      // dispatching session/prompt, so it must report unavailable usage.
       yield* runtime.startTurn(
         makeTurnInput({
           threadId,
@@ -1288,7 +1274,6 @@ describe("AcpAdapterV2", () => {
           : null,
         { usageScope: "main_agent", usageStatus: "unavailable", hasSubagents: false },
       );
-      // The continuation must not disturb the next real prompt's sample.
       assert.deepEqual(yield* completedUsage(3), {
         usageScope: "main_agent",
         usageStatus: "complete",
@@ -1311,7 +1296,6 @@ describe("AcpAdapterV2", () => {
         retryable: true,
         resetAt: "2030-01-01T00:00:00.000Z",
       } as const;
-      // The runtime ordinal of each prompt, and the session each check watched.
       const promptRuntimes: Array<number> = [];
       const promptTexts: Array<string> = [];
       const watchedSessions: Array<string> = [];
@@ -1392,7 +1376,6 @@ describe("AcpAdapterV2", () => {
       const completed = yield* runTurn(2);
       assert.equal(completed?.type === "turn.terminal" ? completed.status : null, "completed");
       assert.deepEqual(promptRuntimes, [1, 2], "the next turn runs on a fresh runtime");
-      // The fresh runtime has no record of what reached the agent, so it sends Supaterm's notes again.
       assert.include(promptTexts[1] ?? "", "<runtime_info>");
       assert.include(promptTexts[1] ?? "", "Supaterm interaction mode: Default");
       assert.equal(watchedSessions.length, 2);
@@ -1522,8 +1505,6 @@ describe("AcpAdapterV2", () => {
             processGroupTerminationGrace: 0,
             wrapRuntime: (runtime) => ({
               ...runtime,
-              // The response only leaves the agent after the turn has been
-              // force stopped and finalized: teardown does not interrupt this fiber.
               prompt: () =>
                 Deferred.succeed(dispatched, undefined).pipe(
                   Effect.andThen(Deferred.await(gate)),
@@ -1585,7 +1566,6 @@ describe("AcpAdapterV2", () => {
         driver: ACP_TEST_DRIVER,
         nativeTurnId: acpScopedNativeId(instanceId, "mock-session-1:turn:1"),
       });
-      // Force stop finalizes the turn without waiting for the gated prompt response.
       yield* runtime.interruptTurn({
         providerThread,
         providerTurnId,
@@ -1608,7 +1588,6 @@ describe("AcpAdapterV2", () => {
         usageStatus: "unavailable",
         hasSubagents: false,
       });
-      // The response lands now; the finalized turn must not adopt its counters.
       yield* Deferred.succeed(gate, undefined);
       yield* Deferred.await(wireSettled);
       assert.deepEqual(usageAt(), {
@@ -1680,8 +1659,6 @@ describe("AcpAdapterV2", () => {
           (event) =>
             event.type === "provider_turn.updated" && event.providerTurn.status === "completed",
         );
-        // Usage semantics are unverified for an undeclared agent, so its
-        // counters are never trusted, on any turn.
         assert.deepEqual(
           completed?.type === "provider_turn.updated"
             ? completed.providerTurn.turnTokenUsage
@@ -1837,7 +1814,6 @@ describe("AcpAdapterV2", () => {
       }).pipe(Effect.provide(layerTest)),
   );
 
-  // Droid 0.243.0 and OpenCode 2.1 pair each choice with an optional free-form companion field.
   const droidChoice = {
     type: "string",
     title: "Format",
@@ -1868,7 +1844,6 @@ describe("AcpAdapterV2", () => {
     ],
   }));
 
-  // OpenCode 2.1 pairs each qN choice with a qN_custom free-form companion.
   const openCodeSchema = {
     type: "object",
     properties: {
@@ -2294,7 +2269,6 @@ describe("AcpAdapterV2", () => {
       buildModeId: "https://agentclientprotocol.com/protocol/session-modes#agent",
     },
     {
-      // Without a `mode` category, Supaterm derives no mode state and only the config option switches.
       modeIds: "Copilot URL collaboration_mode",
       environment: {
         SUPATERM_ACP_COPILOT_MODES: "1",
@@ -2603,7 +2577,6 @@ describe("AcpAdapterV2", () => {
         assert.deepEqual(yield* runTurn("/repro-skill"), [{ type: "text", text: "/repro-skill" }]);
         assertReinjectedInstructions(yield* runTurn("Continue work."), "Continue work.");
         assert.deepEqual(yield* runTurn("Finish work."), [{ type: "text", text: "Finish work." }]);
-        // Agents such as Grok accept preservation instructions after the command.
         assert.deepEqual(yield* runTurn("/compact keep the plan"), [
           { type: "text", text: "/compact keep the plan" },
         ]);
@@ -3398,7 +3371,6 @@ describe("AcpAdapterV2", () => {
       yield* replay("agent_message_chunk", "a3", "code with <monitor-event>");
       yield* replay("agent_message_chunk", "a4", "\n\n");
       yield* replay("user_message_chunk", "u3", "Why did Monitor 0123abcd ended appear?");
-      // Grok's injected monitor wakes replay as user chunks and stay out of history.
       yield* replay(
         "user_message_chunk",
         "u4",
@@ -3931,7 +3903,6 @@ describe("AcpAdapterV2", () => {
         (item) => item.threadId === task?.childThreadId && item.type === "assistant_message",
       );
       assert.equal(new Set(childAnswers.map((item) => item.ordinal)).size, 2);
-      // Later chunks coalesce; the subagent's completion flushes the final text.
       assert.deepEqual(
         childAnswers.flatMap((item) =>
           item.type === "assistant_message" && item.text !== "Checking the code."
@@ -4104,7 +4075,6 @@ describe("AcpAdapterV2", () => {
                     sessionEvent!({ sessionId, type, data, ...(agentId ? { agentId } : {}) });
                   const update = (next: EffectAcpSchema.SessionUpdate) =>
                     handler!({ sessionId, update: next });
-                  // Copilot sends each chunk's raw delta just before the chunk.
                   const chunk = (text: string, task?: string) =>
                     raw("assistant.message_delta", {
                       deltaContent: text,
@@ -5060,7 +5030,6 @@ describe("AcpAdapterV2", () => {
       yield* TestClock.adjust("10 minutes");
       yield* harness.emitUpdate(thought("mock-session-1"));
       yield* TestClock.adjust("5 minutes");
-      // Neither another session's progress nor this session's metadata extends this turn.
       yield* harness.emitUpdate(thought("foreign-session"));
       yield* harness.emitUpdate({
         sessionId: "mock-session-1",
@@ -5125,7 +5094,6 @@ describe("AcpAdapterV2", () => {
       const rejected = yield* Deferred.make<void>();
       const harness = yield* makePromptInactivityHarness({
         environment: () => ({}),
-        // pi-agent-core based agents (oh-my-pi) end a turn but keep background work running.
         wrapPrompt: (prompt) => (payload, options) => {
           promptCalls += 1;
           return promptCalls === 2
@@ -5222,7 +5190,6 @@ describe("AcpAdapterV2", () => {
       if (pending.type !== "runtime_request.updated") {
         return yield* Effect.die("Expected a pending approval");
       }
-      // Only the request is left open, so it alone holds the deadline.
       yield* harness.emitUpdate({
         sessionId: "mock-session-1",
         update: {
@@ -5256,7 +5223,6 @@ describe("AcpAdapterV2", () => {
         runtimeMode: "approval-required",
       });
       yield* harness.startTurn(1);
-      // The dying agent leaves an approval unanswered.
       yield* harness.runtime.events.pipe(
         Stream.filter(
           (event) =>
@@ -5268,7 +5234,6 @@ describe("AcpAdapterV2", () => {
       const [exited] = yield* harness.terminals(1);
       assert.equal(exited?.status, "failed");
 
-      // The replacement's silent prompt still times out.
       yield* harness.startTurn(2);
       yield* TestClock.adjust("15 minutes");
       yield* harness.startTurn(3);
@@ -5304,7 +5269,6 @@ describe("AcpAdapterV2", () => {
         let exited = !agentExits;
         const events = yield* harness.runtime.events.pipe(
           Stream.takeUntil((event) => event.type === "turn.terminal"),
-          // The agent dies while its tool call is open.
           Stream.tap((event) =>
             exited ||
             event.type !== "turn_item.updated" ||
@@ -5323,7 +5287,6 @@ describe("AcpAdapterV2", () => {
             ? [event.turnItem.status]
             : [],
         );
-        // regression: #37368 the tool call stayed open in the failed turn.
         assert.equal(toolStatuses.at(-1), "failed");
         const terminal = events.at(-1);
         assert.equal(terminal?.type === "turn.terminal" ? terminal.status : undefined, "failed");
@@ -5340,17 +5303,12 @@ describe("AcpAdapterV2", () => {
       const mockAgentPath = yield* path.fromFileUrl(
         new URL("../../../scripts/acp-mock-agent.ts", import.meta.url),
       );
-      // A directory stands in for cgroupfs: the join wrapper appends the agent
-      // PID to cgroup.procs and stays in this process's cgroup, which is the
-      // cgroup the lease reports.
       const leasePath = yield* fileSystem.makeTempDirectoryScoped();
       const procsPath = path.join(leasePath, "cgroup.procs");
       yield* fileSystem.writeFileString(procsPath, "");
       const relativePath = AcpSessionRuntime.parseUnifiedCgroupPath(
         NodeFS.readFileSync("/proc/self/cgroup", "utf8"),
       );
-      // No unified cgroup on this host means no lease is possible, so there is
-      // nothing for this test to exercise.
       if (relativePath === undefined) return;
       const processTree = AcpSessionRuntime.makePosixProcessTreeController("linux");
       const leasePids = () =>
@@ -5417,8 +5375,6 @@ describe("AcpAdapterV2", () => {
         })
         .pipe(Effect.provideService(Scope.Scope, sessionScope));
       yield* runtime.ensureThread({ threadId, modelSelection, runtimePolicy });
-      // The agent's children are listed once, to capture the root it may
-      // signal at teardown, and never again while the session is open.
       assert.equal(childListReads, 1);
 
       const agentPid = leasePids()[0];
@@ -6483,7 +6439,6 @@ describe("AcpAdapterV2", () => {
         )
         .map(rawProtocolPromptTextBlocks);
       assert.lengthOf(prompts, 2);
-      // The mock agent reuses its session id, so only the rollback reset resends these notes.
       assert.include(prompts[1]?.at(-1)?.text ?? "", "<runtime_info>");
     }).pipe(Effect.provide(layerTest)),
   );
@@ -6577,7 +6532,6 @@ describe("AcpAdapterV2", () => {
         if (firstSessionUpdate === undefined) {
           return yield* Effect.die("the first runtime's session handler must be wired");
         }
-        // The agent goes idle while its prompt RPC is still open, which ends the turn.
         yield* firstSessionUpdate({
           sessionId: "mock-session-1",
           update: { sessionUpdate: "user_message_chunk", content: { type: "text", text: "echo" } },
@@ -6597,9 +6551,6 @@ describe("AcpAdapterV2", () => {
             appRunOrdinal: 0,
           },
         });
-        // The replaced runtime's prompt settles late. A successful result would record delivery
-        // without the generation check; a cancelled one never records it, so it proves nothing.
-        // Its completion callback must finish before the next turn reads delivery state.
         yield* Deferred.succeed(firstPromptGate, { stopReason: "end_turn" });
         yield* Deferred.await(firstPromptCallbackDone);
         yield* runtime.startTurn(
@@ -6897,8 +6848,6 @@ describe("AcpAdapterV2", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
-  // Oracle: Grok incident frames. Command completion must release the turn even
-  // when the CLI keeps the prompt RPC and process alive. Command polls stay visible.
   it.live(
     "completes a structured Grok background command from poll with an unanswered prompt RPC",
     () =>
@@ -6985,8 +6934,6 @@ describe("AcpAdapterV2", () => {
       }).pipe(Effect.provide(layerTest)),
   );
 
-  // Grok expands only a leading `/name`, so a picked leading `$name` must reach it in that
-  // form; anything else keeps the user's text.
   it.live.each([
     { text: "$deploy ship it", sent: "/deploy ship it", native: true },
     { text: "ship $deploy", sent: "ship $deploy", native: false },
@@ -7000,7 +6947,6 @@ describe("AcpAdapterV2", () => {
         new URL("../../../scripts/acp-mock-agent.ts", import.meta.url),
       );
       const hostPlatform = yield* HostProcess.Platform;
-      // Stands in for `grok inspect --json`, the catalog behind the `$` picker.
       const catalog = { skills: [{ name: "deploy", source: { path: "/s/deploy/SKILL.md" } }] };
       const grokPath = writeFakeCli({
         directory: yield* fileSystem.makeTempDirectoryScoped(),
@@ -7013,7 +6959,6 @@ describe("AcpAdapterV2", () => {
       const adapter = yield* makeGrokAdapterV2({
         instanceId,
         settings: { ...DEFAULT_GROK_SETTINGS, binaryPath: grokPath },
-        // The fake CLI needs `node` on its PATH.
         environment: { ...process.env },
         hostPlatform,
         selfInvocation: yield* resolveSelfInvocation(),
@@ -7059,7 +7004,6 @@ describe("AcpAdapterV2", () => {
       );
       const blocks = rawProtocolPromptTextBlocks(Option.getOrThrow(prompt));
       if (native) {
-        // Same shape as a typed native command: one bare text block, no Supaterm instructions.
         assert.deepEqual(blocks, [{ type: "text", text: sent }]);
       } else {
         assert.isTrue(blocks.some((block) => block.text.includes(sent)));
@@ -7068,8 +7012,6 @@ describe("AcpAdapterV2", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
-  // Command completion must release the turn even when the CLI keeps the prompt RPC and
-  // process alive, as KillTask reports show. Kill calls stay visible.
   it.live.each([
     { shape: "output_only", expectedCommand: { type: "command_execution", status: "completed" } },
     { shape: "variant_only", expectedCommand: { type: "command_execution", status: "completed" } },
@@ -7745,7 +7687,6 @@ describe("AcpAdapterV2", () => {
             confirm: optionValues(byId.get("confirm"))?.[1],
             count: "3",
             ratio: " 0.5 ",
-            // Not an integer: omitted, since the field is optional.
             limit: "3.7",
             note: "hi",
             extra: "not in the form",
@@ -7846,7 +7787,6 @@ describe("AcpAdapterV2", () => {
           all: ["a", "b", "c"],
           optionalNone: [],
           some: ["b"],
-          // Optional and not valid selections, so they are left out.
           tooMany: ["a", "b"],
           single: "a",
           unknownOnly: ["z"],
@@ -8699,8 +8639,6 @@ describe("AcpAdapterV2", () => {
       assert.isTrue(yield* hasPendingBackgroundWork);
       assert.isDefined(sessionUpdateHandler, "session update handler must be wired");
 
-      // A production Grok spawn ACK has raw tool status completed but extracts
-      // as a running subagent with its original non-empty prompt.
       yield* sessionUpdateHandler!({
         sessionId: "mock-session-1",
         update: {
@@ -10670,7 +10608,6 @@ describe("AcpAdapterV2", () => {
             rawOutput: { type: "BackgroundTaskStarted", task_id: taskId },
           });
         }
-        // Progress removes the ACK carrying the task identity before a reportless completion.
         yield* update({
           sessionUpdate: "tool_call_update",
           toolCallId: "early",
@@ -10678,7 +10615,6 @@ describe("AcpAdapterV2", () => {
           rawOutput: { type: "Text", text: "Command progress" },
         });
         yield* complete("early", { exit_code: exitCode, output: "EARLY_BG_DONE\n" });
-        // The real decoder treats this exit-code-free duplicate as completed, even after failure.
         yield* complete("early");
         assert.lengthOf(continuationRequests, 0);
 
@@ -10691,7 +10627,6 @@ describe("AcpAdapterV2", () => {
         let checkpoint = 0;
         const assertCommand = Effect.fnUntraced(function* (expectedStatus: string, output: string) {
           const title = `Checkpoint ${++checkpoint}`;
-          // A later tool event fences the emitted updates without waiting for a terminal that may never come.
           yield* update({ sessionUpdate: "tool_call_update", toolCallId: "blocker", title });
           while (true) {
             const event = yield* Queue.take(events);
@@ -10735,7 +10670,6 @@ describe("AcpAdapterV2", () => {
           });
         yield* replayAck();
         yield* assertCommand(status, "EARLY_BG_DONE\n");
-        // Sparse ACP updates must retain the command result after projection replaces the ACK.
         for (const sparseStatus of ["completed", "in_progress"] as const) {
           yield* update({
             sessionUpdate: "tool_call_update",
@@ -10791,7 +10725,6 @@ describe("AcpAdapterV2", () => {
       }).pipe(Effect.provide(layerTest)),
   );
 
-  // A dev server started as a background shell never exits, so it must not hold the root turn.
   const startGrokBackgroundShellTurn = Effect.fnUntraced(function* (name: string) {
     const childProcessSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const path = yield* Path.Path;
@@ -10925,7 +10858,6 @@ describe("AcpAdapterV2", () => {
         },
       });
     });
-    /** Settles the prompt and returns the dev server rows emitted up to the turn terminal. */
     const settle = Effect.gen(function* () {
       const rows: Array<OrchestrationV2TurnItem> = [];
       const takeTerminal = Effect.gen(function* () {
@@ -10946,12 +10878,10 @@ describe("AcpAdapterV2", () => {
           Effect.flatMap(TestClock.adjust),
           Effect.andThen(takeTerminal),
         ),
-        // The hold never ends on its own, so report it instead of waiting forever.
         Deferred.await(promptHeld).pipe(Effect.as("held open by the background shell")),
       ]);
       return { status, rows };
     });
-    /** Dev server rows emitted before a usage update fences them. */
     const takeRows = Effect.gen(function* () {
       yield* update({ sessionUpdate: "usage_update", used: 10, size: 100 });
       const rows: Array<OrchestrationV2TurnItem> = [];
@@ -10984,7 +10914,6 @@ describe("AcpAdapterV2", () => {
     Effect.gen(function* () {
       const harness = yield* startGrokBackgroundShellTurn("grok-dev-server-progress");
       yield* harness.startDevServer;
-      // Progress replaces the BackgroundTaskStarted output that carried the task identity.
       yield* harness.update({
         sessionUpdate: "tool_call_update",
         toolCallId: "call-dev-server",
@@ -11292,7 +11221,6 @@ describe("AcpAdapterV2", () => {
         .pipe(Effect.forkScoped);
       yield* Deferred.await(teardownStarted);
 
-      // The session manager's Stop timeout interrupts this call; it must not wait for teardown.
       yield* Fiber.interrupt(interruptFiber);
 
       const startFiber = yield* runtime

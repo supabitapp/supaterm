@@ -54,7 +54,6 @@ const insertTurnItem = (
     `;
   });
 
-// Without the index a payload that is not JSON fails no write; with it, it must fail none either.
 it.effect("migrates over a message whose payload is not JSON, and takes one after it", () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;

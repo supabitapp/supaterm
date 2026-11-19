@@ -16,7 +16,6 @@ interface VideoThumbnailTarget {
   readonly source: string | DraftComposerFileAttachment;
 }
 
-// Plain-object keys compare structurally (Effect `Equal`/`Hash`).
 const videoThumbnailAtom = Atom.family((target: VideoThumbnailTarget) =>
   Atom.make(
     Effect.promise((signal) =>
@@ -42,7 +41,6 @@ export function VideoThumbnailImage(props: {
   readonly contentFit?: "cover" | "contain";
 }) {
   const { cacheKey, source } = props;
-  // Extraction starts only while the screen is focused; leaving it skips queued loads.
   const isFocused = useIsFocused();
   const loaded = useAtomValue(
     source && isFocused ? videoThumbnailAtom({ cacheKey, source }) : noVideoThumbnail,
@@ -50,8 +48,6 @@ export function VideoThumbnailImage(props: {
   const thumbnail =
     (loaded._tag === "Success" ? loaded.value : null) ?? cachedVideoThumbnail(cacheKey);
 
-  // iOS draws a frame object the moment its prop is set, with the contentFit the view has then,
-  // and a later contentFit never refits it. Send the frame after mount so contentFit is set first.
   const [laidOut, setLaidOut] = useState(false);
   return (
     <Image

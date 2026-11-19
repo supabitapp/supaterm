@@ -237,7 +237,6 @@ export const CursorDriver: ProviderDriver<
       Effect.map(stampSnapshot),
       Effect.tap((provider) =>
         Effect.sync(() => {
-          // A failed check lists only custom models, so keep the last loaded catalog.
           if (provider.models.some((model) => !model.isCustom)) {
             catalogModels = provider.models;
           }

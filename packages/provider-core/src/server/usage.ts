@@ -35,7 +35,6 @@ export const EMPTY_TOTALS: UsageTokenTotals = {
 };
 
 export function totalTokens(totals: UsageTokenTotals): number {
-  // reasoningTokens is a subset of outputTokens and must not be added again.
   return (
     totals.uncachedInputTokens +
     totals.cachedInputTokens +

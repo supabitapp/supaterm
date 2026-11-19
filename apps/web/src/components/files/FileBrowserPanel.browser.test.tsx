@@ -121,7 +121,6 @@ describe("FileBrowserPanel", () => {
     row.dispatchEvent(
       new DragEvent("dragstart", { bubbles: true, cancelable: true, composed: true, dataTransfer }),
     );
-    // The tree selects the row the drag picked up; mid-drag that must not open it.
     row.click();
     await vi.waitFor(() => expect(row.getAttribute("aria-selected")).toBe("true"));
 
@@ -155,7 +154,6 @@ describe("FileBrowserPanel", () => {
 
     directory.entries = [
       ...entries,
-      // Out of sort order, because inserting in order hides the cost of each insert.
       ...Array.from({ length: 2_000 }, (_, index): ProjectEntry => {
         const name = String((index * 7_919) % 2_000).padStart(4, "0");
         return { path: `src/generated-${name}`, kind: "directory" };

@@ -21,13 +21,11 @@ export function BrowserSurfaceSlot(props: {
     className,
     fitSourceContent = false,
   } = props;
-  // A pane moving to another spot in a split can keep its size, which no resize observer reports.
   const paneLayoutVersion = usePaneLayoutVersion();
   const layoutVersion = `${props.layoutVersion ?? ""}:${paneLayoutVersion ?? ""}`;
   const presentationRef = useRef({ visible, cornerRadius, zIndex, layoutVersion });
   const updateRef = useRef<(() => void) | null>(null);
 
-  // The lease lives as long as this element for one tab, so the ref callback owns it.
   const attachSurface = (element: HTMLDivElement) => {
     let lease = acquireBrowserSurface(tabId, fitSourceContent);
     const update = () => {
@@ -63,8 +61,6 @@ export function BrowserSurfaceSlot(props: {
     updateRef.current = update;
     update();
     const observed: Element[] = [element];
-    // Collapsible panels animate their outer width while keeping the content at
-    // full width. The slot moves without resizing, so measure on panel resizes too.
     const panel = element.closest("[data-panel]");
     if (panel) observed.push(panel);
 

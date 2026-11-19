@@ -41,7 +41,6 @@ function CommandDialogBackdrop({ className, ...props }: CommandDialogPrimitive.B
 }
 
 function CommandDialogViewport({ className, ...props }: CommandDialogPrimitive.Viewport.Props) {
-  // Short desktop windows would put the search field under the native window controls.
   const nativeTitlebarHeight = useNativeTitlebarHeight();
   const titlebarStyle = {
     "--command-titlebar-height": `${nativeTitlebarHeight}px`,
@@ -73,7 +72,6 @@ function CommandDialogPopup({
       <CommandDialogBackdrop onPointerDown={onBackdropPointerDown} />
       <CommandDialogViewport>
         <CommandDialogPrimitive.Popup
-          // The first tabbable can be an input addon, such as a submenu's Back button.
           initialFocus={() => popupRef.current?.querySelector("input") ?? true}
           ref={popupRef}
           className={cn(
@@ -190,7 +188,6 @@ function CommandCollection({ ...props }: React.ComponentProps<typeof Autocomplet
   return <AutocompleteCollection data-slot="command-collection" {...props} />;
 }
 
-// Pass active to override primitive hover/keyboard highlights when the palette tracks its own row.
 function CommandItem({
   className,
   active,

@@ -71,7 +71,6 @@ describe("ProviderEnvironmentSection external settings writes", () => {
     );
     expect(onChange).not.toHaveBeenCalled();
 
-    // A settings write from elsewhere on the instance redelivers a redacted, stored variable.
     await screen.rerender(
       <ProviderEnvironmentSection
         environment={[{ name: "OTHER_VAR", value: "", sensitive: true, valueRedacted: true }]}
@@ -107,7 +106,6 @@ describe("ProviderEnvironmentSection external settings writes", () => {
       "UNPUBLISHED_ONE",
     );
 
-    // The stored secret comes back redacted, so the rows reseed without matching the echo.
     await screen.rerender(
       <ProviderEnvironmentSection
         environment={[{ name: "STORE_ME", value: "", sensitive: true, valueRedacted: true }]}
@@ -162,7 +160,6 @@ describe("ProviderEnvironmentSection external settings writes", () => {
     await userEvent.tab();
     expect(onChange).toHaveBeenLastCalledWith([{ name: "PUBLISH_ME", value: "", sensitive: true }]);
 
-    // The server echo acknowledges the publish and keeps the rows; nothing is republished.
     await screen.rerender(
       <ProviderEnvironmentSection
         environment={[{ name: "PUBLISH_ME", value: "", sensitive: true }]}
@@ -172,7 +169,6 @@ describe("ProviderEnvironmentSection external settings writes", () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     const acknowledged = screen.getByRole("textbox", { name: "Environment variable name 1" });
 
-    // Another client deletes the variable. The row must not come back.
     await screen.rerender(<ProviderEnvironmentSection environment={[]} onChange={onChange} />);
     await expect.element(acknowledged).not.toBeInTheDocument();
   });

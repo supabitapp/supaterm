@@ -135,7 +135,6 @@ function SegmentPopover({
   readonly window: LimitPoolMember["window"];
   readonly reset: LimitPoolWindow["resets"][number] | undefined;
   readonly now: number;
-  /** Redeem state owned by the segment, since the outcome shows after this popover closes. */
   readonly redeem: ReturnType<typeof useResetCredit> | null;
   readonly onRedeem: (choice: ResetCreditChoice) => void;
 }) {
@@ -234,9 +233,6 @@ function ActiveSegmentPopover({
       ),
     ),
   );
-  // The trigger is gone, so the popup has nothing to anchor to: an exit transition would
-  // slide it to the viewport origin. Unmount it outright, which also clears Base UI's
-  // active-trigger bookkeeping so the segment can open again when it comes back.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- closes the popover handle and unmounts the Base UI popup before paint when its trigger is gone
   useLayoutEffect(() => {
     if (available) return;
@@ -338,7 +334,6 @@ function SegmentTriggers({
         }
       >
         <div aria-hidden className="absolute inset-0 overflow-hidden rounded-md">
-          {/* Clipped inside the rounded clip so the bar's own corners keep their antialiasing. */}
           <div className="absolute inset-0" style={paceMark?.gap}>
             <div
               aria-hidden

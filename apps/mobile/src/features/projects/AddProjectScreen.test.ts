@@ -131,7 +131,6 @@ vi.mock("../../state/use-remote-environment-registry", () => ({
   }),
 }));
 vi.mock("../../state/use-atom-command", () => ({ useAtomCommand: (command: unknown) => command }));
-// Only filesystem.browse of `~` answers, with the host's home as its parentPath.
 vi.mock("../../state/use-atom-query-runner", () => ({
   useAtomQueryRunner:
     () =>

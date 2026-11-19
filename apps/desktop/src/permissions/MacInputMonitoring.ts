@@ -60,7 +60,6 @@ const make = Effect.gen(function* () {
 
   const status = Effect.gen(function* () {
     if (environment.platform !== "darwin") return "unavailable" as const;
-    // Until the user answers the prompt macOS reports "unknown" and treats access as not granted.
     return Option.match(yield* access, {
       onNone: () => "unavailable" as const,
       onSome: (value) => (value === ACCESS_GRANTED ? ("granted" as const) : ("denied" as const)),

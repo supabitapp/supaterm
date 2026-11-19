@@ -16,7 +16,6 @@ export function createMcpAppEnvironmentAtoms<R, E>(
       label: "environment-command:mcp-apps:tool-info",
       tag: WS_METHODS.mcpAppsToolInfo,
     }),
-    /** The tool definition an app reads from its host context. */
     toolInfoQuery: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:mcp-apps:tool-info",
       tag: WS_METHODS.mcpAppsToolInfo,

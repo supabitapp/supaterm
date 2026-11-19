@@ -94,7 +94,6 @@ describe("terminal session reducers", () => {
       label: "Terminal 1",
     } as const;
     const narrowed = applyTerminalAttachStreamEvent(attached, { ...activity, cols: 54, rows: 15 });
-    // Activity from a server without geometry, or a repeat, must not reset the renderer.
     const unchanged = applyTerminalAttachStreamEvent(
       applyTerminalAttachStreamEvent(narrowed, activity),
       { ...activity, cols: 54, rows: 15 },
@@ -181,8 +180,6 @@ describe("terminal session reducers", () => {
       );
       expect(terminalOutputText(state.output)).toBe("OK");
 
-      // The same text as live output: a mounted terminal still receives every byte, while one
-      // that mounts later, even inside the sequence, never prints the rest of it.
       let live = applyTerminalAttachStreamEvent(
         EMPTY_TERMINAL_BUFFER_STATE,
         { type: "snapshot", snapshot: { ...BASE_SNAPSHOT, history: "" } },
@@ -309,12 +306,10 @@ describe("terminal session reducers", () => {
     });
     let cursor = readTerminalOutputUpdate(state.output, INITIAL_TERMINAL_OUTPUT_CURSOR).cursor;
     const attachedGeneration = state.output.generation;
-    // A socket reconnect resubscribes the same stream, so the server's new snapshot gets no seed.
     state = applyTerminalAttachStreamEvent(state, { type: "snapshot", snapshot: BASE_SNAPSHOT });
     const repeated = readTerminalOutputUpdate(state.output, cursor);
     expect(repeated).toMatchObject({ type: "reset", data: "hello" });
     expect(state.version).toBe(2);
-    // Viewers replay their measured grid once per generation; the new attachment holds the old size.
     expect(state.output.generation).not.toBe(attachedGeneration);
     cursor = repeated.cursor;
 
@@ -323,7 +318,6 @@ describe("terminal session reducers", () => {
       threadId: TARGET.threadId,
       terminalId: TARGET.terminalId,
     });
-    // Clear erases text in place: a full reset would drop the running program's modes.
     const erase = "\u001b[H\u001b[2J\u001b[3J";
     const cleared = readTerminalOutputUpdate(state.output, cursor);
     expect(cleared).toMatchObject({ type: "append", data: erase });

@@ -69,12 +69,10 @@ export function SettingsProjectOverviewRouteScreen() {
     selectProject,
     getSelectedProjectKey,
   } = useSettingsEnvironmentFilter();
-  // The filter can move to another project while a removal is still running.
   const finishProjectRemoval = (projectKey: string | null) => {
     if (getSelectedProjectKey() !== projectKey) return;
     if (navigation.isFocused())
       leaveSettingsPage(navigation, workspaceHasColumns(), DEFAULT_SETTINGS_PAGE);
-    // Otherwise the filter keeps pointing at the removed project as an unavailable one.
     selectProject(null);
   };
   const group = projectGroups.find((entry) => entry.key === selectedProjectKey);
@@ -125,7 +123,6 @@ export function SettingsProjectOverviewRouteScreen() {
 
 function ProjectOverviewContent(props: {
   readonly members: readonly EnvironmentProject[];
-  /** Pin and archive belong to the whole project, even when the filter picks one machine. */
   readonly group: ProjectGroup;
   readonly connectedTargets: readonly SettingsTarget[];
   readonly environments: readonly SettingsTarget[];
@@ -166,8 +163,6 @@ function ProjectOverviewContent(props: {
     props.connectedTargets.find((entry) => entry.environmentId === member.environmentId),
   );
   const offline = memberTargets.some((target) => target === undefined);
-  // Older servers drop pin and archive, so their projects do not offer them.
-  // Offline members are checked when the write runs, so their reason can show.
   const canOrganize =
     allMembers.every(
       (member, index) =>
@@ -178,7 +173,6 @@ function ProjectOverviewContent(props: {
         target === undefined ||
         target.serverConfig.environment.capabilities.projectOrganization === true,
     );
-  // One machine at a time, stopping at the first failure, as web does.
   const organize = async (input: { readonly pinned?: boolean; readonly archived?: boolean }) => {
     setIsOrganizing(true);
     for (const member of allMembers) {
@@ -279,7 +273,6 @@ function ProjectOverviewContent(props: {
                 console.warn("[project-removal] could not clear composer drafts", error);
               });
           }
-          // Nothing is left to show once the whole project is gone.
           if (plan.targetKind === "project") props.onProjectRemoved(projectKey);
         })().finally(finishRemoval);
       },

@@ -11,7 +11,6 @@ import { isCommandAvailable, resolveCommandPath, resolveCommandPaths } from "./s
 
 type Editor = (typeof EDITORS)[number];
 
-// The nearest Zed folder identifies the channel, even below a user named zedpreview.
 const isPrereleaseZedPath = (filePath: string) => {
   const install = filePath
     .split(/[\\/]/)
@@ -24,20 +23,17 @@ const isPrereleaseZedPath = (filePath: string) => {
 const installNames: Partial<Record<Editor["id"], ReadonlyArray<string>>> = {
   vscode: ["Visual Studio Code"],
   "vscode-insiders": ["Visual Studio Code - Insiders"],
-  // `Antigravity.app` is the separate Hub, not the IDE.
   antigravity: ["Antigravity IDE"],
   idea: ["IntelliJ IDEA", "IntelliJ IDEA CE", "IntelliJ IDEA Ultimate"],
   pycharm: ["PyCharm", "PyCharm CE"],
   rider: ["Rider", "JetBrains Rider"],
 };
 
-// Prefix-only matches could select Insiders when resolving stable VS Code.
 const isVersionedBundle = (entry: string, name: string) => {
   if (!entry.startsWith(`${name} `) || !entry.endsWith(".app")) return false;
   return /^\d[\d.]*$/.test(entry.slice(name.length + 1, -".app".length));
 };
 
-// OpenZFS's event daemon is also named zed; it rejects `--version` instead of starting.
 const isZedEditor = Effect.fn("editor.isZedEditor")(
   function* (command: string) {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -66,7 +62,6 @@ export const resolveEditorCommand = Effect.fn("editor.resolveEditorCommand")(fun
   if (editor.commands === null) return Option.none();
   const baseArgs = "baseArgs" in editor ? editor.baseArgs : [];
   const platform = yield* HostProcess.Platform;
-  // Prefer Zed's macOS bundle because OpenZFS also installs a zed executable.
   const preferBundle = platform === "darwin" && editor.id === "zed";
   const preferZeditor = platform === "linux" && editor.id === "zed";
   if (platform === "win32" && editor.id === "zed") {
@@ -75,7 +70,6 @@ export const resolveEditorCommand = Effect.fn("editor.resolveEditorCommand")(fun
     for (const command of editor.commands) {
       const matches = yield* resolveCommandPaths(command, { env, until: isStable });
       const stable = matches.find(isStable);
-      // Bypass PATH only when stable is behind a prerelease install.
       if (stable !== undefined) {
         const isFirst = firstCommand === undefined && stable === matches[0];
         return Option.some({ command: isFirst ? command : stable, baseArgs });
@@ -101,7 +95,6 @@ export const resolveEditorCommand = Effect.fn("editor.resolveEditorCommand")(fun
   if (platform === "darwin") {
     const roots = [...(home ? [path.join(home, "Applications")] : []), "/Applications"];
     for (const root of roots) {
-      // JetBrains Toolbox appends versions to bundle names; accept exact and versioned names.
       const entries = yield* fs.readDirectory(root).pipe(Effect.orElseSucceed(() => []));
       const bundles = new Set(names.map((name) => `${name}.app`));
       for (const entry of entries) {
@@ -184,7 +177,6 @@ export const resolveEditorCommand = Effect.fn("editor.resolveEditorCommand")(fun
       dirs.push(toolbox.dir);
     }
     if (preferZeditor) {
-      // Linux packages use zeditor because OpenZFS owns the zed command.
       for (const name of ["zeditor", "zed"]) {
         candidates.push(name, ...dirs.map((dir) => path.join(dir, name)));
       }
@@ -197,8 +189,6 @@ export const resolveEditorCommand = Effect.fn("editor.resolveEditorCommand")(fun
 
   if (preferBundle) candidates.push(...editor.commands);
   if (toolbox) {
-    // Toolbox names a launch script `idea1`, `idea2`, ... while `idea` is taken, and keeps that
-    // name after the other install is removed. Try these only after every canonical candidate.
     const { dir, suffix } = toolbox;
     const entries = yield* fs.readDirectory(dir).pipe(Effect.orElseSucceed(() => []));
     candidates.push(
@@ -216,7 +206,6 @@ export const resolveEditorCommand = Effect.fn("editor.resolveEditorCommand")(fun
   const probeZed = editor.id === "zed" && platform !== "win32";
   const rejected = new Set<string>();
   for (const candidate of candidates) {
-    // OpenZFS zed can shadow the editor's zed in an earlier PATH entry.
     const matches =
       probeZed && candidate === "zed"
         ? yield* resolveCommandPaths(candidate, { env, until: () => false })

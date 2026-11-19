@@ -552,9 +552,7 @@ describe("MuseAdapterV2", () => {
       );
       yield* startConversation(harness, fake);
       const turnStart = fake.calls.find((call) => call.method === "turn/start");
-      // Muse 1.4.3 rejects any other form: "expected a canonical path (resolves to \\?\C:\…)".
       assert.deepStrictEqual(turnStart?.params.workspaceRoots, ["\\\\?\\C:\\work\\repo"]);
-      // The muse.cmd launcher runs under cmd.exe, which cannot start in a verbatim directory.
       assert.strictEqual(hostCwd, "C:\\work\\repo");
     }).pipe(
       Effect.provideService(HostProcess.Platform, "win32"),
@@ -1100,7 +1098,6 @@ describe("MuseAdapterV2", () => {
           assert.strictEqual(shown.runtimeRequest.status, "pending");
           yield* harness.takeEvent("provider_session.updated");
           yield* fake.emit("approval/resolved", parent);
-          // The child remains unacknowledged when the visible request stops blocking the turn.
           const session = yield* harness.takeEvent("provider_session.updated");
           assert.strictEqual(session.providerSession.status, "running");
         }
@@ -1208,7 +1205,6 @@ describe("MuseAdapterV2", () => {
           data: { kind: "approvalAlreadyResolved" },
         }),
       );
-      // A later rejected answer provides an observable milestone after the stale rejection.
       fake.queueResponse("approval/decide", new Error("Choice rejected"));
       yield* fake.emit("approval/requested", {
         ...child,

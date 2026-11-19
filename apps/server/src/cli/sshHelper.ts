@@ -25,7 +25,6 @@ const canBind = (port: number) =>
     });
   });
 
-// macOS permits this bind over a wildcard listener, so also check loopback connectivity.
 const answersOnLoopback = (port: number) =>
   new Promise<boolean>((resolve) => {
     const socket = NodeNet.connect({ port, host: "127.0.0.1" });
@@ -98,7 +97,6 @@ const waitReady = Command.make("wait-ready", {
   ),
 );
 
-/** Prints `<pid> <port>` for a live default-home server, or exits 1. */
 const runtimePort = Command.make("runtime-port", {
   runtimeFile: Argument.String("runtime-file"),
 }).pipe(
@@ -145,7 +143,6 @@ export const keepsRunningServer = (runtimeJson: string, pid: number, ownVersion:
       compareExactServiceVersions(runtime.serverVersion, ownVersion) >= 0,
   });
 
-/** Exits 0 when the managed server `pid` runs this version or a newer one, else 1. */
 const keepServer = Command.make("keep-server", {
   runtimeFile: Argument.String("runtime-file"),
   pid: Argument.Int("pid"),
@@ -175,7 +172,6 @@ const updateRemaining = Command.make("update-remaining", {
   Command.provide(DesktopUpdateMarker.layer),
 );
 
-/** Exits 0 while a server holds this home or a boot service is about to start one. */
 const homeOwned = Command.make("home-owned", {
   baseDir: Argument.String("base-dir"),
 }).pipe(

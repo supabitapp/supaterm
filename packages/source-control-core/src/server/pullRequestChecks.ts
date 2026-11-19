@@ -67,7 +67,6 @@ export function dedupeChecks(
     readonly check: PullRequestCheck;
     readonly workflowName: string | null;
     readonly at: string | null;
-    // Hosts with one-second timestamps can date a final and an earlier status alike.
     readonly sequence?: number;
   }>,
 ): ReadonlyArray<PullRequestCheck> {

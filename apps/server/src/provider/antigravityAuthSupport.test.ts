@@ -219,7 +219,6 @@ describe("Antigravity process environment", () => {
   it.effect("keeps the unpacked Windows runtime under MAX_PATH for long user names", () =>
     Effect.gen(function* () {
       const path = yield* Path.Path;
-      // Deepest member of the official agy_acp_server_1.1.1 windows-x86_64 bundle.
       const deepestMember =
         "google3\\cloud\\developer_experience\\antigravity_extensions\\acp_server\\_private__agy_acp_server_bin.lazy_imports_info.json";
       const directories = yield* resolveAntigravityInstanceDirectories(
@@ -228,7 +227,6 @@ describe("Antigravity process environment", () => {
       );
       const extracted = (tempDirectory: string) =>
         path.join(tempDirectory, "run-AbC123", "_MEI000012ab2", deepestMember);
-      // MAX_PATH is 260 including the terminating NUL.
       expect(extracted(directories.runtimeTemp).length).toBeLessThan(260);
       expect(
         extracted(path.join(directories.profile, "antigravity-acp", "tmp")).length,
@@ -501,7 +499,6 @@ it.layer(NodeServices.layer)("Antigravity profile preparation", (it) => {
     }).env;
   });
 
-  // A Windows Node path cannot preflight the browser helper as a POSIX host.
   const caTest = it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32");
 
   caTest(
@@ -641,7 +638,6 @@ it.layer(NodeServices.layer)("Antigravity profile preparation", (it) => {
           false,
         );
 
-        // The harness leaves an empty folder where the link was skipped.
         yield* fs.makeDirectory(cliLink, { recursive: true });
         yield* prepareAntigravityProfile({ profileDirectory, userHome });
         expect((yield* fs.stat(cliLink)).type).toBe("Directory");

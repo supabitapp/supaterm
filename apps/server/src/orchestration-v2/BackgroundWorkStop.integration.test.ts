@@ -165,7 +165,6 @@ const stopEarlierBackgroundWork = ({
       const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
       const sink = yield* EventSink.EventSinkV2;
       const threadId = ThreadId.make("thread:background-work-stop");
-      // This provider never confirms Stop, so Stop gives up waiting at its bound.
       const drainUnconfirmedStop = Effect.gen(function* () {
         const drained = yield* Effect.forkChild(worker.drain());
         yield* Queue.take(interruptCalls);
@@ -228,7 +227,6 @@ const stopEarlierBackgroundWork = ({
           commandId: CommandId.make("stop"),
           threadId,
         });
-        // Stop is committed, but its provider interrupt has not run yet.
         yield* send("Background task completed.", true);
         const [stopped, followUp, wake] = (yield* orchestrator.getThreadProjection(threadId)).runs;
         assert.equal(stopped?.status, "running");
@@ -435,7 +433,6 @@ const stopEarlierBackgroundWork = ({
             },
           ],
         });
-        // Shaped like CodexAdapterV2's buildApprovalRequestArtifacts output.
         const approvalRequestId = RuntimeRequestId.make("request:stalled-approval");
         const approvalNodeId = NodeId.make("node:stalled-approval");
         const approvalItemId = TurnItemId.make("turn-item:stalled-approval");
@@ -1004,7 +1001,6 @@ const stopEarlierBackgroundWork = ({
             }),
           ],
         });
-        // The older turn reports an empty roster, but the refused run owns the row now.
         const clear = yield* sink.writeIfProviderThreadOwner({
           providerThreadId: codexProviderThread.id,
           runId: reviewerRun.runId,

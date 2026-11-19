@@ -9,8 +9,6 @@ import {
 import { mathLabelKey, type DiagramWorkerRequest, type MathLabel } from "./mermaidWorkerProtocol";
 
 const MAX_MEASURED_LABELS = 512;
-// The first pass reports labels the main thread has not measured and the second draws them. A
-// third covers a re-layout that asks for a label at another size.
 const MAX_MATH_PASSES = 3;
 
 interface WorkerReply {
@@ -34,7 +32,6 @@ function isMathLabel(value: unknown): value is MathLabel {
 export function createBrowserDiagramRenderer() {
   let worker: Worker | undefined;
   let ready = false;
-  // Measuring MathML needs the DOM, so math labels are typeset here and laid out in the worker.
   const measuredBy = new WeakMap<MathResolver, MeasuredLabels>();
 
   const post = (request: DiagramWorkerRequest) =>

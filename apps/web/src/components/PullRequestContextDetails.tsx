@@ -11,7 +11,6 @@ import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
 
 export function PullRequestContextDetails({ metadata }: { metadata: PullRequestContextMetadata }) {
   const state = resolvePullRequestState(metadata);
-  // A context chip carries the change request's URL alone, so the URL names its host.
   const { singular } = (
     sourceControlClients.findByChangeRequestUrl(metadata.url) ?? sourceControlClients.get(undefined)
   ).changeRequest;

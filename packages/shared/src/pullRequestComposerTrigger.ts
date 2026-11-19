@@ -17,8 +17,6 @@ export type PullRequestComposerTrigger = {
   | { readonly kind: "reference"; readonly sigil: PullRequestReferenceSigil }
 );
 
-// Logins are ASCII, but the query also matches display names, which can be in any script.
-// Combining marks (\p{M}) attach to the letter before them, so they cannot start a name.
 const TOKEN = /^(?:@([\p{L}\p{N}_][\p{L}\p{M}\p{N}_.-]*)?|([#!])([\p{L}\p{N}_-]*))$/u;
 
 /** What a pull request's host can complete; absent fields complete nothing. */

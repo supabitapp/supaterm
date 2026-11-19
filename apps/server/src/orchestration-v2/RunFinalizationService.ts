@@ -78,8 +78,6 @@ const make = Effect.gen(function* () {
       );
     const cwd = projection.checkpointScopes.find((scope) => scope.id === input.scopeId)?.cwd;
     if (cwd !== undefined) {
-      // The refresh only updates the display, so the thread's next turn must not wait for it.
-      // Never replaced by a newer one: back-to-back turns would interrupt each before it publishes.
       yield* observer.refresh({ cwd, threadId: input.threadId, runId: input.runId }).pipe(
         Effect.catchTags({
           RunFinalizationRefreshError: (cause) =>
@@ -108,8 +106,6 @@ export const layerObserver = Layer.effect(
     const enrichment = yield* ProjectEnrichment.ProjectEnrichmentService;
     const pullRequestLookups = yield* FiberMap.make<string>();
     const identityRefreshes = yield* FiberMap.make<ProjectId>();
-    // A turn can add the first remote (`git remote add`, `gh repo create --push`), which the
-    // enrichment and resolver caches would otherwise keep reporting as missing for a minute.
     const refreshMissingRepositoryIdentity = Effect.fn(
       "RunFinalizationService.refreshMissingRepositoryIdentity",
     )(
@@ -140,15 +136,12 @@ export const layerObserver = Layer.effect(
           );
           const thread = yield* projections.getThreadShell(threadId);
           if (!thread) return;
-          // Forge discovery probes can take seconds; like the PR lookup, the next turn must not wait.
           yield* refreshMissingRepositoryIdentity(thread.projectId).pipe(
             FiberMap.run(identityRefreshes, thread.projectId),
           );
           if (local.refName === null || local.isDefaultRef) return;
           if (thread.branch !== local.refName) return;
           if (thread.activeRunId !== null && thread.activeRunId !== runId) return;
-          // The forge CLI can take minutes, so the next turn must not wait for it. A newer
-          // turn's lookup replaces a running one instead of queueing behind the cwd's lock.
           yield* vcsStatus.refreshPullRequestStatus(cwd).pipe(
             Effect.catch((error) =>
               Effect.logWarning("failed to refresh pull request status after run completion", {

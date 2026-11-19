@@ -51,7 +51,6 @@ it("the launch splash is held only while a Home list has rows to lay out", () =>
 
   const release = rows.hold();
   expect(rows.pending()).toBe(true);
-  // The server answered with no rows, or the list unmounted, before its first layout.
   release();
   expect(rows.pending(), "a list that lost its rows releases the splash").toBe(false);
   expect(onChange).toHaveBeenCalledTimes(2);

@@ -19,10 +19,8 @@ import {
 } from "@supaterm/source-control-core/shared/definition";
 import { icon } from "./icon.ts";
 
-/** GitCafe has no self-hosted installs: production and staging are its only hosts. */
 const GITCAFE_HOSTS = new Set(["git.cafe", "staging.git.cafe"]);
 
-/** GitCafe serves pull requests at `/pull/<n>` and redirects the older `/pulls/<n>` there. */
 const CHANGE_REQUEST_PATH = /^\/([^/]+\/[^/]+)\/pulls?\/(\d+)(?:\/|$)/u;
 const COMMIT_PATH = /^\/([^/]+\/[^/]+)\/commit\/([0-9a-f]+)\/?$/iu;
 const REPOSITORY_PAGE_PATH = /^\/([^/]+\/[^/]+)\/(?:tree|blob)\/[^/]/u;
@@ -70,8 +68,6 @@ export const definition = defineSourceControl({
     webUrl
       ? changeRequestUrlBelow(webUrl, `pulls/${number}`)
       : `https://${host}/${repository}/pulls/${number}`,
-  // `/pull/` and `/pulls/` are GitHub's and Forgejo's shapes too, so only GitCafe's own hosts
-  // claim them.
   parseChangeRequestUrl,
   commitUrl: (input) => buildCommitUrl(input, "commit"),
   parseCommitUrl: (url) =>

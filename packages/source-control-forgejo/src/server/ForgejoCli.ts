@@ -165,7 +165,6 @@ export function parseForgejoRemote(value: string) {
       return null;
     }
   }
-  // SCP remotes may omit the username; URL treats these as a custom scheme.
   const ssh = /^(?:[^@/]+@)?([^:/]+):([^/].*)$/.exec(value);
   return ssh?.[1] && ssh[2]
     ? {
@@ -204,7 +203,6 @@ export function matchForgejoLogin(
     ).values(),
   ];
   if (!remote.ssh && remote.path) {
-    // A root login matches every path on its host; the instance mounted deepest owns the remote.
     const depth = (login: (typeof matches)[number]) =>
       parseForgejoRemote(login.url)?.path.length ?? 0;
     const deepest = Math.max(...matches.map(depth));
@@ -306,9 +304,7 @@ export const make = Effect.gen(function* () {
     const remote = remoteUrl ? parseForgejoRemote(remoteUrl) : null;
     return Object.keys(keys.hosts).flatMap((host) => {
       const url = parseForgejoRemote(`https://${host}`);
-      // fj drops URL mounts during whoami and OAuth renewal; tea supports them.
       if (!url || url.path) return [];
-      // fj omits the scheme in storage. Only an explicit matching HTTP remote opts into HTTP.
       const scheme =
         remote && !remote.ssh && remote.host === url.host && /^http:\/\//i.test(remoteUrl ?? "")
           ? "http"
@@ -327,7 +323,6 @@ export const make = Effect.gen(function* () {
     if (input.command === "fj") {
       const keys = yield* readKeys(input.cwd).pipe(Effect.result);
       if (Result.isFailure(keys)) {
-        // Stale credentials from an uninstalled fj must not disable an available tea login.
         const available = yield* execute({ command: "fj", cwd: input.cwd, args: ["version"] }).pipe(
           Effect.result,
         );
@@ -380,8 +375,6 @@ export const make = Effect.gen(function* () {
           .pipe(Effect.provideService(FetchHttpClient.RequestInit, { redirect: "manual" }));
       };
       let response = yield* send(url);
-      // Forgejo redirects a renamed repository's API paths before running the handler,
-      // so the same method and body are re-sent. The token never leaves the API base.
       for (let hops = 0; hops < 5; hops++) {
         const location = response.headers.location;
         const next =
@@ -462,13 +455,11 @@ export const make = Effect.gen(function* () {
     const now = yield* Clock.currentTimeMillis;
     const cached = authenticated.get(login.url);
     if (token && cached?.token === token && now - cached.time < 30_000) return token;
-    // fj reads the cwd repository even with --host and fails on an unborn branch.
     yield* execute({
       command: "fj",
       cwd: yield* HostProcess.HomeDirectory,
       args: ["--host", login.url, "whoami"],
     });
-    // fj owns OAuth renewal. Re-read the file after it has refreshed an expired token.
     const refreshed = (yield* readKeys(cwd)).hosts[login.name]?.token;
     if (!refreshed)
       return yield* new ForgejoCliError({
@@ -684,7 +675,6 @@ export const make = Effect.gen(function* () {
           );
     let path = input.path.replace(/^\/+/, "");
     if (input.repository && input.repository !== repository.repository) {
-      // Repository identities retain the server mount path; API routes do not.
       const prefix = `repos/${input.repository.split("/").map(encodeURIComponent).join("/")}`;
       if (path === prefix || path.startsWith(`${prefix}/`) || path.startsWith(`${prefix}?`)) {
         path = `repos/${repository.repository.split("/").map(encodeURIComponent).join("/")}${path.slice(prefix.length)}`;
@@ -723,7 +713,6 @@ export const make = Effect.gen(function* () {
       ],
       ...(stdin === undefined ? {} : { stdin }),
     });
-    // tea reports HTTP failures with exit code zero; use its response status.
     const status = Number(/^HTTP\/\S+ (\d{3})/m.exec(result.stderr)?.[1]);
     if (!status || status >= 400) {
       const body = result.stdout.trim();

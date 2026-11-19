@@ -326,7 +326,6 @@ describe("readAntigravityUsage", () => {
             2,
             new Uint8Array(protoBytes(9, [...protoNumber(1, 1132), ...protoNumber(2, 12)])),
           ]);
-          // A model-less step that only learns its model by merging with a named generation.
           yield* db.run("INSERT INTO steps VALUES (?, ?)", [
             5,
             new Uint8Array(protoBytes(9, [...protoNumber(2, 100), ...protoText(11, "response")])),

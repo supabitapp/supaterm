@@ -1,11 +1,5 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off globalTimers:off
-/**
- * A free ACP agent for dev servers. It plays recorded ACP transcripts with simulated
- * streaming, so the real adapter, orchestration, and UI run without a paid model.
- * Each scenario is a "model"; each prompt plays the next recorded turn.
- * Unlike acp-replay-agent.ts, it does not assert the client's frames.
- */
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodeReadline from "node:readline";
@@ -40,8 +34,6 @@ export interface ReplayTurn {
 
 const FIXTURES = "../src/orchestration-v2/testkit/fixtures";
 
-// Recorded fixtures the replay tests already pin, plus a hand-written UI showcase.
-// Use acpRegistry transcripts: vendor transcripts carry state in frames this agent drops.
 export const SCENARIOS = [
   { id: "showcase", name: "Showcase", file: "./dev-replay/showcase_transcript.ndjson" },
   { id: "worst-case", name: "Worst case", file: "./dev-replay/worst_case_transcript.ndjson" },
@@ -72,7 +64,6 @@ export const SCENARIOS = [
   },
 ] as const;
 
-// Session setup and vendor state stay out: they would replace the replay agent's own models.
 const REPLAYED_UPDATES = new Set([
   "agent_message_chunk",
   "agent_thought_chunk",
@@ -85,7 +76,6 @@ const REPLAYED_UPDATES = new Set([
   "usage_update",
 ]);
 
-// Only requests that ask the user. A replayed terminal/create would run a real command.
 const REPLAYED_REQUESTS = new Set(["session/request_permission", "elicitation/create"]);
 
 const CHUNK_DELAY_MS = 30;
@@ -103,7 +93,6 @@ function isReplayedFrame(frame: LogicalFrame): boolean {
 /** Splits a recorded transcript into the turns that follow each `session/prompt`. */
 export function parseReplayTurns(ndjson: string): ReadonlyArray<ReplayTurn> {
   const turns: Array<{ frames: Array<ReplayTurn["frames"][number]>; stopReason: string }> = [];
-  // Frames after a prompt's response belong to background work, not to that turn.
   let turn: (typeof turns)[number] | undefined;
   for (const line of ndjson.split("\n")) {
     if (line.trim().length === 0) continue;
@@ -143,7 +132,6 @@ export function streamChunks(text: string): ReadonlyArray<string> {
   return chunks.length === 0 ? [text] : chunks;
 }
 
-/** Fills the live session, workspace, and per-prompt tool ids, so repeated turns add rows. */
 function materialize(
   value: unknown,
   live: { readonly sessionId: string; readonly workspace: string; readonly turnKey: string },
@@ -163,7 +151,6 @@ function materialize(
   );
 }
 
-/** The tool call a permission answer rejected, if the user declined or cancelled. */
 function permissionRejectedToolCallId(request: LogicalFrame, answer: unknown): string | undefined {
   if (request.method !== "session/request_permission") return undefined;
   const params = request.params as {
@@ -199,7 +186,6 @@ function runAgent(): void {
 
   const send = (message: JsonRpcMessage) =>
     process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);
-  // Resolves when `promise` settles or the turn is cancelled, whichever comes first.
   const untilAbort = (promise: Promise<unknown>, signal: AbortSignal) =>
     new Promise<void>((resolve) => {
       if (signal.aborted) return resolve();
@@ -222,7 +208,6 @@ function runAgent(): void {
     signal: AbortSignal,
   ): Promise<"cancelled" | undefined> => {
     const session = sessions.get(sessionId)!;
-    // Random, so a session loaded after a restart cannot reuse earlier tool rows.
     const live = { sessionId, workspace: session.cwd, turnKey: NodeCrypto.randomUUID() };
     for (const recorded of turn.frames) {
       const frame = materialize(recorded.frame, live) as LogicalFrame;
@@ -237,12 +222,10 @@ function runAgent(): void {
         send({ id, method: frame.method, params: frame.params as Record<string, unknown> });
         await untilAbort(response, signal);
         pendingAgentRequests.delete(String(id));
-        // The client answers "cancelled" when the user stops the turn mid-request.
         const outcome = (answer as { outcome?: { outcome?: string } } | undefined)?.outcome;
         if (signal.aborted || outcome?.outcome === "cancelled") return "cancelled";
         const toolCallId = permissionRejectedToolCallId(frame, answer);
         if (toolCallId === undefined) continue;
-        // The recording only has the approved path, so a rejection ends the turn here.
         send({
           method: "session/update",
           params: {
@@ -260,7 +243,6 @@ function runAgent(): void {
         content?.type === "text"
           ? content.text
           : undefined;
-      // Live recordings hold one frame per token, so text defaults to the chunk pace.
       const firstDelay = recorded.afterMs ?? (text === undefined ? FRAME_DELAY_MS : CHUNK_DELAY_MS);
       const chunks = text === undefined ? [undefined] : streamChunks(text);
       for (const [index, chunk] of chunks.entries()) {
@@ -292,8 +274,6 @@ function runAgent(): void {
         };
       case "session/new":
       case "session/load": {
-        // Supaterm starts one agent process per thread, so ids must be unique across processes.
-        // Loading after a restart keeps the thread usable; Supaterm already holds its history.
         const sessionId =
           message.method === "session/load" ? String(params.sessionId) : NodeCrypto.randomUUID();
         const cwd = typeof params.cwd === "string" ? params.cwd : process.cwd();

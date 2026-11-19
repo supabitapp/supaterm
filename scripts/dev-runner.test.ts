@@ -260,7 +260,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       Effect.gen(function* () {
         const probed: Array<{ port: number; role: string | undefined }> = [];
         const offset = yield* findFirstAvailableOffset({
-          // 5733 + 833 = 6566, which browsers block as sane-port.
           startOffset: 833,
           requireServerPort: true,
           requireWebPort: true,
@@ -500,7 +499,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           }
           assert.lengthOf(warnings, cargoFails ? 1 : 0);
           if (cargoFails) assert.include(warnings[0]!, "vp run build:resource-monitor");
-          // A failed build never blocks dev.
           assert.equal(spawned.at(-1)?.command, "vp");
         }),
     );
@@ -567,7 +565,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       const spawnerLayer = Layer.succeed(
         ChildProcessSpawner.ChildProcessSpawner,
         ChildProcessSpawner.make((command) => {
-          // A cold web dep cache adds a warm-up spawn before the stack.
           if ((command as unknown as { readonly command: string }).command === "vp") {
             spawnCount += 1;
           }
@@ -623,7 +620,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       const spawnerLayer = Layer.succeed(
         ChildProcessSpawner.ChildProcessSpawner,
         ChildProcessSpawner.make((command) => {
-          // A cold web dep cache adds a warm-up spawn before the stack.
           if ((command as unknown as { readonly command: string }).command === "vp") {
             spawnCount += 1;
           }
@@ -646,10 +642,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       });
     });
 
-    // A shared origin means a remote browser, where unbundled dev's
-    // per-module waterfall pays a tailnet round trip per import level. The
-    // runner defaults bundled dev on for the spawned stack, but only
-    // defaults: an explicit SUPATERM_BUNDLED_DEV (even "0") must pass through.
     describe("--share spawn wiring", () => {
       const shareSpawned = (input: {
         readonly ambientBundledDev?: string | undefined;
@@ -756,7 +748,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         }),
       );
 
-      // Node resolves localhost to ::1 first, so a 127.0.0.1 target can miss the backend.
       it.effect("--built --host localhost keeps the backend's localhost name", () =>
         Effect.gen(function* () {
           const { env, tailscaleCalls } = yield* shareSpawned({ built: true, host: "localhost" });
@@ -870,7 +861,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             Effect.provide(Layer.mergeAll(emptyConfigLayer, netServiceLayer, spawnerLayer)),
             Effect.provideService(HostProcess.Platform, "linux"),
             Effect.provideService(HostProcess.WorkingDirectory, input.cwd),
-            // No ~/.supaterm here, so these runs never seed from this machine's install.
             Effect.provideService(HostProcess.HomeDirectory, input.cwd),
             Effect.provideService(
               HostProcess.Environment,
@@ -967,7 +957,6 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             ["--source", path.join(home, ".supaterm", "userdata", "statev2.sqlite")],
           );
 
-          // Either database means the worktree already has data.
           for (const name of ["state.sqlite", "statev2.sqlite"]) {
             const file = path.join(root, ".supaterm", "userdata", name);
             NodeFS.mkdirSync(path.dirname(file), { recursive: true });

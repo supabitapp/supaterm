@@ -1,7 +1,5 @@
 import type { AcpRegistrySettings } from "../settings.ts";
 
-// AcpRegistrySupport.validateLocalExecutable refuses .cmd/.bat on Windows, so only native
-// executables are launchable.
 const COMMAND_CODE_EXECUTABLES = /^(?:cmdc|command-code|commandcode)(?:\.exe)?$/iu;
 const COMMAND_CODE_ENTRY_POINTS = [
   /(?:^|[\\/])node_modules[\\/]command-code[\\/]/iu,

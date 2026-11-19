@@ -133,7 +133,6 @@ it("saves a chip's edited comment wherever its queued edit was recovered to, or 
     return { editKey, start: () => appAtomRegistry.set(runs, [{ id: runId, status: "running" }]) };
   };
 
-  // Recovery treats a whitespace-only thread draft as empty, yet merges behind it.
   const recovered = await setup("thread-edit-recovered");
   const kept = citation(recovered.source);
   const keptToken = serializeAssistantCitation(kept);
@@ -200,7 +199,6 @@ it("checks the draft the quote would produce against the send limit", async () =
   dialog.alerts[0]!.buttons[0]!.onPress?.();
   expect(dialog.prompts[1]!.initialValue).toBe("Why this part");
 
-  // The quote replaces the composer's selection, so that text does not count.
   rememberComposerDraftSelection(threadKey, filler, { start: 0, end: filler.length });
   dialog.prompts[1]!.onConfirm("Why this part");
   expect(comments(threadKey)).toEqual(["Why this part"]);

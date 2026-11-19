@@ -67,7 +67,6 @@ describe("planClaudeAccountSave", () => {
         },
       },
     });
-    // Clearing both falls back to the driver's label and the default ~/.claude folder.
     expect(edit("", "")).toEqual({
       mutation: {
         operation: "upsert",

@@ -8,7 +8,6 @@ const REFS: VcsRef[] = ["develop", "main", "origin/main", "origin/feature/main-n
   (name) => ({ name, current: false, isDefault: false, worktreePath: null }),
 );
 
-// Like the real hook, a query has no refs until the server answers it.
 vi.mock(import("../state/queries"), async (original) => ({
   ...(await original()),
   usePaginatedBranches: (target) => {

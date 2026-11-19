@@ -21,7 +21,5 @@ export function prepareVideoFirstFrame(
 
   try {
     video.currentTime = Math.min(0.1, video.duration / 2);
-  } catch {
-    // A rejected preview seek must leave the native Play control usable.
-  }
+  } catch {}
 }

@@ -182,7 +182,6 @@ function RowPage(
   },
 ) {
   const rows = props.getRows(props.page);
-  // A page stays mounted while the worker fills it, preserving the scroll position.
   const { loadPage, page } = props;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Request this page's rows from the indexing worker when they are missing or incomplete.
   useEffect(() => {
@@ -265,13 +264,10 @@ function ScaledRows(props: Omit<Parameters<typeof RowPage>[0], "page">) {
   const pendingEnd = useRef(false);
   const position = { top, height: props.viewportHeight };
   const scrollHeight = Math.min(8_000_000, props.count * 29);
-  // Chromium caps a scroll surface at 33 million pixels. Scale the track for
-  // multi-million-line logs while retaining real row heights in the viewport.
   const headerRows = props.header ? 1 : 0;
   const maxFirst = Math.max(0, props.count - headerRows - Math.floor(position.height / 29));
   const scale = Math.max(1, scrollHeight - position.height) / Math.max(1, maxFirst * 29);
   const first = Math.min(maxFirst, Math.floor(position.top / scale / 29)) + headerRows;
-  // The final mounted rows keep their measured height and scroll natively.
   const nativeTail = first - headerRows === maxFirst;
   const scrollModel = useRef({ scale, maxFirst, heights: [] as number[] });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Measure native tail rows and preserve the DOM scroll position when the virtual track scale changes.
@@ -288,7 +284,6 @@ function ScaledRows(props: Omit<Parameters<typeof RowPage>[0], "page">) {
     const previousEnd = previous.maxFirst * 29 * previous.scale;
     let logicalTop = Math.min(previous.maxFirst * 29, node.scrollTop / previous.scale);
     let remaining = Math.max(0, node.scrollTop - previousEnd);
-    // Native-tail pixels cross rows of different heights before returning to the scaled track.
     for (const height of previous.heights) {
       logicalTop += Math.min(1, remaining / height) * 29;
       remaining = Math.max(0, remaining - height);

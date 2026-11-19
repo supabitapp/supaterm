@@ -155,8 +155,6 @@ export function PullRequestStateGlyph({
   const presentation = resolvePullRequestState({ state, isDraft });
   return (
     <Tooltip>
-      {/* The list row is itself a button, so the trigger stays a span: an interactive one would
-          nest a control inside that button and steal the row's click target. */}
       <TooltipTrigger render={<span className="inline-flex shrink-0" />}>
         <presentation.Icon
           role="img"
@@ -286,7 +284,6 @@ export function PullRequestChecksRing({
   className?: string;
 }) {
   const segments = pullRequestChecksRingSegments(checks);
-  // Reserve enough space for each color's rounded ends so rare verdicts cannot cover each other.
   const gap = segments.length === 1 ? 0 : 7;
   const proportionalLength = 100 - gap * segments.length;
   return (
@@ -426,7 +423,6 @@ export function PullRequestReviewOutcomeIcon({
   );
 }
 
-// Ring color alone blends into colorful bot avatars; the glyph gives each verdict a shape.
 export function PullRequestReviewOutcomeAvatarBadge({
   outcome,
   stale = false,

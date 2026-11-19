@@ -1,10 +1,6 @@
-// Definitions, footnotes, raw HTML, container directives and display math can tie blocks together.
 const DOCUMENT_WIDE_SYNTAX = /^ {0,3}(?:\[[^\]\n]+\]:|<[A-Za-z!?/]|:::|\$\$)|\[\^/m;
-// A backtick fence's info string cannot contain a backtick, so "```a``` is inline" is a code span.
 const FENCE_PATTERN = /^ {0,3}(`{3,}(?![^`\n]*`)|~{3,})/;
-// After a blank line these still continue the previous block: a list item or indented content.
 const CONTINUATION_PATTERN = /^(?:[ \t]|(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$))/;
-// Claude insight fences render as one callout, so they stay in one block until the closing rule.
 const INSIGHT_OPEN_PATTERN = /^( {0,3})(`?)★ Insight[ \t]+─{3,}\2[ \t]*$/u;
 const INSIGHT_CLOSE_PATTERN = /^( {0,3})(`?)─{3,}\2[ \t]*$/u;
 
@@ -24,7 +20,6 @@ export function splitMarkdownBlocks(text: string): string[] | null {
   for (const line of text.split("\n")) {
     const opener = FENCE_PATTERN.exec(line)?.[1];
     if (fence !== null) {
-      // A line left of an indented fence may end the list item holding it, which isn't tracked.
       if (/\S/.test(line.slice(0, fenceIndent))) break;
       if (
         opener &&

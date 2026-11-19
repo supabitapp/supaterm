@@ -81,14 +81,12 @@ export function EnvironmentRoutesSection({
   const savedIds = saved.map((route) => connectionRouteId(route.target));
   const [pending, setPending] = useState<ReadonlyArray<string> | null>(null);
   const shownPending = pendingRouteOrder(pending, savedIds);
-  // Dropped during render so a stale order never outlives the save it was for.
   if (pending !== null && shownPending === null) setPending(null);
   const order = shownPending ?? savedIds;
   const [drag, setDrag] = useState<{ readonly id: string; readonly translation: number } | null>(
     null,
   );
   const [heights, setHeights] = useState<ReadonlyMap<string, number>>(() => new Map());
-  // Remount dropped rows so data order and cleared drag offsets change together without flashing.
   const [drops, setDrops] = useState(0);
   if (entry === undefined) return null;
 
@@ -243,8 +241,6 @@ export function EnvironmentRoutesSection({
               if (!cancelled) move(index, dropIndex(index, translation));
             }}
             onStep={(direction) => move(index, direction === "up" ? index - 1 : index + 1)}
-            // Learned routes are refreshed from the server unless a connect
-            // skips them; paired routes can be removed.
             onRemove={
               routes.length > 1 && (!isLearned(route) || unused)
                 ? () => confirmRemove(route)
@@ -278,7 +274,6 @@ function RouteRow(props: {
   const { route, lifted, offset } = props;
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  // A route a connect skips has no speed worth measuring.
   const latency = useAtomValue(
     props.unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
   );

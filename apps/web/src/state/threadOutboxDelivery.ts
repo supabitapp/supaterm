@@ -65,7 +65,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
       messageId: MessageId.make(entry.id),
     }),
     compare: queueOrder,
-    // Raw bytes are immutable for each attachment ID; edits replace the command ID.
     equals: (a, b) => JSON.stringify(a) === JSON.stringify(b),
     storage: {
       load: async () => ({ messages: await options.storage.load(), errors: [] }),
@@ -99,7 +98,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
     return renderSnapshot;
   }
 
-  // Preserve the browser's storage error messages at the UI boundary.
   async function mutation<A>(result: Promise<A>): Promise<A> {
     try {
       return await result;
@@ -145,7 +143,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
     >,
   ) {
     await load();
-    // Publish only after the storage transaction commits. Callers may now clear their draft.
     const added = inputs.map((input) => ({
       ...input,
       position: ++position,
@@ -172,7 +169,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
     );
   }
 
-  /** Runs `action` under the entry's delivery lease while the entry may still change. */
   async function withChangeableEntry(
     id: string,
     action: (entry: ThreadOutboxEntry<Payload>) => Promise<boolean>,
@@ -218,11 +214,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
     }));
   }
 
-  /**
-   * Edits an entry into another scope and carries the entries queued behind it
-   * along. Holding the source scope keeps the drain from sending any of them to
-   * the old thread between the writes.
-   */
   async function editWithFollowing(
     id: string,
     payload: Payload,
@@ -234,11 +225,8 @@ export function createBrowserThreadOutbox<Payload>(options: {
     if (!head) return false;
     const moved = await options.storage.withLock(head.scope, async () => {
       await reload();
-      // Another tab moved the task since the snapshot: follow it to its scope.
       if (getEntries().find((entry) => entry.id === id)?.scope !== head.scope) return "moved";
       if (!(await edit(id, payload, scope))) return false;
-      // The edit reloaded the queue: whatever is still queued for the old
-      // thread follows the task, including a follow-up sent while it moved.
       for (const entry of getEntries().filter((candidate) => candidate.scope === head.scope))
         await mutate(entry.id, (live) => ({ ...live, scope, payload: retarget(live.payload) }));
       return true;
@@ -246,7 +234,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
     return moved === "moved" ? editWithFollowing(id, payload, scope, retarget) : (moved ?? false);
   }
 
-  /** Cancels an entry and the entries queued behind it, those first so none is left at the head. */
   function cancelWithFollowing(id: string) {
     return withChangeableEntry(id, async (live) => {
       for (const entry of queuedBehind(live)) await remove(entry.id);
@@ -269,7 +256,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
 
   async function deliverScope(scope: string): Promise<number | null> {
     const locked = await options.storage.withLock(scope, async () => {
-      // Another tab may have cancelled, edited or delivered this row since our snapshot.
       await reload();
       const candidate = getEntries()
         .filter((entry) => entry.scope === scope)
@@ -289,7 +275,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
           return { next: options.now() };
         }
         if (head.status === "failed" || !options.canDeliver(head)) return { next: null };
-        // Editors renew this lease. A crash must not leave a message paused forever.
         if (head.paused && head.pauseUntil > options.now()) return { next: head.pauseUntil };
         if (head.retryAt > options.now()) return { next: head.retryAt };
         let current = {
@@ -319,7 +304,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
             await save(current);
             return { next: retry ? current.retryAt : null };
           }
-          // Record acknowledgement before cleanup, so failed deletion can never resend the turn.
           await save({ ...current, status: "delivered", error: null });
         } finally {
           sending.delete(current.id);
@@ -350,7 +334,6 @@ export function createBrowserThreadOutbox<Payload>(options: {
       const scopes = [...new Set(getEntries().map((entry) => entry.scope))];
       const remaining = scopes.values();
       const next: Array<number | null> = [];
-      // Bound uploads and RPC work when many threads reconnect together.
       await Promise.all(
         Array.from({ length: Math.min(3, scopes.length) }, async () => {
           for (let scope = remaining.next(); !scope.done; scope = remaining.next()) {

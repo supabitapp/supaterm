@@ -21,13 +21,7 @@ import { threadSearchPullRequests } from "@supaterm/shared/threadPullRequests";
 import type { EnvironmentThreadShell } from "./models.ts";
 import { getThreadSortTimestamp } from "./threadSort.ts";
 
-// When this client last sent an open per thread, by its own clock: a server
-// timestamp would be off by any clock skew. The server merges opens closer
-// together than THREAD_OPEN_DEDUPE_MS anyway, so skipping them saves a command
-// and a broadcast while flipping between threads.
 const sentThreadOpens = new Map<string, number>();
-// When this client last opened each thread, sent or not, so recent threads
-// follow quick switches the server merges.
 const localThreadOpens = new Map<string, number>();
 let localThreadOpensVersion = 0;
 /**
@@ -125,7 +119,6 @@ export function createThreadSearchResultsAtomFamily<E>(options: {
       }
 
       const [environmentIds, query, scope = {}] = parsedKey.value;
-      // The server needs a word of three or more letters to match messages.
       const searchMessages =
         scope.titlesOnly !== true && messageSearchTokens(query).long.length > 0;
       const matches: EnvironmentThreadSearchMatch[] = [];
@@ -180,7 +173,6 @@ export function createThreadSearchResultsAtomFamily<E>(options: {
   });
   return {
     results,
-    /** One environment's older done rows for a search key, for `mountRows`. */
     rows: (key: string, environmentId: EnvironmentId) =>
       rowsAtom(JSON.stringify([key, environmentId])),
   };
@@ -209,7 +201,6 @@ export function threadSearchSubject(
   projectTitle: string | null | undefined,
   environmentLabel?: string | null,
 ): ThreadSearchSubject {
-  // A keystroke ranks the same shells again, so a subject is built once per shell.
   const cached = subjectCache.get(thread);
   if (
     cached !== undefined &&
@@ -254,8 +245,6 @@ function buildThreadSearchSubject(
     environmentLabel: environmentLabel ?? null,
     pullRequests: threadSearchPullRequests(thread),
     activityAt: Number.isFinite(activityAt) ? activityAt : null,
-    // This client's own latest open counts too: the server merged it, or has
-    // no record yet (an older server ignores opens).
     opens:
       localOpenedAt > (thread.opens?.openedAt ?? 0)
         ? { score: 1, picks: [], ...thread.opens, openedAt: localOpenedAt }
@@ -271,7 +260,6 @@ export interface ShownOrder {
   readonly shown: number;
 }
 
-// Rows past the limit a slower environment's best matches may take.
 const LATE_ROOM = 3;
 
 /**

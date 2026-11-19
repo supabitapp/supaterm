@@ -73,7 +73,6 @@ export function findStackRoute(
       return { navigatorKey: state.key, routeKey: route.key, focused: index === state.index };
     }
     const nested = route.state;
-    // Mounted navigators always have keys; a partial state from a link has not been mounted yet.
     if (typeof nested?.key === "string") {
       const found = findStackRoute(nested as NavigationState, name, accept);
       if (found) return found;

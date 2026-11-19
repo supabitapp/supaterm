@@ -84,8 +84,6 @@ const decodeOpenCodeSettings = Schema.decodeSync(OpenCodeSettings);
 
 const DRIVER_KIND = ProviderDriverKind.make("opencode");
 
-// A loopback server runs on this environment, but can outlive its CLI installation.
-// Its reported version may therefore differ from the installed executable after an update.
 export function isLocalOpenCodeServerUrl(serverUrl: string): boolean {
   const url = URL.parse(serverUrl.trim());
   if (url?.protocol !== "http:" && url?.protocol !== "https:") return false;
@@ -115,13 +113,9 @@ export const openCode2Update = makePackageManagedProviderMaintenanceResolver({
   provider: DRIVER_KIND,
   npmPackageName: "@opencode/cli",
   nativeUpdate: {
-    // `isOpenCodeNativeCommandPath` is the curl installer's own binary. Name the
-    // method so OpenCode does not have to infer it from `process.execPath`, which
-    // fails when the binary is launched through a wrapper or shim.
     args: ["upgrade", "--method", "curl"],
     isCommandPath: isOpenCodeNativeCommandPath,
     requiresCommandPath: true,
-    // The curl installer writes to `$HOME/.opencode/bin`, so point HOME at the install it replaces.
     env: (context) => {
       const home =
         openCodeNativeHome(context.realCommandPath) ??
@@ -132,7 +126,6 @@ export const openCode2Update = makePackageManagedProviderMaintenanceResolver({
   mise: { tool: "opencode" },
 });
 
-// An unread catalog keeps what the registry found before rather than the machine catalog.
 function workspaceModelsFor(
   machineModels: ReadonlyArray<ServerProviderModel>,
   cwdModels: Option.Option<ReadonlyArray<ServerProviderModel>>,
@@ -210,7 +203,6 @@ export const OpenCodeDriver: ProviderDriver<
         Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, openCodeRuntime),
       ),
     );
-    // Only a positively identified 1.x is refused; an unknown version reaches OpenCode 2's own errors.
     const detectsOpenCode1 = runtimeProbe.get.pipe(
       Effect.map(isOpenCode1),
       Effect.orElseSucceed(() => false),
@@ -219,7 +211,6 @@ export const OpenCodeDriver: ProviderDriver<
       provider: DRIVER_KIND,
       packageName: null,
     });
-    // A 1.x install is never updated: 2.x converts the shared database in place, so the move is the user's.
     const maintenanceFor = (probed: typeof runtimeProbe.get) =>
       probed.pipe(
         Effect.option,
@@ -308,7 +299,6 @@ export const OpenCodeDriver: ProviderDriver<
         ),
     };
     const loadOpenCode2Models = yield* makeOpenCode2ModelLoader(
-      // An external server may not have the host's cwd; without a location it uses its own default.
       openCode2Server.withConnection(({ client, external }) =>
         loadOpenCode2Catalog(client, external ? undefined : host.paths.cwd),
       ),
@@ -317,7 +307,6 @@ export const OpenCodeDriver: ProviderDriver<
     const listOpenCode2Workspace = (cwd: string) =>
       openCode2Server.withConnection(({ client, events }) =>
         Effect.gen(function* () {
-          // OpenCode names a location by its resolved path (no trailing slash or `..`).
           const directory = pathService.resolve(cwd);
           const location = { directory };
           const scanned = yield* Deferred.make<void>();
@@ -346,7 +335,6 @@ export const OpenCodeDriver: ProviderDriver<
               { concurrency: "unbounded" },
             ),
             Deferred.await(scanned),
-            // Without events no scan can be awaited, so trust the first read as before.
             stream._tag === "None"
               ? Effect.succeed(true)
               : client.debug.location.list().pipe(
@@ -354,7 +342,6 @@ export const OpenCodeDriver: ProviderDriver<
                   Effect.timeout("2 seconds"),
                   Effect.orElseSucceed(() => true),
                 ),
-            // OpenCode answers provider.list for a location only once its skill scan has ended.
             client.provider.list({ location }).pipe(Effect.timeout("10 seconds"), Effect.ignore),
             processEnv,
           );
@@ -420,7 +407,6 @@ export const OpenCodeDriver: ProviderDriver<
       );
       if (limits === undefined) unsupportedUsageVersion = runtime.version;
       if (limits !== undefined && limits.unavailable?.reason !== "unsupported") return limits;
-      // Without a Console workspace the server reports nothing, but a local Go key still has usage.
       const legacy = yield* legacyUsageLimits;
       return limits !== undefined && legacy.unavailable?.reason === "unsupported" ? limits : legacy;
     }).pipe(
@@ -438,9 +424,6 @@ export const OpenCodeDriver: ProviderDriver<
     );
     const checkProvider = Effect.all(
       {
-        // A configured loopback server reports its running version. Probe the local
-        // CLI separately so a completed npm update is not mistaken for a failure
-        // while that independently managed server still runs the previous binary.
         installedVersion:
           effectiveConfig.enabled && isLocalOpenCodeServerUrl(effectiveConfig.serverUrl)
             ? probeOpenCodeBinary(
@@ -503,8 +486,6 @@ export const OpenCodeDriver: ProviderDriver<
       streamSettings: snapshotSettings.streamSettings,
       haveSettingsChanged: haveProviderSnapshotSettingsChanged,
       checkProviderOnSettingsChange: () => false,
-      // A failed or still-loading catalog must recover without a manual
-      // refresh. Healthy instances need no recurring server starts.
       refreshOnInterval: (snapshot) =>
         snapshot.enabled &&
         snapshot.installed &&
@@ -565,7 +546,6 @@ export const OpenCodeDriver: ProviderDriver<
                 : Effect.all(
                     [
                       snapshot.getSnapshot,
-                      // A project's opencode.jsonc can define its own providers.
                       readSettledOpenCode2Catalog(
                         openCode2Server.withConnection(({ client }) =>
                           loadOpenCode2DirectoryCatalog(client, cwd),
@@ -579,7 +559,6 @@ export const OpenCodeDriver: ProviderDriver<
                         ),
                       ),
                       listOpenCode2Workspace(cwd).pipe(
-                        // Leaves room for the reads around the scan wait, which uses the same override.
                         Effect.timeout(
                           2 * resolveProviderProbeTimeoutMs("opencode", 10_000, processEnv),
                         ),
@@ -601,8 +580,6 @@ export const OpenCodeDriver: ProviderDriver<
                       ...workspaceModelsFor(machineSnapshot.models, cwdModels),
                       skills: openCode2SkillsToServerProviderSkills(skills),
                       slashCommands: openCode2CommandsToServerProviderSlashCommands(commands),
-                      // A finished scan lists at least the built-ins. None means it
-                      // timed out, so the registry decides from the provider's health.
                       slashCommandsPending: commands.length > 0 ? false : undefined,
                     })),
                   ),

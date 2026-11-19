@@ -93,7 +93,6 @@ const mix = (a: RGB, b: RGB, t: number): RGB => [
 ];
 const rgb = (c: RGB) => `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`;
 
-/** The LED colour for this frame: the phosphor, or red in error, cross-fading as the state changes. */
 function ledColor(sim: BoltComputerSim | null, look: Look): RGB {
   const of = (state: BoltComputerState) => (state === "error" ? ERROR_RED : look.phosphor);
   if (!sim) return of(look.state);
@@ -103,7 +102,6 @@ function ledColor(sim: BoltComputerSim | null, look: Look): RGB {
 
 const FRONT_Z = DEPTH / 2;
 
-/** The pose turned into a projection onto the canvas, in device px. */
 interface View {
   readonly R: Matrix;
   readonly U: number;
@@ -111,7 +109,6 @@ interface View {
   readonly cy: number;
   readonly rest: number;
   readonly project: (x: number, y: number, z: number) => V3;
-  /** Set `c`'s transform to draw in the housing's plane at depth `z`. */
   readonly plane: (c: CanvasRenderingContext2D, z: number, flip: boolean) => void;
 }
 
@@ -135,7 +132,6 @@ function viewFor(frame: Frame, dpr: number, pose: Pose): View {
   return { R, U, cx, cy, rest, project, plane };
 }
 
-/** The floor's shadow, smaller and fainter the higher the computer hops. */
 function drawFloorShadow(ctx: CanvasRenderingContext2D, view: View, pose: Pose) {
   const up = Math.max(0, pose.lift);
   const radius = view.U * OUTER.hx * (1 - up * 0.9) * pose.sx;
@@ -154,7 +150,6 @@ function drawFloorShadow(ctx: CanvasRenderingContext2D, view: View, pose: Pose) 
   ctx.restore();
 }
 
-/** The flat front or back of the housing, shaded as a slight dome. */
 function drawPlate(
   layer: CanvasRenderingContext2D,
   view: View,
@@ -222,9 +217,6 @@ export class LedPainter {
     led: RGB,
   ) {
     const { cols, rows, v: g } = grid;
-    // Bloom first: the matrix at one pixel per LED, scaled up smooth. The cells
-    // go over it so they keep the phosphor's colour instead of washing to white,
-    // and it stays faint so the gaps between LEDs read as dark.
     const tiny = context2d(this.tiny);
     const d = this.image.data;
     for (let i = 0; i < cols * rows; i++) {
@@ -246,7 +238,6 @@ export class LedPainter {
     ctx.drawImage(this.tinyHalf, x0 - pitch, y0 - pitch, (cols + 2) * pitch, (rows + 2) * pitch);
     ctx.globalCompositeOperation = "source-over";
     const color = rgb(led);
-    // Each LED's hot centre, a step toward white.
     const core = rgb(mix(led, [255, 255, 255], 0.45));
     const cell = pitch * 0.84;
     const off = (pitch - cell) / 2;
@@ -276,12 +267,10 @@ export interface IconLayers {
 
 const FRONT_POSE: Pose = { yaw: 0, pitch: 0, roll: 0, lift: 0, sx: 1, sy: 1 };
 
-/** Everything that depends on the drawn size. */
 interface Sized {
   readonly unit: number;
   readonly bakes: Bakes;
   readonly screen: HTMLCanvasElement;
-  /** The screen's phosphor and unlit LEDs, which never change. */
   readonly screenBase: HTMLCanvasElement;
   readonly pitch: number;
   readonly x0: number;
@@ -344,7 +333,6 @@ export class BoltComputerRenderer {
   iconLedCenter(size: number, column: number, row: number): readonly [number, number] {
     const { view, sized } = this.iconView(size);
     const [gx, gy] = boltCell(this.grid, column, row);
-    // drawGlass stretches the screen canvas over SCREEN, centred on the screen hole.
     const x =
       -SCREEN.hx + ((sized.x0 + (gx + 0.5) * sized.pitch) / sized.screen.width) * 2 * SCREEN.hx;
     const y =
@@ -355,7 +343,6 @@ export class BoltComputerRenderer {
     return [px, py];
   }
 
-  /** The still front view with the housing's outline touching the edges of a `size` px square. */
   private iconView(size: number) {
     const frame: Frame = {
       box: size,
@@ -370,7 +357,6 @@ export class BoltComputerRenderer {
     return { view, sized: this.prepare(view.U) };
   }
 
-  /** The controls bake only follows the size the other textures were baked at, and their colour. */
   private controlsFor(unit: number, knobs: RGB) {
     const cached = this.controls;
     if (cached?.unit === unit && cached.knobs.every((c, i) => c === knobs[i])) return cached.canvas;
@@ -379,7 +365,6 @@ export class BoltComputerRenderer {
     return canvas;
   }
 
-  /** The bezel's relief, with the shadow it casts on the glass, and the controls. */
   private drawBezel(ctx: CanvasRenderingContext2D, view: View, sized: Sized, look: Look) {
     view.plane(ctx, FRONT_Z, false);
     const front = sized.bakes.front(look.controls);
@@ -390,8 +375,6 @@ export class BoltComputerRenderer {
   }
 
   private prepare(unit: number): Sized {
-    // Textures are drawn scaled to the housing, so they only need rebaking once the size has
-    // moved well away from the one they were baked at, not on every frame of a resize.
     if (this.sized && Math.abs(unit / this.sized.unit - 1) < 0.1) return this.sized;
     const screen = makeCanvas(SCREEN.hx * 2 * unit, SCREEN.hy * 2 * unit);
     const pitch = LED_PITCH * unit;
@@ -434,7 +417,6 @@ export class BoltComputerRenderer {
         if (hash(i, seed) > 0.96) g[i] = Math.max(g[i] ?? 0, 0.3);
       }
     }
-    // Switching on: a bright line that opens to the full screen.
     if (sim.age < POWER_ON) {
       const open = smooth(0.08, 0.5, sim.age) * (rows / 2 + 0.5);
       for (let r = 0; r < rows; r++) {
@@ -487,7 +469,6 @@ export class BoltComputerRenderer {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   }
 
-  /** The housing goes on its own layer so the grain stays on it. */
   private drawHousing(ctx: CanvasRenderingContext2D, view: View, facing: number, shell: Material) {
     const { width, height } = ctx.canvas;
     if (this.layer?.width !== width || this.layer.height !== height) {
@@ -532,7 +513,6 @@ export class BoltComputerRenderer {
       shaded[i + 2] = c[2];
     }
     const at = (quad: number, corner: number) => (quads[quad * 4 + corner] ?? 0) * 3;
-    // The housing is convex, so culling back faces and painting far to near is exact.
     const order: Array<readonly [number, number]> = [];
     for (let k = 0; k < quads.length / 4; k++) {
       const nx = normals[k * 3] ?? 0;
@@ -565,10 +545,6 @@ export class BoltComputerRenderer {
   }
 }
 
-/**
- * Smooth shading across one quad as a linear gradient. A least-squares plane through the light at
- * its corners sets the gradient's direction, and each channel is fitted along it.
- */
 function gouraud(
   ctx: CanvasRenderingContext2D,
   projected: Float32Array,
@@ -636,7 +612,6 @@ function gouraud(
   return gradient;
 }
 
-/** The screen hole and the recessed glass with the LED screen behind it. */
 function drawGlass(ctx: CanvasRenderingContext2D, view: View, pose: Pose, sized: Sized) {
   view.plane(ctx, FRONT_Z, false);
   ctx.beginPath();
@@ -647,7 +622,6 @@ function drawGlass(ctx: CanvasRenderingContext2D, view: View, pose: Pose, sized:
   ctx.beginPath();
   trace(ctx, SCREEN_HOLE, GASKET);
   ctx.clip();
-  // The glass sits behind the bezel, so it slides against it as the computer turns.
   view.plane(ctx, FRONT_Z - RECESS, false);
   ctx.drawImage(sized.screen, -SCREEN.hx, SCREEN_HOLE.cy - SCREEN.hy, SCREEN.hx * 2, SCREEN.hy * 2);
   view.plane(ctx, FRONT_Z, false);

@@ -42,7 +42,6 @@ import { resolveModelShortName } from "@supaterm/client-runtime/provider-clients
 export const MAX_CUSTOM_MODEL_LENGTH = 256;
 const DEFAULT_TEXT_GENERATION_INSTANCE_ID = ProviderInstanceId.make("codex");
 
-// Legacy per-driver buckets would leak custom-instance models into stock instances.
 export function readInstanceCustomModels(
   settings: UnifiedSettings,
   instanceId: ProviderInstanceId,
@@ -167,7 +166,6 @@ function getAppModelOptions(
   selectedModel?: string | null,
 ): AppModelOption[] {
   const rawModels = getProviderModels(providers, provider);
-  // Server custom-model snapshots can lag removals; rebuild custom rows from settings.
   const options: AppModelOption[] = rawModels
     .filter((model) => !model.isCustom)
     .map((model) => toAppModelOption(model, provider));
@@ -295,7 +293,6 @@ export function resolveAppModelSelectionForInstance(
   return options.find((option) => option.isDefault)?.slug ?? options[0]?.slug ?? null;
 }
 
-// New drafts carry the stored selection; capabilities resolve its raw options later.
 export function resolveEffectiveDefaultModelSelection(
   settings: UnifiedSettings,
   providers: ReadonlyArray<ServerProvider>,
@@ -369,7 +366,6 @@ function getTextGenerationModelOptionsForInstance(
       .filter((model) => model.supportsTextGeneration === false)
       .map((model) => model.slug),
   );
-  // Filter after custom entries are rebuilt so a display-name override cannot restore a model.
   return getAppModelOptionsForInstance(settings, entry, selectedModel).filter(
     (option) => !unsupported.has(option.slug),
   );
@@ -414,7 +410,6 @@ export function resolveAppModelSelectionState(
     selectedEntry ?? entries.find((candidate) => candidate.enabled && candidate.isAvailable);
   if (entry) {
     const selectedModel = selectedEntry ? selection.model : null;
-    // Use the cheap generation default; the catalog default is the expensive chat flagship.
     const options = getTextGenerationModelOptionsForInstance(settings, entry);
     const model =
       resolveSelectableModel(entry.driverKind, selectedModel, options) ??

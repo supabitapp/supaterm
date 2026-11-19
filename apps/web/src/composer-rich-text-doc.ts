@@ -125,7 +125,6 @@ interface DocLine {
   inline: InlineJson[];
 }
 
-/** Null for a `$name` that is not one of the provider's skills: it stays editable text. */
 function atomJsonForSegment(
   segment: Exclude<ReturnType<typeof splitPromptIntoComposerSegments>[number], { type: "text" }>,
   skillLabelFor: (name: string) => SkillMeta | null,
@@ -259,8 +258,6 @@ export function buildTiptapContent(
     offset = formula.end;
   }
   chunks.push({ text: remainder.slice(offset) });
-  // Math stays editable source. Shield its commands and Markdown-like markers
-  // from styling and context-chip parsing, then restore ordinary text nodes.
   const text = chunks
     .map((chunk) => {
       if ("source" in chunk) {
@@ -409,7 +406,6 @@ export function buildTiptapContent(
       openQuote.content.push(entry.quote.inline);
       continue;
     }
-    // The serializer separates a quote from the prose after it with one blank line; it is not an empty paragraph.
     const quoteSeparator =
       openQuote !== null && isProseLine(entry, true) && isProseLine(entries[entryIndex + 1], false);
     flushQuote();

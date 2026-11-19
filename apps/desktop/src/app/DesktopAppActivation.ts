@@ -188,8 +188,6 @@ export async function startDesktopAppControlServer(input: {
       server.listen(address);
     });
 
-  // Closing unlinks the original bind path, even if another app replaced it. Bind a staging path first.
-
   const bindUnix = async (directory: string, mode: "take-over" | "claim-free") => {
     const staging = NodePath.join(directory, `${NodeCrypto.randomBytes(6).toString("hex")}.tmp`);
     const server = await listen(staging);
@@ -220,10 +218,8 @@ export async function startDesktopAppControlServer(input: {
 
   let closed = false;
   const reclaimOnce = async () => {
-    // Replacing an existing socket would let two apps trade the path indefinitely.
     if (closed || input.directory === null || (await inodeAt(input.address)) !== null) return;
     if (await prepareUnixDirectory({ directory: input.directory, userId: input.userId })) {
-      // Directory watches follow inodes, so recreate the watch after directory replacement.
       watchDirectory(input.directory);
     }
     const next = await bindUnix(input.directory, "claim-free").catch(
@@ -258,7 +254,6 @@ export async function startDesktopAppControlServer(input: {
   };
   if (input.directory !== null) {
     watchDirectory(input.directory);
-    // Catch a removal that happened before the watcher started.
     reclaim().catch(input.onReclaimError);
   }
 
@@ -267,7 +262,6 @@ export async function startDesktopAppControlServer(input: {
     close: async () => {
       if (closed) return;
       closed = true;
-      // Reclaim can replace the watcher; close it afterward.
       await pendingReclaim;
       watcher?.close();
       for (const socket of sockets) socket.destroy();
@@ -391,7 +385,6 @@ export const make = Effect.gen(function* () {
         webContents.send(DESKTOP_APP_ACTIVATION_REQUEST_CHANNEL, request);
       });
     }),
-    // The IPC handler owns the activation-completion span.
     complete: Effect.fnUntraced(function* (response) {
       return yield* Effect.sync(() => broker.complete(response));
     }),

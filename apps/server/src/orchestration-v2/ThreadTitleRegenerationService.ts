@@ -122,7 +122,6 @@ const make = Effect.gen(function* () {
     },
   );
 
-  // A fork starts with no messages of its own, so its subject lives in the history it inherited.
   const forkSource = Effect.fn("ThreadTitleRegenerationService.forkSource")(function* (
     thread: OrchestrationV2AppThread,
   ) {
@@ -190,7 +189,6 @@ const make = Effect.gen(function* () {
           projection.messages.filter((message) => !message.streaming),
         );
       }
-      // A deleted source should not cost the fork its title.
       const inherited = yield* forkSource(projection.thread).pipe(
         Effect.catchTags({
           OrchestratorProjectionError: (error) =>
@@ -213,7 +211,6 @@ const make = Effect.gen(function* () {
         yield* serverSettings.getSettings,
         projection.thread.projectId,
       ).settings;
-      // Storage cleanup removes worktrees but keeps the path; CLIs cannot spawn in a missing cwd.
       const worktreePath = projection.thread.worktreePath;
       const worktreeExists =
         worktreePath !== null &&

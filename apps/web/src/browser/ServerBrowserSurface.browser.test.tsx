@@ -77,12 +77,10 @@ describe("ServerBrowserSurface clipboard commands", () => {
     setup();
     const { screen, input, canvas } = await renderSurface("you");
     await using _screen = screen;
-    // Chromium runs a script Copy or Cut only during a user gesture, as a menu click is.
     await userEvent.click(canvas);
     input.focus();
     mocks.sent.length = 0;
 
-    // Like Electron's webContents.copy(): the browser's Copy command, with no key.
     expect(document.execCommand("copy")).toBe(true);
     expect(keys()).toEqual([
       { type: "key", action: "down", key: "c", code: "KeyC", keyCode: 67, modifiers: 2 },
@@ -111,8 +109,6 @@ describe("ServerBrowserSurface clipboard commands", () => {
     window.addEventListener("keydown", onKeyDown);
     using _listener = { [Symbol.dispose]: () => window.removeEventListener("keydown", onKeyDown) };
 
-    // An unprevented copy or cut key also makes the browser fire copy or cut: here Chromium's
-    // Ctrl key binding, on macOS Electron's menu after the Meta keyup.
     for (const [shortcut, cancels] of [
       ["{Control>}x{/Control}", true],
       ["{Control>}c{/Control}", true],
@@ -189,7 +185,6 @@ describe("ServerBrowserSurface history", () => {
     const canvas = input.closest("[data-server-browser-surface]")!.querySelector("canvas")!;
     canvas.width = 400;
     canvas.height = 300;
-    // Synthetic pointers have no active pointer id to capture.
     canvas.setPointerCapture = () => undefined;
     const handlers = mocks.createClient.mock.calls.at(-1)![1];
     await act(() => {

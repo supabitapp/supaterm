@@ -397,8 +397,6 @@ describe("threadHistoryPaging", () => {
       items.map((row) => row.sourceItemId),
     );
 
-    // A caller that holds only the newest rows gets the same page when it says what it left
-    // out: a user turn, and run 3, whose late notification is then not a new turn.
     const late = items.with(402, inRun(402, 3, notification("Late")));
     const cursor = encodeThreadHistoryCursor({
       snapshotSequence: 1,
@@ -418,7 +416,6 @@ describe("threadHistoryPaging", () => {
         prefix,
       }),
     ).toEqual({ ...whole, oldestScanned: late[45] });
-    // A part that ends above the page reports its first row, so the caller reads further back.
     expect(
       selectHistoryPageFromCursor({
         items: late.slice(60),

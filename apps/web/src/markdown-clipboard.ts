@@ -33,10 +33,6 @@ function wrapInlineMarker(content: string, marker: string): string {
   return `${match?.[1] ?? ""}${marker}${core}${marker}${match?.[3] ?? ""}`;
 }
 
-/**
- * A code element whose pre wrapper fell outside the copied range is still block
- * code, recognizable by its highlighter line spans or embedded newlines.
- */
 function isBlockCodeElement(element: Element, content: string): boolean {
   if (content.includes("\n")) return true;
   for (const child of element.childNodes) {
@@ -53,7 +49,6 @@ function wrapInlineCode(code: string): string {
     0,
   );
   const fence = "`".repeat(Math.max(1, longestRun + (longestRun > 0 ? 1 : 0)));
-  // CommonMark strips one edge space from content that has both and isn't all spaces.
   const spaceEdges = code.startsWith(" ") && code.endsWith(" ") && /[^ ]/.test(code);
   const pad = spaceEdges || code.startsWith("`") || code.endsWith("`") ? " " : "";
   return `${fence}${pad}${code}${pad}${fence}`;
@@ -73,15 +68,12 @@ export function serializeCodeBlockToMarkdown(source: string, language: string | 
   return `${fence}${language ?? ""}\n${code}\n${fence}\n\n`;
 }
 
-// Brackets copied code so tidyMarkdown leaves its whitespace alone. Code is
-// copied as shown, without fences; DOM text from rendered markdown carries no NUL.
 const CODE_BOUNDARY = "\u0000";
 
 function verbatimBlock(code: string): string {
   return `${CODE_BOUNDARY}${code}${CODE_BOUNDARY}\n\n`;
 }
 
-// Odd parts are code and keep their markers, so outer passes still skip them.
 function outsideCode(markdown: string, tidy: (prose: string) => string): string {
   return markdown
     .split(CODE_BOUNDARY)
@@ -155,7 +147,6 @@ function serializeListItem(
   ].join("\n");
 }
 
-/** A list's items with the numbers an ordered list shows: from `start`, reset by each `value`. */
 function numberedListItems(list: Element): { item: Element; number: number }[] {
   const start = Number.parseInt(list.getAttribute("start") ?? "1", 10);
   let next = Number.isNaN(start) ? 1 : start;
@@ -178,7 +169,6 @@ function serializeList(list: Element, ordered: boolean, inTableCell: boolean): s
 function serializeQuoteBody(quote: Element, inTableCell: boolean): string {
   let content = "";
   for (const child of quote.childNodes) {
-    // A callout's rendered label stands for the marker its serializer writes.
     if (child.nodeType === Node.ELEMENT_NODE && (child as Element).hasAttribute(ALERT_LABEL)) {
       continue;
     }
@@ -213,15 +203,11 @@ function serializeDetails(details: Element): string {
   return `<details${open}>\n<summary>${summary}</summary>${content ? `\n\n${content}` : ""}\n</details>\n\n`;
 }
 
-// Prose that would read as inline Markdown once pasted back: a backslash before punctuation,
-// backticks, brackets, and emphasis or strikethrough runs (user remark-gfm sets singleTilde: false).
 const INLINE_MARKDOWN = /\\(?=[!-/:-@[-`{-~\n]|$)|[`[\]]|\*+|_+|~{2,}/g;
 const ESCAPED_PUNCTUATION = /\\([!-/:-@[-`{-~])/g;
 
-/** Escapes rendered prose so it parses back to the same text, leaving runs that cannot open or close. */
 function escapeProse(text: string): string {
   return text.replace(/\S+/g, (word, wordOffset: number) => {
-    // Check each word once; testing every escape's growing prefix would be quadratic.
     const drive = UNFINISHED_DRIVE_PATH.exec(word);
     const driveStart = drive ? drive.index + drive[0].search(/[A-Za-z]/) + 2 : Infinity;
     return word.replace(INLINE_MARKDOWN, (match: string, offset: number) => {
@@ -229,7 +215,6 @@ function escapeProse(text: string): string {
       const before = text[wordOffset + offset - 1];
       const after = text[wordOffset + offset + match.length];
       if (match === "\\" && after !== undefined && /[^\S\n]/.test(after)) return match;
-      // A text node's edge may touch another node's markers, so it counts as neither.
       const between = (pattern: RegExp) =>
         before !== undefined && after !== undefined && pattern.test(before) && pattern.test(after);
       if (/[*_~]/.test(match[0]!) && between(/\s/)) return match;
@@ -247,20 +232,14 @@ function serializeAnchor(anchor: Element, inTableCell: boolean): string {
   if (!/^(?:https?:\/\/|mailto:)/i.test(href)) return content;
   const label = content.trim();
   if (!label) return "";
-  // The label arrives escaped; a bare address goes out as shown, since GFM links it again.
   const shown = label.replace(ESCAPED_PUNCTUATION, "$1");
   if (shown === href) return escapeTablePipes(href, inTableCell);
-  // GFM autolinks a bare address only when it fits this shape.
   if (href === `mailto:${shown}` && /^[\w.+-]+@[\w-]+(?:\.[\w-]+)+(?<=[a-zA-Z])$/.test(shown))
     return shown;
   const destination = escapeTablePipes(href.replace(/[\\()]/g, "\\$&"), inTableCell);
   return `[${label}](${destination})`;
 }
 
-/**
- * GFM splits a table row at every unescaped pipe, but its math-aware parsing
- * keeps a formula's pipes in the cell, so formula source is copied unescaped.
- */
 function escapeTablePipes(text: string, inTableCell: boolean): string {
   return inTableCell ? text.replaceAll("|", "\\|") : text;
 }
@@ -286,7 +265,6 @@ function serializeNode(node: Node, inTableCell = false): string {
   }
   const markdownCopy = element.getAttribute("data-markdown-copy");
   if (markdownCopy !== null) {
-    // A diagram copies as its fenced source, which is code too.
     if (element.hasAttribute("data-markdown-mermaid")) {
       return verbatimBlock(escapeTablePipes(markdownCopy.trimEnd(), inTableCell));
     }
@@ -366,9 +344,6 @@ function scanForSoleCodeBlock(node: Node, scan: SoleCodeBlockScan): void {
     }
     if (child.nodeType !== Node.ELEMENT_NODE) continue;
     const element = child as Element;
-    // Mirrors serializeNode's order: an element carrying markdown of its own
-    // still contributes it even when its tag is otherwise skipped, as a file
-    // chip rendered as a button does.
     if (element.hasAttribute("data-markdown-details")) {
       scan.other = true;
       continue;
@@ -398,11 +373,6 @@ function scanForSoleCodeBlock(node: Node, scan: SoleCodeBlockScan): void {
   }
 }
 
-/**
- * A drag that ends on a block's final newline pulls the closing `pre` into the
- * range, so the fragment holds the whole block even though the user only
- * highlighted code.
- */
 function soleCodeBlock(container: Node): Element | null {
   const scan: SoleCodeBlockScan = { pre: null, other: false };
   scanForSoleCodeBlock(container, scan);
@@ -410,8 +380,6 @@ function soleCodeBlock(container: Node): Element | null {
 }
 
 function tidyMarkdown(markdown: string): string {
-  // Odd parts are code, kept verbatim, so a selection that starts or ends inside
-  // code keeps that code's leading and trailing whitespace.
   const parts = markdown.split(CODE_BOUNDARY);
   const last = parts.length - 1;
   return parts
@@ -432,19 +400,15 @@ export function serializeRenderedMarkdownFragment(container: Node): string {
 }
 
 export function serializeTableElementToMarkdown(table: Element): string {
-  // Raw HTML can put a pre in a cell; with no tidy pass here, drop its markers.
   return serializeTable(table).replaceAll(CODE_BOUNDARY, "").trim();
 }
 
-// The wrapper MarkdownMath puts on every formula it renders. The sanitizer drops
-// the attribute from authored HTML.
 const MATH_SELECTOR = "[data-markdown-math]";
 
 export function mathWrapperOf(element: Element | null): Element | null {
   return element?.closest(MATH_SELECTOR) ?? null;
 }
 
-/** A cell's text, with each formula as its TeX. */
 function csvCellText(cell: Element): string {
   if (!cell.querySelector(MATH_SELECTOR)) return cell.textContent ?? "";
   const copy = cell.cloneNode(true) as Element;
@@ -512,9 +476,7 @@ function sanitizedHtmlFrom(container: Element): string {
   return `<meta charset="utf-8">${container.innerHTML}`;
 }
 
-/** A list cloned from a later item would renumber from its start; restart it at the shown number. */
 function keepStartListNumbers(range: Range, container: Element): void {
-  // The start's ancestors below the common ancestor clone as the fragment's first-child chain.
   const chain: Node[] = [];
   for (
     let node: Node | null = range.startContainer;
@@ -567,14 +529,12 @@ export function chatMarkdownClipboardPayload(
       htmls.push(sanitizedHtmlFrom(container));
       continue;
     }
-    // A range inside a formula would clone only KaTeX's glyphs, not the wrapper holding the TeX.
     const math = mathWrapperOf(ancestorElement);
     if (math) {
       texts.push(math.getAttribute("data-markdown-copy")?.trim() ?? "");
       htmls.push(`<meta charset="utf-8">${mathSourceElement(math).outerHTML}`);
       continue;
     }
-    // A range inside a relabeled link, such as a PR URL shown as `#123`, would clone only its label.
     const link = ancestorElement?.closest("a[data-markdown-copy]");
     if (link) {
       const text = link.getAttribute("data-markdown-copy")?.trim();
@@ -584,7 +544,6 @@ export function chatMarkdownClipboardPayload(
       htmls.push(sanitizedHtmlFrom(container));
       continue;
     }
-    // A range inside one code element clones only its text, which would otherwise be escaped as prose.
     if (ancestorElement?.closest("pre, code")) {
       const text = range.toString();
       if (text) {
@@ -593,7 +552,6 @@ export function chatMarkdownClipboardPayload(
       }
       continue;
     }
-    // A range spanning exactly one callout's text clones its contents but not the callout.
     const callout = ancestorElement?.closest(`[${ALERT_ATTRIBUTE}]`);
     if (callout && range.toString().trim() === (callout.textContent ?? "").trim()) {
       const wrapper = callout.cloneNode(false) as Element;

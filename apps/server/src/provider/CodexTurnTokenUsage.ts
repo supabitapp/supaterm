@@ -66,7 +66,6 @@ export function getCodexTurnAccumulator(
   return created;
 }
 
-/** total is thread-wide; last covers the newest model response. */
 function codexTurnTokenUsageDelta(
   previous: CodexCumulativeTokenUsage | undefined,
   current: CodexCumulativeTokenUsage,
@@ -101,7 +100,6 @@ export function accumulateCodexTurnTokenUsage(
 ): void {
   const current = codexTokenUsageBreakdown(usage.total);
   if (state.activeTurnId !== turnId) {
-    // Every thread-wide total updates the baseline; late finished-turn updates do not count toward the live turn.
     state.baseline = current;
     return;
   }
@@ -157,7 +155,6 @@ export function completeCodexTurnTokenUsage(
     };
   }
 
-  // Codex counts cache reads and writes inside inputTokens.
   return {
     usageStatus: completed ? "complete" : "partial",
     usageScope: "main_agent",

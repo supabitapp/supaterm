@@ -117,7 +117,6 @@ function DeviceStreamDocumentView({
     fail("Device viewer could not start. Reconnect to try again."),
   );
   const resetInput = useEffectEvent(() => void onInputConnected(false));
-  // The stream lives exactly as long as this view.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- starts the bootstrap timeout and stops the WebView device stream when this view unmounts
   useLayoutEffect(() => {
     active.current = true;

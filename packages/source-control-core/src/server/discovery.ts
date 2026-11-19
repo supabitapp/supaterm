@@ -81,7 +81,6 @@ type SourceControlCliRemoteRefinementSpec = SourceControlCliDiscoverySpec & {
 };
 
 const DEFAULT_PROBE_TIMEOUT_MS = 5_000;
-/** An API host that stalls must not hold the whole discovery answer behind it. */
 const API_PROBE_TIMEOUT = "3 seconds";
 
 function probeTimeoutMs(spec: SourceControlCliDiscoverySpec): number {
@@ -303,7 +302,6 @@ export function probeSourceControlProvider(input: {
           ),
         );
 
-  // The auth check does not depend on the version output, so both spawn at once.
   return Effect.all(
     [
       probeCli({
@@ -337,8 +335,6 @@ export function isMissingExecutable(error: unknown): boolean {
   );
 }
 
-// macOS's EBADARCH, which Node has no name for: the binary is built for another CPU, such as an
-// Intel-only `gh` on Apple Silicon without Rosetta.
 const BAD_CPU_TYPE_ERRNO = -86;
 
 const unavailableInstallHint = Effect.fn("discovery.unavailableInstallHint")(function* (
@@ -362,7 +358,6 @@ const unavailableInstallHint = Effect.fn("discovery.unavailableInstallHint")(fun
   return `\`${path ?? executable}\` is built for another CPU architecture, so this ${architecture} machine cannot run it. Remove or replace it. ${installHint}`;
 });
 
-/** An installed CLI whose version probe failed needs a repair, not install advice. */
 function probeFailureHint(
   probe: { readonly executable: string; readonly versionArgs: ReadonlyArray<string> },
   cause: unknown,
@@ -385,7 +380,6 @@ export const failedProbeHint = Effect.fn("discovery.failedProbeHint")(function* 
   cause: unknown,
 ) {
   const hint = yield* unavailableInstallHint(probe.executable, probe.installHint, cause);
-  // A wrong-CPU hint or an absent executable keeps its advice; other failures need repair.
   return hint !== probe.installHint || isMissingExecutable(cause)
     ? hint
     : probeFailureHint(probe, cause);
@@ -445,7 +439,6 @@ export const refineUnknownRemoteProvider = Effect.fn("refineUnknownRemoteProvide
     const results = yield* Effect.forEach(input.specs, (spec) =>
       refineWithSpec({ ...input, spec }).pipe(Effect.result),
     );
-    // An earlier integration that could not answer might have claimed this host.
     let settled = true;
     for (const result of results) {
       if (Result.isFailure(result)) settled = false;

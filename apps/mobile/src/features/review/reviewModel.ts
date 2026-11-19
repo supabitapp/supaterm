@@ -69,7 +69,6 @@ export interface ReviewRenderableFile {
   readonly languageHint: string | null;
   readonly additionLines: ReadonlyArray<string>;
   readonly deletionLines: ReadonlyArray<string>;
-  // Only populated after validating the entire raw file block against its original hunk count.
   readonly completePatchSource?: () => {
     readonly oldContents: string;
     readonly newContents: string;
@@ -240,8 +239,6 @@ function buildPatchCacheKey(patch: string, scope: string): string {
   return `${scope}:${patch.length}:${primary}:${secondary}`;
 }
 
-// Re-parsing an unchanged page must preserve selection/collapse state. Intern only
-// its cache key (never patch contents), keeping scoped Pierre keys off every UI row.
 const reviewPatchIds = new Map<string, string>();
 
 function getReviewPatchId(cacheKey: string): string {
@@ -422,11 +419,7 @@ function completePatchSource(file: FileDiffMetadata, rawPatch: string | null | u
   }
   if (lines[index++] !== `--- ${added ? "/dev/null" : a}`) return undefined;
   if (lines[index++] !== `+++ ${added ? b : "/dev/null"}`) return undefined;
-  // Pierre repairs both underfull and overfull hunks. Its resulting counts cannot
-  // prove that patch lines cover the whole file; read the original header instead.
   const header = lines[index++] ?? "";
-  // GitCafe's structured hunks can start the empty side at 1 instead of git's 0.
-  // Its explicit zero count still proves that side contributes no source lines.
   const match = (added ? /^@@ -[01],0 \+1(?:,(\d+))? @@$/ : /^@@ -1(?:,(\d+))? \+[01],0 @@$/).exec(
     header,
   );
@@ -448,12 +441,10 @@ function completePatchSource(file: FileDiffMetadata, rawPatch: string | null | u
   }
   let bodyEnd = rawPatch.length;
   if (lines[index] === "\\ No newline at end of file") {
-    // Only the patch's LF is synthetic, including when the source ends in a bare CR.
     bodyEnd -= "\\ No newline at end of file\n".length + 1;
     index++;
   }
   if (index !== lines.length) return undefined;
-  // Keep reconstruction lazy so only requested source enters the bounded source cache.
   return () => {
     const contents = rawPatch.slice(bodyStart + 1, bodyEnd).replace(/\n[+-]/g, "\n");
     return added

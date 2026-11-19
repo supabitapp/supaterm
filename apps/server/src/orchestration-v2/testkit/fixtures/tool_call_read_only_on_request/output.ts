@@ -53,7 +53,6 @@ export function assertToolCallReadOnlyOnRequestOutput(
     writes.some((item) => item.status === "completed"),
     "the approved write must complete",
   );
-  // Grok returns ACP v1 diffs ({ path, oldText, newText }); retain them in file_change like v2 patches.
   for (const item of writes) {
     const content = writtenContent(item);
     assert.isDefined(content, `the approved ${item.type} must carry what it wrote`);
@@ -97,10 +96,6 @@ function writtenContent(item: OrchestrationV2TurnItem): string | undefined {
   }
 }
 
-// Kiro gates the write with its own prompt and, Supervised under the explicit
-// approval policy, then asks the user to review the turn's changes. Its
-// prompts carry the tool call id but no kind, and only the choices Supaterm can
-// honour (no session-wide "always") reach the card.
 export function assertToolCallReadOnlyOnRequestKiroOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,

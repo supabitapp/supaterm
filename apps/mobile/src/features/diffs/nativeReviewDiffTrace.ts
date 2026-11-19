@@ -1,8 +1,6 @@
-// Opt in at bundle time for bounded Release diagnostics; never log source or RPC payloads.
 const MAX_TRACE_EVENTS = 1_000;
 let eventCount = 0;
 let nextId = 0;
-// Diagnostics must not keep requests, source loaders, or their row graphs alive.
 const objectIds = new WeakMap<object, number>();
 const primitiveIds = new Map<unknown, number>();
 let fileSink: Promise<import("expo-file-system").File | null> | undefined;
@@ -22,7 +20,6 @@ function appendTraceLine(line: string) {
       return file;
     })
     .catch(() => null);
-  // File.write is async in Expo 58. Serialize appends to preserve sequence order.
   fileSink = fileSink.then(async (file) => {
     if (!file) return null;
     try {

@@ -19,8 +19,6 @@ function isFocusEvent(value: unknown): value is CodexMicroInputEvent {
 export function makeCodexMicroBridge(): DesktopCodexMicroBridge | undefined {
   if (ipcRenderer.sendSync(IpcChannels.CODEX_MICRO_AVAILABLE_CHANNEL) !== true) return undefined;
 
-  // A focus press can recreate the main window, so it is held until the keyboard
-  // coordinator subscribes instead of being lost while the app loads.
   let pendingFocus: { readonly event: CodexMicroInputEvent; readonly at: number } | null = null;
   let inputListeners = 0;
   ipcRenderer.on(IpcChannels.CODEX_MICRO_INPUT_CHANNEL, (_event, inputEvent: unknown) => {

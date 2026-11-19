@@ -157,7 +157,6 @@ export function buildPendingQueuedTasks(
 ): ReadonlyArray<PendingQueuedTask> {
   const tasks: PendingQueuedTask[] = [];
   for (const message of queuedMessages) {
-    // Listing a creation already being sent would flash an "Unsent" row.
     if (!message.creation || isQueuedCreationSending(message, sendGate)) {
       continue;
     }

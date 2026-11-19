@@ -45,7 +45,6 @@ const HEALTH_CHECK_TIMEOUT_MS = 90_000;
 const SIGN_IN_MESSAGE = "Sign in with Google to use Antigravity.";
 const AUTH_UNCHECKED_MESSAGE =
   "Antigravity is installed. Google account access is not checked yet.";
-// Set while a finished quota read republishes, so that health check does not read again.
 const PublishingUsage = Context.Reference<boolean>("supaterm/provider/AntigravityPublishingUsage", {
   defaultValue: () => false,
 });
@@ -65,7 +64,6 @@ function thinkingCapabilities(config: ThinkingConfig | null | undefined, observe
     ? acpProviderOptionDescriptors({ configOptions: [config], modeState: undefined })[0]
     : undefined;
   if (descriptor?.type !== "select") return EMPTY_MODEL_CAPABILITIES;
-  // Another model's selected level is not this model's default.
   const { currentValue: _currentValue, ...unobserved } = descriptor;
   return createModelCapabilities({ optionDescriptors: [observed ? descriptor : unobserved] });
 }
@@ -90,7 +88,6 @@ export function buildAntigravityModelsFromSession(
         : [];
   const currentThinking = antigravityThinkingConfig(setup.configOptions);
   const seen = new Set<string>();
-  // The agent can list two IDs under one name; label the later ones so the picker tells them apart.
   const names = new Set<string>();
   return entries.flatMap((entry): ServerProviderModel[] => {
     if (!entry.value.trim() || seen.has(entry.value)) return [];
@@ -187,7 +184,6 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
       presentation: {
         displayName: "Antigravity",
         showInteractionModeToggle: false,
-        // No automatic review, so Auto falls back to Supervised instead of approving everything.
         supportedRuntimeModes: ["approval-required", "auto-accept-edits", "full-access"],
       },
       enabled: settings.enabled,
@@ -212,9 +208,6 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
     draft: initialDraft,
     authRevision: 0,
   });
-  // Skills the driver discovered on disk per workspace. Session callbacks
-  // rewrite the workspace entry with native commands and must keep these, or
-  // the registry drops the suggestions and never re-reads the workspace.
   const discoveredSkills = new Map<string, ServerProvider["skills"]>();
   const thinkingLevels = new Map<string, ThinkingConfig | null>();
   const observeThinkingLevels = (
@@ -231,8 +224,6 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
     Effect.flatMap((state) => options.stampIdentity(state.draft)),
   );
 
-  // The quota read can take 30 seconds, so it never blocks readiness or a session start.
-  // One read runs at a time; sign-in and sign-out interrupt it so a stale account never lands.
   const usageRead = yield* FiberHandle.make();
   const republish = yield* Deferred.make<Effect.Effect<ServerProvider>>();
   const scope = yield* Effect.scope;
@@ -253,7 +244,6 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
             },
           })),
         ),
-        // Enrichment cannot change published limits; a health check publishes them.
         Effect.andThen(
           Deferred.await(republish).pipe(
             Effect.flatten,
@@ -263,7 +253,6 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
           ),
         ),
       ),
-      // Store the fiber before it runs, so a sign-out during the read can interrupt it.
       { onlyIfMissing: true, startImmediately: false },
     );
   });
@@ -527,8 +516,6 @@ export const makeAntigravityProvider = Effect.fn("makeAntigravityProvider")(func
     onSessionStarted,
     onConfigOptionsUpdated,
     onAvailableCommands,
-    // The new sign-in may be another account. Clear and republish its limits so a failed read
-    // cannot fall back to them; the session start then reads the new account's limits.
     onSignedIn: resetUsage.pipe(
       Effect.andThen(
         SubscriptionRef.update(metadata, (state) => {

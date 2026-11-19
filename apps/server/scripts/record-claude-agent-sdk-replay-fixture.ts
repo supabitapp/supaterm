@@ -245,7 +245,6 @@ const CLAUDE_RECORDINGS = {
     queryMode: "streaming",
     enableTools: true,
   },
-  // Requires the recording account's claude.ai Firecrawl connector; MCP metadata uses undeclared `tool_use_meta`.
   claude_mcp_tool_presentation: {
     prompts: [CLAUDE_MCP_TOOL_PRESENTATION_PROMPT],
     defaultTranscriptFile: "fixtures/claude_mcp_tool_presentation/claude_transcript.ndjson",

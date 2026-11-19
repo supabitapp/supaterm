@@ -41,7 +41,6 @@ export function WorkspaceListHeader(props: WorkspaceListHeaderProps) {
   useEffect(() => {
     if (!searching || !listFocused) return;
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      // Frozen Home screens can keep effects alive after a detail route opens.
       const state = navigation.getState();
       if (
         !state ||

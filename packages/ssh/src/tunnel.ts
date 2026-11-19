@@ -54,40 +54,26 @@ import {
 const REMOTE_PORT_SCAN_WINDOW = 200;
 const SSH_READY_TIMEOUT_MS = 20_000;
 const SSH_READY_PROBE_TIMEOUT_MS = 1_000;
-// Probes through the forward pay several link round trips, about 4s at a 1s RTT.
 const SSH_TUNNEL_READY_PROBE_TIMEOUT_MS = 5_000;
 const TUNNEL_SHUTDOWN_TIMEOUT_MS = 2_000;
 const TUNNEL_STDERR_TAIL_CHARS = 16_384;
 const REMOTE_READY_TIMEOUT_MS = 60_000;
 const REMOTE_LAUNCH_BASE_TIMEOUT_MS = 90_000;
-// Matches the node-script launch command's ssh run without the launch lock wait.
 const SSH_TUNNEL_CONNECT_TIMEOUT_MS = REMOTE_LAUNCH_BASE_TIMEOUT_MS;
 const SSH_TUNNEL_FORWARD_PROBE_INTERVAL_MS = 100;
-// Cold archive launches download and extract ~70 MB and may wait on an install lock.
-// Lock waits must outlast both downloads and extraction; SSH must outlast install or wait plus readiness.
-// Leave slack for verification and extraction, which have no timeout.
 const REMOTE_ARCHIVE_CHECKSUMS_SECONDS = 30;
 const REMOTE_ARCHIVE_DOWNLOAD_SECONDS = 240;
 const REMOTE_ARCHIVE_LOCK_WAIT_SECONDS = 360;
 const REMOTE_ARCHIVE_LAUNCH_TIMEOUT_MS = 900_000;
 const REMOTE_REUSE_READY_TIMEOUT_MS = 2_000;
 const REMOTE_PID_EXIT_WAIT_MS = 2_000;
-// The server answers HTTP before it writes server-runtime.json, which is how
-// a launch for another alias finds it.
 const REMOTE_RUNTIME_RECORD_WAIT_SECONDS = 10;
-// The desktop update wait runs under the home lock. Its last poll and the
-// adoption after it each add a reuse probe, and the poll adds one sleep.
 const REMOTE_UPDATE_WAIT_MS =
   DESKTOP_UPDATE_IN_PROGRESS_TTL_MS +
   2 * (REMOTE_REUSE_READY_TIMEOUT_MS + SSH_READY_PROBE_TIMEOUT_MS) +
   1_000;
-// A launch waits this long for a server that holds the home to answer; its
-// last poll adds a reuse probe.
 const REMOTE_OWNER_WAIT_MS =
   REMOTE_READY_TIMEOUT_MS + REMOTE_REUSE_READY_TIMEOUT_MS + SSH_READY_PROBE_TIMEOUT_MS;
-// A launch holds the home lock through up to two reuse probes, readiness, two
-// server exit waits, the runtime record wait, the update wait, and the owner
-// wait; each probe may overrun its deadline by one request.
 const REMOTE_LAUNCH_LOCK_WAIT_SECONDS = Math.ceil(
   (REMOTE_READY_TIMEOUT_MS +
     2 * REMOTE_REUSE_READY_TIMEOUT_MS +
@@ -113,7 +99,6 @@ export interface RemoteSupatermRunnerOptions {
 
 export interface SshEnvironmentManagerOptions {
   readonly resolveCliRunner?: Effect.Effect<RemoteSupatermRunnerOptions>;
-  // Identifies this install to the remote across edits of a connection; null when unknown.
   readonly resolveLauncherId?: Effect.Effect<string | null>;
 }
 
@@ -261,7 +246,6 @@ function applyScriptPlaceholders(
 ): string {
   let result = template;
   for (const [token, value] of Object.entries(replacements)) {
-    // A replacer function keeps `$$` and other `$` patterns in the value literal.
     result = result.replaceAll(`@@${token}@@`, () => value);
   }
   return result;
@@ -570,9 +554,6 @@ fi
 exec "$SUPATERM_RUNTIME_DIR/supaterm" "$@"
 `;
 
-// kill -0 also passes for a zombie, a reused PID and, on Linux, a thread ID,
-// which ps does not list. Only the serve command the launcher started counts;
-// where ps cannot look up a PID at all, trust kill -0.
 const REMOTE_MANAGED_SERVER_RUNNING_SCRIPT = `managed_server_running() {
   [ -n "$1" ] && kill -0 "$1" 2>/dev/null || return 1
   if MANAGED_ARGS="$(ps -ww -o args= -p "$1" 2>/dev/null)"; then
@@ -1058,9 +1039,6 @@ export class SshInvalidArchiveVersionError extends Schema.TaggedError<SshInvalid
   }
 }
 
-// The version becomes a directory name the runner removes and recreates, so
-// it must be one exact SemVer segment: no separators, no `..`, no shell
-// metacharacters beyond what SemVer allows.
 const EXACT_ARCHIVE_VERSION =
   /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
 
@@ -1163,7 +1141,6 @@ export const launchOrReuseRemoteServer = Effect.fn("ssh/tunnel.launchOrReuseRemo
     ChildProcessSpawner.ChildProcessSpawner | Digest.Digest | FileSystem.FileSystem | Path.Path
   > {
     const stateKey = yield* remoteStateKey(target);
-    // The launcher ID is interpolated into the remote shell command, so only hex passes.
     const launchArgs =
       typeof launcherId === "string" && /^[0-9a-f]{32}$/u.test(launcherId)
         ? `${stateKey} ${launcherId}`
@@ -1174,8 +1151,6 @@ export const launchOrReuseRemoteServer = Effect.fn("ssh/tunnel.launchOrReuseRemo
       stateKey,
     });
     const result = yield* runSshCommand(target, {
-      // Shells known to take `-l -c` with a POSIX-style `exec` read their own login
-      // profiles first; any other shell (csh, pwsh, ...) keeps the plain `sh -l` launch.
       remoteCommandArgs: [
         "sh",
         "-c",
@@ -1402,7 +1377,6 @@ const reserveLocalTunnelPort = Effect.fn("ssh/tunnel.reserveLocalTunnelPort")(fu
   return yield* net.reserveLoopbackPort();
 });
 
-// ssh only binds the forward after it connects, which can take ConnectTimeout per dead address.
 const waitForTunnelForward = Effect.fn("ssh/tunnel.waitForTunnelForward")(function* (input: {
   readonly target: DesktopSshEnvironmentTarget;
   readonly localPort: number;
@@ -1682,7 +1656,6 @@ const makeSshEnvironmentManager = Effect.fn("ssh/tunnel.SshEnvironmentManager.ma
   const targetLocks = yield* KeyedLock.make<string>();
   const authSecrets = new Map<string, string>();
 
-  // Keep one lock per target so reconnect cannot reuse a server while stop is pending.
   const withTargetLock = Effect.fn("ssh/tunnel.withTargetLock")(function* <A, E, R>(
     key: string,
     effect: Effect.Effect<A, E, R>,
@@ -1986,7 +1959,6 @@ const makeSshEnvironmentManager = Effect.fn("ssh/tunnel.SshEnvironmentManager.ma
         remotePort: entry.remotePort,
         cause: readinessExit.cause,
       });
-      // Closing a stale forward must not run the manager-owned remote stop.
       tunnels.delete(key);
       yield* closeTunnelEntry(entry);
     }
@@ -2060,7 +2032,6 @@ const makeSshEnvironmentManager = Effect.fn("ssh/tunnel.SshEnvironmentManager.ma
           issuedPairingToken: pairingToken !== null,
         });
         return {
-          // Callers save this target; a port ssh -G resolved would pin the alias's current Port.
           target: { ...entry.target, port: target.port },
           httpBaseUrl: entry.httpBaseUrl,
           wsBaseUrl: entry.wsBaseUrl,
@@ -2093,7 +2064,6 @@ const makeSshEnvironmentManager = Effect.fn("ssh/tunnel.SshEnvironmentManager.ma
           hasTunnel: entry !== null,
         });
         if (entry !== null) {
-          // Explicit disconnect owns the remote stop so its failure reaches the caller.
           yield* Effect.gen(function* () {
             tunnels.delete(key);
             yield* closeTunnelEntry(entry);

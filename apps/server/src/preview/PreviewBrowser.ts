@@ -21,10 +21,6 @@ import * as NodeCrypto from "node:crypto";
 import * as ServerConfig from "../config.ts";
 import { openZipArchive } from "../zipArchive.ts";
 
-// Update the version, sizes and hashes from each chrome-headless-shell zip listed at
-// https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json
-// Never pin below 156.0.8078.70: the shell has no CRLSet and older SPKI blocklists trust
-// compromised eMudhra intermediates (crrev.com/c/8627687).
 const VERSION = "157.0.8103.78";
 const ARCHIVES = {
   linux64: {
@@ -60,7 +56,6 @@ const chromePlatform = (platform: NodeJS.Platform, arch: NodeJS.Architecture) =>
     case "darwin":
       return arch === "arm64" ? "mac-arm64" : arch === "x64" ? "mac-x64" : null;
     case "win32":
-      // There is no Windows arm64 build; Windows on Arm runs the x64 one under emulation.
       return arch === "ia32" ? "win32" : arch === "x64" || arch === "arm64" ? "win64" : null;
     default:
       return null;
@@ -163,7 +158,6 @@ export const makePreviewBrowser = Effect.fn("PreviewBrowser.make")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const http = yield* HttpClient.HttpClient;
-  // Installs belong to the service, so they finish even when no caller is still waiting.
   const serviceScope = yield* Effect.scope;
   const platform = yield* HostProcess.Platform;
   const arch = yield* HostProcess.Architecture;
@@ -285,7 +279,6 @@ export const makePreviewBrowser = Effect.fn("PreviewBrowser.make")(function* (
             onError: wrapFailure("Could not unpack the browser."),
           }).pipe(Stream.run(fs.sink(target, { flag: "wx" })));
         }).pipe(Effect.scoped);
-        // The binary and its shared libraries carry exec bits in the archive.
         if (platform !== "win32" && (unixMode & 0o777) !== 0) {
           yield* fs.chmod(target, unixMode & 0o777);
         }
@@ -309,7 +302,6 @@ export const makePreviewBrowser = Effect.fn("PreviewBrowser.make")(function* (
     function* (release: PreviewBrowserRelease) {
       yield* Effect.gen(function* () {
         yield* fs.makeDirectory(installRoot, { recursive: true });
-        // Staging shares the install root's filesystem so publishing is one rename.
         const staging = yield* fs.makeTempDirectoryScoped({
           directory: installRoot,
           prefix: ".install-",
@@ -323,7 +315,6 @@ export const makePreviewBrowser = Effect.fn("PreviewBrowser.make")(function* (
         yield* fs.remove(destination, { recursive: true, force: true });
         yield* fs.rename(unpacked, destination);
       }).pipe(Effect.scoped);
-      // Shared homes may still use the newest other version or staging directories touched within the last hour.
       const entries = yield* fs.readDirectory(installRoot);
       const previous = entries
         .filter((name) => name !== release.version && !name.startsWith("."))

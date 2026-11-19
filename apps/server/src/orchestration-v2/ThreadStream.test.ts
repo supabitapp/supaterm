@@ -155,7 +155,6 @@ describe("decideThreadResume", () => {
 
   it("builds socket fallback snapshots with a bounded timeline and history cursor", () => {
     const projection = timelineProjection(80);
-    // A delivered side chat digest stays "ready", which bounded snapshots keep.
     const sideChatHandoff = {
       id: ContextHandoffId.make("side-chat-handoff"),
       transferId: ContextTransferId.make("side-chat-transfer"),

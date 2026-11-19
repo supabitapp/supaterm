@@ -39,7 +39,6 @@ export function SheetHeader(props: SheetHeaderProps) {
   return (
     <>
       {props.dismissDisabled === undefined ? null : (
-        // A sheet that can't be closed with its button can't be swiped away either.
         <NativeStackScreenOptions options={{ gestureEnabled: !props.dismissDisabled }} />
       )}
       <AppBar

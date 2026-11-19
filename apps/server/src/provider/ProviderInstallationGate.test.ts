@@ -25,8 +25,6 @@ it.effect("queues work that starts while an update waits for in-flight work", ()
       )
       .pipe(Effect.forkScoped);
     yield* Deferred.await(inFlightStarted);
-    // Starting immediately runs each fiber until it blocks: the update while draining in-flight
-    // work, by which point it holds the turnstile, and later work at the gate.
     const update = yield* gate
       .update(
         [INSTANCE_ID],

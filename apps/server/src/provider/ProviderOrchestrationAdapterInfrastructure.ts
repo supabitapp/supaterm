@@ -16,7 +16,6 @@ export type ProviderOrchestrationAdapterInfrastructure =
   | CursorSdk.CursorSdk
   | IdAllocator.IdAllocatorV2;
 
-// Subagent threads created before short ids keep their stored id when an adapter resumes them.
 export const layerIdAllocator = Layer.unwrap(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;

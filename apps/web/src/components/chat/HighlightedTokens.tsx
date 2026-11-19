@@ -45,7 +45,6 @@ export function HighlightedTokens({
     withEmbeddedScripts(code, tokenize(code, language), embedded, tokenize),
   );
 
-  // The compiler requires JSX to recognize this component; `use` alone does not suffice.
   return (
     <>
       {lines.map(({ key, tokens, ending }) => (

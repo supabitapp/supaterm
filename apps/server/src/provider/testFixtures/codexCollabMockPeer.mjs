@@ -1,6 +1,3 @@
-// Codex app-server stand-in for the provider readiness probe tests. Session requests get real
-// captured responses (codexMultiAgentWire.json); the first turn replays the multi-agent script
-// at the SUPATERMX_COLLAB_SCRIPT path. Plain Node, stdlib only.
 import * as NodeFS from "node:fs";
 import * as NodeReadline from "node:readline";
 import * as NodePath from "node:path";
@@ -26,7 +23,6 @@ rl.on("line", (line) => {
   }
   const { id, method } = message;
   if (openServerRequests.has(id)) {
-    // Match real Codex's resolved item ID so the runtime closes the corresponding approval card.
     const request = openServerRequests.get(id);
     openServerRequests.delete(id);
     NodeFS.appendFileSync(

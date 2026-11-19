@@ -103,7 +103,6 @@ vi.mock("../../state/atom-registry", async () => {
                       ]),
                     ),
   };
-  // Real atoms such as composerDraftsAtom go to a real registry; strings are stubbed state.
   return {
     appAtomRegistry: {
       get: (atom: unknown) =>
@@ -343,7 +342,6 @@ describe("pinned thread operation permissions", () => {
       }),
     ];
 
-    // Rows that wait to show can hold order keys the server has replaced.
     state.holdingRows = true;
     expect(await useThreadListActions().moveThread(moved, "up")).toBe(false);
     expect(state.requests).toEqual([]);
@@ -543,7 +541,6 @@ describe("thread action undo", () => {
       await useThreadListActions().unpinThread(thread);
       expect(readThreadUndoNotice()?.action).toBe("Unpinned");
       await readThreadUndoNotice()!.undo();
-      // 2099 is the unexpired case; 2000 has long passed.
       const restoresSnooze = snoozedUntil === "2099-01-01T09:00:00.000Z";
       expect(state.requests.map(({ action }) => action)).toEqual(
         restoresSnooze ? ["unpin", "pin", "snooze"] : ["unpin", "pin"],
@@ -668,7 +665,6 @@ describe("thread archive guard", () => {
     expect(state.archivedRefreshes).toEqual([]);
     expect(state.alerts.at(-1)?.title).toBe("Could not archive thread");
 
-    // A list can hold a row from before the run started.
     state.shells = [thread];
     expect(await useThreadListActions().archiveThread(makeThread())).toBe(false);
     expect(state.requests).toEqual([]);

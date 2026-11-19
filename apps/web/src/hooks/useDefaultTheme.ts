@@ -21,9 +21,6 @@ export function defaultThemeToApply(input: {
   if (input.environmentId === null || input.defaultTheme.length === 0) return null;
   const generation = defaultThemeGeneration(input.defaultTheme, input.defaultThemeSetAt);
   if (input.appliedGeneration === generation) return null;
-  // The setting and the palette it names arrive independently, so an id that
-  // does not resolve yet is not a failure -- adoption re-checks when the
-  // published set changes.
   if (!input.resolves) return null;
   return generation;
 }
@@ -59,10 +56,8 @@ function adoptDefaultTheme(): void {
   });
   if (generation === null || definition === null) return;
 
-  // A single-appearance theme needs both preference and appearance writes to take effect.
   if (!setTheme(defaultTheme)) return;
   const half = singleAppearanceOf(definition);
-  // Only record adoption after both writes succeed, so an appearance failure remains retryable.
   if (half !== null && !setAppearanceMode(half)) return;
   writeAppliedGeneration(storageKey, generation);
 }

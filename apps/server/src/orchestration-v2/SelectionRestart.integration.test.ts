@@ -445,7 +445,6 @@ it.live("retries a failed selection restart session open before completing", () 
   }),
 );
 
-// regression: #22971 an exclusive session closes on detach; that failed the run and held the queue
 it.live.each(["pooled", "exclusive"] as const)(
   "a workspace handoff on a %s session completes its run and starts the queued continuation",
   (mode) =>
@@ -464,7 +463,6 @@ it.live.each(["pooled", "exclusive"] as const)(
         state,
         mode === "pooled" ? pooledCapabilities : exclusiveCapabilities,
       );
-      // A session that closes on detach is never asked to interrupt: Claude's cannot answer.
       const adapter: ProviderAdapter.ProviderAdapterV2["Service"] =
         mode === "pooled"
           ? base
@@ -547,7 +545,6 @@ it.live.each(["pooled", "exclusive"] as const)(
             Stream.runDrain,
             Effect.forkScoped,
           );
-        // What supaterm_worktree_handoff dispatches while the calling turn is still running.
         const bound = yield* orchestrator.dispatch({
           type: "thread.metadata.update",
           commandId: CommandId.make("command:workspace-handoff:rebind"),
@@ -559,7 +556,6 @@ it.live.each(["pooled", "exclusive"] as const)(
             text: "continue in the worktree",
           },
         });
-        // The detach can settle the run at once, so its follow-up must exist in the same commit.
         assert.deepEqual(
           bound.storedEvents.flatMap(({ event }) =>
             event.type === "run.created" ? [event.payload.status] : [],
@@ -606,7 +602,6 @@ it.live("Stop during a restart interrupts the turn the restart could not stop", 
       failedReplacementOpen: false,
     });
     const base = makeRestartAdapter(state);
-    // A wedged provider ignores the restart's soft cancel; only Stop ends its turn.
     const adapter: ProviderAdapter.ProviderAdapterV2["Service"] = {
       ...base,
       openSession: (input) =>

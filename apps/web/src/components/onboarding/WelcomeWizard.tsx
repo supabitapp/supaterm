@@ -96,11 +96,6 @@ import { cn } from "../../lib/utils";
 import { formatRelativeTime } from "../../timestampFormat";
 import { isImeComposing } from "~/lib/imeComposition";
 
-/**
- * Shown at `/welcome` on a fresh install (no completed-onboarding flag, empty workspace). Every
- * step past the connection gate is skippable; clearing the flag re-runs the wizard.
- */
-
 type WizardStep = "connection" | "agents" | "import";
 const NO_ENVIRONMENTS: readonly EnvironmentId[] = [];
 
@@ -120,8 +115,6 @@ export function WelcomeWizard({
   const [step, setStep] = useState<WizardStep>(resumeEnvironmentId ? "agents" : "connection");
   const { environments } = useEnvironments();
   const [selection, setSelection] = useState<ReadonlySet<EnvironmentId> | null>(null);
-  // One registry for the wizard's lifetime, so a computer is auto-selected once even after
-  // the user unchecks it.
   const [autoSelectedComputers] = useState(() => new Set<EnvironmentId>());
   const [setupIds, setSetupIds] = useState<readonly EnvironmentId[]>(
     resumeEnvironmentId ? [resumeEnvironmentId] : [],
@@ -948,9 +941,6 @@ function AgentInstallTerminal({
     setSetupState("preparing");
   }
 
-  // In Strict Mode, a canceled open can finish after the replacement setup
-  // starts; it must not close or pre-type into the replacement session that
-  // shares this terminal id.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- opens the setup PTY, types the command into it, and closes it on cleanup
   useEffect(() => {
     const generation = setupGenerationRef.current + 1;
@@ -991,8 +981,6 @@ function AgentInstallTerminal({
       setSetupState(wrote._tag === "Success" ? "ready" : "writeFailed");
     });
 
-    // Close the PTY only while this connection still has terminal access;
-    // revocation leaves it running.
     return () => {
       if (activeSetupGenerationRef.current === generation) {
         activeSetupGenerationRef.current = null;
@@ -1084,7 +1072,6 @@ function AgentInstallTerminal({
 const IMPORT_PERMISSION_MESSAGE = "This connection cannot import projects or thread history.";
 
 interface ImportSelection {
-  // Computers whose projects were listed when the selection changed; later ones get the defaults.
   readonly environmentIds: ReadonlySet<EnvironmentId>;
   readonly keys: ReadonlySet<string>;
 }
@@ -1176,8 +1163,6 @@ function ImportStep({
     }
     setIsImporting(true);
     const importGeneration = importGenerationRef.current;
-    // waitForProject gives up after its timeout, so a project that never reaches the client
-    // still finishes setup, just without landing in it.
     void waitForProject(projectRef)
       .then(
         () => projectRef,
@@ -1685,7 +1670,6 @@ function ImportRowMeta({
   );
 }
 
-/** The desktop app links `supaterm` on a fresh install; this puts its folder on PATH when it is not. */
 function CliPathSetup() {
   const { state, busy, run } = useDesktopCliCommand();
   const setup = state?.pathSetup;

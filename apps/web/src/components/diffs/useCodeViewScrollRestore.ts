@@ -11,7 +11,6 @@ interface ScrollRestoreHandle {
   scrollTo(target: CodeViewScrollTarget): void;
 }
 
-// Session-only, like the panel's folds.
 const scrollTopByScopeKey = new Map<string, number>();
 
 /**
@@ -33,7 +32,6 @@ export function createCodeViewScrollRestore() {
       loadMore?.();
       return;
     }
-    // Pierre lands an unclamped position target one sticky header (32px) above it.
     const position = pending + 32 <= maxScrollTop ? pending + 32 : maxScrollTop;
     pending = null;
     if (position > 0) handle.scrollTo({ type: "position", position });
@@ -57,7 +55,6 @@ export function createCodeViewScrollRestore() {
       if (source !== viewer || pending !== null || scopeKey === null) return;
       scrollTopByScopeKey.set(scopeKey, scrollTop);
     },
-    /** Something else positions the viewer, such as a file reveal or collapsing every file. */
     discard() {
       pending = null;
       if (scopeKey !== null) scrollTopByScopeKey.delete(scopeKey);

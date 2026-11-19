@@ -206,7 +206,6 @@ describe("history loading", () => {
           dispatchMode: "start",
         },
       });
-      // Dispatched after Send on another thread, so it arrives first only if Send is queued.
       const controlThreadId = ThreadId.make("control-thread");
       const control = h.commands.interruptTurn.run(h.registry, {
         environmentId: ENVIRONMENT_ID,
@@ -227,7 +226,6 @@ describe("history loading", () => {
 });
 
 describe("interrupt turn", () => {
-  // A stale cached item has nothing left to interrupt, so the server can reject Stop.
   it.effect("reconciles pending work when the server rejects the interrupt", () =>
     Effect.gen(function* () {
       const h = yield* makeHarness();
@@ -243,7 +241,6 @@ describe("interrupt turn", () => {
     }),
   );
 
-  // Mirrors the thread state's handler: the lookup runs in the thread's scope and is joined.
   const stopWithBlockedLookup = Effect.fn("stopWithBlockedLookup")(function* () {
     const threadScope = yield* Scope.make();
     const asked = yield* Deferred.make<void>();

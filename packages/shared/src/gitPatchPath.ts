@@ -53,11 +53,9 @@ export function quoteGitPatchPath(path: string): string {
   return quoting ? `${QUOTE}${body}${QUOTE}` : path;
 }
 
-// Octal escapes represent bytes; rejoin before UTF-8 decoding.
 function unescapeBody(body: string): string {
   if (!body.includes("\\")) return body;
   const bytes: Array<number> = [];
-  // Encode literal runs together to preserve surrogate pairs.
   let literal = "";
   const flush = () => {
     if (literal.length === 0) return;

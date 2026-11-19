@@ -8,7 +8,6 @@ function startRequest() {
   const response = new NodeEvents.EventEmitter();
   const reject = vi.fn();
   new ElectronHttpExecutor().addErrorAndTimeoutHandlers(request, reject);
-  // Electron's net.ClientRequest emits these as soon as the request body is sent, before any response.
   request.emit("finish");
   request.emit("close");
   return { request, response, reject };

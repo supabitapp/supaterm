@@ -59,7 +59,6 @@ export function recordComposerScrollGestureEvent(
   },
 ): boolean {
   state.lastEventAt = input.now;
-  // Any wheel-down inside the end band restores the composer, so collapsing there would undo itself.
   if (
     state.collapseSuppressed ||
     !input.collapseEligible ||

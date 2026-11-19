@@ -34,7 +34,6 @@ export function assertCommandOutputStreamingOutput(
   assert.isAbove(streamed?.chunks ?? 0, 0);
   const liveText = streamed?.output.text ?? "";
   const live = terminalOutputPlainText(liveText);
-  // Codex omits pre-yield command output; the recording has no delta or aggregatedOutput for line 1.
   for (const line of ["stream line 2", "stream line 3", "stream line 4", "progress 100%"]) {
     assert.include(live, line);
   }

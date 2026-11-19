@@ -25,7 +25,6 @@ function normalizeDraftAnswer(value: string | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-// Provider option values stay exact, including whitespace. Only options without a value match by label.
 function resolvePendingUserInputOptionValue(
   question: PendingUserInputQuestion,
   value: string,

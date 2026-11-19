@@ -285,9 +285,6 @@ export function ThreadTerminalRouteScreen(props: ThreadTerminalRouteScreenProps)
     threadId: selectedThread?.id ?? null,
   });
   const requestedTerminalId = firstRouteParam(params.terminalId);
-  // A route without a terminal shows the thread's running one. The choice is
-  // made once, from the first session list that has one, so the terminal shown
-  // does not change under the user as sessions come and go.
   const [bootstrapTerminalId, setBootstrapTerminalId] = useState<string | null>(null);
   const runningSession = knownSessions.sessions
     ? (pickRunningTerminalSessionForBootstrap(knownSessions.sessions) ??
@@ -390,7 +387,6 @@ function ThreadTerminal(props: {
   const routeThreadId = routeThreadIdRaw ? ThreadId.make(routeThreadIdRaw) : null;
   const environment = useEnvironmentPresentation(routeEnvironmentId);
   const isEnvironmentReady = environment.presentation?.connection.phase === "connected";
-  // Any new positive value triggers capture, even on remount. Pass one only while pending and keep increasing it.
   const captureSequenceRef = useRef(0);
   const [captureRequest, setCaptureRequest] = useState(0);
   const [capturedOutput, setCapturedOutput] = useState<string | null>(null);
@@ -570,15 +566,12 @@ function ThreadTerminal(props: {
   const isKeyboardVisible = useKeyboardState((state) => state.isVisible);
   const keyboardHeight = useKeyboardState((state) => state.height);
   const keyboardShowEpoch = useSyncExternalStore(subscribeKeyboardShowing, getKeyboardShowEpoch);
-  // The accessory follows the keyboard, except that the dismiss and show
-  // buttons flip it ahead of the keyboard animation.
   const [accessory, setAccessory] = useState({ keyboardShowEpoch, dismissed: false });
   if (accessory.keyboardShowEpoch !== keyboardShowEpoch) {
     setAccessory({ keyboardShowEpoch, dismissed: keyboardShowEpoch === 0 });
   }
   const isAccessoryDismissed = accessory.dismissed;
   const isAccessoryVisible = canOperateTerminal && isKeyboardVisible && !isAccessoryDismissed;
-  // Android's terminal owns an EditText; turning off autoFocus also clears its native focus.
   const terminalAutoFocus =
     Platform.OS === "android"
       ? !isAccessoryDismissed &&
@@ -608,7 +601,6 @@ function ThreadTerminal(props: {
       return false;
     }
 
-    // Android's IME delivers a system paste as one input, which can exceed one write.
     const isSameShell = pasteSession.liveness();
     for (const chunk of chunkTerminalWrite(data)) {
       if (!isSameShell()) return false;
@@ -753,7 +745,6 @@ function ThreadTerminal(props: {
       return;
     }
 
-    // Toolbar input bypasses the native field, so a syllable it holds must not be recomposed.
     surfaceRef.current?.resetInput();
 
     if (action.kind === "clear") {
@@ -765,7 +756,6 @@ function ThreadTerminal(props: {
   };
 
   const handlePaste = (readText: () => Promise<string>) => {
-    // Pasted text bypasses the native field, so a syllable it holds must not be recomposed.
     surfaceRef.current?.resetInput();
     setPendingModifier(null);
     void pasteText(readText);
@@ -846,7 +836,6 @@ function ThreadTerminal(props: {
               Platform.OS === "android"
                 ? themeVariables["--color-card-alt"]
                 : terminalTheme.background,
-            // Measured top reservation is zero when UIKit already inset the body or moved the bar.
             paddingTop: contentTopInset,
             paddingBottom: Platform.OS === "android" && !isKeyboardVisible ? insets.bottom : 0,
           }}

@@ -15,7 +15,6 @@ function Probe(props: { environmentId: EnvironmentId | null }) {
 describe("useEnvironmentStateHeldFor", () => {
   it("restarts the delay whenever the environment changes", async () => {
     await using screen = await render(<Probe environmentId={first} />, {
-      // A bare hook probe; nothing here navigates.
       router: false,
     });
     using _timers = fakeTimers();

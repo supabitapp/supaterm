@@ -50,7 +50,6 @@ describe("parseClaudeLine", () => {
   });
 
   it("gives every content block of one message the same dedupe key", () => {
-    // Content-block records repeat full parent usage; summing them overcounts.
     const [text] = parseClaudeLine(claudeLine({ messageId: "msg_2", contentType: "text" }));
     const [toolUse] = parseClaudeLine(claudeLine({ messageId: "msg_2", contentType: "tool_use" }));
 
@@ -256,7 +255,6 @@ describe("Claude cache write pricing", () => {
     );
 
     if (record === undefined) throw new Error("expected a usage record");
-    // 0.4M x $6.25/M + 0.6M x $10/M
     expect(priceUsage(rates, record).costUsd).toBeCloseTo(8.5, 9);
   });
 });

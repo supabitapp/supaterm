@@ -12,7 +12,6 @@ import {
 } from "../shared.ts";
 import { kiroFailedAfterCancel } from "../kiro_subagent_interrupt/output.ts";
 
-/** Tool call ids Kiro reported `in_progress` before Supaterm's `session/cancel`. */
 function kiroRunningBeforeCancel(transcript: ProviderReplayTranscript): Set<string> {
   const cancelIndex = transcript.entries.findIndex(
     (entry) => entry.type === "expect_outbound" && entry.label === "notification:session/cancel",

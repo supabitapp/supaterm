@@ -46,7 +46,6 @@ export function createFileTreeDragMentionController(
       if (event.dataTransfer === null) {
         return;
       }
-      // Require a tree-row origin; text/plain fallback would misclassify selected panel text as a mention.
       let itemPath: string | null = null;
       for (const node of event.composedPath()) {
         itemPath = itemPathOf(node);

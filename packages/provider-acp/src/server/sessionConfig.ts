@@ -62,7 +62,6 @@ export function acpProviderOptionDescriptors(input: {
   let hasModeCategory = false;
 
   for (const option of input.configOptions ?? []) {
-    // Model and collaboration_mode choices use Supaterm model and interaction controls.
     if (option.category === "model" || option.category === "collaboration_mode") {
       continue;
     }
@@ -117,7 +116,6 @@ export function acpProviderOptionDescriptors(input: {
       })),
     );
     const currentValue = choiceId(modeState.currentModeId);
-    // Some agents duplicate modes in config options; show each control once.
     const duplicatesKnownModeDescriptor = mirroredModeChoiceSets.some(
       (choiceIds) =>
         choiceIds.size === choices.length && choices.every((choice) => choiceIds.has(choice.id)),

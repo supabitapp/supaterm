@@ -48,7 +48,6 @@ export async function waitForAtomValue<A>(input: {
       return;
     }
 
-    // Close the gap between the initial read and subscription registration.
     if (input.predicate(read())) {
       finish(true);
       return;

@@ -11,7 +11,6 @@ import { PullRequestStackLayers } from "./PullRequestStackLayers";
 import { PullRequestStackHeader } from "./PullRequestStackHeader";
 import { PullRequestGlyph } from "./pullRequestIcons";
 
-// Mount only on open to avoid per-row stack fetches.
 function StackBody({
   environmentId,
   reference,

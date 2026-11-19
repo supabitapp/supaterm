@@ -18,12 +18,10 @@ import {
   type InspectorPane,
 } from "./inspector-panes";
 
-// A pane without an AppBar has no bar; one with it gets the glass the workspace's screens get.
 const PANE_HEADER_OPTIONS = { ...GLASS_HEADER_OPTIONS, headerShown: false };
 
 function PaneHeader(props: { readonly store: InspectorBarStore }) {
   const options = useSyncExternalStore(props.store.subscribe, props.store.getSnapshot);
-  // Its own search identity, so opening the inspector doesn't morph the sidebar's search into it.
   return (
     <V5StackHeader
       options={{ ...PANE_HEADER_OPTIONS, ...options }}

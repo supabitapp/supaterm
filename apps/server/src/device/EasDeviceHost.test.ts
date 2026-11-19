@@ -43,24 +43,20 @@ const makeGate = Effect.all({
   release: Deferred.make<void>(),
 });
 
-/** Expo's API and one session's preview host, recording what was asked of them. */
 const fakeExpo = (
   options: {
     readonly status?: () => string;
     readonly failCreate?: boolean;
-    /** Expo answers the create with GraphQL errors: a refusal. */
     readonly rejectCreate?: boolean;
     readonly failStop?: () => boolean;
     readonly failList?: () => boolean;
     readonly active?: ReadonlyArray<{ id: string; status: string; name: string }>;
     readonly previewGate?: Gate;
     readonly createGate?: Gate;
-    /** Holds the first session read it answers with a gate. */
     readonly sessionGate?: () => Gate | undefined;
     readonly activeIncludesCreated?: boolean;
     readonly failPreview?: boolean;
     readonly omitCreatedFromActive?: boolean;
-    /** The session's agent-device daemon answers with a server error. */
     readonly failAgent?: () => boolean;
   } = {},
 ) => {
@@ -147,7 +143,6 @@ const fakeExpo = (
       if (operation === "SupatermActiveEasSimulatorSessions" && options.failList?.()) {
         return HttpClientResponse.fromWeb(request, new Response("bad gateway", { status: 502 }));
       }
-      // The account's feature gate is off, as for an Expo admin whom the create still admits.
       if (body.query.includes("accountFeatureGates")) {
         return HttpClientResponse.fromWeb(
           request,
@@ -353,7 +348,6 @@ describe("Expo Simulators host", () => {
         headers: { authorization: "Bearer preview-token" },
         protocols: ["serve-emu.token.preview-token"],
       });
-      // Each session answers only on its own platform's stream.
       expect(
         yield* ready.upstream!("/vendor/serve-emu/api", new URLSearchParams("device=session-1")),
       ).toBeNull();
@@ -420,7 +414,6 @@ describe("Expo Simulators host", () => {
         const path = yield* Path.Path;
         const server = yield* ServerConfig.ServerConfig;
         const ledger = path.join(server.stateDir, "device", "eas", "eas.json");
-        // Expo refuses the create and lists nothing.
         const expo = fakeExpo({ rejectCreate: true, omitCreatedFromActive: true });
         const first = yield* Scope.make();
         const host = yield* makeHost(expo, config({ maxConcurrentSessions: 1 }), first);
@@ -432,7 +425,6 @@ describe("Expo Simulators host", () => {
         }>;
         expect(entries.map((entry) => entry.refused)).toEqual([true]);
         yield* Scope.close(first, Exit.void);
-        // A later server cannot even list the app: the record must not hold a slot.
         const later = fakeExpo({ failList: () => true });
         const restarted = yield* makeHost(
           later,
@@ -457,12 +449,10 @@ describe("Expo Simulators host", () => {
         const oldReady = yield* old.ensureReady(() => Effect.void);
         const [catalogDevice] = (yield* oldReady.devices.list).devices;
         expect(yield* oldReady.devices.boot(catalogDevice!)).toBe("session-1");
-        // Long enough that the listing reads the session's status and a sweep is due.
         yield* TestClock.adjust("2 minutes");
         armed = true;
         const listing = yield* oldReady.devices.list.pipe(Effect.forkChild);
         yield* Deferred.await(gate.requested);
-        // Settings saved while the old listing waits on Expo.
         yield* Scope.close(first, Exit.void);
         const replacement = yield* makeHost(expo, config(), yield* Scope.make());
         const ready = yield* replacement.ensureReady(() => Effect.void);
@@ -487,7 +477,6 @@ describe("Expo Simulators host", () => {
 
   it.effect("stops the session a refused create made anyway", () =>
     Effect.gen(function* () {
-      // Expo refuses the create but lists a session by its name.
       const expo = fakeExpo({ rejectCreate: true });
       const host = yield* makeHost(expo, config({ maxConcurrentSessions: 1 }), yield* Scope.make());
       const ready = yield* host.ensureReady(() => Effect.void);
@@ -505,7 +494,6 @@ describe("Expo Simulators host", () => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const server = yield* ServerConfig.ServerConfig;
-      // A directory where the ledger file should be: it can be neither read nor written.
       yield* fs.makeDirectory(path.join(server.stateDir, "device", "eas", "eas.json"), {
         recursive: true,
       });
@@ -551,7 +539,6 @@ describe("Expo Simulators host", () => {
       yield* ready.devices.boot(catalogDevice!);
       yield* ready.devices.shutdown({ id: "session-1", platform: "ios" }).pipe(Effect.flip);
       expect((yield* ready.devices.list).devices.map((device) => device.id)).toContain("session-1");
-      // Expo ended it by itself: the stop keeps failing, but the status says so.
       status = "STOPPED";
       expect((yield* ready.devices.list).devices.map((device) => device.id)).toEqual([
         "eas-ios",
@@ -601,7 +588,6 @@ describe("Expo Simulators host", () => {
       const [catalogDevice] = (yield* ready.devices.list).devices;
       const booting = yield* ready.devices.boot(catalogDevice!).pipe(Effect.forkChild);
       yield* Deferred.await(previewGate.requested);
-      // Never released: stopping must not wait for the session to become ready.
       yield* host.stop;
       expect(expo.stopped()).toEqual(["session-1"]);
       const failure = yield* Fiber.join(booting).pipe(Effect.flip);

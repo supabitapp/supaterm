@@ -357,7 +357,6 @@ const expectTypedFailure = (exit: Exit.Exit<unknown, unknown>, expected: object)
   expect(reason.error).toMatchObject(expected);
 };
 
-// Resolve once so calls share the in-flight guard.
 const resolveService = (harness: ReturnType<typeof makeHarness>) =>
   WorktreeMcpService.WorktreeMcpService.pipe(Effect.provide(harness.layer));
 
@@ -379,7 +378,6 @@ const runStatus = (harness: ReturnType<typeof makeHarness>) =>
 const decodeHandoffInput = Schema.decodeUnknownEffect(WorktreeMcpHandoffInput);
 
 describe("supaterm_worktree_handoff", () => {
-  // regression: #22971 a separate send let the detach settle the run before its follow-up existed
   it.effect("commits the continuation with the thread binding", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {

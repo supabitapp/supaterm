@@ -192,11 +192,6 @@ const edgeAxis = (edge: PaneEdge): PaneAxis =>
   edge === "left" || edge === "right" ? "column" : "row";
 const edgeLeads = (edge: PaneEdge) => edge === "left" || edge === "top";
 
-/**
- * Cuts a track `offset` percent in, widening every pane that crossed it. An
- * offset of 0 leaves a zero-size track, so a boundary that lines up with an
- * existing one still resizes on its own.
- */
 function splitTrack(
   layout: PaneLayout,
   axis: PaneAxis,
@@ -256,12 +251,10 @@ function insertPane(
   const offsets = tracks.map((_track, index) =>
     tracks.slice(0, index).reduce((sum, track) => sum + track.size, 0),
   );
-  // Split at the pane's own middle, whatever boundaries its neighbours have.
   const middle = (offsets[start]! + offsets[end - 1]! + tracks[end - 1]!.size) / 2;
   let trackIndex = start;
   while (trackIndex < end - 1 && offsets[trackIndex + 1]! <= middle) trackIndex += 1;
   const next = splitTrack(layout, axis, trackIndex, middle - offsets[trackIndex]!, createId);
-  // The cut sits before the track that kept the original id, at trackIndex + 1.
   const boundary = trackIndex + 1;
   const split = findPane(next, paneId)!;
   const firstSpan = boundary - start;
@@ -288,7 +281,6 @@ function insertPane(
 
 const CLOSE_FILL_ORDER: ReadonlyArray<PaneEdge> = ["left", "top", "right", "bottom"];
 
-/** Panes on `edge` of `cell` that exactly cover that edge, so they can grow into its area. */
 function edgeNeighbours(layout: PaneLayout, cell: PaneCell, edge: PaneEdge): PaneCell[] | null {
   const axis = edgeAxis(edge);
   const across: PaneAxis = axis === "column" ? "row" : "column";
@@ -315,7 +307,6 @@ function edgeNeighbours(layout: PaneLayout, cell: PaneCell, edge: PaneEdge): Pan
   return fits && covered === to - from ? touching : null;
 }
 
-/** Removes track boundaries no pane starts on, merging their sizes. */
 function normalizePaneLayout(layout: PaneLayout): PaneLayout {
   let next = layout;
   for (const axis of ["column", "row"] as const) {

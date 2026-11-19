@@ -3,8 +3,6 @@ import * as Effect from "effect/Effect";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import * as DirectTunnel from "./DirectTunnel.ts";
 
-// The tunnel handshake proves the host and every request inside it carries its
-// own credentials, so this upgrade has no session or Origin check of its own.
 export const layer = HttpRouter.add(
   "GET",
   "/v1/connect",
@@ -12,7 +10,6 @@ export const layer = HttpRouter.add(
     const request = yield* HttpServerRequest.HttpServerRequest;
     const tunnel = yield* DirectTunnel.DirectTunnel;
     const incoming = NodeHttpServerRequest.toIncomingMessage(request);
-    // Only an HTTP/1.1 request can upgrade; an HTTP/2 one carries a `stream`.
     if ("stream" in incoming) return HttpServerResponse.empty({ status: 400 });
     yield* tunnel.accept({
       endpointId: new URL(request.url, "http://host").searchParams.get("endpointId"),

@@ -51,7 +51,6 @@ async function setup(
     },
   );
   const editor = screen.getByLabelText("Message").element();
-  /** Returns whether the key went through to the editor. */
   const key = (type: "keydown" | "keyup", init: KeyboardEventInit = {}) =>
     editor.dispatchEvent(
       new KeyboardEvent(type, {
@@ -62,7 +61,6 @@ async function setup(
         ...init,
       }),
     );
-  /** Synthetic key events don't edit, so the test types what the editor would. */
   const type = (text: string) => {
     draft = { text, selection: { start: text.length, end: text.length } };
   };

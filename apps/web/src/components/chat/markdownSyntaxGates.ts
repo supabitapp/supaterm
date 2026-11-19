@@ -9,8 +9,6 @@ import { combineExtensions } from "micromark-util-combine-extensions";
 import type { Construct, Extension, TokenizeContext } from "micromark-util-types";
 import type { Processor } from "unified";
 
-// A table needs a delimiter row: dashes with a `|` or `:`, after any `>` or indent.
-// One character class per pattern: overlapping ones backtrack quadratically on a run of dashes.
 const DELIMITER_LINE = /^[ \t>|:-]+$/gm;
 const isDelimiterRow = (line: string) => line.includes("-") && /[|:]/.test(line);
 const NEXT_LINE = /[^\r\n]*(?:\r\n?|\n)([^\r\n]*)/y;
@@ -30,14 +28,10 @@ const matchesAt = (pattern: RegExp, text: string, offset: number) => {
 
 interface Gate {
   readonly names: ReadonlyArray<string>;
-  /** False when the construct cannot match anywhere in the text. */
   readonly inText: (text: string) => boolean;
-  /** False when it cannot start at this offset, which keeps micromark from trying it there. */
   readonly at?: (context: TokenizeContext, text: string, offset: number) => boolean;
 }
 
-// micromark tries these at every candidate character: email autolinks at every word, tables
-// at every line. That is most of what GFM adds to a parse, and most texts cannot match them.
 const GATES: ReadonlyArray<Gate> = [
   {
     names: ["emailAutolink"],
@@ -71,12 +65,9 @@ const GATES: ReadonlyArray<Gate> = [
   { names: ["tasklistCheck"], inText: (text) => /\[[\sxX]\]/.test(text) },
 ];
 
-// A body row follows the head or another row. Mirrors `start` in micromark-extension-gfm-table's
-// lib/syntax.js: recheck it when that package changes.
 function continuesTable({ events }: TokenizeContext) {
   let index = events.length - 1;
   while (index > -1 && /^(?:lineEnding|linePrefix)$/.test(events[index]![1].type)) index--;
-  // The table extension's token types are not in micromark's map unless its types are loaded.
   const tail: string | undefined = events[index]?.[1].type;
   return tail === "tableHead" || tail === "tableRow";
 }
@@ -133,7 +124,6 @@ function gateExtension(extension: Extension, absent: ReadonlySet<Gate>): Extensi
 
 type MdastExtensions = NonNullable<FromMarkdownOptions["mdastExtensions"]>;
 
-// Merged once, as mdast-util-from-markdown merges them on every call: lists in order, handlers by key.
 function mergeMdastExtensions(extensions: MdastExtensions): MdastExtension {
   const merged = {
     canContainEols: [] as string[],
@@ -145,8 +135,6 @@ function mergeMdastExtensions(extensions: MdastExtensions): MdastExtension {
     merged.canContainEols.push(...(extension.canContainEols ?? []));
     Object.assign(merged.enter, extension.enter);
     Object.assign(merged.exit, extension.exit);
-    // GFM looks for autolink literals again in the decoded text outside links, so `www\.x.io`
-    // links too. Most texts have URLs only in link destinations and code, where it finds nothing.
     for (const transform of extension.transforms ?? []) {
       merged.transforms.push(
         extension.enter?.literalAutolink
@@ -166,10 +154,6 @@ function hasAutolinkText(node: MdastNodes): boolean {
   return node.children.some(hasAutolinkText);
 }
 
-/**
- * Parses as remark-parse does, without the syntax extension constructs that cannot match the
- * text. Same tree, in about half the time.
- */
 function attachParserWithoutUnusedSyntax(this: Processor) {
   const data = this.data();
   const byMask = new Map<number, FromMarkdownOptions["extensions"]>();
@@ -191,7 +175,6 @@ function attachParserWithoutUnusedSyntax(this: Processor) {
     }
     mdastExtensions ??= [mergeMdastExtensions(data.fromMarkdownExtensions ?? [])];
     const outer = parsing;
-    // Gates read micromark offsets, which skip a leading byte order mark.
     parsing = document.charCodeAt(0) === 0xfeff ? document.slice(1) : document;
     try {
       return fromMarkdown(document, { ...data.settings, extensions, mdastExtensions });

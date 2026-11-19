@@ -25,8 +25,6 @@ export function useMediaVideoPlayback(
     active.current = focused && !paused && AppState.currentState === "active";
     if (!active.current) interruption.current += 1;
     if (!focused || paused || (!active.current && !fullscreen.current)) playback.pause();
-    // Native background handling distinguishes Android's fullscreen activity
-    // from leaving the app; React Native reports both as background.
     const subscription = AppState.addEventListener("change", (state) => {
       active.current = focused && !paused && state === "active";
       if (!active.current) interruption.current += 1;
@@ -38,7 +36,6 @@ export function useMediaVideoPlayback(
   const createPlayRequest = () => {
     const requestedAt = interruption.current;
     const requestedWhileActive = active.current;
-    // Returning to the content must not revive playback interrupted during loading.
     return () => {
       if (requestedWhileActive && active.current && requestedAt === interruption.current)
         return playback.play();

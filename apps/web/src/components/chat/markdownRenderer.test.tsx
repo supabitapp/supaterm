@@ -9,7 +9,6 @@ import { describe, expect, it } from "vite-plus/test";
 import { createIncrementalMarkdownPlugin } from "../../markdown-incremental";
 import { createMarkdownRenderer } from "./markdownRenderer";
 
-// Visible in the markup, so every URL attribute must pass through it.
 const urlTransform = (url: string) => `${url}#seen`;
 
 describe("createMarkdownRenderer", () => {
@@ -27,7 +26,6 @@ describe("createMarkdownRenderer", () => {
     "| a | b |\n| - | - |\n| <br> | [x](#frag) |\n\n- [ ] task\n- [x] done",
     '```ts title="a.ts"\nconst a = 1;\n```\n\n> [!WARNING]\n> careful <a>bare</a>',
     "Footnote[^1] and ~~strike~~\n\n[^1]: the note",
-    // Each GFM construct the parser skips when its text cannot match, next to one that can.
     "Mail me@example.com, see www.example.com and HTTPS://example.com/a, not [x](https://y.z).",
     "a.b-c_d+e@x.io and @user\n\n`me@x.io` <me@x.io>",
     "A table without pipes\n:--",
@@ -54,7 +52,6 @@ describe("createMarkdownRenderer", () => {
   it("renders what react-markdown renders while a reply streams through the incremental parser", () => {
     const reply =
       "```ts\nconst a = 1;\n```\n\n| a | b |\n| - | - |\n| me@x.io | www.x.io |\n\nDone ~~now~~.";
-    // As ChatMarkdown streams: one incremental plugin for the reply, a fresh renderer per update.
     const incremental = createIncrementalMarkdownPlugin();
     for (let end = 1; end <= reply.length; end++) {
       const source = reply.slice(0, end);

@@ -1,6 +1,5 @@
 import { createHighlighter } from "@pierre/highlights";
 
-// The highlighter's line-record API, which `Highlighter` does not declare.
 interface LineRecordHighlighter {
   writeInput(input: string): number;
   tokenizeLineRecords(language: number, byteLength: number): Uint32Array;
@@ -15,7 +14,6 @@ export function createWasmHighlightsModule() {
   return {
     tokenize(source: string, language: number): ArrayBuffer {
       const records = highlighter.tokenizeLineRecords(language, highlighter.writeInput(source));
-      // The view points into WebAssembly memory that the next call reuses.
       return records.slice().buffer;
     },
   };

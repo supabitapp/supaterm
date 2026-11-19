@@ -69,7 +69,6 @@ import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as GitManager from "./GitManager.ts";
 
-/** A change request the fake host reports. Omitted fields read as an open, undated request. */
 type FakeChangeRequest = Omit<ChangeRequest, "provider" | "state" | "updatedAt"> & {
   readonly state?: ChangeRequest["state"];
   readonly updatedAt?: string;
@@ -80,13 +79,10 @@ interface FakeProviderScenario {
     readonly started: Deferred.Deferred<void>;
     readonly release: Deferred.Deferred<void>;
   };
-  /** The kind the fake host reports itself as. */
   kind?: string;
-  /** Answers to successive change request listings, whatever their head selector. */
   prListSequence?: ReadonlyArray<ReadonlyArray<FakeChangeRequest>>;
   prListByHeadSelector?: Record<string, ReadonlyArray<FakeChangeRequest>>;
   prListSequenceByHeadSelector?: Record<string, ReadonlyArray<ReadonlyArray<FakeChangeRequest>>>;
-  /** The answer to every listing the other lists leave unanswered. */
   prListOtherwise?: ReadonlyArray<FakeChangeRequest>;
   defaultBranch?: string;
   pullRequest?: FakeChangeRequest;
@@ -94,13 +90,7 @@ interface FakeProviderScenario {
   failWith?: string;
   failCause?: unknown;
   failAfterCalls?: number;
-  /** Check out the pull request head from its pull ref: fast-forward only unless forced. */
   syncCheckoutWithPullHead?: boolean;
-  /**
-   * The host's `headBranchProbe`. By default the fake probes bare branch names, a hundred at a
-   * time, or only the owner-qualified default branch, as GitHub does, so tests see GitManager
-   * defer to the hook; null leaves the probe to GitManager.
-   */
   headBranchProbe?: SourceControlProvider["Service"]["headBranchProbe"] | null;
 }
 
@@ -222,10 +212,6 @@ function initRepo(
     yield* runGit(cwd, ["init", "--initial-branch=main"]);
     yield* runGit(cwd, ["config", "user.email", "test@example.com"]);
     yield* runGit(cwd, ["config", "user.name", "Test User"]);
-    // Hermetic line endings: machine-global `core.autocrlf=true` on Windows
-    // makes Git check out CRLF, which breaks exact-content assertions that
-    // write LF with Node. Local config overrides the global so the fixture
-    // (and its linked worktrees, which share config) always checks out LF.
     yield* runGit(cwd, ["config", "core.autocrlf", "false"]);
     yield* fs.writeFileString(NodePath.join(cwd, "README.md"), "hello\n");
     yield* runGit(cwd, ["add", "README.md"]);
@@ -350,10 +336,6 @@ function createTextGeneration(
   };
 }
 
-/**
- * A host that answers from the scenario and records what it was asked, so tests assert on the
- * selectors GitManager chose rather than on any host's wire format.
- */
 function createFakeSourceControlProvider(scenario: FakeProviderScenario = {}): {
   service: SourceControlProvider["Service"];
   calls: FakeProviderCall[];
@@ -555,10 +537,6 @@ function createFakeSourceControlProvider(scenario: FakeProviderScenario = {}): {
   };
 }
 
-/**
- * Reads a template from the base tree the way a host would, without any host's own lookup
- * rules, so tests see which tree GitManager reads it from.
- */
 const readFakeChangeRequestTemplate = Effect.fnUntraced(function* (input: {
   readonly cwd: string;
   readonly treeish: string;
@@ -641,7 +619,6 @@ function makeManager(input?: {
         Effect.gen(function* () {
           const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
           return ChildProcessSpawner.make((command) => {
-            // On Windows the driver starts git by its full path to git.exe.
             const args =
               command._tag === "StandardCommand" &&
               NodePath.parse(command.command).name.toLowerCase() === "git"
@@ -916,7 +893,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         "git@github.com:pingdotgg/codething-mvp.git",
         remoteDir,
       );
-      // `git remote set-url --add`: Git fetches from the first URL and also pushes to this one.
       yield* runGit(repoDir, [
         "config",
         "--add",
@@ -1125,7 +1101,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         );
         expect(pr?.isDraft === true).toBe(isDraft);
       }
-      // A different PR ends collection without waiting on a background stream consumer.
       yield* manager.branchPullRequest(
         { cwd: repoDir, branch: "feature/draft-status" },
         { refresh: true },
@@ -1202,7 +1177,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* lookup;
       expect(freshLookups()).toBe(0);
 
-      // Remembered git state expires after 5 minutes; that rereads git without a recheck.
       yield* TestClock.adjust("10 minutes");
       gitCommands.length = 0;
       expect((yield* lookup)?.state).toBe("merged");
@@ -1213,7 +1187,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       expect((yield* lookup)?.state).toBe("merged");
       expect(freshLookups()).toBe(2);
 
-      // A new PR from the reused branch shows on the next host query.
       yield* TestClock.adjust("5 minutes");
       expect((yield* lookup)?.number).toBe(2);
     }),
@@ -1860,9 +1833,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* runGit(repoDir, ["checkout", "-b", "feature/merged-branch-deleted"]);
       yield* runGit(repoDir, ["push", "-u", "origin", "feature/merged-branch-deleted"]);
 
-      // GitHub commonly deletes a pull request's head branch after merge. Git
-      // removes the remote-tracking ref, but preserves the local branch's
-      // remote and merge configuration as evidence that it was published.
       yield* runGit(repoDir, ["push", "origin", "--delete", "feature/merged-branch-deleted"]);
       const configuredRemote = yield* runGit(repoDir, [
         "config",
@@ -1926,7 +1896,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* runGit(repoDir, ["add", "squash.txt"]);
       yield* runGit(repoDir, ["commit", "-m", "Feature work"]);
       yield* runGit(repoDir, ["push", "-u", "origin", branch]);
-      // The host squash-merges: a new commit on main with the branch's tree, not the branch's commit.
       const squash = yield* runGit(repoDir, [
         "commit-tree",
         "HEAD^{tree}",
@@ -2037,7 +2006,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* runGit(repoDir, ["remote", "add", "origin", remoteDir]);
       const branch = "feature/release-only";
       const headSha = yield* squashMergeIntoRemoteMain(repoDir, branch);
-      // Move the merge to release and leave main without it.
       const squashSha = (yield* runGit(repoDir, ["rev-parse", "origin/main"])).stdout.trim();
       yield* runGit(repoDir, ["push", "origin", `${squashSha}:refs/heads/release`]);
       yield* runGit(repoDir, ["push", "--force", "origin", `${initialSha}:refs/heads/main`]);
@@ -2715,7 +2683,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       ]);
       yield* runGit(repoDir, ["push", "-u", "origin", "main"]);
       yield* runGit(repoDir, ["remote", "set-head", "origin", "main"]);
-      // What a new worktree thread gets: its start point as upstream, nothing published.
       yield* runGit(repoDir, ["branch", "--track", "supaterm/new-thread", "origin/main"]);
       yield* runGit(repoDir, ["branch", "--track", "feature/published", "origin/main"]);
       yield* runGit(repoDir, ["branch", "--track", "supaterm/pr-300/main", "origin/main"]);
@@ -2796,7 +2763,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
       yield* runGit(repoDir, ["remote", "set-head", "origin", "main"]);
       yield* runGit(repoDir, ["checkout", "-b", "develop"]);
       yield* runGit(repoDir, ["push", "-u", "origin", "develop"]);
-      // `--track` from a local branch, or `branch.autoSetupMerge=always`, records remote ".".
       yield* runGit(repoDir, ["checkout", "-b", "feature/local-base", "--track", "develop"]);
 
       const { manager, providerCalls } = yield* makeManager({
@@ -2813,7 +2779,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 updatedAt: "2026-05-01T10:00:00Z",
               },
             ],
-            // Someone else's branch of the same name; this one was never pushed.
             "feature/local-base": [
               {
                 number: 62,
@@ -3228,7 +3193,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         signingKey,
       ]);
       yield* runGit(repoDir, ["config", "gpg.format", "ssh"]);
-      // A global signer such as 1Password's cannot use the fixture's generated key.
       yield* runGit(repoDir, ["config", "gpg.ssh.program", "ssh-keygen"]);
       yield* runGit(repoDir, ["config", "user.signingkey", `${signingKey}.pub`]);
       yield* runGit(repoDir, ["config", "log.showSignature", "true"]);
@@ -3798,8 +3762,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
 
       const { manager, providerCalls } = yield* makeManager({
         providerScenario: {
-          // Mirrors a provider that cannot report a default branch, as the Azure
-          // DevOps CLI does when it cannot detect the repository.
           defaultBranch: "",
           prListSequence: [
             [],
@@ -3830,11 +3792,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     }),
   );
 
-  it.effect.each([
-    { localBranch: "develop" },
-    // Pushes to origin's develop under a name that differs from the base.
-    { localBranch: "origin/develop" },
-  ] as const)(
+  it.effect.each([{ localBranch: "develop" }, { localBranch: "origin/develop" }] as const)(
     "commit_push_pr refuses to commit or push on the default branch when origin/HEAD is missing ($localBranch)",
     ({ localBranch }) =>
       Effect.gen(function* () {
@@ -4046,7 +4004,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
 
   it.effect("matches a host's mounted heads without confusing forks sharing a branch", () =>
     Effect.sync(() => {
-      // A host that serves repositories below a mount names them without it.
       const repositoryNameFromRemoteUrl = (url: string) =>
         url.replace(/^https:\/\/[^/]+\/forgejo\//u, "").replace(/\.git$/u, "");
       for (const owner of ["maria", "reviewer"]) {
@@ -4536,7 +4493,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         const result = yield* runStackedAction(manager, { cwd: worktreePath, action: "create_pr" });
         expect(result.pr.status).toBe("created");
 
-        // A branch created outside Supaterm has only gh's legacy short base setting.
         yield* runGit(worktreePath, ["checkout", "-b", "feature/legacy-local-base"]);
         yield* runGit(worktreePath, [
           "config",
@@ -5016,9 +4972,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         const isCrossRepository = repositoryType === "fork";
         const repoDir = yield* makeTempDir("supaterm-git-manager-");
         yield* initRepo(repoDir);
-        // The checkout is on github.com, which also has a same-named repository,
-        // and the pull request is on another host. Clone lookups that fall back
-        // to the checkout's host find the github.com repository.
         const enterpriseRemote = yield* createBareRemote();
         const defaultHostRemote = yield* createBareRemote();
         const host = "github.enterprise.test";
@@ -5238,7 +5191,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         const events: string[] = [];
         const workflows = yield* Effect.forEach([0, 1], () =>
           GitWorkflowService.make.pipe(
-            // Cache the real filesystem result so startImmediately reaches lease acquisition.
             Effect.provideService(FileSystem.FileSystem, {
               ...fileSystem,
               realPath: (root) =>
@@ -5294,7 +5246,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 }),
           { startImmediately: true },
         );
-        // Both independent server workflows have started, but the second cannot touch Git yet.
         expect(events).toEqual([]);
         yield* Deferred.succeed(gate.release, undefined);
         const prepared = yield* Fiber.join(preparing);
@@ -5365,7 +5316,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         mode: "local",
       }).pipe(Effect.flip);
 
-      // The host's fast-forward-only update fails rather than resetting the branch.
       expect(error.message).toContain("Host checkout failed");
       expect(providerCalls).toContainEqual({
         operation: "checkoutChangeRequest",
@@ -5415,7 +5365,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
 
   it.effect("local PR checkout fast-forwards a branch the host's checkout only switched to", () =>
     Effect.gen(function* () {
-      // Like Bitbucket or Forgejo without `force`: the existing branch is checked out as it was.
       const { repoDir, manager, firstCommit, pullHead } = yield* setUpLocalCheckoutPullRequest(
         (head) => head.slice(0, 12),
         false,
@@ -5702,7 +5651,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
         yield* runGit(repoDir, ["push", "-u", "fork-seed", "feature/pr-fork"]);
         yield* runGit(repoDir, ["checkout", "main"]);
         const mainHead = (yield* runGit(repoDir, ["rev-parse", "main"])).stdout.trim();
-        // A local branch owning a parent of the generated `supaterm/pr-<n>/<head>` ref must not block checkout.
         if (blocker !== null) yield* runGit(repoDir, ["branch", blocker]);
 
         const { manager } = yield* makeManager({
@@ -5884,7 +5832,6 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
     "checks out the submodules of the head an existing PR branch moves onto (head %s one)",
     (headChange) =>
       Effect.gen(function* () {
-        // Git blocks file submodule transports (CVE-2022-39253) despite repo config; local fixtures need env permission.
         const previousAllowedProtocol = process.env.GIT_ALLOW_PROTOCOL;
         process.env.GIT_ALLOW_PROTOCOL = "file";
         yield* Effect.addFinalizer(() =>

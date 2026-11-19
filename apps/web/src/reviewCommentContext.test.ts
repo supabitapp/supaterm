@@ -157,8 +157,6 @@ describe("review comment context parsing", () => {
       ...Array.from({ length: 10 }, (_, index) => `new ${index + 1}\n`),
       ...oldLines.slice(6),
     ].map((line) => (line === "line 25\n" ? "line twenty-five\n" : line));
-    // What the host returns: new lines 4 to 19 and 32 to 38. The insertion shifts the new side,
-    // so new line 25 (old line 15) sits between the hunks while old line 25 is inside one.
     const fileDiff = parsePatchFiles(
       [
         "diff --git a/src/app.ts b/src/app.ts",
@@ -184,12 +182,9 @@ describe("review comment context parsing", () => {
       ].join("\n"),
       "review-position-hunks",
     )[0]!.files[0]!;
-    // The Code tab tries the original partial patch before the hydrated viewer file.
     expect(resolveDiffReviewPosition(fileDiff, 25, "additions")).toBeNull();
     expect(resolveDiffReviewPosition(fileDiff, 23, "additions")).toBeNull();
     expect(resolveDiffReviewPosition(fileDiff, 15, "deletions")).toBeNull();
-    // Expanding the file loads both sides whole, so the gaps around the hunks become lines
-    // the viewer can select but the host will not anchor a comment to.
     hydratePartialDiff("merge", fileDiff, {
       oldFile: { name: "src/app.ts", contents: oldLines.join("") },
       newFile: { name: "src/app.ts", contents: newLines.join("") },

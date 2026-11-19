@@ -1,8 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as SqlClient from "effect/sql/SqlClient";
 
-// Subagents and forks once copied their source's title marker without a title job of their own,
-// so only a pending or running job for the thread's current request can still clear it.
 export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   yield* sql`

@@ -7,14 +7,9 @@ import { isDesktopRuntimeExternalDependency } from "../../scripts/lib/desktop-ex
 
 const domTests = ["src/preview/PickPreload.test.ts"];
 
-// The packaged app then installs just those externals, instead of a full
-// production install of apps/desktop's dependency tree next to a server bundle
-// that already carries its own copy of the same libraries.
 const isMainProcessExternal = (id: string) =>
   id === "electron" || id.startsWith("electron/") || isDesktopRuntimeExternalDependency(id);
 const shouldLaunchElectronAfterPack = process.env.SUPATERM_DESKTOP_DEV === "1";
-// tsdown runs onSuccess through a shell. dash forks instead of exec'ing the last command, which
-// would leave an `sh` between `vp pack` and the supervisor and hide `vp pack` dying from it.
 const devElectronCommand =
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Build config has no Effect runtime.
   NodeOS.platform() === "win32"
@@ -30,7 +25,6 @@ export default defineConfig({
         dependsOn: ["supaterm#build"],
         cache: false,
       },
-      // CI bundle jobs skip the Linux browser secret helper; packaging stages one per arch.
       "build:bundle": {
         command: "node scripts/build-preview-annotation-css.mjs && vp pack",
         dependsOn: ["supaterm#build"],
@@ -52,7 +46,6 @@ export default defineConfig({
         dependsOn: ["supaterm#build"],
         cache: false,
       },
-      // tsc (tsc-rs) rewrites the tsbuildinfo it reads, which keeps a task out of the cache.
       typecheck: {
         command: "tsc --noEmit",
         cache: { input: [{ auto: true }, "!*.tsbuildinfo"] },
@@ -96,7 +89,6 @@ export default defineConfig({
       },
     },
     {
-      // boot.cjs requires the other two at runtime, so all three stay separate files.
       format: "cjs",
       outDir: "dist-electron",
       dts: false,
@@ -136,7 +128,6 @@ export default defineConfig({
       entry: ["src/preview-pip-preload.ts"],
     },
     {
-      // Sandboxed preloads must be self-contained, without shared runtime chunks.
       format: "cjs",
       outDir: "dist-electron",
       dts: false,
@@ -146,11 +137,7 @@ export default defineConfig({
     },
   ],
   test: {
-    // The Windows lane runs workspace suites concurrently; filesystem-heavy
-    // desktop integration tests can exceed Vitest's 5 second default there.
     testTimeout: 15_000,
-    // `require("electron")` downloads a missing binary, so concurrent workers race to
-    // extract it into the same dist/. Install it once before any worker starts.
     globalSetup: ["./scripts/ensure-electron-runtime.mjs"],
     projects: [
       {
@@ -170,7 +157,6 @@ export default defineConfig({
         test: {
           name: "dom",
           include: domTests,
-          // Guest preloads run in the page; these tests drive them against a DOM.
           environment: "jsdom",
           setupFiles: ["../../packages/shared/src/testing/providerEnv.ts"],
         },

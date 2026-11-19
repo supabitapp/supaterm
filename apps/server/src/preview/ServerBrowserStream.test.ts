@@ -141,8 +141,6 @@ it.effect.each([
         received.resolve();
       });
       yield* Effect.promise(() => received.promise);
-      // The ack follows every mutation on the socket, so this is also a barrier
-      // proving all preceding inputs were processed, without a timing sleep.
       yield* Effect.promise(() => acked.promise);
       expect(frames).toEqual([frame]);
       expect(viewports).toEqual([{ type: "viewport", width: 1280, height: 800 }]);

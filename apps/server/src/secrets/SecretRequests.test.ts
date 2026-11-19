@@ -44,7 +44,6 @@ const withService = <A, E>(
     readonly closedFirst?: boolean;
     readonly failedRecords?: number;
     readonly fields?: ReadonlyArray<{ readonly name: string; readonly label: string }>;
-    /** Interrupts the answer at this stored value, as a dropped client connection does. */
     readonly interruptAtCreate?: number;
   } = {},
 ) =>
@@ -206,7 +205,6 @@ const loginFields = [
   { name: "constructor", label: "Password" },
   { name: "__proto__", label: "Code" },
 ];
-// Built from entries: a literal `__proto__` key would set the prototype instead.
 const loginValues = (email: string, password: string, code = "482916") =>
   Object.fromEntries([
     ["email", email],
@@ -289,7 +287,6 @@ it.effect("an answer cut off midway never mixes with the next one", () =>
           assert.equal(yield* fs.readFileString(files.get("email")!), "second@example.com");
           assert.equal(yield* fs.readFileString(files.get("constructor")!), "second-pass");
         }),
-      // The salt is the first write, so the third is the second field.
       { directory, fields: loginFields, interruptAtCreate: 3 },
     );
   }).pipe(Effect.provide(NodeServices.layer)),
@@ -452,7 +449,6 @@ it.effect("a file request moves its value to an owner-only file, once", () =>
             assert.equal((yield* fs.stat(file)).mode & 0o777, 0o600);
             assert.equal((yield* fs.stat(path.dirname(file))).mode & 0o777, 0o700);
           }
-          // A retried request_secret gets the same file.
           assert.equal(yield* saveFile(service), file);
           return file;
         }),
@@ -482,7 +478,6 @@ it.effect("a failed file write keeps the value, so the request can retry", () =>
             turnItemId,
             answer: { type: "save", secret: "cf_token" },
           });
-          // A plain file where the files directory goes makes the write fail.
           const blocker = path.join(directory, "files");
           yield* fs.writeFileString(blocker, "");
           const failed = yield* saveFile(service).pipe(Effect.flip);
@@ -510,7 +505,6 @@ it.effect("a file is not delivered while its stored copy cannot be removed", () 
           });
           const first = yield* saveFile(service).pipe(Effect.flip);
           assert.equal(first.reason, "delivery_failed");
-          // A retry finds the file but still will not hand it out until the removal works.
           const retried = yield* saveFile(service).pipe(Effect.flip);
           assert.equal(retried.reason, "delivery_failed");
         }),
@@ -549,10 +543,8 @@ it.effect("a pasted secret goes straight to an owner-only file, with no card", (
             assert.equal((yield* fs.stat(file)).mode & 0o777, 0o600);
             assert.equal((yield* fs.stat(path.dirname(file))).mode & 0o777, 0o700);
           }
-          // No card and no stored copy: the thread never hears of it.
           assert.deepEqual(dispatched, []);
           assert.deepEqual(valuesOf(stored), []);
-          // A retry with the same key gets the same file, unchanged even if the value differs.
           assert.equal(
             yield* service.savePasted({
               threadId,
@@ -563,7 +555,6 @@ it.effect("a pasted secret goes straight to an owner-only file, with no card", (
             file,
           );
           assert.equal(yield* fs.readFileString(file), pasted);
-          // Another key, or the same key from another provider session, gets its own file.
           const other = yield* service.savePasted({
             threadId,
             requestNamespace: "session-a",

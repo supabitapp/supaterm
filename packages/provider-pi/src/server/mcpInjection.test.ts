@@ -161,9 +161,6 @@ describe("pi Supaterm MCP injection", () => {
 });
 
 describe("materializePiSupatermMcpExtension", () => {
-  // A pi launch concurrent with the materialize reads the extension file from
-  // disk; a truncate-then-write exposes an empty or partial file mid-write and
-  // the launch loads a broken extension.
   it.live("never exposes a torn extension file to a concurrent reader", () =>
     Effect.gen(function* () {
       const fs = yield* NodeFS.FileSystem;
@@ -193,9 +190,7 @@ describe("materializePiSupatermMcpExtension", () => {
             const text = yield* fs
               .readFileString(path.join(directory, "pi-supaterm-mcp-extension.ts"))
               .pipe(Effect.option);
-            if (Option.isNone(text)) return; // Missing between writes: legitimate.
-            // A read that SUCCEEDS must return the full extension: an empty or
-            // partial read means the writer truncated the file mid-write.
+            if (Option.isNone(text)) return;
             if (text.value.length === 0) {
               anomalies.push("empty: truncated mid-write");
             } else if (text.value.length !== PI_SUPATERM_MCP_EXTENSION_SOURCE.length) {

@@ -6,8 +6,6 @@ import { createContext, use, useSyncExternalStore } from "react";
  */
 export function createSwipeRowActivation() {
   let activeKeys = new Set<string>();
-  // Turning a row's swipe gesture off ends a swipe in progress, so changes
-  // wait until every finger that started on the list has lifted.
   const listTouches = new Set<string>();
   let pendingKeys: ReadonlyArray<string> | null = null;
   const listeners = new Set<() => void>();

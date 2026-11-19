@@ -90,7 +90,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
 
   it.effect("does not sweep branch pull requests while no client is connected", () =>
     Effect.gen(function* () {
-      // Polling active branches without a connected client wastes GitHub requests.
       const thread = { ...threadShell("idle-branch-thread"), branch: "feature/idle" };
       const project: OrchestrationProjectShell = {
         id: thread.projectId,
@@ -146,7 +145,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
               name: "project",
             }),
         }),
-        // No client holds an activity lease.
         Layer.mock(BackgroundPolicy.BackgroundPolicy)({
           shouldRunScopeWork: () => Effect.succeed(false),
           shouldRunOpportunisticWork: Effect.succeed(false),
@@ -164,7 +162,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
         yield* service.start();
         yield* Deferred.succeed(activation, undefined);
 
-        // A finished turn still discovers the pull request for its branch.
         yield* Queue.offer(domainEvents, {
           type: "checkpoint.captured",
           threadId: thread.id,
@@ -238,12 +235,10 @@ describe("ThreadPullRequestServiceV2 reads", () => {
 
         yield* Queue.offerAll(domainEvents, [linked("a"), linked("b"), activity("a", 1)]);
         yield* Queue.takeN(notified, 3);
-        // Two turns on threads linked to one pull request swap its top thread on every event.
         yield* Queue.offerAll(
           domainEvents,
           Array.from({ length: 20 }, (_, index) => activity(index % 2 ? "a" : "b", index + 2)),
         );
-        // A link change still refreshes at once, and marks the burst as processed.
         yield* Queue.offer(domainEvents, linked("c"));
         yield* Queue.take(notified);
         expect(yield* Queue.size(notified)).toBe(0);
@@ -272,8 +267,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
         createdAt: "2026-08-01T00:00:00.000Z",
         updatedAt: "2026-08-01T00:00:00.000Z",
       };
-      // A turn end commits its checkpoints and the run's end together. The queued
-      // non-refresh request ahead of them must still become a refresh when they join it.
       const turnEnd = [
         { type: "thread.metadata-updated", threadId: thread.id, payload: thread },
         { type: "checkpoint.captured", threadId: thread.id },
@@ -282,7 +275,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
         { type: "checkpoint.captured", threadId: otherThread.id },
         { type: "run.updated", threadId: otherThread.id, payload: { status: "completed" } },
       ] as Array<OrchestrationV2DomainEvent>;
-      // Arrives during the thread's own lookup, which may already have read the old host state.
       const duringLookup = [
         { type: "checkpoint.captured", threadId: thread.id },
         { type: "thread.metadata-updated", threadId: thread.id, payload: thread },
@@ -295,7 +287,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
       const lookups: Array<{ readonly branch: string; readonly refresh: boolean }> = [];
       const dependencies = Layer.mergeAll(
         Layer.mock(Orchestrator.OrchestratorV2)({
-          // The batch arrives while the worker is busy with the startup sweep.
           streamDomainEvents: Stream.fromEffect(Deferred.await(sweepStarted)).pipe(
             Stream.drain,
             Stream.concat(Stream.fromIterable(turnEnd)),
@@ -377,8 +368,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
         yield* service.drain;
       }).pipe(Effect.provide(dependencies));
 
-      // The startup sweep, one refresh lookup per thread for its turn-end batch, then one
-      // follow-up refresh for the events that arrived during the thread's lookup.
       expect(lookups).toEqual([
         { branch: thread.branch, refresh: false },
         { branch: otherThread.branch, refresh: false },
@@ -396,7 +385,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
       unreadablePaths: [],
       cwd: "/workspace/worktree",
     },
-    // A folder that outlived its .git makes git fail with not_a_repository.
     {
       worktree: "a folder without .git",
       existingPaths: ["/workspace/worktree"],
@@ -607,8 +595,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
         yield* service.start();
         yield* Deferred.succeed(activation, undefined);
 
-        // Startup backfill sweep, then periodic sweeps: a branch without a pull request
-        // is reread after half an hour, not on every sweep.
         yield* Queue.take(sweeps);
         yield* service.drain;
         for (let minute = 1; minute <= 29; minute += 1) {
@@ -622,7 +608,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
         yield* service.drain;
         const sweepLookups = lookups.map((lookup) => lookup.branch).toSorted();
 
-        // The child's own turn still discovers its pull request.
         yield* Queue.offer(domainEvents, {
           type: "checkpoint.captured",
           threadId: child.id,
@@ -931,7 +916,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
             Queue.offer(reads, options).pipe(
               Effect.as({
                 snapshotSequence: 1,
-                // The fake honors openOnly like the store does.
                 threads: options.openOnly ? [] : [done],
               }),
             ),
@@ -942,7 +926,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
         Layer.mock(GitManager.GitManager)({}),
         Layer.mock(PullRequestService.PullRequestService)({}),
         Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({}),
-        // A foreground client keeps periodic discovery running.
         Layer.mock(BackgroundPolicy.BackgroundPolicy)({
           shouldRunScopeWork: () => Effect.succeed(true),
           shouldRunOpportunisticWork: Effect.succeed(true),
@@ -960,7 +943,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
         const service = yield* ThreadPullRequestService.make;
         yield* service.start();
         yield* Deferred.succeed(activation, undefined);
-        // Backfill finds the done branch thread and must read it again.
         expect(yield* Queue.take(reads)).toEqual({ openOnly: false });
         yield* service.drain;
         yield* TestClock.adjust("1 minute");
@@ -1054,7 +1036,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
               name: "project",
             }),
         }),
-        // A connected client keeps the periodic sweep running.
         Layer.mock(BackgroundPolicy.BackgroundPolicy)({
           shouldRunOpportunisticWork: Effect.succeed(true),
         }),
@@ -1079,8 +1060,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
 
       expect(commands).toEqual([]);
       expect(lookups).toHaveLength(2);
-      // GitManager rereads git state on request, and by default whenever its
-      // remembered answer is merged or closed.
       expect(
         lookups.filter(
           (options) =>
@@ -1156,7 +1135,6 @@ describe("ThreadPullRequestServiceV2 reads", () => {
           listShells: () => Effect.succeed([project]),
           getShell: () => Effect.succeedSome(project),
         }),
-        // Only the fresh read disagrees with the remembered detection.
         Layer.mock(GitManager.GitManager)({
           branchPullRequest: (_input, options) =>
             Effect.succeed(options?.freshGitState === true ? fresh : mergedPullRequest43),

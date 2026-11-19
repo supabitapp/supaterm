@@ -45,8 +45,6 @@ it.effect("serves the stale value while one background refresh replaces it", () 
 
     assert.equal(yield* read, 1);
     yield* TestClock.adjust("61 seconds");
-    // The refresh is blocked, yet callers are answered immediately and only
-    // one refresh starts however many callers arrive.
     assert.equal(yield* read, 1);
     assert.equal(yield* read, 1);
     yield* Deferred.await(started);
@@ -71,7 +69,6 @@ it.effect("shares one first scan that an interrupted caller does not cancel", ()
       "60 seconds",
     );
 
-    // A connect that times out or disconnects mid-scan leaves the scan running.
     const interrupted = yield* read.pipe(Effect.forkChild);
     yield* Deferred.await(started);
     yield* Fiber.interrupt(interrupted);
@@ -136,7 +133,6 @@ it.effect("abandons a hung refresh so a later call can start another", () =>
     yield* Deferred.await(started);
     assert.equal(yield* Ref.get(calls), 2);
 
-    // The hung refresh times out, releasing the claim for the next caller.
     yield* TestClock.adjust("30 seconds");
     yield* Deferred.await(interrupted);
     yield* Fiber.await(yield* Deferred.await(started));

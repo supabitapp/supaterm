@@ -20,7 +20,6 @@ const CHECKOUT_COMMAND = /^tea\s+(?:pr|pulls?)\s+(?:checkout|co)\s+(.+)$/i;
 const CHANGE_REQUEST_REFERENCE =
   /^https?:\/\/[^/\s]+\/(?:[^/\s]+\/)+[^/\s]+\/pulls\/(\d+)(?:[/?#].*)?$/i;
 
-// Forgejo and Gitea run on any hostname, possibly mounted below a path.
 const CHANGE_REQUEST_PATH = /^\/([^/]+(?:\/[^/]+)+)\/pulls\/(\d+)(?:\/|$)/u;
 const COMMIT_PATH = /^\/([^/]+(?:\/[^/]+)+)\/commit\/([0-9a-f]+)\/?$/iu;
 const REPOSITORY_PAGE_PATH = /^\/([^/]+(?:\/[^/]+)+?)\/src\/(?:branch|tag|commit)\/[^/]/u;
@@ -29,10 +28,6 @@ const KIND = SourceControlProviderKind.make("forgejo");
 
 const changeRequestHeadRef = (number: number) => `refs/pull/${number}/head`;
 
-/**
- * The repository's browser URL the server resolved from the signed-in account, which is the
- * only place a Forgejo mounted below a path says so.
- */
 function resolvedWebUrl(identity: ChangeRequestHostIdentity): URL | null {
   if (!identity?.webUrl) return null;
   try {
@@ -43,7 +38,6 @@ function resolvedWebUrl(identity: ChangeRequestHostIdentity): URL | null {
   }
 }
 
-/** A server's identity includes its port, which only its web URL or an HTTP remote names. */
 function changeRequestHost(identity: ChangeRequestHostIdentity): string {
   const web = resolvedWebUrl(identity);
   if (web) return web.host.toLowerCase();
@@ -52,9 +46,7 @@ function changeRequestHost(identity: ChangeRequestHostIdentity): string {
     if (remote.protocol === "http:" || remote.protocol === "https:") {
       return remote.host.toLowerCase();
     }
-  } catch {
-    // SSH remotes do not name the web server.
-  }
+  } catch {}
   return projectChangeRequestHost(identity, KIND);
 }
 
@@ -71,19 +63,15 @@ export const definition = defineSourceControl({
     plural: "pull requests",
   },
   repositoryPathHint: "owner/repo",
-  // Codeberg is the public Forgejo; any other server is self-hosted.
   publicHost: "codeberg.org",
   publishDescription: "Your signed-in server",
   publishHost: (signedInHost) => signedInHost ?? "your server",
   newRepositoryOwner: (account) => (account ? { owner: account } : null),
   defaultCloneTransport: "https",
-  // The server's resolved web URL wins; otherwise an HTTP remote on the same host names the
-  // origin, which may carry a port. SSH remotes say nothing about the web origin.
   changeRequestUrl: ({ host, repository, number, remoteUrl, webUrl }) =>
     webUrl
       ? changeRequestUrlBelow(webUrl, `pulls/${number}`)
       : `${remoteWebOrigin(host, remoteUrl)}/${repository}/pulls/${number}`,
-  // A server's identity includes its port, so the link carries it.
   parseChangeRequestUrl: (url) => {
     const link = parseChangeRequestPath(url, CHANGE_REQUEST_PATH);
     return link === null ? null : { ...link, authority: url.host.toLowerCase() };
@@ -92,23 +80,18 @@ export const definition = defineSourceControl({
   commitUrl: (input) => buildCommitUrl(input, "commit"),
   parseCommitUrl: (url) => parseCommitPath(url, COMMIT_PATH),
   repositoryUrlFromPage: (url, known) => {
-    // A mount path may itself contain `src/branch/`, so a `.git` path is always the clone URL.
     if (url.pathname.replace(/\/$/u, "").endsWith(".git")) return null;
     const repositoryUrl = repositoryUrlFromPagePath(url, REPOSITORY_PAGE_PATH);
-    // Elsewhere the same path is a GitLab project nested under groups named `src` and `branch`.
     return repositoryUrl === null || known ? repositoryUrl : url.href;
   },
   changeRequestActions: new Set(["merge", "close", "reopen", "update-branch"] as const),
-  // Neither `fj` nor `tea` checks out by number.
   checkoutCommand: ({ number, repositoryUrl }) =>
     repositoryUrl
       ? `git fetch '${repositoryUrl.replaceAll("'", "'\\''")}' ${changeRequestHeadRef(number)} && git checkout -B pulls/${number} FETCH_HEAD`
       : null,
-  // tea also takes `pull` for `pulls` and `m` for `merge`.
   changeRequestCloseCommand: /\b(?:tea\s+(?:pr|pulls?)|fj\s+pr)\s+(?:merge|m|close)\b/u,
   authorProfileUrl: () => null,
   hardLineBreaks: true,
-  // Forgejo refuses a change request review without a summary, even with inline comments.
   reviewSummaryRequired: (verdict) => verdict === "request-changes",
   checkoutCommandArgument: (input) => CHECKOUT_COMMAND.exec(input)?.[1]?.trim() ?? null,
   isChangeRequestReference: (url) => CHANGE_REQUEST_REFERENCE.test(url),
@@ -136,7 +119,6 @@ export const definition = defineSourceControl({
         canonicalRepositoryPath(link.repository)
     );
   },
-  // A server mounted below a path serves only repositories under that mount.
   canReadChangeRequestOnHost: (identity, link) => {
     const web = resolvedWebUrl(identity);
     if (!web) return isChangeRequestOnProjectHost(changeRequestHost(identity), identity, link);

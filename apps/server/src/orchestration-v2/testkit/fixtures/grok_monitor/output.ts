@@ -14,8 +14,6 @@ import {
 } from "../shared.ts";
 import { GROK_MONITOR_PROMPT, GROK_MONITOR_TICKS } from "./input.ts";
 
-// Monitor ticks report in_progress with exit_code 0; only _x.ai/task_completed ends them.
-// Hold run 1 until then; Grok's later reply is a continuation.
 export function assertGrokMonitorOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,
@@ -54,8 +52,6 @@ export function assertGrokMonitorOutput(
     assert.equal(monitorUpdates[tickUpdate]?.status, "running", `${tick} must show running`);
   }
 
-  // A persistent monitor keeps running after its run ends. Background work and
-  // the restart note must then name it a monitor, as they do for Claude's Monitor.
   const runningMonitor = monitorUpdates.find((update) => update.status === "running");
   assert.isDefined(runningMonitor);
   assert.deepEqual(

@@ -87,11 +87,6 @@ function checkThreadOperationPermission(thread: EnvironmentThreadShell, title: s
   return false;
 }
 
-/**
- * The live row of a thread that a list passes to an action. A list holds its rows while an
- * environment synchronizes (`steadyNavigationThreadShellsAtom`), so its row can be older than
- * the client's data: an undo plan or a guard read from it would use replaced state.
- */
 function liveThread(thread: EnvironmentThreadShell): EnvironmentThreadShell {
   return (
     appAtomRegistry
@@ -118,7 +113,6 @@ function useThreadActionExecutor(
   ) => {
     if (!checkThreadOperationPermission(thread, actionFailureTitle(action))) return false;
     const key = scopedThreadKey(thread.environmentId, thread.id);
-    // Drop only a repeat of the latest pending action; Mark done → Reopen → Mark done must all send.
     if (latestPendingActions.current.get(key)?.action === action) {
       return false;
     }
@@ -150,9 +144,7 @@ function useThreadActionExecutor(
         key,
         async () =>
           action === "reopen"
-            ? // reason "user" pins the thread active: auto-mark-done stays
-              // suppressed until real activity clears the pin server-side.
-              await reopenMutation({
+            ? await reopenMutation({
                 environmentId: thread.environmentId,
                 input: {
                   threadId: thread.id,
@@ -181,8 +173,6 @@ function useThreadActionExecutor(
       if (action === "archive" || action === "delete") {
         for (const kind of ["mark-done", "snooze", "pin"]) ThreadUndo.invalidate(kind, key);
       }
-      // Done threads stay in the live shell stream; only the archive
-      // lifecycle still feeds the archived-snapshot surface.
       if (action === "archive" || action === "unarchive" || action === "delete") {
         refreshArchivedThreadsForEnvironment(thread.environmentId);
       }
@@ -205,7 +195,6 @@ function createDeleteThreadConfirmation(
   return (thread: EnvironmentThreadShell) => {
     if (!checkThreadOperationPermission(thread, actionFailureTitle("delete"))) return;
     const title = "Delete thread?";
-    // Deleting a thread deletes its side chats with it.
     const sideChats = appAtomRegistry.get(
       environmentThreadShells.sideChatsAtom(scopeThreadRef(thread.environmentId, thread.id)),
     ).length;
@@ -327,7 +316,6 @@ export function useThreadListActions(): {
         }
       },
     });
-  // A snooze that already lapsed, or that a raised hand ended, has nothing to restore.
   const undoSnapshot = (thread: EnvironmentThreadShell) => ({
     ...thread,
     snoozedUntil: effectiveSnoozed(thread, { now: new Date().toISOString() })
@@ -461,7 +449,6 @@ export function useThreadListActions(): {
       return false;
     }
     selectionHaptic();
-    // Same placement as web: a fresh pin takes the top of the arranged run.
     const shells = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
     let firstKey: string | null = null;
     for (const shell of shells) {
@@ -470,7 +457,6 @@ export function useThreadListActions(): {
     }
     const orderKey = restoreOrderKey ?? pinOrderKeyBetween(null, firstKey) ?? undefined;
     ThreadUndo.invalidate("pin", scopedThreadKey(thread.environmentId, thread.id));
-    // Pinning clears snooze, so older Done or Snoozed undos would fight this pin.
     ThreadUndo.invalidate("mark-done", scopedThreadKey(thread.environmentId, thread.id));
     ThreadUndo.invalidate("snooze", scopedThreadKey(thread.environmentId, thread.id));
     const result = await withThreadDismissal(
@@ -630,15 +616,12 @@ export function useThreadListActions(): {
     });
   };
 
-  // Plan against the complete section so filtering does not change a move.
   const reorderPinnedMutation = useAtomCommand(threadEnvironment.reorderPin, {
     reportFailure: false,
   });
   const moveThread = async (thread: EnvironmentThreadShell, direction: ThreadMoveDestination) => {
     if (!checkThreadOperationPermission(thread, "Could not move thread")) return false;
     if (getPendingThreadOrder() !== null || appAtomRegistry.get(threadDropBusyAtom)) return false;
-    // The rows on screen can be older than the server's while they wait to show. A move
-    // planned from them could act on a pin or an order key that the server has replaced.
     if (appAtomRegistry.get(steadyShellsHoldingAtom)) return false;
     const shells = appAtomRegistry.get(steadyNavigationThreadShellsAtom);
     const current = shells.find(
@@ -659,7 +642,6 @@ export function useThreadListActions(): {
         appAtomRegistry.set(threadDropBusyAtom, false);
       });
     }
-    // The inbox is time-ordered, so entering Active only changes lifecycle.
     if (section === "active") {
       const lifecycle = threadDropLifecycle(thread, section, new Date().toISOString());
       if (!lifecycle.unpin && !lifecycle.reopen && !lifecycle.unsnooze) return false;
@@ -677,7 +659,6 @@ export function useThreadListActions(): {
       });
     }
     const configs = appAtomRegistry.get(environmentServerConfigsAtom);
-    // A config is cached for offline rendering, so its presence does not make a thread writable.
     const connectedEnvironmentIds = new Set(appAtomRegistry.get(connectedEnvironmentIdsAtom));
     if (!configs.has(thread.environmentId) || !connectedEnvironmentIds.has(thread.environmentId)) {
       Dialog.alert("Could not move thread", "Connect to this environment to arrange its threads.");
@@ -727,7 +708,6 @@ export function useThreadListActions(): {
         const orderKey = assignments.find(
           ({ id }) => id === scopedThreadKey(thread.environmentId, thread.id),
         )?.orderKey;
-        // Same as pinThread: older Unpinned, Done, or Snoozed undos would fight this pin.
         ThreadUndo.invalidate("pin", scopedThreadKey(thread.environmentId, thread.id));
         ThreadUndo.invalidate("mark-done", scopedThreadKey(thread.environmentId, thread.id));
         ThreadUndo.invalidate("snooze", scopedThreadKey(thread.environmentId, thread.id));
@@ -779,7 +759,6 @@ export function useThreadListActions(): {
 
   const confirmDeleteThread = createDeleteThreadConfirmation(executeAction);
 
-  // `moveThread` looks up its own row, and refuses while a list holds older rows.
   return {
     archiveThread: (thread) => archiveThread(liveThread(thread)),
     confirmDeleteThread: (thread) => confirmDeleteThread(liveThread(thread)),

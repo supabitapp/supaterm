@@ -81,7 +81,6 @@ export function newestDisplayedPullRequestSummary(
   reference: PullRequestRef,
   edits: ReadonlyArray<PullRequestPendingEdit>,
 ): PullRequestSummary | null {
-  // With no shared summary the snapshot is all there is, and no answer applied its edits yet.
   return applyPullRequestSummaryEdits(
     reference,
     fromSnapshot
@@ -112,7 +111,6 @@ export function pullRequestListEntryToSummary(entry: PullRequestListEntry): Pull
   };
 }
 
-// Project ids pin the remote host; omit host so legacy, URL, and list references share entries.
 function pullRequestSummaryKey(environmentId: EnvironmentId, reference: PullRequestRef): string {
   return JSON.stringify([
     environmentId,
@@ -137,7 +135,6 @@ export function newestPullRequestObservation(
     order = incoming.observedAt - current.observedAt;
   }
   if (!(order > 0)) return current;
-  // A sparse summary must not erase known status, or carry old detail stats into a new list read.
   return {
     ...incoming,
     summary: {
@@ -244,7 +241,6 @@ function observePullRequestSummary(
   );
 }
 
-// Reading localStorage throws where the browser blocks storage; that must not break the page.
 function snapshotStorage(): Storage | undefined {
   if (typeof window === "undefined") return undefined;
   try {
@@ -260,11 +256,6 @@ const LIST_SCOPE_INDEX_KEY = "supaterm.pullRequests.listScopes";
 const LIST_SCOPE_KEY_PREFIX = "supaterm.pullRequests.listScope:";
 const LEGACY_SNAPSHOT_KEY_PREFIX = "supaterm.pullRequests.list:";
 const LIST_ANSWER_MAX_ENTRIES = 99;
-/**
- * A scope holds a page of rows per environment, so only the scopes visited most recently are
- * kept. Eviction drops a whole scope, never one environment's answer, so a restored list is never
- * missing environments that did answer.
- */
 const LIST_SCOPE_MAX_KEPT = 8;
 const listScopeCodec = Schema.fromJsonString(
   Schema.Record(Schema.String, Schema.toCodecJson(PullRequestListResult)),
@@ -276,12 +267,6 @@ const decodeListScopeIndex = Schema.decodeUnknownOption(
 );
 const sweptStorages = new WeakSet<ListAnswerStorage>();
 
-/**
- * The project assignment is left out: a cold start asks before the project shells load, when
- * every environment is asked for all of its projects, while the answers were remembered after
- * overlapping projects were split between environments. Each environment's answer covers only
- * its assigned projects, so the scope's answers together still cover the whole scope.
- */
 const listScopeKey = ({ projectIds: _projectIds, ...scope }: PullRequestListInput) =>
   `${LIST_SCOPE_KEY_PREFIX}${JSON.stringify(scope)}`;
 
@@ -293,7 +278,6 @@ function readListScope(storage: ListAnswerStorage | undefined, key: string) {
   return Option.getOrElse(decodeListScope(raw), (): Record<string, PullRequestListResult> => ({}));
 }
 
-/** The single composite snapshot this replaced is never read again. */
 function sweepLegacySnapshots(storage: ListAnswerStorage): void {
   if (sweptStorages.has(storage)) return;
   sweptStorages.add(storage);
@@ -323,9 +307,6 @@ export function rememberPullRequestListAnswer(
   try {
     sweepLegacySnapshots(storage);
     const scope = readListScope(storage, key);
-    // An answer for some projects replaces only their rows. A repository this environment no
-    // longer owns stays covered until the environment that took it over answers; the next answer
-    // for all of the environment's projects, which every cold start asks for, drops them.
     const assigned = input.projectIds === undefined ? undefined : new Set(input.projectIds);
     const retained =
       assigned === undefined
@@ -337,7 +318,6 @@ export function rememberPullRequestListAnswer(
       ...scope,
       [target.environmentId]: {
         ...answer,
-        // The fresh rows come first, so retained rows only fill what is left of the page.
         entries: [...answer.entries, ...retained].slice(0, LIST_ANSWER_MAX_ENTRIES),
         errors: [],
         nextCursors: {},
@@ -375,7 +355,6 @@ export function restorePullRequestList(
   }
   const merged = mergePullRequestLists(answers);
   if (merged === null) return null;
-  // Answers kept before the projects were reassigned between environments can overlap.
   const seen = new Set<string>();
   const entries = merged.entries.filter((entry) => {
     const key = `${entry.host}:${entry.repository}#${entry.number}`;
@@ -423,7 +402,6 @@ export function subscribePullRequestFilesViewedAnswers(
   };
 }
 
-// Answers are stamped on arrival: older servers leave no other ordering for same-dated reads.
 export const pullRequestEnvironment = createPullRequestEnvironmentAtoms(connectionAtomRuntime, {
   acceptedEdit: ({ environmentId, input }, edit, registry) =>
     Effect.map(Clock.currentTimeMillis, (observedAt) => {
@@ -458,7 +436,6 @@ export const pullRequestEnvironment = createPullRequestEnvironmentAtoms(connecti
     }),
   detail: ({ environmentId, input }, detail, registry) =>
     Effect.map(Clock.currentTimeMillis, (at) => {
-      // Only fresh reads seed the cold-start snapshot; a stale one could replace a newer record.
       if (input.allowStale === false) {
         writePullRequestDetailSnapshot(snapshotStorage(), environmentId, input, detail);
       }
@@ -480,7 +457,6 @@ export const pullRequestEnvironment = createPullRequestEnvironmentAtoms(connecti
         }),
       );
     }),
-  // Covers runs started elsewhere (another client, an agent) as well as this client's own.
   reviewGuide: ({ environmentId, input }, guide) =>
     Effect.map(Clock.currentTimeMillis, (since) => {
       if (guide.run?._tag !== "Running") return;
@@ -635,7 +611,6 @@ export function observeFailedPullRequestList(
   return { value: error.listResult, observedAt };
 }
 
-// Use one derived atom for variable fan-out; unreachable environments must not hide other rows.
 function createMergedEnvironmentQuery<Input, A>(
   label: string,
   atomFor: (
@@ -678,7 +653,6 @@ function createMergedEnvironmentQuery<Input, A>(
         values,
         error,
         isPending,
-        // Another batch can still find a readable checkout on this environment.
         observations: observations.filter(
           ([environmentId]) => !pendingEnvironments.has(environmentId),
         ),
@@ -755,8 +729,6 @@ export interface MergedPullRequestListView {
   readonly refresh: (targets?: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>>) => void;
 }
 
-// Merge inside each hook: the React Compiler memoizes it on `query.values` only there, and
-// PullRequestsPage sets state when the merged list's identity changes.
 export function usePullRequestList(
   targets: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>>,
 ): MergedPullRequestListView {

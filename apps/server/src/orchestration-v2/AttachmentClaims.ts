@@ -136,8 +136,6 @@ export const claimPendingAttachments = Effect.fn("AttachmentClaims.claimPendingA
               message: `Attachment '${attachment.name}' cannot be sent: attachment type does not match the upload.`,
             });
           }
-          // Copies isolate edits from the retry source. Keep the uncancellable copy and rollback registration
-          // uninterruptible so cleanup always sees completed writes.
           yield* fileSystem.copyFile(claim.currentPath, claim.finalPath).pipe(
             Effect.mapError(
               (cause) =>

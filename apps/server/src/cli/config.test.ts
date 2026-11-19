@@ -106,7 +106,6 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
     yield* fs.writeFileString(filePath, `${encoded}\n`);
     return yield* Effect.acquireRelease(
       Effect.sync(() => NodeFS.openSync(filePath, "r")),
-      // Windows cannot reopen the fd through /proc or /dev/fd, so the reader closes it.
       (fd) =>
         Effect.sync(() => {
           try {
@@ -257,7 +256,6 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
           Effect.provideService(HostProcess.Platform, "linux"),
           Effect.flip,
         );
-        // A temp dir with spaces or backslashes is single-quoted for the shell.
         const homePattern = baseDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         expect(String(error)).toMatch(
           new RegExp(`pair --base-dir (${homePattern}|'${homePattern}')`),

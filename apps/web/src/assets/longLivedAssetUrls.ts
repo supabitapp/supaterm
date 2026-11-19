@@ -44,8 +44,6 @@ export function makeLongLivedAssetUrlFamily(
         ): AsyncResult.AsyncResult<AssetCreateUrlResult, unknown> => {
           if (value._tag !== "Success") return value;
           const lasts = value.value.expiresAt - now() > options.minLifeMs;
-          // An expiring URL must not be handed out while its successor mints,
-          // whichever reader started the mint.
           if (value.waiting) return lasts ? value : AsyncResult.initial(true);
           if (minting || lasts) return value;
           minting = true;
@@ -56,7 +54,6 @@ export function makeLongLivedAssetUrlFamily(
         return settle(get.once(query));
       },
       { initialValueTarget: query },
-      // Each mount gets its own node, so a later mount may mint again.
     ).pipe(Atom.setIdleTTL(0));
   });
   return (target: AssetUrlTarget) =>

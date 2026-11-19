@@ -88,8 +88,6 @@ import {
 import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspaceDetail";
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 
-/** The sidebar list: flat v2 rows with queued tasks spliced in, plus a
-    done "Show more" pager row. */
 type SidebarListItem = ThreadListV2ListItem;
 
 interface ThreadNavigationSidebarProps {
@@ -225,8 +223,6 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
       ? {}
       : { projectIds: selectedProjectScope.projectRefs.map((ref) => ref.projectId) },
   );
-  // This map reaches LegendList's extraData, which re-renders every row whenever it changes
-  // identity; the hook keeps it stable.
   const threadSearchMatchByKey = useThreadListSearchMatches(threads, threadSearch);
   const selectedProjectKey = selectedProjectScope?.key ?? null;
   const projectByKey = useMemo(() => {
@@ -237,10 +233,6 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     return map;
   }, [projects]);
 
-  // Thread List v2 (beta) support — same model as the compact Home list
-  // (HomeScreen.tsx): flat creation-order card block + done recency tail.
-  // The done tail renders in pages; expansion resets when the filter
-  // context changes so environment/search flips never inherit a deep page.
   const [doneVisibleCount, setDoneVisibleCount] = useState(THREAD_LIST_V2_DONE_INITIAL_COUNT);
   const doneResetKey = `${options.selectedEnvironmentId ?? "all"}:${selectedProjectKey ?? "all"}:${props.searchQuery.trim()}`;
   const [lastDoneResetKey, setLastDoneResetKey] = useState(doneResetKey);
@@ -319,8 +311,6 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     }
   };
   const { onSelectThread, onOpenThreadPullRequests } = props;
-  // A row listed for a message match opens the thread at that message, by
-  // tap or by shortcut.
   const handleSelectThread = (thread: EnvironmentThreadShell) => {
     const key = threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id });
     const messageId = contentOnlyThreadKeys.has(key)
@@ -354,9 +344,6 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     onScroll: handleListScroll,
     onScrollBeginDrag: handleScrollBeginDrag,
   });
-  // Project shells and search maps feed row props, so they bust the recycler's memoization or a
-  // row keeps its first blank favicon and title. The minute clock stays out: its text lives on
-  // the items, so a tick re-renders only rows whose text moved.
   const listExtraData = {
     activeNewTask,
     selectedThreadKey: selectedThreadKey ?? "",
@@ -439,7 +426,6 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
             }
             environmentMachine={machineByEnvironmentId.get(thread.environmentId)}
             searchMatch={
-              // Only rows listed for their messages show one and open at it.
               contentOnlyThreadKeys.has(
                 threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
               )
@@ -666,7 +652,6 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
                 keyExtractor={(item) => item.key}
                 renderItem={renderListItem}
                 automaticallyAdjustsScrollIndicatorInsets
-                // The column lays the list under its bar, glass or solid; UIKit insets it past both.
                 contentInsetAdjustmentBehavior="automatic"
                 contentContainerStyle={[
                   styles.threadListContent,
@@ -692,7 +677,6 @@ function ThreadNavigationSidebarPane(props: ThreadNavigationSidebarProps) {
     );
   }
 
-  // Android: the bar floats below the list.
   return (
     <View testID="thread-navigation-sidebar" className="flex-1 bg-header">
       <View

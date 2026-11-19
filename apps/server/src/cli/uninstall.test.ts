@@ -84,7 +84,6 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      // macOS spells the temp folder /var but resolves it to /private/var.
       const root = yield* fs
         .makeTempDirectoryScoped({ prefix: "supaterm-uninstall-" })
         .pipe(Effect.flatMap(fs.realPath));
@@ -107,7 +106,6 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
       assert.isUndefined(yield* findOwnedLauncher({ launchedAs: theirs, versionsDir }));
       assert.isUndefined(yield* findOwnedLauncher({ launchedAs: copy, versionsDir }));
       assert.isUndefined(yield* findOwnedLauncher({ launchedAs: undefined, versionsDir }));
-      // A script launcher execs by absolute path, so argv0 names the executable.
       const scriptDir = path.join(root, "script-bin");
       const script = path.join(scriptDir, "supaterm");
       yield* fs.makeDirectory(scriptDir);
@@ -121,7 +119,6 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
       const editedScript = path.join(scriptDir, "supaterm-edited");
       yield* fs.writeFileString(editedScript, `${posixLauncherScript(exe)}# mine\n`);
 
-      // On Windows, only the shim exactly as written is ours; a user's wrapper stays.
       const shimDir = path.join(root, "win-bin");
       const shim = path.join(shimDir, "supaterm.cmd");
       yield* fs.makeDirectory(shimDir);
@@ -136,14 +133,11 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
       assert.equal(yield* windowsOwner(`@echo off\r\n"${exe}" %*`), shim);
       assert.isUndefined(yield* windowsOwner(`@echo off\r\nset FOO=1\r\n"${exe}" %*`));
 
-      // npx can run another version than the installed one, so uninstall also reads the
-      // recorded launchers: through a symlinked home, and dangling after a prune.
       const throughAlias = path.join(root, "bin/supaterm-alias");
       const pruned = path.join(root, "bin/supaterm-pruned");
       yield* fs.symlink(root, path.join(root, "alias"));
       yield* fs.symlink(path.join(root, "alias/runtime/versions/1.0.0/supaterm"), throughAlias);
       yield* fs.symlink(path.join(versionsDir, "0.9.0/supaterm"), pruned);
-      // Another program inside a version is not a launcher.
       const sibling = path.join(root, "bin/supaterm-sibling");
       yield* fs.symlink(path.join(versionsDir, "1.0.0/node"), sibling);
       yield* fs.writeFileString(
@@ -169,7 +163,6 @@ it.layer(NodeServices.layer)("supaterm uninstall launcher", (it) => {
         ]);
       }
 
-      // On Windows only an unedited supaterm.cmd is ours; a hand-edited wrapper belongs to the user.
       const cmd = path.join(root, "bin/supaterm.cmd");
       const edited = path.join(root, "bin/edited.cmd");
       yield* fs.writeFileString(cmd, `@echo off\r\n"${exe}" %*`);

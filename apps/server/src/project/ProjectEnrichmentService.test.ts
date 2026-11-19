@@ -22,9 +22,6 @@ const identity = (workspaceRoot: string, version = 1): RepositoryIdentity => ({
   rootPath: workspaceRoot,
 });
 
-// Repository identity resolution publishes a change after it caches the result, so each
-// change is the only time the predicate can flip. Subscribing before the first peek means
-// a change that lands in between is not lost.
 const waitForAvailable = Effect.fn("ProjectEnrichmentServiceTest.waitForAvailable")(function* (
   service: ProjectEnrichment.ProjectEnrichmentService["Service"],
   workspaceRoot: string,

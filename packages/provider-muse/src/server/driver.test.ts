@@ -184,7 +184,6 @@ it.layer(layerTest)("MuseDriver usage", (it) => {
         ) {
           const session = sessions[index]!;
           session.fake.emit("usage/changed", report);
-          // The following context event acknowledges that this host has processed the report.
           session.fake.emit("session/contextUsage", {
             sessionId: "command",
             usedTokens: report.observedAtMs,

@@ -12,7 +12,6 @@ type ExecuteGit = SourceControlHost.SourceControlHost["Service"]["git"]["execute
 
 export const detect = Effect.fn("azureDevOpsChangeRequestTemplate.detect")(
   function* (cwd: string, treeish: string, executeGit: ExecuteGit) {
-    // Inspect only the root and template directories; never recurse through the repository.
     const root = yield* executeGit({
       operation: "azureDevOpsChangeRequestTemplate.listTemplates",
       cwd,
@@ -48,7 +47,6 @@ export const detect = Effect.fn("azureDevOpsChangeRequestTemplate.detect")(
           entries.push(...listing.stdout.split("\0"));
         }
       }
-      // Only regular committed blobs qualify, so symlinks never reach the host filesystem.
       objectId = entries
         .map((record) => /^100(?:644|755) blob ([0-9a-f]{40,64})\t(.+)$/.exec(record))
         .find((entry) => /^pull_request_template\.(?:md|txt)$/i.test(entry?.[2] ?? ""))?.[1];

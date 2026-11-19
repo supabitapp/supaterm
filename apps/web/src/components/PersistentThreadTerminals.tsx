@@ -51,7 +51,6 @@ function terminalIdListsEqual(left: readonly string[], right: readonly string[])
   return true;
 }
 
-/** Server sessions lag terminal.open; reconciling strict subsets would discard new split layouts. */
 function serverTerminalIdsStrictSubsetOfClient(
   serverIds: readonly string[],
   clientIds: readonly string[],

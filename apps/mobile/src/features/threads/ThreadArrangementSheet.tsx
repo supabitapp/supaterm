@@ -59,7 +59,6 @@ type Row = {
   key: string;
   section: Section;
   thread?: EnvironmentThreadShell;
-  /** The Done section's "Show more" row. */
   more?: true;
   offset: number;
   height: number;
@@ -197,7 +196,6 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
   const now = useThreadListNow(threads);
   const [expanded, setExpanded] = useState({ snoozed: false, done: false });
   const [doneVisibleCount, setDoneVisibleCount] = useState(THREAD_LIST_V2_DONE_INITIAL_COUNT);
-  // Older done threads load in pages, as in the thread list.
   const olderDoneShelf = useOlderDoneShelf({
     scopes: [...configs.keys()].map((environmentId) => ({ environmentId, projectIds: null })),
     expanded: expanded.done,
@@ -218,14 +216,11 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
     );
     return {
       pinned,
-      // The inbox is ordered by time; show that order here too.
       active: sortInboxThreadsByReturn(active, threadListInboxReturns.returnedAt),
       snoozed: parked.filter((thread) => effectiveSnoozed(thread, { now })),
       done: sortDoneThreads(parked.filter((thread) => !effectiveSnoozed(thread, { now }))),
     };
   }, [threads, now, queuedThreadKeys, pendingOrder]);
-  // Only Pinned has slots. The inbox is time-ordered, so a drop into Active
-  // only changes lifecycle (see canMoveThreadToActive).
   const pinnedPlanner = useMemo(
     () =>
       createThreadMovePlanner({
@@ -407,8 +402,6 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
       onRequestClose={props.onClose}
     >
       <GestureHandlerRootView style={{ flex: 1 }}>
-        {/* A Modal is its own native hierarchy, so measure its own safe area, including side
-            insets for the camera, instead of the presenting screen's. */}
         <SafeAreaProvider style={{ flex: 1 }}>
           <View className="flex-1 bg-screen">
             <SafeAreaView style={{ flex: 1 }}>
@@ -444,7 +437,6 @@ function ThreadArrangementSheet(props: { onClose: () => void }) {
                     olderDoneLoading: olderDoneShelf.loading,
                     olderDoneFailed: olderDoneShelf.failed,
                   }}
-                  // Rows hold their drag gesture, so each keeps its own view.
                   recycleItems={false}
                   scrollEnabled={visiblePreview === null}
                   onScroll={(event) => {

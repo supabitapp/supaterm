@@ -252,8 +252,6 @@ describe("ProjectCloneTracker", () => {
     }).pipe(Effect.provide(layer));
   });
 
-  // The HTTPS retry after a refused SSH key needs the requested protocol and the
-  // provider's own HTTPS URL, which a second prepare from the SSH URL would lose.
   it.effect("clones with the original request and the prepared repository", () => {
     const repository = {
       provider: SourceControlProviderKind.make("azure-devops"),

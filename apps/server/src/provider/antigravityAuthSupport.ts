@@ -51,7 +51,6 @@ const encodeProfileSettings = Schema.encodeSync(Schema.fromJsonString(ProfileSet
 const isAcpRequestError = Schema.is(AcpErrors.AcpRequestError);
 const isAcpTransportError = Schema.is(AcpErrors.AcpTransportError);
 
-// Python splits BROWSER on path separators before parsing quotes. Exit 0 on EPIPE to prevent browser fallback after cancellation.
 const browserHelperSource =
   `process.stderr.on("error",()=>process.exit(0)).write(` +
   `"${ANTIGRAVITY_AUTH_BROWSER_MARKER}"+JSON.stringify(process.argv[1])+"\\n",` +
@@ -76,7 +75,6 @@ const removedEnvironmentKeys = new Set([
   "BROWSER",
   "PYTHONUNBUFFERED",
   "ELECTRON_RUN_AS_NODE",
-  // An inherited pipe whose owner exited makes Electron-as-Node print Crashpad errors to stderr.
   "CHROME_CRASHPAD_PIPE_NAME",
 ]);
 
@@ -138,10 +136,6 @@ export function antigravityAuthConfigIssue(auth: AntigravityAuthConfig): string 
   }
 }
 
-/**
- * `auth.type` names the selected method so a native logout clears only that method's credentials
- * instead of every stored token. Never holds a credential.
- */
 function antigravityProfileSettings(auth: AntigravityAuthConfig): string {
   const gcp = {
     ...(auth.gcpProject ? { project: auth.gcpProject } : {}),
@@ -201,17 +195,14 @@ function antigravityEnvironment(
 ) {
   const environment: NodeJS.ProcessEnv = {};
   for (const [key, value] of Object.entries(baseEnv)) {
-    // Windows treats environment keys as case-insensitive. Remove aliases too.
     if (!removedEnvironmentKeys.has(key.toUpperCase())) environment[key] = value;
   }
-  // Put the GCP pair in settings.json because GOOGLE_API_KEY takes precedence in the environment.
   const credential =
     auth.authMethod === "gemini-api-key" && auth.apiKey
       ? { GEMINI_API_KEY: auth.apiKey }
       : auth.authMethod === "agent-platform" && auth.apiKey
         ? { GOOGLE_API_KEY: auth.apiKey }
         : {};
-  // Each launch unpacks about 1 GB; use Supaterm-owned temp so the driver can reclaim files after force-kill.
   const tempDirectory = runtimeTempDirectory ?? profile.tempDirectory;
   return {
     ...environment,
@@ -232,7 +223,6 @@ function antigravityEnvironment(
   };
 }
 
-/** Private GEMINI_HOME isolates credentials/hooks/MCP; link global skills from the real ~/.gemini. */
 const linkAntigravityUserSkills = Effect.fn("linkAntigravityUserSkills")(function* (input: {
   readonly profileDirectory: string;
   readonly userHome: string;
@@ -247,7 +237,6 @@ const linkAntigravityUserSkills = Effect.fn("linkAntigravityUserSkills")(functio
     [links[1], targets[1]],
   ] as const) {
     yield* Effect.gen(function* () {
-      // The harness creates these folders itself, and mkdir fails on a dangling link.
       if (!(yield* fs.exists(target))) {
         const linked = yield* fs.readLink(link).pipe(
           Effect.as(true),
@@ -259,8 +248,6 @@ const linkAntigravityUserSkills = Effect.fn("linkAntigravityUserSkills")(functio
       const existing = yield* fs.readLink(link).pipe(
         Effect.map((value): string | undefined => path.resolve(path.dirname(link), value)),
         Effect.catchReason("PlatformError", "NotFound", () => Effect.undefined),
-        // An empty folder is the harness's placeholder from a launch without the link.
-        // rmdir refuses a non-empty folder, so content added meanwhile is never deleted.
         Effect.catch((error) =>
           Effect.tryPromise(() => NodeFSP.rmdir(link)).pipe(
             Effect.as(undefined),
@@ -341,8 +328,6 @@ export const prepareAntigravityProfile = Effect.fn("prepareAntigravityProfile")(
   const tempDirectory = input.tempDirectory ?? path.join(acpDirectory, "tmp");
   let caBundlePath: string | undefined;
   if (platform === "linux") {
-    // Bundled Python may look for certificates at paths absent on this distribution.
-    // Relative paths would resolve differently when the agent runs in the project directory.
     for (const candidate of [
       (input.baseEnv ?? process.env).NIX_SSL_CERT_FILE,
       "/etc/ssl/certs/ca-bundle.crt",
@@ -451,17 +436,9 @@ export function buildAntigravityAcpSpawnInput(input: {
 }): AcpSessionRuntime.AcpSpawnInput {
   return {
     command: input.installation.executablePath,
-    // The agy CLI has no harness sibling and serves ACP through its `acp` subcommand.
     args:
       input.installation.harnessPath === null
-        ? [
-            "acp",
-            "--gemini-dir",
-            input.profile.geminiHome,
-            "--app-data-dir",
-            // The CLI joins this beneath gemini-dir, including when the value is absolute.
-            "antigravity-acp",
-          ]
+        ? ["acp", "--gemini-dir", input.profile.geminiHome, "--app-data-dir", "antigravity-acp"]
         : input.profile.platform === "linux"
           ? ["--uid="]
           : [],

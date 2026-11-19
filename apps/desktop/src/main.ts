@@ -111,7 +111,6 @@ const layerDesktopSshEnvironment = Layer.unwrap(
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     const env = yield* HostProcess.Environment;
     return DesktopSshEnvironment.layer({
-      // Per connect: the login shell's environment is installed after this layer is built.
       resolveCliRunner: Effect.sync(() =>
         DesktopSshEnvironment.resolveDesktopSshCliRunner(environment, env),
       ),
@@ -167,8 +166,6 @@ const layerDesktopServerExposure = DesktopServerExposure.layer.pipe(
 const layerDesktopPreview = PreviewManager.layer.pipe(
   Layer.provideMerge(PreviewPasskeys.layer),
   Layer.provideMerge(DesktopBrowserHost.layer),
-  // Merged rather than provided so the IPC handlers can reach the import
-  // service alongside the manager; both sit on the same BrowserSession.
   Layer.provideMerge(BrowserImport.layer.pipe(Layer.provide(LinuxBrowserSecret.layer))),
   Layer.provideMerge(BrowserSession.layer),
   Layer.provideMerge(layerDesktopFoundation),
@@ -230,7 +227,6 @@ const layerDesktopApplication = Layer.mergeAll(
   Layer.provideMerge(layerDesktopSidePulse),
   Layer.provideMerge(DesktopUpdates.layer),
   Layer.provideMerge(layerDesktopCodexMicro),
-  // Updates closes the same tunnels the SSH IPC opens before quitAndInstall.
   Layer.provideMerge(layerDesktopSsh),
   Layer.provideMerge(layerDesktopWslBackend),
   Layer.provideMerge(layerDesktopLocalEnvironmentAuth),

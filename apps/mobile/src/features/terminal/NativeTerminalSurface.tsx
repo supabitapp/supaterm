@@ -106,7 +106,6 @@ const FallbackTerminalSurface = memo(function FallbackTerminalSurface({
   useImperativeHandle(ref, () => ({
     focusKeyboard: () => {
       if (props.readOnly) return;
-      // Blur first so a focused input still raises the keyboard; focus lands after the blur commits.
       inputRef.current?.blur();
       requestAnimationFrame(() => inputRef.current?.focus());
     },
@@ -178,7 +177,6 @@ const FallbackTerminalSurface = memo(function FallbackTerminalSurface({
           onSubmitEditing={(event) => {
             const text = event.nativeEvent.text;
             if (text.length > 0) {
-              // Terminal Enter is CR. LF is Ctrl+J and raw-mode TUIs can treat it as J.
               props.onInput(`${text}\r`);
             }
           }}
@@ -204,7 +202,6 @@ const FallbackTerminalSurface = memo(function FallbackTerminalSurface({
 });
 
 export const TerminalSurface = memo(function TerminalSurface(props: TerminalSurfaceProps) {
-  // The text fallback draws escape sequences literally, so it gets displayed text, not the replay.
   const buffer = useTerminalSurfaceBuffer(
     resolveNativeTerminalSurfaceView() || props.output === null
       ? props
@@ -234,7 +231,6 @@ const ReadyTerminalSurface = memo(function ReadyTerminalSurface({
   const writerRef = useRef<ReturnType<typeof createTerminalOutputWriter> | null>(null);
   const [nativeReady, setNativeReady] = useState(false);
 
-  // The fallback surface binds the same ref itself.
   useImperativeHandle(NativeTerminalSurfaceView ? ref : undefined, () => ({
     focusKeyboard: () => {},
     resetInput: () => {
@@ -271,7 +267,6 @@ const ReadyTerminalSurface = memo(function ReadyTerminalSurface({
     onInput(event.nativeEvent.data);
   };
   const handleNativeResize = (event: NativeSyntheticEvent<TerminalResizeEvent>) => {
-    // The first grid event comes from the mounted native surface, after registration.
     setNativeReady(true);
     onResize({
       cols: event.nativeEvent.cols,

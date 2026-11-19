@@ -164,7 +164,6 @@ export function HtmlRenderWebView(props: {
               onCustomMenuSelection: (event) => {
                 const { key, selectedText } = event.nativeEvent;
                 if (key !== ANNOTATE_MENU_KEY || typeof selectedText !== "string") return;
-                // Android drops the selection with its menu; iOS keeps it under the prompt.
                 webView.current?.injectJavaScript("getSelection().removeAllRanges();true;");
                 annotateHtmlRenderText(annotation, selectedText);
               },
@@ -221,7 +220,6 @@ export function ThreadHtmlRender(props: {
   };
   const asset = useAssetUrlState(props.environmentId, resource);
   const refresh = useRefreshAssetUrl(props.environmentId, resource);
-  // Signed URLs are re-minted periodically; following them would reload the page.
   const [uri, setUri] = useState<string | null>(null);
   if (uri === null && asset._tag === "Success") setUri(asset.url);
   const [failed, setFailed] = useState(false);

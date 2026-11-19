@@ -181,7 +181,6 @@ export function makeSubagentConversationArtifacts(input: {
   return { message, turnItem };
 }
 
-/** A delegated result, led by a note when the provider reported running another model than requested. */
 function withExecutedModelNote(
   result: string,
   requestedModel: string,
@@ -206,7 +205,6 @@ function stopNotice(
 
 type MonitorNotice = Pick<OrchestrationV2ConversationMessage, "runId" | "notification">;
 
-/** Runs that only acknowledge a monitor update are never a task's work. */
 function monitorUpdateRunIds(messages: ReadonlyArray<MonitorNotice>) {
   return new Set(
     messages.flatMap((message) =>
@@ -351,8 +349,6 @@ export function subagentHoldsCompletion(
 ): boolean {
   return (
     isOrchestrationV2WorkActive(task.status) ||
-    // Publishing a child's result precedes scheduling its parent's wake.
-    // The parent still owes that follow-up even between those transactions.
     (task.status !== "idle" &&
       (task.completionDelivery?.state === "pending" ||
         task.completionDelivery?.state === "claimed"))

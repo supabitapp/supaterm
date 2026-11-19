@@ -5,7 +5,6 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { annotateEnvironmentRequest, requireEnvironmentScope } from "../auth/http.ts";
 import * as PullRequestService from "./PullRequestService.ts";
 
-// Large patches benefit from HTTP compression and flow control.
 export const layer = HttpApiBuilder.group(
   EnvironmentHttpApi,
   "pullRequests",

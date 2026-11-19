@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off
-// Effect has no inflate, and Azure's blob batch only comes as a deflate zip.
 import * as NodeZlib from "node:zlib";
 
 import type { AzureDevOpsItemContent } from "./azureDevOpsPullRequestJson.ts";
@@ -25,7 +24,6 @@ export function readBlobZip(
   maxTotalBytes: number,
 ): ReadonlyMap<string, Uint8Array> | null {
   const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
-  // The end record is 22 bytes followed by a comment of at most 65,535.
   let end = -1;
   for (let at = zip.length - 22; at >= 0 && at >= zip.length - 22 - 0xffff; at -= 1) {
     if (view.getUint32(at, true) === END_OF_CENTRAL_DIRECTORY) {
@@ -75,7 +73,6 @@ export function readBlobZip(
   return entries;
 }
 
-/** Strips a UTF-8 BOM, as Azure's `content` does. */
 const strictUtf8 = new TextDecoder("utf-8", { fatal: true });
 
 /**
@@ -86,7 +83,6 @@ export function blobContent(bytes: Uint8Array): AzureDevOpsItemContent | null {
   const utf16 =
     (bytes[0] === 0xff && bytes[1] === 0xfe) || (bytes[0] === 0xfe && bytes[1] === 0xff);
   if (utf16) return null;
-  // Azure flags a binary on the same evidence.
   if (bytes.includes(0)) return { contents: "", isBinary: true };
   try {
     return { contents: strictUtf8.decode(bytes), isBinary: false };

@@ -3,7 +3,6 @@ import { expect, it } from "vite-plus/test";
 
 import { decodeGitHubPullRequestListJson } from "./gitHubPullRequests.ts";
 
-// gh before 2.47 names the head repository without its owner, and a fork's checkout needs both.
 it("names a fork's head repository from its owner when gh leaves nameWithOwner out", () => {
   const decoded = decodeGitHubPullRequestListJson(
     JSON.stringify([

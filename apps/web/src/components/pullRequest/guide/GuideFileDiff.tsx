@@ -19,8 +19,6 @@ export function GuideFileDiff({
   loadDiffFiles: FileDiffContentsLoader;
 }) {
   const resolvedTheme = useRenderedAppearance();
-  // Loading the unchanged lines rewrites the diff it is given; the excerpts read the same file
-  // as a patch, so this view expands a copy of its own.
   const expandable = cloneFileDiffMetadata(file);
   const options = {
     diffStyle: "unified" as const,

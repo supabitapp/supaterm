@@ -1,4 +1,3 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import {
   paintDisplayList,
   type DisplayList,
@@ -9,16 +8,8 @@ import { attempt } from "./sheet-cells";
 import { frozenSize } from "./sheet-paint";
 import type { SheetViewport } from "./sheet-protocol";
 
-// The workbook worker's frames: the display lists of one viewport, split into tiles where the engine refuses it whole,
-// and their painting.
-
-/** The most tiles a side of a frame splits into before the frame gives up. */
 const maxSplit = 8;
 
-/**
- * How far a tile reaches past each of its seams, in CSS pixels. The engine draws pane dividers and cut tracks at a
- * frame's edges, which the next tile has to cover, and the seam falls inside a device pixel.
- */
 const seamOverlap = 8;
 
 /** Part of a frame: its display list, where its origin sits in the frame, and where it starts to show. */
@@ -64,8 +55,6 @@ export function drawFrame(
   if (whole)
     return { list: whole, tiles: [{ list: whole, x: 0, y: 0, clipX: 0, clipY: 0 }], viewport };
 
-  // The engine refuses a viewport with too many cells, as a wide pane of narrow columns has. One row and one column of
-  // the frame give its tracks, and so where its frozen panes end.
   const columns = untruncated(workbook, { ...viewport, height: 1 })?.grid;
   const rows = untruncated(workbook, { ...viewport, width: 1 })?.grid;
 
@@ -83,7 +72,6 @@ export function drawFrame(
   return tiled(workbook, viewport, frozenSize(grid, frozen), grid, 2);
 }
 
-/** The engine's screen gridlines: one-pixel solid lines in its gridline grey, unlike any border it draws. */
 const gridline = (command: DisplayList["commands"][number]) =>
   command.op === "line" && command.color === "#d4d4d4" && command.width === 1 && !command.style;
 
@@ -142,8 +130,6 @@ export function paintFrame(
 ) {
   const ratio = input.ratio;
   const origin = input.origin;
-  // SAFETY: the painter draws through the members a worker's 2D context shares with the window's. Only the window's
-  // context type is declared, and it has focus and attribute members the worker's lacks, hence the double cast.
   const painter = context as unknown as CanvasRenderingContext2D;
   const tiled = frame.tiles.length > 1;
   const text = tiled ? new OffscreenCanvas(context.canvas.width, context.canvas.height) : undefined;
@@ -170,7 +156,6 @@ export function paintFrame(
     paintDisplayList(painter, list, ratio, at);
     context.restore();
   });
-  // Text clips can span a merged range beyond its tile. Composite it after all tile clears and backgrounds.
   if (text && textContext)
     frame.tiles.forEach((tile) => {
       textContext.reset();
@@ -200,10 +185,6 @@ export function paintFrame(
     });
 }
 
-/**
- * A frame split into `split` tiles a side, each under the engine's cap. A tile past the first along an axis asks for
- * the frozen panes too, as every viewport has them, so the cells past them start just before its seam.
- */
 function tiled(
   workbook: WorkbookHandle,
   viewport: SheetViewport,
@@ -219,7 +200,6 @@ function tiled(
     columns.every((column) => {
       const x = column.start === 0 ? 0 : column.start - seamOverlap - panes.width;
       const y = row.start === 0 ? 0 : row.start - seamOverlap - panes.height;
-      // A tile but the last along an axis reaches past its end, which the next tile paints over.
       const right = column.end === viewport.width ? column.end : column.end + seamOverlap;
       const bottom = row.end === viewport.height ? row.end : row.end + seamOverlap;
 
@@ -251,14 +231,12 @@ function tiled(
   return tiled(workbook, viewport, panes, grid, split + 1);
 }
 
-/** A viewport's display list, or undefined where the engine refuses it or cuts it short at its cell limit. */
 function untruncated(workbook: WorkbookHandle, viewport: SheetViewport) {
   const list = attempt(() => workbook.displayList(viewport));
 
   return list?.truncated ? undefined : list;
 }
 
-/** Even spans of a side, the first holding the frozen panes whole; a seam inside them is dropped. */
 function segments(size: number, panes: number, split: number) {
   const starts = Array.from({ length: split }, (_, part) =>
     Math.round((part * size) / split),

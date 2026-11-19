@@ -314,7 +314,6 @@ describe("EnvironmentProviderSettings routing", () => {
         },
       });
 
-      // The first save's echo lands after both replied, ahead of the second's.
       await act(() => replies.forEach((reply) => reply()));
       state.settings = stored([{ ...first, name: "Entered A" }, second]);
       await screen.rerender(panel({ targetInstanceId: customId }));
@@ -481,7 +480,6 @@ describe("EnvironmentProviderSettings health check interval", () => {
     ).toEqual([330, 300]);
     state.updateSettings.mockClear();
 
-    // Replacing 300 with 120 passes through 30, 3, an empty field, 1 and 12.
     await userEvent.type(input, "{Backspace}{Backspace}{Backspace}120");
     await expect.element(input).toHaveValue("120");
     expect(state.updateSettings).not.toHaveBeenCalled();

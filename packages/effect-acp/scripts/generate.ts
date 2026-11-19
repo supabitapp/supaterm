@@ -166,12 +166,8 @@ function isJsonArray(value: Schema.Json | undefined): value is ReadonlyArray<Sch
   return Array.isArray(value);
 }
 
-// Keywords whose values are literal JSON data, not schemas.
 const DATA_KEYWORDS = new Set(["const", "default", "enum", "examples"]);
 
-// Applies `transform` to every subschema of a schema object. `properties` maps names to
-// schemas, so its keys stay property names: ACP has properties named `anyOf`, `oneOf`, and
-// `type` that must not be read as keywords. Literal data values are left untouched.
 function mapSubschemas(
   value: { readonly [key: string]: Schema.Json },
   transform: (schema: Schema.Json) => Schema.Json,
@@ -206,9 +202,6 @@ function normalizeSchemaKeywords(value: Schema.Json): Schema.Json {
   }
 
   const normalizedObject = mapSubschemas(value, normalizeSchemaKeywords);
-  // ACP's forward-compatible variants exclude known discriminator values.
-  // The Effect generator does not support `not`; express this exact exclusion
-  // as a string pattern while preserving validation of the known variants.
   if (normalizedObject.not !== undefined) {
     const exclusion = normalizedObject.not;
     if (
@@ -335,8 +328,6 @@ const isAnnotationKeyword = (key: string): boolean =>
   ["description", "title", "$comment", "default", "examples", "discriminator"].includes(key) ||
   key.startsWith("x-");
 
-// Distribute object intersections over unions before handing schemas to Effect.
-// ACP uses sibling `properties`/`anyOf` and `allOf` references for elicitation scopes.
 function flattenCompositions(
   value: Schema.Json,
   definitions: Readonly<Record<string, Schema.Json>>,
@@ -356,8 +347,6 @@ function flattenCompositions(
     )
       throw new Error("Unsupported ACP schema intersection");
     if (typeof right.$ref === "string") {
-      // Keep references when the sibling only describes the referenced schema.
-      // Inlining these repeats entire protocol unions in every request schema.
       if (Object.keys(left).every(isAnnotationKeyword)) return { ...right, ...left };
       const target = definitions[right.$ref.replace("#/$defs/", "")];
       if (target === undefined) throw new Error(`Missing ACP definition ${right.$ref}`);

@@ -317,7 +317,6 @@ describe("decodeIterationChangesJson", () => {
               item: { path: "/README.md", objectId: "8f80", originalObjectId: "0ca4" },
             },
             { changeType: "delete", item: { path: "/OLD.md", originalObjectId: "1111" } },
-            // Azure names a deleted file only where it came from.
             {
               changeType: "delete",
               originalPath: "/GONE.md",
@@ -604,7 +603,6 @@ describe("decodePolicyChecksJson", () => {
     ).toMatchObject({ name: "SonarCloud", status: "failure", url: null });
   });
 
-  // Both arrive as `queued`; a spinner would never stop on either.
   it.each([
     {
       name: "an expired build",
@@ -620,7 +618,6 @@ describe("decodePolicyChecksJson", () => {
     expect(check?.description).not.toBeNull();
   });
 
-  // A watch waits on every check that asks for action, and nobody has to queue an optional one.
   it.each([
     { name: "expired", value: evaluation("queued", { buildId: 21919, isExpired: true }) },
     {

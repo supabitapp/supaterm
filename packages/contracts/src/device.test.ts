@@ -13,7 +13,6 @@ const decodeSshHosts = Schema.decodeUnknownSync(SshDeviceHostConfigs);
 const decodeEas = Schema.decodeUnknownSync(EasDeviceHostConfigs);
 const encodeState = Schema.encodeSync(DeviceServiceState);
 const decodeState = Schema.decodeUnknownSync(DeviceServiceState);
-// The host summary as clients decoded it before Expo hosts existed.
 const decodeOlderState = Schema.decodeUnknownSync(
   Schema.Struct({
     hosts: Schema.Array(
@@ -41,7 +40,6 @@ describe("configured device hosts", () => {
     expect(() =>
       decodeEas([{ kind: "eas", id: "eas", label: "Expo", maxSessionMinutes: 600 }]),
     ).toThrow();
-    // The default idle limit of 10 is not smaller than a session limit of 10.
     expect(() =>
       decodeEas([{ kind: "eas", id: "eas", label: "Expo", maxSessionMinutes: 10 }]),
     ).toThrow();

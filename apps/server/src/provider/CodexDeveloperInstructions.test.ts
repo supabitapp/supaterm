@@ -18,7 +18,6 @@ describe("buildCodexAdditionalContext", () => {
         const context = buildCodexAdditionalContext(runtime, availability);
 
         for (const [key, entry] of Object.entries(context)) {
-          // Codex counts ceil(UTF-8 bytes / 4) tokens, excluding keys and wrappers.
           const bytes = Buffer.byteLength(entry.value, "utf8");
           const limit = CODEX_ADDITIONAL_CONTEXT_VALUE_MAX_BYTES;
           NodeAssert.ok(
@@ -62,7 +61,6 @@ describe("Codex orchestration context", () => {
     NodeAssert.ok(orchestration.includes("never a `supaterm_thread_send`"));
     NodeAssert.ok(!orchestration.includes("inheritedOptions"));
     NodeAssert.ok(!orchestration.includes("Prefer native"));
-    // The ACP terminal fallback is ACP-only; Codex agents never need it.
     NodeAssert.ok(!orchestration.includes("acp-mcp-call"));
   });
 });

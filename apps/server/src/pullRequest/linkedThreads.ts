@@ -73,7 +73,6 @@ export const listLinkedPullRequestThreads = Effect.fn("listLinkedPullRequestThre
   ),
 );
 
-// Mirrors the rows and filters of `listLinkedPullRequestThreads`.
 function linkedKeys(thread: OrchestrationV2AppThread): ReadonlyArray<string> {
   if (thread.deletedAt !== null || thread.lineage.sideChat === true) return [];
   return visibleThreadPullRequests(thread.pullRequests ?? [])
@@ -98,7 +97,6 @@ function linkedThreadsView(
  */
 export function makeLinkedThreadsChangeDetector() {
   const views = new Map<ThreadId, string | null>();
-  // Last activity of each thread with visible links.
   const activeAt = new Map<ThreadId, number>();
   const active = (threadId: ThreadId, at: DateTime.Utc): boolean => {
     const previous = activeAt.get(threadId);
@@ -109,8 +107,6 @@ export function makeLinkedThreadsChangeDetector() {
     return true;
   };
   return (event: OrchestrationV2DomainEvent): "changed" | "reordered" | null => {
-    // The projection stamps every non-thread event as the thread's activity. A thread not seen
-    // since startup may be linked already, since history is not replayed.
     if (!event.type.startsWith("thread.")) {
       if (!views.has(event.threadId)) return "reordered";
       return active(event.threadId, event.occurredAt) ? "reordered" : null;

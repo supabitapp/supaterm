@@ -22,7 +22,6 @@ const remoteOpen = vi.hoisted(() => ({
   label: "media-host",
   httpBaseUrl: "https://host.test",
 }));
-// Atoms derived from the server config run in the real registry over a missing config.
 vi.mock(import("../state/server"), async (original) => {
   const actual = await original();
   const { Atom } = await import("effect/reactivity");

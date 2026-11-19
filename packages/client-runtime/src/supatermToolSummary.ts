@@ -59,7 +59,6 @@ function readResult(value: unknown, depth = 0): ToolResult {
 
 function readInput(value: unknown): Record<string, unknown> | undefined {
   const input = readResult(value).data;
-  // Historical Cursor items retain the MCP args envelope.
   return input && typeof input.toolName === "string" ? asRecord(input.args) : input;
 }
 
@@ -79,7 +78,6 @@ function quantity(count: number, noun: string, plural = `${noun}s`): string {
   return `${count} ${count === 1 ? noun : plural}`;
 }
 
-/** One PR per single call; a batch counts what its result reports. */
 function pullRequestQuantity(
   calls: ReadonlyArray<{
     readonly input: Record<string, unknown> | undefined;
@@ -92,7 +90,6 @@ function pullRequestQuantity(
     const reported = call.output?.[countKey];
     if (typeof reported === "number") count += reported;
     else if (call.input?.url !== undefined || call.input?.number !== undefined) count += 1;
-    // A batch result too large to compact loses its count, so the label drops the number.
     else return "pull requests";
   }
   return quantity(count, "pull request");
@@ -432,7 +429,6 @@ export function summarizeSupatermToolCalls(
       );
       break;
     case "write-pr-guides": {
-      // One call writes many guides, and reports a refusal per guide rather than failing.
       const outcomes = selected.flatMap((call) =>
         Array.isArray(call.output?.guides)
           ? call.output.guides.map((guide) => asRecord(guide)?.outcome)

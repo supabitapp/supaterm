@@ -128,7 +128,6 @@ describe("mobile preferences state", () => {
         setters.push(useSavePreferences());
         return null;
       }
-      // Use the React setter; registry.set bypasses bare-function update semantics.
       renderToString(
         createElement(RegistryContext.Provider, { value: registry }, createElement(CaptureSetter)),
       );

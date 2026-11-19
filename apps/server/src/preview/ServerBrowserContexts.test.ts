@@ -63,7 +63,6 @@ const options = () => ({
   env: {},
 });
 
-// Chromium writes DevToolsActivePort after the launched context is usable, so the file can trail the launch.
 const devToolsPort = async (userDataDir: string) => {
   const file = NodePath.join(userDataDir, "DevToolsActivePort");
   if (!NodeFS.existsSync(file)) {
@@ -168,7 +167,6 @@ describe("ServerBrowserContexts", () => {
     const second = pool.contextFor("default", "agent-b");
     const incognito = pool.contextFor(INCOGNITO_BROWSER_PROFILE_ID);
     await started.promise;
-    // Playwright may retry the same path until the launch settles.
     expect(release).not.toHaveBeenCalled();
     launch.resolve(browser as unknown as Browser);
     const [a, reused, b, privateContext] = await Promise.all([first, again, second, incognito]);

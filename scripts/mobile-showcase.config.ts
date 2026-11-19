@@ -75,7 +75,6 @@ export interface ShowcaseConfig {
 
 const ANDROID_ABIS = ["arm64-v8a", "x86_64", "x86", "armeabi-v7a"] as const;
 const STORE_SCENES = ["threads", "thread", "review", "terminal", "environments"] as const;
-// The iPad split view already shows the chat beside the list in `threads`.
 const SPLIT_VIEW_STORE_SCENES = STORE_SCENES.filter((scene) => scene !== "thread");
 
 function resolveShowcaseAndroidAbi(
@@ -100,8 +99,6 @@ const config: ShowcaseConfig = {
     terminal: { eyebrow: "Terminal", title: ["A real *terminal*,", "one tap away."] },
     environments: { eyebrow: "Environments", title: ["Every machine,", "*one* app."] },
   },
-  // Dedicated port so the harness cannot attach to a normal mobile dev server
-  // (or a second worktree) and capture the wrong bundle.
   metroPort: 8199,
   settleDelayMs: 2_500,
   devices: [
@@ -183,8 +180,6 @@ const config: ShowcaseConfig = {
       platform: "android",
       avd: "Pixel_10_Pro",
       frame: "android",
-      // Apple Silicon uses ARM64 locally; CI overrides this with x86_64 so its
-      // Linux runner can use KVM acceleration.
       abi: resolveShowcaseAndroidAbi(process.env.SUPATERM_SHOWCASE_ANDROID_ABI),
       appearance: "dark",
       theme: DEFAULT_SHOWCASE_THEME,

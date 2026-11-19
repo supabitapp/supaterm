@@ -11,7 +11,6 @@ export function extractFenceLanguage(className: string | undefined): string {
 }
 
 export function highlighterLanguageOf(language: string): string {
-  // Shiki doesn't bundle a gitignore grammar; ini is a close match.
   return language === "gitignore" ? "ini" : language;
 }
 
@@ -54,16 +53,12 @@ export function isClosedCodeFence(
   if (start === undefined || end === undefined) return false;
   const source = text.slice(start, end);
   const opening = /^(?:`{3,}|~{3,})/.exec(source)?.[0];
-  // One class for the blockquote prefix: nested quantifiers here backtrack
-  // exponentially on code lines that start with many `> ` markers.
   const closing = /(?:^|\n)[ \t>]*(`{3,}|~{3,})[ \t\r]*$/.exec(source)?.[1];
   return (
     opening !== undefined &&
     closing !== undefined &&
     opening[0] === closing[0] &&
     closing.length >= opening.length &&
-    // Only a real closer is omitted from parsed code. A CRLF stream cut after
-    // CR must not count as an extra source line.
     source.replace(/\r$/, "").split(/\r\n|\r|\n/).length > code.split(/\r\n|\r|\n/).length
   );
 }
@@ -97,8 +92,6 @@ export function extractCodeBlock(
   ) {
     return null;
   }
-  // With a custom `code` component the child's type is that component, not
-  // the "code" tag — the hast node react-markdown attaches still names it.
   if (onlyChild.type !== "code" && onlyChild.props.node?.tagName !== "code") {
     return null;
   }
@@ -109,8 +102,6 @@ export function extractCodeBlock(
   };
 }
 
-// The key holds the code itself: a hash would let two different blocks share
-// highlighted HTML. The length prefix keeps a language with ":" unambiguous.
 export function createHighlightCacheKey(
   code: string,
   language: string,

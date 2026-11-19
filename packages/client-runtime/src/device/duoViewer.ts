@@ -198,8 +198,6 @@ export function createDuoViewer(options: {
     model.setAngle(angle);
     appliedAngle = angle;
     if (before && hingeLeaf) {
-      // Rebase both the displayed rotation and its rest target so releasing a
-      // pinch cannot resume the pre-fold body rotation.
       const correction = before.multiply(model.leafRotation(hingeLeaf).invert());
       if (correction.angleTo(new Quaternion()) > 1e-8)
         orbit.setPose(orbit.rotation.clone().multiply(correction), performance.now(), true);
@@ -352,7 +350,6 @@ export function createDuoViewer(options: {
         physicalPose = next?.hingePose ?? (next?.screenId === 1 ? "closed" : "open");
         presentationAngle = next?.hingeAngle ?? (next?.screenId === 1 ? 0 : 180);
       }
-      // A command reply/config confirms hinge state. Display identity, never an angle heuristic, owns input.
       targetAngle = previewAngle ?? next?.hingeAngle ?? (next?.screenId === 1 ? 0 : 180);
 
       if (
@@ -383,9 +380,6 @@ export function createDuoViewer(options: {
             new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), roll),
           );
         if (next?.screenId === 1 && !landedFold && physicalPose !== "tent") {
-          // Native readback can retain the cover even for an open physical preset.
-          // A screen-facing rest must use that display's actual hinged normal.
-
           const snap = nearestDuoView(targetPresentation, activeSnaps());
           if (snap) targetPresentation.copy(snap.rotation);
         }
@@ -401,9 +395,6 @@ export function createDuoViewer(options: {
         (restFace === "cover") !== (next.screenId === 1) &&
         (requestedRotation || duoScreenSettled(next))
       ) {
-        // A sensor rotation can hand ownership to the other native display.
-        // Face that display without sending another rotation and creating a feedback loop.
-
         const snap = nearestDuoView(orbit.rotation, activeSnaps());
         if (snap) {
           restFace = snap.face;
@@ -466,14 +457,11 @@ export function createDuoViewer(options: {
     frameUpdated(id, primary) {
       if (disposed || screen?.screenId !== id) return;
       const key = duoDisplayKey(screen);
-      // The elected native feed is authoritative during handoff. Fixed-panel
-      // encoders can retain an inactive blank until that surface changes again.
       if (!primary && primaryKey === key) return;
       const source = primary ?? options.sources[id];
       if (!duoFrameMatches(source, screen)) return;
       const surface = surfaces[id === 1 ? 0 : 1]!;
       const { context, canvas } = surface;
-      // Ignore native shutdown blanks only while waiting for an activation. Steady black application content remains valid.
       if (!primary && !readyKey && performance.now() - activationAt < 1500) {
         const probe = document.createElement("canvas");
         probe.width = probe.height = 8;
@@ -492,7 +480,6 @@ export function createDuoViewer(options: {
       context.fillStyle = "#080a10";
       context.fillRect(0, 0, canvas.width, canvas.height);
       context.translate(canvas.width / 2, canvas.height / 2);
-      // The inner panel is mounted a quarter turn from the native framebuffer.
       const rotate = id === 3;
       if (rotate) context.rotate(Math.PI / 2);
       const scale = Math.min(

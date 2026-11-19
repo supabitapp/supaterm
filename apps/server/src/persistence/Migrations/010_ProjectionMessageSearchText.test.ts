@@ -105,7 +105,6 @@ it.layer(NodeSqliteClient.layer({ filename: ":memory:" }))(
         assert.equal(searchText.get("page-000"), readable);
         assert.equal(searchText.get("page-500"), readable);
 
-        // Messages indexed as stored are indexed again as they read.
         assert.deepEqual(yield* indexed(sql, '"résumé"'), ["accented"]);
         assert.deepEqual(yield* indexed(sql, `"kittiwake's"`), ["accented"]);
         assert.deepEqual(yield* indexed(sql, '"beacon01"'), []);

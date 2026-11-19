@@ -25,8 +25,6 @@ export function workspaceTabColumns(
   return columns && (platform === "ios" || (platform === "android" && tab === "settings"));
 }
 
-// Pages a Settings row opens, minus Project overview: it shows the project chosen in the
-// Settings scope, which resets whenever Settings closes.
 const REMEMBERED_SETTINGS_PAGES: ReadonlySet<string> = new Set(
   SETTINGS_PAGE_TARGETS.filter((page) => page !== "SettingsProjectOverview"),
 );
@@ -138,14 +136,12 @@ function identityOf({ key: _key, ...identity }: PullRequestSelection) {
 
 let routeKeys = 0;
 
-/** New routes get their key here, so the caller knows which route it is about to show. */
 function keyed<Route extends RouteLike>(route: Route): Route & { readonly key: string } {
   if (route.key !== undefined) return route as Route & { readonly key: string };
   routeKeys += 1;
   return { ...route, key: `${route.name}-workspace-${routeKeys}` };
 }
 
-// A hidden tab renders the page it would open under this key, so opening it reuses that screen.
 function keyedPage<Route extends RouteLike>(route: Route): Route & { readonly key: string } {
   return route.key === undefined
     ? { ...route, key: `${route.name}-workspace-page` }

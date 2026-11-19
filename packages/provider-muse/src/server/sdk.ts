@@ -71,7 +71,6 @@ export function museVerbatimPath(path: string): string {
   return path.startsWith("\\\\") ? `\\\\?\\UNC\\${path.slice(2)}` : `\\\\?\\${path}`;
 }
 
-// Native realpath corrects filesystem case as well as resolving symlinks.
 export const museCanonicalPath = Effect.fn("museCanonicalPath")(function* (path: string) {
   return yield* Effect.tryPromise(() => NodeFSP.realpath(path)).pipe(
     Effect.orElseSucceed(() => path),
@@ -86,7 +85,6 @@ export const museCanonicalPath = Effect.fn("museCanonicalPath")(function* (path:
 export const museWorkspaceRoot = Effect.fn("museWorkspaceRoot")(function* (path: string) {
   if ((yield* HostProcess.Platform) !== "win32") return yield* museCanonicalPath(path);
   const canonical = yield* Effect.tryPromise(() => NodeFSP.realpath(path)).pipe(
-    // A verbatim path takes `/` literally, so an unresolved root needs Windows separators.
     Effect.orElseSucceed(() => path.replaceAll("/", "\\")),
   );
   return museVerbatimPath(canonical);
@@ -118,9 +116,6 @@ export const museLaunch = Effect.fn("museLaunch")(function* (
     command:
       windowsEnvironmentValue(env, "ComSpec") ??
       (systemRoot ? `${systemRoot}\\System32\\cmd.exe` : "cmd.exe"),
-    // /d skips cmd's AutoRun commands, which could write into Muse's stdout. cmd /c drops
-    // the quotes from a command that starts with one and holds `&`, `@`, `^` or a
-    // parenthesis, so a quoted path follows a bare `@` (echo off), which keeps them.
     args: [
       "/d",
       "/c",
@@ -222,8 +217,6 @@ export const createMuseSdkHostEffect = Effect.fn("createMuseSdkHostEffect")(func
   createHost: typeof createMuseSdkHost = createMuseSdkHost,
 ) {
   const native = options.launch ?? (yield* museLaunch(options.binaryPath, options.environment));
-  // The Muse SDK hands libuv the cwd and the PATH search, which freeze the server while a
-  // mount under either hangs; `env` does both in the child.
   const throughEnv =
     (yield* HostProcess.Platform) === "linux" && (yield* Effect.promise(supportsEnvChdir))
       ? envTrampoline(native.command, native.args, options.cwd)

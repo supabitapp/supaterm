@@ -511,8 +511,6 @@ export function SourceControlSettingsPanel() {
   const handleScan = () => {
     discovery.refresh();
   };
-  // A CLI login on the server host changes nothing the client reads, so returning to the window
-  // asks again. Discovery runs every hosting CLI, too costly for a timer nobody asked for.
   useLiveRefresh(
     () => {
       if (!discovery.isPending) discovery.refresh();
@@ -553,7 +551,6 @@ export function SourceControlSettingsPanel() {
     return (
       <SettingsSearchTarget id={sourceControlHostSettingsSearchId(item.kind)}>
         <SourceControlHostSettings
-          // Drafts belong to one environment; switching must not carry them over.
           key={environmentId}
           environmentId={environmentId}
           definition={{ ...definition, settings: definition.settings }}

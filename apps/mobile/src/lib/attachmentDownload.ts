@@ -110,7 +110,6 @@ async function createCachedAttachmentFile(attachment: AttachmentFileMetadata) {
   const release = () => {
     if (!disposed || sharing) return;
     activeDirectories.delete(directory.uri);
-    // A receiver can still be reading after Android's chooser returns.
     if (!shared) removeDownloadDirectory(directory);
   };
   const preview: AttachmentPreviewFile = {
@@ -222,7 +221,6 @@ export async function downloadAttachmentForPreview(input: {
     }
     return cached.preview;
   } catch (cause) {
-    // Android may leave a partial file after a failed or interrupted request.
     cached.preview.dispose();
     if (input.signal.aborted) return null;
     throw new Error("Could not download the attachment. Check the connection and try again.", {

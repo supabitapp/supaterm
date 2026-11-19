@@ -60,7 +60,6 @@ it("keeps custom model drafts until they save, so a failed save can be retried",
   await act(() => saves[1]!(true));
   await expect.element(input).not.toBeInTheDocument();
 
-  // A save the user cancelled must not close the draft opened after it.
   await userEvent.click(addCustomModel);
   await userEvent.type(input, "other-model{Enter}");
   await userEvent.click(screen.getByRole("button", { name: "Cancel" }));

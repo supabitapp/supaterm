@@ -26,7 +26,6 @@ import type { ManagedServerProvider } from "./snapshot.ts";
 interface ProviderSnapshotState {
   readonly snapshot: ServerProvider;
   readonly enrichmentGeneration: number;
-  // null preserves an explicitly cleared plan across probes and enrichment.
   readonly usageAuthLabel: string | null | undefined;
   readonly checked: boolean;
 }
@@ -97,7 +96,6 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
       if (state.enrichmentGeneration !== generation) {
         return [null, state] as const;
       }
-      // Enrichment must not revert usage updates newer than its input snapshot.
       const merged = withUsageLimits(
         state.usageAuthLabel === undefined
           ? nextSnapshot
@@ -151,7 +149,6 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
     const previousSettings = yield* Ref.get(settingsRef);
     const settingsChanged =
       options?.forceRefresh === true || input.haveSettingsChanged(previousSettings, nextSettings);
-    // Nothing watches credential files, so any settings apply rechecks a failed sign-in.
     const { snapshot: currentSnapshot } = yield* Ref.get(snapshotStateRef);
     const forceRefresh =
       options?.forceRefresh === true ||
@@ -176,10 +173,8 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
       return state.snapshot;
     }
 
-    // A probe without usage must not erase a report published while its I/O was in flight.
     const usageBeforeProbe = (yield* Ref.get(snapshotStateRef)).snapshot.usageLimits;
     const probedSnapshot = yield* input.checkProvider;
-    // One failed periodic check over a ready provider is often transient; recheck before showing it.
     if (
       options?.deferFailure === true &&
       probedSnapshot.status === "error" &&
@@ -197,7 +192,6 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
         const generation = input.enrichSnapshot
           ? state.enrichmentGeneration + 1
           : state.enrichmentGeneration;
-        // Failed reads retain limits only for the same account and original workspace.
         const previous = state.snapshot.auth;
         const differs = (a: string | undefined, b: string | undefined) =>
           a !== undefined && b !== undefined && a !== b;
@@ -247,7 +241,6 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
   const applySnapshot = (nextSettings: Settings, options?: { readonly forceRefresh?: boolean }) =>
     refreshSemaphore.withPermits(1)(applySnapshotBase(nextSettings, options));
 
-  // Providers call this on every token-usage tick, usually without changing the snapshot.
   const applyUsageLimits: ManagedServerProvider["applyUsageLimits"] = Effect.fnUntraced(
     function* (update) {
       const snapshotToPublish = yield* Ref.modify(snapshotStateRef, (state) => {
@@ -299,7 +292,6 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
       snapshot.usageLimits.unavailable?.reason === "unsupported"
     )
       return;
-    // An in-flight refresh may have read cached usage, so one refresh waits behind it.
     const claim = Symbol();
     const release = Ref.update(usageRefreshQueued, (queued) => (queued === claim ? null : queued));
     yield* Effect.uninterruptibleMask((restore) =>
@@ -359,8 +351,6 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
 
   const shouldRefreshOnInterval = Effect.gen(function* () {
     const state = yield* Ref.get(snapshotStateRef);
-    // A disabled instance has nothing to probe; a periodic check would only
-    // republish a snapshot that differs in checkedAt.
     if (
       !state.snapshot.enabled ||
       (!needsUsageRecovery(state.snapshot) && !needsProviderRefresh(state.snapshot))
@@ -401,8 +391,6 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
     );
   }
 
-  // A failed check must not end this subscription: the next settings change
-  // retries, like the periodic and initial checks below.
   yield* Stream.runForEach(input.streamSettings, (nextSettings) =>
     Effect.asVoid(applySnapshot(nextSettings)).pipe(Effect.ignoreCause({ log: true })),
   ).pipe(Effect.forkScoped);
@@ -437,10 +425,8 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
     ),
   ).pipe(Effect.forkScoped);
 
-  // Probes spawn provider CLIs; starting them during server startup slows the first client load.
   yield* (host.awaitServerReady ?? Effect.void).pipe(
     Effect.andThen(
-      // Read under the lock, so a settings check in flight cannot be overwritten with older settings.
       refreshSemaphore.withPermits(1)(
         Ref.get(settingsRef).pipe(
           Effect.flatMap((settings) => applySnapshotBase(settings, { forceRefresh: true })),

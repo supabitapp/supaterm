@@ -1,7 +1,3 @@
-// Render scenarios that mount the whole app (AppRoot with the app's router) on a thread,
-// against the in-process environment in fakeEnvironment.ts. Counts cover ChatView, the
-// chat and settings routes, the sidebar and the right panel, through the same stores and
-// atoms the app reads. See renderScenarios.renders.tsx for the counting rules.
 import { createMemoryHistory } from "@tanstack/react-router";
 import { scopeProjectRef, scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { NodeId, RuntimeRequestId, TurnItemId, type ThreadId } from "@supaterm/contracts";
@@ -39,9 +35,6 @@ import {
 import { commitsSoFar, startCounting, stopCounting, type RenderReport } from "./renderCounter";
 import { act, fakeTimers, render } from "./render";
 
-// The socket is the only fake layer: client-runtime's driver hands every connection the
-// in-process session. A string path, since a typed import pulls client-runtime's sources
-// into this project, and imports inside, since the factory runs before this file's own.
 vi.mock("../../../packages/client-runtime/src/connection/driver.ts", async (importOriginal) => {
   const [actual, { fakeDriver }, Layer] = await Promise.all([
     importOriginal<{ readonly ConnectionDriver: Context.Key<unknown, FakeDriver> }>(),
@@ -51,8 +44,6 @@ vi.mock("../../../packages/client-runtime/src/connection/driver.ts", async (impo
   return { ...actual, layer: Layer.succeed(actual.ConnectionDriver, fakeDriver) };
 });
 
-// The fake server leaves most requests unanswered, which would raise the slow-request toast
-// 15s of wall clock after each one, at a different point in every run.
 vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
   ...(await original()),
   trackRpcRequestSent: () => {},
@@ -63,7 +54,6 @@ const HISTORY_TURNS = 20;
 const STREAM_DELTAS = 30;
 const TYPED_TEXT = "fix the flaky tests!";
 const TERMINAL_UPDATES = 20;
-// The stream scenario leaves a turn on its thread, so it streams into one no other scenario opens.
 const THREADS = ["thread-warm", "thread-a", "thread-b", "thread-live"].map((name) =>
   threadWithHistory(name, HISTORY_TURNS),
 );
@@ -76,8 +66,6 @@ const [WARM, A, B, LIVE] = THREADS.map((thread) => thread.id) as [
 
 const SIDE_CHAT = { ...threadWithHistory("thread-side", HISTORY_TURNS), sideChatOf: WARM };
 
-// The agent waits on two questions: an option to pick, then a typed answer. They take the same
-// height, so moving between them leaves the composer inset that ChatView lays out unchanged.
 const QUESTION_AT = DateTime.makeUnsafe("2026-03-17T19:12:28.000Z");
 const QUESTION_THREAD = threadWithHistory("thread-question", HISTORY_TURNS);
 const QUESTION_REQUEST = RuntimeRequestId.make("thread-question-request");
@@ -140,9 +128,7 @@ const QUESTION = {
 } satisfies FakeThread;
 
 installFakeEnvironment([...THREADS, SIDE_CHAT, QUESTION]);
-// Desktop-sized, so the sidebar, composer and right panel lay out as they do in the app.
 await page.viewport(1400, 900);
-// A returning user: the first-run gate would otherwise wait on onboarding evidence.
 __setClientSettingsForTests({
   ...DEFAULT_CLIENT_SETTINGS,
   onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
@@ -161,8 +147,6 @@ async function quiet() {
   );
 }
 
-// Relative times and durations re-render on minute and second ticks of the wall clock, so a
-// window that spans a tick counts extra renders. Only Date is frozen; timers run for real.
 const frozenClock = () =>
   fakeTimers({ toFake: ["Date"], now: new Date("2026-03-18T09:00:30.000Z") });
 
@@ -170,7 +154,6 @@ const threadPath = (threadId: ThreadId) => `/${ENVIRONMENT_ID}/${threadId}`;
 const lastAnswer = (threadId: ThreadId) =>
   page.getByText(`Answer ${HISTORY_TURNS - 1} for ${threadId}.`);
 
-// The app owns its router, as main.tsx does, so render() adds none.
 async function mountApp(path: string) {
   const router = getRouter(createMemoryHistory({ initialEntries: [path] }));
   await router.load();
@@ -205,8 +188,6 @@ async function measure(action: () => Promise<void>): Promise<RenderReport> {
   return stopCounting();
 }
 
-// Commits are left out across several windows, and where frame batching splits a window's
-// commits differently from run to run while its renders stay identical.
 async function report(
   scenario: string,
   windows: ReadonlyArray<RenderReport>,
@@ -226,10 +207,6 @@ async function report(
   );
 }
 
-// A first mount loads lazy route chunks, fonts and the connection at varying times. The diff
-// panel and settings load more chunks on first open (the Supaterm Connect sidebar, the terminal
-// preview's renderer), which can land after a window has gone quiet, so the warm-up opens
-// each once and lets it settle.
 it("warm up", async () => {
   using _clock = frozenClock();
   const { screen, router } = await openThread(WARM);
@@ -292,7 +269,6 @@ it("app-stream-assistant-turn", async () => {
   expect(counted.components.ConversationTimeline).toBeLessThanOrEqual(3);
   expect(counted.components.UserTimelineRow).toBeUndefined();
   expect(counted.components.AssistantTimelineRow).toBe(STREAM_DELTAS);
-  // Each delta adds a paragraph; finished blocks keep their render.
   expect(counted.components.MarkdownParagraph).toBe(STREAM_DELTAS);
   await report("app-stream-assistant-turn", [counted], { commits: false });
 });
@@ -322,7 +298,6 @@ it("app-terminal-updates-in-other-thread", async () => {
       );
     }
   });
-  // Only thread B's sidebar row shows these updates.
   expect(counted.components.ChatView).toBeUndefined();
   expect(counted.components.SidebarThreadRow).toBe(TERMINAL_UPDATES);
   await report("app-terminal-updates-in-other-thread", [counted]);
@@ -353,7 +328,6 @@ it("app-answer-question", async () => {
     await userEvent.type(editor, TYPED_TEXT);
     await expect.element(editor).toHaveTextContent(TYPED_TEXT);
   });
-  // Answers live in the composer; the chat view renders for the request, not its answers.
   expect(pick.components.ChatView).toBeUndefined();
   expect(type.components.ChatView).toBeUndefined();
   await report("app-answer-question", [pick, type]);
@@ -364,14 +338,10 @@ it("app-switch-thread", async () => {
   const { screen, router } = await openThread(A);
   await using _app = screen;
   const windows = [await measure(goToThread(router, B)), await measure(goToThread(router, A))];
-  // Only the rows losing and gaining the active highlight change; the row losing it renders
-  // once more when the pane layout follows the route before paint.
   for (const window of windows) expect(window.components.SidebarThreadRow).toBe(3);
   await report("app-switch-thread", windows);
 });
 
-// A row reads whether a thread is open only when its PR badge is clicked, so opening a thread
-// from a draft changes only the row that gains the highlight.
 it("app-open-thread-from-draft", async () => {
   using _clock = frozenClock();
   const drafts = useComposerDraftStore.getState();
@@ -380,16 +350,13 @@ it("app-open-thread-from-draft", async () => {
   using _draft = { [Symbol.dispose]: () => drafts.clearDraftThread(draftId) };
   const { screen, router } = await mountApp(`/draft/${draftId}`);
   await using _app = screen;
-  // The sidebar lists the project once the shell snapshot has arrived.
   await expect.element(page.getByText("render", { exact: true }).first()).toBeVisible();
   const counted = await measure(goToThread(router, A));
   expect(counted.components.SidebarThreadRow).toBe(1);
   await report("app-open-thread-from-draft", [counted], { commits: false });
 });
 
-// Through the diff.toggle shortcut, the same handler as the header's diff button.
 const toggleDiff = (to: "open" | "close") => async () => {
-  // mod+d is Command on macOS and Control elsewhere.
   await userEvent.keyboard(
     navigator.platform.startsWith("Mac") ? "{Meta>}d{/Meta}" : "{Control>}d{/Control}",
   );
@@ -409,10 +376,8 @@ it("app-toggle-diff-panel", async () => {
 const openSettings =
   (router: AppRouter, to: "/settings/general" | "/settings/appearance") => async () => {
     await act(() => router.navigate({ to }));
-    // A section title from each page, since neither page has a heading that names it.
     const name = to === "/settings/general" ? "Time format" : "Interface";
     await expect.element(page.getByRole("heading", { name, exact: true })).toBeVisible();
-    // Appearance highlights its code font preview off-thread, then attaches it in a shadow root.
     if (to === "/settings/appearance") {
       await vi.waitFor(
         () =>
@@ -439,8 +404,6 @@ it("app-switch-settings-section", async () => {
   ]);
 });
 
-// ChatView reads only a few status fields, so changing file counts should not reach it.
-// Keep git scenarios last: the status they leave cached adds renders to later scenarios.
 it("app-git-file-counts-with-side-chat", async () => {
   using _clock = frozenClock();
   await using _app = (await openThread(WARM)).screen;
@@ -473,14 +436,12 @@ it("app-git-file-counts-with-side-chat", async () => {
     for (let update = 1; update <= GIT_STATUS_UPDATES; update++) {
       await act(() => emitVcsStatus({ _tag: "localUpdated", local: local(update) }));
     }
-    // Zero renders only counts if the last update arrived inside this window.
     await vi.waitFor(() => {
       const status = AsyncResult.getOrElse(appAtomRegistry.get(gitStatus), () => null);
       expect(status?.workingTree.insertions).toBe(GIT_STATUS_UPDATES);
     });
   });
   expect(counted.components.ChatView).toBeUndefined();
-  // A field the chat view does read still reaches both chats.
   const branchSwitch = await measure(() =>
     act(() => emitVcsStatus({ _tag: "localUpdated", local: local(0, "feature") })),
   );
@@ -488,7 +449,6 @@ it("app-git-file-counts-with-side-chat", async () => {
   await report("app-git-file-counts-with-side-chat", [counted]);
 });
 
-// ChatView re-renders when the tree goes dirty or clean; the composer and side chat timeline should not.
 it("app-git-status-updates-with-side-chat", async () => {
   using _clock = frozenClock();
   await using _app = (await openThread(WARM)).screen;

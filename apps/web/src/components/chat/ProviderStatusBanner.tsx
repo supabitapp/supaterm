@@ -36,7 +36,6 @@ export function getProviderStatusBannerKey(status: ServerProvider | null): strin
     ].join("\u0000");
   }
   if (status.status === "ready") return null;
-  // Antigravity validates credentials at session start; unknown restart auth is not failure.
   if (
     status.driver === "antigravity" &&
     status.installed &&
@@ -57,7 +56,6 @@ export function shouldShowProviderStatusBanner(
   return getProviderStatusBannerKey(status) !== null && !isDismissed;
 }
 
-// Built-in instance ids such as `codex` repeat across environments.
 export function getProviderStatusDismissalKey(
   environmentId: string | undefined,
   status: ServerProvider | null,
@@ -66,7 +64,6 @@ export function getProviderStatusDismissalKey(
   return bannerKey === null ? null : `${environmentId ?? ""}\u0000${bannerKey}`;
 }
 
-// A dismissal lasts the session, not one view, so opening another thread cannot bring it back.
 const sessionDismissedProviderStatusBannerKeys = new Set<string>();
 const dismissalListeners = new Set<() => void>();
 

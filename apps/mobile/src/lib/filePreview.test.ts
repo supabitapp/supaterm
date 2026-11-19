@@ -352,7 +352,6 @@ describe("ThreadInlineFilePreview playback", () => {
     audio.setActive.mockImplementation(async (enabled) => {
       audio.enabled = enabled;
     });
-    // Expo's play() silently does nothing while its global gate is disabled.
     audio.player.play.mockImplementation(() => {
       if (audio.enabled) audio.played();
     });
@@ -528,7 +527,6 @@ describe("ThreadInlineFilePreview playback", () => {
       expect(audio.navigate).not.toHaveBeenCalled();
       await act(async () => {
         if (playback === "native resume") {
-          // Native resume requests playback before buffering advances the clock.
           audio.video.playbackRequested = true;
           for (const listener of audio.videoRequestListeners)
             listener({ isPlaybackRequested: true });
@@ -632,7 +630,6 @@ describe("ThreadInlineFilePreview playback", () => {
       expect(audio.played).toHaveBeenCalledOnce();
       let sessionActive = true;
       const deactivated = vi.fn();
-      // Match expo-audio iOS: the queued callback checks ownership at execution time.
       const queueDeactivation = () =>
         setTimeout(() => {
           if (audio.sessionOwned) return;
@@ -661,7 +658,6 @@ describe("ThreadInlineFilePreview playback", () => {
               .click(),
           );
         } else if (release === "finish") {
-          // Native completion queues deactivation before JS receives didJustFinish.
           queueDeactivation();
           audio.status = { ...audio.status, playing: false, didJustFinish: true };
           await act(async () => render());
@@ -679,7 +675,6 @@ describe("ThreadInlineFilePreview playback", () => {
         });
         if (successor !== "recording") expect(audio.video.playing).toBe(true);
         expect(audio.player.pause).toHaveBeenCalled();
-        // Cleanup of the old native ref must not interrupt the successor either.
         await act(async () => render(successor === "video", false));
         await vi.advanceTimersByTimeAsync(200);
         expect(sessionActive).toBe(true);
@@ -960,7 +955,6 @@ describe("ThreadInlineFilePreview playback", () => {
         ),
       );
       audio.video.pause.mockClear();
-      // iOS can keep readyToPlay during a seek's evaluatingBufferingRate wait.
       if (transition === "buffering") {
         audio.video.status = "loading";
         for (const listener of audio.videoStatusListeners) listener({ status: "loading" });
@@ -968,7 +962,6 @@ describe("ThreadInlineFilePreview playback", () => {
       audio.video.playing = false;
       for (const listener of audio.videoListeners) listener({ isPlaying: false });
       expect(audio.video.pause).not.toHaveBeenCalled();
-      // Buffer readiness can precede the native playing=true event.
       audio.video.status = "readyToPlay";
       for (const listener of audio.videoStatusListeners) listener({ status: "readyToPlay" });
       expect(audio.video.pause).not.toHaveBeenCalled();
@@ -1194,7 +1187,6 @@ describe("ThreadInlineFilePreview playback", () => {
       expect(audio.player.play).toHaveBeenCalledTimes(phase === "playing" ? 1 : 0);
       await releaseAudioSession(recording);
       audio.status = { ...audio.status, isLoaded: true };
-      // Refresh the native status before the next tap.
       await act(async () =>
         root!.render(
           createElement(ThreadInlineFilePreview, {
@@ -1359,24 +1351,19 @@ describe("ThreadInlineFilePreview playback", () => {
     const pauseButton = () =>
       container.querySelector<HTMLButtonElement>('button[aria-label="Pause audio"]');
     expect(playButton()).not.toBeNull();
-    // An idle preview still unmounts off-screen, so off-screen rows stay cheap.
     await act(async () => render(false));
     expect(playButton()).toBeNull();
     await act(async () => render(true));
     await act(async () => playButton()!.click());
     expect(audio.player.play).toHaveBeenCalledOnce();
     expect(pauseButton()).not.toBeNull();
-    // The feed list recycles rows beyond its draw distance, so the row itself is pinned too.
     expect(retainRow).toHaveBeenLastCalledWith(true);
     audio.player.release.mockClear();
     audio.player.pause.mockClear();
-    // Scrolling the playing chip out of view (or a new reply pushing it out)
-    // must not unmount it: unmounting disposes the native player mid-playback.
     await act(async () => render(false));
     expect(pauseButton()).not.toBeNull();
     expect(audio.player.release).not.toHaveBeenCalled();
     expect(audio.player.pause).not.toHaveBeenCalled();
-    // Once playback finishes, the off-screen preview can unmount again.
     audio.status = { ...audio.status, didJustFinish: true, currentTime: 10 };
     await act(async () => render(false));
     expect(pauseButton()).toBeNull();
@@ -1453,7 +1440,6 @@ describe("ThreadFeed previews", () => {
       },
     ];
     const container = document.createElement("div");
-    // Records what each commit shows before passive effects get a chance to run.
     const committedPreviews: Array<string | null> = [];
     function CommitProbe() {
       useLayoutEffect(() => {
@@ -1506,7 +1492,6 @@ describe("ThreadFeed previews", () => {
       await act(async () => root.render(element(ThreadId.make("thread-2"))));
       expect(committedPreviews[0]).toBeNull();
 
-      // A preview hidden by a presentation change stays closed when the content comes back.
       await act(async () =>
         container.querySelector<HTMLButtonElement>('[aria-label="Open report.pdf"]')!.click(),
       );

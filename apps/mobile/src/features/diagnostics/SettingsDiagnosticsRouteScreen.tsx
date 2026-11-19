@@ -22,7 +22,6 @@ import {
   type StartupCrashRecord,
 } from "./crash-log-model";
 
-// expo-updates retains only seven days of logs.
 const LOG_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 
 type CrashLogState =
@@ -30,7 +29,6 @@ type CrashLogState =
   | { readonly status: "unavailable" }
   | { readonly status: "ready"; readonly records: ReadonlyArray<StartupCrashRecord> };
 
-// Not kept alive: each visit to the screen re-reads the log.
 const crashLogAtom = Atom.make(
   Effect.tryPromise(() => Updates.readLogEntriesAsync(LOG_WINDOW_MS)).pipe(
     Effect.map((entries): CrashLogState => ({

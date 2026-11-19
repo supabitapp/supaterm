@@ -24,7 +24,6 @@ export const PHOSPHORS = [
   ["White", "#eef2ff"],
 ] as const;
 
-// The first is the olive of the app icon's knob and slider.
 export const KNOBS = [
   ["Olive", "#686c3a"],
   ["Brass", "#b8913f"],
@@ -123,7 +122,6 @@ export function searchFromSettings(settings: BoltComputerSettings): string {
 
 const isDefault = (settings: BoltComputerSettings) => searchFromSettings(settings) === "";
 
-/** `settings` with one control's value applied, as written in the page's markup. */
 function withSetting(
   settings: BoltComputerSettings,
   key: ControlKey,
@@ -152,7 +150,6 @@ function withSetting(
 const nameOf = (swatches: ReadonlyArray<readonly [string, string]>, hex: string) =>
   swatches.find(([, value]) => value === hex)?.[0] ?? hex;
 
-/** `canvas` cropped to what is drawn on it, with a little room round it, as a PNG. */
 function croppedPng(canvas: HTMLCanvasElement, callback: (blob: Blob | null) => void) {
   const { width, height } = canvas;
   const alpha = canvas.getContext("2d")?.getImageData(0, 0, width, height).data;
@@ -197,7 +194,6 @@ export function startStudio(root: HTMLElement) {
   });
 
   const query = () => `${location.pathname}${searchFromSettings(settings)}`;
-  // Browsers cap how often history can be rewritten, and dragging a colour fires on every step.
   let urlWrite = 0;
   const writeUrl = () => {
     clearTimeout(urlWrite);

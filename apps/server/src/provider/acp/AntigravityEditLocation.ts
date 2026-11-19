@@ -7,8 +7,6 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 const PRE_EDIT_FILE_LIMIT = 1024 * 1024;
-// The live preview runs synchronously. One budget covers every chunk in a call: the generic
-// ACP formatter's edit-distance limit, plus a size limit that skips diffing entirely.
 const EDIT_DIFF_BUDGET = 1_000;
 const EDIT_TEXT_BUDGET = 256 * 1024;
 
@@ -21,7 +19,6 @@ export function isAntigravitySnippetPatch(patch: string): boolean {
   return /^@@ .* @@.*$/m.exec(patch)?.[0].endsWith(SNIPPET_LABEL) === true;
 }
 
-// The runtime reads a missing, 0 or invalid line as unspecified.
 const Line = Schema.optional(Schema.Unknown);
 const decodeLine = Schema.decodeUnknownOption(PositiveInt);
 const lineOf = (value: unknown) => Option.getOrUndefined(decodeLine(value));
@@ -31,7 +28,6 @@ const ReplacementChunk = Schema.Struct({
   StartLine: Line,
   EndLine: Line,
 });
-// replace_file_content sends one chunk at the top level; multi_replace_file_content sends a list.
 const decodeEditInput = Schema.decodeUnknownOption(
   Schema.Union([
     Schema.Struct({ ReplacementChunks: Schema.NonEmptyArray(ReplacementChunk) }),
@@ -39,7 +35,6 @@ const decodeEditInput = Schema.decodeUnknownOption(
   ]),
 );
 const decodeLocations = Schema.decodeUnknownOption(Schema.Array(Schema.Struct({ line: Line })));
-// The runtime accepts edit arguments in either casing.
 const PASCAL_KEYS: Readonly<Record<string, string>> = {
   replacement_chunks: "ReplacementChunks",
   target_content: "TargetContent",
@@ -54,7 +49,6 @@ const pascalKeys = (value: unknown): unknown => {
   const result: Record<string, unknown> = {};
   for (const [key, entry] of Object.entries(fields)) {
     const pascal = PASCAL_KEYS[key];
-    // Like the runtime, a present PascalCase value wins over its snake_case alias.
     if (pascal === undefined) result[key] ??= pascalKeys(entry);
     else if (fields[pascal] == null) result[pascal] = pascalKeys(entry);
   }
@@ -73,7 +67,6 @@ export function readAntigravityPreEditFile(path: string): string | undefined {
   }
 }
 
-/** The line of the snippet's only match starting within `from`..`to`, if it spans whole lines. */
 function uniqueStartLine(
   text: string | undefined,
   snippet: string,
@@ -95,7 +88,6 @@ function uniqueStartLine(
     if (line < from) continue;
     if (found !== undefined) return undefined;
     const end = index + snippet.length;
-    // A hunk replaces whole lines.
     const whole =
       index === lineStart && (end === text.length || snippet.endsWith("\n") || text[end] === "\n");
     found = { line, whole };
@@ -110,7 +102,6 @@ function snippetHunks(
 ): StructuredPatchHunk[] | undefined {
   const before = oldText.replaceAll("\r\n", "\n");
   const after = newText.replaceAll("\r\n", "\n");
-  // A target without its newline keeps the line's own newline, on both sides.
   const eol = before.endsWith("\n") ? "" : "\n";
   return structuredPatch("", "", before + eol, after + eol, undefined, undefined, {
     maxEditLength,
@@ -156,8 +147,6 @@ export function antigravityEditPatch(input: {
   const placed: Array<{ readonly start: number; readonly hunks: StructuredPatchHunk[] }> = [];
   const snippets: StructuredPatchHunk[] = [];
   for (const chunk of chunks) {
-    // Whether a changed final line break, or a cleared line, splits, joins or removes lines
-    // depends on what follows the match. Only a whole-line delete is certain.
     const targetEndsLine = chunk.TargetContent.endsWith("\n");
     if (
       chunk.ReplacementContent === ""
@@ -166,7 +155,6 @@ export function antigravityEditPatch(input: {
     )
       return ANTIGRAVITY_EDIT_DIFF_OMITTED;
     const hunks = snippetHunks(chunk.TargetContent, chunk.ReplacementContent, budget);
-    // A change to the line ending alone leaves no LF hunk to show.
     if (
       hunks === undefined ||
       (hunks.length === 0 && chunk.TargetContent !== chunk.ReplacementContent)
@@ -176,7 +164,6 @@ export function antigravityEditPatch(input: {
     if (budget < 0) return ANTIGRAVITY_EDIT_DIFF_OMITTED;
     let start: number | undefined;
     if (input.readPreEditFile !== undefined) {
-      // Line numbers do not depend on CRLF, so search with LF on both sides.
       if (!fileRead) file = input.readPreEditFile(input.path)?.replaceAll("\r\n", "\n");
       fileRead = true;
       start = uniqueStartLine(
@@ -189,7 +176,6 @@ export function antigravityEditPatch(input: {
     if (start === undefined) snippets.push(...hunks);
     else placed.push({ start, hunks });
   }
-  // A placed hunk beside an unplaced one would still number the unplaced one from line 1.
   if (placed.length > 0 && snippets.length > 0) return ANTIGRAVITY_EDIT_DIFF_OMITTED;
   let shift = 0;
   const placedHunks = placed

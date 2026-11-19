@@ -34,7 +34,6 @@ export function observeTimelineRun(
 }
 import type { RunAttemptId } from "@supaterm/contracts";
 
-// Match the titlebar fade inset so draft promotion preserves the first row's position.
 export const CHAT_TIMELINE_ANCHOR_OFFSET = 24;
 
 export type TimelineScrollMode = "following-end" | "anchoring-new-turn" | "free-scrolling";
@@ -79,7 +78,6 @@ export function timelineContentOverflowsViewport(
     return false;
   }
   const lastIndex = state.data.length - 1;
-  // Overflow can use an unmeasured tail's lower bound.
   const lastTop = state.positionAtIndex(lastIndex);
   const lastBottom =
     getRowBottom(state, lastIndex) ??

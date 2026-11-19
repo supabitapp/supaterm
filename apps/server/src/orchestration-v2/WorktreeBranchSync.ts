@@ -43,7 +43,6 @@ export const makeReconcile = Effect.gen(function* () {
         thread.worktreePath === matchingThreads.get(thread.id) && thread.branch !== input.refName,
     );
     if (sharing.length === 0) return;
-    // Status events may queue behind a generated rename or another checkout.
     if ((yield* git.currentBranch(input.cwd)) !== input.refName) return;
     for (const thread of sharing) {
       yield* threads
@@ -72,7 +71,6 @@ export const layer = Layer.effectDiscard(
   Effect.gen(function* () {
     const broadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
     const reconcile = yield* makeReconcile;
-    // Each update waits on its thread's lock, so a busy thread delays only its own worktree.
     const worktrees = yield* KeyedLock.makeRunner<string>();
     yield* forkParked(
       Stream.runForEach(broadcaster.streamBranchChanges, (input) =>

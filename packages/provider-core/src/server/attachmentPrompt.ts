@@ -169,7 +169,6 @@ export const providerMessageTextWithAttachmentPaths = Effect.fn(
     | undefined;
 }) {
   let text = input.text;
-  // The text-input budget must never hide the existence of an attachment.
   for (const attachment of input.attachments) {
     const path = input.resolveAttachmentPath(attachment);
     const extracted =

@@ -76,7 +76,6 @@ const flag = (
     Config.withDefault<Flag>({ value: undefined }),
   );
 
-// `Config.Boolean`'s literals, which effect does not export on their own.
 const SUPATERM_TRUE = ["true", "yes", "on", "1", "y"];
 const SUPATERM_FALSE = ["false", "no", "off", "0", "n"];
 
@@ -95,7 +94,6 @@ const resourceAttributes = Config.Record(
   Config.map((value): ResourceAttributes => ({ value })),
   Config.orElse(() =>
     Config.String(RESOURCE_ATTRIBUTES).pipe(
-      // The value is left out because attributes can carry credentials.
       Config.map((): ResourceAttributes => ({
         value: {},
         warning: `${RESOURCE_ATTRIBUTES} is not a list of percent-encoded key=value pairs and was ignored`,
@@ -141,7 +139,6 @@ const endpoint = (name: string) =>
 
 const decodeOtlpProtocol = Schema.decodeUnknownOption(OtlpProtocol);
 
-// The specification reads enum values case-insensitively.
 const protocol = (name: string) =>
   readOrWarn(
     name,
@@ -195,13 +192,11 @@ const settings = (prefix: string): Config.Config<Settings> =>
     headers: headers(`${prefix}HEADERS`),
   });
 
-/** The signal's own variable claims the signal once set, valid or not. */
 const isClaimed = (setting: Setting<unknown>) =>
   setting.value !== undefined || setting.warning !== undefined;
 
 const claimed = <A>(own: Setting<A>, generic: Setting<A>) => (isClaimed(own) ? own : generic);
 
-/** Appends the signal's path, keeping the query an intake may take its API key in. */
 const withSignalPath = (signal: OtlpSignalName, base: URL) => {
   const url = new URL(base);
   const slash = url.pathname.endsWith("/") ? "" : "/";
@@ -259,7 +254,6 @@ export const load: Effect.Effect<OtelEnvironment> = Config.all({
     SUPATERM_FALSE,
     (value) => `SUPATERM_OTEL_SDK_DISABLED=${value} is not a yes or a no and was ignored`,
   ),
-  // OTEL booleans are true only for case-insensitive true; warn on unrecognized values.
   spec: flag(
     "OTEL_SDK_DISABLED",
     ["true"],
@@ -353,8 +347,6 @@ export const resolveSignalEndpoint = (
     Off: () => undefined,
     Unset: (): SignalEndpoint | undefined => {
       const settingsUrl = blankAsUnset(fallback.settingsUrl);
-      // The desktop forwards the saved setting as its bootstrap URL, so only a differing one is
-      // the desktop's own.
       const url = blankAsUnset(fallback.bootstrapUrl) ?? settingsUrl;
       if (url === undefined) return undefined;
       return {

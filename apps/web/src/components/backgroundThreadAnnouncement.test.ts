@@ -76,9 +76,7 @@ describe("nextBackgroundThreadAnnouncement", () => {
       speak([
         { threads: [login()] },
         { threads: [login({ runStatus: "completed" })] },
-        // Marking the thread unread or renaming it changes nothing about the run.
         { threads: [login({ runStatus: "completed", title: "Fix the login redirect" })] },
-        // The next run can finish between two updates, so it never looks busy here.
         { threads: [login({ runId: secondRun, runStatus: "completed" })] },
         { threads: [login({ runId: RunId.make("run-3"), runStatus: "rolled_back" })] },
       ]),
@@ -112,7 +110,6 @@ describe("nextBackgroundThreadAnnouncement", () => {
       speak([
         { threads: [login({ runStatus: "completed" }), docs({ request: "approval" })] },
         { threads: [login({ runStatus: "completed" }), docs({ request: "approval" })] },
-        // The environment drops out while it resyncs, then comes back changed.
         { threads: [] },
         {
           threads: [
@@ -129,7 +126,6 @@ describe("nextBackgroundThreadAnnouncement", () => {
       speak([
         { threads: [login(), docs()], open: ["env:login"] },
         { threads: [login({ runStatus: "completed" }), docs()], open: ["env:login"] },
-        // Switching away from a thread doesn't replay its ending.
         { threads: [login({ runStatus: "completed" }), docs()], open: ["env:docs"] },
         {
           threads: [login({ runStatus: "completed" }), docs({ request: "input" })],
@@ -187,7 +183,6 @@ describe("resolveBackgroundThreadRequest", () => {
 
   it("raises a subagent's request on the parent without borrowing the parent's request id", () => {
     expect(childApproval(null)).toEqual({ request: "approval", requestId: null });
-    // The parent's own questions come and go while the child's approval waits.
     expect(
       speak([
         { threads: [login()] },

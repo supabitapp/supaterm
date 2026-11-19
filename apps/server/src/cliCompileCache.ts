@@ -7,7 +7,6 @@ import * as NodeSea from "node:sea";
 
 export function enableCliCompileCache(): void {
   try {
-    // SEA has no separate modules to cache.
     if (NodeSea.isSea()) return;
     const cacheRoot =
       process.env.XDG_CACHE_HOME ||
@@ -15,7 +14,6 @@ export function enableCliCompileCache(): void {
       (process.platform === "linux" ? NodePath.join(NodeOS.homedir(), ".cache") : NodeOS.tmpdir());
     const directory = NodePath.join(cacheRoot, "supaterm", "compile-cache");
     if (process.env.APPIMAGE) {
-      // AppImage paths change each launch. Older shims cached anyway, filling Node's engine folders.
       for (const entry of NodeFS.readdirSync(directory, { withFileTypes: true })) {
         if (entry.isDirectory() && /^v\d/.test(entry.name)) {
           NodeFS.rmSync(NodePath.join(directory, entry.name), { recursive: true, force: true });

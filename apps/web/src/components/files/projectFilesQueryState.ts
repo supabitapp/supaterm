@@ -31,7 +31,6 @@ export function optimisticFileAtom(
   return projectEnvironment.optimisticFile({ environmentId, cwd, relativePath });
 }
 
-// Dirty contents must survive a closed preview, including failed or unauthorized saves.
 const unsavedFileMounts = new Map<ReturnType<typeof optimisticFileAtom>, () => void>();
 
 function releaseUnsavedFile(atom: ReturnType<typeof optimisticFileAtom>): void {
@@ -242,7 +241,6 @@ export function useProjectFileQuery(
   relativePath: string | null,
   enabled = true,
 ): ProjectFileQueryState {
-  // Read media-like paths too; a failed read is how folders with those names are detected.
   const fileAccess = useFilesystemReadAccess(environmentId);
   const { canReadFiles } = fileAccess;
   const isQueryEnabled = enabled;
@@ -277,7 +275,6 @@ export function useProjectFileQuery(
     isPending: isQueryEnabled && (fileAccess.isPending || result.waiting),
     readError,
     isNotFile,
-    // A folder error overrides cached contents retained across failed refreshes.
     isFile: !isNotFile && (data !== null || readError?.failure === "binary_file"),
     refresh,
   };

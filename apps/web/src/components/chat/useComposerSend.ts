@@ -258,7 +258,6 @@ export function useComposerSend(input: ComposerSendInput) {
   const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
   const clearComposerDraftContent = useComposerDraftStore((store) => store.clearComposerContent);
   const { sendInFlight: sendInFlightRef } = draftSendState(routeThreadKey);
-  // A send awaits its approval declines, so it reads the approvals pending by then.
   const pendingApprovalsRef = useRef(pendingApprovals);
   const respondingRequestIdsRef = useRef(respondingRequestIds);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- mirrors approvals into refs that an async send reads after awaiting uploads
@@ -277,8 +276,6 @@ export function useComposerSend(input: ComposerSendInput) {
     },
   ) => {
     e?.preventDefault();
-    // What the user pressed send on; declining approvals below takes a round trip, and a
-    // redirect must not go out for a draft that changed meanwhile.
     const promptAtSend = promptRef.current;
     if (queuedRunEdit.outbox.isEditing) {
       if (!directAnnotation)
@@ -302,7 +299,6 @@ export function useComposerSend(input: ComposerSendInput) {
     }
 
     const sendCtx = composerRef.current?.getSendContext();
-    // `/side` beats an open question and a plan follow-up, which would send the text to main.
     const sideChatCommand =
       sendCtx && !directAnnotation && !queuedRunEdit.isEditing
         ? resolveSideChatCommand(promptAtSend, sideChatDisabledReason)
@@ -310,8 +306,6 @@ export function useComposerSend(input: ComposerSendInput) {
     const answeringQuestion =
       Boolean(activePendingUserInput) && sendCtx?.answeringPendingUserInput !== false;
     const startsSideChat = onSideChat !== undefined && sideChatCommand?.kind === "start";
-    // An answer responds to the open request rather than starting a turn, so the new-message
-    // guards below (loading, busy, provider) must not swallow it.
     if (answeringQuestion && !startsSideChat && !directAnnotation) {
       if (readEnvironmentScope(environmentId, AuthOrchestrationOperateScope) && activeThread) {
         onAdvanceActivePendingUserInput();
@@ -369,7 +363,6 @@ export function useComposerSend(input: ComposerSendInput) {
       });
       return;
     }
-    // Where side chats are unavailable, `/side` text can still be a literal answer.
     if (sideChatCommand?.kind === "refuse" && !answeringQuestion) {
       toastManager.add(
         stackedThreadToast({
@@ -399,7 +392,6 @@ export function useComposerSend(input: ComposerSendInput) {
         return;
       }
       const started = await onSideChat(sideChatCommand.prompt);
-      // Clear only what was sent; the user may have edited the draft or left meanwhile.
       if (
         started &&
         currentRouteThreadKeyRef.current === routeThreadKey &&
@@ -483,8 +475,6 @@ export function useComposerSend(input: ComposerSendInput) {
         previewAnnotations: sendContextPreviewAnnotations,
         direct: directAnnotation,
       });
-    // A direct "send annotation" writes the draft and sends in the same tick; the reference
-    // must be in the text now, not after the next render.
     const promptForSend = directAnnotation
       ? ensureInlineContextReferences(promptRef.current, [
           previewAnnotationContextReference(directAnnotation.annotation),
@@ -509,7 +499,6 @@ export function useComposerSend(input: ComposerSendInput) {
       return;
     }
     if (queuedRunEdit.isEditing) {
-      // A queued message stays in its thread, so saving `/side` would send it to main.
       if (!directAnnotation && parseSideChatCommand(promptAtSend)) {
         toastManager.add(
           stackedThreadToast({
@@ -521,8 +510,6 @@ export function useComposerSend(input: ComposerSendInput) {
         );
         return;
       }
-      // Edit mode repurposes the composer: sending saves the queued message
-      // in place instead of dispatching a new turn.
       await queuedRunEdit.saveEdit(
         {
           prompt: promptForSend,
@@ -616,7 +603,6 @@ export function useComposerSend(input: ComposerSendInput) {
       composerRef.current?.resetCursorState();
       return;
     }
-    // Read once: an arm made while this send is in flight belongs to the next message.
     const freshArm =
       freshSessionAvailable && multipleModelSelections === null
         ? readFreshSessionArm(routeThreadKey)
@@ -685,8 +671,6 @@ export function useComposerSend(input: ComposerSendInput) {
     });
     const composerAttachmentsSnapshot = sendSnapshot.attachments;
     const messageTextForSend = sendSnapshot.messageText;
-    // Records bind attachments by their local id; the outbox rebinds them to the upload id
-    // on delivery and the server to the persisted id.
     const outgoingMessageContext = buildMessageContext({
       terminalContexts: sendSnapshot.terminalContexts,
       reviewComments: sendSnapshot.reviewComments,
@@ -726,9 +710,6 @@ export function useComposerSend(input: ComposerSendInput) {
     }
 
     sendInFlightRef.current = true;
-    // A message sent while approvals are pending redirects the agent. They are declined only
-    // here, after everything above has accepted the send and before the message enters the
-    // outbox, so local commands and rejected drafts leave them alone.
     const approvalsToDecline =
       currentRouteThreadKeyRef.current === routeThreadKey
         ? pendingApprovalsRef.current.filter((approval) =>
@@ -736,11 +717,7 @@ export function useComposerSend(input: ComposerSendInput) {
           )
         : [];
     if (approvalsToDecline.length > 0 || approvalFeedbackTarget !== undefined) {
-      // A draft edited since send, or a paste still landing in it, is no longer the message
-      // the user sent.
       const attachmentIdsAtSend = composerAttachmentsSnapshot.map((attachment) => attachment.id);
-      // A direct annotation send writes its image and reference into the draft as it sends,
-      // so the live draft may still lack them; anything else differing is a real edit.
       const annotationImageId = directAnnotation?.image?.id;
       const attachmentIdsBeforeAnnotation = attachmentIdsAtSend.filter(
         (id) => id !== annotationImageId,
@@ -818,8 +795,6 @@ export function useComposerSend(input: ComposerSendInput) {
         draftChangedSinceSend() ||
         useComposerDraftStore.getState().getComposerDraft(composerDraftTarget) !==
           draftBeforeDecline;
-      // An approval that arrived during the decline would block the redirect; keep the draft so
-      // the next send declines it too.
       const approvalArrived = pendingApprovalsRef.current.some(
         (approval) => !pendingIdsBeforeDecline.has(approval.requestId),
       );
@@ -846,7 +821,6 @@ export function useComposerSend(input: ComposerSendInput) {
         return;
       }
     }
-    // A side chat draft becomes its fork first; its message then goes out like any other.
     const forkSideChatFirst = isLocalDraftThread ? sideChatDraftParentRef : null;
     const savedDraft = useComposerDraftStore.getState().getComposerDraft(composerDraftTarget);
     const saveTurn = async () => {
@@ -950,7 +924,6 @@ export function useComposerSend(input: ComposerSendInput) {
         }),
       );
       if (multipleModelSelections === null && !shouldQueueBehindActiveRun) {
-        // Anchor the sent turn when its acknowledged row arrives in the transcript.
         anchorNewTurn(
           scopedThreadKey(scopeThreadRef(environmentId, threadIdForSend)),
           messageIdForSend,
@@ -968,7 +941,6 @@ export function useComposerSend(input: ComposerSendInput) {
           },
           { active: panelAnimationsActive, durationMs: panelAnimationDurationMs },
         );
-        // Awaiting only a real transition keeps an inline dock in the same render as the send.
         if (docking) await docking;
       }
       if (!sendQueuesBehindSetup) {
@@ -980,13 +952,11 @@ export function useComposerSend(input: ComposerSendInput) {
       }
       if (useComposerDraftStore.getState().getComposerDraft(composerDraftTarget) === savedDraft) {
         clearComposerDraftContent(composerDraftTarget);
-        // The prompt ref and cursor belong to the thread on screen, which may no longer be this one.
         if (currentRouteThreadKeyRef.current === routeThreadKey) {
           promptRef.current = "";
           composerRef.current?.resetCursorState();
         }
       }
-      // The outbox owns its own bytes. References recovered without bytes stay owned until delivery.
       releaseDraftAttachments(
         composerAttachmentsSnapshot.filter((attachment) => attachment.file !== null),
       );
@@ -1003,7 +973,6 @@ export function useComposerSend(input: ComposerSendInput) {
         );
       }
     };
-    // Anything thrown while saving to the outbox shows on the thread; the send flag still clears.
     const sent =
       forkSideChatFirst === null
         ? { kind: "queued" as const, value: await settlePromise(saveTurn) }
@@ -1029,10 +998,6 @@ export function useComposerSend(input: ComposerSendInput) {
     sendInFlightRef.current = false;
   };
 
-  /**
-   * Snapshots this thread's next turn when Send is pressed, so the recording keeps that
-   * destination; the environment transcribes it and sends the text.
-   */
   const prepareVoiceSend = (dispatchMode: ComposerDispatchMode, language: string) => {
     const sendCtx = composerRef.current?.getSendContext();
     if (!activeThread || !isServerThread || isLocalDraftThread || !sendCtx) {
@@ -1057,7 +1022,6 @@ export function useComposerSend(input: ComposerSendInput) {
     return async (recording: VoiceRecording, handOff: VoiceRecordingHandOff | undefined) => {
       await enqueueThreadOutboxTurn({
         environmentId,
-        // A streamed recording is sent under its dictation's id, so the environment joins it.
         input: handOff ? { ...input, commandId: CommandId.make(handOff.uploadId) } : input,
         voice: {
           audio: recording.audio,

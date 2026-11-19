@@ -103,7 +103,6 @@ describe("composerContextClipboard", () => {
     ).toEqual(JSON.parse(raw));
   });
   it("accepts a large non-ASCII fragment through the HTML attribute", () => {
-    // CJK code units expand to nine encoded characters despite fitting the fragment limit.
     const raw = JSON.stringify({
       version: 1,
       source: { environmentId: "env-1" },

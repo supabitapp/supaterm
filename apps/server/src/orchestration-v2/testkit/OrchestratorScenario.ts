@@ -227,7 +227,6 @@ const hasUnsettledRun = (projection: OrchestrationV2ThreadProjection) =>
   projection.runs.some((run) => isOrchestrationV2RunUnsettled(run.status));
 
 const SCENARIO_WAIT_ATTEMPTS = 10_000;
-// Iteration budgets burn through idle event-loop turns during async I/O; exhaust both iterations and wall-clock deadline.
 const SCENARIO_WAIT_DEADLINE_MS = 60_000;
 const scenarioWaitDeadline = () => performance.now() + SCENARIO_WAIT_DEADLINE_MS;
 const scenarioWaitExhausted = (attemptsRemaining: number, deadlineAt: number) =>
@@ -597,7 +596,6 @@ export function runOrchestratorV2Scenario(
           });
         }
         while (true) {
-          // Only the latest debounce receipt settles the run; late frames rearm it.
           const armed = yield* Effect.promise(() =>
             gate.waitForFinishArmed(consumedFinishReceipts),
           ).pipe(
@@ -665,7 +663,6 @@ export function runOrchestratorV2Scenario(
               yield* TestClock.adjust(step.duration);
               break;
             }
-            // The release runs on a woken fiber; a dispatch before it commits cancels it.
             const released = yield* Deferred.make<void>();
             releaseWatch = { threadId: step.awaitProviderSessionRelease, released };
             yield* TestClock.adjust(step.duration);
@@ -776,8 +773,5 @@ export function runOrchestratorV2Scenario(
         capturedShellSnapshots,
       };
     }),
-  ).pipe(
-    // Release held provider frames before shutdown so teardown cannot block on gates.
-    Effect.ensuring(Effect.sync(() => options.replayGate?.releaseAll())),
-  );
+  ).pipe(Effect.ensuring(Effect.sync(() => options.replayGate?.releaseAll())));
 }

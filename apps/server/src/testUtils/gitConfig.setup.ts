@@ -1,4 +1,3 @@
-// Override inherited autocrlf, signing and init-branch settings through env so every git child gets stable fixtures.
 const entries: ReadonlyArray<readonly [key: string, value: string]> = [
   ["core.autocrlf", "false"],
   ["core.filemode", "false"],

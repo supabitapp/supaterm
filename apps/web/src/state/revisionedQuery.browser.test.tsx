@@ -22,7 +22,6 @@ describe("revisionedQuery in React", () => {
       </RegistryContext.Provider>
     );
     using consoleError = vi.spyOn(console, "error");
-    // A bare atom reader: no links or navigation to route.
     await using screen = await render(ui("mutation-1"), { router: false });
     await expect.element(screen.getByText("fetch 1")).toBeInTheDocument();
 

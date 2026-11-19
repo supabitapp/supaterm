@@ -139,7 +139,6 @@ export function pullRequestChecksSummary(pr: Pick<PullRequestDetail, "checks">) 
   } as const;
 }
 
-// GitHub and Forgejo send uppercase review states; Bitbucket and GitCafe send lowercase.
 export function normalizedReviewState(reviewState: string | null) {
   return reviewState?.toUpperCase().replaceAll("-", "_");
 }

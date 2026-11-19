@@ -37,7 +37,6 @@ export function useNativeReviewDiffHighlighting(input: {
     range: NativeReviewVisibleRange | null;
   }>(() => ({ scope: viewportScope, range: null }));
   const visibleChunkIndexRef = useRef(0);
-  // Keep undelivered chunks, rather than repeatedly serializing every highlighted row.
   const pendingPatchesRef = useRef<
     Array<{ resetKey: string; chunkIndex: number; json: string; rowIds: string[] }>
   >([]);
@@ -52,8 +51,6 @@ export function useNativeReviewDiffHighlighting(input: {
     setTokensPatchJson(createEmptyTokenPatch(resetKey));
   }
 
-  // Effect on purpose: the native highlighter's token stream and the scheduler's timers must
-  // reset with the diff the view shows, and be cancelled when it unmounts.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resets the native highlighter's scheduler and token stream with the diff, cancelling its timers on cleanup
   useEffect(() => {
     traceDiffHighlight("viewport-reset", {
@@ -64,13 +61,10 @@ export function useNativeReviewDiffHighlighting(input: {
     const previousRange = scheduler.reset();
     highlightedRowIdsRef.current = new Set();
     pendingPatchesRef.current = [];
-    // A token reset need not produce another native range event. Reuse only an
-    // observed viewport, with the same coalescing that lets a new jump replace it.
     if (previousRange) scheduler.update(previousRange);
     return () => scheduler.cancel();
   }, [enabled, resetKey, rows.length, scheduler]);
 
-  // Effect on purpose: abortable async highlighting tied to the visible range's lifetime.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs abortable native highlighting for the visible range and aborts it when the range or diff changes
   useEffect(() => {
     if (!enabled || rows.length === 0 || !viewport.range || viewport.scope !== viewportScope) {
@@ -119,7 +113,6 @@ export function useNativeReviewDiffHighlighting(input: {
     };
 
     void (async () => {
-      // Deliver viewport tokens before offscreen source fetches can delay them.
       let retryableViewportRowIds: ReadonlyArray<string> = [];
       for (const overscanRows of [0, undefined]) {
         const deliveredRowIds = new Set<string>();
@@ -210,7 +203,6 @@ export function useNativeReviewDiffHighlighting(input: {
     if (!head || payload.resetKey !== head.resetKey || payload.chunkIndex !== head.chunkIndex)
       return;
     for (const rowId of head.rowIds) highlightedRowIdsRef.current.delete(rowId);
-    // Retry these rows only on a later viewport request, not in a failure loop.
     acknowledgeTokenPatch(payload);
   };
 

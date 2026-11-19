@@ -40,7 +40,6 @@ export const deviceEventLogAtom = Atom.family((target: DeviceHubTarget) =>
   }).pipe(Atom.withLabel(`device-event-log:${target.deviceId}`)),
 );
 
-// A failed poll keeps the last frames on screen; the next poll replaces them.
 export const deviceAxElementsAtom = Atom.family((target: DeviceHubTarget) =>
   Atom.make(
     Stream.fromEffectSchedule(

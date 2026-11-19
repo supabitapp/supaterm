@@ -145,7 +145,6 @@ describe("orchestration V2 contracts", () => {
       ...extra,
     });
     const known = item("item-known", "system_notice", { message: "Hello" });
-    // A type no build of this client knows, standing in for a newer server's item.
     const future = item("item-future", "hologram", { beam: "ref-1" });
     const projected = (position: number, turnItem: { readonly id: string }) => ({
       position,
@@ -215,7 +214,6 @@ describe("orchestration V2 contracts", () => {
     if (snapshot?.kind !== "snapshot") throw new Error("expected a snapshot");
     expect(snapshot.projection.turnItems.map((turnItem) => turnItem.id)).toEqual(["item-known"]);
     expect(snapshot.projection.visibleTurnItems.map((row) => row.item.id)).toEqual(["item-known"]);
-    // The same snapshot with an ID table: refs resolve before unknown items are skipped.
     const tabled = (turnItem: { readonly id: string }, ref: number) => ({ ...turnItem, id: ref });
     const [tabledSnapshot] = decodeWireItems([
       {

@@ -25,7 +25,6 @@ const instanceId = ProviderInstanceId.make("antigravity");
 const childThreadId = ThreadId.make("thread-child");
 const launch = describeAntigravitySubagentLaunches([LAUNCH]);
 
-// A permission-prompt batch in session ROOT, plus an older batch with no launch text in `olderRun`.
 const records = (olderRun: string) => ({
   thread: {
     id: childThreadId,
@@ -112,7 +111,6 @@ it.layer(
       });
       const fromOtherSession = yield* readChildren("run-other");
       expect(fromOtherSession.map((child) => child.conversationId)).toEqual([CHILD]);
-      // An earlier run in the same session may own the only record.
       expect(yield* readChildren("run-root-earlier")).toEqual([]);
     }),
   );

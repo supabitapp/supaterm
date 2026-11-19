@@ -107,7 +107,6 @@ export function PinnedMessagesMenu({
                     onJump(pin);
                   }}
                 >
-                  {/* The same mark the timeline minimap draws for a pinned turn. */}
                   <span aria-hidden className="mt-[9px] h-0.5 w-3 shrink-0 rounded-full bg-info" />
                   <span className="flex min-w-0 flex-col gap-0.5">
                     <span className="line-clamp-2 text-sm break-words">

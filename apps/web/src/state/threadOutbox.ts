@@ -152,7 +152,6 @@ function voiceDelivery(dispatchMode: OutboxTurn["input"]["dispatchMode"]) {
     : "auto";
 }
 
-// The composer's branch and modes for this turn, which the thread itself must carry.
 async function applyThreadSettings(payload: OutboxTurn) {
   const { environmentId } = payload;
   const thread = appAtomRegistry
@@ -192,7 +191,6 @@ async function applyThreadSettings(payload: OutboxTurn) {
   }
 }
 
-// Best effort: the thread already exists, so a failed link is only logged.
 async function linkCheckoutPullRequest(payload: OutboxTurn, url: string) {
   const parsed = sourceControlClients.parseChangeRequestUrl(url)?.link;
   if (!parsed) return;
@@ -239,7 +237,6 @@ async function deliverVoiceTurn(
     case "noSpeech":
       throw new Error("No speech was detected in this recording.");
     default: {
-      // The transcript exists but the thread refused it, under a command id it now remembers.
       const { voice: _, ...rest } = payload;
       await savePayload({
         ...rest,
@@ -460,7 +457,6 @@ export async function replaceThreadOutboxTurn(entry: PendingThreadTurn, payload:
     ...payload,
     input: { ...payload.input, threadId, commandId: CommandId.make(randomUUID()) },
   });
-  // Follow-ups queued behind a rejected task move with it to its new thread.
   const changed =
     scope === entry.scope
       ? await webThreadOutbox.edit(entry.id, edited, scope)

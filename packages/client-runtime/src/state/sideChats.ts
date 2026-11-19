@@ -18,7 +18,6 @@ import {
 } from "./runtime.ts";
 
 export type SideChatParent =
-  /** A thread that exists only on this client until its first send. */
   | { readonly kind: "draft"; readonly sideChat: boolean }
   | {
       readonly kind: "thread";
@@ -76,7 +75,6 @@ export function resolveSideChatCommand(
 
 export type SideChatFirstMessageResult<A> =
   | { readonly kind: "queued"; readonly value: A }
-  /** Another send of this side chat's first message is still running. */
   | { readonly kind: "busy" }
   | { readonly kind: "failed"; readonly reason: string };
 
@@ -127,7 +125,6 @@ export async function sendSideChatFirstMessage<A>(input: {
         },
         { reportFailure: false },
       );
-      // A retry whose earlier fork landed is refused as a duplicate; its shell says so.
       if (fork._tag === "Failure" && !forked()) {
         if (isAtomCommandInterrupted(fork)) {
           return { kind: "failed", reason: "Starting the side chat was cancelled." };

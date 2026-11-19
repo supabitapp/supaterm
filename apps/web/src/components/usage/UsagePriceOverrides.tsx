@@ -159,7 +159,6 @@ export function UsagePriceOverrides({
   ];
   const stagedDrafts = drafts.filter((draft) => !isEmptyUsagePriceDraft(draft));
   const errors = usagePriceTableErrors(selected, stagedDrafts);
-  // New rows still block Save, but show a price error only once a price or mapping is typed.
   const awaitingPrice = new Set<string>();
   for (const draft of stagedDrafts) {
     if (!draft.isNew) continue;

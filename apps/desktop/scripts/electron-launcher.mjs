@@ -199,7 +199,6 @@ function registerMacLauncherBundle(appBundlePath) {
   }
 }
 
-// Bundle-internal paths are macOS paths whatever host builds them.
 function resolveMacLauncherIconPaths(runtimeDir, development = isDevelopment) {
   return {
     sourceIconPath: NodePath.join(
@@ -281,7 +280,6 @@ function patchMainBundleInfoPlist(appBundlePath, iconAssets, executableName) {
   for (const [key, value] of Object.entries(resolveMacBundleInfoPlistStrings(executableName))) {
     setPlistString(infoPlistPath, key, value);
   }
-  // macOS 26 offers Messages/Mail codes in every text field unless opted out.
   setPlistJson(infoPlistPath, "NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac", true);
   setPlistJson(infoPlistPath, "CFBundleURLTypes", [
     {
@@ -377,7 +375,6 @@ function buildMacLauncher(electronBinaryPath) {
     JSON.stringify(currentMetadata) === JSON.stringify(expectedMetadata)
   ) {
     if (isDevelopment) {
-      // Protocol activations bypass the dev runner, so refresh the fallback environment on every launch.
       writeDevelopmentEnvironmentScript();
       if (writeDevelopmentLauncherScript(launcherBinaryPath, runtimeElectronBinaryPath)) {
         signMacLauncherBundle(targetAppBundlePath);
@@ -388,7 +385,6 @@ function buildMacLauncher(electronBinaryPath) {
   }
 
   NodeFS.rmSync(targetAppBundlePath, { recursive: true, force: true });
-  // Without verbatimSymlinks, cpSync makes framework symlinks point outside the bundle and crashes helpers.
   NodeFS.cpSync(sourceAppBundlePath, targetAppBundlePath, {
     recursive: true,
     verbatimSymlinks: true,
@@ -400,7 +396,6 @@ function buildMacLauncher(electronBinaryPath) {
   );
   patchHelperBundleInfoPlists(targetAppBundlePath);
   if (isDevelopment) {
-    // Electron.app's executable name keeps default-app mode active without making app.isPackaged true.
     writeDevelopmentEnvironmentScript();
     writeDevelopmentLauncherScript(launcherBinaryPath, runtimeElectronBinaryPath);
   }

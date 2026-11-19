@@ -48,7 +48,6 @@ export function PullRequestTitleEditor({
       return;
     }
     setTitleSaving(true);
-    // The new title shows while the host takes it, so the editor closes at once.
     setTitleScope(null);
     const result = await update({ environmentId, input: { ...reference, title } });
     setTitleSaving(false);

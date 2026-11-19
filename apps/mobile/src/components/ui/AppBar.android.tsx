@@ -45,8 +45,6 @@ export function AppBar(barProps: AppBarProps) {
   );
 }
 
-// Only a bar with search registers for hardware back: its focus check needs a navigation
-// context, and sheet headers such as Arrange threads render outside one.
 function SearchableAppBar(props: AppBarProps & { readonly search: AppBarSearch }) {
   const { search } = props;
   const [searchOpen, setSearchOpen] = useState(false);
@@ -83,7 +81,6 @@ function AppBarView(props: AppBarProps & { readonly searchState?: SearchState })
   const inWorkspace = useHasWorkspaceAppBar();
   const sidebarToggle = useSidebarToggle();
   const closeInspector = use(InspectorCloseContext);
-  // A bottom sheet owns the pull at its top, so refresh needs a button there.
   const inBottomSheet = use(BottomSheetContext);
   const inline = search?.mode === "inline";
   const searching = searchState?.searching === true;
@@ -197,7 +194,6 @@ function AppBarView(props: AppBarProps & { readonly searchState?: SearchState })
           />
         ) : undefined) ??
         props.leading ??
-        // Only a real button: any leading content takes the bar's navigation slot.
         (sidebarToggle && !props.sheet ? (
           <AndroidHeaderIconButton
             accessibilityLabel={sidebarToggle.accessibilityLabel}
@@ -261,7 +257,6 @@ function AppBarView(props: AppBarProps & { readonly searchState?: SearchState })
         {searching ? (
           <View
             className="absolute inset-0 bg-header"
-            // Match Material TopAppBar's 4dp icon inset so buttons stay where the bar drew them.
             style={{ paddingTop, paddingBottom, paddingHorizontal: 4 }}
           >
             <View className="flex-1 flex-row items-center gap-1">

@@ -203,7 +203,6 @@ describe("resolveCitationPhase", () => {
       _tag: "ready",
       rowId: "cited-row",
     });
-    // An HTML render is cited by its item id, which is also its row id.
     const htmlRender = { attachmentId: "page.html", title: "Page", height: 200 };
     const render = { kind: "html-render", id: messageId, createdAt: at, htmlRender } as const;
     expect(

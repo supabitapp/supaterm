@@ -93,8 +93,6 @@ describe("AddCodexAccountDialog", () => {
     const atom = Atom.make<ReadonlyArray<ServerProvider> | null>([]).pipe(Atom.keepAlive);
     providersAtom.current = atom;
     const onClose = vi.fn();
-    // A long exit transition that the test finishes by hand, so the close is
-    // observable mid-animation without waiting on real time.
     const style = document.createElement("style");
     style.textContent = `[data-slot="dialog-popup"] { transition: opacity 600s; }
       [data-slot="dialog-popup"][data-ending-style] { opacity: 0; }`;
@@ -116,7 +114,6 @@ describe("AddCodexAccountDialog", () => {
         codexProvider(instanceId, { status: "authenticated", subscriptionSharing: true }),
       ]),
     );
-    // Closing the dialog starts its exit animation; unmounting now would cut it off.
     await vi.waitFor(() => expect(document.getAnimations()).not.toHaveLength(0));
     expect(onClose).not.toHaveBeenCalled();
 
@@ -124,7 +121,6 @@ describe("AddCodexAccountDialog", () => {
       for (const animation of document.getAnimations()) animation.finish();
     });
     await vi.waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
-    // onClose runs before the owner's unmount commits, so wait for the dialog to leave the DOM.
     await expect.element(page.getByRole("dialog")).not.toBeInTheDocument();
   });
 });

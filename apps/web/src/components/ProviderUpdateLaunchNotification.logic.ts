@@ -86,7 +86,6 @@ function getProviderUpdatedTitle(
   return version ? `${providerName} updated: ${formatVersion(version)}` : `${providerName} updated`;
 }
 
-// Only OpenCode reports an installed CLI apart from a running external server.
 export function getProviderRestartNotice(
   provider: Pick<ServerProvider, "version" | "installedVersion" | "updateState">,
 ): string | null {

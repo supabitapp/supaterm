@@ -125,8 +125,6 @@ export const checkMuseProviderStatus = Effect.fn("checkMuseProviderStatus")(func
       version,
       status: "error",
       auth: { status: "unknown" },
-      // Supaterm runs Muse with MUSE_NO_AUTO_UPDATE=1, so a launcher whose runtime was never fetched
-      // (common after a mise upgrade) refuses to install it; a manual run completes setup.
       message: versionOutput.stderr.includes("installed binary is missing")
         ? "Muse Code has not finished installing. Run `muse --version` on this Supaterm server host, then refresh its status."
         : "Muse Code CLI is installed but failed to run.",
@@ -135,7 +133,6 @@ export const checkMuseProviderStatus = Effect.fn("checkMuseProviderStatus")(func
 
   const catalog = yield* discoverMuseModels(settings, museEnvironment, cwd, createHost).pipe(
     Effect.scoped,
-    // Startup shares the override, so the catalog keeps its 4 seconds on top of it.
     Effect.timeoutOption(resolveMuseStartupTimeoutMs(museEnvironment) + 4_000),
     Effect.result,
   );

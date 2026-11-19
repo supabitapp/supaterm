@@ -98,9 +98,6 @@ export function usePullRequestScope(
   const scopedProjects = pullRequestFilterProjects(projects, environmentLabels, scopedProject);
 
   const selectedHost = search.selectedHost ?? search.host;
-  // A named server still connecting is kept named rather than falling back: falling back while it
-  // is merely not ready yet would resolve the project against whatever other server has answered,
-  // which can be the wrong one where two servers share a project id.
   const selectedEnvironmentId = resolveSelectedEnvironmentId(
     search.selectedEnvironmentId,
     knownEnvironmentIds,
@@ -144,12 +141,10 @@ export function usePullRequestScope(
     return pullRequestProjectQueries(projects, queryEnvironmentIds, availability, unreachable);
   };
   const environmentQueries = queriesFor(hostAvailability);
-  // What the page reads once a refresh forgets host reads; refresh must refetch these too.
   const preferredEnvironmentQueries = queriesFor();
   const assignmentKey = environmentQueries
     .map(({ environmentId, projectIds }) => `${environmentId}#${projectIds?.join("+") ?? "*"}`)
     .join("|");
-  // The URL is user-controlled and stands in for the PR link until detail loads.
   const selectedLink = search.selectedUrl
     ? sourceControlClients.parseChangeRequestUrl(search.selectedUrl)?.link
     : undefined;

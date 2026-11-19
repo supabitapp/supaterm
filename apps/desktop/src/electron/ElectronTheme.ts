@@ -45,8 +45,6 @@ export const makeWith = Effect.fn("ElectronTheme.make")(function* (
 ) {
   let source: DesktopTheme = Electron.nativeTheme.themeSource;
   let systemScheme: LinuxColorScheme = null;
-  // On Linux, Electron reads the desktop color scheme once and then ignores the settings
-  // portal (electron/electron#48736), so "system" is resolved from the portal directly.
   const apply = () => {
     Electron.nativeTheme.themeSource = source === "system" ? (systemScheme ?? source) : source;
   };

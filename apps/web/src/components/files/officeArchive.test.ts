@@ -47,7 +47,6 @@ async function prepared(bytes: ArrayBuffer) {
   return { truncated: result.truncated, part: (path: string) => zip.file(path)?.async("string") };
 }
 
-// regression: the budgets sized for a main-thread renderer cut ordinary documents short.
 describe("Word preview limits", () => {
   it("keeps a document whose table follows a long one", async () => {
     const rows = Array.from(

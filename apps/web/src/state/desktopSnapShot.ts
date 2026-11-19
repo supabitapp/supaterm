@@ -21,8 +21,6 @@ export interface DesktopSnapShotLoad {
 
 const EMPTY_LOAD: DesktopSnapShotLoad = { state: null, refreshError: null };
 
-// Only the newest read lands, so a slow answer cannot regress the state. Dropping the atom bumps
-// it too, so a read that was in flight when the page closed does not seed the next visit.
 let stateRequestId = 0;
 
 /**

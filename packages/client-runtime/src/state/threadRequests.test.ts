@@ -517,7 +517,6 @@ describe("question history through exact row replacements", () => {
     expect(hinted.result).toBe(adjacent.visibleTurnItems);
     expect(hinted).toMatchObject({ items: 0, requestIds: 0 });
 
-    // A skipped delta has no hint for this exact pair, so it scans again.
     const skipped = updated(
       updated(adjacent, assistantItem(size - 1, "Hello t")),
       assistantItem(size - 1, "Hello there"),
@@ -579,7 +578,6 @@ describe("question history through exact row replacements", () => {
     expect(step(current)).toBe(current.visibleTurnItems);
     expect(step(updated(current, assistantItem(2, "Hello")))).toBe(current.visibleTurnItems);
 
-    // The last duplicate request wins, and every row asking it gets the answer.
     const answered = step({
       ...current,
       runtimeRequests: [
@@ -608,7 +606,6 @@ describe("question history through exact row replacements", () => {
     });
     expect(reopened).toBe(current.visibleTurnItems);
 
-    // Dropping an explicit answer falls back to its resolved request.
     const restored = step(updated(current, unanswered));
     expect(answerOf(restored, 1)).toEqual({ next: "From request" });
 

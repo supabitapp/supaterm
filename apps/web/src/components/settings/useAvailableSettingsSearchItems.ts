@@ -15,7 +15,6 @@ import {
 
 export function useAvailableSettingsSearchItems() {
   const { environments } = useEnvironments();
-  // Explicit booleans keep flags out of the filter cache so environment updates do not rebuild the list.
   const hasEnvironment =
     environments.some((environment) => environment.serverConfig !== null) === true;
   const hasProviderSettingsEnvironment =
@@ -25,7 +24,6 @@ export function useAvailableSettingsSearchItems() {
         hasServerConfig: environment.serverConfig !== null,
       }),
     ) === true;
-  // Any machine that offers it; the row then shows for a settings scope where all selected ones do.
   const hasFastWorktreeCheckoutEnvironment =
     environments.some(
       (environment) =>

@@ -27,10 +27,8 @@ const MODEL_MANIFEST_URL =
 
 const MANIFEST_TTL_MS = 60 * 60 * 1000;
 
-/** GitHub's raw CDN caches about this long, so a shorter window buys nothing. */
 const MANIFEST_ON_DEMAND_TTL_MS = 5 * 60 * 1000;
 
-/** Back off failed fetches so offline health checks do not each wait on the network. */
 const MANIFEST_RETRY_MS = 5 * 60 * 1000;
 
 const FETCH_TIMEOUT_MS = 10_000;
@@ -50,7 +48,6 @@ const ManifestProviderModel = Schema.Struct({
   subProvider: Schema.optional(TrimmedNonEmptyString),
   aliases: Schema.optional(Schema.Array(TrimmedNonEmptyString)),
   status: ManifestModelStatus,
-  /** ISO date or timestamp of the model's public release, as published by its provider. */
   releasedAt: Schema.optional(Schema.String),
   profile: Schema.optional(TrimmedNonEmptyString),
   adapter: Schema.optional(Schema.Unknown),
@@ -68,7 +65,6 @@ const ManifestProviderCatalog = Schema.Struct({
 
 const ModelManifestEnvelopeSchema = Schema.Struct({
   version: Schema.Literal(1),
-  /** Older disk caches must not override bundled manifests; absent dates rank below any dated bundle. */
   updatedAt: Schema.optional(Schema.String),
   compatibility: Schema.optional(Schema.Array(ProviderCompatibilityPolicy)),
   currentModels: Schema.Record(Schema.String, Schema.Array(Schema.String)),
@@ -208,7 +204,6 @@ export const make = Effect.gen(function* () {
   let lastAttemptMs: number | null = null;
   const refreshSemaphore = yield* Semaphore.make(1);
 
-  // Only refresh takes the fetch semaphore; current must not wait on network I/O.
   const ensureDiskCacheLoaded = yield* Effect.cached(
     Effect.gen(function* () {
       const fromDisk = yield* fileSystem.readFileString(cachePath).pipe(
@@ -230,7 +225,6 @@ export const make = Effect.gen(function* () {
   ) {
     yield* ensureDiskCacheLoaded;
     const now = yield* Clock.currentTimeMillis;
-    // Expire future timestamps after clock rollback; disk caches cross restarts, ruling out monotonic time.
     const isWithin = (sinceMs: number | null, windowMs: number) =>
       sinceMs !== null && now >= sinceMs && now - sinceMs < windowMs;
     if (!force && isWithin(fetchedAtMs, ttlMs)) return manifest;
@@ -249,7 +243,6 @@ export const make = Effect.gen(function* () {
       Effect.timeout(FETCH_TIMEOUT_MS),
       Effect.catchCause(() => Effect.succeed(null)),
     );
-    // Reject stale CDN edits just like stale disk caches to preserve bundled version gates.
     if (fetched === null || manifestUpdatedAtMs(fetched) < manifestUpdatedAtMs(manifest)) {
       return manifest;
     }

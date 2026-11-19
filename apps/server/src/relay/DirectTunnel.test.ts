@@ -236,8 +236,6 @@ const dial = (url: string) =>
       }),
   );
 
-// Sends only a frame header, so a host without the payload cap would wait for
-// the body instead of answering with a close frame.
 const declareFrame = (port: number, path: string, length: number) =>
   Effect.promise(
     () =>

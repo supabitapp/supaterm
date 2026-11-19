@@ -82,7 +82,6 @@ const defaultSessionLoadTimeout = Duration.seconds(90);
 const defaultSessionLoadReplayIdleGap = Duration.seconds(2);
 const defaultCancelTimeout = Duration.seconds(15);
 const maxStartupMetadataUpdates = 32;
-// Antigravity can emit an accepted 16 KiB Google authorization URL on stderr.
 const maxStderrChunkLength = 32_768;
 
 export interface AcpSpawnInput {
@@ -101,7 +100,6 @@ export interface AcpSessionRuntimeOptions {
   readonly resumeMethod?: "load" | "resume";
   readonly sessionLoadTimeout?: Duration.Input;
   readonly sessionLoadReplayIdleGap?: Duration.Input;
-  // Treat replay going quiet as loaded, for agents whose session/load may never reply.
   readonly sessionLoadReplayIdleReadiness?: boolean;
   readonly interruptPromptOnCancel?: boolean;
   readonly cancelMeta?: EffectAcpSchema.CancelNotification["_meta"];
@@ -285,9 +283,6 @@ export function wrapCommandForLinuxCgroup(
         '[ "$actual" = "$expected" ] || exit 126',
         "unset ELECTRON_RUN_AS_NODE SUPATERM_ACP_CGROUP_WRAPPER",
         "trap 'exit 125' 0",
-        // A failed `exec` in bash (/bin/sh on Arch derivatives) exits 127 without the EXIT
-        // trap, so a missing binary read as "killed by the wrapper". The target is always
-        // absolute, so test it as an executable file first.
         '[ -f "$1" ] && [ -x "$1" ] || { printf "%s: %s: not an executable file\\n" "$0" "$1" >&2; exit 125; }',
         'exec "$@"',
       ].join("\n"),
@@ -305,8 +300,6 @@ export function resolveLinuxCgroupTargetCommand(
   cwd: string,
   environment: NodeJS.ProcessEnv,
 ): string | undefined {
-  // Match Node spawn PATH fallback when PATH is undefined. An explicitly empty
-  // PATH stays empty (lookup only via empty-segment → cwd).
   const pathEnv = environment.PATH === undefined ? "/usr/bin:/bin" : environment.PATH;
   const candidates = command.includes(NodePath.sep)
     ? [NodePath.resolve(cwd, command)]
@@ -471,7 +464,6 @@ export function makeLinuxCgroupController(): AcpLinuxCgroupController {
         return undefined;
       }
       if (!isSafeCgroupPath(currentRelative)) return undefined;
-      // Multi-mount hosts often list a read-only view before the delegated one.
       for (const mount of mounts) {
         const lease = tryCreateLinuxCgroupLease(currentRelative, mount);
         if (lease !== undefined) return lease;
@@ -481,8 +473,6 @@ export function makeLinuxCgroupController(): AcpLinuxCgroupController {
   };
 }
 
-// OS-state polls (cgroup emptiness, process trees) must use wall time. Under
-// TestClock, Effect.sleep never resolves unless the test advances the clock.
 const wallClock = Clock.Clock.defaultValue();
 const withWallClock = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
   Effect.provideService(effect, Clock.Clock, wallClock);
@@ -571,7 +561,6 @@ function readLinuxProcessIdentity(pid: number): AcpPosixProcessIdentity | undefi
       .slice(commandEnd + 2)
       .trim()
       .split(/\s+/);
-    // After comm: state, ppid, pgrp, session, … starttime (field 22 / index 19).
     const state = fields[0];
     const ppid = Number(fields[1]);
     const pgid = Number(fields[2]);
@@ -637,7 +626,6 @@ function makeLinuxProcessTreeController(): AcpPosixProcessTreeController {
       }),
     identity: readLinuxProcessIdentity,
     snapshot: () =>
-      // By name only: withFileTypes lstats entries, which throws when a process exits mid-scan.
       NodeFS.readdirSync("/proc").flatMap((entry) => {
         if (!/^[1-9][0-9]*$/.test(entry)) return [];
         const identity = readLinuxProcessIdentity(Number(entry));
@@ -844,10 +832,6 @@ export function capturePosixOwnershipLedger(input: {
     input.ledger.set(processIdentityKey(rootIdentity), ownedRoot);
     if (input.root !== undefined) input.root.value = ownedRoot;
   }
-  // Drop non-root ledger entries whose PID is free or whose identity no longer
-  // matches the live process at that PID. Either case can block admission of a
-  // legitimate child after PID reuse. Keep the root reservation even if the
-  // root briefly disappears mid-teardown (finalizer retry still needs it).
   for (const [key, owned] of input.ledger.entries()) {
     if (owned.pid === input.rootPid) continue;
     const live = byPid.get(owned.pid);
@@ -905,9 +889,6 @@ export function terminatePosixOwnedProcessTree(input: {
   readonly root?: AcpPosixOwnershipRoot;
   readonly rootPid: number;
 }): Effect.Effect<void, AcpProcessGroupTerminationError> {
-  // This portable fallback can only admit processes whose exact parent chain is
-  // visible before it breaks. A descendant that double-forks before discovery
-  // requires pre-exec cgroup containment for a hard ownership guarantee.
   const ledger = input.ledger ?? new Map<string, AcpOwnedPosixProcess>();
 
   const fail = (detail: string, cause?: unknown) =>
@@ -979,7 +960,6 @@ export function terminatePosixOwnedProcessTree(input: {
         ledger.set(processIdentityKey(child), owned);
         ledgerByPid.set(child.pid, owned);
         retainedByPid.set(child.pid, owned);
-        // Signal newly discovered children in this same pass (fork-during-kill).
         if (
           (includeRoot || child.pid !== input.rootPid) &&
           !signalled.has(child.pid) &&
@@ -989,8 +969,6 @@ export function terminatePosixOwnedProcessTree(input: {
         }
       }
       try {
-        // Linux starttime prevents PID reuse across observations, but Node does
-        // not expose pidfd_send_signal. A final read-to-kill race remains.
         input.controller.signalProcess(candidate.pid, signal);
         signalled.add(candidate.pid);
       } catch (cause) {
@@ -1060,7 +1038,6 @@ const terminateWindowsProcessTreeWithTaskkill = (
       );
       const exitCode = Number(yield* taskkill.exitCode);
       const output = yield* Fiber.join(outputFiber);
-      // A missing leader cannot prove that inherited descendants exited.
       if (windowsTaskkillResultIsSuccess(exitCode, output)) return;
       const trimmedOutput = output.trim();
       return yield* new AcpProcessGroupTerminationError({
@@ -1270,11 +1247,9 @@ interface EnsureActiveAssistantSegmentResult {
 interface AcpActivePrompt {
   readonly fiber: Fiber.Fiber<EffectAcpSchema.PromptResponse, EffectAcpErrors.AcpError>;
   readonly completed: Deferred.Deferred<void>;
-  /** Settles once the prompt is queued to the agent, or its call has ended without that. */
   readonly queued: Deferred.Deferred<void>;
 }
 
-// A fiber stopped before its call began never settles queued, so its end counts too.
 const awaitPromptQueued = (prompt: AcpActivePrompt) =>
   Effect.raceFirst(Deferred.await(prompt.queued), Fiber.await(prompt.fiber).pipe(Effect.asVoid));
 
@@ -1433,8 +1408,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
           }
         })
       : undefined;
-  // This is lifecycle containment for inherited provider work. It is not a
-  // security boundary against a provider that can modify its delegated cgroup.
   if (linuxCgroupLease !== undefined) {
     yield* Scope.addFinalizer(
       runtimeScope,
@@ -1492,8 +1465,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
         ...(options.spawn.cwd ? { cwd: options.spawn.cwd } : {}),
         ...(spawnEnvironment ? { env: spawnEnvironment } : {}),
         extendEnv: options.spawn.extendEnv ?? true,
-        // Windows `detached` gives the child its own console, which breaks stdio pipes through
-        // `.cmd` shims; taskkill /T cleans up the tree there without it.
         ...(options.ownDetachedProcessGroup === undefined
           ? {}
           : { detached: options.ownDetachedProcessGroup && hostPlatform !== "win32" }),
@@ -1548,7 +1519,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
       catch: (cause) =>
         new EffectAcpErrors.AcpSpawnError({ command: options.spawn.command, cause }),
     });
-    // Cgroup teardown needs only the root identity captured above.
     if (linuxCgroupLease === undefined) {
       yield* observePosixOwnershipLedgerContinuously({
         childQueues: posixOwnershipChildQueues,
@@ -1718,7 +1688,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
 
   const acp = yield* Effect.service(EffectAcpClient.AcpClient).pipe(Effect.provide(acpContext));
 
-  // Counts applied `config_option_update`s; see setConfigOption.
   const configOptionUpdates = yield* Ref.make(0);
   const processSessionUpdate = (notification: EffectAcpSchema.SessionNotification) =>
     (notification.update.sessionUpdate === "config_option_update"
@@ -1746,8 +1715,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
           return;
         }
         const gate = yield* Ref.get(sessionLoadGateRef);
-        // A different session can still have an in-flight prompt while this
-        // load replays history, so quarantine only the loading session.
         const loadingThisSession =
           Option.isSome(gate) &&
           gate.value.active &&
@@ -1795,8 +1762,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
           }
           return;
         }
-        // One runtime projects one root ACP session. Child-session updates need
-        // explicit lineage routing and must never be flattened into this stream.
         if (
           startState._tag !== "Started" ||
           notification.sessionId !== startState.result.sessionId
@@ -1825,8 +1790,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
       ...options.clientCapabilities?.fs,
     },
     terminal: options.clientCapabilities?.terminal ?? false,
-    // ACP v1 agents send session notices and compaction updates only to clients that advertise
-    // them; v2 needs no capability.
     session: { ...options.clientCapabilities?.session, notices: {}, compaction: {} },
     ...(options.clientCapabilities?.auth ? { auth: options.clientCapabilities.auth } : {}),
     ...(options.clientCapabilities?.elicitation
@@ -1952,8 +1915,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     } else if (!syntheticReplayIdle) {
       yield* Ref.set(modeStateRef, undefined);
     }
-    // Synthetic replay-idle load responses only carry initialize model/mode
-    // meta; preserve live configOptions so setConfigOption still validates.
     if (
       sessionSetupResult.configOptions !== undefined &&
       sessionSetupResult.configOptions !== null
@@ -2102,10 +2063,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
                     configId,
                     value: String(value),
                   } satisfies EffectAcpSchema.SetSessionConfigOptionRequest);
-            // An update the agent pushed while the write was in flight is
-            // newer than its result: Kiro 2.32 answers a `model` write
-            // without `model`, then advertises it, and that update can be
-            // handled before this fiber resumes. The result then stays out.
             return Ref.get(configOptionUpdates).pipe(
               Effect.flatMap((updatesBefore) =>
                 runLoggedRequest(
@@ -2310,8 +2267,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
     });
 
     if (options.authenticateEagerly === true) {
-      // The configured method is authoritative here: Antigravity accepts
-      // methods (API key, Vertex) it does not list in `initialize`.
       const authenticatePayload = {
         methodId: options.authMethodId ?? "",
       } satisfies EffectAcpSchema.AuthenticateRequest;
@@ -2427,8 +2382,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
       sessionId: started.sessionId,
       ...(options.cancelMeta === undefined ? {} : { _meta: options.cancelMeta }),
     } satisfies EffectAcpSchema.CancelNotification;
-    // An agent drops a cancel that reaches it before the prompt it targets, so the cancel waits
-    // until the prompt is queued, for at most the cancel timeout.
     const promptQueued = Option.isSome(activePrompt)
       ? awaitPromptQueued(activePrompt.value).pipe(
           Effect.timeoutOption(options.cancelTimeout ?? defaultCancelTimeout),
@@ -2442,7 +2395,6 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
       if (Option.isSome(activePrompt)) {
         yield* Fiber.interrupt(activePrompt.value.fiber).pipe(Effect.ignore);
       }
-      // Write cancel before a replacement prompt can reach the agent.
       yield* acp.agent.cancel(cancelPayload).pipe(Effect.ignore);
       return;
     }
@@ -2748,16 +2700,11 @@ export const make = Effect.fn("AcpSessionRuntime.make")(function* (
             outcome._tag === "Done" ? Effect.succeed(outcome.response) : joinPrompt(outcome.fiber),
           ),
         ),
-    // A cancel that waits for its prompt holds the dispatch permit, so a next prompt cannot reach
-    // the agent ahead of it and take the cancel meant for the prompt before.
     cancel:
       options.cancelBehavior === "wait-for-prompt" || options.interruptPromptOnCancel === false
         ? promptDispatchSemaphore.withPermit(cancel)
         : cancel,
     ...(options.ownDetachedProcessGroup === true ? { terminateProcessGroup } : {}),
-    // A session's mode is its `category: "mode"` config option. ACP v1 agents
-    // that only advertise `modes` (gemini-cli) take `session/set_mode`
-    // instead, which ACP v2 removed.
     setMode: Effect.fn("AcpSessionRuntime.setMode")(function* (modeId) {
       const modeState = yield* Ref.get(modeStateRef);
       if (modeState?.currentModeId === modeId) {
@@ -2852,108 +2799,106 @@ function isStartupMetadataUpdate(notification: EffectAcpSchema.SessionNotificati
   }
 }
 
-const handleSessionUpdate =
-  /* Provider events include streaming deltas; avoid a span for each update. */
-  Effect.fnUntraced(function* ({
-    queue,
-    modeStateRef,
-    configOptionsRef,
-    toolCallsRef,
-    shownToolCallIds,
-    assistantSegmentRef,
-    assistantItemRuntimeId,
-    params,
-  }: {
-    readonly queue: Queue.Queue<AcpSessionRuntimeEvent>;
-    readonly modeStateRef: Ref.Ref<AcpSessionModeState | undefined>;
-    readonly configOptionsRef: SubscriptionRef.SubscriptionRef<
-      ReadonlyArray<EffectAcpSchema.SessionConfigOption>
-    >;
-    readonly toolCallsRef: Ref.Ref<Map<string, AcpToolCallTrackedState>>;
-    readonly shownToolCallIds: Set<string>;
-    readonly assistantSegmentRef: Ref.Ref<AcpAssistantSegmentState>;
-    readonly assistantItemRuntimeId: string;
-    readonly params: EffectAcpSchema.SessionNotification;
-  }): Effect.fn.Return<void> {
-    if (params.update.sessionUpdate === "config_option_update") {
-      const configOptions = params.update.configOptions;
-      yield* SubscriptionRef.set(configOptionsRef, configOptions);
-      yield* Ref.update(
-        modeStateRef,
-        (current) => parseSessionModeState({ configOptions }) ?? current,
-      );
-    }
-    const parsed = parseSessionUpdateEvent(params);
-    if (parsed.modeId) {
-      yield* Ref.update(modeStateRef, (current) =>
-        current === undefined ? current : updateModeState(current, parsed.modeId!),
-      );
-    }
-    for (const event of parsed.events) {
-      if (event._tag === "ToolCallUpdated") {
-        const { merged, decision, active } = yield* Ref.modify(toolCallsRef, (current) => {
-          const tracked = current.get(event.toolCall.toolCallId);
-          const previous = tracked?.state;
-          const nextToolCall = mergeToolCallState(previous, event.toolCall);
-          const decision = decideToolCallUpdateEmission({
-            previous,
-            next: nextToolCall,
-            lastEmittedDetailLength: tracked?.lastEmittedDetailLength,
-            skippedSinceEmit: tracked?.skippedSinceEmit ?? 0,
-          });
-          const next = new Map(current);
-          if (nextToolCall.status === "completed" || nextToolCall.status === "failed") {
-            next.delete(nextToolCall.toolCallId);
-          } else {
-            next.set(nextToolCall.toolCallId, {
-              state: nextToolCall,
-              lastEmittedDetailLength: decision.emit
-                ? toolCallProgressLength(nextToolCall)
-                : tracked?.lastEmittedDetailLength,
-              skippedSinceEmit: decision.skippedSinceEmit,
-            });
-          }
-          return [{ merged: nextToolCall, decision, active: tracked !== undefined }, next] as const;
+const handleSessionUpdate = Effect.fnUntraced(function* ({
+  queue,
+  modeStateRef,
+  configOptionsRef,
+  toolCallsRef,
+  shownToolCallIds,
+  assistantSegmentRef,
+  assistantItemRuntimeId,
+  params,
+}: {
+  readonly queue: Queue.Queue<AcpSessionRuntimeEvent>;
+  readonly modeStateRef: Ref.Ref<AcpSessionModeState | undefined>;
+  readonly configOptionsRef: SubscriptionRef.SubscriptionRef<
+    ReadonlyArray<EffectAcpSchema.SessionConfigOption>
+  >;
+  readonly toolCallsRef: Ref.Ref<Map<string, AcpToolCallTrackedState>>;
+  readonly shownToolCallIds: Set<string>;
+  readonly assistantSegmentRef: Ref.Ref<AcpAssistantSegmentState>;
+  readonly assistantItemRuntimeId: string;
+  readonly params: EffectAcpSchema.SessionNotification;
+}): Effect.fn.Return<void> {
+  if (params.update.sessionUpdate === "config_option_update") {
+    const configOptions = params.update.configOptions;
+    yield* SubscriptionRef.set(configOptionsRef, configOptions);
+    yield* Ref.update(
+      modeStateRef,
+      (current) => parseSessionModeState({ configOptions }) ?? current,
+    );
+  }
+  const parsed = parseSessionUpdateEvent(params);
+  if (parsed.modeId) {
+    yield* Ref.update(modeStateRef, (current) =>
+      current === undefined ? current : updateModeState(current, parsed.modeId!),
+    );
+  }
+  for (const event of parsed.events) {
+    if (event._tag === "ToolCallUpdated") {
+      const { merged, decision, active } = yield* Ref.modify(toolCallsRef, (current) => {
+        const tracked = current.get(event.toolCall.toolCallId);
+        const previous = tracked?.state;
+        const nextToolCall = mergeToolCallState(previous, event.toolCall);
+        const decision = decideToolCallUpdateEmission({
+          previous,
+          next: nextToolCall,
+          lastEmittedDetailLength: tracked?.lastEmittedDetailLength,
+          skippedSinceEmit: tracked?.skippedSinceEmit ?? 0,
         });
-        if (!decision.emit) {
+        const next = new Map(current);
+        if (nextToolCall.status === "completed" || nextToolCall.status === "failed") {
+          next.delete(nextToolCall.toolCallId);
+        } else {
+          next.set(nextToolCall.toolCallId, {
+            state: nextToolCall,
+            lastEmittedDetailLength: decision.emit
+              ? toolCallProgressLength(nextToolCall)
+              : tracked?.lastEmittedDetailLength,
+            skippedSinceEmit: decision.skippedSinceEmit,
+          });
+        }
+        return [{ merged: nextToolCall, decision, active: tracked !== undefined }, next] as const;
+      });
+      if (!decision.emit) {
+        continue;
+      }
+      if (!shownToolCallIds.has(merged.toolCallId)) {
+        shownToolCallIds.add(merged.toolCallId);
+        if (shownToolCallIds.size > MAX_SHOWN_TOOL_CALL_IDS) {
+          shownToolCallIds.delete(shownToolCallIds.values().next().value!);
+        }
+        if (!active) yield* closeActiveAssistantSegment({ queue, assistantSegmentRef });
+      }
+      yield* Queue.offer(queue, {
+        _tag: "ToolCallUpdated",
+        toolCall: merged,
+        rawPayload: event.rawPayload,
+      });
+      continue;
+    }
+    if (event._tag === "ContentDelta") {
+      if (event.text.trim().length === 0) {
+        const assistantSegmentState = yield* Ref.get(assistantSegmentRef);
+        if (!assistantSegmentState.activeItemId) {
           continue;
         }
-        if (!shownToolCallIds.has(merged.toolCallId)) {
-          shownToolCallIds.add(merged.toolCallId);
-          if (shownToolCallIds.size > MAX_SHOWN_TOOL_CALL_IDS) {
-            shownToolCallIds.delete(shownToolCallIds.values().next().value!);
-          }
-          if (!active) yield* closeActiveAssistantSegment({ queue, assistantSegmentRef });
-        }
-        yield* Queue.offer(queue, {
-          _tag: "ToolCallUpdated",
-          toolCall: merged,
-          rawPayload: event.rawPayload,
-        });
-        continue;
       }
-      if (event._tag === "ContentDelta") {
-        if (event.text.trim().length === 0) {
-          const assistantSegmentState = yield* Ref.get(assistantSegmentRef);
-          if (!assistantSegmentState.activeItemId) {
-            continue;
-          }
-        }
-        const itemId = yield* ensureActiveAssistantSegment({
-          queue,
-          assistantSegmentRef,
-          sessionId: params.sessionId,
-          assistantItemRuntimeId,
-        });
-        yield* Queue.offer(queue, {
-          ...event,
-          itemId,
-        });
-        continue;
-      }
-      yield* Queue.offer(queue, event);
+      const itemId = yield* ensureActiveAssistantSegment({
+        queue,
+        assistantSegmentRef,
+        sessionId: params.sessionId,
+        assistantItemRuntimeId,
+      });
+      yield* Queue.offer(queue, {
+        ...event,
+        itemId,
+      });
+      continue;
     }
-  });
+    yield* Queue.offer(queue, event);
+  }
+});
 
 function updateModeState(modeState: AcpSessionModeState, nextModeId: string): AcpSessionModeState {
   const normalized = nextModeId.trim();

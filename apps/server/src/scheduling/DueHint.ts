@@ -1,6 +1,5 @@
 import * as Effect from "effect/Effect";
 
-// Backstop for a write path that forgets to invalidate; the tick still runs every few seconds.
 const DUE_HINT_MAX_AGE_MS = 10 * 60 * 1_000;
 
 /**

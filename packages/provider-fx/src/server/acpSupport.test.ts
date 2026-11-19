@@ -15,8 +15,6 @@ const editRequest = {
 } satisfies EffectAcpSchema.RequestPermissionRequest;
 
 describe("fx permission prompts", () => {
-  // In Auto, fx's own review asks only about what it refused itself; Supaterm
-  // answering those by its Auto policy would approve exactly what fx escalated.
   it("sends every Auto prompt to the user", () => {
     assert.equal(
       fxPermissionDisposition(

@@ -13,9 +13,6 @@ import { buildSidebarProjectSnapshots } from "../sidebarProjectGrouping";
 import { useUiStateStore } from "../uiStateStore";
 import { orderItemsByPreferredIds, sortLogicalProjectsForSidebar } from "./Sidebar.logic";
 
-// Each helper reads its own source hook so the compiler caches the derived value on that
-// source. Taking the source as an argument instead leaves the helper hook-free, and the
-// compiler then treats it as a plain function and caches nothing.
 export function useEnvironmentLookups() {
   const { environments } = useEnvironments();
   const environmentLabelById = new Map(

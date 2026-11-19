@@ -277,9 +277,6 @@ export function deriveWorkflowGroups(
 
   return workflows.map((workflow) => {
     const workflowMembers = Object.hasOwn(members, workflow.id) ? members[workflow.id]! : [];
-    // Union, not either/or: the declared plan lags the members, because the
-    // provider only admits a phase once something in it starts. Members seed
-    // the map; the declared titles then overwrite whatever they guessed.
     const phaseTitles = new Map<number, string>();
     for (const member of workflowMembers) {
       if (member.phaseIndex === null) continue;
@@ -298,8 +295,6 @@ export function deriveWorkflowGroups(
         .filter((member) => member.phaseIndex === phase.index)
         .sort((a, b) => (a.agentIndex ?? 0) - (b.agentIndex ?? 0));
       const hasActiveMember = phaseMembers.some(
-        // Idle members count as active for phase-liveness: a resumable Codex
-        // member has not finished the phase.
         (member) => isActiveSubagentStatus(member.status) || member.status === "idle",
       );
       const settledCount = phaseMembers.filter((member) =>
@@ -324,7 +319,6 @@ export function deriveWorkflowGroups(
   });
 }
 
-// Workflow scripts open with their `meta` export, after any leading comments.
 const WORKFLOW_SCRIPT_START = /^\s*(?:(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/)\s*)*export\s+const\s+meta\b/;
 
 /**

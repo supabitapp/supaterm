@@ -52,8 +52,6 @@ function WorkspaceRoot() {
   };
   const tab = workspace.state.selectedTab;
   const selectTab = useSelectWorkspaceTab();
-  // Tabs are panes of Home, not routes, so Back has nothing to pop and would leave the app.
-  // An open search keeps Back for itself.
   useHardwareBack(
     tab !== "threads" &&
       enabled.includes("threads") &&
@@ -130,8 +128,6 @@ function WorkspaceRoot() {
   );
 }
 
-// Hidden, the page sits in the narrower pane beside the list; laying it out at the width it opens
-// at keeps measured bars and breakpoints from catching up a frame after it appears.
 function WorkspacePageFrame(props: {
   readonly width: number | null;
   readonly children: ReactNode;

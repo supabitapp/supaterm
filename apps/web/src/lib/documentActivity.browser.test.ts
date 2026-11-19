@@ -3,8 +3,6 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { subscribeDocumentReturn } from "./documentActivity";
 
 describe("subscribeDocumentReturn", () => {
-  // Focus can come back from the preview iframe, and a quick alt-tab can miss
-  // the blur, so a return must not depend on the cached activity flipping.
   it("fires on every window focus and every return to a visible tab", () => {
     using _focused = vi.spyOn(document, "hasFocus").mockReturnValue(true);
     let visibility: DocumentVisibilityState = "visible";

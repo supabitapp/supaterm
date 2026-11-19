@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off
-// The service launcher shares this and runs without an Effect runtime.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 
@@ -30,7 +29,6 @@ export async function markNoCopyOnWrite(directory: string): Promise<void> {
 
 export async function isNoCopyOnWrite(file: string): Promise<boolean> {
   if (!(await onBtrfs(file))) return false;
-  // lsattr skips symlinks; its first field is the flag string, e.g. "---------------C------".
   const output = await run("lsattr", ["-d", await NodeFSP.realpath(file).catch(() => file)]);
   return output?.trimStart().split(/\s/, 1)[0]?.includes("C") ?? false;
 }

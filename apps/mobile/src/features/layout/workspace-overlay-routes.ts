@@ -1,7 +1,3 @@
-/**
- * Root routes listed as presented over the workspace, including ones that are plain cards on
- * Android but still sit above the workspace there.
- */
 const LISTED_OVERLAY_ROUTES: ReadonlySet<string> = new Set([
   "PullRequestReview",
   "PullRequestInlineComment",
@@ -35,7 +31,6 @@ const LISTED_OVERLAY_ROUTES: ReadonlySet<string> = new Set([
   "MermaidDiagram",
 ]);
 
-// Every route whose `presentation` is a sheet or modal, read from the root stack's config once.
 let presentedRoutes: ReadonlySet<string> = new Set();
 
 export function registerPresentedRoutes(names: Iterable<string>) {

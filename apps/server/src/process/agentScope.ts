@@ -21,11 +21,7 @@ import * as ProcessRunner from "../processRunner.ts";
 import * as ProviderProcesses from "./providerProcesses.ts";
 
 const AGENT_SLICE = "app-supaterm-agents.slice";
-// Owns every agent slice and competes with the server's unit or scope under app.slice.
 const AGENTS_PARENT_SLICE = "app-supaterm.slice";
-// Low weights yield CPU and disk to the server under contention, where the user manager
-// has those controllers: current systemd delegates cpu, rarely io. TasksMax keeps agents
-// below logind's 33% per-user task limit, leaving forks for the server.
 const AGENTS_PARENT_PROPERTIES = ["CPUWeight=10", "IOWeight=10", "TasksMax=25%"];
 
 export function ownedAgentSlice(stateDir: string): string {
@@ -35,12 +31,6 @@ export function ownedAgentSlice(stateDir: string): string {
 
 const GiB = 1024 ** 3;
 
-/**
- * Agents together leave about 6 GB free before they are throttled and 4 GB
- * before the kernel kills one, so the server, sshd, and tailscaled keep
- * working. Small machines still give agents at least half of RAM before
- * throttling and three quarters before a kill.
- */
 function agentSliceMemoryLimits(totalBytes: number) {
   return {
     high: Math.max(totalBytes - 6 * GiB, Math.floor(totalBytes / 2)),
@@ -86,8 +76,6 @@ function parseCgroupCounter(text: string, key: string): number | undefined {
   return match === null ? undefined : Number(match[1]);
 }
 
-// systemd's default 90 s stop timeout would outlast our leftover-agent wait.
-// Delegation lets rootless containers (Podman, kind) manage their own cgroups.
 const SCOPE_OPTIONS = ["--property=TimeoutStopSec=10s", "--property=Delegate=yes"];
 const STOPPING_POLL_INTERVAL = "100 millis";
 const STOPPING_POLL_ATTEMPTS = 20;
@@ -123,9 +111,6 @@ export const make = Effect.gen(function* () {
       .readFileString(path.join("/sys/fs/cgroup", controlGroup, file))
       .pipe(Effect.orElseSucceed(() => ""));
 
-  // Old agents keep their scopes when the server is killed, and the restarted
-  // server resumes their sessions. Stop them first, so two copies of one
-  // session never work in the same worktree.
   const stopLeftoverAgents = Effect.fn("agentScope.stopLeftoverAgents")(function* (
     systemctl: string,
   ) {
@@ -198,8 +183,6 @@ export const make = Effect.gen(function* () {
         });
         return false;
       });
-      // VMs and containers can resize RAM live, so each launch re-checks the total
-      // the limits came from. A failed update is retried by the next launch.
       let appliedTotal: number | undefined;
       const memoryLimitsLock = yield* Semaphore.make(1);
       const applyMemoryLimits = memoryLimitsLock.withPermits(1)(
@@ -240,11 +223,8 @@ export const make = Effect.gen(function* () {
     }),
   );
 
-  // Layer acquisition is the startup barrier: recovery must not terminalize or
-  // continue old runs while a previous server's providers can still execute.
   yield* systemd;
 
-  // `shared` scopes serve other threads too: tracked only for OOM diagnosis on old systemd.
   const scopeByOwner = new Map<
     string,
     { unit: string; oomKilled: boolean; shared: boolean; owner: string | undefined }
@@ -364,7 +344,6 @@ export const make = Effect.gen(function* () {
     const values = parseKeyValues(shown.value.stdout);
     if (values.get("ActiveState") !== "active") return false;
     const controlGroup = values.get("ControlGroup") ?? "";
-    // cgroup.kill (Linux 5.14+) kills the whole tree at once; systemd's kill is the fallback.
     const killedByCgroup =
       controlGroup.length > 0 &&
       (yield* fileSystem
@@ -378,7 +357,6 @@ export const make = Effect.gen(function* () {
     return killed._tag === "Some" && killed.value.code === 0;
   });
 
-  // A thread's sessions may each have their own scope; shared scopes serve other threads too.
   const kill: AgentScopeShape["kill"] = Effect.fn("AgentScope.kill")(function* (threadId) {
     const owned = [...scopeByOwner.values()].filter(
       (tracked) => tracked.owner === threadId && !tracked.shared,

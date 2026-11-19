@@ -12,7 +12,6 @@ import type {
 import { EMPTY_TOTALS, type UsageRecord } from "@supaterm/provider-core/server/usage";
 import { cacheSavingsUsd, lookupRate, priceUsage, type RateTable } from "./usagePricing.ts";
 
-// en-CA gives ISO-ordered parts in the requested zone; Date getters are host-local.
 function makeDayFormatter(timeZone: string): (timestampMs: number) => string {
   let format: Intl.DateTimeFormat;
   try {
@@ -30,7 +29,6 @@ function makeDayFormatter(timeZone: string): (timestampMs: number) => string {
       day: "2-digit",
     });
   }
-  // Cache quarter-hour slots to avoid per-record Intl calls; fixed-offset midnight can split slots and needs exact formatting.
   const days = new Map<number, string | null>();
   return (timestampMs) => {
     const slot = Math.floor(timestampMs / QUARTER_HOUR_MS);
@@ -88,7 +86,6 @@ export function resolveModelAliases(
     let target = model;
     while (Object.hasOwn(aliases, target) && !memo.has(target)) {
       path.push(target);
-      // Null marks both the active walk and paths that end in a cycle.
       memo.set(target, null);
       target = aliases[target]!;
     }
@@ -104,7 +101,6 @@ export function resolveModelAliases(
   return resolved;
 }
 
-/** Matches original IDs, so an alias cannot pull excluded usage into a kept model. */
 function keepsUsageRecord(filter: UsageModelFilter | undefined, record: UsageRecord): boolean {
   if (filter === undefined) return true;
   const model = record.model.trim();
@@ -119,7 +115,6 @@ const selectorKey = (selector: UsageModelSelector) =>
 
 const canonicalSelectors = (selectors: readonly UsageModelSelector[]) =>
   [...new Map(selectors.map((selector) => [selectorKey(selector), selector]))]
-    // Code-unit order, so servers in different locales echo the same form.
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([, selector]) => selector);
 
@@ -182,10 +177,6 @@ export function mergeUsageCopies(held: UsageRecord, copy: UsageRecord): UsageRec
   };
 }
 
-/**
- * Grok reports each turn once, complete, so real copies are equal. A larger one is a deleted
- * transcript's pre-v17 maximum over turns that shared a prompt id, whichever source it came from.
- */
 function smallestGrokCopy(held: UsageRecord, copy: UsageRecord): UsageRecord {
   const a = held.totals;
   const b = copy.totals;
@@ -208,7 +199,6 @@ function smallestGrokCopy(held: UsageRecord, copy: UsageRecord): UsageRecord {
 
 interface Contribution {
   record: UsageRecord;
-  /** Null when the first copy fell outside the window. */
   readonly bucket: MutableBucket | null;
 }
 
@@ -269,7 +259,6 @@ export class UsageAggregator {
       this.#outOfWindow += 1;
       return false;
     }
-    // Keyed usage is counted in finish(), once all its copies are merged.
     if (record.dedupeKey === null) this.#accumulate(bucket, record);
     if (record.sessionId.length > 0) bucket.sessions.add(record.sessionId);
     return true;
@@ -342,7 +331,6 @@ export class UsageAggregator {
     if (priced.costSource === "providerReported") bucket.providerReportedRecords += 1;
   }
 
-  // Aliases use the target's rate. Only an unpriced target goes through the provider's own rate naming.
   #mapModel(record: UsageRecord): UsageRecord {
     const model = this.#options.modelAliases?.get(record.model);
     if (model === undefined) return record;
@@ -354,7 +342,6 @@ export class UsageAggregator {
     return rateModel === undefined ? { ...rest, model } : { ...rest, model, rateModel };
   }
 
-  // Time-ordered records usually reuse the previous bucket; avoid rebuilding its key.
   #bucketFor(
     day: string,
     hourIndex: number,

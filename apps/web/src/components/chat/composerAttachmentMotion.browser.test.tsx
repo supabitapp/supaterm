@@ -41,7 +41,6 @@ async function mountTray(initial: string[]) {
     }
     return exit;
   };
-  // Each attachment's exit animation finishes when the test says so.
   resources.use(
     vi.spyOn(Element.prototype, "getAnimations").mockImplementation(function (this: Element) {
       const id = this instanceof HTMLElement ? this.dataset.composerAttachment : undefined;

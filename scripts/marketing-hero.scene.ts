@@ -1,9 +1,3 @@
-// Content of the marketing hero screenshot. Edit this file to change what the
-// shot shows; `marketing-hero.ts` turns it into git repos and app state.
-//
-// Every repository, pull request, and thread here is fictional. Times are
-// relative to the moment of capture, so sidebar ages always read the same.
-
 export interface SceneModel {
   readonly instanceId: "claudeAgent" | "codex" | "cursor" | "opencode" | "grok";
   readonly model: string;

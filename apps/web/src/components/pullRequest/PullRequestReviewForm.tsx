@@ -114,7 +114,6 @@ export function PullRequestReviewForm({
       });
       return;
     }
-    // Preserve comments and summary edits made during submission.
     removeComments(
       reviewKey,
       submittedComments.map((comment) => comment.id),
@@ -124,7 +123,6 @@ export function PullRequestReviewForm({
     onSubmitted();
   };
 
-  // Forgejo requires a summary when requesting changes, even with inline comments.
   const canSubmit = (verdict: PullRequestReviewVerdict, summary: string) =>
     verdict === "request-changes" && requestChangesSummaryRequired
       ? summary.trim().length > 0

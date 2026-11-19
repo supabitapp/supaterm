@@ -136,7 +136,6 @@ export function useTimelineRewind(input: TimelineRewindInput) {
       threadId: activeThread.id,
       turnCount,
       restoreFiles: restoreFiles === true,
-      // Keep the live checkpoint identity when command context refetches a bounded window.
       checkpoint: findRevertCheckpoint(serverProjection?.checkpoints ?? [], turnCount),
       draftTarget: composerDraftTarget,
       composerHasPendingAttachments: composerRef.current?.hasPendingAttachments() === true,

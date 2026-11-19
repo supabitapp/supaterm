@@ -35,8 +35,6 @@ export function resolveFilesystemReadAccess(input: {
     return { canReadFiles: false, isPending: false, error: input.sessionError };
   }
   if (input.session === null) {
-    // Wait for the catalog before interpreting a missing presentation as offline.
-    // Once ready, an offline environment cannot finish its session check.
     const isPending =
       !input.isCatalogReady ||
       input.connection?.phase === "connected" ||
@@ -75,7 +73,6 @@ export function filterFilesystemBrowseEntries(
   entries: ReadonlyArray<FilesystemBrowseEntry>,
   query: string,
 ) {
-  // macOS Finder stores names decomposed (NFD), while typed text is composed (NFC).
   const normalizedQuery = query.normalize("NFC");
   const lowerQuery = query.toLowerCase();
   const lowerNormalizedQuery = normalizedQuery.toLowerCase();
@@ -87,7 +84,6 @@ export function filterFilesystemBrowseEntries(
       : candidates
           .flatMap((entry) => {
             const options = {
-              // Position penalties stay under 1000 for 255-character names, so tiers never overlap.
               query: lowerNormalizedQuery,
               exactBase: 0,
               prefixBase: 1000,
@@ -197,8 +193,6 @@ export function createFilesystemEnvironmentAtoms<R, E>(
     browse: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:filesystem:browse",
       tag: WS_METHODS.filesystemBrowse,
-      // A listing mirrors a directory that can change outside the app, so reopening a picker
-      // lists it again. The short TTL only keeps the old listing on screen while it refreshes.
       idleTtlMs: BROWSE_IDLE_TTL_MS,
       staleTimeMs: 0,
     }),

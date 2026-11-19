@@ -52,7 +52,6 @@ const buttonVariants = cva(
           "[--control-icon-color:currentColor] border-transparent text-muted-foreground data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-foreground",
         "ghost-destructive":
           "[--control-icon-color:currentColor] border-transparent text-muted-foreground data-pressed:bg-accent [:hover,[data-pressed]]:bg-accent [:hover,[data-pressed]]:text-destructive",
-        // Fades itself for an ancestor's usePresence state: fading the ancestor would drop the blur.
         glass:
           "surface-glass [--control-icon-color:var(--contrast-muted-foreground)] rounded-full border-border/60 text-foreground shadow-sm before:rounded-full [:hover,[data-pressed]]:border-border in-data-enter:not-in-data-ending-style:duration-200 in-data-enter:not-in-data-ending-style:ease-drawer in-data-enter:transition-[box-shadow,scale,opacity] in-data-enter:starting:opacity-0 in-data-ending-style:transition-[box-shadow,scale,opacity] in-data-ending-style:opacity-0 in-data-ending-style:duration-150 in-data-ending-style:ease-in",
         link: "border-transparent underline-offset-4 [:hover,[data-pressed]]:underline",

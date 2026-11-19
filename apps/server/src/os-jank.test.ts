@@ -73,7 +73,6 @@ effectIt.effect("waits longer for a login shell that times out at startup", () =
   Effect.acquireUseRelease(
     Effect.sync(() =>
       vi.spyOn(NodeChildProcess, "execFileSync").mockImplementation((file, _args, options) => {
-        // This profile takes 8 seconds while the machine is under load.
         if ((options?.timeout ?? 0) < 8_000) throw timedOut(String(file));
         return "__SUPATERM_ENV_PATH_START__\n/opt/tools/bin\n__SUPATERM_ENV_PATH_END__\n";
       }),

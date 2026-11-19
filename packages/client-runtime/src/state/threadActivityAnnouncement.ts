@@ -95,13 +95,10 @@ export function nextThreadAnnouncement(
   next: ThreadActivitySnapshot,
 ): { readonly memory: ThreadAnnouncementMemory; readonly announcement: string | null } {
   const idle = next.status === "idle";
-  // A run still starting up while the thread looks idle (a queued message,
-  // a resume) is the next turn's, not a leftover from the last one.
   const idleRunId =
     idle && !isOrchestrationV2RunNotYetRunning(next.runStatus)
       ? next.runId
       : (previous?.idleRunId ?? null);
-  // A run doing new work; the run left over from the last turn doesn't count.
   const newRunId =
     !idle && isOrchestrationV2RunInProgress(next.runStatus) && next.runId !== idleRunId
       ? next.runId
@@ -122,9 +119,6 @@ export function nextThreadAnnouncement(
   const { turnRunId } = previous;
 
   if (!idle) {
-    // Sending can look idle for a moment before the server reports the run,
-    // so a turn is tied to its run as soon as one appears, and only another
-    // run taking over (a queued message starting) is a new turn.
     const turnStarted =
       turnRunId === null ||
       (newRunId !== null && turnRunId !== "unknown" && newRunId !== turnRunId);
@@ -145,10 +139,8 @@ export function nextThreadAnnouncement(
     return { memory: { ...memory, turnRunId: nextTurnRunId }, announcement };
   }
 
-  // Work can stop a moment before the run settles; the ending waits for the run.
   const outcome = runOutcomeText(next.runStatus);
   if (turnRunId === null) {
-    // A run that settled unseen is history too, or the next failed send would claim it.
     const settledRunId = outcome === null ? previous.settledRunId : next.runId;
     return { memory: { ...memory, settledRunId }, announcement: null };
   }
@@ -156,11 +148,9 @@ export function nextThreadAnnouncement(
     return { memory: { ...memory, turnRunId: null, settledRunId: next.runId }, announcement: null };
   }
   if (outcome === null) return { memory, announcement: null };
-  // Work stopped without a new run, e.g. a send that failed; the retry is a new turn.
   if (next.runId === previous.settledRunId) {
     return { memory: { ...memory, turnRunId: null }, announcement: null };
   }
-  // The last turn's run settling while this turn waits for its own run is not this turn's ending.
   if (turnRunId === "unknown" && next.runId === previous.idleRunId) {
     return { memory: { ...memory, settledRunId: next.runId }, announcement: null };
   }

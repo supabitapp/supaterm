@@ -140,7 +140,6 @@ const make = Effect.gen(function* () {
   ) =>
     Effect.scoped(
       Effect.gen(function* () {
-        // Subscribe first so foreground starts cannot slip between the state check and probe.
         const subscription = yield* PubSub.subscribe(foregroundStarts);
         if ((yield* Ref.get(activeForegroundCounts)).has(agentId)) {
           return Option.none();
@@ -191,7 +190,6 @@ const make = Effect.gen(function* () {
     (instanceId, onUpdate) =>
       Effect.scoped(
         Effect.gen(function* () {
-          // Subscribe before reading to avoid missing publications.
           const subscription = yield* PubSub.subscribe(availableCommandsUpdates);
           const current = yield* getAvailableCommands(instanceId);
           if (Option.isSome(current)) {

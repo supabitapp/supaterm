@@ -253,7 +253,6 @@ export function threadPullRequestPanelTarget(thread: {
 }
 
 export function pullRequestHandoffLabels(inThisThread: boolean) {
-  // Beside a composer a remark's Fix shares its header with Add to chat.
   return inThisThread
     ? {
         fixFinding: "Fix",
@@ -375,8 +374,6 @@ export function resolveThreadPanelPullRequestAction(
   if (!canMergeSinglePullRequest || allowedPullRequestMergeMethods(detail).length === 0) {
     return null;
   }
-  // A merge offered mid-run would race the very runs that gate it; auto-merge waits for them.
-  // An undefined flag means the host does not report auto-merge, so it cannot be offered.
   if (checks === "pending") {
     return detail.autoMergeEnabled === false &&
       canPerformPullRequestAction(detail, "enable-auto-merge")
@@ -457,7 +454,6 @@ export function pullRequestReviewOutcome(
   }
 }
 
-// Host UTC offsets make lexical timestamp sorting unsafe.
 function instant(iso: string): number {
   return Date.parse(iso);
 }
@@ -502,7 +498,6 @@ export function latestPullRequestReviewOutcomes(
     if (outcome === null) continue;
     const login = comment.author?.login ?? `ghost:${comment.id}`;
     const current = latest.get(login);
-    // Hosts can return reviews out of order.
     if (current !== undefined && instant(current.at) > instant(comment.createdAt)) continue;
     latest.set(login, {
       key: login,
@@ -626,8 +621,6 @@ export function pullRequestConversationItems(
   const claimed = new Set<string>();
   const threads: PullRequestConversationItem[] = [];
   for (const thread of reviewThreads) {
-    // Keep the conversation's objects for editing/reactions; some hosts only include a
-    // comment in the thread, so normalize that copy when the flat conversation lacks it.
     const ordered = thread.comments
       .map(
         (comment): PullRequestComment =>
@@ -658,7 +651,6 @@ export function pullRequestConversationItems(
   threads.sort((left, right) => instant(left.createdAt) - instant(right.createdAt));
   const items: PullRequestConversationItem[] = [];
   let next = 0;
-  // Preserve loose comments' existing order, inserting each thread at its finding's time.
   for (const comment of comments) {
     if (claimed.has(comment.id)) continue;
     while (
@@ -698,10 +690,8 @@ export function filterPullRequestConversationItems(
   filter: { readonly bots: boolean; readonly resolved: boolean },
 ): ReadonlyArray<PullRequestConversationItem> {
   return items.filter((item) =>
-    // Matching any member keeps the finding beside a human reply to a bot.
     pullRequestConversationItemComments(item).some(
       (comment) =>
-        // A bot's approval or change request is a verdict, not chatter.
         (filter.bots ||
           comment.author?.isBot !== true ||
           isPullRequestVerdict(comment.reviewState)) &&
@@ -719,11 +709,6 @@ export function pagePullRequestConversationItems(
   return { shown, hidden: items.length - shown.length };
 }
 
-/**
- * A body as it reads, for text sent to the agent under a length bound. A bot's HTML-comment
- * bookkeeping would otherwise use up the bound before the remark got any of it. Comments in code
- * are source the remark is showing, so they stay. Null for a body with no words.
- */
 function readableBody(raw: string): string | null {
   if (visibleBody(raw) === null) return null;
   const body = raw.replace(/\r\n?/gu, "\n");
@@ -739,9 +724,7 @@ function readableBody(raw: string): string | null {
   let from = 0;
   for (const [start, end] of cuts) {
     readable += body.slice(from, start);
-    // An HTML block can carry markup around its comment; only the comment itself is hidden.
     const html = body.slice(start, end).replace(/<!--[\s\S]*?(?:-->|$)/gu, "");
-    // A line that was all comment is dropped rather than left as a blank one.
     const ownLine = /(?:^|\n)[ \t>]*$/u.test(readable) && /^[ \t]*(?:\n|$)/u.test(body.slice(end));
     if (ownLine && html.trim() === "") {
       readable = readable.replace(/[ \t>]*$/u, "");
@@ -771,7 +754,6 @@ export type PullRequestLinkSubject =
 
 const LINK_EXCERPT_LENGTH = 280;
 
-/** The words of a markdown body, without markup, HTML or images, for a short preview. */
 function markdownExcerpt(body: string): string | null {
   const words: string[] = [];
   const visit = (node: MdastNodes) => {
@@ -779,7 +761,6 @@ function markdownExcerpt(body: string): string | null {
     if (node.type !== "code" && "children" in node) for (const child of node.children) visit(child);
   };
   visit(fromMarkdown(body));
-  // GitHub's alert marker (`> [!NOTE]`) parses as text but reads as markup.
   const text = words
     .join(" ")
     .replace(/\[!(?:note|tip|important|warning|caution)\]/giu, "")
@@ -788,7 +769,6 @@ function markdownExcerpt(body: string): string | null {
   if (text === "") return null;
   if (text.length <= LINK_EXCERPT_LENGTH) return text;
   let end = LINK_EXCERPT_LENGTH - 1;
-  // Never end on a lone high surrogate.
   const last = text.charCodeAt(end - 1);
   if (last >= 0xd800 && last <= 0xdbff) end -= 1;
   return `${text.slice(0, end)}…`;
@@ -962,8 +942,6 @@ function boundedField(value: string): string {
   return bounded(value.replace(/\s+/gu, " "));
 }
 
-// Prompt builders are handed a change request's URL, not its detail; a URL no host claims reads
-// as the default host, as an unreported repository does.
 function terminologyForUrl(url: string): ChangeRequestTerminology {
   return (sourceControlClients.findByChangeRequestUrl(url) ?? sourceControlClients.get(undefined))
     .changeRequest;
@@ -983,7 +961,6 @@ function reviewThreadContext(
     endIndex: lineIndex,
     rangeLabel:
       thread.line === null ? "file" : `L${thread.line}${thread.side === "left" ? " (before)" : ""}`,
-    // Strip bot bookkeeping comments before bounding finding text.
     text: bounded(
       thread.comments
         .flatMap((comment) => {
@@ -997,14 +974,12 @@ function reviewThreadContext(
   };
 }
 
-// A task added to an existing thread's composer has no checkout prepared for it.
 function checkoutInstruction(inThisThread: boolean | undefined): string {
   return inThisThread
     ? "Work on its branch, switching to it or checking it out first if this workspace is not on it"
     : "Work in the prepared checkout";
 }
 
-// The attached pull request chip names the title, URL and branches.
 function handoffPreamble(input: {
   readonly url: string;
   readonly inThisThread?: boolean;
@@ -1048,12 +1023,10 @@ export function appendHandoff(
         : kept.length === 0
           ? added
           : `${kept}\n\n${added}`,
-    // Same-id chips take the newer copy, so a re-fixed thread carries its latest replies.
     reviewComments: [
       ...existing.reviewComments.map((comment) => {
         const newer = incomingById.get(comment.id);
         if (newer === undefined) return comment;
-        // A draft that already asks for a change must not gain an answer-only pull request chip.
         return isPlainPullRequestContext(comment) && !isPlainPullRequestContext(newer)
           ? comment
           : newer;
@@ -1279,7 +1252,6 @@ function pullRequestContextComment(
 ): ReviewCommentContext {
   const term = terminologyForUrl(input.url).singular;
   return {
-    // Use URLs because repositories can share pull request numbers.
     id: `pull-request-context:${input.url}`,
     sectionId: `pull-request:${input.number}`,
     sectionTitle: `PR #${input.number}`,
@@ -1352,7 +1324,6 @@ export function buildPullRequestCommentContext(
     id: `pr-comment:${pullRequest.url}:comment:${comment.id}`,
     sectionId: `pull-request:${pullRequestNumber}`,
     sectionTitle: `PR #${pullRequestNumber} conversation`,
-    // The chip wears `filePath rangeLabel`: the file a remark names, or who wrote one that names none.
     filePath: comment.path ?? `@${author}`,
     startIndex: 0,
     endIndex: 0,
@@ -1454,7 +1425,6 @@ export function buildAskAboutGuideStopHandoff(input: {
 }): FixFindingsHandoff {
   const { stop } = input;
   const term = terminologyForUrl(input.url).singular;
-  // Removed code is numbered on the base side; the head has other code at those lines.
   const where = stop.excerpts.map(
     (excerpt) =>
       `- ${excerpt.path} lines ${excerpt.start}-${excerpt.end}${excerpt.side === "old" ? " (removed; numbered as in the base branch)" : ""}`,

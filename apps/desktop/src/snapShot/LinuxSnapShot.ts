@@ -97,7 +97,6 @@ function unavailable(error: unknown): boolean {
   );
 }
 
-/** One connection per operation: portal registration and request ownership stay together. */
 class LinuxCaptureConnection {
   private readonly bus: MessageBus;
   private readonly disconnected: Promise<never>;
@@ -115,7 +114,6 @@ class LinuxCaptureConnection {
     this.disconnected = new Promise((_, reject) => {
       bus.on("error", reject);
     });
-    // A disconnect between calls must not become an unhandled rejection.
     void this.disconnected.catch(() => undefined);
   }
 
@@ -225,7 +223,6 @@ class LinuxCaptureConnection {
     const namespace = `${PORTAL_PATH}/request/${this.uniqueName.slice(1).replaceAll(".", "_")}/`;
     let handle = namespace + token;
     let completed = false;
-    // Subscribe before Screenshot: the response may precede its method reply.
     const responses = new Map<string, unknown>();
     let deliver: ((body: unknown) => void) | undefined;
     const listener = (message: Message) => {
@@ -320,7 +317,6 @@ class LinuxCaptureConnection {
     const png = resizeLinuxCapture(Buffer.from(bytes));
     if (!withFeedback) return { png, window };
     const animationStarted = decodeBoolean(reply.body[2]);
-    // Keep the same authenticated sender alive through activation and the compositor flight.
     this.feedbackTimer = setTimeout(() => this.close(), 15_000);
     let flight: Promise<void> | undefined;
     const feedback: LinuxCaptureFeedback = {

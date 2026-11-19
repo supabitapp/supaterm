@@ -4,8 +4,6 @@ import * as Schema from "effect/Schema";
 import * as SchemaGetter from "effect/SchemaGetter";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 
-// Hermes copies the string on every `trim()`, even when nothing changes.
-// Returning the original keeps repeated IDs shared after decode.
 const trim = (value: string) => {
   const trimmed = value.trim();
   return trimmed.length === value.length ? value : trimmed;
@@ -20,7 +18,6 @@ export const TrimmedString = Schema.String.pipe(
     }),
   ),
 );
-// `make` and encode see untrimmed values; `isNonEmpty` would accept whitespace that encodes to an invalid empty string.
 const isNonBlank = Schema.makeFilter((value: string) => value.trim().length > 0, {
   expected: "a non-blank string",
   toJsonSchema: () => [{ minLength: 1 }, true],
@@ -98,10 +95,8 @@ export const ForwardCompatibleArray = <Element extends Schema.Top>(element: Elem
           Schema.catchEncoding(() => Effect.succeedSome(undefined)),
         ),
       ).check(
-        // Schema.is/make must reject holes; abort before later array checks.
         Schema.makeFilter(
           (values) => {
-            // Every index, not `every`, which skips the holes of a sparse array.
             for (let index = 0; index < values.length; index++) {
               if (values[index] === undefined) return false;
             }

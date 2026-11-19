@@ -392,7 +392,6 @@ it.effect.each([
       if (delivery !== null) {
         yield* Deferred.succeed(rejectSteer, undefined);
         yield* Fiber.join(delivery);
-        // A mailbox message is recorded as a notification item, not a user message.
         if (!mailbox && !question) {
           const requeued = yield* orchestrator.getThreadProjection(threadId);
           assert.isTrue(requeued.runs.some((run) => run.status === "queued"));
@@ -716,7 +715,6 @@ const nextTurnSelectionHarness = Effect.fn("nextTurnSelectionHarness")(function*
     });
     yield* worker.drain();
     yield* Fiber.join(running);
-    // Ingestion checks turn ownership under this lock after committing the running turn.
     yield* (yield* ThreadCommandExecutor.ThreadCommandExecutor).withLock(threadId, Effect.void);
     return threadId;
   });
@@ -842,7 +840,6 @@ it.effect("sends a selected held message once and preserves the remaining queue 
       )!;
       const sink = yield* EventSink.EventSinkV2;
       const now = yield* DateTime.now;
-      // Restart recovery cancels the active run and holds every queued message.
       yield* sink.write({
         events: [
           ...before.runs.map((run) => ({
@@ -1168,7 +1165,6 @@ it.effect("force sends multiple queued messages and can force send a requeued me
       yield* worker.drain();
       assert.deepEqual(steered, ["one", "two"]);
 
-      // The completion-race fallback redispatches the same message into the queue.
       yield* queue("one", "requeue-one");
       const requeued = yield* orchestrator.getThreadProjection(threadId);
       assert.equal(
@@ -1517,7 +1513,6 @@ it.effect.each(declinedSteerTimings)(
           ).pipe(Effect.asVoid, Effect.orDie);
         }
         if (timing === "two-steers") {
-          // The second steer arrives before the first is declined.
           beforeDecline = orchestrator
             .dispatch({
               type: "message.dispatch",
@@ -1649,7 +1644,6 @@ it.effect.each(declinedSteerTimings)(
     }),
 );
 
-// regression: #26695 cancelling a Copilot prompt to steer it kills its background agents
 it.effect("queues a steer until the turn ends when the provider cannot steer it", () =>
   Effect.gen(function* () {
     const { events, started, steered, interrupted, layer, startFirstTurn } =
@@ -1723,7 +1717,6 @@ it.effect("queues a steer until the turn ends when the provider cannot steer it"
   }),
 );
 
-// regression: #33454 a steer that restarts a completion wake run left its cohort claimed forever
 const restartCompletionWake = Effect.fn("restartCompletionWake")(function* (
   harness: Pick<
     Effect.Success<ReturnType<typeof nextTurnSelectionHarness>>,
@@ -1854,7 +1847,6 @@ const restartCompletionWake = Effect.fn("restartCompletionWake")(function* (
     ]),
   });
   yield* finishTurn(origin);
-  // The wake queues behind a user run that started after the origin run finished.
   if (userRunBeforeWake) {
     const userRunning = yield* watchTurnRunning(2);
     yield* orchestrator.dispatch({
@@ -1873,7 +1865,6 @@ const restartCompletionWake = Effect.fn("restartCompletionWake")(function* (
     yield* Fiber.join(userRunning);
   }
 
-  // The child's finished run is what finalizes its task in the parent.
   const completeTask = (taskId: NodeId) =>
     Effect.gen(function* () {
       const finalized = yield* orchestrator.streamDomainEvents.pipe(
@@ -1954,7 +1945,6 @@ const restartCompletionWake = Effect.fn("restartCompletionWake")(function* (
   const wake = harness.started[wakeOrdinal - 1]!;
   assert.equal(wake.message.messageId, firstDelivery.messageId);
   if (userRunBeforeWake) {
-    // The wake's run holds a compaction, so the origin run's records are older than the window.
     const compactedAt = yield* DateTime.now;
     yield* sink.write({
       events: [
@@ -1992,7 +1982,6 @@ const restartCompletionWake = Effect.fn("restartCompletionWake")(function* (
     yield* completeTask(siblingTaskId);
   }
 
-  // The provider cannot steer natively, so the steer restarts the wake run.
   const steeredRunning = yield* watchTurnRunning(wakeOrdinal + 1);
   yield* orchestrator.dispatch({
     type: "message.dispatch",
@@ -2048,7 +2037,6 @@ it.effect("wakes the parent for a sibling result after a steer restarts the comp
         completeTask,
       } = yield* restartCompletionWake(harness, false);
 
-      // A follow-up queued behind the wake starts once the terminal-run listener has finished it.
       const followUp = MessageId.make("message:follow-up");
       yield* orchestrator.dispatch({
         type: "message.dispatch",
@@ -2314,7 +2302,6 @@ it.effect("steers a promoted scheduled delivery with the thread's current select
         const orchestrator = yield* Orchestrator.OrchestratorV2;
         const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
         const threadId = yield* startFirstTurn;
-        // Bound scheduled tasks send like ScheduledTaskService: no model of their own.
         yield* orchestrator.dispatch({
           type: "message.dispatch",
           commandId: CommandId.make("scheduled"),
@@ -2366,8 +2353,6 @@ const claudeAdapter: ProviderAdapter.ProviderAdapterV2["Service"] = {
   openSession: () => Effect.die("the Claude instance never starts a turn here"),
 };
 
-// Queues a scheduled delivery behind the Codex turn, stops that turn (Stop holds the queue), then
-// switches the thread to Claude: a thread changes instance only while no run is active.
 const scheduledDeliveryAfterClaudeSwitch = (name: string, text: string) =>
   Effect.gen(function* () {
     const harness = yield* nextTurnSelectionHarness(
@@ -2592,7 +2577,6 @@ it.effect("keeps a queued message queued when promoted into a run that Stop reac
   }),
 );
 
-// regression: #32891 a restart that Stop already reached is lost
 it.effect.each([false, true])(
   "refuses a steer after Stop (provider turn ready: %s)",
   (providerTurnReady) =>
@@ -2604,7 +2588,6 @@ it.effect.each([false, true])(
         const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
         const threadId = yield* startFirstTurn;
         const first = started[0]!;
-        // The worker has not delivered the interrupt yet, so the run still reads as running.
         yield* orchestrator.dispatch({
           type: "run.interrupt",
           commandId: CommandId.make("stop"),
@@ -2677,7 +2660,6 @@ it.effect.each([false, true])(
     }),
 );
 
-// regression: #32891 a restart that arrives after the turn ended is lost
 it.effect.each([
   { status: "completed", settled: true },
   { status: "completed", settled: false },
@@ -2780,7 +2762,6 @@ it.effect.each([
     }),
 );
 
-// regression: #32891 a restart into a failed provider turn is lost
 it.effect("queues a restart sent into a provider turn that failed before its run settled", () =>
   Effect.gen(function* () {
     const { events, started, steered, layer, startFirstTurn } = yield* nextTurnSelectionHarness(
@@ -2875,8 +2856,6 @@ it.effect("queues a plain send behind the stopped queue and releases its hold", 
       });
 
       yield* send("sent", "auto");
-      // Once the stop settles, the run-update reactor promotes the queue on
-      // its own fiber, so read the queue while the provider is still stopping.
       const draining = yield* worker.drain().pipe(Effect.forkScoped);
       yield* Deferred.await(interruptReached);
 
@@ -3125,7 +3104,6 @@ it.effect("reports a restart that stops the running turn as restarted", () =>
         creationSource: "mcp",
       } as const;
       const sent = yield* threadManagement.sendToThread(input);
-      // Stop holds the replacement before it starts; a replay must still report the restart.
       yield* orchestrator.dispatch({
         type: "thread.stop",
         commandId: CommandId.make("stop-after-restart"),
@@ -3201,7 +3179,6 @@ it.effect("promotes a queued goal by stopping the running turn", () =>
   }),
 );
 
-// A fresh message skips compaction as its own turn, which steering a running turn would not.
 it.effect.each(["next", "/goal ship it", "fresh next"])(
   "promoting %s into a compaction stops it and sends it next",
   (promoted) =>
@@ -3311,7 +3288,6 @@ it.effect("stops a turn that is still starting when a goal is sent into it", () 
         createdBy: "user",
         creationSource: "web",
       });
-      // The stopped run's end starts the queue, which then needs one more drain.
       const goalStarting = yield* orchestrator.streamDomainEvents.pipe(
         Stream.filter(
           (event) => event.type === "run.updated" && event.payload.status === "starting",

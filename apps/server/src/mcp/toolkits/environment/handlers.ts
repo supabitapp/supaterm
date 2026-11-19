@@ -59,7 +59,6 @@ export const layer = McpToolAccess.toLayer(EnvironmentToolkit, {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const executor = yield* ThreadCommandExecutor.ThreadCommandExecutor;
       const update = Effect.gen(function* () {
-        // The turn may have ended, or the thread's modes changed, while this waited for the lock.
         yield* check;
         const { settings } = yield* access;
         return preferences(

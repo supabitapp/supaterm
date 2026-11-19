@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - Builds a Firefox-shaped
-// `cookies.sqlite` fixture with the same native bindings Firefox itself uses.
 import * as NodePath from "@effect/platform-node/NodePath";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";

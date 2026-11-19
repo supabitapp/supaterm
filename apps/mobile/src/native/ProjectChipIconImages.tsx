@@ -161,7 +161,6 @@ function MonogramTile(props: { readonly text: string; readonly color: ProjectIco
   );
 }
 
-// Matches ProjectFavicon's icon glyph: the 24-unit icon drawn at 80% of the tile.
 function IconTile(props: { readonly node: IconNode; readonly color: ProjectIconColor }) {
   const { color } = useResolveClassNames(projectIconColorClassNames(props.color).text);
   return (

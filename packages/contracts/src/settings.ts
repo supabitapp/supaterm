@@ -264,7 +264,6 @@ export const TranscriptionDictionary = Schema.Array(TranscriptionDictionaryEntry
   Schema.isMaxLength(TRANSCRIPTION_DICTIONARY_MAX_ENTRIES),
 );
 
-// Joined and hyphenated forms ("superterm", "super-term") match these without listing them.
 export const DEFAULT_TRANSCRIPTION_DICTIONARY: TranscriptionDictionary = [
   { term: "Supaterm", aliases: ["super term", "supa term", "soup a term"] },
 ];
@@ -286,9 +285,6 @@ export type FontFamilyPreference = typeof FontFamilyPreference.Type;
  * set. Empty means "no environment theme", which is also how it is cleared.
  */
 export const DefaultThemePreference = Schema.String.check(Schema.isMaxLength(64));
-// Deliberately absent from ServerSettingsPatch: `supaterm theme set` checks that an
-// id is syntactically valid and actually resolvable, and a generic RPC patch
-// would let a client write a theme no client can resolve, bypassing both.
 export type DefaultThemePreference = typeof DefaultThemePreference.Type;
 
 export const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
@@ -436,9 +432,6 @@ export const ClientSettingsSchema = Schema.Struct({
   fontFamilyTerminal: FontFamilyPreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 
   fontSmoothing: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  // `null` alone does not mean "show the wizard" — every install that predates
-  // this field decodes to `null` — so the gate also requires an empty workspace
-  // before it treats the client as a fresh install.
   onboardingCompletedAt: Schema.NullOr(Schema.String).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -472,8 +465,6 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed("status" as const)),
   ),
   screenReaderWindowTitle: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  // Sparse show/hide overrides for thread details card items. Missing ids use the client's
-  // default, so new items appear for everyone and unknown ids survive a downgrade.
   threadDetailsItems: Schema.Record(Schema.String, Schema.Boolean).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
@@ -490,7 +481,6 @@ export const ClientSettingsSchema = Schema.Struct({
   sidebarThreadSortOrder: SidebarThreadSortOrder.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT_ORDER)),
   ),
-  // An unknown grouping falls back to Default instead of failing the whole settings document.
   sidebarThreadGrouping: SidebarThreadGrouping.pipe(
     Schema.catchDecoding(() => Effect.succeedSome("status" as const)),
     Schema.withDecodingDefault(Effect.succeed("status" as const)),
@@ -517,8 +507,6 @@ export const ClientSettingsSchema = Schema.Struct({
   codexMicro: CodexMicroSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   sidePulse: SidePulseSettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   wordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  // Opt-in TeX typesetting in rendered Markdown. Off keeps math parsing and
-  // KaTeX out of the render path entirely.
   mathRenderingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
 });
 export type ClientSettings = typeof ClientSettingsSchema.Type;
@@ -858,8 +846,6 @@ const LegacySourceControlWritingStyle = TrimmedString.pipe(
   ),
 );
 
-// The struct member comes first so encoding uses its defaulted fields: the server strips
-// default sub-fields before writing settings.json, and a toType target would reject them.
 const SourceControlWritingStyleSetting = Schema.Union([
   SourceControlWritingStyleSettings,
   LegacySourceControlWritingStyle,
@@ -1054,7 +1040,6 @@ export const ProjectSettingsOverrides = Schema.Struct({
 } satisfies Record<ProjectScopedServerSettingKey | "providerInstances", unknown>);
 export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
 
-// Whole-entry writers must round-trip unknown keys; keep the type closed to catch misspellings.
 const keepUnknownOverrideKeys = <Entry extends Schema.Struct<Schema.Struct.Fields>>(
   entry: Entry,
 ): Schema.Codec<
@@ -1363,10 +1348,6 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
 
-  // The driver-specific config blob is `Schema.Unknown` at this layer so
-  // envelopes with unknown drivers (forks, downgrades, in-flight PR branches)
-  // round-trip without loss. See providerInstance.ts for the forward/backward
-  // compatibility invariant.
   providerInstances: Schema.Record(ProviderInstanceId, ProviderInstanceConfig).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
@@ -1635,9 +1616,6 @@ export const ServerSettingsPatch = Schema.Struct({
    * secret is removed from the secret store.
    */
   sourceControlHosts: Schema.optionalKey(Schema.Record(Schema.String, SourceControlHostSettings)),
-  // Whole-map replacement for the new instance config. Patching individual
-  // entries is intentionally out of scope: the map is small, and partial
-  // patches risk leaving driver-specific config in a half-merged state.
   providerInstances: Schema.optionalKey(Schema.Record(ProviderInstanceId, ProviderInstanceConfig)),
 
   usageHistoryRetentionDays: Schema.optionalKey(UsageHistoryRetentionDays),
@@ -1655,7 +1633,6 @@ export type ServerSettingsPatch = typeof ServerSettingsPatch.Type;
 export function requiredScopesForServerSettingsPatch(
   patch: ServerSettingsPatch,
 ): ReadonlyArray<AuthEnvironmentScope> {
-  // A project's provider switches turn instances on and off like the machine-level ones.
   let changesProviders = Object.values(patch.projectSettingsOverrides ?? {}).some(
     (entry) => entry === null || entry?.providerInstances !== undefined,
   );

@@ -32,7 +32,6 @@ export function abortComposerDraftOperations(draftKey: string): void {
 }
 
 export function abortComposerDraftOperationsWhere(matches: (draftKey: string) => boolean): void {
-  // Deleting the current entry while iterating a Map is safe.
   for (const draftKey of operationsByDraftKey.keys()) {
     if (matches(draftKey)) abortComposerDraftOperations(draftKey);
   }

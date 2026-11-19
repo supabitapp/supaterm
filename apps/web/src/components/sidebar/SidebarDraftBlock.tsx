@@ -34,8 +34,6 @@ import { SidebarDraftDiscardButton, draftPenClassName } from "./SidebarThreadRow
 
 const DRAFTS_SHELF_EXPANDED_KEY = "supaterm:sidebar:drafts-expanded";
 
-// Clicking is a plain navigation to /draft/$draftId that touches none of the draft's settings.
-// Memoized so per-keystroke block re-renders skip it while the open draft shows a frozen snapshot.
 const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   draftId: DraftId;
   composer: ComposerThreadDraftState;
@@ -43,7 +41,6 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   project: ProjectFaviconProject | null;
   projectDisplayName: string | null;
   isActive: boolean;
-  /** Open in a chat pane that is not focused. */
   inOtherPane: boolean;
   onNavigate: (draftId: DraftId) => void;
   onDiscard: (draftId: DraftId) => void;
@@ -60,8 +57,6 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
     )
       .trim()
       .split("\n", 1)[0] ?? "";
-  // images mirrors persistedAttachments once rehydration finishes; before
-  // that only the persisted list is populated, hence max not sum.
   const attachmentCount =
     Math.max(composer.images.length, composer.persistedAttachments.length) +
     composer.files.length +
@@ -80,9 +75,6 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
   });
   const handleActivate = () => onNavigate(draftId);
   const handleKeyDown = (event: ReactKeyboardEvent) => {
-    // Keys targeting the nested discard button belong to the button:
-    // preventDefault here would swallow Space's synthesized click and
-    // navigate instead of discarding.
     if ((event.target as HTMLElement).closest("button")) return;
     if (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10")) {
       event.preventDefault();
@@ -177,8 +169,6 @@ interface SidebarDraftRowData {
   composer: ComposerThreadDraftState;
 }
 
-// Own store subscriptions keep per-keystroke composer updates
-// inside this block. Vanishes at count 0.
 export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   projectByKey: ReadonlyMap<string, EnvironmentProject>;
   projectDisplayNameByKey: ReadonlyMap<string, string>;
@@ -239,7 +229,6 @@ export const SidebarDraftBlock = memo(function SidebarDraftBlock(props: {
   const drafts = (() => {
     const rows: SidebarDraftRowData[] = [];
     for (const [draftKey, session] of Object.entries(draftThreadsByThreadKey)) {
-      // Side chat drafts live in their parent's panes, like the side chats they become.
       if (session.promotedTo != null || session.sideChatOf !== undefined) {
         continue;
       }

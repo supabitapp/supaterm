@@ -81,10 +81,6 @@ function Main({ className, ...props }: ComponentProps<"div">) {
 const contextStripRowClasses =
   "group/composer-context flex items-center gap-2 overflow-x-clip overflow-y-visible px-2";
 
-/**
- * The context controls' drawer. Below the composer it extends the shell's glass; above it, it
- * joins the composer's notice column so the shell switches to its attached-surface glass.
- */
 function ContextStrip({
   placement = "bottom",
   className,
@@ -110,7 +106,6 @@ function ContextStrip({
         "before:absolute before:inset-0 before:-z-1 before:rounded-b-2xl before:border before:border-(--chat-composer-outline) before:mask-b-from-transparent before:mask-b-from-(position:--spacing-composer-seam) before:mask-b-to-black before:mask-b-to-(position:--spacing-composer-seam) before:shadow-composer",
         "dark:before:border-white/7 dark:before:bg-composer-seam-below dark:before:shadow-composer-dark",
         "group-has-data-[composer-banner-surface=attached]/composer-surface:before:bg-(--chat-composer-glass-surface)/(--glass-opacity) group-has-data-[composer-banner-surface=attached]/composer-surface:before:backdrop-blur-(--glass-blur) group-has-data-[composer-banner-surface=attached]/composer-surface:before:backdrop-saturate-(--glass-saturation)",
-        // The shell drops its glass while the collapse animation resizes it.
         "group-data-model-strip-transition/composer-surface:before:bg-(--chat-composer-glass-surface)/(--glass-opacity) group-data-model-strip-transition/composer-surface:before:backdrop-blur-(--glass-blur)",
         "not-supports-[clip-path:shape(from_0_0,line_to_1px_1px)]:before:bg-(--chat-composer-glass-surface)/(--glass-opacity) not-supports-[clip-path:shape(from_0_0,line_to_1px_1px)]:before:backdrop-blur-(--glass-blur) not-supports-[clip-path:shape(from_0_0,line_to_1px_1px)]:before:backdrop-saturate-(--glass-saturation)",
         className,

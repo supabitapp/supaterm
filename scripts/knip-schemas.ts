@@ -3,25 +3,18 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeWorkerThreads from "node:worker_threads";
 import type { Preprocessor } from "knip";
-// Knip needs the legacy compiler API, which TypeScript 7 no longer exports.
 import ts from "typescript-legacy";
 
 const schemaTypeId = "~effect/Schema/Schema";
 
-// One tsconfig's files, each with the export names its issues mention. Only
-// those names are checked: inferring the type of every export cost seconds.
 interface Project {
   readonly cwd: string;
   readonly configPath: string | undefined;
   readonly files: ReadonlyArray<readonly [string, ReadonlyArray<string>]>;
 }
 
-// Each tsconfig needs its own program. The programs share parsed and bound
-// files (Effect's and Node's declarations) through one registry, as the
-// language service does. Without it, building 17 programs took about 13 s.
 const registry = ts.createDocumentRegistry();
 
-// Returns each file with those of its names that are Effect schemas.
 function findSchemas({ cwd, configPath, files }: Project) {
   const config = configPath
     ? ts.getParsedCommandLineOfConfigFile(
@@ -59,7 +52,6 @@ function findSchemas({ cwd, configPath, files }: Project) {
       options,
       key,
       ts.ScriptSnapshot.fromString(text),
-      // Files do not change during one run.
       "1",
       undefined,
       languageVersionOrOptions,
@@ -98,17 +90,13 @@ function findSchemas({ cwd, configPath, files }: Project) {
   });
 }
 
-// The preprocessor loads this file again as each worker.
 if (!NodeWorkerThreads.isMainThread) {
   const projects: ReadonlyArray<Project> = NodeWorkerThreads.workerData;
   NodeWorkerThreads.parentPort?.postMessage(projects.flatMap(findSchemas));
 }
 
-// Three workers measured fastest. Each one parses Effect again, so more
-// workers cost more than they save.
 const WORKERS = Math.min(3, NodeOS.availableParallelism());
 
-// Drops unused-export issues whose every symbol is an Effect schema.
 const preprocess = async (options: Parameters<Preprocessor>[0]) => {
   const categories = ["exports", "nsExports", "duplicates"] as const;
   const projects = new Map<string | undefined, Map<string, Set<string>>>();
@@ -129,7 +117,6 @@ const preprocess = async (options: Parameters<Preprocessor>[0]) => {
     }
   }
 
-  // Deal the projects out largest first so the workers get similar shares.
   const shares = Array.from({ length: WORKERS }, (): Array<Project> => []);
   [...projects]
     .sort(([, a], [, b]) => b.size - a.size)
@@ -155,8 +142,6 @@ const preprocess = async (options: Parameters<Preprocessor>[0]) => {
         }),
     ),
   ).catch(async (error: unknown) => {
-    // knip only sets an exit code on a failed preprocessor, so stop the
-    // siblings or the failed run waits for their work.
     await Promise.allSettled(workers.map((worker) => worker.terminate()));
     throw error;
   });

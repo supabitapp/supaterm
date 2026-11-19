@@ -1029,11 +1029,6 @@ const WsPullRequestsListRpc = Rpc.make(WS_METHODS.pullRequestsList, {
   error: PullRequestRpcError,
 });
 
-/**
- * The line counts for rows already on the page. Its own call because on GitHub the pair costs
- * 40-60% of the listing read that answers everything else on the row, so the rows arrive first
- * and their stats a moment later.
- */
 const WsPullRequestsListStatsRpc = Rpc.make(WS_METHODS.pullRequestsListStats, {
   payload: PullRequestListStatsInput,
   success: PullRequestListStatsResult,
@@ -1144,7 +1139,6 @@ const WsPullRequestsSetFilesViewedRpc = Rpc.make(WS_METHODS.pullRequestsSetFiles
 
 const WsPullRequestsRunActionRpc = Rpc.make(WS_METHODS.pullRequestsRunAction, {
   payload: PullRequestActionInput,
-  // Undefined unless asked for with replyWithSummary, or when the host's reply lacked it.
   success: Schema.UndefinedOr(PullRequestSummary),
   error: PullRequestRpcError,
 });
@@ -1210,7 +1204,6 @@ const WsPullRequestsSubscribeRefreshesRpc = Rpc.make(WS_METHODS.pullRequestsSubs
   stream: true,
 });
 
-// Separate from the refreshes above so linked-thread changes don't refetch forge-backed reads.
 const WsPullRequestsSubscribeLinkedThreadRefreshesRpc = Rpc.make(
   WS_METHODS.pullRequestsSubscribeLinkedThreadRefreshes,
   {
@@ -1221,11 +1214,6 @@ const WsPullRequestsSubscribeLinkedThreadRefreshesRpc = Rpc.make(
   },
 );
 
-/**
- * Read on its own rather than as part of the detail: the people who may be asked are only wanted
- * once somebody opens the menu, and reading them with every change request would spend a request
- * per host on a list nobody looked at.
- */
 const WsPullRequestsReviewerCandidatesRpc = Rpc.make(WS_METHODS.pullRequestsReviewerCandidates, {
   payload: PullRequestReviewerCandidatesInput,
   success: PullRequestReviewerCandidateList,
@@ -1262,8 +1250,6 @@ const WsSourceControlCloneRepositoryRpc = Rpc.make(WS_METHODS.sourceControlClone
   error: Schema.Union([SourceControlRepositoryError, EnvironmentAuthorizationError]),
 });
 
-// Clone-backed project creation. `start` returns once the project exists and
-// the clone is running; progress arrives on the subscription.
 const WsProjectCloneStartRpc = Rpc.make(WS_METHODS.projectCloneStart, {
   payload: ProjectCloneStartInput,
   success: ProjectCloneStartResult,
@@ -1556,9 +1542,6 @@ const WsVcsListRefsRpc = Rpc.make(WS_METHODS.vcsListRefs, {
 });
 
 const WsVcsCreateWorktreeRpc = Rpc.make(WS_METHODS.vcsCreateWorktree, {
-  // Clients cannot choose the folder: new worktrees go in the server's managed
-  // worktrees folder. `path` stays a required null because older servers
-  // require the key.
   payload: Schema.Struct({ ...VcsCreateWorktreeInput.fields, path: Schema.Null }),
   success: VcsCreateWorktreeResult,
   error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),

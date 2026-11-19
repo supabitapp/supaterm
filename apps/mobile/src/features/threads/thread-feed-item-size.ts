@@ -1,8 +1,6 @@
 import { THREAD_WORK_ROW_MIN_HEIGHT } from "../../lib/layout";
 import type { ThreadFeedEntry } from "../../lib/threadActivity";
 
-// Content-driven rows must be measured by LegendList: returning a fixed size
-// makes the list skip native measurement entirely.
 const TURN_FOLD_HEIGHT = 42;
 const WORK_GROUP_TOGGLE_HEIGHT = THREAD_WORK_ROW_MIN_HEIGHT;
 

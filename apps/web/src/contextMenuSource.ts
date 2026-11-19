@@ -1,6 +1,5 @@
 import type { ContextMenuSource } from "@supaterm/contracts";
 
-// Chromium uses no button for keyboard context menus and zero clicks for keyboard activation.
 export function contextMenuSourceOf(
   event: Pick<MouseEvent, "type" | "button" | "detail">,
 ): ContextMenuSource {

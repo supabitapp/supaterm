@@ -1,10 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - Bridges Playwright's WebSocket transport to the desktop's fds.
-/**
- * Playwright connects over CDP only through a WebSocket URL, so each attached
- * desktop tab gets a loopback endpoint with an unguessable path. Its frames
- * cross the bootstrap file descriptors to the desktop's relay, which owns the
- * tab's `webContents.debugger`.
- */
 import * as NodeStream from "@effect/platform-node/NodeStream";
 import * as NodeSocketServer from "@effect/platform-node/NodeSocketServer";
 import {
@@ -74,7 +68,6 @@ const make = Effect.gen(function* () {
   const controlFd = config.desktopBrowserControlFd;
   const changes = yield* PubSub.unbounded<{ key: DesktopTabKey; attached: boolean }>();
   const attachedTabs = new Set<string>();
-  // Missing reports protect desktop tabs until the renderer explicitly marks them hidden.
   const shownTabs = new Map<string, boolean>();
   const loadFailures = new Map<string, PreviewAutomationLoadError>();
   const inbound = new Map<string, Queue.Queue<string>>();
@@ -180,7 +173,6 @@ const make = Effect.gen(function* () {
     }).pipe(Effect.orDie);
     const queue = yield* Queue.unbounded<string>();
     inbound.set(id, queue);
-    // A detach before this registration shut down no queue, so check again.
     if (!attachedTabs.has(id)) {
       inbound.delete(id);
       return yield* Effect.die("The desktop tab detached before the server connected.");
@@ -192,7 +184,6 @@ const make = Effect.gen(function* () {
         yield* command({ type: "release", ...key });
       }),
     );
-    // The relay serves one Playwright connection; a second would see the first's sessions.
     let connected = false;
     yield* server
       .run((socket) =>
@@ -201,8 +192,6 @@ const make = Effect.gen(function* () {
           connected = true;
           const writer = yield* socket.writer;
           const reader = yield* socket.reader;
-          // A detach shuts the queue down. Ending here closes the socket, so Playwright's
-          // pending commands fail instead of waiting forever for the tab to answer.
           const toPlaywright = Stream.fromQueue(queue).pipe(
             Stream.runForEach((message) => writer.write(message)),
             Effect.exit,

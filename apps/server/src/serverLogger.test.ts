@@ -95,11 +95,6 @@ const layerConfig = (overrides: Partial<ServerConfig.ServerConfig["Service"]>) =
     }),
   ).pipe(Layer.provide(NodePath.layer));
 
-/**
- * Runs `program` (one log line by default) inside a span so the tracer logger
- * has somewhere to attach an event, then reports both what the collector
- * received and what landed on the span.
- */
 const logInSpanThrough = (
   overrides: Partial<ServerConfig.ServerConfig["Service"]>,
   program: Effect.Effect<void> = Effect.log("server logger under test"),

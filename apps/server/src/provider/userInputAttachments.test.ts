@@ -363,7 +363,6 @@ describe("question answer paths", () => {
           expect(extracted).toBe(path + ".txt");
           const heapLimit = Number(NodeFS.readFileSync(path + ".txt", "utf8"));
           expect(heapLimit).toBeGreaterThan(192 * 1024 * 1024);
-          // Newer V8 versions reserve up to 192 MiB for the young generation as well.
           expect(heapLimit).toBeLessThanOrEqual(384 * 1024 * 1024);
         }).pipe(Effect.provide(layer)),
       (probe) => Effect.sync(() => probe.mockRestore()),
@@ -420,7 +419,6 @@ describe("question answer paths", () => {
       expect(extracted).not.toContain("\u001b");
       expect(NodeFS.readFileSync(path, "utf8")).toBe(notebook);
       const before = NodeFS.statSync(path + ".txt").mtimeMs;
-      // A changed binary would fail parsing if the cached extraction were not reused.
       NodeFS.writeFileSync(path, "invalid notebook");
       const documents = yield* DocumentText.DocumentText;
       const results = yield* Effect.all([documents.ensure(path), documents.ensure(path)], {

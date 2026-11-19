@@ -17,11 +17,9 @@ describe("resolvePaneDropZone", () => {
   });
 
   it("scales the bands with the pane, within fixed bounds", () => {
-    // 22% of 800 is 176px, above the 160px ceiling.
     expect(resolvePaneDropZone(pane, { x: 100 + 155, y: 350 })).toBe("left");
     expect(resolvePaneDropZone(pane, { x: 100 + 165, y: 350 })).toBe("center");
     const small = { left: 0, top: 0, width: 200, height: 200 };
-    // 22% of 200 is 44px, below the 56px floor.
     expect(resolvePaneDropZone(small, { x: 50, y: 100 })).toBe("left");
   });
 

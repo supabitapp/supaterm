@@ -12,7 +12,6 @@ import {
 } from "../shared.ts";
 import { GROK_BACKGROUND_BASH_PROMPT, GROK_BACKGROUND_BASH_TICKS } from "./input.ts";
 
-// Grok ACKs background shells with BackgroundTaskStarted, then streams output until x.ai/task_completed.
 export function assertGrokBackgroundBashOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,
@@ -58,7 +57,6 @@ export function assertGrokBackgroundBashOutput(
       event.payload.id === command?.id &&
       event.payload.status === "completed",
   );
-  // The root turn ends with the prompt; a background shell may be a dev server that never exits.
   const rootTurnEndedAt = result.domainEvents.findIndex(
     (event) =>
       event.type === "run.updated" &&

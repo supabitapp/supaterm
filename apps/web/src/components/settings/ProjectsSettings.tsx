@@ -28,7 +28,6 @@ export function ProjectsSettings() {
         </div>
       </SettingsPageContainer>
     ) : null;
-  // Keep the panel mounted so it can follow members when regrouping changes the project key.
   const projectScope =
     scope.kind === "project" ||
     scope.kind === "checkout" ||

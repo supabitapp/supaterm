@@ -116,10 +116,6 @@ function runChecked(command, args) {
   );
 }
 
-// electron's own installer goes through @electron/get, which reuses its
-// download cache (~/.cache/electron, ~/Library/Caches/electron) and verifies
-// the bundled checksums. pnpm never runs it because electron has no install
-// script, so a new worktree would otherwise download 130 MB again.
 function installFromElectronCache(electronDir) {
   const result = NodeChildProcess.spawnSync(
     process.execPath,
@@ -213,7 +209,6 @@ export function setup() {
   ensureElectronRuntime();
 }
 
-// `file://${argv[1]}` never matches on Windows (drive letters need `file:///C:/`).
 if (process.argv[1] && NodeURL.pathToFileURL(process.argv[1]).href === import.meta.url) {
   const electronPath = ensureElectronRuntime();
   process.stdout.write(`${electronPath}\n`);

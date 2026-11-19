@@ -121,7 +121,6 @@ export function PullRequestReviewSheet({
   const verdict = offered.find((option) => option.value === requestedVerdict) ?? offered[0];
   const reviewing = params.mode === "review";
   const canSubmitComments = !store.draft.comments.length || permissions.canInlineComment;
-  // Forgejo requires a summary when requesting changes, even with inline comments.
   const summaryRequired =
     verdict !== undefined && result.data
       ? sourceControlClients.get(result.data.provider).reviewSummaryRequired(verdict.value)

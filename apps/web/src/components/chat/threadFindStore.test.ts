@@ -26,13 +26,11 @@ describe("thread find store", () => {
     const { navigate, readPosition, timeline } = setup();
     const detach = attachThreadFindTimeline(timeline);
     openThreadFind(threadKey);
-    // Opening find is manual navigation; reopening it is not.
     expect(navigate).toHaveBeenCalledTimes(1);
     expect(findIn(threadKey)).toMatchObject({ focusRequestId: 1 });
 
     setThreadFindQuery(threadKey, " needle ");
     expect(readPosition).toHaveBeenLastCalledWith("needle");
-    // Opening again refocuses and restarts the search from where the viewport is.
     openThreadFind(threadKey);
     expect(navigate).toHaveBeenCalledTimes(1);
     expect(findIn(threadKey)).toMatchObject({
@@ -53,7 +51,6 @@ describe("thread find store", () => {
       query: "Café",
       start: { entryId: "m", occurrence: 0 },
     });
-    // Another thread's timeline does not answer for this one.
     setThreadFindQuery(threadKey, "Caf");
     expect(readPosition).not.toHaveBeenCalled();
     expect(navigate).not.toHaveBeenCalled();
@@ -72,7 +69,6 @@ describe("findForMessageMatch", () => {
     expect(findForMessageMatch({ snippet: "fix the sidebar lag" }, "fix sidebar")).toEqual({
       query: "sidebar",
     });
-    // The whole query, when the snippet holds it as typed.
     expect(findForMessageMatch({ snippet: "then Vp  run dev again" }, "vp run dev")).toEqual({
       query: "Vp  run dev",
     });

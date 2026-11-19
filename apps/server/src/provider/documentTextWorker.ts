@@ -14,8 +14,6 @@ const CELL_END = Symbol("cell-end");
 type TextPart = string | typeof CELL_START | typeof CELL_END | { fallback: string };
 
 const TRUNCATED = "\n\n[Extracted text truncated at document extraction limits.]";
-// Parts the document never displays: the XHTML head, tracked deletions and moves, field codes,
-// phonetic guides, paragraph properties such as tab-stop definitions.
 const HIDDEN = new Set([
   "head",
   "script",
@@ -41,8 +39,6 @@ interface XmlNode {
   hasTextChoice?: boolean;
 }
 
-// ODF 1.3 Part 3 §6.1.2: paragraph character data turns TAB, CR and LF into spaces, collapses
-// space runs and trims the ends; only <text:s>, <text:tab> and <text:line-break> keep literal ones.
 function collapseOdfWhitespace(paragraph: XmlNode) {
   let afterSpace = true;
   let tail: { node: XmlNode; index: number; value: string } | undefined;
@@ -102,8 +98,6 @@ function xml(source: string, extension: string): XmlNode {
       parent.children.pop();
       return;
     }
-    // Markup-compatibility fallbacks repeat their mc:Choice content, e.g. Word text boxes.
-    // Keep one when no Choice carries text, such as a chart with a VML caption.
     if (node.name === "Fallback" && parent.hasTextChoice) {
       parent.children.pop();
       return;
@@ -145,8 +139,6 @@ function* text(node: XmlNode): Generator<string, void> {
       else yield* text(child);
     }
 }
-// SpreadsheetML `t` and `v` values are ST_Xstring: `_xHHHH_` is one UTF-16 code unit, and an
-// escaped lead underscore (`_x005F_xHHHH_`) keeps the literal `_xHHHH_`. Decoded in one pass.
 function* xstringText(node: XmlNode): Generator<string, void> {
   if (HIDDEN.has(node.name)) return;
   if (node.name !== "t" && node.name !== "v") {
@@ -219,7 +211,6 @@ function odfValue(cell: XmlNode): string {
 }
 function hasCellText(cell: XmlNode): boolean {
   if (odfValue(cell).trim() || cell.name === "noBreakHyphen") return true;
-  // Space markers can have enormous repeat counts; emptiness never requires expanding them.
   if (HIDDEN.has(cell.name) || cell.spaceCount !== undefined) return false;
   return cell.children.some((child) =>
     typeof child === "string" ? !!child.trim() : hasCellText(child),
@@ -231,7 +222,6 @@ function* table(node: XmlNode): Generator<TextPart, void> {
     const cells = children(row).filter((cell) =>
       ["tc", "table-cell", "covered-table-cell", "td", "th"].includes(cell.name),
     );
-    // ODS writers pad sheets with repeated empty rows and trailing cells.
     while (cells.length && !hasCellText(cells.at(-1)!)) cells.pop();
     if (!cells.length) continue;
     const repeat = repeatCount(row.attrs["number-rows-repeated"]);
@@ -312,7 +302,6 @@ async function archive(path: string): Promise<Map<string, string>> {
           });
           stream.on("end", () => {
             const data = Buffer.concat(buffers);
-            // XML's BOM and initial '<' bytes distinguish both UTF-16 byte orders.
             const encoding =
               (data[0] === 0xff && data[1] === 0xfe) || (data[0] === 0x3c && data[1] === 0)
                 ? "utf-16le"
@@ -449,7 +438,6 @@ function* rtf(source: string): Generator<string, void> {
         )
           state.skip = true;
         if (control === "ansicpg") {
-          // Per-byte decoding only supports single-byte Windows code pages.
           if (value !== 874 && (value < 1250 || value > 1258))
             throw new Error("Unsupported RTF code page");
           state.decoder = new TextDecoder(`windows-${value}`, { fatal: true });
@@ -467,7 +455,6 @@ function* rtf(source: string): Generator<string, void> {
         i++;
         if (fallback) fallback--;
         else if (rest[0] === "*") state.skip = true;
-        // A backslash before a line break is \par; TextEdit ends paragraphs this way.
         else if (!state.skip && (rest[0] === "\n" || rest[0] === "\r")) yield "\n";
         else if (!state.skip && ["\\", "{", "}"].includes(rest[0]!)) yield rest[0]!;
         else if (!state.skip && symbols.has(rest[0]!)) yield symbols.get(rest[0]!)!;
@@ -696,7 +683,6 @@ export async function extractDocumentText(path: string, extension: string): Prom
   let space = false;
   let truncated = false;
   try {
-    // Charge raw text before normalization so repeated whitespace also exhausts the budget.
     for await (const part of document(path, extension)) {
       if (part === CELL_START) {
         if (cellDepth++ === 0) {

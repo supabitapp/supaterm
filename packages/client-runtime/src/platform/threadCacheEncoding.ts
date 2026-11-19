@@ -14,13 +14,8 @@ import {
   StoredOrchestrationThreadSnapshot,
 } from "./orchestrationCache.ts";
 
-// Keep the full format for web/desktop; older clients discard compact records.
 export const COMPACT_THREAD_CACHE_SCHEMA_VERSION = 6 as const;
 
-/**
- * A thread followed live keeps every item it streams, so its projection can grow
- * to hundreds of MB. Larger ones are not cached; reopening loads the bounded window.
- */
 const THREAD_CACHE_MAX_JSON_LENGTH = 4 * 1024 * 1024;
 
 const ROWS_PER_CHUNK = 32;
@@ -30,7 +25,6 @@ const StoredCompactThreadSnapshot = StoredOrchestrationThreadSnapshot.mapFields(
   schemaVersion: Schema.Literal(COMPACT_THREAD_CACHE_SCHEMA_VERSION),
   snapshot: fields.snapshot.mapFields((snapshotFields) => ({
     ...snapshotFields,
-    // Required metadata prevents partial compact records from masquerading as full ones.
     turnItemsOmitLocalVisible: Schema.Boolean,
     turnItemCount: Schema.Int,
     visibleTurnItemCount: Schema.Int,
@@ -136,56 +130,52 @@ export function makeStoredThreadSnapshotEncoder(options: {
   return Effect.fnUntraced(function* (stored: StoredThread) {
     let hasWorked = false;
     let length = 0;
-    const encodeRows =
-      /* Runs once per thread save inside the traced store call; avoid a span per row list. */
-      Effect.fnUntraced(function* <Row extends object>(
-        rows: ReadonlyArray<Row>,
-        cache: WeakMap<object, EncodedRow>,
-        encodeChunk: (
-          chunk: ReadonlyArray<Row>,
-        ) => Effect.Effect<ReadonlyArray<unknown>, Schema.SchemaError>,
-      ) {
-        let misses: Array<Row> = [];
-        const encodeMisses = Effect.gen(function* () {
-          if (hasWorked) yield* yieldToHost;
-          hasWorked = true;
-          const chunk = yield* encodeChunk(misses);
-          chunk.forEach((encoded, index) => {
-            const row = { encoded, length: JSON.stringify(encoded).length };
-            cache.set(misses[index]!, row);
-            length += row.length;
-          });
-          misses = [];
-        });
-        for (const row of rows) {
-          const cached = cache.get(row);
-          if (cached === undefined) misses.push(row);
-          else length += cached.length;
-          if (misses.length === ROWS_PER_CHUNK) yield* encodeMisses;
-          if (length > maxJsonLength) return undefined;
-        }
-        if (misses.length > 0) yield* encodeMisses;
-        if (length > maxJsonLength) return undefined;
-        return rows.map((row) => cache.get(row)!.encoded);
-      });
-    const encodeProjectionRows =
-      /* Runs once per thread save inside the traced store call. */
-      Effect.fnUntraced(function* (projection: Projection) {
-        const turnItems = yield* encodeRows(
-          projection.turnItems,
-          encodedTurnItems,
-          encodeTurnItemChunk,
-        );
-        if (turnItems === undefined) return undefined;
-        const visibleTurnItems = yield* encodeRows(
-          projection.visibleTurnItems,
-          encodedVisibleRows,
-          encodeVisibleRowChunk,
-        );
-        if (visibleTurnItems === undefined) return undefined;
+    const encodeRows = Effect.fnUntraced(function* <Row extends object>(
+      rows: ReadonlyArray<Row>,
+      cache: WeakMap<object, EncodedRow>,
+      encodeChunk: (
+        chunk: ReadonlyArray<Row>,
+      ) => Effect.Effect<ReadonlyArray<unknown>, Schema.SchemaError>,
+    ) {
+      let misses: Array<Row> = [];
+      const encodeMisses = Effect.gen(function* () {
         if (hasWorked) yield* yieldToHost;
-        return { ...projection, turnItems, visibleTurnItems };
+        hasWorked = true;
+        const chunk = yield* encodeChunk(misses);
+        chunk.forEach((encoded, index) => {
+          const row = { encoded, length: JSON.stringify(encoded).length };
+          cache.set(misses[index]!, row);
+          length += row.length;
+        });
+        misses = [];
       });
+      for (const row of rows) {
+        const cached = cache.get(row);
+        if (cached === undefined) misses.push(row);
+        else length += cached.length;
+        if (misses.length === ROWS_PER_CHUNK) yield* encodeMisses;
+        if (length > maxJsonLength) return undefined;
+      }
+      if (misses.length > 0) yield* encodeMisses;
+      if (length > maxJsonLength) return undefined;
+      return rows.map((row) => cache.get(row)!.encoded);
+    });
+    const encodeProjectionRows = Effect.fnUntraced(function* (projection: Projection) {
+      const turnItems = yield* encodeRows(
+        projection.turnItems,
+        encodedTurnItems,
+        encodeTurnItemChunk,
+      );
+      if (turnItems === undefined) return undefined;
+      const visibleTurnItems = yield* encodeRows(
+        projection.visibleTurnItems,
+        encodedVisibleRows,
+        encodeVisibleRowChunk,
+      );
+      if (visibleTurnItems === undefined) return undefined;
+      if (hasWorked) yield* yieldToHost;
+      return { ...projection, turnItems, visibleTurnItems };
+    });
 
     const { snapshot } = stored;
     let payload: string;
@@ -213,7 +203,6 @@ export function makeStoredThreadSnapshotEncoder(options: {
         },
       });
     }
-    // The rest of the projection is not budgeted row by row; a huge one still stays out.
     return payload.length > maxJsonLength ? Option.none<string>() : Option.some(payload);
   });
 }

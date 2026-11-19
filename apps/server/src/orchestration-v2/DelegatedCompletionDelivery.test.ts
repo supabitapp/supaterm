@@ -203,7 +203,6 @@ const layerTest = Layer.mergeAll(
   Layer.provide(layerPlatformTest),
 );
 
-// ProviderContinuationService consumes the orchestrator's continuation queue, as in production.
 const layerContinuationWorkerTest = ProviderContinuationService.layer.pipe(
   Layer.provide(Layer.merge(ProviderContinuationRequests.layer, IdAllocator.layer)),
   Layer.provideMerge(layerTest),
@@ -1271,7 +1270,6 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
                     plannedRun?.type === "run.updated"
                       ? plannedRun.payload.delegatedCompletion
                       : undefined;
-                  // The provider turn ends (or its checkpoint lands) after the command read the run.
                   yield* commit({
                     commandId: CommandId.make(`command:${race}`),
                     threadId,
@@ -1330,7 +1328,6 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
         );
         assert.isTrue(settled);
         if (command === "acknowledge") {
-          // Resolving the delivery reads only its own message, not every user message.
           assert.isNotEmpty(messageReads);
           for (const query of messageReads) assert.match(query, /\bmessage_id\s+IN\b/i);
         }
@@ -1519,8 +1516,6 @@ const seedRestartCancelledChild = (input: {
     return { taskId, childThreadId, childRunId };
   });
 
-// Parent spawned two always-wake tasks: the incoming one's completion wake is queued behind a busy
-// run while the sibling's child run is still going.
 const queueCompletionWakeBesideRunningSibling = (key: string) =>
   Effect.gen(function* () {
     const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -1587,7 +1582,6 @@ const queueCompletionWakeBesideRunningSibling = (key: string) =>
     const seeded = yield* orchestrator.getThreadProjection(threadId);
     const origin = seeded.runs.find((run) => run.id === originRunId)!;
     const sibling = seeded.subagents.find((task) => task.id !== incomingTaskId)!;
-    // The coordinator finished its spawning turn but is busy with another run, so the wake queues.
     yield* sink.write({
       events: [
         {
@@ -1810,8 +1804,6 @@ it.layer(layerContinuationWorkerTest)("interrupted completion wakes", (it) => {
         runId: wake.id,
         ...(holdQueue ? { holdQueue } : {}),
       });
-      // The wake's terminal may claim the sibling right after commit, so read what the interrupt
-      // itself wrote rather than a later projection.
       const interruptDelivery = new Map(
         interrupted.storedEvents.flatMap(({ event }) =>
           event.type === "subagent.updated"
@@ -1833,7 +1825,6 @@ it.layer(layerContinuationWorkerTest)("interrupted completion wakes", (it) => {
       assert.isFalse(interruptDelivery.has(sibling.id));
 
       const afterSequence = siblingFinishesFirst ? beforeInterrupt : yield* completeSibling;
-      // The wake's terminal, or the sibling's own completion, reserves the successor.
       yield* sink.stream({ afterSequence, eventType: "subagent.updated" }).pipe(
         Stream.filter(
           (stored) =>
@@ -1851,7 +1842,6 @@ it.layer(layerContinuationWorkerTest)("interrupted completion wakes", (it) => {
       assert.deepEqual(successor?.taskIds, [sibling.id]);
       assert.notEqual(successor?.messageId, delivery.messageId);
 
-      // ProviderContinuationService consumes the claim's offer and dispatches the successor.
       yield* sink.stream({ afterSequence, eventType: "message.updated" }).pipe(
         Stream.filter(
           (stored) =>
@@ -1861,7 +1851,6 @@ it.layer(layerContinuationWorkerTest)("interrupted completion wakes", (it) => {
         Stream.take(1),
         Stream.runDrain,
       );
-      // Repeated recovery re-offers every open delivery; none may wake the parent twice.
       yield* orchestrator.resumeQueuedRuns;
       yield* orchestrator.recoverDelegatedTasks;
       yield* orchestrator.recoverDelegatedTasks;
@@ -2236,7 +2225,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
                   )
                 ) {
                   captured = true;
-                  // Commit capture after finalize planned its stale waiting snapshot.
                   const { delegatedCompletion: _cohort, ...captureRun } = waiting;
                   yield* sink.commitCommand({
                     commandId: CommandId.make("command:completion-capture-race"),
@@ -2626,8 +2614,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             ],
           });
 
-          // The shape ProviderContinuationService dispatches when the provider
-          // reports a background command (wire kind `background_command`) ended.
           const wakeMessageId = MessageId.make(`message:background-wake-${delivery}`);
           yield* orchestrator.dispatch({
             type: "message.dispatch",
@@ -2640,7 +2626,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             threadId: child.childThreadId,
             messageId: wakeMessageId,
             text: "Background activity updated",
-            // A monitor that ends is finished work too; only its per-line updates are progress.
             notification:
               delivery === "live"
                 ? {
@@ -2843,7 +2828,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             ],
           });
 
-          // The child delegated a reviewer of its own, which finishes after the child's turn ended.
           yield* seedRestartCancelledChild({
             parentThreadId: child.childThreadId,
             projectId,
@@ -2860,7 +2844,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             (run) => run.id === child.childRunId,
           )!.delegatedCompletion!.delivery!;
 
-          // The shape ProviderContinuationService dispatches for that delegated completion.
           yield* orchestrator.dispatch({
             type: "message.dispatch",
             createdBy: "agent",
@@ -2936,7 +2919,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         }),
     );
 
-    // The child's follow-up run sends `supaterm_thread_send` to its own thread before it ends.
     const startSelfQueuedFollowup = (name: string) =>
       Effect.gen(function* () {
         const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -3223,7 +3205,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
           1,
         );
 
-        // Another turn in the child does not release the hold while the grandchild runs.
         for (const status of ["running", "completed"] as const) {
           yield* eventSink.write({
             commandId: reconcileCommandId(`followup-grandchild-user-${status}`),
@@ -3246,7 +3227,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
           );
         }
 
-        // The grandchild's completion wakes the child in a run without a delegatedTaskId.
         const wakeRunId = RunId.make("run:followup-grandchild-wake");
         const wakeRun = (status: "running" | "completed") =>
           runEvent({
@@ -3399,7 +3379,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
           const followupTaskId = followupRun.delegatedTaskId!;
           const parent = yield* orchestrator.getThreadProjection(parentThreadId);
 
-          // The child awaits a background command, replies with an interim note and ends its turn.
           yield* eventSink.write({
             commandId: reconcileCommandId(`followup-command-turn-ended-${ending}`),
             events: [
@@ -3502,7 +3481,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             return;
           }
 
-          // The finished command wakes the child; that turn continues the same follow-up.
           const wakeMessageId = MessageId.make(`message:followup-command-wake-${ending}`);
           yield* orchestrator.dispatch({
             type: "message.dispatch",
@@ -3625,7 +3603,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
           appThreadId: child.childThreadId,
         };
 
-        // An earlier run of the child left an awaited build running.
         yield* eventSink.write({
           commandId: reconcileCommandId("followup-earlier-work-build"),
           events: [
@@ -3665,11 +3642,9 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         )).runs.find((run) => run.userMessageId === followupMessageId)!;
         const followupTaskId = followupRun.delegatedTaskId!;
 
-        // The follow-up's run answers and ends without starting any background work.
         yield* eventSink.write({
           commandId: reconcileCommandId("followup-earlier-work-answered"),
           events: [
-            // The provider resends its whole roster during the follow-up's run.
             {
               id: EventId.make("event:followup-earlier-work-roster"),
               type: "provider-thread.updated",
@@ -3808,7 +3783,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             )!;
           });
 
-        // Follow-up A starts awaited build a, answers and ends its turn.
         const runA = yield* send("a");
         yield* eventSink.write({
           commandId: reconcileCommandId("followup-own-work-a-ended"),
@@ -3847,7 +3821,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         });
         yield* orchestrator.recoverDelegatedTasks;
 
-        // Follow-up B starts awaited build b and is still running.
         const runB = yield* send("b");
         yield* eventSink.write({
           commandId: reconcileCommandId("followup-own-work-b-started"),
@@ -3863,7 +3836,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             roster("ab", runB.id, ["a", "b"]),
           ],
         });
-        // Run updates react in order, so the barrier settling means B's start was handled too.
         const barrier = yield* seedRestartCancelledChild({
           parentThreadId,
           projectId,
@@ -3898,7 +3870,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
           "running",
         );
 
-        // Build a ends; the roster still holds b, and no run update follows.
         const beforeSettle = yield* eventSink.latestSequence();
         yield* eventSink.write({
           commandId: reconcileCommandId("followup-own-work-a-settled"),
@@ -4017,7 +3988,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         const waiting = yield* followup.readFollowup;
         assert.isNull(waiting.result, "the follow-up settled while an earlier queued run waited");
 
-        // Promotion moves a queued run after the runs that started ahead of it.
         const promoted = { ...followup.selfQueuedRun, ordinal: later.ordinal + 1 };
         yield* followup.finishRun("final", promoted, "FINAL-D");
         const finished = yield* followup.readFollowup;
@@ -4084,11 +4054,9 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             observedByRunId: parentRunId,
           });
           if (outcome === "after-cancel") {
-            // A follow-up is its own task, even after task_cancel reached the original.
             const settled = (yield* orchestrator.getThreadProjection(
               parentThreadId,
             )).subagents.find((task) => task.id === child.taskId)!;
-            // The follow-up starts in the same millisecond the cancel was recorded.
             yield* eventSink.write({
               commandId: reconcileCommandId("followup-original-cancelled"),
               events: [
@@ -4129,7 +4097,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             creationSource: outcome === "failed" ? "web" : "mcp",
             commandId: CommandId.make(`command:followup-send-${outcome}`),
             threadId: child.childThreadId,
-            // `supaterm thread send` and unscoped MCP sessions carry no sender thread.
             ...(outcome === "completed" ? {} : { senderThreadId: parentThreadId }),
             messageId,
             text: "Check the same work again.",
@@ -4237,7 +4204,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             });
           }
           if (outcome === "cancelled") {
-            // task_cancel reaches the follow-up after its turn ended, while background work runs.
             yield* eventSink.write({
               commandId: reconcileCommandId("followup-waiting"),
               events: [
@@ -4496,8 +4462,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             yield* orchestrator.recoverDelegatedTasks;
             yield* orchestrator.recoverDelegatedTasks;
           }
-          // Only an interrupted or cancelled follow-up ends its question, even after the original
-          // was cancelled.
           const ended =
             outcome === "stopped" || outcome === "interrupted" || outcome === "cancelled";
           const { runtimeRequests } = yield* orchestrator.getThreadProjection(child.childThreadId);
@@ -4770,7 +4734,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
           continuationPending: false,
           now,
         });
-        // The cancelled result is published before anyone answers the question.
         yield* orchestrator.recoverDelegatedTasks;
         assert.isNotNull(
           (yield* orchestrator.getThreadProjection(parentThreadId)).subagents.find(
@@ -5009,8 +4972,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
         assert.isNotNull(task.result);
         assert.isEmpty(recovered.contextHandoffs);
         assert.equal(recovered.contextTransfers.length, 1);
-        // A one-process-per-thread child releases its process once its result is recorded,
-        // unless background work it did not await would die with it.
         assert.equal(
           (yield* orchestrator.getThreadProjection(child.childThreadId)).providerSessions.length,
           released ? 0 : 1,
@@ -5247,7 +5208,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       assert.equal(task?.status, "cancelled");
       assert.equal(task?.completionDelivery?.state, "claimed");
 
-      // The parent's Stop committed, but the restart cut the effect that stops its children.
       const stoppedChild = yield* seedRestartCancelledChild({
         parentThreadId: threadId,
         projectId,
@@ -5374,7 +5334,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
         deliveryState: "delivered",
         now,
       });
-      // The child run finished, but its parent row has not been finalized yet.
       const child = yield* seedRestartCancelledChild({
         parentThreadId: threadId,
         projectId,
@@ -5517,7 +5476,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
     }),
   );
 
-  // Running does not prove prompt consumption in Claude; re-offer cut deliveries even when resuming the turn.
   it.effect("re-offers a cut delivery even when a continuation resumes its turn", () =>
     Effect.gen(function* () {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -5920,8 +5878,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
           continuationPending: false,
           now,
         });
-        // Skip the live terminal listener to model a committed failure whose
-        // publication was interrupted. task_cancel then disposed its delivery.
         yield* eventSink.write({
           commandId: reconcileCommandId("unpublished-failure"),
           events: [
@@ -6056,7 +6012,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
           deliveryState: "acknowledged",
           now,
         });
-        // A delegated child with a running task on the parent and a running run of its own.
         const delegate = (name: string) =>
           Effect.gen(function* () {
             const taskId = NodeId.make(`node:late-settle-${key}-${name}`);
@@ -6238,8 +6193,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
         yield* sink.write({ events: [blockerEvent(true)] });
         yield* sink.write({ events: [ended(blocked)] });
         yield* sink.write({ events: [ended(barrier)] });
-        // Run updates are handled in order, so the barrier settling means the blocked child's
-        // run end was handled too, while its work still ran.
         yield* settled(barrier.task.id, beforeEnd);
         assert.equal(
           (yield* orchestrator.getThreadProjection(threadId)).subagents.find(

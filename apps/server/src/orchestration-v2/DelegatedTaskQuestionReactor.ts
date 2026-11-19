@@ -93,7 +93,6 @@ const make = Effect.gen(function* () {
     }
   });
 
-  // Runs for every domain event; most events return before any work is needed.
   const handle: DelegatedTaskQuestionReactor["Service"]["handle"] = Effect.fnUntraced(
     function* (event) {
       if (event.type === "run.updated") {
@@ -144,7 +143,6 @@ const make = Effect.gen(function* () {
         ) {
           return;
         }
-        // A settled task can no longer use an answer to its still-pending questions.
         const { runtimeRequests } = yield* projections.getThreadRecords(task.childThreadId, [
           "runtimeRequests",
         ]);
@@ -204,7 +202,6 @@ const make = Effect.gen(function* () {
       ) {
         return;
       }
-      // A blocking delegate_task wait delivers the question itself.
       if (
         task.completionWake === "settled_only" &&
         event.payload.responseCapability.type === "live" &&
@@ -227,8 +224,6 @@ const make = Effect.gen(function* () {
       ),
   );
 
-  // Every wake and cancel goes to the parent, so keying by it keeps a question's wake ahead of
-  // its task's cancel while a busy parent's lock delays only that parent's reactions.
   const parentOf = (event: OrchestrationV2DomainEvent) => {
     switch (event.type) {
       case "run.updated":

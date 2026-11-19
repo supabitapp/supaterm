@@ -58,7 +58,6 @@ describe("reading qualifiers out of a typed query", () => {
     ]);
   });
 
-  // regression: #30131 a query pasted from github.com lists nothing
   it("ignores GitHub's own search qualifiers instead of reading them as labels", () => {
     expect(
       parsePullRequestQuery(

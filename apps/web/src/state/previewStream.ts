@@ -27,8 +27,6 @@ const previewStreamAccessAtom = Atom.family((environmentId: EnvironmentId) =>
     .pipe(Atom.setIdleTTL(60_000), Atom.withLabel(`preview-stream-access:${environmentId}`)),
 );
 
-// Only a surface the user is looking at retries a failed lookup; one-shot readers such as
-// picture-in-picture see the failure at once.
 const retryingPreviewStreamAccessAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.make((get) => {
     const access = previewStreamAccessAtom(environmentId);

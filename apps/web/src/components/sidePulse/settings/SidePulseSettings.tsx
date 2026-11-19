@@ -148,7 +148,6 @@ function SidePulseLightRow({
   const ownColor = sidePulseLightColor(light.state, DEFAULTS);
   const customized =
     effect !== DEFAULTS.effects[light.state] || settings.colors[light.state] !== null;
-  // The LEDs play each pick after it saves, so the device never previews the previous choice.
   const save = (change: Parameters<typeof updateSidePulseLight>[1]) =>
     void updateSidePulseLight(light.state, change)
       .then(() => bridge.preview(light.state))

@@ -290,7 +290,6 @@ describe("VS Code theme import", () => {
   });
 
   it("replaces find colours that blend into chat surfaces", () => {
-    // Tokyo Night uses one faint overlay for both find marks.
     const { colors } = parseVsCodeThemeFile({
       type: "dark",
       colors: {
@@ -417,7 +416,6 @@ describe("VS Code theme import", () => {
         const imported = oklchParts(theme.colors[role]);
         expect(contrastRatio(theme.colors[role], theme.colors.canvas)).toBeGreaterThanOrEqual(4.5);
         expect(imported.chroma).toBeGreaterThan(0.1);
-        // 8-bit sRGB can only approximate the source hue at the new lightness.
         expect(
           Math.abs(imported.hue - oklchParts(toCanonicalThemeColor(source)!).hue),
         ).toBeLessThan(2);
@@ -521,7 +519,6 @@ describe("VS Code theme import", () => {
   });
 
   it("tells same-named variants apart by their file names", () => {
-    // Both Dracula theme files declare the same internal name.
     const dracula = (bg: string) =>
       parseVsCodeThemeFile({
         name: "Dracula",
@@ -533,7 +530,6 @@ describe("VS Code theme import", () => {
       { theme: dracula("#22232e"), sourceName: "dracula-soft.json" },
     ]);
     expect(themes.map((theme) => theme.label)).toEqual(["Dracula", "Dracula Soft"]);
-    // "dracula" is a built-in, so the import steps aside to its own id.
     expect(themes.map((theme) => theme.id)).toEqual(["dracula-vscode", "dracula-soft"]);
     const numbered = resolveThemeLabelCollisions([
       { theme: dracula("#282a36") },

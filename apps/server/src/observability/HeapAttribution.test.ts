@@ -26,7 +26,6 @@ it.effect("names the span that grew the heap in a spike, not an older open or en
     let heap = 300 * MB;
     const attribution = yield* HeapAttribution.make(inner, () => heap);
     yield* attribution.run;
-    // The sampler's baseline: heap before the spans allocate.
     yield* TestClock.adjust("1 second");
     const open = (name: string) =>
       attribution.tracer.span({
@@ -42,7 +41,6 @@ it.effect("names the span that grew the heap in a spike, not an older open or en
 
     const subscription = open("ws.rpc.orchestration.subscribeShell");
     const old = open("ProjectionStore.getSnapshot");
-    // Slow drift never spikes, but leaves the long-lived span far above its start.
     for (let step = 0; step < 5; step++) {
       heap += 80 * MB;
       yield* TestClock.adjust("11 seconds");

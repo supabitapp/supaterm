@@ -265,7 +265,6 @@ function useHostedFilterOptions(
       input: { ...input, kind, ...(sent ? { query: sent } : {}) },
     })),
   );
-  // Until the search catches up with the typing, the host's answers are for older text.
   return sent === typed ? hosted : { labels: [], authors: [], error: null, isPending: true };
 }
 

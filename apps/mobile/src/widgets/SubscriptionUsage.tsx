@@ -30,9 +30,7 @@ function SubscriptionUsage(
   },
 ) {
   "widget";
-  // The extension evaluates this function without the app's module scope.
   const family = widgetEnvironment.widgetFamily;
-  // Gallery snapshots can render an old timeline entry after it has expired.
   const now = Math.max(widgetEnvironment.date?.getTime() ?? 0, Date.now());
   const accessory = family === "accessoryRectangular";
   const compact =
@@ -48,7 +46,6 @@ function SubscriptionUsage(
       : widgetEnvironment.colorScheme === "dark"
         ? "dark"
         : "light";
-  // StandBy can remove the card even in full color; text must then follow the host.
   const palette =
     !accessory && !monochrome && widgetEnvironment.showsContainerBackground !== false
       ? props.theme?.[appearance]

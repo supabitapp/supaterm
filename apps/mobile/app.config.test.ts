@@ -1,6 +1,5 @@
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
-// Keep config parsing independent of local env files and build credentials.
 vi.mock("../../scripts/lib/public-config.ts", () => ({
   loadRepoEnv: () => ({ APP_VARIANT: process.env.APP_VARIANT }),
 }));

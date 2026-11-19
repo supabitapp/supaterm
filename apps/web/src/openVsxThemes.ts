@@ -448,7 +448,6 @@ function inspectZipDirectory(bytes: Uint8Array): Uint8Array {
   const commentLength = view.getUint16(endOffset + 20, true);
   if (commentLength === 0) return bytes;
 
-  // Strip ZIP comments; JSZip can mistake EOCD-like comment bytes for the real record.
   const withoutComment = bytes.slice(0, endOffset + 22);
   withoutComment[endOffset + 20] = 0;
   withoutComment[endOffset + 21] = 0;

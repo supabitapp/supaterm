@@ -136,7 +136,6 @@ it.effect("remembers completion only after the paced pass finishes", () =>
   }).pipe(Effect.provide(testConfig.pipe(Layer.provideMerge(NodeServices.layer)))),
 );
 
-// NONE is a database from before automatic shrinking, which the repair converts.
 const reclaimLayer = (
   restart: Effect.Effect<void> | null,
   autoVacuum: "NONE" | "FULL" | "INCREMENTAL" = "NONE",
@@ -171,11 +170,8 @@ it.effect(
       const restarted = yield* Deferred.make<void>();
       const restart = Deferred.succeed(restarted, undefined).pipe(Effect.asVoid);
 
-      // Nothing starts a server run by hand again, so it keeps pointing at the command.
       const unsupervised = yield* request.pipe(Effect.flip, Effect.provide(reclaimLayer(null)));
       assert.equal(unsupervised._tag, "DatabaseReclaimError");
-      // A database that already shrinks on its own (or a stale dialog after another client's
-      // repair) has nothing to reclaim, so it must not restart.
       for (const autoVacuum of ["FULL", "INCREMENTAL"] as const) {
         const refused = yield* request.pipe(
           Effect.flip,
@@ -195,7 +191,6 @@ it.effect(
         );
         assert.equal(yield* shownFailure, "an earlier failure");
         yield* storage.requestReclaim;
-        // The retry clears it at once, so Settings shows the restart, not the old failure.
         assert.isUndefined(yield* shownFailure);
       }).pipe(Effect.provide(reclaimLayer(restart)));
       assert.isTrue(yield* fs.exists(files.request));

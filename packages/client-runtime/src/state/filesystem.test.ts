@@ -96,7 +96,6 @@ describe("filesystem browse model", () => {
       isComplete: false,
     });
     expect(getFilesystemBrowseTabCompletion([], "x")).toBeNull();
-    // The list also shows substring and fuzzy matches; Tab completes only the typed name.
     expect(
       getFilesystemBrowseTabCompletion([entry("supaterm"), entry("my-supaterm")], "supaterm"),
     ).toEqual({
@@ -121,12 +120,10 @@ describe("filesystem browse model", () => {
     expect(filterFilesystemBrowseEntries([entry], "De").visibleEntries).toEqual([entry]);
     expect(filterFilesystemBrowseEntries([entry], "dévpt").visibleEntries).toEqual([entry]);
     expect(filterFilesystemBrowseEntries([entry], "D\u00e9veloppement").exactEntry).toBe(entry);
-    // Linux keeps both spellings as separate folders; the one typed exactly wins.
     const composed = { name: "D\u00e9veloppement", fullPath: "/home/me/D\u00e9veloppement" };
     expect(filterFilesystemBrowseEntries([entry, composed], "D\u00e9veloppement").exactEntry).toBe(
       composed,
     );
-    // Two spellings that both normalize to the query are ambiguous; neither is picked.
     const angstroms = [
       { name: "\u212B", fullPath: "/home/me/\u212B" },
       { name: "A\u030A", fullPath: "/home/me/A\u030A" },

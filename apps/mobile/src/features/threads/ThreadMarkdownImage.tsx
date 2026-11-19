@@ -48,7 +48,6 @@ async function readSvgXml(uri: string, signal: AbortSignal): Promise<string> {
         )
       : content;
   }
-  // expo/fetch, not the runtime HttpClient: it is the one that reads file:// URIs.
   const response = await fetch(uri, { signal });
   if (!response.ok && !(response.status === 0 && uri.startsWith("file://")))
     throw new Error(`SVG request failed: ${response.status}`);
@@ -57,9 +56,6 @@ async function readSvgXml(uri: string, signal: AbortSignal): Promise<string> {
 
 type SvgDocument = { readonly ast: JsxAST; readonly size: ImageSize | null };
 
-// Feed rows unmount as they scroll away. Only parsed documents outlive their
-// readers (for the row that scrolls back); a failed load is dropped with its last
-// reader so the next mount fetches again.
 const parsedSvgDocumentAtom = Atom.family((_uri: string) =>
   Atom.make<SvgDocument | null>(null).pipe(
     Atom.setIdleTTL(60_000),
@@ -115,11 +111,9 @@ export function ThreadMarkdownImageView(props: {
     props.format === "svg" && props.uri !== null ? svgDocumentAtom(props.uri) : noSvgDocumentAtom,
   );
   const svgDocument = AsyncResult.isSuccess(svg) ? svg.value : null;
-  // Keyed by source so a new source drops the previous image's decoded dimensions.
   const [decoded, setDecoded] = useState<{ sourceKey: string; size: ImageSize } | null>(null);
   const decodedSize =
     svgDocument?.size ?? (decoded?.sourceKey === props.sourceKey ? decoded.size : null);
-  // A failure belongs to one URI; any URI change, including through null, retries.
   const [failure, setFailure] = useState({ uri: props.uri, failed: false });
   if (failure.uri !== props.uri) setFailure({ uri: props.uri, failed: false });
 
@@ -198,9 +192,6 @@ export function ThreadMarkdownImageView(props: {
                   uri={props.uri}
                   cacheKey={props.cacheKey}
                   onLoad={(size) =>
-                    // Only the first decode counts: later loads report the bitmap
-                    // downsampled for the current frame (969 vs 970 wide), so keeping
-                    // them resizes the frame, which reloads the image, and so on.
                     setDecoded((current) =>
                       current?.sourceKey === props.sourceKey
                         ? current
@@ -294,8 +285,6 @@ export function ThreadMarkdownImage(props: {
       : props.resource._tag === "tool-output-image"
         ? `tool-output:${props.resource.itemId}:${props.resource.index}`
         : `workspace:${props.resource.path}`;
-  // The view keeps the first decoded size per key, so a file edited in place needs a
-  // new key; a re-signed URL for the same revision must not get one.
   const sourceKey =
     assetUrl._tag === "Success" && assetUrl.fileRevision !== undefined
       ? `${resourceKey}@${assetUrl.fileRevision}`

@@ -41,11 +41,9 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
   it.effect("keeps a user-installed Node reachable when the command runs under sudo", () =>
     Effect.gen(function* () {
       const npx = "/home/theo/.npm/_npx/abc/node_modules/supaterm/dist/bin.mjs";
-      // sudo's secure_path already has a system Node.
       expect(yield* rootCommand({ node: "/usr/bin/node", entry: npx })).toBe(
         "sudo npx supaterm browser setup",
       );
-      // nvm, fnm, and tarball installs are dropped by sudo's PATH reset.
       expect(
         yield* rootCommand({ node: "/home/theo/.nvm/versions/node/v24/bin/node", entry: npx }),
       ).toBe('sudo env "PATH=$PATH" npx supaterm browser setup');
@@ -118,12 +116,10 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
 
       expect(yield* rootCommand(desktop)).toBe(`sudo '${shim}' browser setup`);
 
-      // An unrelated `supaterm` on PATH, such as an older npm global, is another install's CLI.
       expect(yield* rootCommand({ ...desktop, path: yield* pathWithSupaterm })).toBe(
         `sudo '${shim}' browser setup`,
       );
 
-      // The link the app installs onto PATH leads to its own launcher, so plain `supaterm` is right.
       const linked = yield* fs.makeTempDirectoryScoped();
       yield* fs.symlink(shim, path.join(linked, "supaterm"));
       expect(yield* rootCommand({ ...desktop, path: linked })).toBe(
@@ -138,7 +134,6 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
         }),
       ).toBe("sudo /opt/supaterm/supaterm browser setup");
 
-      // A standalone executable started directly (systemd, no launcher) is still this install.
       expect(
         yield* rootCommand({
           node: "/opt/supaterm/supaterm",
@@ -148,7 +143,6 @@ it.layer(NodeServices.layer)("root CLI commands", (it) => {
         }),
       ).toBe("sudo /opt/supaterm/supaterm browser setup");
 
-      // A global npm launcher runs the downloaded executable; PATH's `supaterm` is that launcher.
       const prefix = path.join(home, "npm");
       const npmLauncher = path.join(prefix, "lib/node_modules/supaterm/bin/supaterm.mjs");
       yield* fs.makeDirectory(path.dirname(npmLauncher), { recursive: true });
@@ -201,16 +195,12 @@ it.layer(NodeServices.layer)("host CLI commands", (it) => {
           Effect.provideService(HostProcess.Platform, platform),
           Effect.provideService(HostProcess.Environment, { PATH: "", ...env }),
         );
-      // The desktop shim is called through `&`, and each argument is quoted
-      // the PowerShell way: no POSIX single quotes anywhere.
       expect((yield* hostCommand("win32", { SUPATERM_CLI_SHIM_PATH: shim })).command).toBe(
         `& "${shim}" doctor "--base-dir" "C:\\Users\\Jane Doe\\.supaterm"`,
       );
-      // Without a launcher, plain `supaterm` with PowerShell-quoted arguments.
       expect((yield* hostCommand("win32", {})).command).toBe(
         'supaterm doctor "--base-dir" "C:\\Users\\Jane Doe\\.supaterm"',
       );
-      // Typographic quotes also delimit PowerShell strings; doubling keeps them.
       expect(
         (yield* resolveHostCliCommand("doctor", [
           "--base-dir",
@@ -223,8 +213,6 @@ it.layer(NodeServices.layer)("host CLI commands", (it) => {
           Effect.provideService(HostProcess.IsExecutable, false),
         )).command,
       ).toBe('supaterm doctor "--base-dir" "C:\\Supaterm\\\u201C\u201CArchive\u201D\u201D"');
-      // POSIX hosts keep single quotes for the same input. The shim prefix is
-      // a host path, so only the arguments are asserted.
       expect((yield* hostCommand("linux", { SUPATERM_CLI_SHIM_PATH: shim })).command).toMatch(
         / doctor --base-dir 'C:\\Users\\Jane Doe\\\.supaterm'$/,
       );
@@ -348,8 +336,6 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
         Effect.provideService(HostProcess.Platform, "linux"),
         Effect.provideService(HostProcess.Environment, { SUPATERM_NPM_LAUNCHER_PATH: launcher }),
       );
-      // A launcher for another version is some other `supaterm` the server spawned
-      // (the variable is inherited), not the install this executable runs from.
       for (const [version, expected] of [
         ["26.0.1", null],
         [packageJson.version, { kind: "npm-global", prefix }],
@@ -368,7 +354,6 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const root = yield* fs.realPath(yield* fs.makeTempDirectoryScoped());
-      // The install script's launcher names ~/.supaterm, which here links to a home elsewhere.
       const executable = path.join(root, "data/supaterm/runtime/versions/1.0.0/supaterm");
       const launcher = path.join(root, "bin/supaterm");
       const copy = path.join(root, "bin/supaterm-copy");
@@ -378,7 +363,6 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       yield* fs.writeFileString(copy, "", { mode: 0o755 });
       yield* fs.symlink(path.join(root, "data/supaterm"), path.join(root, ".supaterm"));
       yield* fs.symlink(path.join(root, ".supaterm/runtime/versions/1.0.0/supaterm"), launcher);
-      // Earlier PATH entries hold a directory and a non-executable file named supaterm.
       yield* fs.makeDirectory(path.join(root, "shadow-dir/supaterm"), { recursive: true });
       yield* fs.makeDirectory(path.join(root, "shadow-file"));
       yield* fs.writeFileString(path.join(root, "shadow-file/supaterm"), "");
@@ -399,7 +383,6 @@ it.layer(NodeServices.layer)("manual server installation ownership", (it) => {
       expect(yield* resolve(executable)).toBeNull();
       expect(yield* resolve(copy)).toBeNull();
 
-      // The script launcher execs the runtime by absolute path, so argv0 names the runtime.
       yield* fs.remove(launcher);
       yield* fs.writeFileString(
         launcher,

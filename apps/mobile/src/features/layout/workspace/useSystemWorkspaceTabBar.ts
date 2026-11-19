@@ -19,7 +19,6 @@ export function useSidebarWorkspaceTabs(): "picker" | "toolbar" | null {
   const page = useWorkspacePage();
   if (Platform.OS !== "ios" || !layout.usesSplitView || page) return null;
   if (deviceType === "pad") return null;
-  // Portrait Duo has no system rail; keep its tabs in the sidebar like iPad.
   if (deviceType === "duo-unfolded" && (metrics?.verticalBarEdge ?? "none") === "none")
     return "picker";
   return (metrics?.verticalBarEdge ?? "none") === "none" ? "toolbar" : null;

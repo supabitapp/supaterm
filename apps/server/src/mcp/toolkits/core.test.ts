@@ -358,7 +358,6 @@ it.effect("returns an HTML render reference that Codex and Claude tool rows both
     expect(
       htmlRenderFromToolItem({ toolName: "mcp__supaterm__html_render", output: result.content }),
     ).toEqual(reference);
-    // Only a full-access thread may have the server read a file for it.
     const byPath = (name: string, caller: McpInvocationContext.McpInvocationScope) =>
       server
         .callTool({
@@ -371,7 +370,6 @@ it.effect("returns an HTML render reference that Codex and Claude tool rows both
         .pipe(
           Effect.provideService(McpInvocationContext.McpInvocationContext, caller),
           Effect.provideService(McpSchema.McpServerClient, client),
-          // html_preview reports failures as plain text, html_render as a declared failure.
           Effect.map((result) => (result.isError ? JSON.stringify(result.content) : undefined)),
         );
     const fullAccess = { ...scope, thread: { ...scope.thread!, threadId: fullAccessThreadId } };
@@ -413,7 +411,6 @@ it.effect("returns an HTML render reference that Codex and Claude tool rows both
   ),
 );
 
-// A thread read whose runs or messages are bounded by nothing but the thread.
 const historyReads = (reads: Array<string>) => {
   const record = (
     fields: ReadonlyArray<string>,
@@ -703,11 +700,8 @@ it.effect("an MCP pin lands above every existing pin, as a client pin does", () 
     expect(first.isError).toBe(false);
     const orderKey = (dispatched[0] as { readonly orderKey?: string }).orderKey;
     expect(dispatched[0]).toMatchObject({ type: "thread.pin", threadId: "pin-target" });
-    // The smallest key among pinned threads is "g"; the unpinned "b" and keyless pin are ignored.
     expect(orderKey).toBe(pinOrderKeyBetween(null, "g"));
 
-    // A thread the handler last saw pinned still gets a key: an unpin can commit
-    // before this command, and the reducer ignores the key if the pin holds.
     targetPinnedAt = pinnedAt;
     const again = yield* pin;
     expect(again.isError).toBe(false);
@@ -768,7 +762,6 @@ it.effect("search names the calling thread, so an agent can tell its own match a
     const fromClient = yield* search(clientScope("auto"));
     expect(fromClient.structuredContent).toMatchObject({ currentThreadId: null });
 
-    // An older server answers without the field.
     const fromOlderServer = yield* decodeThreadSearchResult({ matches: [] });
     expect(fromOlderServer).toEqual({ matches: [] });
   }).pipe(

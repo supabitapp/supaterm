@@ -153,7 +153,6 @@ describe("automatic port selection", () => {
     Effect.gen(function* () {
       for (const scenario of [
         { kernelRelease: "6.8.0-45-generic\n" },
-        // macOS and Windows have no kernel release file.
         {},
       ] satisfies ReadonlyArray<Scenario>) {
         const result = yield* select(scenario);

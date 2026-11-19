@@ -154,9 +154,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     )
       return;
     if (nextOpen && hasTerminalWriteAccess() && terminalUiState.terminalIds.length === 0) {
-      // Server-created setup terminals exist before this client's drawer mounts.
-      // Reuse them before allocating a shell from the still-empty UI state.
-      // The server lists a closing terminal until its close finishes, which would end the reopen.
       const closingIds = new Set(closingTerminalIds(activeThreadRef));
       const isReusable = (id: string) => !panelTerminalIds.has(id) && !closingIds.has(id);
       const existingTerminalId =
@@ -210,7 +207,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       worktreePath?: string | null;
       preferNewTerminal?: boolean;
       rememberAsLastInvoked?: boolean;
-      /** Chat code blocks enter the shell as the user would; project scripts stay out of history. */
       shellInput?: "typed" | "pasted";
     },
   ) => {
@@ -435,7 +431,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
   const openTerminalIfClosed = () => {
     if (!terminalUiState.terminalOpen) setTerminalOpen(true);
   };
-  // A focused right-panel terminal takes the split/new/close chords; otherwise they act on the drawer.
   const shortcuts = {
     "terminal.toggle": () => {
       if (

@@ -100,11 +100,6 @@ const collectText = <E>(stream: Stream.Stream<Uint8Array, E>, maxBytes: number, 
     }),
   );
 
-/**
- * Runs commands for real, the way the server's host does in the parts a forge reads: output is
- * capped and marked, and a non-zero exit fails unless allowed. It has none of the server's
- * timeouts, concurrency limits, generic failure classification, or retries.
- */
 const runForReal = (
   spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],
   input: SourceControlHost.SourceControlProcessInput,

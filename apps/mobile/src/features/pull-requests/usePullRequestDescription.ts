@@ -50,7 +50,6 @@ export function usePullRequestDescription(
   };
   return {
     body,
-    /** The edit screen starts from the host's copy, so it waits for a reading with the ticks. */
     pending: kept !== null,
     toggleTask:
       canEdit && pr !== null

@@ -39,7 +39,6 @@ export function autoConnectReport(
   return { connecting: false, error: dismissed ? null : attempt.error };
 }
 
-// The pairing form is mounted both as a root sheet and inside the settings sheet.
 const PAIRING_FORM_ROUTES = ["ConnectionsNew", "SettingsEnvironmentNew"];
 
 function isAutoConnectFlag(value: unknown): boolean {
@@ -50,7 +49,6 @@ async function connect(pairingUrl: string) {
   const attempt: DevAutoConnectAttempt = { pairingUrl, status: "connecting" };
   appAtomRegistry.set(devAutoConnectAttemptAtom, attempt);
   const outcome = await pairEnvironment(pairingUrl);
-  // A later link replaced or cleared this attempt; its result belongs to no open form.
   if (appAtomRegistry.get(devAutoConnectAttemptAtom) !== attempt) return;
   if (!outcome.ok) {
     appAtomRegistry.set(devAutoConnectAttemptAtom, {
@@ -61,12 +59,10 @@ async function connect(pairingUrl: string) {
     return;
   }
   whenRootNavigationReady(() => {
-    // A newer link (with or without the flag) owns the form now.
     if (appAtomRegistry.get(devAutoConnectAttemptAtom) !== attempt) return;
     appAtomRegistry.set(devAutoConnectAttemptAtom, null);
     const current = rootNavigationRef.getCurrentRoute()?.name;
     if (current === undefined || !PAIRING_FORM_ROUTES.includes(current)) return;
-    // Same exit as the form's own Connect: return to the opener.
     if (!rootNavigationRef.canGoBack()) rootNavigationRef.dispatch(StackActions.replace("Home"));
     else rootNavigationRef.goBack();
   });
@@ -105,8 +101,6 @@ export function startDevAutoConnect(
   if (isAutoConnectFlag(params.autoConnect) && pairingUrl.length > 0) {
     void connect(pairingUrl);
   } else {
-    // Only links put a pairing URL on the form, so a form opened by any other link starts
-    // clean instead of showing an earlier auto-connect's failure for the same URL.
     appAtomRegistry.set(devAutoConnectAttemptAtom, null);
   }
   return state;
@@ -123,7 +117,6 @@ export function pairingFormLinkAction(
 ) {
   const linked = findLinkedRoute(link, PAIRING_FORM_ROUTES);
   if (!linked || !current) return undefined;
-  // The Settings form sits in the settings sheet's own stack, below the root's focused route.
   let navigator = current;
   let open = navigator.routes[navigator.index];
   while (open?.state?.key !== undefined && open.state.index !== undefined) {

@@ -51,7 +51,6 @@ const CAPABILITIES: PullRequestCapabilities = {
   mentions: true,
   referenceSigils: [],
   labels: true,
-  // Forgejo's public API has no thread replies/resolution or draft conversion endpoint.
   review: {
     inlineComment: true,
     reply: false,
@@ -79,18 +78,15 @@ const pullPath = (input: ProviderRepositoryRef & { readonly number: number }) =>
   `${repoPath(input)}/pulls/${input.number}`;
 const issuePath = (input: ProviderRepositoryRef & { readonly number: number }) =>
   `${repoPath(input)}/issues/${input.number}`;
-// Review IDs differ from the issue-comment IDs used by Forgejo's reactions API.
 const reviewCommentId = (review: typeof ForgejoReview.Type) =>
   /#issuecomment-([1-9]\d*)$/.exec(review.html_url ?? "")?.[1];
 
 const decodePullRequest = decodeJsonResult(ForgejoPullRequest);
 
-/** Only the PATCH reply carries the pull request; merge and update reply with an empty body. */
 function forgejoActionSummary(stdout: string): ProviderChangeRequestSummary | undefined {
   const decoded = decodePullRequest(stdout);
   if (Result.isFailure(decoded)) return undefined;
   const pr = decoded.success;
-  // A state PATCH does not recompute conflicts, so "unknown" there would hide a known conflict.
   const { mergeability, ...summary } = forgejoChangeRequest(pr);
   return {
     ...summary,
@@ -133,7 +129,6 @@ export const make = Effect.gen(function* () {
           }),
       ),
     );
-  /** A response, and whether its `link` header points at a further page. */
   const readLinked = Effect.fn("ForgejoPullRequestProvider.readLinked")(function* <A>(
     input: ForgejoCli.ForgejoApiInput,
     schema: Schema.Codec<A, unknown, never, never>,
@@ -176,7 +171,6 @@ export const make = Effect.gen(function* () {
       more: rows.length > 0 && (links === undefined || /rel="?next"?/i.test(links)),
     };
   });
-  // Use a stable, small page size that also works with Forgejo's default maximum of 50.
   const page = Effect.fn("ForgejoPullRequestProvider.page")(function* <A>(
     input: ForgejoCli.ForgejoApiInput,
     schema: Schema.Codec<A, unknown, never, never>,
@@ -297,9 +291,6 @@ export const make = Effect.gen(function* () {
         const state = input.state === "merged" ? "closed" : input.state;
         const params = new URLSearchParams({ state, sort: "recentupdate" });
         const filters = input.filters;
-        // Several `labels` match a pull request holding any of them but list it once per label it
-        // holds, which would throw the row offset off, so one required label is all Forgejo is
-        // asked for. The service narrows the rest.
         const single = filters?.labels?.find((group) => group.length === 1)?.[0];
         if (single !== undefined) {
           const labels = yield* page({ ...input, path: `${repoPath(input)}/labels` }, ForgejoLabel);
@@ -311,11 +302,8 @@ export const make = Effect.gen(function* () {
         if (filters?.author !== undefined)
           params.set("poster", resolvePullRequestAuthorFilter(filters.author, input.viewer));
         const query = { ...input, path: `${repoPath(input)}/pulls?${params}` };
-        // Self-hosted servers may cap pages below 50. Establish their actual page size before
-        // translating the service's row offset into an API page number.
         const first = yield* readPage(query, Schema.NullOr(ForgejoPullRequest), 1).pipe(
           Effect.catchTags({
-            // Forgejo answers a `poster` naming no account with a 400: nobody to list for.
             PullRequestProviderError: (error) =>
               params.has("poster") &&
               isForgejoCliError(error.cause) &&
@@ -329,9 +317,6 @@ export const make = Effect.gen(function* () {
         const firstIndex = Math.floor(offset / pageSize) + 1;
         let consumed = 0;
         let more = true;
-        // Forgejo has no `merged` list state: `state=closed` returns merged and
-        // closed-unmerged rows alike, so rows are filtered by their mapped state and
-        // only matching rows count toward the requested limit.
         for (let index = firstIndex; more && items.length < input.limit; index++) {
           const result =
             index === 1 ? first : yield* readPage(query, Schema.NullOr(ForgejoPullRequest), index);
@@ -385,7 +370,6 @@ export const make = Effect.gen(function* () {
           merge: repo.allow_merge_commits ?? true,
           squash: repo.allow_squash_merge ?? true,
           rebase: repo.allow_rebase ?? true,
-          // Added in Forgejo 7; older servers cannot fast-forward-only merge.
           "fast-forward": repo.allow_fast_forward_only_merge ?? false,
         },
       } satisfies ProviderChangeRequestDetail;
@@ -395,7 +379,6 @@ export const make = Effect.gen(function* () {
       function* (input) {
         const [comments, reviews, commits, reactions, viewer] = yield* Effect.all(
           [
-            // Issue comments ignore page/limit; fetch this unpaginated endpoint once.
             readArray({ ...input, path: `${issuePath(input)}/comments` }, ForgejoComment).pipe(
               Effect.map((items) => ({
                 items: items.slice(0, 500),
@@ -553,7 +536,6 @@ export const make = Effect.gen(function* () {
               },
             }).pipe(
               Effect.catchTags({
-                // Forgejo merges before deleting the branch, so a refused deletion still merged.
                 PullRequestProviderError: (error) =>
                   deleteBranch
                     ? getPull(input).pipe(
@@ -638,7 +620,6 @@ export const make = Effect.gen(function* () {
     }),
     listReviewerCandidates: Effect.fn("ForgejoPullRequestProvider.listReviewerCandidates")(
       function* (input) {
-        // Unpaginated in Forgejo: paging it returns the full list on every page.
         const [pr, users] = yield* Effect.all(
           [
             getPull(input),
@@ -709,8 +690,6 @@ export const make = Effect.gen(function* () {
             const actor = forgejoActor(user);
             return actor ? [actor] : [];
           });
-        // Before anything is typed the repository's own people stand in; a search reaches
-        // contributors from forks, who are never assignable.
         if (query.length === 0) {
           const users = yield* readArray(
             { ...input, path: `${repoPath(input)}/assignees` },
@@ -726,7 +705,6 @@ export const make = Effect.gen(function* () {
           ForgejoUserSearch,
         );
         const users = found.value.data ?? [];
-        // A server may cap pages below the limit asked for; its `link` header still says more.
         return {
           items: actors(users),
           truncated: found.next || users.length >= USER_SEARCH_LIMIT,

@@ -11,8 +11,6 @@ type InputProps = Omit<InputPrimitive.Props & React.RefAttributes<HTMLInputEleme
   nativeInput?: boolean;
 };
 
-// A combobox input names its highlighted suggestion in aria-activedescendant. Tab replays
-// as Enter so every picker accepts the row through its own Enter handling.
 function acceptHighlightedSuggestionOnTab(event: React.KeyboardEvent<HTMLInputElement>) {
   const input = event.currentTarget;
   if (

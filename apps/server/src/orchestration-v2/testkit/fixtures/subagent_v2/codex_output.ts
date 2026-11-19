@@ -39,7 +39,6 @@ export function assertSubagentV2Output(
   assert.equal(subagent.origin, "provider_native");
   assert.equal(subagent.createdBy, "agent");
   assert.equal(subagent.driver, "codex");
-  // Codex names v2 agents by path from the root; the model picks the leaf name.
   assert.match(subagent.title ?? "", /^\/root\/[^/]+$/u);
   assert.equal(subagent.prompt, "");
   assert.equal(subagent.status, "completed");

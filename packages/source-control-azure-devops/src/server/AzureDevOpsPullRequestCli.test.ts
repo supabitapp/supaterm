@@ -87,7 +87,6 @@ function pullRequests(count: number, firstNumber: number): string {
   return JSON.stringify(pullRequestRows(count, firstNumber));
 }
 
-/** Entries as Azure streams them: data descriptors, with sizes only in the central directory. */
 function streamedZip(
   entries: ReadonlyArray<{
     readonly name: string;
@@ -461,7 +460,6 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
           body: "@notes.txt",
         });
 
-        // az replaces an argument that starts with `@`, or whose text after the first `=` does, with that file's contents.
         const fileReads = argsOfCall(0).flatMap((arg) => {
           const value = arg.startsWith("@") ? arg : arg.slice(arg.indexOf("=") + 1);
           return (arg.startsWith("@") || arg.includes("=")) && value.startsWith("@")
@@ -469,7 +467,6 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             : [];
         });
         expect(fileReads).not.toContain("notes.txt");
-        // Each `@` value goes over stdin, which reaches az wherever it runs; one per call.
         expect(mockedExecute.mock.calls.map(([call]) => call.stdin)).toEqual([
           "@notes.txt",
           "@notes.txt",
@@ -1003,7 +1000,6 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
                 { name: id("a"), data: utf8("plain text\n") },
                 { name: id("b"), data: utf8("\uFEFFcafé ✓\n") },
                 { name: id("c"), data: Uint8Array.of(0x89, 0x50, 0x00, 0x01) },
-                // Windows-1252 "café" and UTF-16: Azure decodes these itself.
                 { name: id("d"), data: Uint8Array.of(0x63, 0x61, 0x66, 0xe9) },
                 { name: id("e"), data: Uint8Array.of(0xff, 0xfe, 0x68, 0x00) },
                 { name: id("f"), data: utf8("stored\n"), stored: true },
@@ -1037,7 +1033,6 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
   it.effect("leaves blobs past the batch's total size to per-file reads", () =>
     Effect.gen(function* () {
       const ids = ["1", "2", "3", "4", "5", "6"].map((digit) => digit.repeat(40));
-      // Compresses to a few KiB each, so only the inflated total can bound memory.
       const blob = new Uint8Array(3 * 1024 * 1024).fill(0x61);
       mockedExecute.mockImplementationOnce((input) =>
         Effect.sync(() => {

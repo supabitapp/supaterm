@@ -182,7 +182,6 @@ class FakePtyAdapter {
   }
 }
 
-// Publishes 9 MiB of output, past a stream's 8 MiB budget, while nothing pulls.
 const publishPastOutputBudget = (
   manager: TerminalManager.TerminalManager["Service"],
   process: FakePtyProcess,
@@ -200,7 +199,6 @@ const publishPastOutputBudget = (
     unsubscribe();
   });
 
-// Holds the next spawn, and with it the thread lock, until `release` succeeds.
 class GatedPtyAdapter extends FakePtyAdapter {
   gate: {
     readonly spawning: Deferred.Deferred<void>;
@@ -300,7 +298,6 @@ const createManager = (
           ? { subprocessInspector: options.subprocessInspector }
           : {}),
         ...(options.processTable !== undefined ? { processTable: options.processTable } : {}),
-        // Fixture pids are not real processes; default to a shell idle at its prompt.
         foregroundProcessGroup: options.foregroundProcessGroup ?? ((pid) => Effect.succeed(pid)),
         ...(options.subprocessPollIntervalMs !== undefined
           ? { subprocessPollIntervalMs: options.subprocessPollIntervalMs }
@@ -359,7 +356,6 @@ function retainedHistory(text: string, maxLines: number, maxBytes = Infinity): s
   }
   const kept = points.slice(start).join("");
   if (maxLines <= 0 || maxBytes <= 0) return kept;
-  // A cut inside a control sequence drops the rest of that sequence too.
   const state = terminalSequenceStateAfter(0, text, 0, text.length - kept.length);
   return kept.slice(terminalSequenceEnd(state, kept));
 }
@@ -423,7 +419,6 @@ it("does not retain the tail of a control sequence whose introducer was trimmed"
     ["prefix\u001b[31mOK", 6, "OK"],
     ["prefix\u001b]0;HIDDEN\u0007OK", 10, "OK"],
     ["prefix\u001b]0;🙂HIDDEN\u0007OK", 9, "OK"],
-    // libghostty leaves every string but OSC at the emoji's second byte, so HELLO was visible.
     ["prefix\u001bP🙂HELLO\u001b\\OK", 9, "HELLO\u001b\\OK"],
   ] as const) {
     expect(new TerminalManager.BoundedTerminalHistory(5_000, text, maxBytes).value()).toBe(
@@ -479,7 +474,6 @@ it("restores bounded history across append compaction, clears and split Unicode"
   history.append("\ude80");
   flush();
   expect(persisted).toBe("🚀");
-  // More output than the retained window between flushes must replace the file.
   history.append("z".repeat(maxBytes * 3));
   flush();
   expect(persisted).toBe("z".repeat(maxBytes));
@@ -620,8 +614,6 @@ it.layer(
     }),
   );
 
-  // Which client owns the shared PTY size is left open by the issue, so this only asserts
-  // that every attached renderer is told the grid the PTY actually has.
   it.effect("tells every attached stream the shared PTY size when attaches disagree", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
@@ -689,7 +681,6 @@ it.layer(
         { threadId: "thread-1", terminalId: DEFAULT_TERMINAL_ID, cols: 80, rows: 12 },
         "narrow",
       );
-      // A resize from a client with no attached stream cannot override attached viewers.
       yield* manager.resize({
         threadId: "thread-1",
         terminalId: DEFAULT_TERMINAL_ID,
@@ -704,7 +695,6 @@ it.layer(
     }),
   );
 
-  // Client retries resend the first attach's size, which a later resize may have replaced.
   it.effect("keeps a viewer's resized grid when the same viewer attaches again", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
@@ -747,7 +737,6 @@ it.layer(
     }),
   );
 
-  // Every attached renderer answers the same query; a second DECRQM answer breaks Vim's input.
   it.effect("lets one attached viewer answer terminal queries on a shared PTY", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
@@ -1094,8 +1083,6 @@ it.layer(
     }).pipe(Effect.provide(TestClock.layer())),
   );
 
-  // Answers process-table queries after `queryDuration`, honoring the caller's
-  // timeout the way ProcessRunner's `timedOutResult` mode does.
   const slowProcessTable = (
     platform: "linux" | "win32",
     queryDuration: Duration.Input,
@@ -1367,7 +1354,6 @@ it.layer(
 
       const snapshot = yield* manager.open(openInput());
       expect(snapshot.history).toBe("\uFEFFnewest\ré");
-      // The skipped head is read only to learn the parser state at the cut.
       expect(Math.max(...readRequests)).toBeLessThanOrEqual(64 * 1024);
       expect(readRequests.slice(-3)).toEqual([15, 10, 5]);
       expect(closedReads).toBe(1);
@@ -1391,7 +1377,6 @@ it.layer(
       );
       yield* manager.open(openInput());
       const process = ptyAdapter.processes[0]!;
-      // Each save sees fresh output, so the history worker never goes idle.
       printWhileSaving = Effect.gen(function* () {
         const printed = yield* Deferred.make<void>();
         const unsubscribe = yield* manager.subscribe((event) =>
@@ -1510,11 +1495,12 @@ it.layer(
           writeFileString: (path, data, options) => {
             if (options?.flag === "a" && failAppend) {
               failAppend = false;
-              return fs.writeFileString(path, data.slice(0, 1), options).pipe(
-                // The file cannot also be a parent directory: fail after the partial append.
-                Effect.andThen(fs.writeFileString(`${path}/missing`, data)),
-                Effect.ensuring(Queue.offer(writes, undefined)),
-              );
+              return fs
+                .writeFileString(path, data.slice(0, 1), options)
+                .pipe(
+                  Effect.andThen(fs.writeFileString(`${path}/missing`, data)),
+                  Effect.ensuring(Queue.offer(writes, undefined)),
+                );
             }
             return fs
               .writeFileString(path, data, options)
@@ -1541,7 +1527,6 @@ it.layer(
 
   it.effect("releases delivered output while the process queue stays busy", () =>
     Effect.gen(function* () {
-      // Observe retained payloads, since delivery and bounded history alone cannot detect a leak.
       let readState: Effect.Effect<unknown> = Effect.void;
       const makeRef = vi.mocked(SynchronizedRef.make).getMockImplementation()!;
       using _capture = vi.spyOn(SynchronizedRef, "make").mockImplementation(<A>(value: A) =>
@@ -1630,7 +1615,6 @@ it.layer(
       const { manager, ptyAdapter } = yield* createManager();
       yield* manager.open(openInput());
       const process = ptyAdapter.processes[0]!;
-      // Mojibake like "â€\u009d" (for ”) carries C1 code points that libghostty prints as text.
       const before = "café\t界🙂\u0007\u009c\u0085 â€\u009d Ð\u0090 \u009e\u009f\u009b6n";
       const after = "e\u0301\r\n";
 
@@ -1656,7 +1640,6 @@ it.layer(
       process.emitData("\u001b[=c\u001b[=0c\u001bZ");
       process.emitData("\u001bP$q m\u001b\\\u001bP1$r0m\u001b\\");
       process.emitData("\u001bP+q544e\u001b\\\u001bP1+r544e=1b\u001b\\");
-      // BEL is DCS payload, not a terminator: only ST ends the string.
       process.emitData("\u001bP$qm\u0007hidden\u001b\\\u001bP+q544e\u0007hidden\u001b\\");
       process.emitData('\u001b[!p\u001b["p\u001b[4 q\u001b[u');
       process.emitData("\u001b]0;x\u001b\u001b[?2026$p");
@@ -1673,14 +1656,12 @@ it.layer(
     }),
   );
 
-  // Ghostty executes 0x00-0x0F inside a CSI and ignores DEL and 0x10-0x1F; none change the query.
   it.effect.each([
     { name: "NUL in DA", data: "A\u001b[0\u0000cB", history: "AB" },
     { name: "DEL in DA", data: "A\u001b[0\u007fcB", history: "AB" },
     { name: "NUL in DECRQM", data: "A\u001b[?2026\u0000$pB", history: "AB" },
     { name: "CR in DSR", data: "AB\u001b[5\rnC", history: "AB\rC" },
     { name: "DLE in DSR", data: "AB\u001b[5\u0010nC", history: "ABC" },
-    // Ghostty reads non-ASCII there as UTF-8 bytes: it drops é and runs 0x80-0x9F as C1 controls.
     { name: "é in DA", data: "A\u001b[0écB", history: "AB" },
     { name: "DECID byte in a CSI", data: "A\u001b[嚠B", history: "A\ufffdB" },
     {
@@ -1704,7 +1685,6 @@ it.layer(
       }),
   );
 
-  // Ghostty aborts a CSI at a non-ASCII code point and prints it and what follows.
   it.effect("keeps a CSI interrupted by non-ASCII text in history", () =>
     Effect.gen(function* () {
       const { manager, ptyAdapter } = yield* createManager();
@@ -1728,7 +1708,6 @@ it.layer(
       const { manager, ptyAdapter } = yield* createManager(10);
       yield* manager.open(openInput());
       const process = ptyAdapter.processes[0]!;
-      // A new escape sequence also aborts one, as in xterm.js; keep it last so CAN cannot end it.
       for (const cancel of ["\u0018", "\u001a", "\u001b[0m"]) {
         process.emitData(sequence);
         process.emitData(cancel);
@@ -1773,9 +1752,7 @@ it.layer(
       const { manager, ptyAdapter } = yield* createManager();
       yield* manager.open(openInput());
       const process = ptyAdapter.processes[0]!;
-      // libghostty receives UTF-8 (c2 9c), which is OSC payload; only ESC \ ends this string.
       process.emitData("A\u001b]11;?\u009cHIDDEN\u001b\\B\n");
-      // A DCS string does end at U+009C there, so the text after it stays visible.
       process.emitData("C\u001bP$qm\u009cSHOWN\u001b\\D\n");
       yield* manager.close({ threadId: "thread-1" });
 
@@ -1805,8 +1782,6 @@ it.layer(
         sequences.map(({ prefix, terminator }) => prefix + terminator + preserved).join("") +
         "done\n";
 
-      // Counts reads of strings larger than one emitted chunk, so rescanning the
-      // pending prefix on every chunk shows up as quadratic work.
       const charCodeAt = String.prototype.charCodeAt;
       let largeStringReads = 0;
       yield* Effect.gen(function* () {
@@ -1866,7 +1841,6 @@ it.layer(
       threadId:
         "thread:provider:claudeAgent:native-thread:provider-thread%3Aprovider%3AclaudeAgent%3Anative-thread%3Apending%253Arun%253Athread%253A9175fb53-52d7-4d4d-9be7-25a76cf84b91%253Aordinal%253A7%3Aad899ae84c7a131b0",
     },
-    // Also too long for the legacy `<sanitized id>.log` lookup.
     { label: "300-character", threadId: "x".repeat(300) },
   ])("persists history for a $label thread id too long to encode into a filename", ({ threadId }) =>
     Effect.gen(function* () {
@@ -1897,8 +1871,6 @@ it.layer(
       yield* fs.writeFileString(logPath, "before upgrade\n");
 
       expect((yield* manager.open(openInput({ threadId }))).history).toBe("before upgrade\n");
-      // A long terminal id pushes only this terminal's name past the limit, so the thread's
-      // history is split across both forms and deleting the thread must remove both.
       yield* manager.open(openInput({ threadId, terminalId: "t".repeat(128) }));
 
       yield* manager.close({ threadId, deleteHistory: true });
@@ -2156,7 +2128,6 @@ it.layer(
       const bin = join(root, "Jane -Doe Smith", ".local", "bin");
       yield* fs.makeDirectory(bin, { recursive: true });
       yield* fs.writeFileString(join(bin, "fish"), "");
-      // Temp dirs are not POSIX-absolute on Windows, so stat maps a fixed POSIX prefix onto them.
       const fixtureFs = FileSystem.FileSystem.of({
         ...fs,
         stat: (filePath) =>
@@ -2285,7 +2256,6 @@ it.layer(
     }),
   );
 
-  // POSIX exec failures are asynchronous in node-pty; ConPTY has a separate readiness protocol.
   it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
     "resolves configured shells and falls back from invalid paths with the real PTY adapter",
     () =>
@@ -2976,7 +2946,6 @@ it.layer(
       expect(yield* pull).toMatchObject([{ type: "output", data: "after reopen\n" }]);
 
       yield* publishPastOutputBudget(manager, reopenedProcess);
-      // Queue close/reopen ahead of recovery while another spawn owns the thread lock.
       const gate = {
         spawning: yield* Deferred.make<void>(),
         release: yield* Deferred.make<void>(),
@@ -3034,7 +3003,6 @@ it.layer(
         );
         expect(yield* pull).toMatchObject([{ type: "snapshot" }]);
         expect(process.resizeCalls.at(-1)).toEqual({ cols: 54, rows: 15 });
-        // Overflow releases the inner subscription before any recovery pull.
         yield* publishPastOutputBudget(manager, process);
         yield* manager.resize(
           { threadId: "thread-1", terminalId: DEFAULT_TERMINAL_ID, cols: 50, rows: 12 },
@@ -3092,7 +3060,6 @@ it.layer(
       });
 
       expect(yield* expectRetained()).toBe("aaaa\nx名😀yz\n");
-      // The cap starts inside 名, so the tail begins at the next code point.
       expect(retainedTerminalHistory("aaaa\nx名😀yz\n", maxHistoryBytes)).toBe("😀yz\n");
       process.emitData("after\n");
       expect(yield* full).toEqual(yield* bounded);
@@ -3115,7 +3082,6 @@ it.layer(
       const reached = yield* Deferred.make<void>();
       const release = yield* Deferred.make<void>();
       const delivered = yield* Deferred.make<void>();
-      // The snapshot sees history before this earlier fanout listener releases it.
       const unsubscribe = yield* manager.subscribe((event) =>
         event.type === "output" && event.data === "in flight\n"
           ? Deferred.succeed(reached, undefined).pipe(Effect.andThen(Deferred.await(release)))

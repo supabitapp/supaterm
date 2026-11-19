@@ -241,14 +241,12 @@ function useNativeReviewDiffPayload(
       void Promise.resolve()
         .then((): Promise<void | boolean> | undefined => {
           if (cancelled) return;
-          // Fabric can apply the contentResetKey prop after this call, so rows carry the key.
           return method === "setRowsJson"
             ? view.setRowsJson(payload, resetKey ?? "")
             : view[method](payload);
         })
         .then((accepted) => {
           if (cancelled) return;
-          // This promise resolves after native decode, reset validation, and merge.
           if (method === "setTokensPatchJson" && accepted !== true) {
             throw new Error("Native token patch was not accepted");
           }
@@ -269,7 +267,6 @@ function useNativeReviewDiffPayload(
         });
     };
 
-    // Expo registers native tags after Fabric attaches refs; dispatch next frame.
     frame = requestAnimationFrame(dispatch);
 
     return () => {
@@ -334,7 +331,6 @@ function NativeReviewDiffContent(
     onDebug,
     ...nativeProps
   } = props;
-  // State, not a ref, so the payload effects run again once the native view attaches.
   const [nativeView, setNativeView] = useState<NativeReviewDiffViewRef | null>(null);
   useNativeReviewDiffPayload(
     nativeView,
@@ -352,7 +348,6 @@ function NativeReviewDiffContent(
   const reportedMountRef = useRef(false);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- reports the native surface mount to the debug callback once per mount
   useEffect(() => {
-    // Effect replay keeps the same native content; only a new mount loses tokens.
     if (reportedMountRef.current) return;
     reportedMountRef.current = true;
     onDebugRef.current?.({

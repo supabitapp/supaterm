@@ -31,7 +31,6 @@ export function limitRecoveryCommand(
   )
     return null;
   const resetMs = Date.parse(thread.usageLimitResetAt);
-  // An already-expired window reported with a fresh failure cannot start a retry loop.
   if (
     !Number.isFinite(resetMs) ||
     resetMs <= DateTime.toEpochMillis(thread.latestRunCompletedAt ?? thread.updatedAt)
@@ -78,7 +77,6 @@ export function limitRecoveryCommand(
   };
 }
 
-// Events that can make a thread a candidate or change its command; streaming items cannot.
 const affectsLimitRecovery = (event: OrchestrationV2DomainEvent) =>
   event.type.startsWith("thread.") ||
   event.type === "run.created" ||
@@ -139,7 +137,6 @@ const makeSweep = Effect.gen(function* () {
         ),
       );
     }
-    // A sweep that acted, or failed to, re-checks on the next tick.
     if (acted) return;
     const wakeAt = yield* projections.getLimitRecoveryWakeAt(now);
     yield* due.record(readVersion, wakeAt ?? Infinity, nowMs);

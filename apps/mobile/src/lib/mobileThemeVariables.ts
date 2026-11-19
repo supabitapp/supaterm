@@ -21,7 +21,6 @@ const CARD_TEXT_ROLES = [
   "--color-primary-text",
 ] as const;
 
-// A selected row in a sidebar sits on the drawer, so it must stay visible there with its labels.
 function withVisibleSelection(variables: MobileThemeVariables): MobileThemeVariables {
   const selected = themeColorWithContrast(
     flattenThemeColor(variables["--color-thread-selected"], variables["--color-drawer"]),
@@ -59,9 +58,6 @@ function platformThemeVariables(
   const variables = usesDefaultPalette
     ? defaults[appearance]
     : getMobileThemeVariables(themeId, appearance);
-  // Android's frame surrounds the sidebar and chat panes. Light iPad sidebars
-  // reuse that stronger tonal fill; dark sidebars retain the shared darker pane
-  // beneath the chat canvas. System colors replace these roles later.
   const frame = themeColorWithAlpha(
     variables[usesDefaultPalette ? "--color-row-hover" : "--color-drawer"],
     1,
@@ -77,7 +73,6 @@ function platformThemeVariables(
   }
   if (platform !== "android") return variables;
 
-  // Android paints the drawer as the page inside a lighter frame, so dark cards lift off both.
   const screen = variables["--color-screen"];
   const groupedCard =
     appearance === "dark"

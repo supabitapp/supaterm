@@ -27,7 +27,6 @@ function Switch({
       data-size={size}
       data-slot="switch"
       data-mixed={mixed ? "" : undefined}
-      // Base UI overwrites aria-checked even with undefined; pass it only for mixed state.
       {...(mixed ? { "aria-checked": "mixed" as const } : {})}
       {...props}
     >

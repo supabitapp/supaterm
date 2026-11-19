@@ -237,7 +237,6 @@ describe("composerDraftStore addImages", () => {
   });
 
   it("deduplicates byte-identical images across calls and keeps distinct bytes", () => {
-    // Hydrated copies get fresh lastModified values, like a restored stash or draft.
     const persisted = (id: string, fill: number) => ({
       id,
       name: "same.png",
@@ -698,7 +697,6 @@ describe("composerDraftStore context persistence", () => {
     }
   });
 
-  // regression: #35010 typing a draft in one tab erased drafts another tab saved after it loaded
   it("keeps a draft another tab saved after this tab loaded", async () => {
     const COMPOSER_DRAFT_STORAGE_KEY = "supaterm:composer-drafts:v1";
     const sharedStorage = createMemoryStorage();
@@ -1357,7 +1355,6 @@ function modelReconciliationHarness(
       ],
     ]),
   });
-  // A pick sent to the thread: shown over the durable snapshot until it settles.
   const inFlightPickAtom = Atom.make<ModelSelection | null>(null);
   const visibleSnapshotAtom = Atom.make((get) => {
     const snapshot = get(snapshotAtom);
@@ -1598,7 +1595,6 @@ describe("composerDraftStore modelSelection", () => {
     const latest = draftFor(threadId, TEST_ENVIRONMENT_ID);
     expect(latest?.modelSelectionByProvider[original.instanceId]).toEqual(original);
 
-    // The earlier pick lands, then the latest one is rejected.
     h.update({ modelSelection: other });
     h.showInFlightPick(null);
     expect(h.model()).toEqual(other);
@@ -1707,7 +1703,6 @@ describe("composerDraftStore modelSelection", () => {
       { id: "reasoningEffort", value: "high" },
       { id: "fastMode", value: true },
     ]);
-    // A remembered primary pick is the visible fallback while the secondary is unavailable.
     const primary = modelSelection(CODEX_DRIVER, DEFAULT_MODEL);
     store.setModelSelection(threadRef, primary);
     store.setModelSelection(threadRef, pick, { explicit: true });
@@ -1970,7 +1965,6 @@ describe("composerDraftStore modelSelection", () => {
       useComposerDraftStore.getState().stickyOptionsByModelByProvider[CODEX_SECONDARY_INSTANCE],
     ).toEqual({ "gpt-5-codex": [{ id: "reasoningEffort", value: "low" }] });
 
-    // A custom slug that matches a Codex alias stays exact; the picker already resolved it.
     store.setModelSelection(threadRef, createModelSelection(CODEX_SECONDARY_INSTANCE, "gpt-5.3"), {
       explicit: true,
       replaceOptions: true,
@@ -2393,9 +2387,6 @@ describe("composerDraftStore checkout pull request", () => {
     store().setProjectDraftThreadId(projectRef, draftId, { threadId, branch: "main" });
   }
 
-  // GitActionsControl's live branch sync writes the git status branch onto the draft. The status
-  // refresh after a checkout is forked server-side, so the prepare response lands first and the
-  // sync replays the stale pre-checkout branch before the fresh status corrects it.
   function liveBranchSync(branch: string) {
     store().setDraftThreadContext(draftId, {
       branch,

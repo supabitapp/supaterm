@@ -166,7 +166,6 @@ export const make = Effect.fn("MobileEnvironmentCacheStore.make")(function* () {
         snapshot,
       }).pipe(Effect.mapError((cause) => persistenceError("save-thread", cause)));
       if (!isLatest()) return;
-      // An older copy of a thread now too large to keep would paint stale on reopen.
       yield* Option.match(payload, {
         onNone: () => database.removeCache(environmentId, "thread", threadId),
         onSome: (encoded) =>

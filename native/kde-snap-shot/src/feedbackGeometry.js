@@ -1,4 +1,3 @@
-// QML library: keep geometry in compositor logical coordinates, including mixed-DPI outputs.
 // eslint-disable-next-line no-unused-vars -- Exported by QML's JavaScript module loader.
 function destination(windows, pid, title, relative) {
   const matching = Array.from(windows).filter(

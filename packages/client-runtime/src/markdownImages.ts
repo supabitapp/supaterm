@@ -31,7 +31,6 @@ function joinWorkspacePath(workspaceRoot: string, relativePath: string): string 
   return `${root}${separator}${path}`;
 }
 
-/** Rendering is not a click, so a network path loads only from the project's own share. */
 function hostFileSource(path: string, projectRoot: string | null | undefined): MarkdownImageSource {
   return isNetworkPath(path) && workspaceRelativeFilePath(path, projectRoot) === null
     ? { _tag: "Blocked" }
@@ -45,7 +44,6 @@ function hostFileSource(path: string, projectRoot: string | null | undefined): M
 export function classifyMarkdownImageSource(
   value: string | null | undefined,
   workspaceRoot?: string | null,
-  /** Bounds network paths when `workspaceRoot` is a nested directory relative images resolve from. */
   projectRoot: string | null | undefined = workspaceRoot,
 ): MarkdownImageSource {
   if (value === null || value === undefined) return { _tag: "Blocked" };

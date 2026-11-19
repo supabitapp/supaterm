@@ -72,7 +72,6 @@ export function selectOnboardingProvidersByDriver(
   return providersByDriver;
 }
 
-// These need no Node/npm and install where provider maintenance recognizes native binaries.
 const NATIVE_INSTALL_COMMANDS = {
   claudeAgent: {
     windows: "irm https://claude.ai/install.ps1 | iex",

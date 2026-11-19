@@ -20,8 +20,6 @@ const PI_TIMEOUT_MS = 180_000;
 
 const isTextGenerationError = Schema.is(TextGenerationError);
 
-// Pi's `errorMessage` is the provider's raw response text and can echo
-// credentials, so only a leading HTTP status reaches the error detail.
 const piTurnErrorDetail = (errorMessage: string | undefined) => {
   const status = errorMessage?.match(/^([45]\d\d)\b/)?.[1];
   return status === undefined
@@ -71,7 +69,6 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
         ephemeral: true,
         shortLived: true,
         disableExtensions: true,
-        // Background naming/content helpers must never mutate the workspace.
         disableTools: true,
       });
       const connection = yield* makePiRpcConnection({
@@ -82,7 +79,6 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
       }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
 
       if (modelSelection.model !== "default") {
-        // Reject unusable custom slugs; silently using Pi's default would misreport the requested model.
         const inventory = yield* connection
           .request({ type: "get_available_models" })
           .pipe(Effect.orElseSucceed(() => undefined));
@@ -96,7 +92,6 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
         yield* connection
           .request({ type: "set_model", provider: parsed.provider, modelId: parsed.modelId })
           .pipe(
-            // Model discovery loads extensions that this background helper disables.
             Effect.mapError((error) =>
               error._tag === "PiRpcError" && error.operation === "set_model"
                 ? new TextGenerationError({
@@ -114,16 +109,12 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
       }
 
       if (thinking !== undefined && isPiThinkingLevel(thinking)) {
-        // Pi rejects xhigh/max for models without a thinkingLevelMap entry; a stale saved
-        // level falls back to Pi's default instead of failing the whole generation.
         yield* connection
           .request({ type: "set_thinking_level", level: thinking })
           .pipe(Effect.catchTags({ PiRpcError: () => Effect.void }));
       }
 
       yield* connection.request({ type: "prompt", message: prompt });
-      // Provider failures (bad key, rate limit, 5xx) arrive on the assistant
-      // `message_end`. Keep only the latest, since Pi can retry and still answer.
       let turnError: string | undefined;
       yield* Effect.gen(function* () {
         while (true) {

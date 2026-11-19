@@ -7,7 +7,6 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { render } from "../../../test/render";
 import { ChatMarkdownAssetImage, markdownImageCopy } from "./ChatMarkdownMedia";
 
-// Every evaluation of the URL query is one mint: the first read, then one per refresh.
 const assetQuery = vi.hoisted(() => ({ mints: 0 }));
 vi.mock(import("~/state/assets"), async (original) => {
   const { AsyncResult, Atom } = await import("effect/reactivity");
@@ -78,7 +77,6 @@ describe("ChatMarkdownAssetImage", () => {
       await using screen = await render(image);
       await expect.element(screen.getByRole("img", { name: "diagram" })).toBeInTheDocument();
     }
-    // The first mount at a known revision re-mints the cached URL once.
     expect(assetQuery.mints).toBe(2);
 
     await using screen = await render(<ChatMarkdownAssetImage {...image.props} />);
@@ -89,7 +87,6 @@ describe("ChatMarkdownAssetImage", () => {
 
 describe("markdownImageCopy", () => {
   it("copies an image whose path has a space as Markdown that is still that image", () => {
-    // Raw HTML <img> and <picture> sources reach the copy with the space unencoded.
     const copied = markdownImageCopy("Shot", "/work/my shot.png", undefined);
     const [block] = unified().use(remarkParse).parse(copied).children;
     const images =

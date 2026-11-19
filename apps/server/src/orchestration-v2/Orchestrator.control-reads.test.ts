@@ -51,7 +51,6 @@ import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAd
 
 declare module "node:sqlite" {
   interface StatementSync {
-    // Node 26 has this; @types/node 24 does not declare it yet.
     stat(counter: "vmStep"): number;
   }
 }
@@ -1025,7 +1024,6 @@ it.effect(
         (yield* Effect.exit(projections.getThreadRecords(threadId, ["contextTransfers"])))._tag,
         "Failure",
       );
-      // A delegated task that ended and handed its result over.
       yield* sql`INSERT INTO orchestration_v2_projection_subagents
         (subagent_id, thread_id, run_id, parent_node_id, provider, provider_thread_id,
           child_thread_id, origin, status, updated_at, payload_json, completion_delivery_state)
@@ -1055,10 +1053,8 @@ it.effect(
         turnItemTypes: ["user_message"],
       });
       assert.isAbove(fresh.turnItems.at(-1)!.ordinal, 900);
-      // Deletion reads transfer history separately to find side chats.
       yield* sql`DELETE FROM orchestration_v2_projection_context_transfers
         WHERE target_thread_id = ${threadId}`;
-      // Archiving reads every task of the thread to stop the ones still running.
       yield* sql`DELETE FROM orchestration_v2_projection_subagents
         WHERE subagent_id = 'obsolete-task'`;
       yield* sql`DELETE FROM orchestration_v2_projection_nodes WHERE node_id = 'obsolete-task'`;
@@ -1881,7 +1877,6 @@ it.effect.each([false, true])(
           .pipe(Effect.map(({ runs }) => runs.find((run) => run.userMessageId === wake.id)));
       assert.equal((yield* wakeRun())?.status, "queued");
 
-      // The child finishes without ever resolving its message-capability question.
       const childCompleted = {
         id: EventId.make("event:stale-question-child-completed"),
         type: "run.updated",
@@ -1903,7 +1898,6 @@ it.effect.each([false, true])(
       });
       yield* reactor.handle(childCompleted);
       if (missedEvent) {
-        // An acknowledged result drops the task from the parent's command projection.
         yield* orchestrator.dispatch({
           type: "delegated_task.completion-delivery.acknowledge",
           commandId: CommandId.make("ack-stale-question-task"),
@@ -1911,7 +1905,6 @@ it.effect.each([false, true])(
           taskId: task.id,
           observedByRunId: parentRun.id,
         });
-        // Persisted terminal state can predate the reactor subscription after restart.
         yield* projections.apply({
           id: EventId.make("event:stale-question-parent-finished"),
           type: "run.updated",
@@ -1937,7 +1930,6 @@ it.effect.each([false, true])(
         };
         yield* eventSink.write({ events: [delayedQuestion] });
         yield* reactor.handle(delayedQuestion);
-        // A stale delivery is accepted without starting work, not rejected.
         yield* orchestrator.dispatch({
           type: "message.dispatch",
           commandId: CommandId.make("stale-question-redelivery"),
@@ -2062,7 +2054,6 @@ it.effect.each([false, true])("rejects thread.create for an existing id (deleted
       },
     });
     yield* orchestrator.dispatch(create).pipe(Effect.withTracer(tracer));
-    // The id check expects a miss; a failed span there reads as an error in Tempo.
     assert.deepEqual(failedSpans, []);
     if (deleted) {
       yield* orchestrator.dispatch({
@@ -2145,7 +2136,6 @@ it.effect("starts and finishes a delegated task without reading the parent's his
         type: "provider-thread.updated",
         payload: { ...parent.providerThreads[0]!, nativeThreadRef: nativeRef("native:parent") },
       },
-      // A steered run: its attempt points at a provider turn that another attempt started.
       {
         type: "provider-turn.updated",
         payload: {
@@ -2171,7 +2161,6 @@ it.effect("starts and finishes a delegated task without reading the parent's his
       });
     }
 
-    // Keep the statements of the task start and finish operations, not of the recovery around them.
     const taskSpans = [
       "orchestrationV2.dispatch.delegatedTaskRequest",
       "Orchestrator.finalizeAppOwnedSubagent",
@@ -2223,7 +2212,6 @@ it.effect("starts and finishes a delegated task without reading the parent's his
       [nativeRef("native:parent"), nativeRef("native:parent:turn")],
     );
 
-    // The run listener skips reconcile commands, so the recovery below finishes the task here.
     yield* eventSink.write({
       commandId: CommandId.make("command:runtime-reconcile:long-parent"),
       events: [
@@ -2255,11 +2243,7 @@ it.effect("starts and finishes a delegated task without reading the parent's his
       ["completed", "claimed", "completed", "completed", [task.id]],
     );
 
-    // StatementSync#stat needs Node 26.8; the Node 24 runtime checks only the records above.
     if (typeof NodeSqlite.StatementSync.prototype.stat === "function") {
-      // Start and finish read the task's own records, so their VM steps, which are deterministic,
-      // must stay flat on a copy with a long parent history. Left out: the counts that number the
-      // task and its wake, which walk one index.
       const copyPath = "file:/delegated-task-reads?vfs=memdb";
       using copy = new NodeSqlite.DatabaseSync(copyPath);
       yield* sql`VACUUM INTO ${copyPath}`;
@@ -2412,7 +2396,6 @@ it.effect("explicit settle clears snooze atomically and stays idempotent after r
     assert.deepInclude(yield* projections.getThreadShell(threadId), active);
     assert.deepInclude((yield* projections.getThreadProjection(threadId)).thread, active);
 
-    // Undo of mark done restores the cleared Active anchor instead of stamping a new one.
     for (const restoreReopenedAt of [DateTime.formatIso(now), null]) {
       yield* TestClock.adjust("1 second");
       yield* orchestrator.dispatch({
@@ -2558,8 +2541,6 @@ it.effect("dispatch records the command outcome and its duration", () =>
 
 it.effect("a user message dispatched first stays run 1 when its lineage read is slow", () => {
   const threadId = ThreadId.make("thread:dispatch-order");
-  // A file database serves projection reads from a reader worker, so the lineage read a user
-  // dispatch makes before taking the thread lock can yield. This gate holds it open instead.
   const lineageReadEntered = Deferred.makeUnsafe<void>();
   const lineageReadRelease = Deferred.makeUnsafe<void>();
   let gateArmed = false;
@@ -2613,7 +2594,6 @@ it.effect("a user message dispatched first stays run 1 when its lineage read is 
     gateArmed = true;
     const user = yield* message("message:user-first", "user").pipe(Effect.forkChild);
     yield* Deferred.await(lineageReadEntered);
-    // Agent messages skip the lineage read, so this one would take a free thread lock first.
     const agent = yield* message("message:agent-second", "agent").pipe(
       Effect.forkChild({ startImmediately: true }),
     );
@@ -2684,7 +2664,6 @@ it.effect("queued-message commands read a long thread's history without walking 
         commandId: CommandId.make(`dispatch:long-history-reads:${name}`),
         threadId,
         messageId: MessageId.make(`message:long-history-reads:${name}`),
-        // A compacting target lets promote skip it without a live provider session.
         text: name === "active" ? "/compact" : `Request ${name}`,
         attachments: [],
         dispatchMode: { type: "defer_start" },
@@ -2697,7 +2676,6 @@ it.effect("queued-message commands read a long thread's history without walking 
         FROM orchestration_v2_projection_turn_items WHERE thread_id = ${threadId}`;
       return row!.ordinal;
     });
-    // Settled history: each run leaves completed leaf nodes, tool output and a reply.
     for (const name of ["1", "2", "3", "active"]) {
       yield* dispatch(name);
       const run = (yield* projections.getThreadProjection(threadId)).runs.at(-1)!;
@@ -2815,7 +2793,6 @@ it.effect("queued-message commands read a long thread's history without walking 
       }
     }
     const activeRun = (yield* projections.getThreadProjection(threadId)).runs.at(-1)!;
-    // Stop needs a live provider turn to interrupt.
     yield* projections.apply({
       id: EventId.make("event:long-history-reads:active-turn"),
       type: "provider-turn.updated",
@@ -2838,7 +2815,6 @@ it.effect("queued-message commands read a long thread's history without walking 
     const statements: Array<ReturnType<Statement.Statement<unknown>["compile"]>> = [];
     const observe: Statement.Transformer = (statement) => {
       const compiled = statement.compile();
-      // Row reads and the message-ordering pass; a MAX(ordinal) probe reads one index entry.
       if (/_(nodes|turn_items)\b/.test(compiled[0]) && /payload_json|GROUP BY/.test(compiled[0])) {
         statements.push(compiled);
       }
@@ -2849,19 +2825,12 @@ it.effect("queued-message commands read a long thread's history without walking 
       for (const [query, params] of statements.splice(0)) {
         const plan = yield* sql.unsafe<{ detail: string }>(`EXPLAIN QUERY PLAN ${query}`, params);
         for (const { detail } of plan) {
-          // A history-sized read: an ordering pass over every message item for a narrowed
-          // message read, or a node/turn-item row search bounded by nothing but the thread.
-          // Walking only a covering index's ids reads no payloads. Stop still loads every
-          // message, so its ordering pass is no larger than that read.
           if (
             (detail.includes("TEMP B-TREE FOR GROUP BY") && query.includes("json_each")) ||
             (/^SEARCH .*(node|turn_item).* \(thread_id=\?\)$/.test(detail) &&
               !detail.includes("USING COVERING INDEX") &&
-              // That full ordering pass, through an index that holds only message items.
               !(detail.includes("message_ordinal_idx") && !query.includes("json_each"))) ||
-            // Every active run in the environment, not only this thread's.
             /^SEARCH .*runs.* \(status=\?\)$/.test(detail) ||
-            // A status-filtered read that fetches every typed row to check its status.
             (/^SEARCH .*turn_items USING INDEX .* \(thread_id=\? AND type=\?\)$/.test(detail) &&
               query.includes("status IN"))
           ) {
@@ -2945,7 +2914,6 @@ it.effect("a running provider-turn update reads only the thread's queued and run
   Effect.gen(function* () {
     const runsReads = yield* Deferred.make<ReturnType<Statement.Statement<unknown>["compile"]>>();
     let armed = false;
-    // The deferred-steer reactor runs in a fiber forked by the layer, so observe at layer level.
     const observe: Statement.Transformer = (statement) => {
       const compiled = statement.compile();
       return armed && /FROM orchestration_v2_projection_runs\b/.test(compiled[0])
@@ -3028,7 +2996,6 @@ it.effect("a running provider-turn update reads only the thread's queued and run
       });
       const [query, params] = yield* Deferred.await(runsReads);
       const plan = yield* sql.unsafe<{ detail: string }>(`EXPLAIN QUERY PLAN ${query}`, params);
-      // Every run the thread ever had, when only queued steers and the running run matter.
       assert.isFalse(
         plan.some(({ detail }) => /^SEARCH .*runs.* \(thread_id=\?\)$/.test(detail)),
         `${plan.map(({ detail }) => detail).join("\n")}\n  in: ${query.replace(/\s+/g, " ").trim()}`,
@@ -3116,7 +3083,6 @@ it.effect(
       });
       const quietParent = yield* captureReads;
 
-      // Completion wakes queued behind the coordinator's own work, each with a delivery still open.
       for (let index = 0; index < 40; index++) {
         const runId = RunId.make(`run:busy-coordinator:wake:${index}`);
         yield* projections.apply({

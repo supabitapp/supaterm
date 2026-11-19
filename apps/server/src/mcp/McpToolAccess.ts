@@ -29,7 +29,6 @@ import {
   unavailable,
 } from "./threadAccess.ts";
 
-/** Private constructors only enforce types; the token also blocks runtime construction. */
 const builtHere: unique symbol = Symbol("supaterm/mcp/McpToolAccess/builtHere");
 
 const refuseOutsideConstruction = (token: symbol) => {
@@ -91,7 +90,6 @@ const writingCaller = refuseReadOnlyClient.pipe(
   Effect.tap(assertLiveCaller),
 );
 
-/** A side chat is the user's aside: it reads the main thread, but steers and starts nothing. */
 const sideChatDenied = new OrchestratorMcpFailure({
   code: "capability_denied",
   message:
@@ -164,7 +162,6 @@ const writeThreads = Effect.fn("mcp.writeThreads")(function* <A, E, R>(
       yield* assertTargetWithinLimits(caller.limits, target);
     }
   }
-  // Modes can rise after this check; the orchestrator rechecks under lock and records refusal before handlers wrap errors.
   const refused = yield* Ref.make<DispatchModeRefusal | undefined>(undefined);
   return yield* handle.pipe(
     Effect.provideService(DispatchModeLimit, { ...caller.limits, refused }),
@@ -336,7 +333,6 @@ export const toLayer = <Tools extends Record<string, Tool.Any>, EX = never, RX =
   toolkit: Toolkit.Toolkit<Tools>,
   build: Handlers<Tools> | Effect.Effect<Handlers<Tools>, EX, RX>,
 ): HandlersLayer<Tools, EX, Exclude<RX, Scope.Scope>> => {
-  // Checked as soon as they are given, so a forged declaration fails here.
   const withDeclarations = (declarations: Handlers<Tools>) =>
     hiddenFromOutsideClientsWhenThreadBound(toolkit, declarations, checkedHandlers(declarations));
   return handlersLayer(

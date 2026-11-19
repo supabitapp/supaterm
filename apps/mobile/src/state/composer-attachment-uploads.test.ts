@@ -348,7 +348,6 @@ it.effect("uploads again at send time when the server swept a finished upload", 
     const queue = worker();
     yield* Effect.promise(() => queue.settled());
     expect(uploadState()).toEqual({ status: "ready" });
-    // The server sweeps pending uploads nothing claimed, here while the draft sat unsent.
     native.server.delete("pending-1");
 
     const message = queuedMessage();
@@ -372,7 +371,6 @@ it("keeps an upload running when its message is sent mid-upload and records it o
   const queue = worker();
   await transferStarted.promise;
 
-  // Send enqueues the message, then clears the draft that owned the upload.
   await enqueueThreadOutboxMessage(queuedMessage());
   drafts.clearComposerDraftContent(draftKey, { deferAttachmentCleanup: true });
   finishTransfer.resolve({ status: 204 });
@@ -447,7 +445,6 @@ it("keeps an unexpected draft flush error blocking Send", async () => {
   expect(composerAttachmentUploadBlockReason(sendInput())).toBe(
     "Retry or remove the failed attachment",
   );
-  // The server sweeps pending uploads nothing claims; a retry uploads again.
   expect(native.deleted).toEqual([]);
 });
 

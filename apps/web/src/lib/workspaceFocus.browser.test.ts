@@ -33,7 +33,6 @@ function setup() {
   };
 }
 
-/** Mirrors MessagesTimeline's scroller, which takes focus so the keyboard scrolls it. */
 function conversationScroller(height: number) {
   const timeline = document.createElement("div");
   timeline.style.cssText = `height: ${height}px; overflow-y: auto`;
@@ -51,7 +50,6 @@ describe("workspace area focus", () => {
     const composer = fixture.area("composer", 2);
     sidebar.button.focus();
     fixture.controller.move(1);
-    // Without a timeline (an empty thread), the region takes focus rather than its first button.
     expect(document.activeElement).toBe(conversation.element);
     fixture.controller.move(1);
     expect(document.activeElement).toBe(composer.button);
@@ -250,7 +248,6 @@ describe("workspace area focus", () => {
     copy.focus();
     fixture.controller.move(1);
     expect(document.activeElement).toBe(composer.button);
-    // Live follow moved the timeline to the newest output.
     timeline.scrollTop = 300;
     fixture.controller.move(-1);
     expect(document.activeElement).toBe(timeline);
@@ -391,10 +388,8 @@ describe("workspace area focus", () => {
     await userEvent.click(home);
     expect(document.activeElement).toBe(home);
     expect(outline()).toBe("none");
-    // A window switch can deliver a lone modifier key without moving focus.
     await userEvent.keyboard("{Shift}");
     expect(outline(), "a clicked area shows the focus ring after a bare key press").toBe("none");
-    // Window activation refocuses the element that had focus, with nothing focused in between.
     home.blur();
     home.focus();
     expect(outline(), "a clicked area rings when the window regains focus").toBe("none");
@@ -407,7 +402,6 @@ describe("workspace area focus", () => {
     expect(document.activeElement).toBe(home);
     expect(outline()).toBe("solid");
 
-    // A dialog opened from the keyboard returns focus to the area when it closes.
     await userEvent.keyboard("{Enter}");
     sidebar.button.focus();
     await userEvent.keyboard("{Escape}");
@@ -417,7 +411,6 @@ describe("workspace area focus", () => {
     await userEvent.click(home);
     expect(outline(), "clicking the ringed area removes its ring").toBe("none");
 
-    // With no other area visible, F6 lands on the area that already has focus.
     sidebar.element.hidden = true;
     await userEvent.keyboard("{F6}");
     fixture.controller.move(1);

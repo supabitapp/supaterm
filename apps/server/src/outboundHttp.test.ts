@@ -19,9 +19,6 @@ import {
   installHttp1FetchDispatcher,
 } from "./outboundHttp.ts";
 
-// Test-only self-signed P-256 certificate for 127.0.0.1, valid until 2126; not a
-// secret. Node cannot mint X.509 certificates without a library, and a local
-// server only offers h2 over ALPN, which needs TLS.
 const TEST_KEY = /* gitleaks:allow */ `-----BEGIN PRIVATE KEY-----
 MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg8e4dOUdMq8iWvH9K
 6K3ET1o297gQai0AsFExFcotrLChRANCAATFqviWypuKNNdHFGSOweNN2+AFHCbN
@@ -87,8 +84,6 @@ describe("installHttp1FetchDispatcher", () => {
     expect(Undici.getGlobalDispatcher()).toBeInstanceOf(Undici.EnvHttpProxyAgent);
   });
 
-  // Only a runtime that bundles undici 8 (Node 26+) offers h2 through the
-  // built-in fetch, so only there can this prove fetch reads the new dispatcher.
   it.effect.runIf(builtinFetchUsesHttp2(process.versions.undici))(
     "moves the built-in fetch off HTTP/2",
     () =>
@@ -136,8 +131,6 @@ describe("ignoreMacosTypeOfServiceEinval", () => {
     expect(() => prototype.setTypeOfService.call(socket, 0)).toThrow();
   });
 
-  // Bundled undici 7 through 7.30.1 calls this API from a socket callback. Keep the real
-  // fetch in a child so an escaped EINVAL exits that process instead of breaking Vitest.
   it.effect.runIf(
     typeof (NodeNet.Socket.prototype as { setTypeOfService?: unknown }).setTypeOfService ===
       "function" && satisfiesSemverRange(process.versions.undici ?? "", ">=7.0.0 <7.30.2"),

@@ -36,7 +36,6 @@ export function optimisticThreadCreationShell(
     activeProviderThreadId: null,
     latestRunId: null,
     activeRunId: null,
-    // Without a run id yet, only the activity status makes clients count the thread as working.
     activityRunStatus: "preparing",
     activityRunStartedAt: createdAt,
     status: "preparing",

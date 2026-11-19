@@ -41,7 +41,6 @@ const isWslInstanceId = (id: DesktopBackendPool.BackendInstanceId): boolean =>
 const buildLabel = (distro: string | null): string =>
   distro === null ? "WSL (default distro)" : `WSL (${distro})`;
 
-// WSL auto-forwards loopback ports, so only IPv4 loopback availability matters.
 const scanForWslPort = Effect.fn("desktop.wslBackend.scanForWslPort")(function* (
   startPort: number,
 ): Effect.fn.Return<number, NetService.NetError, NetService.NetService> {
@@ -65,7 +64,6 @@ export const layer = Layer.effect(
     const wslEnvironment = yield* DesktopWslEnvironment.DesktopWslEnvironment;
     const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
     const net = yield* NetService.NetService;
-    // Serialize bootstrap and IPC reconciles so concurrent reads cannot register competing WSL instances.
     const reconcileMutex = yield* Semaphore.make(1);
 
     const preflightErrorRef = yield* Ref.make(Option.none<string>());
@@ -161,7 +159,6 @@ export const layer = Layer.effect(
       const existing = yield* findExistingWslInstance;
       const existingId = Option.map(existing, (instance) => instance.id);
 
-      // In wsl-only mode WSL is already primary; do not start a second backend on the same distro.
       const shouldRun = settings.wslBackendEnabled && available && !settings.wslOnly;
       const targetId = shouldRun
         ? Option.some(resolveTargetInstanceId(settings.wslDistro))
@@ -198,7 +195,6 @@ export const layer = Layer.effect(
       }
 
       if (Option.isSome(targetId)) {
-        // Pre-warm WSL so readiness cannot race its cold start.
         yield* wslEnvironment.preWarm(settings.wslDistro);
         yield* startNew({ distro: settings.wslDistro });
       }

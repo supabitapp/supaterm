@@ -245,7 +245,6 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
         workspaceRoot: serverConfig.cwd,
       })
       .pipe(
-        // A folder the project rules refuse must not stop the server from starting there.
         Effect.catchTags({
           ProjectInvalidError: (error) =>
             Effect.logWarning("Skipped bootstrap project", { detail: error.detail }).pipe(
@@ -327,7 +326,6 @@ export const announceStartupPairingUrl = (pairingUrl: string) =>
     Effect.andThen(Console.log(`  pairingUrl: ${pairingUrl}`)),
   );
 
-// Pairing tokens belong only in announceStartupPairingUrl's stdout output.
 export const logBrowserAutoOpenUnavailable = Effect.logInfo("browser auto-open unavailable", {
   hint: "Open the pairing URL above in your browser.",
 });
@@ -342,8 +340,6 @@ export const maybeOpenBrowser = Effect.fn("serverRuntimeStartup.maybeOpenBrowser
   const externalLauncher = yield* ExternalLauncher.ExternalLauncher;
 
   yield* externalLauncher.launchBrowser(target).pipe(
-    // The target carries the pairing token, and a failed launch records its
-    // command line on the span, so this call stays out of traces.
     Effect.withTracerEnabled(false),
     Effect.catch(() => logBrowserAutoOpenUnavailable),
   );
@@ -351,7 +347,6 @@ export const maybeOpenBrowser = Effect.fn("serverRuntimeStartup.maybeOpenBrowser
 
 const runStartupPhase = <A, E, R>(phase: string, effect: Effect.Effect<A, E, R>) =>
   effect.pipe(
-    // Use span attributes; annotations would follow long-lived forked fibers for the server's lifetime.
     Effect.withSpan(`server.startup.${phase}`, { attributes: { "startup.phase": phase } }),
   );
 
@@ -500,8 +495,6 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
       ).pipe(Effect.map((targets): AutoBootstrapWelcomeTargets => targets)),
     });
     yield* Effect.logInfo("V2 orchestration recovery completed", recovery);
-    // Runs after activation: the status check fetches every enabled project's
-    // remote, and awaiting it here held command readiness for that long.
     yield* runStartupPhase(
       "projects.auto-pull",
       Effect.gen(function* () {

@@ -174,7 +174,6 @@ function useZipArchive(input: {
   const [revision, setRevision] = useState(0);
   const controller = useRef<AbortController | null>(null);
   const { uri, isLocal, sizeBytes } = input;
-  // The parent mints a new refresh callback on every render; it must not reload the archive.
   const refresh = useEffectEvent(input.refresh);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Load archive bytes and cancel the stream on cleanup.
   useEffect(() => {
@@ -567,7 +566,6 @@ async function addZipEntryToDraft(input: {
       await removePersistedComposerAttachmentFile(attachment.fileUri);
       signal.throwIfAborted();
     }
-    // Rejected attachments are cleaned up by the draft store.
     const appended = appendComposerDraftAttachments(input.draftKey, [attachment], {
       appendReference: true,
     });
@@ -598,7 +596,6 @@ function ZipEntryView(props: {
   const { mimeType } = entry;
   const previewKind = filePreviewKind({ name: entry.name, mimeType });
   const isText = previewKind === "text" || previewKind === "markdown" || previewKind === "html";
-  // Archive HTML is shown as source: a rendered page could load its sibling files.
   const kind = previewKind === "html" ? "text" : previewKind;
   const viewerKind = isText || kind === "audio" ? null : (nativeViewerKind(kind) ?? "document");
   const tooBig = entry.sizeBytes > ARCHIVE_ENTRY_MAX_BYTES;
@@ -763,7 +760,6 @@ function ZipEntryView(props: {
           />
         </ScrollView>
       ) : viewerKind && uri && !viewerOpen ? (
-        // Closing the viewer stays here so Save and Add to chat remain reachable.
         <View className="flex-1 items-center justify-center bg-sheet px-6">
           <EmptyState
             title={viewerError ? "No preview for this file" : entry.name}

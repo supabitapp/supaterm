@@ -137,7 +137,6 @@ it("outweighs the agents slice for CPU and disk", () => {
   expect(unit).toContain("IOWeight=1000");
 });
 
-// systemd rejects a unit whose executable has a control character, quote or backslash, even quoted.
 it.each([
   ["a double quote", '/home/theo/Supaterm "Data"'],
   ["a single quote", "/home/theo/Theo's Supaterm"],
@@ -205,15 +204,12 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
   const control: {
     failCommand: string | undefined;
     stateAfterStop?: string;
-    /** `undefined` makes `loginctl show-user` fail, as when logind does not know the user. */
     linger: string | undefined;
     managerReachable: boolean;
-    /** The user bus is found only through `XDG_RUNTIME_DIR`, as without a login session. */
     busNeedsRuntimeDir: boolean;
     lingerStartsManager: boolean;
     enabled: boolean;
     active: boolean;
-    /** systemd refuses starts until `reset-failed`, as after `StartLimitBurst` trips. */
     startLimitHit: boolean;
   } = {
     failCommand: undefined,
@@ -236,7 +232,6 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
       if (command === "systemctl --user reset-failed supaterm.service")
         control.startLimitHit = false;
       const refusedStart = control.startLimitHit && command.startsWith("systemctl --user restart ");
-      // `--no-block` only queues the job, so systemd reports success even when it refuses it.
       const failed =
         command === control.failCommand ||
         (refusedStart && command === "systemctl --user restart supaterm.service");
@@ -247,11 +242,9 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
       if (!failed && command === "systemctl --user enable supaterm.service") control.enabled = true;
       if (!refusedStart && !failed && command.startsWith("systemctl --user restart "))
         control.active = true;
-      // The manager loads units only from its own unit directory.
       const unitOutsideManager =
         command === "systemctl --user enable supaterm.service" &&
         !(yield* fs.exists(path.join(managerUnitDir, "supaterm.service")));
-      // A stop that fails (a timeout, say) has still stopped the service.
       if (command === "systemctl --user stop supaterm.service") control.active = false;
       if (
         control.stateAfterStop !== undefined &&
@@ -448,7 +441,6 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
     }),
   );
 
-  // regression: #29881
   it.effect.each([
     { logind: "has lingering disabled", linger: "no" },
     { logind: "does not know the user", linger: undefined },
@@ -496,7 +488,6 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
     }),
   );
 
-  // regression: #29881
   it.effect("installs into the unit directory of the user manager that lingering starts", () =>
     Effect.gen(function* () {
       const path = yield* Path.Path;
@@ -520,7 +511,6 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
     }),
   );
 
-  // regression: #29881
   it.effect.each([
     { manager: "starts after three probes", upAfterPauses: 3, pauses: 3 },
     { manager: "never starts", upAfterPauses: undefined, pauses: 10 },
@@ -562,7 +552,6 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
       }),
   );
 
-  // regression: #29881
   it.effect("points systemd user commands at the user's runtime directory when none is set", () =>
     Effect.gen(function* () {
       const { service, invocations, makeService } = yield* makeHarness();
@@ -742,8 +731,6 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
       expect(yield* discoveredService.uninstall).toBe(true);
       expect(yield* fs.exists(unitPath)).toBe(false);
       expect((yield* discoveredService.status).installed).toBe(false);
-      // The stop can block up to systemd's 90s TimeoutStopSec; the runner's
-      // 60s default would cancel it mid-shutdown.
       expect(timeouts.get("systemctl --user disable --now supaterm.service")).toEqual(
         Duration.seconds(120),
       );
@@ -1047,8 +1034,6 @@ process.disconnect();
         const installing = yield* newer
           .install({ start: false })
           .pipe(Effect.ensuring(Effect.sync(() => milestone.resolve())), Effect.forkChild);
-        // Resume the launcher once the installer contends for the unit lease, or once an
-        // uncoordinated installer has finished, which makes the stale snapshot win.
         yield* Effect.promise(() => milestone.promise);
         child.send("resume");
         yield* Fiber.join(installing);
@@ -1065,7 +1050,6 @@ process.disconnect();
             path.join(path.dirname(statePath), SERVICE_RESTART_PENDING_FILE),
           ),
         ).toBe("1.2.4\n");
-        // The next installer reclaims the dead owner and releases its own lease.
         yield* newer.install({ start: false });
         expect(yield* fs.exists(plan.unitPath + ".selection-lock")).toBe(false);
       }),
@@ -1130,7 +1114,6 @@ process.disconnect();
       expect(failure).toBe("repair failed");
       expect(control.active).toBe(true);
 
-      // A failed stop skips the operation but still starts the service again.
       control.failCommand = "systemctl --user stop supaterm.service";
       let ran = false;
       const stopFailure = yield* service
@@ -1148,8 +1131,6 @@ process.disconnect();
       expect(control.active).toBe(true);
       control.failCommand = undefined;
 
-      // An enabled unit that is not active (crash-looping in auto-restart, say)
-      // is still stopped for the repair and started again afterwards.
       control.active = false;
       commands.length = 0;
       yield* service.withStopped(Effect.sync(() => commands.push("repair")));
@@ -1162,11 +1143,9 @@ process.disconnect();
         "systemctl --user restart supaterm.service",
       ]);
       expect(control.active).toBe(true);
-      // A running unit the user disabled is started again but stays disabled.
       control.enabled = false;
       yield* service.withStopped(Effect.void);
       expect(control).toMatchObject({ active: true, enabled: false });
-      // A unit that was neither enabled nor active stays stopped.
       control.active = false;
       control.enabled = false;
       commands.length = 0;
@@ -1199,7 +1178,6 @@ process.disconnect();
       expect(yield* other.restart).toBe("skipped");
       const refused = yield* other.install().pipe(Effect.flip);
       expect(refused._tag).toBe("BootServiceOtherBaseDirError");
-      // The CLI prints a user message without a stack trace.
       expect(CliError.getUserMessage(refused)).toBe(refused.message);
       expect(yield* fs.readFileString(plan.unitPath)).toBe(unit);
       expect(commands).toEqual([]);
@@ -1301,7 +1279,6 @@ process.disconnect();
       }),
   );
 
-  // regression: #36319
   it.effect("starts a service whose systemd start limit tripped after repairing it", () =>
     Effect.gen(function* () {
       const { service, control, makeService } = yield* makeHarness();
@@ -1405,8 +1382,6 @@ process.disconnect();
       expect(yield* service.uninstall).toBe(true);
       expect((yield* service.status).installed).toBe(false);
       expect(commands.some((command) => command.startsWith("systemctl "))).toBe(false);
-      // A bootout can block up to the plist's 90s ExitTimeOut; the runner's
-      // 60s default would cancel it and let bootstrap race a loaded job.
       expect(timeouts.get("launchctl bootout --wait gui/501/com.supaterm.desktop.service")).toEqual(
         Duration.seconds(120),
       );
@@ -1447,14 +1422,12 @@ process.disconnect();
     }),
   );
 
-  // regression: #17532
   it.effect("puts the runtime an update installs on the launch agent PATH", () =>
     Effect.gen(function* () {
       const { makeService, fs, baseDir, runtime } = yield* makeHarness("darwin");
       const path = yield* Path.Path;
       const previous = runtime.versionDir;
       const installed = pinnedRuntimePaths(path, baseDir, "1.2.4", "darwin").versionDir;
-      // The 1.2.3 CLI, or the 1.2.3 service's own PATH, installs 1.2.4.
       const updated = yield* makeService(
         `/usr/bin:${previous}:/bin`,
         "1.2.4",

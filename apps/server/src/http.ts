@@ -67,16 +67,10 @@ import { requestUrl } from "./requestUrl.ts";
 const OTLP_TRACES_PROXY_PATH = "/api/observability/v1/traces";
 const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "::1", "localhost"]);
 const SVG_CONTENT_SECURITY_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox";
-// HTML previews are agent output, not the app. The sandbox gives the document an
-// opaque origin: scripts run, but same-origin cookies, storage, and API calls are
-// out of reach. Relative sibling assets still load through their signed URLs.
-// No modals: agent HTML can open without a click (inline renders, and mobile
 
 const HTML_CONTENT_SECURITY_POLICY =
   "sandbox allow-scripts allow-forms allow-popups allow-downloads";
 
-// Types a browser may render as a document if a proxy strips the disposition
-// header. Downloads of these fall back to octet-stream.
 const DOWNLOAD_MIME_TYPE_PATTERN = /^[\w!#$&^.+-]+\/[\w!#$&^.+-]+$/;
 const isSafeDownloadMimeType = (mimeType: string): boolean =>
   DOWNLOAD_MIME_TYPE_PATTERN.test(mimeType) &&
@@ -90,7 +84,6 @@ export function downloadContentDisposition(fileName?: string): string {
   if (fileName === undefined) {
     return "attachment";
   }
-  // toWellFormed: encodeURIComponent throws URIError on unpaired surrogates.
   const sanitized = fileName.toWellFormed().replace(/[\p{Cc}"\\]/gu, "_");
   const asciiFallback = sanitized.replace(/[^\u0020-\u007e]/g, "_");
   const needsExtended = asciiFallback !== sanitized;
@@ -211,7 +204,6 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
     headers["Content-Type"] === "text/html; charset=utf-8"
   ) {
     const bytes = yield* readMcpAppHtml(asset.path);
-    // A page too large to buffer is served as is, without scroll restoration.
     if (bytes !== null) {
       const script = new TextEncoder().encode(FILE_PREVIEW_SCROLL_SCRIPT);
       const body = new Uint8Array(bytes.byteLength + script.byteLength);
@@ -227,9 +219,6 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
   const mediaInfo = mediaFile ? yield* statMediaFile(asset.path, mediaFile) : undefined;
   const isMedia = /^(?:audio|video)\//i.test(headers["Content-Type"] ?? "");
   if (isMedia) {
-    // Do not invite conditional range requests with validators that cannot establish
-    // byte-for-byte identity. Attachment media carries no `file`, and must not
-    // outlive the signed URL that granted it either.
     headers["Cache-Control"] = "private, no-store";
   }
   let status = 200;
@@ -237,7 +226,6 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
   let bytesToRead: bigint | undefined;
   {
     headers["Accept-Ranges"] = "bytes";
-    // If-Range requires a matching validator. A full response is safe when we cannot validate it.
     if (method === "GET" && rangeHeader && ifRangeHeader === undefined) {
       const fs = yield* FileSystem.FileSystem;
       const info = mediaInfo ?? (yield* fs.stat(asset.path));
@@ -290,8 +278,6 @@ export const layerBrowserApiCors = Layer.unwrap(
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
     const devOrigin = config.devUrl?.origin;
-    // Dev uses credentialed requests from Vite or the Electron custom origin, so both must be
-    // explicit. Packaged desktop omits credentials and uses Effect's default wildcard origin.
     const cors = HttpMiddleware.cors({
       ...(devOrigin
         ? {
@@ -331,25 +317,23 @@ function resolveDevRedirectUrl(devUrl: URL, requestUrl: URL): string {
   return redirectUrl.toString();
 }
 
-const authenticateRawRouteWithScope =
-  /* Request instrumentation already owns the span; keep this helper in that context. */
-  Effect.fnUntraced(function* (
-    scope: typeof AuthOrchestrationReadScope | typeof AuthOrchestrationOperateScope,
-  ) {
-    const request = yield* HttpServerRequest.HttpServerRequest;
-    const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
-    const session = yield* serverAuth.authenticateHttpRequest(request).pipe(
-      Effect.catchIf(EnvironmentAuth.isServerAuthCredentialError, (error) =>
-        failEnvironmentAuthInvalid(EnvironmentAuth.serverAuthCredentialReason(error)),
-      ),
-      Effect.catchIf(EnvironmentAuth.isServerAuthInternalError, (error) =>
-        failEnvironmentInternal("internal_error", error),
-      ),
-    );
-    if (!session.scopes.includes(scope)) {
-      return yield* failEnvironmentScopeRequired(scope);
-    }
-  });
+const authenticateRawRouteWithScope = Effect.fnUntraced(function* (
+  scope: typeof AuthOrchestrationReadScope | typeof AuthOrchestrationOperateScope,
+) {
+  const request = yield* HttpServerRequest.HttpServerRequest;
+  const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
+  const session = yield* serverAuth.authenticateHttpRequest(request).pipe(
+    Effect.catchIf(EnvironmentAuth.isServerAuthCredentialError, (error) =>
+      failEnvironmentAuthInvalid(EnvironmentAuth.serverAuthCredentialReason(error)),
+    ),
+    Effect.catchIf(EnvironmentAuth.isServerAuthInternalError, (error) =>
+      failEnvironmentInternal("internal_error", error),
+    ),
+  );
+  if (!session.scopes.includes(scope)) {
+    return yield* failEnvironmentScopeRequired(scope);
+  }
+});
 
 export const layerServerEnvironmentHttpApi = HttpApiBuilder.group(
   EnvironmentHttpApi,
@@ -370,8 +354,6 @@ class DecodeOtlpTraceRecordsError extends Data.TaggedError("DecodeOtlpTraceRecor
   readonly cause: unknown;
 }> {}
 
-// Renderers export up to once a second while they have spans buffered, so
-// tracing this proxy would add more server spans than it forwards.
 export const layerOtlpTracesProxyRoute = HttpRouter.add(
   "POST",
   OTLP_TRACES_PROXY_PATH,
@@ -428,13 +410,9 @@ export const layerOtlpTracesProxyRoute = HttpRouter.add(
 
 const UNTRACED_REQUEST_PATHS: ReadonlySet<string> = new Set([OTLP_TRACES_PROXY_PATH]);
 
-// TracerDisabledWhen is one predicate for the whole server, and
-// HttpRouter.serve builds its routes privately, so it is provided to the served
-// layer, never merged into the routes.
 const layerUntracedRequests = Layer.succeed(HttpMiddleware.TracerDisabledWhen)((request) => {
   const queryIndex = request.url.indexOf("?");
   const path = queryIndex === -1 ? request.url : request.url.slice(0, queryIndex);
-  // Signed URLs carry bearer tokens in the path, so they never reach a trace.
   return (
     UNTRACED_REQUEST_PATHS.has(path) ||
     path.startsWith(`${ASSET_ROUTE_PREFIX}/`) ||
@@ -476,8 +454,6 @@ export const layerAssetRoute = HttpRouter.add(
     if (asset.kind === "source-control-media") {
       return yield* sourceControlMediaResponse(asset, request.headers).pipe(
         Effect.tapError((cause) =>
-          // The URL can carry a token in its query string, and the error keeps the request it
-          // failed on; the host and the failure kind are enough to diagnose.
           Effect.logWarning("Failed to fetch source control media.", {
             host: URL.canParse(asset.url) ? new URL(asset.url).host : undefined,
             reason: cause.reason._tag,
@@ -532,7 +508,6 @@ export const layerAttachmentUploadRoute = HttpRouter.add(
       });
     }
 
-    // Keep the request stream in the route scope until the response is sent.
     const bodyPull = yield* Stream.toPull(request.stream);
     const stored = yield* storeAttachmentUpload(claims, Stream.fromPull(Effect.succeed(bodyPull)));
     return stored.ok
@@ -568,9 +543,7 @@ export const layerTranscriptionUploadRoute = Layer.unwrap(
         if (Option.isNone(url)) {
           return HttpServerResponse.text("Bad Request", { status: 400 });
         }
-        // Keep the request stream in the route scope until the response is sent.
         const bodyPull = yield* Stream.toPull(request.stream);
-        // An empty body collects the outcome even when the transport sends no zero length.
         const first = yield* bodyPull.pipe(
           Effect.asSome,
           Pull.catchDone(() => Effect.succeedNone),
@@ -591,7 +564,6 @@ export const layerTranscriptionUploadRoute = Layer.unwrap(
           .pipe(
             Effect.flatMap((result) => transcriptionUploadResponse(result)),
             Effect.catchTags({
-              // Rebuilt without its cause, which can carry provider details.
               TranscriptionError: (error) =>
                 transcriptionErrorResponse(
                   new TranscriptionError({
@@ -629,7 +601,6 @@ export const layerTranscriptionStreamRoute = Layer.unwrap(
         if (Option.isNone(url) || request.headers.upgrade?.toLowerCase() !== "websocket") {
           return HttpServerResponse.text("Bad Request", { status: 400 });
         }
-        // PCM doesn't compress, so negotiating permessage-deflate would only cost CPU.
         delete NodeHttpServerRequest.toIncomingMessage(request).headers["sec-websocket-extensions"];
         const socket = yield* request.upgrade;
         yield* uploads.attachStream(
@@ -691,8 +662,6 @@ const openStaticFile = Effect.fn("openStaticFile")(function* (filePath: string) 
         error.reason._tag === "NotFound" ? Effect.succeed(null) : Effect.fail(error),
     }),
   );
-  // Electron asar can stat and read files even when opening a handle returns NotFound.
-  // Refresh path metadata because the file may have been replaced since the first stat.
   const info = yield* file === null ? fileSystem.stat(filePath) : file.stat;
   return info.type === "File" ? { file, info } : null;
 });
@@ -709,7 +678,6 @@ const streamStaticFile = (file: FileSystem.File, size: bigint) =>
     }),
   );
 
-// The app can approve agents and start threads in one click, so no other site may frame it.
 const SPA_FRAME_HEADERS = {
   "Content-Security-Policy": "frame-ancestors 'none'",
   "X-Frame-Options": "DENY",
@@ -738,8 +706,6 @@ const handleStaticAndDevRequest = Effect.fn("handleStaticAndDevRequest")(
     const staticDir =
       config.staticDir ?? (config.devUrl ? yield* ServerConfig.resolveStaticDir() : undefined);
     if (!staticDir && config.devUrl) {
-      // `vp run dev --share --built` prints the pairing URL before its first
-      // web build lands in apps/web/dist. Reload until it does.
       return HttpServerResponse.text(
         '<!doctype html><meta http-equiv="refresh" content="2"><p>Waiting for the first web build. This page reloads by itself.</p>',
         { status: 503, contentType: "text/html", headers: { "Retry-After": "2" } },
@@ -796,7 +762,6 @@ const handleStaticAndDevRequest = Effect.fn("handleStaticAndDevRequest")(
     const mimeType = Option.getOrElse(Mime.getType(filePath), () => "application/octet-stream");
     const isHtml = mimeType === "text/html";
 
-    // A hash-like name is not enough: custom static files can use the same naming pattern.
     const relativePath = path.relative(staticRoot, filePath).replaceAll("\\", "/");
     const immutable =
       !isHtml &&
@@ -804,7 +769,6 @@ const handleStaticAndDevRequest = Effect.fn("handleStaticAndDevRequest")(
       immutableBuildAssets.has(relativePath);
     const cacheControl = immutable ? "public, max-age=31536000, immutable" : "no-cache";
     const validators = (info: FileSystem.File.Info) => {
-      // Deployments can preserve HTML size and mtime while changing its bundle URLs.
       const modifiedAt = isHtml ? undefined : Option.getOrUndefined(info.mtime);
       return modifiedAt
         ? {
@@ -821,8 +785,6 @@ const handleStaticAndDevRequest = Effect.fn("handleStaticAndDevRequest")(
     const etag = headers.ETag;
     const lastModified = headers["Last-Modified"];
 
-    // If-None-Match takes precedence over dates and uses weak comparison for
-    // GET/HEAD, including when compression changes the transferred bytes.
     const ifNoneMatch = request.headers["if-none-match"];
     const ifModifiedSince = request.headers["if-modified-since"];
     const unchanged =
@@ -847,7 +809,6 @@ const handleStaticAndDevRequest = Effect.fn("handleStaticAndDevRequest")(
     const contentType = isHtml ? "text/html; charset=utf-8" : mimeType;
     if (opened.file === null && request.method !== "HEAD") {
       const fileSystem = yield* FileSystem.FileSystem;
-      // Complete fallback reads before success headers; stream errors arrive too late for a 500.
       const bytes = yield* fileSystem.readFile(filePath);
       const info = yield* fileSystem.stat(filePath);
       return HttpServerResponse.uint8Array(bytes, {
@@ -859,8 +820,6 @@ const handleStaticAndDevRequest = Effect.fn("handleStaticAndDevRequest")(
         contentType,
       });
     }
-    // The request scope closes the handle for GET, HEAD, 304, errors, and cancellation.
-    // HEAD still passes through compression, which selects headers without reading the stream.
     return HttpServerResponse.stream(
       opened.file === null ? Stream.empty : streamStaticFile(opened.file, fileInfo.size),
       {

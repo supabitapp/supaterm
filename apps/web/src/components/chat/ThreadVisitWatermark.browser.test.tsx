@@ -29,7 +29,6 @@ vi.mock(import("../../state/threads"), async (original) => {
 
 import { ThreadVisitWatermark } from "./ThreadVisitWatermark";
 
-// Kept alive so a shell set before its tracker mounts is still there when it does.
 const shellAtom = Atom.family((_key: string) => Atom.make<unknown>(null).pipe(Atom.keepAlive));
 
 const NOW = Date.parse("2026-01-04T00:00:00.000Z");
@@ -60,7 +59,6 @@ it("records the visit of the next thread at once after switching threads", async
   setShell(threadB, "2026-01-03T00:00:00.000Z");
   using _timers = fakeTimers();
   vi.setSystemTime(NOW);
-  // A palette pick already sent B's open with its query, so B's visit is a plain watermark advance.
   claimThreadOpen(threadB.environmentId, threadB.threadId, NOW);
 
   await using screen = await render(
@@ -76,7 +74,5 @@ it("records the visit of the next thread at once after switching threads", async
     </AppAtomRegistryProvider>,
   );
 
-  // Thread A's throttle must not hold back B's first watermark: leaving B
-  // within the throttle window would otherwise keep it unread.
   expect(visitedThreadIds()).toEqual(["a", "b"]);
 });

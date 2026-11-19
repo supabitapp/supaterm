@@ -72,7 +72,6 @@ export function PullRequestEditScreen({ route }: StaticScreenProps<PullRequestEd
       : composerPullRequests.update
     ).permissionAtom(target.environmentId),
   );
-  // Name the first thing in the way, so the notice says what would actually fix it.
   const readOnlyReason =
     !pr || allowed
       ? null
@@ -116,7 +115,6 @@ export function PullRequestEditScreen({ route }: StaticScreenProps<PullRequestEd
       setError(cause instanceof Error ? cause.message : "The provider refused the change.");
       return;
     }
-    // updateComment refreshes the activity on its own; a title or body lives on the detail.
     if (params.field !== "comment") detail.refresh();
     navigation.goBack();
   };

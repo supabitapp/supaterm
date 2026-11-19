@@ -65,7 +65,6 @@ export function createTerminalEnvironmentAtoms<R, E>(
     }),
     attach: createEnvironmentSubscriptionAtomFamily(runtime, {
       label: "environment-data:terminal:attach",
-      // The server sizes the PTY to every attached viewer, so a closed view must detach now.
       idleTtlMs: 0,
       subscribe: (input: EnvironmentRpcInput<typeof WS_METHODS.terminalAttach>) => {
         let replied = false;
@@ -90,7 +89,6 @@ export function createTerminalEnvironmentAtoms<R, E>(
       subscribe: (_input: null) =>
         subscribe(WS_METHODS.subscribeTerminalMetadata, {}).pipe(
           Stream.scan((): ReadonlyArray<TerminalSummary> => [], applyTerminalMetadataStreamEvent),
-          // The scan seed is not an authoritative empty server snapshot.
           Stream.drop(1),
         ),
     }),
@@ -143,7 +141,6 @@ export const INITIAL_TERMINAL_LIFECYCLE: TerminalLifecycleState = {
 };
 
 export type TerminalLifecycleEvent =
-  /** A viewer without operate permission is following this terminal. */
   | { readonly type: "observed" }
   | { readonly type: "detached"; readonly canOperate: boolean }
   | {
@@ -166,7 +163,6 @@ export function transitionTerminalLifecycle(
       return {
         state: {
           ...state,
-          // Losing operate while the shell runs leaves the viewer reading its history.
           observed: state.observed || (!event.canOperate && state.wasRunning),
           wasRunning: false,
         },
@@ -183,8 +179,6 @@ export function transitionTerminalLifecycle(
       if (state.wasRunning) {
         return { state: { ...state, wasRunning: false, reopened: true }, command: "exit" };
       }
-      // An explicit visit can reopen a cached ended session. Granting a viewer
-      // operate permission must leave the history they were reading intact.
       if (state.observed || state.reopened) return { state, command: null };
       return { state: { ...state, reopened: true }, command: "reopen" };
     }
@@ -263,7 +257,6 @@ export function createTerminalSession(
   const { environmentId, threadId, terminalId } = options.target;
   let lifecycle = INITIAL_TERMINAL_LIFECYCLE;
   let gridSize = options.gridSize;
-  // The seeded grid is a cache or default guess; launch input waits for the surface's own measurement.
   let gridMeasured = false;
   let generation: number | null = null;
   let liveLifecycleVersion: number | null = null;
@@ -271,7 +264,6 @@ export function createTerminalSession(
   let lastStatus: TerminalBufferState["status"] | null = null;
   let loggedFirstOutput = false;
   let commandRegistry: AtomRegistry.AtomRegistry | null = null;
-  // Only a successful resize of the current measured grid may release initial input.
   let shellResized: ReturnType<typeof runAtomCommand> | null = null;
 
   const sendResize = (retry = false) => {
@@ -283,8 +275,6 @@ export function createTerminalSession(
     });
     shellResized = resized;
     void resized.then((result) => {
-      // Only a new grid or generation sends again, so retry a failure once, unless a newer
-      // resize already replaced this one.
       if (
         !retry &&
         resized === shellResized &&
@@ -389,7 +379,6 @@ export function createTerminalSession(
 
     setLive(status === "running" || status === "starting" ? buffer.lifecycleVersion : null);
 
-    // Resize before the initial input so a launched command starts at the measured grid.
     const nextGeneration =
       buffer.version > 0 && status === "running" ? buffer.output.generation : null;
     if (nextGeneration !== generation) {
@@ -403,10 +392,7 @@ export function createTerminalSession(
 
   const label = `terminal-session:${environmentId}:${threadId}:${terminalId}`;
   const idle = Atom.make<void>(undefined);
-  // Viewing read-only counts as observed before the first snapshot lands, so a
-  // grant that arrives early still leaves the ended shell's history alone.
   const observing = Atom.make((get) => {
-    // `subscribe`, not `get`: a rebuild would resubscribe on every output chunk.
     get.subscribe(
       atoms.observe({ environmentId, input: { threadId, terminalId } }),
       () => {

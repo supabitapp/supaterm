@@ -67,7 +67,6 @@ function collectEnvironments(environments: ReadonlyMap<EnvironmentId, ListEnviro
     providersByEnvironmentId,
     machineByEnvironmentId,
     loadedEnvironmentIds: new Set(environments.keys()),
-    // A config is cached for offline rendering; only a connected environment can store an order.
     reorderEnvironmentIds,
     snoozePresetsByEnvironmentId,
   };

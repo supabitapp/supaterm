@@ -353,7 +353,6 @@ const fixture = Effect.fn("fixture")(function* (
       }),
     ),
   );
-  // The host ending a device on its own, as Expo does at a session's limits.
   const endDevice = () => {
     booted = false;
   };
@@ -960,7 +959,6 @@ it.effect("hides Android discovery failures when the host has no Android SDK", (
   }),
 );
 
-// The hub reports `error` as a util.inspect of Node's exec error.
 const simctlMessage = "[apple-utils] Failed to run `xcrun simctl list devices --json`:";
 const simctlCause =
   "An error was encountered processing the command (domain=NSPOSIXErrorDomain, code=60): Unable to connect to CoreSimulatorService [xcrun shim fail mode]";
@@ -1254,7 +1252,6 @@ it.effect.each(["shutdown", "close"] as const)(
             capture = null;
             booted = false;
           } else if (path === "/api/devices/shutdown") {
-            // This route powers off without releasing serve-sim's cached capture.
             booted = false;
           } else if (path === "/api/devices/boot") booted = true;
           else throw new Error(`Unexpected hub path: ${path}`);
@@ -1295,7 +1292,6 @@ it.effect.each(["shutdown", "close"] as const)(
       };
       const launchers = new Set(["supaterm-from-a-previous-run"]);
       const released: Array<[string, boolean]> = [];
-      // Whether the device was still on when each session was released.
       const releasedWhileBooted: Array<boolean> = [];
       let pauseBind: { entered: Deferred.Deferred<void>; proceed: Deferred.Deferred<void> } | null =
         null;
@@ -1318,7 +1314,6 @@ it.effect.each(["shutdown", "close"] as const)(
             Effect.sync(() => {
               for (const session of launchers) if (!live.has(session)) launchers.delete(session);
             }),
-          // Records whether the launcher still existed, since its close runs through it.
           release: (launcher) =>
             Effect.sync(() => {
               released.push([launcher, launchers.has(launcher)]);
@@ -1348,8 +1343,6 @@ it.effect.each(["shutdown", "close"] as const)(
       expect(capture).toBeNull();
       expect((yield* service.state).sessions).toEqual([]);
       expect(launchers).toEqual(new Set());
-      // Retiring a session ends its agent-device session too, which releases the device claim.
-      // Powering the device off retires the other thread's session on it as well.
       const firstOther = yield* agentDeviceSession(
         other.threadId,
         LOCAL_DEVICE_HOST_ID,
@@ -1359,15 +1352,12 @@ it.effect.each(["shutdown", "close"] as const)(
         new Set([session, firstOther]),
       );
       expect(released.every(([, existed]) => existed)).toBe(true);
-      // agent-device can close the session's app only while the device is on.
       expect(releasedWhileBooted).toEqual([true, true]);
-      // A device_open that was still preparing when the close landed.
       expect(yield* service.agentLauncher({ ...target(threadId), targetArgs: [] })).toEqual(
         Option.none(),
       );
       expect(launchers).toEqual(new Set());
       expect(yield* bind(input)).toBe(session);
-      // Reopening the same device ends nothing.
       expect(released).toHaveLength(2);
       expect(capture).toBe(2);
       expect((yield* service.state).sessions).toHaveLength(1);
@@ -1376,7 +1366,6 @@ it.effect.each(["shutdown", "close"] as const)(
       expect(launchers).toEqual(new Set([session]));
       expect(released.slice(2)).toEqual([[otherSession, true]]);
       expect(otherSession).not.toBe(session);
-      // A caller interrupted after retirement committed, while a bind holds the launcher lock.
       pauseBind = { entered: yield* Deferred.make<void>(), proceed: yield* Deferred.make<void>() };
       const binding = yield* Effect.forkChild(
         service.agentLauncher({ ...target(threadId), targetArgs: [] }),
@@ -1435,7 +1424,6 @@ it.effect.each([
             );
           }
           if (path === "/vendor/serve-sim/grid/api/shutdown") {
-            // serve-sim runs `simctl shutdown` bare and returns its failure as-is.
             listed = hubReports;
             return HttpClientResponse.fromWeb(
               request,
@@ -1685,7 +1673,6 @@ it.effect("reconciles SSH host settings without publishing no-op changes", () =>
     const fs = yield* FileSystem.FileSystem;
     const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-device-reconcile-" });
     const settings = yield* ServerSettings.ServerSettingsService;
-    // Each change is acknowledged after reconciliation consumed it, so no-ops are observable.
     const changes = yield* Queue.unbounded<{ value: Settings; done: Deferred.Deferred<void> }>();
     const removedFiles: string[] = [];
     const localHost: DeviceHost.DeviceHost["Service"] = {
@@ -2119,7 +2106,6 @@ describe("locating a device id across hosts", () => {
         shutdown: () => Effect.void,
         screenshot: () => Effect.succeed(new Uint8Array()),
       },
-      // Opening an emulator checks its host for ffmpeg's H.264 encoder.
       run: () => Effect.succeed({ code: 0, stdout: " V....D libx264", stderr: "" }),
       helpers: { serveSimAxSettings: null, serveSimCli: null },
     };
@@ -2143,7 +2129,6 @@ describe("locating a device id across hosts", () => {
       stop: Effect.void,
     };
   };
-  // An Android AVD name, like Pixel_10 here, can exist on two hosts.
   const withTwoHosts = <A, E>(
     test: (service: DeviceService.DeviceService["Service"]) => Effect.Effect<A, E>,
   ) =>

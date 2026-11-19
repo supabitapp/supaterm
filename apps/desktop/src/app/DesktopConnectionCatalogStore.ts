@@ -277,8 +277,6 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  // A catalog this build cannot decrypt or decode may still hold another build's saved
-  // environments and credentials, so a save copies it aside instead of destroying it.
   const keepUnreadableCatalog = Effect.gen(function* () {
     const readable = yield* readDocument(fileSystem, catalogPath).pipe(
       Effect.flatMap(

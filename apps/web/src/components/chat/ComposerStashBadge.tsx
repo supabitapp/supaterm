@@ -15,7 +15,6 @@ export const ComposerStashBadge = memo(function ComposerStashBadge(props: {
   const pulsed = props.pulseKey > 0;
   const count = (
     <ComposerBanner.Count
-      // Remounting the count per stash restarts its CSS pulse; no timer has to end it.
       key={props.pulseKey}
       className={cn(
         "text-muted-foreground",
@@ -38,8 +37,6 @@ export const ComposerStashBadge = memo(function ComposerStashBadge(props: {
           "transition-colors duration-200",
           props.menuOpen && "pointer-events-none",
           props.menuOpen ? "text-foreground" : "text-muted-foreground hover:text-foreground",
-          // The button keeps its identity (focus, hover) across stashes. Swapping between two
-          // identical keyframes restarts the row's animation instead.
           pulsed &&
             (props.pulseKey % 2 === 0 ? "animate-stash-pulse-row-alt" : "animate-stash-pulse-row"),
         )}

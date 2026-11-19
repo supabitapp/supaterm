@@ -99,7 +99,6 @@ it.effect("reports a refused pull request read as forbidden", () =>
 
 it.effect("filters listed pull requests by the requested state", () =>
   Effect.gen(function* () {
-    // Forgejo answers a `state=closed` query with merged and closed-unmerged rows alike.
     const rows = [true, false].map((merged) => ({
       number: merged ? 1 : 2,
       title: `Pull request ${merged ? 1 : 2}`,
@@ -123,7 +122,6 @@ it.effect("filters listed pull requests by the requested state", () =>
             const [path, query] = input.path.split("?");
             assert.strictEqual(path, "repos/maria/project/pulls");
             const params = new URLSearchParams(query);
-            // A merged list asks Forgejo for closed rows and separates them itself.
             const state = params.get("state");
             assert.ok(state === "closed" || state === "open" || state === "all");
             const page = params.get("page") === "1" && state !== "open" ? rows : [];

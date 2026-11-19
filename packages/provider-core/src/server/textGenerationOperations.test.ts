@@ -4,7 +4,6 @@ import * as Effect from "effect/Effect";
 
 import { decodeJsonReply, fromRunner } from "./textGenerationOperations.ts";
 
-// regression: #23726 a reply that echoes the schema key replaced the seed title with "title"
 it.effect("fails a thread title reply that is only the schema key", () =>
   Effect.gen(function* () {
     const textGeneration = fromRunner("Stub", (request) =>

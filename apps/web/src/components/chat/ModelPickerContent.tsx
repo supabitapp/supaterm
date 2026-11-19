@@ -167,8 +167,6 @@ function adjacentModelPickerProvider(input: {
 }
 
 const EMPTY_MODEL_JUMP_LABELS = new Map<string, string>();
-// Rendered heights in `--spacing` units. Every row shows its provider line, so rows are two lines tall.
-// Chrome is the search box and list padding, plus a 1px border.
 const ROW_UNITS = 11.25;
 const MODEL_LIST_ESTIMATED_ITEM_SIZE = ROW_UNITS * 4;
 const ROW_SEPARATOR_UNITS = 0.5;
@@ -312,7 +310,6 @@ function ModelPickerList({
   );
 }
 
-// Capture gives picker shortcuts priority over the composer.
 function WindowKeyDownListener({ onKeyDown }: { onKeyDown: (event: KeyboardEvent) => void }) {
   const handleKeyDown = useEffectEvent(onKeyDown);
   const isPaneInputOwner = usePaneInputOwner();
@@ -465,7 +462,6 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
 
   const handleSelectInstance = (instanceId: ProviderInstanceId | "favorites") => {
     setSelectedInstanceId(instanceId);
-    // Focusing the search on touch raises the on-screen keyboard on every provider tap.
     if (window.matchMedia("(pointer: coarse)").matches) return;
     window.requestAnimationFrame(() => {
       focusSearchInput();
@@ -593,7 +589,6 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
 
   const isLocked = lockedProvider !== null;
   const isSearching = searchQuery.trim().length > 0;
-  // Fit the tallest tab so switching tabs never resizes the popup and moves the rail under the cursor.
   const tallestTabUnits = (() => {
     const unitsByTab = new Map<ProviderInstanceId | "favorites", number>();
     const addRow = (tab: ProviderInstanceId | "favorites") => {

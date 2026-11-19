@@ -134,7 +134,6 @@ export function CodexMicroKeycapDialog({
   const keycaps = filterCodexMicroKeycaps(codexMicroKeycapsForSlot(slot), query);
   const keycap = codexMicroKeycap(keycapId);
   const holder = codexMicroKeycapHolder(layout, slot, keycapId);
-  // An action the picker doesn't list stays selectable, so saving the keycap alone keeps it.
   const preservedAction =
     current.action !== undefined &&
     currentChoice !== TEXT_CHOICE &&

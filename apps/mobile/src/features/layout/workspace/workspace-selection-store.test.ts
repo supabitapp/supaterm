@@ -16,7 +16,6 @@ vi.mock("react-native", () => ({
   Dimensions: { get: () => ({ width: 1180, height: 820 }) },
   Platform: { OS: "ios" },
 }));
-// The real createURL, configured as a development build with the dev scheme.
 const expoLinkingCreateURL = await vi.hoisted(async () => {
   const { createRequire } = await import("node:module");
   const packageJson = createRequire(import.meta.url).resolve("expo-linking/package.json");
@@ -46,7 +45,6 @@ vi.mock("../../../native/NativeWorkspaceColumns", () => ({
   nativeWorkspaceColumnsSupportedFor: () => true,
 }));
 vi.mock("../../../lib/layout", () => ({ deriveLayout: () => ({ usesSplitView: true }) }));
-// The environment catalog and the chat's snapshot have not loaded yet, as on a cold start.
 vi.mock("../../../connection/catalog", () => ({
   environmentCatalog: { catalogValueAtom: { isReady: false } },
 }));

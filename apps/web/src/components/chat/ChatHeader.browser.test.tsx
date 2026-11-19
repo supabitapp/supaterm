@@ -90,7 +90,6 @@ it("keeps the Escape that cancels a rename from also reaching window shortcuts",
   const input = screen.getByRole("textbox", { name: "Thread title" });
   await input.fill("Unsaved title");
 
-  // The thread find bar closes from a window keydown listener that skips handled events.
   const windowEscapes: boolean[] = [];
   const recordEscape = (event: KeyboardEvent) => {
     if (event.key === "Escape") windowEscapes.push(event.defaultPrevented);

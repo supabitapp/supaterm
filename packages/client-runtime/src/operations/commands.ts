@@ -289,14 +289,8 @@ const allocateCommandId = Effect.fn("EnvironmentCommands.allocateCommandId")(fun
 const dispatch = (command: OrchestrationV2Command) =>
   request(ORCHESTRATION_V2_WS_METHODS.dispatchCommand, command);
 
-// The socket can close after the server accepted the frame but before it answered.
-// The server replays an accepted commandId from its receipt, so the same command
-// waits out reconnect backoff until the supervisor stops trying. The resend cap
-// stops a frame that kills the socket from looping.
 const MAX_LOST_TRANSPORT_RESENDS = 2;
 
-// A live socket can still carry a command the host never answers; the heartbeat
-// alone would leave the send pending forever.
 const MESSAGE_DISPATCH_TIMEOUT = "60 seconds";
 
 const dispatchMessage = Effect.fn("EnvironmentCommands.dispatchMessage")(function* (
@@ -321,7 +315,6 @@ const dispatchMessage = Effect.fn("EnvironmentCommands.dispatchMessage")(functio
     const attemptSession = yield* SubscriptionRef.get(supervisor.session);
     const exit = yield* Effect.exit(attempt);
     if (Exit.isSuccess(exit)) return exit.value;
-    // Closing the session interrupts the request, which can beat the protocol error.
     const lostTransport =
       Cause.hasInterruptsOnly(exit.cause) ||
       exit.cause.reasons.some((reason) => reason._tag === "Fail" && isRpcClientError(reason.error));
@@ -853,8 +846,6 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
     const projection = yield* getProjection(input.threadId);
     const subagent = projection.subagents.find((agent) => agent.id === input.subagentId);
     if (subagent?.origin === "app_owned" && subagent.childThreadId !== null) {
-      // The parent ends the task even when its child lost track of it. Older
-      // servers reject this for app-owned tasks, so the child stop below still runs.
       if (subagent.runId !== null) {
         yield* dispatch({
           type: "subagent.stop",
@@ -876,12 +867,10 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
       });
     }
   }
-  // A run named by the caller belongs to the parent, not the rerouted child.
   let runId = threadId === input.threadId ? input.runId : undefined;
   if (runId === undefined) {
     const config = yield* getInitialServerConfig();
     if (config.environment.capabilities.threadStop === true) {
-      // A paginated projection can omit commands still running from earlier turns.
       return yield* dispatch({
         type: "thread.stop",
         commandId: yield* allocateCommandId(input),
@@ -982,7 +971,6 @@ export const revertThreadCheckpoint = Effect.fn("EnvironmentCommands.revertThrea
     );
     if (
       checkpoint === undefined ||
-      // Missing snapshots support conversation rewind only.
       (checkpoint.status !== "ready" &&
         !(input.restoreFiles === false && checkpoint.status === "missing"))
     ) {
@@ -1080,8 +1068,6 @@ export const resumeThreadQueue = Effect.fn("EnvironmentCommands.resumeThreadQueu
         runId: input.runId,
       });
     }
-    // Older servers reject queued-run.start, so the message moves to the front
-    // of the queue and the queue resumes from it.
     const first = deriveThreadQueueWorkflowState(yield* getProjection(input.threadId)).queuedRuns[0]
       ?.run;
     if (first !== undefined && first.id !== input.runId) {

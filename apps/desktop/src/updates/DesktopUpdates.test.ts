@@ -25,7 +25,6 @@ import { flushCallbacks, makeHarness } from "./updatesTestHarness.ts";
 type ReleaseFeed = Parameters<typeof computeReleaseNotes>[2];
 type RunningVersion = Parameters<typeof computeReleaseNotes>[0];
 
-// electron-updater's own dependencies, which apps/desktop does not declare.
 const requireFromUpdater = NodeModule.createRequire(
   NodeModule.createRequire(import.meta.url).resolve("electron-updater"),
 );
@@ -49,7 +48,6 @@ const releaseFeed = (...versions: ReadonlyArray<string>) =>
       .join("")}</feed>`,
   );
 
-/** The update info electron-updater's GitHub provider reports when /releases/latest names `version`. */
 const stableUpdateInfo = (
   feed: ReleaseFeed,
   version: string,
@@ -287,7 +285,6 @@ describe("DesktopUpdates", () => {
         const harness = makeHarness({
           checkForUpdates: Deferred.succeed(checkStarted, undefined).pipe(
             Effect.andThen(Deferred.await(releaseCheck)),
-            // electron-updater emits the check's outcome before its promise resolves.
             Effect.andThen(
               Effect.sync(() => {
                 if (found !== null) harness.emit("update-available", { version: found });
@@ -492,7 +489,6 @@ describe("DesktopUpdates", () => {
   });
 
   it.effect("downloads the newest release published since the last check", () => {
-    // electron-updater downloads the release its last checkForUpdates found.
     let published = "1.2.4";
     let lastChecked: string | undefined;
     const harness = makeHarness({
@@ -553,7 +549,6 @@ describe("DesktopUpdates", () => {
         const checksBefore = harness.checkCount();
         const result = yield* updates.installPrepared("1.2.4");
         assert.isTrue(result.accepted);
-        // A second check before downloading could find a stale feed's older release.
         assert.equal(harness.checkCount(), checksBefore + 1);
         assert.equal(harness.quitAndInstalls(), 1);
         assert.equal(installedVersion, "1.2.5");
@@ -593,7 +588,6 @@ describe("DesktopUpdates", () => {
         yield* flushCallbacks;
         assert.isTrue(result.completed);
         assert.equal((yield* updates.getState).downloadedVersion, "1.2.4");
-        // Remote requests treat a published error after their own check as final.
         assert.notInclude(
           harness.sentStates.map((state) => state.status),
           "error",
@@ -716,7 +710,6 @@ describe("DesktopUpdates", () => {
         yield* flushCallbacks;
 
         assert.isTrue((yield* updates.install).accepted);
-        // SSH launchers wait on this until the replacement backend publishes its runtime.
         assert.deepEqual(JSON.parse(inProgressAtStop ?? "null"), {
           startedAt: 1_000,
           expiresAt: 61_000,
@@ -1056,7 +1049,6 @@ describe("DesktopUpdates", () => {
       Effect.gen(function* () {
         const updates = yield* DesktopUpdates.DesktopUpdates;
         yield* updates.configure;
-        // A backed-out switch's download keeps reporting progress until it finishes.
         harness.emit("download-progress", { percent: 40 });
         yield* flushCallbacks;
         harness.emit("update-downloaded", { version: "1.2.4-nightly.20261027.1" });
@@ -1081,7 +1073,6 @@ describe("DesktopUpdates", () => {
         yield* updates.setChannel("latest");
         yield* updates.check("remote-update", { allowDowngrade: true });
 
-        // Back on its own Stable track the build never needs an older release.
         assert.deepEqual(harness.checkAllowedDowngrade.slice(before), [true, false, true]);
         assert.isFalse(harness.allowDowngrade());
       }),
@@ -1180,7 +1171,6 @@ describe("DesktopUpdates", () => {
   });
 
   it.effect("keeps a saved Stable track across a restart without offering an older release", () => {
-    // A Nightly build whose switch to Stable did not finish before the app quit.
     const harness = makeHarness({ appVersion: "1.2.4-nightly.20261027.1", savedChannel: "latest" });
 
     return Effect.scoped(
@@ -1191,8 +1181,6 @@ describe("DesktopUpdates", () => {
 
         assert.equal((yield* updates.getState).channel, "latest");
         assert.deepEqual(harness.checkAllowedDowngrade, [false]);
-        // Semver ranks Stable 1.2.4 above this Nightly, but a Nightly built before the release's
-        // version bump can hold migrations 1.2.4 lacks. Crossing needs a guarded switch.
         harness.emit("update-available", { version: "1.2.4" });
         yield* flushCallbacks;
         assert.isNull((yield* updates.getState).availableVersion);
@@ -1201,7 +1189,6 @@ describe("DesktopUpdates", () => {
   });
 
   it.effect("keeps a saved Nightly track across a restart without crossing on its own", () => {
-    // A Stable build whose switch to Nightly was refused before the app quit; its floor is gone.
     const harness = makeHarness({ savedChannel: "nightly" });
 
     return Effect.scoped(

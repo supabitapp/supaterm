@@ -71,8 +71,6 @@ export class DirectTunnel extends Context.Service<
   }
 >()("supaterm/relay/DirectTunnel") {}
 
-// Node only emits `upgrade` for `Connection: upgrade`; anything else is a plain
-// request whose socket the HTTP parser still owns.
 const isWebSocketUpgrade = (request: NodeHttp.IncomingMessage) =>
   request.headers.upgrade?.toLowerCase() === "websocket" &&
   (request.headers.connection ?? "")
@@ -88,9 +86,6 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
   const platform = yield* HostProcess.Platform;
   const identity = yield* RelayIdentity.RelayIdentity;
   const ingress = yield* RelayIngress;
-  // The host's shared WebSocket server negotiates permessage-deflate and
-  // accepts 100 MiB frames. Ciphertext does not compress, and an anonymous
-  // peer must not make the host buffer more than one tunnel record.
   const upgrades = yield* Effect.acquireRelease(
     Effect.sync(
       () =>
@@ -143,9 +138,6 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
         }),
     );
 
-  // ws answers a malformed upgrade itself and never calls back, so the
-  // socket closing is the only signal that it refused. `serve` runs inside the
-  // callback so no message can arrive before its listeners do.
   const upgrade = (request: NodeHttp.IncomingMessage, serve: (ws: WebSocket) => void) =>
     Effect.acquireRelease(
       Effect.callback<Option.Option<WebSocket>>((resume) => {
@@ -163,8 +155,6 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
           socket.destroy();
         });
       }),
-      // Effect writes the route's response unless the socket is already
-      // destroyed, so the tunnel must be torn down before the route returns.
       (ws) =>
         Effect.sync(() => {
           if (Option.isSome(ws)) ws.value.terminate();
@@ -206,8 +196,6 @@ const make = Effect.fn("DirectTunnel.make")(function* (limits: DirectTunnelLimit
   }) {
     if (!isWebSocketUpgrade(input.request))
       return yield* new DirectTunnelNotFoundError({ reason: "not-websocket" });
-    // Read, never create: an identity makes RelayAccess register with the public
-    // relay on the next start, and only relay-paired clients can pin one anyway.
     const current = yield* identity.existing.pipe(
       Effect.mapError((cause) => new DirectTunnelIdentityError({ cause })),
     );

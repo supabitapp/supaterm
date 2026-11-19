@@ -42,7 +42,6 @@ export async function declinePendingApprovals(
   respond: ApprovalResponder,
 ): Promise<boolean> {
   for (const approval of approvals) {
-    // A request the provider can no longer answer has nothing to decline.
     if (approval.responseCapability !== "live") continue;
     if ((await respond(approval.requestId, "decline"))?._tag !== "Success") return false;
   }
@@ -89,7 +88,6 @@ export function seedUserInputDraftAnswers<Draft extends { readonly customAnswer?
   >,
   drafts: Record<string, Draft>,
 ): Record<string, Draft | { customAnswer: string }> {
-  // Entries, not assignment, so an id such as `__proto__` becomes an own draft.
   const seeds = questions.flatMap((question) =>
     question.initialAnswer === undefined ||
     question.allowCustomAnswer === false ||
@@ -140,7 +138,6 @@ export function resolvedQuestionDraftKeys(
   threadPrefix: string,
   pendingRequestIds: ReadonlyArray<string>,
 ): string[] {
-  // encodeURIComponent is per character, so an encoded JSON prefix prefixes the encoded key.
   const pendingPrefixes = pendingRequestIds.map(
     (requestId) =>
       `${threadPrefix}${encodeURIComponent(`${JSON.stringify([requestId]).slice(0, -1)},`)}`,
@@ -181,7 +178,6 @@ function notifyThreadRequestsResolved(event: ThreadRequestsResolved): void {
     try {
       listener(event);
     } catch (error) {
-      // A failing pruner must neither stop the others nor break thread sync.
       queueMicrotask(() => {
         throw error;
       });
@@ -336,7 +332,6 @@ export function createQuestionHistoryProjector<
     const sameRequests = requests === previousRequests;
     if (rows === previousRows && sameRequests && previousResult) return previousResult;
     if (!sameRequests) byId = new Map(requests.map((request) => [request.id, request]));
-    // Nothing was overlaid and requests are unchanged, so only an exactly replaced row can differ.
     const replacedIndex =
       sameRequests && previousRows !== undefined && previousResult === previousRows
         ? getProjectionArrayReplacementIndex(previousRows, rows)
@@ -368,7 +363,6 @@ export function createChildThreadApprovalsAtom(input: {
       const next = get(input.childThreadInputsAtom(parseThreadKey(key))).flatMap((child) => {
         if (!child.hasPendingApprovals) return [];
         const thread = { environmentId: child.environmentId, threadId: child.id };
-        // Only children asking for approval need a detail subscription.
         return (get(input.pendingRequestsAtom(thread))?.approvals ?? []).map((approval) => ({
           thread,
           title: child.title,

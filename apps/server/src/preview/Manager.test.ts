@@ -16,11 +16,9 @@ interface EventCollector {
   readonly drain: Effect.Effect<ReadonlyArray<PreviewEvent>>;
 }
 
-/** The shared live layer retains state between tests; counts need unique thread ids. */
 let nextThreadId = 0;
 const freshThreadId = () => ThreadId.make(`thread-${++nextThreadId}`);
 
-/** Subscribe synchronously before publishing so the forked consumer cannot miss events. */
 const collectEvents = Effect.gen(function* () {
   const manager = yield* PreviewManager.PreviewManager;
   const subscription = yield* manager.subscribeEvents;

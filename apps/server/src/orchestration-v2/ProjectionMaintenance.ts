@@ -195,9 +195,6 @@ export const layer: Layer.Layer<
           Effect.mapError((cause) => new ProjectionMaintenanceError({ operation, cause })),
         );
 
-    // thread.created stays out — verify derives the expected thread set from
-    // it, and it anchors replay ordering. thread.deleted stays out too: clients
-    // and waitForThread switch on the event type, not just the payload.
     const SUPERSEDABLE_THREAD_EVENT_TYPES = [
       "thread.archived",
       "thread.unarchived",
@@ -218,10 +215,6 @@ export const layer: Layer.Layer<
       "thread.model-selection-updated",
       "thread.provider-switched",
     ];
-    // Read-state and message-pin events carry the whole thread too, but client
-    // reducers apply them without bumping updatedAt. They supersede only each
-    // other: a newer visit must not delete the rename that carries the activity
-    // timestamp, while any newer activity-bearing event supersedes both groups.
     const READ_STATE_THREAD_EVENT_TYPES = [
       "thread.visited",
       "thread.marked-unread",
@@ -230,16 +223,8 @@ export const layer: Layer.Layer<
 
     const supersedableThreadEventTypes = new Set(SUPERSEDABLE_THREAD_EVENT_TYPES);
     const readStateThreadEventTypes = new Set(READ_STATE_THREAD_EVENT_TYPES);
-    // Subagent snapshots stay intact because later rows can reference an earlier prompt.
-    // Commanded turn items stay for command-result replay.
-    // Small pages bound work on the reader worker and synchronous fallback.
     const COMPACTION_PAGE_SIZE = 50;
 
-    /**
-     * Keyed entities keep their newest and oldest events: client reducers append an entity where
-     * they first see it, so a replay from any cursor needs that first event. Page every event, as
-     * filtering before LIMIT scans all history when superseded events are sparse.
-     */
     const compactEventStore = Effect.fn("ProjectionMaintenance.compactEventStore")(function* (
       betweenPages: Effect.Effect<void> = Effect.void,
     ) {
@@ -249,8 +234,6 @@ export const layer: Layer.Layer<
       let throughSequence = bounds[0]?.event_sequence ?? 0;
       const retainedThreadIds = new Set<string>();
       const retainedReadStateThreadIds = new Set<string>();
-      // Per key: the lowest sequence seen so far after the newest. It is
-      // deleted once an even older event turns up and kept otherwise.
       const oldestCandidateByEntityKey = new Map<string, number | null>();
       let deletedEventCount = 0;
 
@@ -315,13 +298,11 @@ export const layer: Layer.Layer<
               (retainedThreadIds.has(row.stream_id) ||
                 retainedReadStateThreadIds.has(row.stream_id))
             ) {
-              // A visit carries read state only, so only a newer whole-thread payload covers it.
               obsolete.push(row.sequence);
             } else if (
               row.event_type === "thread.pull-request-link-updated" &&
               retainedThreadIds.has(row.stream_id)
             ) {
-              // A newer whole-thread payload already carries this link's state.
               obsolete.push(row.sequence);
             } else if (
               row.event_type === "thread.pull-request-link-updated" ||
@@ -339,7 +320,6 @@ export const layer: Layer.Layer<
             }
           }
         }
-        // Never hold a transaction or the reader lock across a yield or a rest.
         yield* Effect.yieldNow;
         if (obsolete.length > 0) {
           yield* sql`DELETE FROM orchestration_events WHERE sequence IN ${sql.in(obsolete)}`;

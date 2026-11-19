@@ -30,7 +30,6 @@ it.each([true, false])(
   "starts warm highlighting at the declared file without a JS jump (iOS: %s)",
   async (isIos) => {
     vi.useFakeTimers();
-    // A warm engine can issue its source RPC immediately when the scheduler flushes.
     const sourceRequest = vi.fn();
     const scheduler = createReviewDiffHighlightScheduler(sourceRequest);
     const scrollToFile = vi.fn(async () => {});
@@ -59,8 +58,6 @@ it.each([true, false])(
     try {
       const position = pullRequestDiffInitialPosition("last-file", -1);
       emit({ message: "rows-decoded", rows: 1000 });
-      // Native applies the declared file before publishing its viewport. A later
-      // imperative bridge command cannot retract an RPC started from a top range.
       const first = position.initialFileId === "last-file" ? 900 : 0;
       emit({
         message: "visible-range",
@@ -71,12 +68,10 @@ it.each([true, false])(
       await vi.runOnlyPendingTimersAsync();
       expect(sourceRequest.mock.calls).toEqual([[{ firstRowIndex: 900, lastRowIndex: 940 }]]);
       expect(scrollToFile).not.toHaveBeenCalled();
-      // Near-end pagination and stale-payload filtering still use native ranges.
       emit({ message: "visible-range", firstRowIndex: 950, lastRowIndex: 990, totalRows: 999 });
       expect(loadMore).not.toHaveBeenCalled();
       emit({ message: "visible-range", firstRowIndex: 950, lastRowIndex: 990, totalRows: 1000 });
       expect(loadMore).toHaveBeenCalledOnce();
-      // A folded final file ends at its header, short of the full payload's tail.
       lastShownRowIndex = 920;
       emit({ message: "visible-range", firstRowIndex: 880, lastRowIndex: 920, totalRows: 1000 });
       expect(loadMore).toHaveBeenCalledTimes(2);

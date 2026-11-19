@@ -1,9 +1,3 @@
-/**
- * Records an fx ACP replay transcript through the real orchestrator and
- * FxAdapterV2, teeing only the protocol logger. Run from apps/server with
- * fx 0.0.13 on PATH (or SUPATERM_FX_BIN); HOME stays the user's real login:
- *   node scripts/record-fx-acp-replay-fixture.ts --scenario simple
- */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { ProviderInstanceId, type ProviderReplayEntry } from "@supaterm/contracts";
@@ -84,7 +78,6 @@ const readUserSkillNames = Effect.fn("readFxUserSkillNames")(function* (home: st
     .toSorted((left, right) => right.length - left.length);
 });
 
-/** Tees raw ACP lines in wire order. Replay drives one process, so a restart is an error. */
 function makeWireTee() {
   const wire: Array<WireMessage> = [];
   let runtimeCount = 0;
@@ -175,7 +168,6 @@ function wireToEntries(wire: ReadonlyArray<WireMessage>): {
   return { entries, droppedFrames };
 }
 
-/** Replaces Supaterm-owned request content. User prompt text, clientCapabilities, and _meta stay. */
 function normalizeOutboundFrame(frame: Record<string, unknown>, runtimeInstructions: string) {
   const params = isRecord(frame.params) ? frame.params : undefined;
   if (params === undefined) return frame;

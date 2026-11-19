@@ -1096,7 +1096,6 @@ describe("waitForRevertedMessage", () => {
       await vi.advanceTimersByTimeAsync(0);
       expect(outcome).toBe("pending");
 
-      // Our command is accepted while the earlier target-3 effect is still running.
       const shallowerRewind = {
         ...projection,
         thread: { ...projection.thread, rollbackRequestId: requestId, rollbackFailure: null },
@@ -1257,8 +1256,6 @@ describe("deriveAvailableRevertTurnCounts", () => {
       ],
       runs: [run(1), run(2), run(3)],
       attempts: [1, 2, 3].map((ordinal) => ({ id: `attempt-${ordinal}`, providerTurnId: null })),
-      // Run 2's latest turn moved to another provider thread, so its checkpoint cannot restore
-      // this conversation.
       providerTurns: [
         turn(1, 1, providerThreadId),
         turn(1, 2, providerThreadId),
@@ -1392,7 +1389,6 @@ describe("planComposerTurn", () => {
       turnDispatchMode: "queue",
       shouldQueueBehindActiveRun: true,
     });
-    // A fresh session cannot join the running turn.
     expect(
       planComposerTurn({ ...running, dispatchMode: "steer", freshContext: true }),
     ).toMatchObject({
@@ -1439,7 +1435,6 @@ describe("deriveThreadPendingBackgroundTasks", () => {
   );
 
   it("does not list a live run's child from the provider roster as background", () => {
-    // The roster is not run-tied; Muse keys it by the child session id its rows carry.
     expect(
       deriveThreadPendingBackgroundTasks(
         projection({
@@ -1470,7 +1465,6 @@ describe("deriveThreadPendingBackgroundTasks", () => {
   });
 
   it("keeps an earlier run's roster-only monitor while a follow-up run executes", () => {
-    // Claude completes the Monitor launch row on success; only the roster tracks the task.
     expect(
       deriveThreadPendingBackgroundTasks(
         projection({

@@ -1,6 +1,5 @@
 const { withGradleProperties } = require("expo/config-plugins");
 
-// Expo's 2GB heap exhausts memory during :app:mergeExtDexDebug.
 const JVM_ARGS = "-Xmx4096m -XX:MaxMetaspaceSize=1024m";
 
 module.exports = function withAndroidGradleHeap(config) {

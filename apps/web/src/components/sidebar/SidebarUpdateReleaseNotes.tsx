@@ -19,7 +19,6 @@ function keyReleaseNoteItems(items: ReadonlyArray<string>) {
   });
 }
 
-/** Feed times read "3h ago"; build days from a prerelease version read "today" or "2d ago". */
 function formatReleaseAge(releasedAt: string): string {
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(releasedAt);
   if (!day) return formatRelativeTimeLabel(releasedAt);

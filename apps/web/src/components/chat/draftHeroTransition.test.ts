@@ -32,7 +32,6 @@ function stubEnvironment(input: {
   return root;
 }
 
-/** A view transition that runs its update after the old snapshot, like the browser does. */
 function deferredViewTransition(): StartViewTransition {
   return (update) => ({
     finished: Promise.resolve().then(update),

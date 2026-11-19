@@ -25,7 +25,6 @@ export function projectWorkspaceStack(
 ) {
   const { workspace: workspaceRoutes, overlays } = projectStackPresentation(state, isOverlay);
   const primary = workspaceRoutes.find((route) => route.name === "Home");
-  // The Settings tab's route only selects what Home shows; its pages are the detail.
   const detail = workspaceRoutes.filter(
     (route) => route.name !== "Home" && route.name !== "Settings",
   );
@@ -68,7 +67,6 @@ export function nativeStackPopAction(
     destinationKey === undefined
       ? sourceIndex - 1
       : state.routes.findIndex((route) => route.key === destinationKey);
-  // Home's screen draws the Settings list, so going back to it from a Settings page stops there.
   if (destinationIndex >= 0 && state.routes[destinationIndex + 1]?.name === "Settings")
     destinationIndex += 1;
   if (
@@ -114,7 +112,6 @@ export function collapsedSplitTransition(
 } {
   switch (event.type) {
     case "willDisappear":
-      // JS pushes, pops, and presentations have already moved the router past this screen.
       return {
         column:
           state.index > 0 && state.routes[state.index]?.key === event.key
@@ -123,7 +120,6 @@ export function collapsedSplitTransition(
         pop: null,
       };
     case "willAppear":
-      // A cancelled swipe, or an expansion that keeps the detail on screen.
       if (column.leaving === event.key) return { column: { ...column, leaving: null }, pop: null };
       return { column: column.leaving ? { ...column, revealed: true } : column, pop: null };
     case "didDisappear":

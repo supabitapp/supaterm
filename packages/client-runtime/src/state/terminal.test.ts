@@ -81,7 +81,6 @@ function setup(
     readonly resizeFailure?: () => boolean;
   } = {},
 ) {
-  // Tests flush the registry's scheduled work to control when driver finalizers run.
   const scheduled: Array<() => void> = [];
   const registry = AtomRegistry.make({
     scheduleTask: (task) => {
@@ -116,7 +115,6 @@ function setup(
     },
   });
   const write = command("write");
-  // Await command completion, then a normal input receipt through the same command runner.
   const completeCommands = async (count = pending.length) => {
     await Promise.all(pending.slice(0, count));
     await runAtomCommand(registry, write, {
@@ -157,7 +155,6 @@ function setup(
   };
   const emit = (state: Partial<TerminalBufferState> & { readonly generation?: number }) =>
     registry.set(attachment, snapshot(state));
-  // A new attach subscription starts from an empty seed.
   const detach = () => registry.set(attachment, AsyncResult.initial(true));
   const observe = (state: Partial<TerminalBufferState>) =>
     registry.set(observation, snapshot(state));
@@ -191,7 +188,6 @@ it("replays the measured grid on every new attachment generation", () => {
   session.reportGridSize({ cols: 100, rows: 30 });
   expect(of("resize")).toHaveLength(2);
 
-  // A reconnect seeds an empty state first, then the new generation's snapshot.
   emit({ status: "running", version: 0, generation: 2 });
   expect(of("resize")).toHaveLength(2);
   emit({ status: "running", version: 1, generation: 2 });
@@ -206,7 +202,6 @@ it("replays the measured grid on every new attachment generation", () => {
 });
 
 it("sends each failed resize again once, in every attachment generation", async () => {
-  // Resizes stay in flight until the test settles them, and every one fails.
   const resizes: Array<() => void> = [];
   const { session, attached, emit, detach, mount, of } = setup({
     resizeFailure: () => true,
@@ -215,7 +210,6 @@ it("sends each failed resize again once, in every attachment generation", async 
   });
   const failResize = async (index: number) => {
     resizes[index]!();
-    // No promise marks the retry decision, so flush the command's continuation chain.
     for (let tick = 0; tick < 20; tick++) await Promise.resolve();
   };
   mount(attached);
@@ -247,7 +241,6 @@ it("does not retry a failed resize that a newer one replaced", async () => {
   let settling = -1;
   const { session, attached, emit, mount, of, completeCommands } = setup({
     initialInput: "pnpm dev\r",
-    // The newer resize succeeds; the superseded one, and any retry of it, fail.
     resizeFailure: () => settling !== 1,
     beforeCommand: async (name, input) => {
       if (name === "resize") {
@@ -322,13 +315,11 @@ it.each(["failed resize", "starting snapshot", "unmeasured grid"] as const)(
         if (name === "write" && "data" in input && input.data === "pnpm dev\r") written.resolve();
       },
     });
-    // The seeded grid is 120x40; only "unmeasured grid" never hears from the surface.
     if (scenario !== "unmeasured grid") session.reportGridSize({ cols: 120, rows: 40 });
     mount(attached);
     emit({ status: scenario === "starting snapshot" ? "starting" : "running", version: 1 });
     await completeCommands();
     expect(of("write")).toEqual([{ threadId, terminalId: "term-1", data: "typed" }]);
-    // A failed resize is sent again once, and the retry fails too.
     expect(of("resize")).toHaveLength(
       { "failed resize": 2, "starting snapshot": 0, "unmeasured grid": 1 }[scenario],
     );
@@ -421,7 +412,6 @@ it("keeps one attached driver, so a remount before release keeps its state", () 
   expect(session.driver({ ...attached })).toBe(driver);
   const unmountFirst = mount(attached);
   emit({ status: "running", version: 1 });
-  // A brief disconnect unmounts and remounts the driver before its release runs.
   unmountFirst();
   mount(attached);
   flush();

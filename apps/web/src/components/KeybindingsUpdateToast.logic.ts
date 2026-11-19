@@ -27,8 +27,6 @@ export function createKeybindingsUpdateToastController(input: {
         ? { _tag: "InvalidConfiguration", message: issue.message }
         : { _tag: "Success" };
 
-      // A save and the server's file watcher each publish the same snapshot,
-      // so an identical toast inside the cooldown is the same change twice.
       const key = issue ? `invalid:${issue.message}` : "success";
       const currentTime = now();
       if (

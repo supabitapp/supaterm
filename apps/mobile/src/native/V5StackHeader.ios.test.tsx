@@ -64,7 +64,6 @@ it.each(["leadingItems", "trailingItems", "toolbarItems"] as const)(
         for (const item of nativeItems ?? []) {
           if (item.type !== "item" || "render" in item)
             throw new Error("Expected a native bar item");
-          // RNSHeaderContentFactory sets UIBarButtonItem.enabled to !item.disabled.
           expect(!item.disabled).toBe(!disabled);
         }
       }

@@ -39,7 +39,6 @@ export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<Backgroun
   const presentation = presentPendingBackgroundWork(thread?.pendingBackgroundTasks ?? []);
   const openThread = (threadId: ThreadId) => {
     void Haptics.selectionAsync();
-    // A thread replaces the leaf sheet so workspace back navigation still works.
     navigation.dispatch(
       StackActions.replace("Thread", { environmentId: target.environmentId, threadId }),
     );
@@ -62,7 +61,6 @@ export function ThreadBackgroundWorkSheet({ route }: StaticScreenProps<Backgroun
             key={item.taskId}
             item={item}
             target={target}
-            // The pill already said what runs; with one command, its output is the detail.
             initiallyShowingOutput={presentation.items.length === 1}
             onOpen={openThread}
           />

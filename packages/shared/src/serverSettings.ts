@@ -33,7 +33,6 @@ import {
   normalizeServerBackgroundActivitySettings,
 } from "./backgroundActivitySettings.ts";
 
-// Only observability: a value the server migrates on load elsewhere in the file must not drop it.
 const ServerObservabilitySettingsJson = fromLenientJson(
   Schema.Struct({ observability: ServerSettings.fields.observability }),
 );
@@ -73,7 +72,6 @@ export function fallbackTextGenerationModelSelection(
   options?: { readonly defaultModelSelection?: ModelSelection | null },
 ): ModelSelection | null {
   const threadDefault = options?.defaultModelSelection;
-  // The thread default's custom model wins on its instance; the driver default still serves when that model is unusable.
   const selectionsFor = (instanceId: ProviderInstanceId, driver: ProviderDriverKind) => {
     const config = providerInstances[instanceId]?.config as { customModels?: unknown } | undefined;
     const driverDefault = { instanceId, model: defaultTextGenerationModel(driver) };
@@ -255,7 +253,6 @@ function pickOverrideKeys(entry: Readonly<Record<string, unknown>> | undefined, 
   );
 }
 
-/** Override keys added after clients already round-tripped a project's whole entry. */
 const OVERRIDE_KEYS_OLDER_CLIENTS_OMIT = [
   "providerInstances",
   "reviewGuideModelSelection",
@@ -279,12 +276,6 @@ function withStoredWorktreeRules(
   return { mode: "custom", rules: { ...incoming.rules, worktreeKeepWhen, worktreeDoneAfterDays } };
 }
 
-/**
- * Entries otherwise replace whole, but a client built before a later key sends
- * entries that never mention it, and a whole replace would wipe it. An omitted
- * such key keeps what is stored; clearing one takes `providerInstances: {}` or
- * listing the key in `removals`.
- */
 function mergeProjectSettingsOverridesPatch(
   current: Readonly<Record<string, ProjectSettingsOverrides>>,
   patch: Readonly<Record<string, ProjectSettingsOverridesPatchEntry | null>>,
@@ -299,7 +290,6 @@ function mergeProjectSettingsOverridesPatch(
     const stored = current[projectId];
     const { worktreeCleanup, ...rest } = entry;
     next.set(projectId, {
-      // Preserve downgraded storage, but reject new unknown writes so clients can detect unsupported settings.
       ...pickOverrideKeys(stored, false),
       ...(stored === undefined ? {} : Struct.pick(stored, OVERRIDE_KEYS_OLDER_CLIENTS_OMIT)),
       ...pickOverrideKeys(rest, true),
@@ -335,7 +325,6 @@ export function applyServerSettingsPatch(
     sourceControlHosts: hostSettingsPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
-    // Entry replacement: deepMerge would keep keys the client meant to clear.
     projectSettingsOverrides: projectSettingsOverridesPatch,
     projectSettingsOverrideRemovals,
     ...patchForMerge
@@ -474,7 +463,6 @@ export function applyServerSettingsPatch(
           ],
         }
       : {}),
-    // Per host, a patched field replaces the saved one: deepMerge would keep a cleared account pin.
     ...(hostSettingsPatch !== undefined
       ? {
           sourceControlHosts: {

@@ -57,7 +57,6 @@ class SelectionNode {
     return this.tagName === "#text" ? 3 : 1;
   }
   get ownerDocument() {
-    // `user-select: none` inherits, like Chromium's computed style.
     const getComputedStyle = (element: SelectionNode) => ({
       userSelect: element.closest("[data-select-none]") ? "none" : "auto",
     });

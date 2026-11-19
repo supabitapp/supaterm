@@ -123,7 +123,6 @@ const layerTest = Layer.mergeAll(
 
 const CLAUDE_ROOT_SESSION = "claude-session";
 
-/** Replay frames of Claude Agent (claude-agent-acp 0.90.0) on ACP v2. */
 const claudeFrames = {
   open: [
     { type: "expect_outbound", frame: { kind: "request", method: "initialize", params: "<any>" } },
@@ -164,7 +163,6 @@ const claudeFrames = {
       sessionId: child,
       state: { state },
     }),
-  /** A prompt Claude takes in and works on. */
   prompt: (ordinal: number) => [
     {
       type: "expect_outbound",
@@ -497,8 +495,6 @@ describe("AcpRegistryAdapterV2", () => {
       readonly liveConfiguration?: AcpRegistryLiveConfiguration;
     }) {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-      // Scope release gives the replay agent at most a second to exit, so the status
-      // read below waits for the agent itself instead of racing its last write.
       const agentExits: Array<Effect.Effect<void>> = [];
       const childProcessSpawner = ChildProcessSpawner.make((command) =>
         spawner
@@ -818,9 +814,6 @@ describe("AcpRegistryAdapterV2", () => {
         }).pipe(Effect.provide(layerTest)),
     );
 
-    // Copilot's session/new reports its built-in default, not the model it will run
-    // (github/copilot-cli#5363), so the selected model must be written even when it matches,
-    // and an unset effort gets the value the composer shows.
     it.effect(
       "writes the selected Copilot model and the shown effort when session/new reports defaults",
       () => {
@@ -861,7 +854,6 @@ describe("AcpRegistryAdapterV2", () => {
             ],
           },
           pickFrames: [
-            // The new session's own update replaces the shared live configuration.
             {
               type: "emit_inbound",
               frame: {
@@ -1101,7 +1093,6 @@ describe("AcpRegistryAdapterV2", () => {
           initializeResult: { protocolVersion: 1 },
           sessionSetupResult: {
             ...setup,
-            // The catalog uses the normalized groupId; ACP v1 sends group on the wire.
             configOptions: modelOptions.map((option) =>
               option.id === "provider"
                 ? {
@@ -1235,7 +1226,6 @@ describe("AcpRegistryAdapterV2", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
-  // regression: #26695 cancelling a Copilot prompt kills its background agents
   it.effect("never steers Copilot by cancelling its prompt", () =>
     Effect.gen(function* () {
       const steering = Effect.fn("steering")(function* (config: Record<string, unknown>) {
@@ -1412,14 +1402,11 @@ describe("AcpRegistryAdapterV2", () => {
           load: stdio("Bearer rotated-token"),
         },
       );
-      // Command Code cannot start the stdio bridge on Windows: it spawns MCP commands through
-      // cmd.exe, which splits an unquoted Supaterm executable path at a space.
       const commandCode = {
         source: "local",
         commandPath: "C:\\tools\\cmdc.exe",
         commandArgs: ["acp"],
       };
-      // Command Code is not Copilot: no deferred tool-exposure header.
       assert.deepEqual(yield* sessionMcpServers(commandCode, { SUPATERM_ACP_MCP_HTTP: "1" }), {
         new: plainHttp("Bearer opened-token"),
         load: plainHttp("Bearer rotated-token"),
@@ -1428,7 +1415,6 @@ describe("AcpRegistryAdapterV2", () => {
         new: stdio("Bearer opened-token"),
         load: stdio("Bearer rotated-token"),
       });
-      // Any other local agent keeps the stdio bridge.
       assert.deepEqual(
         yield* sessionMcpServers(
           { source: "local", commandPath: "C:\\tools\\node.exe", commandArgs: ["agent.mjs"] },
@@ -1457,9 +1443,6 @@ describe("AcpRegistryAdapterV2", () => {
         authorizationHeader: "Bearer thread-env-token",
         browserToolsAvailable: false,
       });
-      // Several agents can run from one directory at once; the spawn env is how
-      // a process the agent starts (an MCP server, a shell tool) finds its own
-      // Supaterm thread, the same way Claude and Codex sessions do.
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
       const spawnEnvironments: Array<Record<string, unknown> | undefined> = [];
       const capturingSpawner = ChildProcessSpawner.make((command) =>
@@ -1819,8 +1802,6 @@ describe("AcpRegistryAdapterV2", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
-  // Copilot holds session/prompt while an attached async shell runs (github/copilot-cli#5293);
-  // its documented foreground-done signal is the opt-in assistant.idle session event.
   it.effect("settles Copilot's reply on assistant.idle while an async shell holds the prompt", () =>
     Effect.gen(function* () {
       const sessionId = "copilot-session";
@@ -1865,7 +1846,6 @@ describe("AcpRegistryAdapterV2", () => {
             type: "expect_outbound",
             frame: { kind: "request", method: "session/prompt", params: "<any>" },
           },
-          // A previous prompt's idle can land before this prompt's turn starts.
           sessionEvent("assistant.idle"),
           update({ sessionUpdate: "session_info_update", title: "after stale idle" }),
           sessionEvent("assistant.turn_start"),
@@ -1880,7 +1860,6 @@ describe("AcpRegistryAdapterV2", () => {
           update({ sessionUpdate: "agent_message_chunk", content: { type: "text", text: "ok" } }),
           sessionEvent("assistant.idle"),
           update({ sessionUpdate: "session_info_update", title: "after foreground idle" }),
-          // The shell never exits, so the first session/prompt is never answered.
           {
             type: "expect_outbound",
             frame: { kind: "request", method: "session/prompt", params: "<any>" },
@@ -1908,7 +1887,6 @@ describe("AcpRegistryAdapterV2", () => {
     }).pipe(Effect.provide(layerTest)),
   );
 
-  // Copilot wakes its root agent when a background subagent finishes, after the run settled.
   it.effect("does not drop Copilot's root reply when a finished background agent wakes it", () =>
     Effect.gen(function* () {
       const sessionId = "copilot-session";
@@ -1960,7 +1938,6 @@ describe("AcpRegistryAdapterV2", () => {
           }),
           sessionEvent("assistant.idle"),
           update({ sessionUpdate: "session_info_update", title: "after foreground idle" }),
-          // The background agent finishes; Copilot reads it and starts a new root turn.
           sessionEvent("assistant.turn_start"),
           update({
             sessionUpdate: "tool_call",
@@ -2423,7 +2400,6 @@ describe("AcpRegistryAdapterV2", () => {
               params: {
                 sessionId: CLAUDE_ROOT_SESSION,
                 toolCall: { toolCallId: "exit-plan" },
-                // Devin gives both plan approvals allow_once and does not promise their order.
                 options: [
                   {
                     optionId: "plan_bypass",
@@ -2945,7 +2921,6 @@ describe("AcpRegistryAdapterV2", () => {
         ...claudeChild.slice(0, -1),
         reply("Review "),
         reply("done."),
-        // A working grandchild keeps the idle child from publishing (and flushing) its status.
         childState("child-1", "grandchild", "running"),
         childState(CLAUDE_ROOT_SESSION, "child-1", "idle"),
         childState(CLAUDE_ROOT_SESSION, "child-1", "running"),

@@ -13,7 +13,6 @@ import { type OfficeWorkerResult, type NotebookCell } from "./officePreviewProto
 const TABLE_PREVIEW_MAX_ROWS = 500;
 const TABLE_PREVIEW_MAX_COLUMNS = 50;
 
-// `text` and `attrs` hold decoded values: escaped text is decoded once, CDATA stays literal.
 type XmlNode = { name: string; attrs: Record<string, string>; children: XmlNode[]; text: string };
 type OrderedXml = { [key: string]: OrderedXml[] | Record<string, string> | string };
 const escape = (value: string) =>
@@ -35,7 +34,6 @@ const namespacePrefixes: Record<string, string> = {
   "urn:oasis:names:tc:opendocument:xmlns:container": "",
 };
 function parseXml(source: string): XmlNode {
-  // EPUB XHTML commonly declares an external DTD. Discard it without resolving it.
   source = source.replaceAll(/<!DOCTYPE\s+[^<>[\]]*>/gi, "");
   if (
     source.length > 8 * 1024 * 1024 ||
@@ -163,7 +161,6 @@ function base64ImageFits(base64: string) {
   );
 }
 function htmlImagesFit(html: string) {
-  // HTML attribute entities can obscure a data URL until the client parses it.
   for (const match of decodeHTMLAttribute(html).matchAll(
     /data:image\/(?:png|jpeg|gif|webp);base64,([a-z\d+/]*={0,2})/gi,
   ))
@@ -442,7 +439,6 @@ function notebookText(value: unknown, limit = 256_000): string {
   if (result.length > limit) throw new Error("A notebook cell is too large to preview.");
   return result;
 }
-// IPython traceback frames carry ANSI SGR colors and may omit a final newline.
 function tracebackLines(value: unknown): unknown {
   if (!Array.isArray(value)) return value;
   const frames = value
@@ -494,7 +490,6 @@ export function openNotebook(bytes: ArrayBuffer): OfficeWorkerResult {
   return { type: "notebook", language, cells };
 }
 
-// Characters RTF writes as control symbols (`\~`) and control words (`\emspace`).
 const RTF_CHARACTERS = new Map([
   ["~", "\u00a0"],
   ["_", "\u2011"],
@@ -522,7 +517,6 @@ const RTF_CHARACTERS = new Map([
 export function openRtf(bytes: ArrayBuffer): OfficeWorkerResult {
   if (bytes.byteLength > 8 * 1024 * 1024)
     throw new Error("Rich text preview limited to files under 8 MB.");
-  // Keep byte offsets intact for binary destinations and multibyte code pages.
   const input = new Uint8Array(bytes);
   let source = "";
   for (let offset = 0; offset < input.length; offset += 8192)
@@ -622,7 +616,6 @@ export function openRtf(bytes: ArrayBuffer): OfficeWorkerResult {
       if (!match) {
         const character = RTF_CHARACTERS.get(next!);
         if (character) emit(character);
-        // A backslash before a line break is \par; TextEdit ends paragraphs this way.
         else if ((next === "\n" || next === "\r") && !state.skip) html += "<br>";
         i++;
         continue;

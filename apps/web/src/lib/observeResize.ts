@@ -23,7 +23,6 @@ function deliver(entries: readonly ResizeObserverEntry[]) {
     if (!target) continue;
     let recipients = target.subscriptions;
     if (target.waiting) {
-      // Re-observing for a new subscriber redelivers an unchanged size to everyone else too.
       const previous = target.last?.contentRect;
       if (
         previous?.width === entry.contentRect.width &&

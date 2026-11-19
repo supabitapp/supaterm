@@ -69,7 +69,6 @@ export function buildArchivedThreadGroups(input: {
         matchesQuery(project.title, query) ||
         matchesQuery(project.workspaceRoot, query) ||
         matchesQuery(environmentLabel, query);
-      // Threads match as in every other thread search; the list keeps its own order.
       const matchingThreads = groupMatches
         ? projectThreads
         : rankSearchItems(projectThreads, (thread, options) =>

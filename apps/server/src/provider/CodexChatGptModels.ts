@@ -46,7 +46,6 @@ export const chatGptModels = Effect.fn("chatGptModels")(function* (
     .filter((model) => model.visibility === "list")
     .map((model): ServerProviderModel => {
       const native = nativeModels.find((candidate) => candidate.slug === model.slug);
-      // A pinned Codex CLI can predate a model the account already has; the catalog still lists its efforts.
       const catalogCapabilities =
         model.default_reasoning_level && model.supported_reasoning_levels
           ? mapCodexModelCapabilities({

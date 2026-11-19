@@ -32,7 +32,6 @@ describe("compactDynamicToolOutput", () => {
       expect(compactDynamicToolOutput([{ type: "text", text: json }])).toEqual({ sentMessage });
     }
     expect(compactDynamicToolOutput({ sentMessage: `${longest}界` })).toBeUndefined();
-    // OpenCode 2 Code Mode reports a script's nested send_to_user call as one `execute` item.
     const output = JSON.stringify({ sentMessage: "Draft", message: "Shown to the user." });
     expect(sentMessageFromToolItem({ toolName: "execute", output })).toBe("Draft");
   });

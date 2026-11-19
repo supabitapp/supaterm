@@ -6,7 +6,6 @@ import { assertSemanticProjectionIntegrity, projectionFor } from "../shared.ts";
 import { CLAUDE_COMPACT_FIRST_PROMPT } from "../claude_compact_after_peer_turn/input.ts";
 import { claudeCompactRuns } from "../claude_compact_after_peer_turn/output.ts";
 
-// Before CLI 2.1.252, no prompt echo or ACK distinguishes peer results; settle rather than wait for a missing result.
 export function assertClaudeCompactAfterPeerTurnNoEchoOutput(
   result: OrchestratorV2ScenarioResult,
   transcript: ProviderReplayTranscript,

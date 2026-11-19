@@ -28,7 +28,6 @@ export const CheckoutCloner = Context.Reference<
   ((source: string, destination: string) => Effect.Effect<void, CheckoutCloneError>) | undefined
 >("supaterm/vcs/CheckoutCloner", { defaultValue: () => undefined });
 
-// A single-executable server resolves packages on disk only through `require`.
 const requireForFfi = NodeModule.createRequire(import.meta.url);
 
 /** macOS `clonefile(2)`, which clones a folder hierarchy in the kernel; elsewhere nothing. */
@@ -47,10 +46,8 @@ export const layer = Layer.effect(
               funcName: "clonefile",
               retType: DataType.I32,
               paramsType: [DataType.String, DataType.String, DataType.I32],
-              // CLONE_NOFOLLOW: clone a symlink itself rather than its target.
               paramsValue: [source, destination, 0x0001],
               errno: true,
-              // A large folder takes hundreds of milliseconds; keep it off the event loop.
               runInNewThread: true,
             });
         },
@@ -68,7 +65,6 @@ export const layer = Layer.effect(
         try: () => clonefile(source, destination),
         catch: (cause) => new CheckoutCloneError({ source, destination, cause }),
       });
-      // ffi-rs types the errno form as a union with the plain return value.
       if (typeof result === "number" || result.value !== 0) {
         return yield* new CheckoutCloneError({
           source,

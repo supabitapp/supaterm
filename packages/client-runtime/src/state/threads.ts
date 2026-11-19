@@ -81,8 +81,6 @@ function formatHistoryError(error: unknown): string {
   return "Could not load earlier activity.";
 }
 
-// Steers join a running turn; every other user message opens one. The timeline shows every
-// notification as a response boundary, whether it opened its run or arrived mid-run.
 function startsTurn(item: OrchestrationV2TurnItem): boolean {
   return (
     item.type === "notification" ||
@@ -113,8 +111,6 @@ function snapshotToPersist(
   history: ThreadHistoryMeta,
   acceptsBoundedSnapshots: boolean,
 ): OrchestrationV2ThreadDetailSnapshot {
-  // A complete bounded snapshot still proves paging support. Retain that evidence
-  // so a thread that grows while closed can resume with a bounded fallback.
   if (acceptsBoundedSnapshots || history.hasMoreHistory || history.historyCursor !== null) {
     return {
       snapshotSequence,
@@ -131,16 +127,12 @@ function shouldPersistThread(
   thread: OrchestrationV2ThreadProjection,
   history: ThreadHistoryMeta,
 ): boolean {
-  // After the user loads older pages the in-memory timeline can grow large.
-  // Keep those expanded projections out of the monolithic cache.
   if (history.expanded) {
     return false;
   }
   return !thread.runs.some((run) => isOrchestrationV2RunInterruptible(run.status));
 }
 
-// Only still-active local copies take the server's item: events applied meanwhile win,
-// and inherited rows belong to another thread.
 function settleTurnItems(
   threadId: ThreadIdType,
   projection: OrchestrationV2ThreadProjection,
@@ -254,14 +246,11 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
           ),
         )
       : Option.none<OrchestrationV2ThreadDetailSnapshot>();
-  // Old bounded caches can omit a pending question's card; replay alone cannot restore it.
   const cached = Option.filter(
     loaded,
     (snapshot) => !hasMissingPendingQuestionCard(snapshot.projection),
   );
   const cachedThread = Option.map(cached, (snapshot) => snapshot.projection);
-  // Seed the resume cursor from the cached snapshot so a warm cache can catch up
-  // via `afterSequence` instead of re-downloading the full thread body.
   const initialSequence =
     retained?.sequence ??
     Option.match(cached, { onNone: () => 0, onSome: (snapshot) => snapshot.snapshotSequence });
@@ -290,15 +279,10 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
   if (resumeCache?.owner === owner) resumeCache.snapshot = committed;
   const awaitingCompletion = yield* Ref.make(false);
   const applyLock = yield* Semaphore.make(1);
-  // Save only completed data/cursor updates. A canceled scope must not cache
-  // a cursor whose event has not reached the data yet.
   const announceRequests = makeThreadRequestsResolvedAnnouncer(environmentId, threadId);
   const remember = Effect.fnUntraced(function* (retention: "retain" | "recheck" = "retain") {
     const current = yield* SubscriptionRef.get(state);
     const sequence = yield* SubscriptionRef.get(lastSequence);
-    // Only a synchronized projection from the scope that owns the thread is
-    // authoritative: a cached one can predate a request the user already has
-    // drafts for, and a superseded scope can lag its successor.
     const owns = resumeCache === undefined || resumeCache.owner === owner;
     if (owns && current.status === "deleted") announceRequests([]);
     else if (owns && current.status === "live" && Option.isSome(current.data))
@@ -383,9 +367,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
                   committed.acceptsBoundedSnapshots === true,
                 ),
               )
-            : // The consumer may still be waiting out its delay; an expanded thread queues
-              // only cache repairs, which must survive leaving the thread.
-              queuedSnapshot !== undefined && queuedSnapshot !== savedSnapshot
+            : queuedSnapshot !== undefined && queuedSnapshot !== savedSnapshot
               ? persist(queuedSnapshot)
               : Effect.void,
       });
@@ -440,9 +422,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
   ) {
     const waiting = yield* Ref.get(awaitingCompletion);
     const sequence = yield* SubscriptionRef.get(lastSequence);
-    // Atomic with concurrent history meta updates: never get-then-set the whole
-    // state when only the projection changes. Bounded installs pass history so
-    // projection + cursor persist together in one enqueue.
     const next = yield* SubscriptionRef.updateAndGet(state, (previous) => {
       const history =
         options?.history !== undefined
@@ -463,9 +442,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
         sequence,
       };
     });
-    // Active projections can update many times per second and retain large tool
-    // payloads. Persist once the run settles so cache encoding stays off the
-    // streaming path. Progressive meta rides along when the window is incomplete.
     if (shouldPersistThread(thread, next.history)) {
       const snapshotSequence = yield* SubscriptionRef.get(lastSequence);
       yield* queuePersist(
@@ -516,7 +492,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
     OrchestrationV2ThreadStreamItem,
     { kind: "event" | "unknown-event" }
   >;
-  // Per-batch streaming spans add trace volume without a useful timing boundary.
   const applyEventsLocked = Effect.fnUntraced(function* (items: ReadonlyArray<SequencedItem>) {
     const appliedSequence = yield* SubscriptionRef.get(lastSequence);
     let sequence = appliedSequence;
@@ -542,9 +517,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
     if (fresh.length === 0) return;
 
     const waiting = yield* Ref.get(awaitingCompletion);
-    // Apply against the latest projection/history in one update so a concurrent
-    // loadEarlier merge (or history-meta patch) cannot be clobbered by a stale
-    // get-then-set rebuild.
     type EventApplyResult =
       | { readonly _tag: "noop" }
       | { readonly _tag: "delete" }
@@ -571,8 +543,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
         return [{ _tag: "delete" }, current];
       }
 
-      // Incomplete progressive windows only (hasMore or open cursor). Do not
-      // use expanded: it remains true after the last page as a cache marker.
       const partial =
         current.history.hasMoreHistory || current.history.historyCursor !== null
           ? {
@@ -614,7 +584,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
           if (applied._tag !== "noop") result = applied;
           if (applied._tag === "delete") break;
         }
-        // A batch that changed nothing keeps its state object, so readers do not re-render.
         return [result, result._tag === "noop" ? current : { ...current, sequence }];
       },
     );
@@ -676,7 +645,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
     yield* applyEventsLocked([item]);
   });
 
-  // Keep this per-batch streaming path untraced for the same reason as applyEventsLocked.
   const applyItems = Effect.fnUntraced(function* (
     items: ReadonlyArray<OrchestrationV2ThreadStreamItem>,
   ) {
@@ -854,10 +822,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
     );
   });
 
-  // A cached item can stay running after the server finished it, and no event will ever
-  // name it again: it can sit outside every bounded window, and a repeated Stop records
-  // nothing new. Stop asks the server about each pending item instead of
-  // inferring status from what a snapshot omits, and settles only those items.
   const reconcilePendingWork = Effect.fn("EnvironmentThreadState.reconcilePendingWork")(
     function* () {
       const current = yield* SubscriptionRef.get(state);
@@ -889,12 +853,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
             yield* setThread(thread);
             yield* remember();
           }
-          // An expanded timeline is never saved, so reload would bring the stale row back.
-          // Repair the snapshot last handed to the cache instead, keeping its window and cursor.
-          // A resumed state skipped the cache load, so read the saved snapshot then.
           if (shouldPersistThread(thread, latest.history)) return;
-          // A terminal event that landed during the lookup is newer than any reply, and the
-          // expanded live state never saves it, whatever the lookup returned.
           const latestItems = new Map(settled);
           for (const item of thread.turnItems) {
             if (queried.has(item.id) && !isOrchestrationV2WorkActive(item.status)) {
@@ -955,13 +914,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
       service.changes.pipe(Stream.filter(ConnectionWakeups.shouldResubscribeAfterWakeup)),
   });
 
-  // Only the first subscription after a warm live resume keeps the retained
-  // status. A replacement session or foreground resubscribe on the same scope
-  // may have missed events, so those show sync progress until confirmed.
   const resumingLive = yield* Ref.make(initialState.status === "live");
-  // A cold open tries the socket snapshot once. Any later cold attempt, after a
-  // failure or a dropped session, asks HTTP, which also tells a missing thread
-  // apart from a failed load.
   const socketOpenTried = yield* Ref.make(false);
   const socketOnlyOpen = yield* Ref.make(false);
   const failedSocketOnlyOpen = Effect.gen(function* () {
@@ -969,7 +922,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
       (yield* Ref.get(socketOnlyOpen)) && Option.isNone((yield* SubscriptionRef.get(state)).data)
     );
   });
-  // A stream defect parks the subscription until something resubscribes it.
   const resubscribes = yield* Queue.unbounded<void>();
   const markSynchronizing = Effect.gen(function* () {
     if (yield* Ref.get(resumingLive)) return;
@@ -981,7 +933,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
   });
 
   yield* markSynchronizing;
-  // A 404 can arrive before the thread exists, so a miss asks HTTP again while mounted.
   let httpMisses = 0;
   let defectRetries = 0;
   const backOffAfterDefect = Effect.suspend(() => {
@@ -1000,7 +951,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
       ORCHESTRATION_V2_WS_METHODS.subscribeThread,
       Effect.fn("EnvironmentThreadState.makeSubscribeInput")(function* (session) {
         let current = yield* SubscriptionRef.get(state);
-        // A delete event already cleared this thread. Park without opening the socket.
         if (current.status === "deleted" && httpMisses === 0) {
           return yield* Effect.never;
         }
@@ -1010,8 +960,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
         yield* markSynchronizing;
         yield* Ref.set(resumingLive, false);
 
-        // A server that pages snapshots sends the same bounded window over the
-        // socket, so a cold open can skip the HTTP round trip.
         const socketOnly =
           Option.isNone(current.data) &&
           canLoadHistory &&
@@ -1042,9 +990,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
               if (canLoadHistory && httpResult.history !== undefined) {
                 yield* Ref.set(acceptsBoundedSocketSnapshots, true);
               }
-              // Atomic projection + progressive meta so a settled bounded window
-              // never persists as a complete full-timeline cache entry. Socket
-              // snapshots still go through applyItem (resetHistory).
               yield* applyLock.withPermits(1)(
                 Effect.gen(function* () {
                   yield* SubscriptionRef.set(lastSequence, httpResult.snapshot.snapshotSequence);
@@ -1100,8 +1045,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
         };
       }),
       {
-        // A socket-only open that fails retries over HTTP, which tells a
-        // missing thread apart from a failure, before showing an error.
         onDefect: Effect.fn("EnvironmentThreadState.onDefect")(function* (cause) {
           if (yield* failedSocketOnlyOpen) {
             yield* Ref.set(socketOnlyOpen, false);
@@ -1130,7 +1073,6 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
           ),
         ),
       ),
-      // A defect while applying items ends the stream; resubscribe for a fresh snapshot.
       Effect.catchCause((cause) =>
         Cause.hasInterrupts(cause)
           ? Effect.interrupt
@@ -1172,8 +1114,6 @@ export function createEnvironmentThreadStateAtoms<R, E>(
   >,
   canLoadAtom?: (environmentId: EnvironmentIdType, threadId: ThreadIdType) => Atom.Atom<boolean>,
 ) {
-  // Cache definitions must outlive collectible live-atom definitions. The
-  // registry retains these nodes without retaining environment or RPC scopes.
   const resumeFamily = Atom.family((key: string) =>
     Atom.make((): ThreadResumeCache => ({
       snapshot: undefined,

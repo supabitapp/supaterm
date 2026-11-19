@@ -115,12 +115,10 @@ describe("createCodeViewFileReveal", () => {
     expect(expanded).toEqual([[1, "up", 26]]);
     reveal.flush();
     expect(view.scrolls).toEqual([]);
-    // The expander loads the file; the next render holds the line.
     partial = false;
     reveal.flush();
     expect(view.scrolls).toEqual([{ type: "range", id: "a", range, align: "center" }]);
 
-    // Removed lines always sit in a hunk, and a deleted file has no contents to load.
     const deleted = viewer(["d"]);
     const removedRange = { start: 3, end: 4, side: "deletions" } as const;
     reveal.attach({
@@ -153,7 +151,6 @@ describe("createCodeViewFileReveal", () => {
   it("drops a pending reveal when another diff's viewer replaces it, but repositions a range a remount loses", () => {
     const reveal = createCodeViewFileReveal();
     const first = viewer([]);
-    // Item ids carry the diff's scope, so another diff's viewer holds other ids.
     const second = viewer(["b"]);
     reveal.attach(first);
 
@@ -167,7 +164,6 @@ describe("createCodeViewFileReveal", () => {
     reveal.request("a");
     expect(second.scrolls).toHaveLength(1);
 
-    // The first diff load remounts the viewer right after a range scroll, so it is repeated once.
     const range = { start: 3, end: 4, side: "additions" } as const;
     const remounted = viewer(["a"]);
     reveal.request("a", range);
@@ -176,7 +172,6 @@ describe("createCodeViewFileReveal", () => {
     reveal.flush();
     expect(remounted.scrolls).toEqual([{ type: "range", id: "a", range, align: "center" }]);
 
-    // Scrolling away before that second pass keeps the user where they went.
     const scrolledAway = viewer(["a"]);
     reveal.request("a", range);
     reveal.cancel();

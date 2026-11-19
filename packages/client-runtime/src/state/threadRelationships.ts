@@ -55,9 +55,6 @@ export function deriveThreadRelationshipGraph(input: {
 }): ThreadRelationshipGraph {
   const threadsById = new Map<ThreadId, OrchestrationV2ThreadShell>();
   for (const thread of input.threads) {
-    // Callers order shells from most to least authoritative. In particular,
-    // live shells precede archived snapshots, which may still contain a stale
-    // copy during archive refresh.
     if (!threadsById.has(thread.id)) {
       threadsById.set(thread.id, thread);
     }

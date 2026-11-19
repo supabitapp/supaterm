@@ -791,7 +791,6 @@ export function ResourceTelemetryDiagnostics({
 }: {
   environmentId: EnvironmentId | null;
 }) {
-  // Pending signals and retries belong to one environment, so a switch starts fresh.
   return (
     <ResourceTelemetryDiagnosticsBody key={environmentId ?? ""} environmentId={environmentId} />
   );
@@ -883,8 +882,6 @@ function ResourceTelemetryDiagnosticsBody({
     setIsRetrying(true);
     void retryTelemetry()
       .then(() => {
-        // The user can pick another window while the retry runs; refreshing every window
-        // re-reads the one on screen and only invalidates the rest.
         for (const option of HISTORY_WINDOWS) {
           registry.refresh(
             serverEnvironment.resourceTelemetryHistory({

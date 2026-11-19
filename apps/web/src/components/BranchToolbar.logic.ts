@@ -72,7 +72,6 @@ export function shouldShowComposerContextStrip(input: {
   );
 }
 
-// Hysteresis prevents labels and icons from flapping at the width boundary.
 const CONTEXT_STRIP_COMPACT_EXPAND_HYSTERESIS_PX = 16;
 
 export function resolveContextStripLabelsCompact(input: {
@@ -180,7 +179,6 @@ export function resolveDraftEnvModeAfterBranchChange(input: {
   return "local";
 }
 
-/** Resolve the base once for both the branch picker and worktree submission. */
 /**
  * The base a New worktree thread gets. Without a selection only a listed ref qualifies: during a
  * clone the status names an unborn HEAD that no ref backs.
@@ -257,7 +255,6 @@ export function resolveBranchTriggerLabel(input: {
     return effectiveEnvMode === "worktree" && !activeWorktreePath ? "Default branch" : "Select ref";
   }
   if (effectiveEnvMode === "worktree" && !activeWorktreePath) {
-    // Only the server can determine a local branch's configured remote.
     return startFromOrigin && resolvedActiveBranchIsRemote === false
       ? `From ${resolvedActiveBranch} (remote)`
       : `From ${resolvedActiveBranch}`;
@@ -316,7 +313,6 @@ export function resolveBranchSelectionTarget(input: {
   const { activeProjectCwd, activeWorktreePath, refName } = input;
 
   if (refName.worktreePath) {
-    // Until the project's checkout root loads, a checkout containing the project counts as its own.
     const isProjectCheckout =
       input.activeProjectCheckoutRoot === undefined
         ? workspaceRelativeFilePath(activeProjectCwd, refName.worktreePath) !== null
@@ -326,7 +322,6 @@ export function resolveBranchSelectionTarget(input: {
       checkoutCwd: refName.worktreePath,
       nextWorktreePath,
       reuseExistingWorktree: true,
-      // Listed refs can predate a checkout made outside the picker, so only Git can confirm this one.
       staysInActiveCheckout: nextWorktreePath === activeWorktreePath,
     };
   }

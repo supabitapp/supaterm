@@ -110,27 +110,19 @@ export type AzureDevOpsPullRequestCliError =
 
 const REST_API_VERSION = "7.1";
 const PULL_REQUEST_LIST_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
-/** A 2,000-file page exceeds the default 1 MiB output budget. */
 const CHANGE_ENTRIES_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
-/** JSON escaping and base64 can exceed the decoded file's size. */
 const ITEM_CONTENT_MAX_OUTPUT_BYTES = 4 * 1024 * 1024;
-/** A larger batch is left to per-file reads rather than held in memory at once. */
 const BLOB_ARCHIVE_MAX_BYTES = 64 * 1024 * 1024;
-/** Matches what a per-file read could carry. */
 const BLOB_MAX_BYTES = ITEM_CONTENT_MAX_OUTPUT_BYTES;
-/** Blobs past this, together, are left to per-file reads, which hold a few at a time. */
 const BLOB_BATCH_MAX_BYTES = 16 * 1024 * 1024;
 const BLOB_ID = /^[0-9a-f]{40}$/i;
-/** Review history is unpaged and independent of diff size. */
 const REVIEW_HISTORY_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 
 const POLICY_EVALUATIONS_PER_PAGE = 100;
 const MAX_POLICY_EVALUATIONS = 1000;
 
-/** Azure's iteration-change page limit. */
 const CHANGE_ENTRIES_PER_PAGE = 2000;
 
-/** Count raw entries, including folders and malformed rows. */
 const MAX_CHANGE_ENTRIES = 10_000;
 
 export interface AzureDevOpsIterationChanges {
@@ -327,7 +319,6 @@ export const make = Effect.gen(function* () {
       ...(input.maxOutputBytes === undefined ? {} : { maxOutputBytes: input.maxOutputBytes }),
     });
 
-  /** Use the extension's credentials; `az rest` uses the default tenant. */
   const invoke = <A>(input: {
     readonly cwd: string;
     readonly operation: string;
@@ -372,7 +363,6 @@ export const make = Effect.gen(function* () {
       }),
     );
 
-  /** Azure's items route requires a leading slash. */
   const toItemPath = (path: string) => (path.startsWith("/") ? path : `/${path}`);
 
   const repositoryRoute = (location: AzureDevOpsRepositoryLocation): ReadonlyArray<string> => [
@@ -388,7 +378,6 @@ export const make = Effect.gen(function* () {
     `pullRequestId=${input.number}`,
   ];
 
-  /** Decoding can shorten a non-final page; advance by raw rows. */
   const listPullRequestPage = (input: {
     readonly cwd: string;
     readonly repository: string;
@@ -499,7 +488,6 @@ export const make = Effect.gen(function* () {
             ? Effect.fail(new AzureDevOpsViewerUnavailableError({ command: "az", cwd: input.cwd }))
             : Effect.succeed(decoded.success);
         }),
-        // `az account show` cannot identify PAT logins; the extension resolves `--creator me`.
         Effect.catchIf(
           (error) => error._tag !== "AzureDevOpsCliUnavailableError",
           () =>
@@ -669,7 +657,6 @@ export const make = Effect.gen(function* () {
 
     readBlobs: Effect.fn("AzureDevOpsPullRequestCli.readBlobs")(function* (input) {
       const requested = new Map<string, string>();
-      // Azure states ids in uppercase and names entries in lowercase.
       for (const id of input.objectIds) {
         const key = id.toLowerCase();
         if (BLOB_ID.test(id) && !requested.has(key)) requested.set(key, id);
@@ -688,7 +675,6 @@ export const make = Effect.gen(function* () {
             .makeTempDirectoryScoped({ prefix: "supaterm-azure-blobs-" })
             .pipe(Effect.mapError(readFailure));
           const request = `${directory}/ids.json`;
-          // invoke refuses to overwrite its output, so the archive gets a name nothing holds yet.
           const archive = `${directory}/blobs.zip`;
           yield* fileSystem
             .writeFileString(
@@ -746,14 +732,11 @@ export const make = Effect.gen(function* () {
         resource: "items",
         routeParameters: repositoryRoute(input.location),
         queryParameters: [
-          // `az devops invoke` does not escape query values, so `#` or `&` in a path would truncate it.
           `path=${encodeURIComponent(toItemPath(input.path))}`,
           "versionDescriptor.versionType=commit",
           `versionDescriptor.version=${input.commit}`,
           "includeContent=true",
-          // Encoded content cannot identify binaries; request Azure's binary flag.
           "includeContentMetadata=true",
-          // `az devops invoke` requires JSON; otherwise Azure returns raw file bytes.
           "$format=json",
         ],
         maxOutputBytes: ITEM_CONTENT_MAX_OUTPUT_BYTES,
@@ -777,7 +760,6 @@ export const make = Effect.gen(function* () {
               ...detectArgs,
               "--id",
               String(input.number),
-              // Repeating `--reviewers` replaces the earlier list.
               "--reviewers",
               ...input.reviewers,
               "--only-show-errors",
@@ -808,7 +790,6 @@ export const make = Effect.gen(function* () {
             ],
           })
           .pipe(
-            // `pr update` prints the pull request it left, in the shape `pr show` prints.
             Effect.map((result) => {
               const decoded = decodePullRequestJson(result.stdout.trim());
               return Result.isSuccess(decoded) ? (decoded.success ?? undefined) : undefined;
@@ -818,14 +799,12 @@ export const make = Effect.gen(function* () {
     ),
 
     updatePullRequest: Effect.fn("AzureDevOpsPullRequestCli.updatePullRequest")(function (input) {
-      // One argv entry preserves leading dashes and multi-string descriptions.
       const fields = [
         ...(input.title === undefined ? [] : [AzureDevOpsCli.textOption("--title", input.title)]),
         ...(input.body === undefined
           ? []
           : [AzureDevOpsCli.textOption("--description", input.body)]),
       ];
-      // az has one stdin, so each value read from it needs its own call.
       const batches =
         fields.filter((field) => field.stdin !== undefined).length > 1
           ? fields.map((field) => [field])

@@ -76,8 +76,6 @@ function mcpElicitationPersistenceDecision(
   return null;
 }
 
-// Claude hands over the same MCP request with its own envelope; these are the
-// only fields the response is built from.
 type McpElicitationResponseInput = {
   readonly mode: string;
   readonly requestedSchema?: unknown;
@@ -185,8 +183,6 @@ export function toMcpElicitationResponse(
     return { action: decision };
   }
 
-  // Supaterm cannot answer these itself. `decline` reads as the user's refusal, and Codex's browser
-  // plugin saves it as a thread-wide site denial; `cancel` leaves no saved decision.
   if (payload.mode === "url") {
     return { action: "cancel" };
   }

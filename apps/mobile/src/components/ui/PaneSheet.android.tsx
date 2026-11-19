@@ -12,7 +12,6 @@ export function PaneSheet({ children, ...props }: PaneSheetProps) {
   return (
     <FormSheet {...props} preferredCornerRadius={28} nativeContainerStyle={containerStyle}>
       <BottomSheetContext value>
-        {/* Android FormSheet does not bound flex children. */}
         <View collapsable={false} className="absolute inset-0 bg-header pt-3">
           {children}
           <View

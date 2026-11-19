@@ -76,7 +76,6 @@ interface Fixture {
 
 const sizes = (frames: ReadonlyArray<Buffer>) => frames.map((frame) => frame.byteLength);
 const CLOSING_SILENCE = Buffer.alloc(8_000);
-/** A session's frames without the 250 ms of silence the desktop app ends each one with. */
 const audioOf = (frames: ReadonlyArray<Buffer>) => {
   expect(frames.at(-1)).toEqual(CLOSING_SILENCE);
   return Buffer.concat(frames.slice(0, -1));
@@ -191,7 +190,6 @@ describe("streamCodexDictation", () => {
               },
             },
           });
-          // The desktop worklet's frames: one 128-sample quantum, then 2048 samples at a time.
           expect(sizes(session!.frames)).toEqual([256, 4_096, 2_048, 8_000]);
           expect(audioOf(session!.frames)).toEqual(
             Buffer.concat([Buffer.alloc(3_200, 1), Buffer.alloc(3_200, 2)]),

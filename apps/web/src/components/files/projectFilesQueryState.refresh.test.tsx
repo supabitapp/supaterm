@@ -180,8 +180,6 @@ describe("project query refresh", () => {
       expect(fetches).toBe(1);
 
       read("mutation-2");
-      // The refetch runs after the render that read the new revision; a reader that is not
-      // subscribed sees it on its next read.
       await Promise.resolve();
       read("mutation-2");
       expect(fetches).toBe(2);

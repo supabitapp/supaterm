@@ -43,7 +43,6 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
     readonly keybindings: ResolvedKeybindingsConfig;
   };
 }) {
-  // With several projects chosen no radio is checked; each chosen row shows its own check.
   const value = values.length === 0 ? "all" : values.length === 1 ? values[0]! : "";
   const summary =
     values.length > 1
@@ -62,7 +61,6 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
     event.preventBaseUIHandler?.();
     onToggle(itemValue);
   };
-  // The thread pin shortcut pins the highlighted project here.
   const pinWithShortcut = (
     event: KeyboardEvent<HTMLElement>,
     project: SidebarProjectSnapshot | null,
@@ -114,7 +112,6 @@ export function SidebarProjectFilterSubmenu<TItem extends ProjectFilterItem>({
                   {project ? (
                     <ProjectFavicon project={project} className="size-4 shrink-0" />
                   ) : (
-                    // Menu items pull svgs in by 2px; favicons aren't svgs, so this one opts out to line up.
                     <FolderIcon className="mx-0! size-4 shrink-0" />
                   )}
                   <span dir="auto" className="min-w-0 flex-1 truncate">

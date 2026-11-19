@@ -117,10 +117,8 @@ const GrokProviderCapabilitiesV2 = {
   },
   turns: {
     ...AcpProviderCapabilitiesV2.turns,
-    // `_x.ai/interject` lets the running tool finish; the model reads the message at its next step.
     supportsActiveSteering: true,
     activeSteeringInterruptsTools: false,
-    // Cancelling a Grok prompt kills its running foreground tool.
     supportsSteeringByInterruptRestart: false,
   },
 } satisfies OrchestrationV2ProviderCapabilities;
@@ -130,7 +128,6 @@ const isXAiInterjectQueued = Schema.is(
   Schema.Struct({ result: Schema.Struct({ status: Schema.Literal("queued") }) }),
 );
 
-/** A queued interjection joins the running prompt, so its acceptance is the delivery. */
 const grokSteering: NonNullable<AcpAdapterV2Flavor["steering"]> = {
   send: (runtime, sessionId, text, images) =>
     runtime
@@ -194,7 +191,6 @@ const registerGrokAcpExtensions: NonNullable<AcpAdapterV2Flavor["registerExtensi
     ),
   );
 
-// Capture the reverse-requested plan, then abandon the native gate to finish the turn.
 const registerGrokExitPlanModeExtensions = ({
   runtime,
   captureProposedPlan,
@@ -260,13 +256,8 @@ export function grokLaunchRuntimeMode(
     : "approval-required";
 }
 
-/** The capability id the composer stores Grok's reasoning effort under. */
 const GROK_REASONING_EFFORT_OPTION_ID = "reasoningEffort";
 
-// Protocol 1 sends the effort as `session/set_model` metadata on every call: that response
-// carries no config options, so there is no live effort to compare against. Newer protocols
-// write the `thought_level` config option after the model switch. An effort the model does
-// not offer, or that Grok refuses, is skipped with a warning and Grok's default applies.
 const applyGrokSessionModelSelection: NonNullable<AcpAdapterV2Flavor["applyModelSelection"]> =
   Effect.fn("GrokAdapter.applyModelSelection")(function* ({
     runtime,
@@ -332,7 +323,6 @@ const applyGrokSessionModelSelection: NonNullable<AcpAdapterV2Flavor["applyModel
     if (requestedEffort === undefined) {
       return appliedModelId;
     }
-    // Read after the model switch: the effort choices belong to the new model.
     const effortOption = (yield* runtime.getConfigOptions).find(
       (option) => option.type === "select" && option.category === "thought_level",
     );
@@ -340,7 +330,6 @@ const applyGrokSessionModelSelection: NonNullable<AcpAdapterV2Flavor["applyModel
       yield* skipEffort("the session has no reasoning effort option");
       return appliedModelId;
     }
-    // setConfigOption rejects a value the option does not offer and skips the current one.
     yield* runtime
       .setConfigOption(effortOption.id, requestedEffort)
       .pipe(Effect.catchTags({ AcpRequestError: (error) => skipEffort(error.message) }));
@@ -356,17 +345,12 @@ export function makeGrokAcpAdapterFlavor(
     runtimeHarness: "Grok",
     capabilities: GrokProviderCapabilitiesV2,
     interruptPromptOnCancel: false,
-    // User Stop restarts the process group; steering cancels softly to preserve background work.
     restartRuntimeAfterInterrupt: true,
     terminateRuntimeProcessGroupOnInterrupt: true,
-    // Settled Grok sessions accept concurrent prompts; skip cancel to preserve background subagents.
     preserveRuntimeOnSettledInterrupt: true,
-    // Grok accepts image blocks despite advertising promptCapabilities.image:false.
     supportsImagePrompts: true,
     supportsCompaction: true,
     steering: grokSteering,
-    // Grok expands only a leading `/name`, while the `$` picker inserts `$name` from the
-    // `grok inspect` catalog. Ask that catalog again so other `$` text is left alone.
     rewriteUserText: (text, turnInput) => {
       const mention = leadingGrokSkillMention(text);
       if (mention === undefined) return Effect.succeed(text);
@@ -409,7 +393,6 @@ export function makeGrokAcpAdapterFlavor(
           environment: options.environment,
           runtimeMode: grokLaunchRuntimeMode(runtimePolicy),
         })),
-    // Auto prompts represent classifier refusals and must reach the user.
     permissionDisposition: (policy, request) =>
       grokLaunchRuntimeMode(policy) === "auto" ? "ask" : acpPermissionDisposition(policy, request),
     approvalOptions: grokApprovalOptions,

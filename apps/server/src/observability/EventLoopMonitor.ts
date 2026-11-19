@@ -18,14 +18,11 @@ import * as Semaphore from "effect/Semaphore";
 import * as ServerConfig from "../config.ts";
 import * as Metrics from "./Metrics.ts";
 
-// Subtract the histogram's timer resolution; this can undercount stalls by up to RESOLUTION_MS.
 const RESOLUTION_MS = 1000;
 const STALL_THRESHOLD_MS = 2000;
 const SAMPLE_INTERVAL = "30 seconds";
 const STALL_LOG_MAX_BYTES = 256 * 1024;
-// Long enough that users felt it. Shorter stalls stay in the log only.
 const NOTICEABLE_STALL_MS = 5000;
-// Clients show what they get, so an old stall must not explain a new drop.
 const NOTICEABLE_STALL_MAX_AGE_MS = 5 * 60_000;
 
 export class EventLoopMonitor extends Context.Reference<{
@@ -61,7 +58,6 @@ export interface EventLoopReadings {
   readonly cpuCount: number;
 }
 
-// Node skips the first gap after a reset, so a stall right at a sample boundary can be missed.
 const makeNodeSampler = Effect.gen(function* () {
   const histogram = yield* Effect.acquireRelease(
     Effect.sync(() => {
@@ -96,7 +92,6 @@ const makeNodeSampler = Effect.gen(function* () {
       rssBytes: memory.rss,
       heapUsedBytes: memory.heapUsed,
       elapsedMs: nextSampledAt - sampledAt,
-      // Windows has no load average and reports 0, which a running process never sees elsewhere.
       loadAverage: NodeOS.loadavg()[0] || undefined,
       cpuCount: NodeOS.availableParallelism(),
     };
@@ -110,12 +105,10 @@ const makeNodeSampler = Effect.gen(function* () {
 
 export const stallMs = ({ delayMaxNs, activeMs }: EventLoopReadings) => {
   const delayMs = Math.round(delayMaxNs / 1e6) - RESOLUTION_MS;
-  // libuv clocks run during macOS/Windows sleep; idle poll time distinguishes it from stalls.
   if (delayMs <= STALL_THRESHOLD_MS || activeMs < delayMs) return undefined;
   return delayMs;
 };
 
-// Untraced: it runs inside every 30-second tick, which already has the monitor's own span.
 const recordGauges = Effect.fnUntraced(function* (readings: EventLoopReadings) {
   const cpuMs = (readings.usage.userCPUTime + readings.usage.systemCPUTime) / 1000;
   yield* Metric.update(Metrics.serverResidentBytes, readings.rssBytes);
@@ -145,7 +138,6 @@ const layerWith = (
     EventLoopMonitor,
     Effect.gen(function* () {
       const sample = yield* makeSampler;
-      // Clients sample on connect as well as the timer, and the sampler resets shared state.
       const sampling = yield* Semaphore.make(1);
       const warmedUp = yield* Ref.make(false);
       const latestNoticeableStall = yield* Ref.make<
@@ -212,7 +204,6 @@ const layerWith = (
         }
       }).pipe(sampling.withPermits(1));
       const wait = Effect.sleep(SAMPLE_INTERVAL);
-      // The first sample includes migrations and bootstrap; skip expected startup stalls.
       yield* wait.pipe(
         Effect.andThen(sampling.withPermits(1)(sample)),
         Effect.andThen(Ref.set(warmedUp, true)),

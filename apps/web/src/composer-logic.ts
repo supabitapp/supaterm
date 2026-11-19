@@ -135,7 +135,6 @@ export function composerSendShortcutLabels(input: {
       sendShortcut: input.sendShortcut,
       prompt: input.hasMultilinePrompt ? "\n" : "",
     });
-    // An unmodified Enter the composer does not submit falls through to the editor as a line break.
     const action = intent ?? (modKey ? null : "newLine");
     if (action === null || labels[action] !== undefined) continue;
     labels[action] = formatShortcutLabel(

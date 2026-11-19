@@ -22,8 +22,6 @@ const toFailure = (error: { readonly _tag: string; readonly message: string }) =
     message: error.message,
   });
 
-// The server reads the file for the caller, so only a thread that reads files without asking may
-// pass a path; a supervised thread passes the HTML its provider already let it read.
 const pageSource = Effect.fn("HtmlToolkit.pageSource")(function* (input: {
   readonly html?: string | undefined;
   readonly path?: string | undefined;
@@ -48,7 +46,6 @@ const pageSource = Effect.fn("HtmlToolkit.pageSource")(function* (input: {
 });
 
 const handlers = {
-  // Local-file access limits this host browser to Supaterm-launched agents.
   html_preview: McpToolAccess.readsAsCaller((input) =>
     Effect.gen(function* () {
       const htmlRender = yield* HtmlRender.HtmlRender;

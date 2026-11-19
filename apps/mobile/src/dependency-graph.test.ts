@@ -2,12 +2,6 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 
-/**
- * Dynamic `import("...")` calls are exempt from the cycle check: Metro resolves them after both
- * modules have initialized. Cross-layer ceilings count unique `from -> to` module pairs across all
- * platforms, including dynamic imports, and may only shrink.
- */
-
 const SOURCE_ROOT = __dirname;
 
 const PLATFORM_EXTENSION_ORDER = {

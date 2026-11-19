@@ -59,7 +59,6 @@ export function TextFieldVoiceInput(props: {
     },
     commitPrompt: (text, selection) => {
       props.onChange(text);
-      // The field shows the new text on the next render; the caret follows it there.
       window.requestAnimationFrame(() => {
         const field = fieldRef.current;
         if (!field) return;

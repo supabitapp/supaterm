@@ -70,11 +70,6 @@ export interface IssuedBearerSession {
   readonly expiresAt: DateTime.Utc;
 }
 
-/**
- * They are accepted only by `/mcp`, where every action is capped by the access
- * the user approved; the HTTP API and WebSocket reject them so an agent token
- * cannot reach the full RPC surface around that cap.
- */
 const MCP_CLIENT_SUBJECT = "mcp-client";
 const MCP_CLIENT_SESSION_TTL = Duration.days(30);
 
@@ -552,12 +547,6 @@ function firstHeaderValue(value: string | undefined): string | undefined {
   return first && first.length > 0 ? first : undefined;
 }
 
-/**
- * Browsers send `Origin` on upgrades, cross-origin and non-GET requests, so its absence means a
- * same-origin read or a non-browser client. Otherwise accept a same-origin `Sec-Fetch-Site` (it
- * survives the dev proxy rewriting `Host`), this server's own host (`X-Forwarded-Host` behind a
- * proxy), or a trusted app origin.
- */
 function isBrowserOriginAllowed(
   request: HttpServerRequest.HttpServerRequest,
   trustedOrigins: ReadonlySet<string>,
@@ -628,9 +617,6 @@ export const make = Effect.gen(function* () {
     );
   };
 
-  // Pages the server or its dev setup serves itself. Other origins on the same
-  // site (another localhost port, a LAN IP's other ports) still get the cookie,
-  // so cookie sessions must not authenticate their requests or sockets.
   const trustedBrowserOrigins = new Set<string>([
     ...(config.devUrl ? [config.devUrl.origin] : []),
     ...DESKTOP_RENDERER_ORIGINS,
@@ -751,7 +737,6 @@ export const make = Effect.gen(function* () {
     input?: {
       readonly requestedScopes?: ReadonlyArray<AuthEnvironmentScope>;
       readonly requiredScopes?: ReadonlyArray<AuthEnvironmentScope>;
-      /** Only an agent sign-in opts in to spending a code issued for it. */
       readonly mcpApproval?: AuthMcpClientAccess;
     },
   ): Effect.Effect<
@@ -1214,7 +1199,6 @@ export const make = Effect.gen(function* () {
 
 const isMcpClientAccess = Schema.is(AuthMcpClientAccess);
 
-/** The level an approval code's subject names, or undefined for any other code. */
 const mcpApprovalLevel = (subject: string): AuthMcpClientAccess | undefined => {
   const level = subject.startsWith(MCP_APPROVAL_SUBJECT_PREFIX)
     ? subject.slice(MCP_APPROVAL_SUBJECT_PREFIX.length)

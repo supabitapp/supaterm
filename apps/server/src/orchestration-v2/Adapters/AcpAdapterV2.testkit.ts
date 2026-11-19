@@ -204,7 +204,6 @@ export function makeAcpReplayRuntime(input: {
   EffectAcpErrors.AcpError,
   SecureRandom.SecureRandom | Scope.Scope
 > {
-  // Transcripts exceed the kernel's 128 KiB per-environment-variable limit.
   const transcriptPath = `${input.statusPath}.transcript.json`;
   return (runtimeInput) =>
     Effect.gen(function* () {

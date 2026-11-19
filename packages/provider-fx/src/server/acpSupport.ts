@@ -84,12 +84,6 @@ export function fxPermissionDisposition(
     : acpPermissionDisposition({ ...policy, runtimeMode: "approval-required" }, request);
 }
 
-/**
- * fx's id for a requested mode, first advertised match wins. fx 0.0.13 calls
- * automatic review `code`; fx after vercel-labs/fx#1189 calls it `auto`.
- * `code` is also accepted as a request because the shared plan restore
- * passes a session's saved mode id back.
- */
 function fxModeId(requested: string, advertised: ReadonlyArray<string>): string | undefined {
   const candidates =
     requested === "ask"
@@ -152,7 +146,6 @@ export function withFxSessionMode(
         configId: FX_MODE_CONFIG_ID,
         value: target,
       });
-      // Only a write fx took counts, so a retried setup sends it again.
       pendingSessionId = undefined;
       return {};
     }),
@@ -178,9 +171,6 @@ export const applyFxModelSelection = Effect.fn("applyFxModelSelection")(function
   const isDefault = requested.length === 0 || requested === FX_DEFAULT_MODEL_SLUG;
   const target = isDefault ? defaultModel && (yield* defaultModel) : requested;
   if (target === undefined || target === current) return current;
-  // The status default can belong to another fx backend than the session's
-  // (after `fx provider`, or a loaded older session); then the session's
-  // own model stands.
   if (
     isDefault &&
     (option === undefined || !collectSessionConfigOptionValues(option).includes(target))

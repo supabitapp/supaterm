@@ -8,7 +8,6 @@ type HastNode = {
 
 const LEADING_PUNCTUATION = /^[.,:;!?…)\]}"'’”]+/;
 
-// Browsers allow a wrap after inline-flex chips even before punctuation.
 export function rehypeChipPunctuation() {
   const visit = (node: HastNode): void => {
     if (node.tagName === "pre" || !node.children) return;

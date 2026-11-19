@@ -60,7 +60,6 @@ const getNameOwner = (name) => busIdentity("GetNameOwner", name, "(s)");
 const getProcessId = (sender) => busIdentity("GetConnectionUnixProcessID", sender, "(u)");
 
 function takeSnapshot(animate) {
-  // No await between reading identity and Shell taking its snapshot of the focused actor.
   const window = global.display.focus_window;
   if (!window || window.minimized || !window.get_compositor_private()) {
     throw new Error("No active window is available for capture.");

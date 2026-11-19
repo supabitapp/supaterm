@@ -76,7 +76,6 @@ const projects: Project[] = [
   },
 ];
 
-// Profiles, link target and the advanced rows only work in the desktop app.
 vi.mock(import("../../env"), async (original) => ({ ...(await original()), isElectron: true }));
 vi.mock(import("../../state/environments"), async (original) => ({
   ...(await original()),
@@ -137,7 +136,6 @@ it.each([
   expect(isInert(screen.getByRole("switch", { name: "Agent browser access" }).element())).toBe(
     false,
   );
-  // Profiles save for this device in every scope, but the default profile is a device preference.
   await expect.element(screen.getByRole("button", { name: "Add profile" })).toBeEnabled();
   await userEvent.click(screen.getByRole("button", { name: "Work options" }));
   await expect

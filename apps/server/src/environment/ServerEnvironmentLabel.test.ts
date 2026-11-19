@@ -32,7 +32,6 @@ const neverExits = ChildProcessSpawner.make(() =>
 
 it.effect("falls back to the hostname when hostnamectl never answers", () =>
   Effect.gen(function* () {
-    // Without /etc/machine-info the label comes from hostnamectl, which waits on D-Bus.
     const label = yield* resolveServerEnvironmentLabel({ cwdBaseName: "project" }).pipe(
       Effect.provideService(HostProcess.Platform, "linux"),
       Effect.provideService(HostProcess.Hostname, "devbox"),

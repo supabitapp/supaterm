@@ -118,7 +118,6 @@ const readRestartTranscript = Effect.fn("readRestartTranscript")(function* (
     ...recorded,
     entries: [
       ...recorded.entries.slice(0, rootResult + 1),
-      // Keep the query alive until the crash snapshot is captured.
       {
         type: "expect_outbound",
         label: "query.open:resume",
@@ -188,8 +187,6 @@ const runRestart = Effect.fn("runRestart")(function* (input: {
       if (session === undefined) {
         return yield* Effect.die("restart scenario has no provider session");
       }
-      // Snapshot the legacy running task before exit cleanup settles it, then
-      // seed the stopped session that older runtimes could leave after a crash.
       const now = yield* DateTime.now;
       yield* eventSink.write({
         events: [

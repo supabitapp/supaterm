@@ -56,11 +56,9 @@ function labelForKind(kind: ServerProviderUsageWindow["kind"]): string {
   return kind === "session" ? "Session" : kind === "weekly" ? "Weekly" : "Monthly";
 }
 
-/** primary/secondary are positions; without windowDurationMins, paid plans use 5-hour/weekly windows and Free/Go use monthly. */
 function codexRateLimitsToWindows(
   snapshot: CodexRateLimitSnapshot,
 ): ReadonlyArray<ServerProviderUsageWindow> {
-  // Keep model-specific limits out of main allowance rows; older CLIs omit limit IDs.
   if (snapshot.limitId && snapshot.limitId !== "codex") return [];
   const isMonthlyPlan = snapshot.planType === "free" || snapshot.planType === "go";
   const positions = [
@@ -138,7 +136,6 @@ export function codexRateLimitsToUpdate(
   previous?: CodexRateLimitSnapshot,
 ): ProviderUsageLimitsUpdate | undefined {
   const previousWindows = previous ? codexRateLimitsToWindows(previous) : [];
-  // Token ticks repeat session-cached limits that may predate an account probe or reset.
   const windows = codexRateLimitsToWindows(snapshot).filter((window) => {
     const existing = previousWindows.find((candidate) => candidate.id === window.id);
     return (
@@ -170,7 +167,6 @@ export function mergeCodexRateLimits(
   previous: CodexRateLimitSnapshot | undefined,
   update: CodexRateLimitSnapshot,
 ): CodexRateLimitSnapshot | undefined {
-  // Model-specific snapshots must not overwrite the main allowance.
   if (update.limitId && update.limitId !== "codex") return previous;
   if (!previous) return update;
   return {
@@ -241,11 +237,9 @@ export function codexMessageResetAt(
       hour: (Number(hour) % 12) + (meridiem === "PM" ? 12 : 0),
       minute: Number(minute),
     },
-    // The repeated hour at a DST fall-back takes its later instant so a resume never fires early.
     { timeZone: zone, adjustForTimeZone: true, disambiguation: "later" },
   );
   if (Option.isNone(reset)) return null;
-  // Codex drops the seconds, so the next minute is the first one past the reset.
   const resetAt = DateTime.add(reset.value, { minutes: 1 });
   return DateTime.isGreaterThan(resetAt, failedAt) ? DateTime.formatIso(resetAt) : null;
 }

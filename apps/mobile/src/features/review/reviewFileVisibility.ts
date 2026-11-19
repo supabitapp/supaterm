@@ -3,9 +3,6 @@ import { useCallback, useMemo } from "react";
 import { updateReviewExpandedFileIds, updateReviewViewedFileIds } from "./reviewState";
 import type { ReviewRenderableFile } from "./reviewModel";
 
-// File ids are scoped to one diff text, so a refresh renames every file. Expansion is
-// stored by path, which survives a refresh; the occurrence index keeps apart entries
-// that share a path, such as the deletion and addition when a file becomes a symlink.
 function getReviewFileExpansionKeys(
   files: ReadonlyArray<ReviewRenderableFile>,
 ): ReadonlyArray<string> {

@@ -1,7 +1,5 @@
 import { compareSemverVersions, parseSemver } from "@supaterm/shared/semver";
 
-// Older pins recorded non-semver versions such as `agy_acp_server_1.1.1`; any
-// other release is an update from those.
 const isNewer = (candidate: string, current: string) =>
   parseSemver(candidate) && parseSemver(current)
     ? compareSemverVersions(candidate, current) > 0

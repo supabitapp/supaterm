@@ -36,7 +36,6 @@ describe("Claude Code model routes", () => {
           "haiku",
         );
 
-        // A first check that never reaches the probe still releases waiting turns.
         const unprobed = yield* makeClaudeCodeModelRoutes(
           () => Effect.succeed("same settings"),
           "/state",
@@ -56,7 +55,6 @@ describe("Claude Code model routes", () => {
           .pipe(Effect.forkChild({ startImmediately: true }));
         yield* TestClock.adjust("2 minutes");
         assert.strictEqual(yield* Fiber.join(fallback), BUNDLED_CLAUDE_MODEL_CATALOG);
-        // Later turns, steers and effort changes do not wait for the stuck probe again.
         const later = yield* stuck
           .route(BUNDLED_CLAUDE_MODEL_CATALOG, "/project")
           .pipe(Effect.timeoutOption("1 second"), Effect.forkChild({ startImmediately: true }));

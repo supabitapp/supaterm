@@ -157,14 +157,7 @@ interface HomeScreenProps {
   readonly listHeader: ReactElement | undefined;
 }
 
-// Rows run ~60dp (slim) to ~94dp (two-line card). The estimate seeds the recycler's initial
-// container count, so staying at or below the average row height pools short lists past their
-// item count and avoids the dev-only "no unused container available" warning; the tallest-card
-// estimate fired it on every shelf expand.
 const ESTIMATED_THREAD_LIST_V2_ROW_HEIGHT = 72;
-// Rows away from the viewport skip their swipe actions (see
-// swipe-row-activation), so render further ahead: a fast fling then reaches
-// rows that are already built instead of rows still being rebuilt.
 const THREAD_LIST_V2_DRAW_DISTANCE = 1_000;
 
 function HomeTopContentSpacer() {
@@ -225,8 +218,6 @@ export function HomeScreen(props: HomeScreenProps) {
   const contentSideInsets = usesNativeWorkspaceColumns
     ? (columnMetrics ?? screenMetrics)?.safeArea
     : undefined;
-  // Android lists that span a wide window (foldables in portrait) keep the
-  // reading width, so rows stay clear of the edges and the camera cutout.
   const { width: windowWidth } = useWindowDimensions();
   const androidListGutter =
     Platform.OS === "android"
@@ -296,8 +287,6 @@ export function HomeScreen(props: HomeScreenProps) {
       rows.slice(Math.max(0, state.start - 2), state.end + 3).map((row) => row.key),
     );
   };
-  // Status-bar, accessibility and programmatic scrolls never arm the scroll
-  // gate, so every scroll also activates the visible rows once it settles.
   const activationTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the row activation timer on unmount
   useEffect(() => () => clearTimeout(activationTimerRef.current), []);
@@ -346,7 +335,6 @@ export function HomeScreen(props: HomeScreenProps) {
   })();
 
   const v2ProjectScopeKey = props.selectedProjectKey;
-  // An archived project's filter reads as all projects, matching the filter menu.
   const v2ScopedProjectGroup = findHomeProjectScope(
     pickableProjectGroups(projectScopes),
     v2ProjectScopeKey,
@@ -367,8 +355,6 @@ export function HomeScreen(props: HomeScreenProps) {
       ),
     ),
   );
-  // Done threads stay in the live shell stream (done is not archived), so the partition works
-  // directly off live shells with no snapshot merging or optimistic holds.
   const handleMarkThreadDone = props.onMarkThreadDone;
   const {
     onSnoozeThread,
@@ -400,8 +386,6 @@ export function HomeScreen(props: HomeScreenProps) {
   const handleRenameThread = (thread: EnvironmentThreadShell) => onRenameThread(thread);
   const handleDeleteThread = props.onDeleteThread;
   const handleReopenThread = props.onReopenThread;
-  // The done tail renders in pages; expansion resets when the filter
-  // context changes so environment/search flips never inherit a deep page.
   const [doneVisibleCount, setDoneVisibleCount] = useState(THREAD_LIST_V2_DONE_INITIAL_COUNT);
   const doneResetKey = `${props.selectedEnvironmentId ?? "all"}:${v2ProjectScopeKey ?? "all"}:${props.searchQuery.trim()}`;
   const [lastDoneResetKey, setLastDoneResetKey] = useState(doneResetKey);
@@ -468,11 +452,7 @@ export function HomeScreen(props: HomeScreenProps) {
     doneShelfExpanded,
     selectedThreadKey,
   });
-  // Called as `props.onSelectThread(...)`, the compiler would cache this handler on the whole
-  // props object, which is new on every render of Home's parent.
   const { onSelectThread } = props;
-  // A row listed for a message match opens the thread at that message, by
-  // tap or by shortcut.
   const selectThread = (thread: EnvironmentThreadShell) => {
     const key = threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id });
     const messageId = contentOnlyThreadKeys.has(key)
@@ -638,7 +618,6 @@ export function HomeScreen(props: HomeScreenProps) {
         }
         environmentMachine={machineByEnvironmentId.get(thread.environmentId)}
         searchMatch={
-          // Only rows listed for their messages show one and open at it.
           contentOnlyThreadKeys.has(
             threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
           )
@@ -687,10 +666,6 @@ export function HomeScreen(props: HomeScreenProps) {
     </Animated.View>
   );
 
-  // FlatList/LegendList treat a changed extraData identity as "re-render every
-  // visible row", so an inline object literal would invalidate all rows on
-  // every HomeScreen render — and the minute clock must stay out of it for
-  // the same reason: the clock text is precomputed per item instead.
   const v2ExtraData = {
     activeNewTask,
     projectByKey,
@@ -703,15 +678,10 @@ export function HomeScreen(props: HomeScreenProps) {
     threadSearchMatchByKey,
   };
 
-  // The signal must ignore the search/environment filters: an active query
-  // that matches nothing needs the in-list "No results" state, not the
-  // full-page "No threads yet". Done threads are unarchived live shells,
-  // so the archived-at check already covers the done shelf.
   const hasAnyThreads =
     props.threads.some((thread) => thread.archivedAt === null) ||
     props.pendingTasks.length > 0 ||
     (threadListV2Layout.kind === "shelves" && threadListV2Layout.doneCount > 0);
-  // A hidden list gets no layout, so it never reports its rows as laid out.
   const hasRowsToLayOut = props.visible && hasAnyThreads && threadListV2Items.length > 0;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds the native launch splash, which is outside React, until the rows are gone or this list unmounts; a layout effect runs before the splash hides in this commit
   useLayoutEffect(() => {
@@ -848,7 +818,6 @@ export function HomeScreen(props: HomeScreenProps) {
                 recycleItems
                 itemLayoutAnimation={listMotion.layout}
                 extraData={v2ExtraData}
-                // Lifted above the rows so an iOS filter menu's dismissal morph is not covered.
                 ListHeaderComponentStyle={{ zIndex: 1 }}
                 ListHeaderComponent={
                   Platform.OS === "ios" ? props.listHeader : <HomeTopContentSpacer />

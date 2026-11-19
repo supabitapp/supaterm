@@ -16,7 +16,6 @@ export async function copySnapshot(src: string, text: string, fragment: string):
       type: "text/html",
     }),
   };
-  // Start writing within the click gesture, before the image fetch or decode completes.
   try {
     await navigator.clipboard.write([
       new ClipboardItem({
@@ -27,7 +26,6 @@ export async function copySnapshot(src: string, text: string, fragment: string):
       }),
     ]);
   } catch {
-    // HTML carries the same snapshot metadata when custom clipboard formats are unsupported.
     await navigator.clipboard.write([new ClipboardItem(formats)]);
   }
 }

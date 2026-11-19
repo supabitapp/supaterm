@@ -7,7 +7,6 @@ import { render } from "../../../test/render";
 
 import { getSyntaxHighlighterPromise } from "~/lib/syntaxHighlighting";
 
-// The pool starts its workers before showing any code, which can outlast a cold CI browser.
 vi.mock(import("~/components/DiffWorkerPoolProvider"), () => ({
   DiffWorkerPoolProvider: ({ children }: { children?: ReactNode }) => <>{children}</>,
 }));
@@ -17,7 +16,6 @@ import ReadOnlySourcePreview from "./ReadOnlySourcePreview";
 const LINE_COUNT = 301;
 const text = `${Array.from({ length: LINE_COUNT }, (_, index) => `line ${index + 1}`).join("\n")}\n`;
 
-// The browser ignores a copy event's data unless the event is cancelled, and copies the selection itself.
 function copiedText(target: Element) {
   const clipboardData = new DataTransfer();
   const handled = !target.dispatchEvent(
@@ -28,7 +26,6 @@ function copiedText(target: Element) {
 
 describe("ReadOnlySourcePreview", () => {
   it("copies the whole file after Select All, wherever the preview is scrolled", async () => {
-    // File paints nothing until the shared highlighter has loaded; once it has, mount renders synchronously.
     await getSyntaxHighlighterPromise("text");
     await using screen = await render(
       <div className="flex h-[400px] flex-col">
@@ -38,7 +35,6 @@ describe("ReadOnlySourcePreview", () => {
     const root = screen.container.querySelector("diffs-container")!.shadowRoot!;
     const rows = () => root.querySelectorAll("[data-line]");
     await vi.waitFor(() => expect(rows()[0]?.textContent).toBe("line 1"));
-    // Only rows near the viewport are mounted, so the browser's own copy would stop there.
     expect(rows().length).toBeLessThan(LINE_COUNT);
 
     await userEvent.click(rows()[0]!);
@@ -55,7 +51,6 @@ describe("ReadOnlySourcePreview", () => {
     await userEvent.keyboard("{ControlOrMeta>}a{/ControlOrMeta}");
     expect(copiedText(rows()[0]!)).toBe(text);
 
-    // A selection that stops inside the mounted rows at either end stays the browser's to copy.
     const pre = root.querySelector("pre")!;
     const firstText = rows()[0]!.querySelector("span")!.firstChild!;
     const lastText = rows()[rows().length - 1]!.querySelector("span")!.firstChild!;
@@ -132,7 +127,6 @@ describe("ReadOnlySourcePreview", () => {
     await vi.waitFor(() => expect(rows()[0]?.textContent).not.toBe("line 1"));
     expect(copiedText(rows()[0]!)).toContain("line 5\n");
 
-    // The first mounted row is where the scrolled-out selection is parked, far above the viewport.
     rows()[0]!.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, composed: true }));
     document.getSelection()!.collapse(rowText(0), 0);
     expect(copiedText(rows()[0]!)).toBeNull();
@@ -162,12 +156,10 @@ describe("ReadOnlySourcePreview", () => {
         buttons: type === "mouseReleased" ? 0 : 1,
         clickCount: 1,
       });
-    // Chromium starts a drag selection only in a focused page; the first click focuses it.
     await mouse("mousePressed", start.left + 1, start.top + 5);
     await mouse("mouseReleased", start.left + 1, start.top + 5);
     await mouse("mousePressed", start.left + 1, start.top + 5);
     await mouse("mouseMoved", start.left + 30, edge - 5);
-    // Held below the preview, the pointer is over no row while the browser scrolls the drag on.
     await mouse("mouseMoved", start.left + 30, edge + 60);
     await vi.waitFor(() => expect(rows()[0]?.textContent).not.toBe("line 1"), { timeout: 10_000 });
     await mouse("mouseReleased", start.left + 30, edge + 60);
@@ -175,7 +167,6 @@ describe("ReadOnlySourcePreview", () => {
     const copied = copiedText(rows()[0]!)!;
     const from = text.indexOf("line 5\n");
     expect(copied).toBe(text.slice(from, from + copied.length));
-    // The drag ends in the rows on screen, short of the last mounted one.
     const lastLine = 4 + copied.split("\n").length;
     expect(lastLine).toBeGreaterThan(50);
     expect(lastLine).toBeLessThan(Number(rows()[rows().length - 1]!.getAttribute("data-line")));

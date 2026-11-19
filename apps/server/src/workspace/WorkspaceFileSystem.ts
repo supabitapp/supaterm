@@ -31,7 +31,6 @@ import { toWslDrivePath } from "./wslDrivePath.ts";
 
 const PROJECT_READ_FILE_MAX_BYTES = 1024 * 1024;
 
-// NTFS reaches .git through trailing dots/spaces, stream suffixes and GIT~1; compare uppercased names.
 const isGitMetadataName = (segment: string) => {
   const name = (segment.split(":")[0] ?? "").replace(/[. ]+$/, "").toUpperCase();
   return name === ".GIT" || name === "GIT~1";
@@ -140,7 +139,6 @@ const UTF8_BOM = "\uFEFF";
 async function startsWithUtf8Bom(filePath: string): Promise<boolean> {
   const handle = await NodeFSP.open(
     filePath,
-    // O_NONBLOCK keeps a FIFO with no writer from hanging the save.
     NodeFS.constants.O_RDONLY |
       (NodeFS.constants.O_NOFOLLOW ?? 0) |
       (NodeFS.constants.O_NONBLOCK ?? 0),
@@ -176,11 +174,8 @@ export const make = Effect.gen(function* () {
       yield* toHostPath(requestedPath),
       yield* HostProcess.HomeDirectory,
     );
-    // Chips ask as soon as an agent's message renders, and touching a network
-    // path makes Windows sign in to its host with the user's NTLM credentials.
     if (!path.isAbsolute(expandedPath) || isNetworkPath(expandedPath)) return null;
     const stat = yield* fileSystem.stat(expandedPath).pipe(Effect.option);
-    // Server state files answer like missing paths, as readFile refuses them.
     if (stat._tag === "None" || (yield* isServerInternalPath(expandedPath))) return null;
     if (stat.value.type === "Directory") return { kind: "directory" } as const;
     if (stat.value.type !== "File") return { kind: "other" } as const;
@@ -220,7 +215,6 @@ export const make = Effect.gen(function* () {
     return { entries: input.paths.map((value) => byPath.get(value) ?? null) };
   });
 
-  /** Both paths must already be real paths. */
   const isInsideRealRoot = (realWorkspaceRoot: string, realPath: string) => {
     const relative = path.relative(realWorkspaceRoot, realPath);
     return !(
@@ -230,32 +224,22 @@ export const make = Effect.gen(function* () {
     );
   };
 
-  // Reject Git folders, including renamed bare repos whose config/hooks can execute; paths must be normalized.
-  // Stop at linked worktrees' .git files since worktrees can sit inside bare repos.
   const isInGitFolder = async (absolutePath: string) => {
     if (absolutePath.split(path.sep).some(isGitMetadataName)) return true;
     for (let folder = path.dirname(absolutePath); ; folder = path.dirname(folder)) {
       const [head, commondir, objects, refs, dotGit] = await Promise.all(
         ["HEAD", "commondir", "objects", "refs", ".git"].map((name) =>
           NodeFSP.lstat(path.join(folder, name)).catch((error: NodeJS.ErrnoException) => {
-            // Any other failure leaves the folder unknown, so the write is refused.
             if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
             throw error;
           }),
         ),
       );
-      // Git recognizes HEAD with commondir or objects/refs as a repository.
       if (head && (commondir || (objects && refs))) return true;
       if (dotGit?.isFile() || path.dirname(folder) === folder) return false;
     }
   };
 
-  /**
-   * Workspace-relative paths must stay inside the root, symlinks included. An
-   * absolute or `~/` path reads a host file in place, such as a report an agent
-   * wrote to a temp directory; it gets no root check. A network path does, since
-   * Windows signs in to its host with the user's NTLM credentials.
-   */
   const resolveReadTarget = Effect.fn("WorkspaceFileSystem.resolveReadTarget")(function* (
     input: ProjectReadFileInput,
   ) {
@@ -274,9 +258,6 @@ export const make = Effect.gen(function* () {
       });
     }
     if (path.isAbsolute(hostPath)) {
-      // Native realpath hands Windows a `\\?\` path as written, `..` included,
-      // so a network path must be the resolved one the check above approved.
-      // Others keep POSIX `link/..` semantics, which resolving first would change.
       const absolutePath = isNetworkPath(hostPath) ? path.resolve(hostPath) : hostPath;
       const realTargetPath = yield* Effect.tryPromise({
         try: () => NodeFSP.realpath(absolutePath),
@@ -316,7 +297,6 @@ export const make = Effect.gen(function* () {
           cause,
         }),
     }).pipe(
-      // Storage cleanup removes idle worktrees but keeps their path, so nothing below them exists.
       Effect.catchIf(
         (error) =>
           input.allowMissing === true && (error.cause as NodeJS.ErrnoException).code === "ENOENT",
@@ -342,8 +322,6 @@ export const make = Effect.gen(function* () {
             if (!input.allowMissing || (error as NodeJS.ErrnoException).code !== "ENOENT") {
               throw error;
             }
-            // Like writes, missing reads must check the nearest existing ancestor.
-            // An existing entry that cannot resolve is a dangling link, not absence.
             const exists = await NodeFSP.lstat(candidate).then(
               () => true,
               (cause: NodeJS.ErrnoException) => {
@@ -402,7 +380,6 @@ export const make = Effect.gen(function* () {
 
     return yield* Effect.acquireUseRelease(
       Effect.tryPromise({
-        // Non-blocking opens prevent FIFO hangs before stat rejects them; Windows lacks the flag.
         try: () =>
           NodeFSP.open(
             realTargetPath,
@@ -475,8 +452,6 @@ export const make = Effect.gen(function* () {
               resolvedPath: realTargetPath,
             });
           if (fileBytes.includes(0)) return yield* binaryFileError();
-          // Fatal decoding rejects invalid UTF-8, since U+FFFD contents would corrupt the file on save.
-          // Streaming decode drops a character the byte limit split, instead of rejecting it.
           const contents = yield* Effect.try({
             try: () =>
               new TextDecoder("utf-8", { fatal: true }).decode(fileBytes, { stream: truncated }),
@@ -502,7 +477,6 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  // Resolve existing ancestors and reject dangling links so creation cannot follow symlinks outside root.
   const resolveWriteTarget = Effect.fn("WorkspaceFileSystem.resolveWriteTarget")(function* (
     input: ProjectWriteFileInput,
   ) {
@@ -511,7 +485,6 @@ export const make = Effect.gen(function* () {
       relativePath: input.relativePath,
     });
     const realWorkspaceRoot = yield* Effect.tryPromise({
-      // Resolve `..` in cwd the way the relative path was resolved, before following links.
       try: () => NodeFSP.realpath(path.resolve(input.cwd)),
       catch: (cause) =>
         new WorkspaceFileSystemOperationError({
@@ -524,7 +497,6 @@ export const make = Effect.gen(function* () {
         }),
     });
 
-    // Split the host path, not the display relativePath: on POSIX `\` is a file name character.
     const segments = path.relative(input.cwd, target.absolutePath).split(path.sep);
     const realTargetPath = yield* Effect.tryPromise({
       try: async () => {
@@ -533,7 +505,6 @@ export const make = Effect.gen(function* () {
           try {
             return path.join(await NodeFSP.realpath(candidate), ...segments.slice(depth));
           } catch (error) {
-            // Only a missing entry is skipped; one that exists but cannot resolve is a dangling link.
             const exists = await NodeFSP.lstat(candidate).then(
               () => true,
               () => false,
@@ -553,7 +524,6 @@ export const make = Effect.gen(function* () {
           cause,
         }),
     });
-    // The path as named is checked too: a `.git/config` symlink resolves away the `.git`.
     const namedTargetPath = path.join(realWorkspaceRoot, ...segments);
     const inGitFolder = Effect.fn("WorkspaceFileSystem.inGitFolder")((checkedPath: string) =>
       Effect.tryPromise({
@@ -593,7 +563,6 @@ export const make = Effect.gen(function* () {
     const replacesFile = yield* fileSystem
       .exists(realTargetPath)
       .pipe(Effect.orElseSucceed(() => false));
-    // readFile decodes the BOM away, so an editor save would otherwise drop it from the file.
     const keepsBom =
       replacesFile &&
       !input.contents.startsWith(UTF8_BOM) &&
@@ -614,7 +583,6 @@ export const make = Effect.gen(function* () {
       ),
     );
     yield* Effect.tryPromise({
-      // A symlink swapped in after the check is not followed. Windows lacks O_NOFOLLOW.
       try: () =>
         NodeFSP.writeFile(realTargetPath, contents, {
           flag:
@@ -633,9 +601,6 @@ export const make = Effect.gen(function* () {
           cause,
         }),
     });
-    // Editor autosave overwrites existing files, which leaves the indexed paths unchanged, and
-    // fff's watcher applies the new contents on its own. A forced rescan re-walks the whole
-    // workspace, and the save would wait for it.
     if (!replacesFile) {
       yield* workspaceEntries.refresh(input.cwd);
     }

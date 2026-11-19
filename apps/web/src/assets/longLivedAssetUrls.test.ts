@@ -38,7 +38,6 @@ function setup(initial: MintResult) {
   const family = makeLongLivedAssetUrlFamily(() => query, { minLifeMs: 100, now: () => 1_000 });
   const atom = family({ environmentId, input: { resource } });
   let unmount = registry.mount(atom);
-  // Readers adopt any Success, waiting or not, as `assetUrlStateFromResult` does.
   const relativeUrl = () => {
     const value = registry.get(atom);
     return value._tag === "Success" ? value.value.relativeUrl : null;
@@ -49,7 +48,6 @@ function setup(initial: MintResult) {
     serve: (result: MintResult) => registry.set(server, result),
     remount: () => {
       unmount();
-      // Runs the idle-TTL disposal, so the next mount builds a fresh node.
       for (const task of tasks.splice(0)) task();
       unmount = registry.mount(atom);
     },

@@ -113,8 +113,6 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
       candidate.environmentId === initialProjectRef.environmentId &&
       candidate.id === initialProjectRef.projectId,
   );
-  // A project can drop out of the list and come back while its catalog stays ready. The checkout
-  // keeps the last project this route resolved, so that gap reads the same checkout.
   const [resolvedProject, setResolvedProject] = useState<Pick<
     NonNullable<typeof project>,
     "environmentId" | "workspaceRoot"
@@ -134,8 +132,6 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
   const needsPreparation = Boolean(initialProjectRef.branch && !pendingTaskId && !draftId);
   const waitingForProject = !project && catalogState.awaitingProjects;
 
-  // The checkout is keyed by its request, so a reconnect that drops and
-  // restores the project reads the same checkout instead of running another.
   const checkoutKey =
     needsPreparation && initialProjectRef.branch && !waitingForProject
       ? branchCheckoutRequestKey({
@@ -151,14 +147,10 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
     checkoutKey === null ? idleBranchCheckoutAtom : branchCheckouts.atom(checkoutKey),
   );
   const result = AsyncResult.isSuccess(checkout) ? checkout.value : null;
-  // The native-stack guard covers iOS swipe dismissal as well as back actions.
   const checkoutPending = needsPreparation && result === null;
   usePreventRemove(checkoutPending, () => undefined);
   const { preventedRoutes } = usePreventRemoveContext();
   const removalBlocked = preventedRoutes[currentRoute.key]?.preventRemove === true;
-  // Native-stack reads the provider's prevent state, which commits a render
-  // after usePreventRemove updates its registry; the deferred thread selection
-  // (and the failure goBack) must wait for that commit.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases the branch checkout to its route once native-stack has committed the prevent-remove state
   useEffect(() => {
     if (checkoutKey === null || checkoutPending || removalBlocked) return;
@@ -178,10 +170,6 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
       : null;
   const preparedBranch = prepared ? prepared.branch : initialProjectRef.branch;
   const preparedWorktreePath = prepared ? prepared.worktreePath : initialProjectRef.worktreePath;
-  // NewTaskDraftScreen re-applies the route project (and rewrites the draft's
-  // workspace) whenever this object's identity changes. initialProjectRef is new
-  // every render, so read its fields first: the compiler then memoizes this
-  // object on them, instead of on initialProjectRef.
   const { environmentId, projectId, cloning } = initialProjectRef;
   const preparedProjectRef = {
     environmentId,

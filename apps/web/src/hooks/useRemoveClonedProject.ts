@@ -18,7 +18,6 @@ export function useRemoveClonedProject() {
     const draftStore = useComposerDraftStore.getState();
     const result = await deleteProject({
       environmentId: projectRef.environmentId,
-      // Leave deletion unforced so a thread created since the failed clone cannot be silently deleted.
       input: { projectId: projectRef.projectId },
     });
     if (result._tag === "Failure") {
@@ -33,7 +32,6 @@ export function useRemoveClonedProject() {
       return false;
     }
     await waitForProjectRemoval(projectRef);
-    // Re-read the route after deletion; the user may have left this project.
     const routeParams = router.state.matches[router.state.matches.length - 1]?.params ?? {};
     const routeTarget = resolveThreadRouteTarget(routeParams);
     const viewingDraft =

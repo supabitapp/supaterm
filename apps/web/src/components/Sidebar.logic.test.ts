@@ -134,7 +134,6 @@ describe("resolveSidebarRowStatus", () => {
     const opened = { ...failed, lastVisitedAt: "2026-03-09T10:06:00.000Z" };
     expect(resolveSidebarRowStatus(opened)).toBe("ready");
     expect(hasUnseenCompletion(opened)).toBe(false);
-    // A runtime failure without a failed run has no date, so a visit cannot settle it.
     expect(resolveSidebarRowStatus({ ...opened, latestRun: null })).toBe("failed");
   });
 
@@ -989,7 +988,6 @@ describe("Working shelf", () => {
       key,
       section,
     });
-    // Pinned p1 | Active a1 a2 | Working w1 | Done s1
     const items: readonly SidebarListItem[] = [
       marker("pinned-header"),
       row("p1", "pinned"),
@@ -1272,7 +1270,6 @@ describe("Working shelf", () => {
           target: intoActive,
         }),
       ).toEqual({ kind: "move-active", unpin: false, reopen: true, unsnooze: false });
-      // A snoozed thread keeps its pin beneath the shelf; Active clears both.
       expect(
         planSidebarThreadDrop({
           ...base,
@@ -1292,7 +1289,6 @@ describe("pendingSidebarRouteReveal", () => {
     expect(pendingSidebarRouteReveal(reveal, "env:a1")).toBe("env:a1");
     completeSidebarRouteReveal(reveal);
 
-    // Back from Settings: location commits before the thread match does.
     expect(pendingSidebarRouteReveal(reveal, null)).toBeNull();
     expect(pendingSidebarRouteReveal(reveal, "env:a1")).toBeNull();
 
@@ -1326,7 +1322,6 @@ describe("resolveSidebarRouteReveal", () => {
   });
 
   it("never widens for a thread whose reveal already completed", () => {
-    // A remount's once-per-mount scroll must keep the scope the user chose.
     expect(
       resolveSidebarRouteReveal({
         reveal: { observedKey: hiddenKey, pendingKey: null },
@@ -1339,8 +1334,6 @@ describe("resolveSidebarRouteReveal", () => {
   });
 
   it("widens again for a thread reopened before the thread between them listed its row", () => {
-    // The user scoped away from the open thread, then went to a thread whose row
-    // never mounted, then came back.
     const reveal = { observedKey: hiddenKey, pendingKey: null };
     const resolve = (routeKey: string) =>
       resolveSidebarRouteReveal({

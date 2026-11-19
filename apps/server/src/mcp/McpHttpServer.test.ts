@@ -156,7 +156,6 @@ const serveSnapshots = (clientId: string, result: unknown) =>
     return inputs;
   });
 
-/** Records every span and the order spans start and end in, by span ID. */
 const recordSpans = () => {
   const spans: Array<Tracer.NativeSpan> = [];
   const order: Array<string> = [];
@@ -229,7 +228,6 @@ it.effect.each([
         error: { message, operation: "screenshot" },
       });
       expect(JSON.stringify(result)).not.toContain("private hub output");
-      // The tool's span names it, never its arguments.
       expect(
         traced.spans
           .filter((span) => span.name.startsWith("mcp.tool."))
@@ -731,7 +729,6 @@ it.effect(
     const calls: Array<unknown> = [];
     return Effect.gen(function* () {
       const thread = { threadId: "thread-clamped-arguments" };
-      // Codex never shows the model these bounds, so an over-large page must still read.
       yield* callTool("supaterm_thread_read", {
         ...thread,
         limit: 150,
@@ -765,7 +762,6 @@ it.effect.each(["limit", "runLimit", "maxCharsPerItem"])(
   (field) => {
     const calls: Array<unknown> = [];
     return Effect.gen(function* () {
-      // Zero is a different request than one item, so it fails rather than answering another question.
       const rejected = yield* callTool("supaterm_thread_read", {
         threadId: "thread-below-minimum",
         [field]: 0,
@@ -803,7 +799,6 @@ it.effect.each(clampedListLimits)(
 it("keeps cross-tool routing out of the delegate_task description", () => {
   const description = OrchestratorToolkit.tools.delegate_task.description ?? "";
   expect(description).toContain("Start one child agent with only `task`");
-  // Review rounds, follow-ups, and polling are routed in the system text.
   expect(description).not.toContain("supaterm_thread_send");
   expect(description).not.toContain("Do not poll");
   expect(description).not.toContain("Prefer native");
@@ -932,7 +927,6 @@ it.effect("keeps the snapshot text under the agent's output ceiling", () =>
       expect(parsed.consoleEntries[0]?.text).toBe("entry 60");
       expect(notice?.type === "text" ? notice.text : "").toContain("accessibilityTree");
       expect(notice?.type === "text" ? notice.text : "").toContain("60 older console entries");
-      // Claude Code shows the model structuredContent instead of the text, so it is bounded too.
       expect(snapshot.structuredContent).toEqual({
         ...parsed,
         omitted: expect.arrayContaining(["60 older console entries"]),
@@ -1312,7 +1306,6 @@ it.effect("admits provider and OAuth client credentials and points only clients 
         });
 
       expect((yield* call(providerToken)).status).toBe(200);
-      // The tool gets its own span, without its arguments, which starts once authentication has ended.
       const toolSpan = traced.spans.find((span) => span.name === "mcp.tool.probe");
       expect(Object.fromEntries(toolSpan?.attributes ?? [])).toEqual({
         "rpc.system": "mcp",
@@ -1347,7 +1340,6 @@ it.effect("admits provider and OAuth client credentials and points only clients 
       const deadProvider = yield* call("deadProviderToken");
       expect(deadProvider.status).toBe(401);
       expect(deadProvider.headers["www-authenticate"]).toBe('Bearer error="invalid_token"');
-      // A rejected credential is recorded on the auth span, and nothing is handled.
       const rejectedSpans = traced.spans.slice(spansBeforeRejection);
       expect(
         rejectedSpans
@@ -1360,7 +1352,6 @@ it.effect("admits provider and OAuth client credentials and points only clients 
         ),
       ).toEqual([]);
 
-      // A present, disallowed Origin is refused with 403 before credentials or CORS answer.
       const foreignOrigin = (method: "POST" | "OPTIONS", token: string | undefined) =>
         httpClient.execute(
           HttpClientRequest.make(method)("/mcp", {
@@ -1509,7 +1500,6 @@ it.effect("gives outside clients an upload URL on the origin their request reach
             resolve: () => Effect.undefined,
           }),
         ),
-        // Signs in the way an OAuth client such as a hosted ChatGPT app does.
         Layer.provide(
           Layer.succeed(McpHttpServer.McpClientAuthenticator)({
             authenticate: (request) =>
@@ -1765,7 +1755,6 @@ it.effect("lists optional tools to a deferring client only after tool_search loa
               })
               .pipe(
                 Effect.flatMap((response) => response.text),
-                // tool_search answers over SSE, after its list_changed notification.
                 Effect.map((text): unknown =>
                   text
                     .split("\n")
@@ -1793,7 +1782,6 @@ it.effect("lists optional tools to a deferring client only after tool_search loa
       const other = yield* session("otherToken", false);
       expect(yield* deferring.listed).toEqual(["delegate_task", "tool_search"]);
       expect(yield* other.listed).toEqual(["delegate_task", "preview_open", "schedule_task"]);
-      // Unlisted tools stay callable.
       expect((yield* deferring.call("schedule_task", {})).structuredContent).toEqual({});
 
       expect(

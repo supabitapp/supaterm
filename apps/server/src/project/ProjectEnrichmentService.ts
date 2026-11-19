@@ -19,7 +19,6 @@ const DEFAULT_CACHE_CAPACITY = 512;
 const DEFAULT_MAX_PENDING = 512;
 const DEFAULT_CONCURRENCY = 4;
 const DEFAULT_SUCCESS_TTL = Duration.minutes(1);
-// Frequent shell reads scan ~20 files per project; icons change rarely, so cache longer than identities.
 const DEFAULT_FAVICON_TTL = Duration.minutes(15);
 const DEFAULT_FAILURE_TTL = Duration.seconds(5);
 
@@ -90,9 +89,7 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
   const maxPending = Math.max(1, options.maxPending ?? DEFAULT_MAX_PENDING);
   const concurrency = Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY);
 
-  // Outlives the cache entry so an expired or refreshing identity still reads as its last value.
   const lastRepositoryIdentities = new Map<string, RepositoryIdentity>();
-  // `invalidate` drops a root's in-flight lookup so its late result cannot overwrite a newer one.
   const lookupsInFlight = new Map<string, object>();
   const rememberRepositoryIdentity = (
     workspaceRoot: string,
@@ -245,7 +242,6 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
     { concurrency: "unbounded", discard: true },
   );
 
-  // Every project read lands here; only an actual enqueue gets a span, the resolve workers trace the work.
   const requestLane = Effect.fnUntraced(function* (
     lane: EnrichmentWorkLane,
     workspaceRoot: string,
@@ -263,7 +259,6 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
     }).pipe(Effect.withSpan("ProjectEnrichmentService.requestLane"));
   });
 
-  // peek/request/getAvailable run per project on every shell read, inside the caller's span; own spans were ~0ms noise.
   const peek: ProjectEnrichmentService["Service"]["peek"] = Effect.fnUntraced(
     function* (workspaceRoot) {
       const [repositoryIdentity, faviconPath] = yield* Effect.all(
@@ -324,7 +319,6 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
               lastRepositoryIdentities.delete(workspaceRoot);
             }),
             Cache.invalidate(faviconCache, workspaceRoot),
-            // The resolver keeps its own misses, which would outlive a clone filling the folder.
             faviconResolver.invalidate(workspaceRoot),
           ],
           { concurrency: "unbounded", discard: true },
@@ -335,8 +329,6 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
 
   const refreshRepositoryIdentity: ProjectEnrichmentService["Service"]["refreshRepositoryIdentity"] =
     Effect.fn("ProjectEnrichmentService.refreshRepositoryIdentity")(function* (workspaceRoot) {
-      // Remote-less folders hit this after every turn; publishing their unchanged null would
-      // push a shell frame to every subscriber.
       if ((yield* repositoryIdentityResolver.resolve(workspaceRoot, { refresh: true })) === null) {
         return;
       }

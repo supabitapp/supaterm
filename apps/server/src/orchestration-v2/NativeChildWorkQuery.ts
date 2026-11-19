@@ -91,7 +91,6 @@ const make = Effect.gen(function* () {
         rootSessionId,
         nativeTaskId,
         launch: { title: subagent.title, prompt: subagent.prompt },
-        // Only batches from the same agent session can share its records.
         siblings: others.flatMap((other) => {
           const id = other.nativeTaskRef?.nativeId;
           return id && providerThreadOf(other.runId)?.nativeThreadRef?.nativeId === rootSessionId

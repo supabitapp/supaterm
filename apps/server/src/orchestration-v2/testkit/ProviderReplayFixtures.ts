@@ -22,9 +22,6 @@ import {
 } from "./ProviderReplayHarness.ts";
 import { materializeReplayTranscriptRuntimeInstructions } from "./ReplayRuntimeInstructions.ts";
 
-// Each driver's fixtures run from its own <Provider>ReplayFixtures.integration.test.ts,
-// so a focused run loads one adapter. A fixture for a driver missing here would
-// silently never run, so loading this module fails instead.
 const DRIVERS_WITH_REPLAY_FIXTURE_FILES = new Set([
   "acpRegistry",
   "claudeAgent",
@@ -174,7 +171,6 @@ const runFixtureProvider = Effect.fn("runOrchestratorReplayFixture")(function* <
   const projection = result.projections.get(projectionThreadId);
   assert.isDefined(projection);
   const latestRun = projection.runs.at(-1);
-  // A `set_model` step moves later runs to another model of the same instance.
   const finalModel = fixtureInput.steps.findLast((step) => step.type === "set_model");
   assert.deepEqual(
     latestRun?.modelSelection,

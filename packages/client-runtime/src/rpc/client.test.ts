@@ -292,7 +292,6 @@ describe("environment RPC", () => {
       yield* SubscriptionRef.set(activeSession, Option.some(session(secondClient)));
 
       yield* Queue.take(subscribed);
-      // The pending same-session retry must not resubscribe the replaced session.
       yield* TestClock.adjust("1 minute");
       yield* Fiber.interrupt(subscriptionFiber);
 
@@ -301,8 +300,6 @@ describe("environment RPC", () => {
     }),
   );
 
-  // The session stays healthy (`closed` never resolves), as when one stream chunk fails to decode,
-  // so the supervisor will not replace it and only resubscribing restores delivery.
   const resumesOnTheSameSession = Effect.fn("TestEnvironmentRpc.resumesOnTheSameSession")(
     function* (streamFailure: Stream.Stream<never, unknown>) {
       const resumedValue = { source: "resumed" } as unknown as ServerLifecycleStreamEvent;
@@ -354,7 +351,6 @@ describe("environment RPC", () => {
   );
 
   it.effect("resubscribes on the same session after a stream chunk fails to decode", () =>
-    // Mirrors RpcClient, which decodes each chunk with `Effect.orDie`.
     resumesOnTheSameSession(
       Stream.fromEffect(decodeNumber("not a number").pipe(Effect.orDie)).pipe(Stream.drain),
     ),
@@ -364,7 +360,6 @@ describe("environment RPC", () => {
     "backs off a same-session stream that keeps failing to decode after its first value",
     () =>
       Effect.gen(function* () {
-        // Like the shell stream: a valid value (metadata) arrives, then a chunk fails to decode.
         const value = { source: "metadata" } as unknown as ServerLifecycleStreamEvent;
         const decodeDefect = decodeNumber("not a number").pipe(Effect.orDie);
         const subscriptions = yield* Queue.unbounded<{
@@ -414,7 +409,6 @@ describe("environment RPC", () => {
           previous = next;
         }
 
-        // A replacement session starts a fresh backoff.
         yield* SubscriptionRef.set(activeSession, Option.some(session(failingClient("second"))));
         const replaced = yield* Queue.take(subscriptions);
         yield* TestClock.adjust(250);
@@ -559,7 +553,6 @@ describe("environment RPC", () => {
         expect(expectedFailureCount).toBe(0);
         expect(observedDefects).toEqual([defect]);
 
-        // Let the defect settle before the next session arrives, as it does on a real device.
         yield* TestClock.adjust("1 second");
         expect(subscriptionFiber.pollUnsafe()).toBeUndefined();
         yield* SubscriptionRef.set(activeSession, Option.some(session(secondClient)));

@@ -11,15 +11,12 @@ import type * as NodeChildProcess from "node:child_process";
 import * as NodeModule from "node:module";
 import { vi } from "vite-plus/test";
 
-// electron-updater requires Electron natively, outside vi.mock's reach, and builds its
-// autoUpdater singleton as soon as it is imported.
 vi.hoisted(() => {
   const NodeModule = process.getBuiltinModule("node:module");
   const NodeEvents = process.getBuiltinModule("node:events");
   const NodeUrl = process.getBuiltinModule("node:url");
   const require = NodeModule.createRequire(import.meta.url);
   const electronPath = require.resolve("electron");
-  // The global virtual store links electron-updater without Electron beside it.
   NodeModule.registerHooks({
     resolve: (specifier, context, nextResolve) =>
       specifier === "electron"
@@ -85,9 +82,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
           },
         });
 
-        // Electron's main process holds the AppImage runtime's keepalive pipe and some
-        // Chromium files without O_CLOEXEC. Node cannot hold such a descriptor, so the
-        // relaunch runs with fd 7 opened that way to stand in for them.
         const relaunched = yield* Deferred.make<void>();
         const realSpawn = childProcess.spawn;
         yield* Effect.acquireRelease(

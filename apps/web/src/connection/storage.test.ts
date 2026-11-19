@@ -128,7 +128,6 @@ describe("ConnectionStorage.makeCatalogBackend", () => {
         error: null as DOMException | null,
         objectStore: () => ({
           put: () => {
-            // A failed commit aborts the transaction without an "error" event.
             queueMicrotask(() => {
               transaction.error = new DOMException("Quota exceeded", "QuotaExceededError");
               transaction.dispatchEvent(new Event("abort"));
@@ -210,7 +209,6 @@ describe("IndexedDB connection closed without a close event", () => {
       const closing = Object.assign(new EventTarget(), {
         close: vi.fn(),
         transaction: () => {
-          // Chromium force-closed this connection; this tab never saw "close".
           throw new DOMException("The database connection is closing.", "InvalidStateError");
         },
       }) as unknown as IDBDatabase;

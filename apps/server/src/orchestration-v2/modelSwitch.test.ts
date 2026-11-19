@@ -36,7 +36,6 @@ const shown = (...messages: ReadonlyArray<string>) =>
 
 describe("modelSwitchSince", () => {
   it("measures from the latest run whose message is in the timeline", () => {
-    // B failed before it started; its message shows "a -> b", so the next one must show "b -> a".
     expect(
       modelSwitchSince(
         {
@@ -96,7 +95,6 @@ describe("modelSwitchSince", () => {
 
   it("records nothing for a first run or an unchanged selection", () => {
     expect(modelSwitchSince({ runs: [], turnItems: [] }, selection("a"))).toEqual({});
-    // A fork's first message compares with the run it forked from.
     expect(modelSwitchSince({ runs: [], turnItems: [] }, selection("a"), selection("b"))).toEqual({
       modelSwitch: { from: selection("b"), to: selection("a") },
     });

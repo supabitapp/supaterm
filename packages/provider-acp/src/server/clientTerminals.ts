@@ -55,14 +55,12 @@ function trimOutputStart(state: OutputBufferState, bytes: number): void {
 function appendOutput(state: OutputBufferState, chunk: Uint8Array): void {
   state.chunks.push(chunk);
   state.bytes += chunk.byteLength;
-  // The spec requires truncation from the beginning of the output.
   if (state.bytes > state.limit) trimOutputStart(state, state.bytes - state.limit);
 }
 
 function readOutput(state: OutputBufferState): string {
   let combined: Uint8Array = NodeBuffer.Buffer.concat(state.chunks, state.bytes);
   if (state.truncated) {
-    // The spec requires truncation at a UTF-8 character boundary.
     let start = 0;
     while (start < combined.byteLength && (combined[start]! & 0b1100_0000) === 0b1000_0000) {
       start += 1;
@@ -268,8 +266,6 @@ export const makeAcpClientTerminals = Effect.fn("makeAcpClientTerminals")(functi
               ),
             },
             exit: yield* Deferred.make<EffectAcpSchema.WaitForTerminalExitResponse>(),
-            // The spawner only applies the command's forceKillAfter on scope close;
-            // an explicit kill must pass it or a SIGTERM-ignoring command never exits.
             kill: child.kill({ forceKillAfter }).pipe(Effect.ignore),
             dispose: Scope.close(terminalScope, Exit.void).pipe(Effect.ignore),
             exitStatus: undefined,
@@ -279,7 +275,6 @@ export const makeAcpClientTerminals = Effect.fn("makeAcpClientTerminals")(functi
 
           const pump = (stream: typeof child.stdout) =>
             stream.pipe(
-              // Keep each pipe's UTF-8 decoder independent and preserve literal BOMs.
               Stream.pipeThroughChannel(Channel.decodeText("utf-8", { ignoreBOM: true })),
               Stream.encodeText,
               Stream.runForEach((chunk) =>
@@ -302,7 +297,6 @@ export const makeAcpClientTerminals = Effect.fn("makeAcpClientTerminals")(functi
                 Effect.all([Fiber.join(stdoutPump), Fiber.join(stderrPump)], {
                   discard: true,
                 }).pipe(
-                  // A background child can inherit the pipes and hold them open indefinitely.
                   Effect.timeoutOption(OUTPUT_DRAIN_GRACE),
                   Effect.andThen(
                     Effect.sync(() => {

@@ -60,7 +60,6 @@ const makeFakePi = (
         ChildProcess.isStandardCommand(command) && command.args.includes("--version");
       return Effect.succeed(
         ChildProcessSpawner.makeHandle({
-          // Outside the valid pid range, so PiRpc's process-group kill never lands.
           pid: ChildProcessSpawner.ProcessId(999_999_999),
           exitCode: versionProbe ? Effect.succeed(ChildProcessSpawner.ExitCode(0)) : Effect.never,
           isRunning: Effect.succeed(true),

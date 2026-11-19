@@ -190,7 +190,6 @@ export default function FileBrowserPanel({
   const treeSelectionPathRef = useRef<string | null>(null);
   const handledRevealRef = useRef<{ path: string; revealId: number } | null>(null);
 
-  // Shadow-DOM row rects are unreliable; capture the composed contextmenu event's viewport position.
   const contextMenuPointerRef = useRef<{ x: number; y: number; at: number } | null>(null);
 
   const showEntryContextMenu = useStableCallback(
@@ -210,7 +209,6 @@ export default function FileBrowserPanel({
         : { x: anchorRect.left, y: anchorRect.bottom };
       const fileTarget = { environmentId, filePath: relativePath, workspaceRoot: cwd };
       const fileMenuItems = fileContextMenu.buildItems(fileTarget);
-      // The app menu owns focus; the tree's outside-click handler would dismiss it before click.
       context.close({ restoreFocus: !pointerIsFresh });
       void settlePromise(async () => {
         const clicked = await api.contextMenu.show(
@@ -222,7 +220,6 @@ export default function FileBrowserPanel({
           position,
         );
         if (clicked === null) return;
-        // Open-with submenu ids are absent from the top-level item list.
         const isFileMenuAction =
           fileMenuItems.some((entry) => entry.id === clicked) || clicked.startsWith("editor:");
         if (isFileMenuAction) {
@@ -286,7 +283,6 @@ export default function FileBrowserPanel({
     initialExpansion: "closed",
     icons: SUPATERM_PIERRE_ICONS,
     onSelectionChange: (selectedPaths) => {
-      // Update drag selection even for reveals so subsequent drags cannot use stale paths.
       dragMention.handleSelectionChange(selectedPaths);
       if (syncingSelectionRef.current) return;
       if (dragMention.isDragInProgress()) {
@@ -341,7 +337,6 @@ export default function FileBrowserPanel({
     searchInputRef.current?.select();
   };
   const onPanelAction = useEffectEvent((action: PreviewAction) => {
-    // Hidden panel tabs stay mounted; only the visible Files tab answers.
     if (action === "find" && searchInputRef.current?.getClientRects().length) focusSearch();
   });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the panel find command, which fires while focus is anywhere in the right panel
@@ -351,7 +346,6 @@ export default function FileBrowserPanel({
   }, [answersPanelFind]);
   const expandedPathsRef = useRef(new Set<string>());
   const expansionRoot = `${environmentId}:${cwd}`;
-  // Folders expanded when the panel last unmounted; each reopens once lazy loading lists it.
   const [pendingExpandedPaths] = useState(() => new Set(readExpandedDirectories(expansionRoot)));
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to the Pierre tree model to load directories as they are expanded
   useEffect(() => {
@@ -359,7 +353,6 @@ export default function FileBrowserPanel({
     for (const path of expandedPathsRef.current) {
       if (!currentPaths.has(path)) expandedPathsRef.current.delete(path);
     }
-    // Restoring calls item.expand(), which notifies subscribers synchronously.
     const loadExpanded = coalesceReentrantCalls(() => {
       if (model.isSearchOpen()) return;
       let changed = false;
@@ -444,7 +437,6 @@ export default function FileBrowserPanel({
     }
     const updates = buildFileTreePathUpdates(previousTreePaths, treePaths);
     if (shouldRebuildFileTree(previousTreePaths, treePaths, updates)) {
-      // A reset keeps old search matches, so search closes first and recomputes afterwards.
       const activeSearch = model.isSearchOpen() ? model.getSearchValue() : null;
       if (activeSearch !== null) model.closeSearch();
       model.resetPaths(treePaths, { initialExpandedPaths: [...expandedPathsRef.current] });
@@ -473,7 +465,6 @@ export default function FileBrowserPanel({
     }
     const revealRequest = { path: selectedPath, revealId: selectedPathRevealId };
     const handledReveal = handledRevealRef.current;
-    // Refresh rebuilds treePaths; replaying handled reveals would close search and steal focus.
     if (
       handledReveal?.path === revealRequest.path &&
       handledReveal.revealId === revealRequest.revealId
@@ -484,7 +475,6 @@ export default function FileBrowserPanel({
     const selectedItem = model.getItem(selectedTreePath);
     if (!selectedItem) return;
 
-    // Reveal only external selections; tree selections are visible and re-revealing would close search.
     const selectedInTree = model
       .getSelectedPaths()
       .some((path) => path.replace(/\/$/, "") === selectedPath);
@@ -503,7 +493,6 @@ export default function FileBrowserPanel({
       model.getItem(path)?.deselect();
     }
 
-    // Directory paths include trailing slashes; ancestor lookups must match.
     const segments = selectedPath.split("/");
     let ancestorPath = "";
     for (const segment of segments.slice(0, -1)) {
@@ -528,11 +517,9 @@ export default function FileBrowserPanel({
     <div
       className="flex min-h-0 flex-1 flex-col bg-background"
       data-file-browser-panel={`${environmentId}:${cwd}`}
-      // Capture runs before the tree's shadow-internal row handler opens the menu.
       onContextMenuCapture={(event) => {
         contextMenuPointerRef.current = { x: event.clientX, y: event.clientY, at: event.timeStamp };
       }}
-      // Capture dragstart before the tree selects the row so selection sees the drag flag.
       onDragStartCapture={(event) => dragMention.handleDragStart(event.nativeEvent)}
       onDragEnd={() => dragMention.handleDragEnd((path) => model.getItem(path)?.deselect())}
       onKeyDown={(event) => {

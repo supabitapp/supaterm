@@ -53,7 +53,6 @@ describe("resolveBrowserViewportTransform", () => {
       ?.match(/^matrix3d\((.*)\)$/)?.[1]
       ?.split(",")
       .map(Number);
-    // Column-major: the x and y columns keep their 0.6 screen terms and reach length 1 through z.
     expect(values?.slice(0, 2)).toEqual([0.6, 0]);
     expect(values?.slice(4, 6)).toEqual([0, 0.6]);
     expect(Math.hypot(...(values?.slice(0, 3) ?? []))).toBeCloseTo(1);

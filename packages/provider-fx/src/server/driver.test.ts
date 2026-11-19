@@ -33,7 +33,6 @@ const layerTest = TestProviderHost.layer({ runBackgroundWork: false }).pipe(
   ),
 );
 
-/** Records each spawned command and answers only `--version`. */
 function recordingSpawner(launches: Array<string>) {
   return ChildProcessSpawner.make((command) => {
     const standard = ChildProcess.isStandardCommand(command);

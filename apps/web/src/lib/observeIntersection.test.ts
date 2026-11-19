@@ -71,7 +71,6 @@ describe("observeIntersection", () => {
     observer!.emit(target, true);
 
     observeIntersection(target, late);
-    // The browser answers a re-observe with the unchanged state.
     observer!.emit(target, true);
 
     expect(early).toHaveBeenCalledTimes(1);

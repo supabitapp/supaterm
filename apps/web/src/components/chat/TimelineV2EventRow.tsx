@@ -81,7 +81,6 @@ const V2SubagentGroup = memo(function V2SubagentGroup({
   return (
     <WorkLogBlock continues={row.continuesWorkLog}>
       <Collapsible open={expanded} onOpenChange={toggleExpanded} data-subagent-group>
-        {/* pr-3.25 matches the panel border, padding, and row inset so the times line up. */}
         <CollapsibleTrigger
           aria-label={label}
           aria-description={statusSummary}

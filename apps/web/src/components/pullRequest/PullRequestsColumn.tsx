@@ -29,10 +29,6 @@ function ExpandableSearch({
   searchValue: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /**
-   * An unmount fires no blur, which is the point: whoever unmounted this can still see the reader
-   * was mid-typing and move the focus somewhere that continues the sentence.
-   */
   onFocusWithin?: (focused: boolean) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -123,8 +119,6 @@ export function PullRequestsColumn({
     observer.observe(marker);
     return () => observer.disconnect();
   }, [scrollRef]);
-  // Typing into the topbar search narrows the list, and a short enough list un-scrolls the
-  // page — which dissolves the condensed topbar and unmounts the very input being typed in.
   const topbarSearchFocusedRef = useRef(false);
   const inFlowSearchRef = useRef<HTMLDivElement | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -137,7 +131,6 @@ export function PullRequestsColumn({
       if (event.key.toLowerCase() !== "f" || !(event.metaKey || event.ctrlKey)) return;
       if (event.altKey || event.shiftKey) return;
       event.preventDefault();
-      // A closed topbar search has no input yet; opening it mounts one that focuses itself.
       if (condensed) setSearchOpen(true);
       const input = (condensed ? topbarSearchRef : inFlowSearchRef).current?.querySelector("input");
       input?.focus();

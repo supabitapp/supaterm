@@ -26,12 +26,9 @@ function ThreadProbe(props: { threadId: string }) {
   );
 }
 
-// regression: #27195 double-clicking another thread's row lost its rename field to the composer
 it("keeps the sidebar rename input when a double-click opens another thread", async () => {
-  // The first render schedules the frame.
   using _frames = fakeTimers();
   await using screen = await render(<ThreadProbe threadId="alpha" />, {
-    // A bare hook probe; nothing here navigates.
     router: false,
   });
   await act(() => vi.advanceTimersToNextFrame());

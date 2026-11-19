@@ -311,8 +311,6 @@ describe("index.html boot script", () => {
 
   it("keeps every built-in boot splash in sync with the real palettes", () => {
     for (const theme of BUILT_IN_THEMES) {
-      // Every built-in carries one appearance, so it boots in that mode even
-      // when the global mode asks for the other one.
       for (const mode of ["light", "dark"] as const) {
         const boot = runBootScript({
           storage: {

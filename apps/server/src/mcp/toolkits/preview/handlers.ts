@@ -36,10 +36,6 @@ import * as McpToolAccess from "../../McpToolAccess.ts";
 import * as PreviewAutomationBroker from "../../PreviewAutomationBroker.ts";
 import { PreviewSnapshotToolkit, PreviewStandardToolkit, PreviewToolkit } from "./tools.ts";
 
-/**
- * Defaults tab reuse but leaves an unstated `open` unstated: that is the user's desktop-local
- * `browserAgentOpenTarget` preference, which filling in `true` here would override.
- */
 function normalizePreviewOpenInput(input: PreviewAutomationOpenInput): PreviewAutomationOpenInput {
   return {
     ...input,
@@ -193,7 +189,6 @@ const handlers = {
   preview_status: McpToolAccess.readsAsCaller((input) =>
     invokeTargeted<PreviewAutomationStatus>("status", input ?? {}),
   ),
-  // Models often pass a dev server as both `url` and `target`; the target knows the environment.
   preview_open: McpToolAccess.actsAsCaller(({ target, url, ...input }) =>
     Effect.gen(function* () {
       const opened = yield* invokeTargeted<PreviewAutomationStatus>(
@@ -220,7 +215,6 @@ const handlers = {
   ),
   preview_snapshot: McpToolAccess.readsAsCaller((input) => {
     const { includeImage, save, ...operationInput } = input ?? {};
-    // The saved file is for people, so it keeps the resolution the agent's image is capped below.
     return invokeTargeted<PreviewAutomationSnapshot | PreviewAutomationSnapshotMetadata>(
       "snapshot",
       {

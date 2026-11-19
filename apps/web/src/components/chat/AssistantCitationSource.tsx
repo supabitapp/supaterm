@@ -206,7 +206,6 @@ function observeAssistantCitationSource({
       if (rect.bottom <= scrollRect.top || rect.top >= scrollRect.bottom) return;
       activation.scrolled = true;
       request.onComplete();
-      // Screen readers follow focus, not scroll; leave someone already typing alone.
       const active = root.ownerDocument.activeElement;
       if (
         !(active instanceof HTMLElement) ||
@@ -317,7 +316,6 @@ function observeAssistantCitationSource({
     if (scrolling) {
       scrolling = false;
       void list.scrollToOffset({
-        // Legend may defer reading the offset until after the user scrolls.
         get offset() {
           return scrollNode.scrollTop;
         },

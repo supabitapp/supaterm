@@ -26,7 +26,6 @@ const SOLID_HEADER_OPTIONS: AppScreenOptions = {
 function headerOptions(header: HeaderStyle, itemStyle: "editor" | "standard"): AppScreenOptions {
   if (header === "none") return { headerShown: false };
   if (header === "glass") {
-    // The editor style needs liquid glass, which GLASS_HEADER_OPTIONS already gates it on.
     return itemStyle === "editor"
       ? GLASS_HEADER_OPTIONS
       : { ...GLASS_HEADER_OPTIONS, unstable_navigationItemStyle: undefined };

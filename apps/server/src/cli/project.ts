@@ -230,7 +230,6 @@ const makeProjectCliRuntimeLayer = (layerProjectService: typeof RuntimeLayer.lay
     ),
     Layer.provideMerge(WorkspacePaths.layer),
     Layer.provideMerge(ServerSettings.layer.pipe(Layer.provide(ServerSecretStore.layer))),
-    // Built after acquireServerOwnership; layerCliConfig would contend with this process's own lock.
     Layer.provideMerge(SqlitePersistence.layerConfig),
   );
 
@@ -306,8 +305,6 @@ const findActiveProjectTarget = Effect.fn("findActiveProjectTarget")(function* (
   const normalizedWorkspaceRootResult = yield* Effect.result(
     normalizeWorkspaceRootForProjectCommand(trimmedIdentifier),
   );
-  // A stored workspace path still identifies its project after the directory is gone, so a
-  // relative or trailing-slash path resolves the same way it would while the directory exists.
   const normalizedWorkspaceRoot =
     normalizedWorkspaceRootResult._tag === "Success"
       ? normalizedWorkspaceRootResult.success
@@ -448,7 +445,6 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
       );
     }
 
-    // Before ownership and clearing, so a failed import leaves server state alone.
     const { layerProjectService } = yield* Effect.promise(
       () => import("../orchestration-v2/runtimeLayer.ts"),
     );
@@ -457,7 +453,6 @@ const runProjectMutation = Effect.fn("runProjectMutation")(function* (
       Layer.provide(Layer.succeed(References.MinimumLogLevel, minimumLogLevel)),
     );
 
-    // An unreachable server may still be running; never write behind it.
     yield* ServerOwnership.acquireServerOwnership(config.serverRuntimeStatePath).pipe(
       Effect.provide(ProcessRunner.layer),
     );
@@ -508,7 +503,6 @@ const projectAddCommand = Command.make("add", {
         const existingProject = snapshot.projects.find(
           (project) => project.deletedAt === null && project.workspaceRoot === workspaceRoot,
         );
-        // Re-adding an archived project's folder restores it, matching the clients.
         if (existingProject?.archivedAt != null) {
           const title = Option.isSome(flags.title)
             ? yield* resolveProjectTitle(workspaceRoot, flags.title.value)

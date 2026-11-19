@@ -14,7 +14,6 @@ import { orchestrationEnvironment } from "../../state/orchestration";
 import { useEnvironmentQuery } from "../../state/query";
 import { useInitialOutputReady } from "./timelineRowContext";
 
-// Within this many pixels of the end still counts as following the output.
 const FOLLOW_SLACK_PX = 8;
 
 /**
@@ -26,7 +25,6 @@ export function useCommandOutputStreaming(
   projectedItem: OrchestrationV2ProjectedTurnItem,
 ): boolean {
   const isCommand = projectedItem.item.type === "command_execution";
-  // Shares the panel's subscription, and re-renders only when availability changes.
   const unavailable = useAtomValue(
     isCommand
       ? orchestrationEnvironment.v2.commandOutput({
@@ -53,12 +51,10 @@ export function CommandOutputPanel(props: {
   const { data, error } = useEnvironmentQuery(props.output);
   useInitialOutputReady(data === null && !error, props.onInitialOutputReady);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Follow new output until the reader scrolls up; scrolling back down resumes.
   const followRef = useRef(true);
   const text = data?.output.text ?? "";
   const { resolvedTheme } = useTheme();
 
-  // This panel only re-renders when its output changes, so keep the end in view after each.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pins the output scroller's scrollTop to the bottom after each commit while the user follows
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -71,9 +67,7 @@ export function CommandOutputPanel(props: {
     const label = data.running ? props.waitingLabel : "No output.";
     return label === undefined ? null : <div className="text-muted-foreground italic">{label}</div>;
   }
-  // Parsed after the layout effect, the last hook, so the compiler caches it on text and theme.
   const spans = terminalOutputSpans(text, TERMINAL_PALETTES[resolvedTheme]);
-  // Fills a parent with a fixed height, and sizes to its output up to max-h-80 otherwise.
   return (
     <div className="flex h-full flex-col">
       <div
@@ -90,8 +84,7 @@ export function CommandOutputPanel(props: {
           span.style === null ? (
             span.text
           ) : (
-            // Spans are rebuilt from scratch on every update and never reorder.
-            // oxlint-disable-next-line react/no-array-index-key
+            // oxlint-disable-next-line react/no-array-index-key -- Spans are rebuilt from scratch on every update and never reorder.
             <span key={index} style={span.style}>
               {span.text}
             </span>

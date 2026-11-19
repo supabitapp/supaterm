@@ -29,8 +29,6 @@ export class DesktopCliCommandError extends Schema.TaggedError<DesktopCliCommand
 
 const userCandidates = (home: string) => [`${home}/.local/bin`, `${home}/bin`];
 
-// Older builds also linked into these macOS folders. Such a link is found, updated in place, and
-// removed, but no new link goes there.
 const knownLocations = (home: string, platform: NodeJS.Platform) =>
   platform === "darwin"
     ? [...userCandidates(home), "/opt/homebrew/bin", "/usr/local/bin"]
@@ -79,7 +77,6 @@ export const make = Effect.gen(function* () {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const path = environment.path;
   const windows = environment.platform === "win32";
-  // Read the live env: shell discovery patches PATH after startup.
   const env = yield* HostProcess.Environment;
   const launcher = DesktopCliShim.launcherPath(environment);
   const binDirectory = path.dirname(launcher);
@@ -111,9 +108,7 @@ export const make = Effect.gen(function* () {
     Effect.orElseSucceed(() => false),
   );
 
-  // PATH can reach the regular launcher directly; removal still requires isOurLink.
   const runsOurLauncher = Effect.fn("DesktopCliCommand.runsOurLauncher")(
-    // Another Supaterm home's link is marked too, so compare where it leads, not the marker alone.
     function* (candidate: string) {
       const [resolved, ours] = yield* Effect.all([fs.realPath(candidate), fs.realPath(launcher)]);
       if (resolved !== ours) return false;
@@ -143,7 +138,6 @@ export const make = Effect.gen(function* () {
         return stdout;
       }),
     );
-  // Explicit, so an inherited SUPATERM_SET=1 can never turn a read into a PATH write.
   const readUserPath = powershell({ SUPATERM_SET: "0" }).pipe(
     Effect.map((encoded) => Buffer.from(encoded.trim(), "base64").toString("utf8")),
     Effect.mapError(() => fail("Could not read your PATH, so it was left unchanged.")),
@@ -174,7 +168,6 @@ export const make = Effect.gen(function* () {
     return first;
   });
 
-  /** A link to this home's launcher; another home's link is marked too. */
   const leadsHere = (link: string) =>
     fs.readLink(link).pipe(
       Effect.map((target) => target === launcher),
@@ -200,7 +193,6 @@ export const make = Effect.gen(function* () {
     const setup = pathSetup({
       directory: path.dirname(installedPath),
       home: environment.homeDirectory,
-      // A Finder or desktop launch may not set SHELL.
       shell: env.SHELL || readUserLoginShell(),
       platform: environment.platform,
       configHome: env.XDG_CONFIG_HOME,
@@ -229,7 +221,6 @@ export const make = Effect.gen(function* () {
     }
     const launcherPath = (yield* exists(launcher)) ? launcher : null;
     const found = yield* installedAt;
-    // Our link into another Supaterm home is not this app's command; Install updates it in place.
     const installed =
       windows || (Option.isSome(found) && (yield* leadsHere(found.value)))
         ? found
@@ -242,8 +233,6 @@ export const make = Effect.gen(function* () {
     const onPath = windows
       ? Option.isSome(installed)
       : Option.isSome(first) && (yield* runsOurLauncher(first.value));
-    // Only a folder missing from PATH, with no other supaterm first: with one, the added folder (last
-    // on PATH) would still not run this supaterm.
     const setup =
       onPath ||
       Option.isSome(shadowedBy) ||
@@ -285,7 +274,6 @@ export const make = Effect.gen(function* () {
     if (!environment.isPackaged) return yield* fail("The supaterm command needs an installed app.");
     yield* ensureLauncher;
     if (windows) {
-      // PATH would split the folder at the `;`, leaving two wrong entries behind.
       if (binDirectory.includes(";")) {
         return yield* fail(
           `Supaterm cannot put ${binDirectory} on PATH because it has a ";". Run ${launcher} directly.`,
@@ -315,14 +303,11 @@ export const make = Effect.gen(function* () {
       if (Option.getOrUndefined(target) === launcher) return yield* state;
     }
     const shadowedBy = yield* foreignFirstOnPath;
-    // Our own link into another Supaterm home runs first too; it is the one this install updates.
     if (Option.isSome(shadowedBy) && shadowedBy.value !== replaced) {
       return yield* fail(
         `Another supaterm at ${shadowedBy.value} runs first in a new terminal. Remove it, or run the launcher directly at ${launcher}.`,
       );
     }
-    // An old link of ours is updated where it is, so a supaterm that works now keeps working. It is
-    // removed only once a new link exists elsewhere.
     const onPath = pathEntries(env.PATH, ":").map((entry) => entry.replace(/\/+$/, ""));
     for (const directory of new Set([
       ...(replaced === undefined ? [] : [path.dirname(replaced)]),
@@ -337,7 +322,6 @@ export const make = Effect.gen(function* () {
             Effect.orElseSucceed(() => false),
           );
       if (!created) continue;
-      // Our own link is swapped in place; anything else there makes symlink fail and stays.
       const staging = `${link}.${yield* Random.nextIntBetween(0, 0xffffff)}.tmp`;
       const linked = yield* (
         link === replaced
@@ -380,13 +364,10 @@ export const make = Effect.gen(function* () {
   const installAutomatically = Effect.gen(function* () {
     if (!environment.isPackaged || (yield* fs.exists(autoInstallDisabledMarker))) return;
     if (Option.isSome(yield* foreignFirstOnPath)) return;
-    // Another Supaterm home's app owns the existing link; only Install in Settings may take it over.
     const existing = Option.getOrUndefined(yield* installedAt);
     if (existing !== undefined && !windows && !(yield* leadsHere(existing))) {
       return yield* logInfo("left another Supaterm app's supaterm command in place", { existing });
     }
-    // A supaterm that is not ours in these folders, even off PATH, means the user has one already. On
-    // Windows the app never writes there, so any supaterm there is someone else's.
     for (const directory of userCandidates(environment.homeDirectory)) {
       for (const name of windows ? ["supaterm.cmd", "supaterm.exe"] : ["supaterm"]) {
         const other = path.join(directory, name);
@@ -470,7 +451,6 @@ export const make = Effect.gen(function* () {
     install: install.pipe(operations.withPermit),
     installAutomatically,
     uninstall: uninstall.pipe(operations.withPermit),
-    // One at a time, so Settings and onboarding cannot both append the line.
     addToPath: addToPath.pipe(operations.withPermit),
   });
 });

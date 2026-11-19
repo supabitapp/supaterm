@@ -47,7 +47,6 @@ export const readContainedWorkflowFile = Effect.fn("orchestration.readContainedW
         }),
     });
 
-    // Resolve the file itself; contained directories can still hold escaping symlinks.
     const resolved = yield* Effect.tryPromise({
       try: () => NodeFSP.realpath(input.path),
       catch: (cause) =>
@@ -64,7 +63,6 @@ export const readContainedWorkflowFile = Effect.fn("orchestration.readContainedW
       });
     }
 
-    // Inode checks catch leaf swaps, not intermediate directory swaps; the 0700 ~/.claude root restricts those to our uid.
     const read = yield* Effect.tryPromise({
       try: async () => {
         const handle = await NodeFSP.open(
@@ -93,12 +91,10 @@ export const readContainedWorkflowFile = Effect.fn("orchestration.readContainedW
             const buffer = Buffer.alloc(Math.min(stat.size - start, input.byteCap));
             const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
             const read = buffer.subarray(0, bytesRead);
-            // Defer partial lines; skip single over-cap lines so the cursor can advance.
             const lineEnd = read.lastIndexOf(0x0a) + 1;
             const consumed = lineEnd === 0 && bytesRead === input.byteCap ? bytesRead : lineEnd;
             return {
               contents: read.subarray(0, lineEnd).toString("utf8"),
-              // Only the cap signals truncation; a half-written last line does not.
               truncated: stat.size - start > input.byteCap,
               startOffset: start,
               endOffset: start + consumed,

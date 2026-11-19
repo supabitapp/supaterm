@@ -9,9 +9,6 @@ const KEY = "color-scheme";
 
 export type LinuxColorScheme = "dark" | "light" | null;
 
-// The portal reports 1 for prefer-dark, 2 for prefer-light and 0 for no preference. GNOME's
-// light mode is 0, and the spec asks apps to use their default then, so only 1 is dark.
-// The deprecated Read method nests the value in a second variant.
 function decodeColorScheme(value: unknown): LinuxColorScheme {
   let scheme = value;
   while (scheme instanceof Variant) scheme = scheme.value;
@@ -71,12 +68,9 @@ export function watchLinuxColorScheme(
         ],
       }),
     );
-    // ReadOne needs Settings portal version 2; older portals only offer Read.
     const reply = await bus
       .call(settingsCall("ReadOne"))
       .catch(() => bus.call(settingsCall("Read")));
-    // The portal answers reads through its backend asynchronously, so a change signal can
-    // overtake this reply; the reply then carries the older value.
     if (reply && !changed) report(reply.body[0]);
   })().catch(ignore);
 

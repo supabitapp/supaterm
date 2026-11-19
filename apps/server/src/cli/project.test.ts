@@ -206,7 +206,6 @@ it.effect("does not send a token to whatever took over a dead server's port", ()
     });
     yield* persistServerRuntimeState({
       path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
-      // Above Linux's PID ceiling, as in pair.test.ts: no process can hold it.
       state: { ...state, pid: 4_194_305 },
     });
     let requests = 0;

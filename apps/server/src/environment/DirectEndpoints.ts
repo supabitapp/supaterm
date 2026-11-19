@@ -1,8 +1,3 @@
-/**
- * The LAN and tailnet addresses this server listens on now, which clients save as faster routes.
- * Only bound addresses are listed: a loopback-only server lists none, because its loopback
- * address means a different machine to every client.
- */
 import type { ServerDirectEndpoint } from "@supaterm/contracts";
 import {
   buildTailscaleHttpsBaseUrl,
@@ -34,10 +29,6 @@ import { isLoopbackHost } from "../startupAccess.ts";
 
 type NetworkInterfacesMap = ReturnType<typeof NodeOS.networkInterfaces>;
 
-/**
- * Stays under the config read's own discovery timeout, so a slow `tailscale`
- * CLI drops only the tailnet name and never the LAN addresses.
- */
 const TAILSCALE_ENDPOINT_TIMEOUT = Duration.seconds(3);
 
 export class DirectEndpoints extends Context.Service<
@@ -54,20 +45,9 @@ const isAdvertisableAddress = (address: string): boolean =>
   !address.startsWith("169.254.") &&
   isPrivateNetworkHost(address);
 
-/**
- * Container and VM networks (Docker, libvirt, VMware, VirtualBox, Hyper-V, and
- * macOS's `bridge100`+) have private addresses only this machine reaches. A
- * host bridge such as `br0` or Proxmox's `vmbr0` carries the LAN address, so
- * it stays listed.
- */
 const VIRTUAL_INTERFACE =
   /^(docker|br-|veth|virbr|vmnet|vboxnet|vEthernet|podman|cni|flannel|cali|lxcbr|lxdbr|bridge1\d\d)/;
 
-/**
- * systemd-nspawn's `ve-*`/`vz-*` and NixOS containers' `vb-*` name host-side
- * veths after the machine. Windows aliases are user-renameable, so these
- * prefixes only apply to Linux interface discovery.
- */
 const LINUX_CONTAINER_INTERFACE = /^(ve-|vb-|vz-)/;
 
 const isVirtualInterface = (name: string, platform: NodeJS.Platform): boolean =>
@@ -80,7 +60,6 @@ const isTailscaleInterface = (
   /^tailscale/i.test(name) ||
   entries.some((entry) => entry.family === "IPv6" && isTailnetHost(entry.address));
 
-// Windows adapter names are mutable; Linux bridges can inherit these MACs.
 const WINDOWS_HOST_ADAPTER_MAC = /^(0a:00:27|00:50:56:c0:00):/i;
 
 export function resolveBoundEndpoints(input: {
@@ -142,9 +121,6 @@ export const make = Effect.gen(function* () {
   });
 
   const resolve = Effect.gen(function* () {
-    // Tailscale Serve forwards to loopback, so it works even for a loopback-only server. The
-    // name is listed only once it answers as this server, since Serve setup can fail without
-    // stopping startup; a slow probe leaves it out rather than holding back the rest.
     if (config.tailscaleServeEnabled) {
       const servedUrl = yield* readTailscaleStatus.pipe(
         Effect.map((status) => status.magicDnsName),

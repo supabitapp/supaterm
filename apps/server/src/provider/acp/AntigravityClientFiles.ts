@@ -11,7 +11,6 @@ function isInsideRoot(path: Path.Path, root: string, candidate: string): boolean
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
-/** Resolve all symlinks, including the final component, before checking workspace containment. */
 const resolveClientFilePath = Effect.fn("AntigravityClientFiles.resolveClientFilePath")(
   function* (input: {
     readonly fileSystem: FileSystem.FileSystem;
@@ -27,7 +26,6 @@ const resolveClientFilePath = Effect.fn("AntigravityClientFiles.resolveClientFil
     const real = yield* input.fileSystem.realPath(resolved).pipe(
       Effect.catch(() =>
         Effect.gen(function* () {
-          // Fall back to the parent only for missing files, never dangling or unreadable links.
           const entryExists = yield* input.fileSystem.readLink(resolved).pipe(
             Effect.as(true),
             Effect.catch(() => input.fileSystem.exists(resolved)),
@@ -108,7 +106,6 @@ export const readAntigravityClientTextFile = Effect.fn("AntigravityClientFiles.r
     if (line === undefined && limit === undefined) {
       return { content: text };
     }
-    // ACP lines are 1-indexed. `limit` is a line count.
     const lines = text.split("\n");
     const start = Math.max(0, (line ?? 1) - 1);
     const end = limit === undefined ? lines.length : Math.min(lines.length, start + limit);

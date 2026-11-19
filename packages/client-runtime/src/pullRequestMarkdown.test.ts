@@ -12,8 +12,6 @@ import {
 } from "./pullRequestMarkdown.ts";
 
 describe("pull request body segmentation", () => {
-  // GitHub writes a dropped image into the body as an `<img>` tag, so a bare attachment link on
-  // its own line is the shape it uses for a video — every one sampled in the wild was one.
   it("lifts a dropped video out and keeps the prose around it", () => {
     expect(
       splitPullRequestBody(
@@ -94,7 +92,6 @@ describe("pull request body segmentation", () => {
     ]);
   });
 
-  // GitHub keeps CRLF in a body written in its web editor.
   it("recognizes fences in a body with CRLF line endings", () => {
     const body = "```\r\nhttps://example.com/demo.mp4\r\n```";
     expect(splitPullRequestBody(body)).toEqual([
@@ -194,7 +191,6 @@ describe("reference links around lifted media", () => {
           ? segment.rows.flat().flatMap((cell) => prose(cell.segments))
           : [],
     );
-  // Each segment renders as its own document; the first definition of a label wins, as in mdast-util-to-hast.
   const referenceLinks = (body: string) =>
     prose(splitPullRequestBody(body)).flatMap((text) => {
       const definitions = new Map<string, string>();
@@ -383,14 +379,12 @@ describe("change request reference autolinks", () => {
     ]);
   });
 
-  // regression: the mobile review guide linked every host's `#5` with GitHub's grammar
   it("links nothing on a host whose grammar is not applied", () => {
     expect(urls("forgejo", "https://codeberg.org/acme/web/pulls/7", "#5")).toBeNull();
   });
 });
 
 describe("change request media urls", () => {
-  // regression: GitCafe's `/api/attachments/<id>` uploads rendered as missing local files
   it.each([
     ["/api/attachments/attach_1", "https://git.cafe/api/attachments/attach_1"],
     ["//cdn.example.com/a.png", "//cdn.example.com/a.png"],

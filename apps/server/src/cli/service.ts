@@ -40,7 +40,6 @@ const reconcileService = Effect.fn("cli.service.reconcile")(function* (options?:
   const { baseDir } = yield* ServerConfig.ServerConfig;
   const service = yield* BootService.BootService;
   const status = yield* service.status;
-  // Before the downgrade check, which reads this home's state, not the service's.
   if (status.otherBaseDir !== undefined) {
     return yield* new BootService.BootServiceOtherBaseDirError({
       installedBaseDir: status.otherBaseDir,
@@ -216,7 +215,6 @@ const serviceUninstallCommand = Command.make("uninstall", projectLocationFlags).
         const service = yield* BootService.BootService;
         const path = yield* Path.Path;
         const { baseDir } = yield* ServerConfig.ServerConfig;
-        // An unreadable unit stays removable; only a unit known to serve another home is kept.
         const installedBaseDir = yield* service.status.pipe(
           Effect.map((status) => status.installedBaseDir),
           Effect.orElseSucceed(() => undefined),
@@ -293,7 +291,6 @@ const serviceProtectCommand = Command.make("protect", {
     Effect.gen(function* () {
       const unsupported = "Service protection needs Linux with systemd.";
       if ((yield* HostProcess.Platform) !== "linux") return yield* Console.log(unsupported);
-      // Before resolving config, which creates Supaterm directories that root would then own.
       if ((yield* HostProcess.UserId) === 0) {
         return yield* Console.log(
           "Run `supaterm service protect` as the user that runs Supaterm, without sudo. It asks for sudo when it needs root.",

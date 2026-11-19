@@ -57,7 +57,6 @@ export function useProjectGroupUpdate() {
       );
     }
     for (const member of members) {
-      // Access can be revoked between writes.
       const revoked = checkProjectAccess([member], failureTitle);
       if (revoked) return revoked;
       const result = mapAtomCommandResult(
@@ -83,7 +82,6 @@ export function useProjectGroupUpdate() {
     return AsyncResult.success(undefined);
   };
 
-  /** Older servers drop pin and archive, so their projects do not offer them. */
   const canOrganizeProjectGroup = (members: ReadonlyArray<ProjectGroupMember>) =>
     members.every(
       (member) =>

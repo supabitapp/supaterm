@@ -82,7 +82,6 @@ export const releaseAgentDeviceSession =
         params: { command: "close", session, positionals: [], flags: {} },
       }),
       Effect.flatMap((request) => http.pipe(HttpClient.withScope).execute(request)),
-      // agent-device reports an already-released session as HTTP 404.
       Effect.filterOrElse((response) => response.status === 404, HttpClientResponse.filterStatusOk),
       Effect.flatMap(HttpClientResponse.schemaBodyJson(AgentCloseResult)),
       Effect.scoped,

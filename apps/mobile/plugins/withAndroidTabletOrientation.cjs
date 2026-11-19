@@ -1,7 +1,5 @@
 const { AndroidConfig, withAndroidManifest, withMainActivity } = require("expo/config-plugins");
 
-// FULL_USER respects rotation lock. Foldables change smallestScreenWidthDp without recreating the activity.
-
 const ORIENTATION_METHODS = `
   // Applied in onCreate and re-applied on fold/unfold; added by
   // withAndroidTabletOrientation.
@@ -59,7 +57,6 @@ module.exports = function withAndroidTabletOrientation(config) {
       );
     }
 
-    // Relocate the call in existing native projects too, before splash setup and React content.
     contents = contents.replace(
       /override fun onCreate\(savedInstanceState: Bundle\?\) \{[\s\S]*?\n  \}/,
       (onCreate) => onCreate.replace(/\n[ \t]*applyTabletOrientation\(\)/g, ""),

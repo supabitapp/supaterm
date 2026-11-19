@@ -30,7 +30,6 @@ function splitQualifierList(raw: string): string[] {
     .filter((part) => part.length > 0);
 }
 
-/** `me` and `@me` both name the viewer; logins are case-insensitive. */
 function authorKey(login: string): string {
   return login.toLowerCase().replace(/^@me$/, "me");
 }
@@ -49,7 +48,6 @@ export function parsePullRequestQuery(raw: string): {
   const text: string[] = [];
   const labels: string[][] = [];
   const excludedLabels: string[] = [];
-  // `null` once two different logins are named: GitHub ORs them, the contract carries one.
   let author: string | null | undefined;
   let draft: PullRequestListFilters["draft"];
   let review: PullRequestListFilters["review"];
@@ -94,7 +92,6 @@ export function parsePullRequestQuery(raw: string): {
         checks = state;
         continue;
       }
-      // GitHub's own search qualifiers, not labels: the list sets scope and order itself.
       case "is":
       case "archived":
       case "state":

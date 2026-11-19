@@ -76,12 +76,8 @@ const ICON_SOURCE_FILES = [
 ] as const;
 
 const WORKSPACE_PACKAGE_PARENTS = ["apps", "packages"] as const;
-// Every package multiplies the probes, so a huge monorepo is capped instead of stat'ing thousands of paths.
 const MAX_PACKAGES_PER_PARENT = 64;
 
-// The tag pattern is anchored on `<link`, so it only starts at real candidates. Object metadata
-// is matched by scanning brace-free runs instead of by one combined pattern: an unanchored
-// pattern restarts at every offset and rescans forward, which is quadratic on large sources.
 const LINK_ICON_HTML_RE =
   /<link\b(?=[^>]*\brel=["'](?:icon|shortcut icon)["'])(?=[^>]*\bhref=["']([^"'?]+))[^>]*>/i;
 const ICON_REL_RE = /\brel\s*:\s*["'](?:icon|shortcut icon)["']/i;
@@ -136,8 +132,6 @@ function extractIconHref(source: string): string | null {
   return null;
 }
 
-// ENOTDIR, EISDIR, and ELOOP surface as BadResource. A candidate below a regular file,
-// such as `app/favicon.ico` beside a binary named `app`, is as absent as a missing one.
 const optionWhenMissing = <A, R>(
   effect: Effect.Effect<A, PlatformError.PlatformError, R>,
 ): Effect.Effect<Option.Option<A>, PlatformError.PlatformError, R> =>
@@ -158,7 +152,6 @@ export const make = Effect.gen(function* () {
   const projectFileLoader = yield* SupatermProjectFileLoader.SupatermProjectFileLoader;
 
   const resolveIconHref = (baseDir: string, href: string): ReadonlyArray<string> => {
-    // Browsers strip surrounding whitespace from URL attributes; file paths keep theirs.
     const clean = href.trim().replace(/^\//, "");
     return [path.join(baseDir, "public", clean), path.join(baseDir, clean)];
   };
@@ -169,10 +162,6 @@ export const make = Effect.gen(function* () {
     candidateScope: "workspace" | "filesystem",
   ): Effect.fn.Return<string | null, ProjectFaviconResolutionError> {
     for (const candidatePath of relativeCandidates) {
-      // A favicon path can come from an agent, and statting a network path makes
-      // Windows sign in to its host with the user's NTLM credentials. Windows
-      // reads a `\\?\` path as written, `..` included, so the lookup gets the
-      // resolved path this check approved.
       const isNetwork = isNetworkPath(candidatePath);
       const relativePath = isNetwork ? path.resolve(candidatePath) : candidatePath;
       if (isNetwork && !isWithinRoot(path, relativePath, path.resolve(projectCwd))) {
@@ -262,9 +251,6 @@ export const make = Effect.gen(function* () {
     return yield* findExistingFile(projectCwd, resolveIconHref(baseDir, href), "workspace");
   });
 
-  // Probes start at once so a miss costs one round of filesystem latency, not one per probe.
-  // Joining in list order returns a hit without waiting on lower-ranked probes (the scope
-  // interrupts them) and surfaces a failure only when no earlier probe found a file.
   const firstInOrder = Effect.fn("ProjectFaviconResolver.firstInOrder")(function* <A>(
     items: ReadonlyArray<A>,
     probe: (item: A) => Effect.Effect<string | null, ProjectFaviconResolutionError>,
@@ -279,8 +265,6 @@ export const make = Effect.gen(function* () {
     return null;
   }, Effect.scoped);
 
-  // Candidate rank outranks package order, so `apps/web/public/favicon.svg` wins over
-  // `apps/mobile/assets/icon.png` even though `mobile` sorts first.
   const findIconWithin = Effect.fn("ProjectFaviconResolver.findIconWithin")(function* (
     projectCwd: string,
     baseDirs: ReadonlyArray<string>,

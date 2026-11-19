@@ -39,7 +39,6 @@ export function hasProjectSettingsOverrides(
   settings: Pick<ServerSettings, "projectSettingsOverrides">,
 ): boolean {
   for (const entry of Object.values(settings.projectSettingsOverrides)) {
-    // Forward-compatible decoding can leave a present undefined, which is not an override.
     if (Object.values(entry).some((value) => value !== undefined)) return true;
   }
   return false;
@@ -134,7 +133,6 @@ function resolveProjectOverrides(
   for (const key of PROJECT_SCOPED_SERVER_SETTING_KEYS) {
     if (!Object.hasOwn(overrides, key)) continue;
     const value = overrides[key];
-    // Forward-compatible decoding can leave a present undefined, which is not an override.
     if (value === undefined) continue;
     if (
       (key === "textGenerationModelSelection" || key === "defaultModelSelection") &&
@@ -148,9 +146,6 @@ function resolveProjectOverrides(
     ) {
       continue;
     }
-    // Clients resolve a hidden model to the catalog's first visible one, so a
-    // hidden project default would silently pick a model nobody chose.
-    // Custom models stay visible even when listed as hidden, as in the clients.
     if (key === "defaultModelSelection" && value !== null) {
       const { instanceId, model } = value as ModelSelection;
       const config = settings.providerInstances[instanceId]?.config as

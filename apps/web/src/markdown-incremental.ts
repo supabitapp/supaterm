@@ -30,12 +30,10 @@ function shiftPositions(node: Root | RootContent, offset: number, lines: number)
   }
 }
 
-// Cache completed fences followed by blank lines; document-wide definitions require a full parse.
 function createIncrementalMarkdownParser(parse: Parser): Parser {
   let cached: ParsedPrefix | undefined;
 
   return (source, file) => {
-    // Streaming CR may become CRLF; parsing a suffix separately would strip an internal BOM.
     if (source.includes("\r") || source.includes("\uFEFF")) return parse(source, file);
 
     const prefix = cached && source.startsWith(cached.source) ? cached : undefined;
@@ -45,7 +43,6 @@ function createIncrementalMarkdownParser(parse: Parser): Parser {
       if (hasDefinitions(root)) return parse(source, file);
       shiftPositions(root, prefix.offset, prefix.line - 1);
       if (root.position) root.position.start = { line: 1, column: 1, offset: 0 };
-      // Remark mutates nodes; give each render a clone of the pristine cache.
       root.children.unshift(...structuredClone(prefix.children));
     } else {
       root = parse(source, file);
@@ -87,7 +84,6 @@ export function createIncrementalMarkdownPlugin(): Plugin<[], Root> {
     if (!original) return;
     parser ??= createIncrementalMarkdownParser((source, file) => original(source, file) as Root);
     const parseDocument = parser;
-    // ReactMarkdown parses recovery text second; only the first parse may access the document cache.
     let documentParsed = false;
     this.parser = (source, file) => {
       if (documentParsed) return original(source, file);

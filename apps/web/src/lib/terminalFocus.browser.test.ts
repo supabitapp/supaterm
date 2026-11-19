@@ -14,8 +14,6 @@ import {
   restoreFocusOnThreadEnter,
 } from "./terminalFocus";
 
-// The drawer's collapsed shape: a 0fr grid row that clips the viewport, which
-// stays focusable, around a surface whose input refuses focus while hidden.
 function mountClippedViewport() {
   const drawer = document.createElement("div");
   drawer.style.cssText = "display:grid;grid-template-rows:0fr;overflow:clip";

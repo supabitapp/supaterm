@@ -41,8 +41,6 @@ const fullscreenSupported =
 
 const PAGE_ACTIVATION_MS = 5_000;
 
-// Frame input does not bubble here. An app can refocus itself, so focus
-// alone cannot exclude activation from input elsewhere in Supaterm.
 let lastPageInputAt = Number.NEGATIVE_INFINITY;
 if (typeof window !== "undefined") {
   const note = () => {
@@ -92,13 +90,11 @@ export function McpAppFrame(props: {
   const [closed, setClosed] = useState(false);
 
   const [documentGeneration, setDocumentGeneration] = useState(0);
-  // Closing and reopening replaces the box, which re-attaches this.
   const attachBox = (box: HTMLDivElement) => {
     boxRef.current = box;
     setWidth(box.clientWidth);
     const stopResize = observeResize(box, ([entry]) => {
       if (entry) setWidth(Math.round(entry.contentRect.width));
-      // Full screen reports the viewport, which can change height alone.
       if (fullscreenSupported && box.matches(":popover-open")) {
         hostRef.current?.updateHostContext();
       }
@@ -117,11 +113,9 @@ export function McpAppFrame(props: {
     disposition: "inline" as const,
     renderIntent: "mcp-app" as const,
   };
-  // The frame keeps its first URL: a re-minted one would reload the app.
   const [src, setSrc] = useState<string | null>(null);
   const asset = useLongLivedAssetUrl(src === null ? props.environmentId : null, resource);
   if (src === null && asset._tag === "Success") {
-    // The app paints before `ui/initialize`, so it reads the initial scheme from its URL.
     const url = new URL(asset.url);
     url.searchParams.set(MCP_APP_COLOR_SCHEME_PARAM, theme.appearance);
     setSrc(url.toString());
@@ -134,7 +128,6 @@ export function McpAppFrame(props: {
     revision: props.revision,
   });
   const storedItem = detail.data?.item;
-  // The host gets the tool call pushed by an effect keyed on it, so it must stay cached.
   const toolCall =
     storedItem?.type === "dynamic_tool"
       ? {
@@ -158,7 +151,6 @@ export function McpAppFrame(props: {
     reportFailure: false,
   });
 
-  // Read live values without rebuilding the host and losing the app session.
   const readLive = useStableCallback(() => ({
     theme,
     width,
@@ -177,9 +169,6 @@ export function McpAppFrame(props: {
     setStepAsideFor(props.awaitingUser);
     if (props.awaitingUser === true) setDisplayMode("inline");
   }
-  // The box is in the top layer exactly while its full-screen chrome is
-  // mounted, so every way out of full screen (including the step-aside above,
-  // decided during render) closes the popover and releases the timeline pin.
   const attachFullscreenChrome = (chrome: HTMLDivElement) => {
     const box = chrome.parentElement;
     if (box === null) return;
@@ -190,7 +179,6 @@ export function McpAppFrame(props: {
       readLive().props.onFullscreenChange?.(false);
     };
   };
-  // Light dismiss (Escape) closes the popover without React.
   const onBoxToggle = (event: ToggleEvent<HTMLDivElement>) => {
     if (event.newState === "closed") setDisplayMode("inline");
   };
@@ -217,7 +205,6 @@ export function McpAppFrame(props: {
     }
   };
 
-  // The host belongs to this frame element, which is replaced when the document is reopened.
   const attachFrame = (frame: HTMLIFrameElement) => {
     frameRef.current = frame;
     const hostContext = (): McpAppHostContext => {
@@ -316,7 +303,6 @@ export function McpAppFrame(props: {
           return;
         }
 
-        // A replacement document may have mounted while this one wound down.
         void host.teardown().then(() => {
           if (hostRef.current === host) setClosed(true);
         });

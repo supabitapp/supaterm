@@ -61,7 +61,6 @@ export function ConnectionStatusDot(props: {
         justifyContent: "center",
       }}
     >
-      {/* Looping Reanimated updates can starve React commits while commit pausing is disabled. */}
       {props.pulse ? (
         <View
           style={{

@@ -1,6 +1,5 @@
 import { isWindowsAbsolutePath } from "@supaterm/shared/path";
 
-// The file host can use a different path style from the client.
 export function formatFilePathForClipboard(path: string, hostPath = path): string {
   return isWindowsAbsolutePath(hostPath) ? path.replaceAll("/", "\\") : path;
 }

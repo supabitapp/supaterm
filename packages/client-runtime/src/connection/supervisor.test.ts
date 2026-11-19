@@ -660,8 +660,6 @@ describe("EnvironmentSupervisor", () => {
       }).pipe(Effect.provide(harness.dependencies));
 
       yield* awaitState(supervisor.state, (state) => state.phase === "offline");
-      // The loop wakes on the earlier signal and takes the retry's flag while
-      // RetryRequested is still queued, so that signal must not cancel the attempt.
       yield* supervisor.connect;
       yield* supervisor.retryNow;
       yield* TestClock.adjust("1 second");
@@ -1328,7 +1326,6 @@ describe("EnvironmentSupervisor", () => {
       ).pipe(Effect.forkChild({ startImmediately: true }));
       yield* TestClock.adjust("4 minutes");
 
-      // The driver reports the most specific failure across its routes.
       expect(yield* Fiber.join(firstFailure)).toMatchObject({
         attempt: 1,
         lastFailure: {
@@ -1766,7 +1763,6 @@ describe("EnvironmentSupervisor", () => {
       yield* TestClock.adjust("1 millis");
       yield* awaitState(supervisor.state, (state) => state.phase === "connecting");
       expect(yield* Ref.get(hostChecks)).toBe(1);
-      // An open session waiting for its first snapshot keeps the snapshot budget.
       yield* TestClock.adjust("20 seconds");
       expect(yield* SubscriptionRef.get(supervisor.state)).toMatchObject({
         phase: "connecting",
@@ -1949,7 +1945,6 @@ describe("EnvironmentSupervisor", () => {
       yield* harness.wake("network-changed");
       yield* TestClock.adjust("500 millis");
       yield* Ref.update(frames, (count) => count + 1);
-      // The running check sees the frame at 1.6 s, so a fresh one starts then.
       yield* TestClock.adjust("2599 millis");
       expect(yield* Ref.get(harness.sessionCount)).toBe(1);
 
@@ -2112,7 +2107,6 @@ describe("EnvironmentSupervisor", () => {
     "gives a live remote socket 15 seconds to answer a %s probe",
     (wakeup) =>
       Effect.gen(function* () {
-        // A slow path delays the fresh request as much as the probe.
         const harness = yield* makeSilentSocketHarness({
           probe: (attempt) => (attempt === 1 ? Effect.sleep("4 seconds") : Effect.void),
           checkHost: () => "silent",
@@ -2217,8 +2211,6 @@ describe("EnvironmentSupervisor", () => {
         );
         yield* harness.wake("application-active");
         expect(yield* Queue.take(probeStarted)).toBe(1);
-        // A busy server misses the foreground probe deadline once while the
-        // socket stays open; the supervisor asks again on its own.
         yield* TestClock.adjust("15 seconds");
         expect(yield* Queue.take(probeStarted)).toBe(2);
         yield* TestClock.adjust("30 seconds");
@@ -2247,8 +2239,6 @@ describe("EnvironmentSupervisor", () => {
         supervisor.state,
         (state) => state.phase === "connected" && state.generation === 1,
       );
-      // One foreground event and no other signal: the follow-up's miss alone
-      // replaces the session.
       yield* harness.wake("application-active");
       yield* TestClock.adjust("15 seconds");
       yield* TestClock.adjust("15 seconds");
@@ -2279,8 +2269,6 @@ describe("EnvironmentSupervisor", () => {
       yield* harness.wake("application-active");
       yield* Deferred.await(probeStarted);
       yield* TestClock.adjust("13 seconds");
-      // The retry's own deadline falls after the foreground one, but it still
-      // asks for a definite answer, so the first miss is not forgiven.
       yield* supervisor.retryNow;
       yield* TestClock.adjust("5 seconds");
       yield* awaitState(
@@ -2655,7 +2643,6 @@ describe("EnvironmentSupervisor", () => {
       );
       yield* Ref.set(lanChecks, 0);
 
-      // Checked at 1, 3 and 7 minutes instead of every minute.
       for (let minute = 0; minute < 10; minute += 1) {
         yield* TestClock.adjust("60 seconds");
       }
@@ -2725,7 +2712,6 @@ describe("EnvironmentSupervisor", () => {
                 ),
               )
             : Effect.succeed("answered"),
-        // The wakeup probes the session only after it forgets the silent routes.
         probe: () =>
           Ref.get(woke).pipe(
             Effect.flatMap((afterWake) =>

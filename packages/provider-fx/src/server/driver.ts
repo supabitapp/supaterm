@@ -36,14 +36,11 @@ import type { ProviderTextGeneration } from "@supaterm/provider-core/server/text
 import { FX_DRIVER_KIND } from "./acpSupport.ts";
 
 const decodeFxSettings = Schema.decodeSync(FxSettings);
-// fx installs from its own setup script and updates with `fx upgrade`; there
-// is no npm package to read a latest version from.
 const MAINTENANCE = makeManualOnlyProviderMaintenanceCapabilities({
   provider: FX_DRIVER_KIND,
   packageName: null,
 });
 
-// See `supportsTextGeneration` in status.ts.
 const unsupportedTextGeneration: ProviderTextGeneration = (() => {
   const unsupported = (operation: string) =>
     Effect.fail(
@@ -132,7 +129,6 @@ export const FxDriver: ProviderDriver<FxSettings, FxDriverEnv> = {
       ),
     );
 
-    // "Default" selects the model the snapshot read from `fx status`.
     const orchestrationAdapter = yield* makeFxAdapterV2Driver(
       snapshot.getSnapshot.pipe(Effect.map((current) => fxDefaultModelId(current.models))),
     )

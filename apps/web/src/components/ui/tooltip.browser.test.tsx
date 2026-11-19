@@ -25,7 +25,6 @@ it.each([
   );
   const trigger = screen.getByRole("button", { name: "Timeline action" });
   if (c.focus === "mouse") {
-    // A press closes the tooltip; hovering again reopens it with mouse focus kept.
     await userEvent.click(trigger);
     await userEvent.unhover(trigger);
   } else {

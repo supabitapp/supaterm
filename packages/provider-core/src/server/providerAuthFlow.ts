@@ -303,7 +303,6 @@ export const make = Effect.fn("ProviderAuthFlow.make")(function* (options: {
               expiresAt: flow.expiresAt,
               ...(returnUrl ? { returnUrl } : {}),
               ...(callbackMode ? { callbackMode } : {}),
-              // Terminal sign-in updates this for every output chunk within the auth operation.
               setInteraction: Effect.fnUntraced(function* (interaction, respond, complete) {
                 if (active !== flow) return;
                 flow.respond = respond;
@@ -534,7 +533,6 @@ export const make = Effect.fn("ProviderAuthFlow.make")(function* (options: {
       active = undefined;
       if (flow?.responseFiber) yield* Fiber.interrupt(flow.responseFiber);
       if (flow?.fiber) yield* Fiber.interrupt(flow.fiber);
-      // Settings rebuild instances; admitted sessions sharing this binding retain their own scopes.
     }),
   );
   return controller;

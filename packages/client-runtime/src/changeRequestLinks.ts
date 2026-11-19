@@ -77,7 +77,6 @@ export function resolveChangeRequestLinkTarget<Project extends ChangeRequestProj
 } | null {
   const link = sourceControlClients.parseChangeRequestUrl(url)?.link;
   if (link === undefined) return null;
-  // Matching remotes do not make project ids usable outside the link's environment.
   const candidates = (
     environmentId === undefined
       ? projects.filter((project) => reads(project.environmentId))
@@ -159,8 +158,6 @@ export function projectChangeRequestUrl(
   if (identity?.provider === undefined) return null;
   const [host, ...path] = identity.canonicalKey.split("/");
   if (!host) return null;
-  // The RPC selector can be shorter than the browser path (Azure's `web` for
-  // `org/project/_git/web`), so the project's own repository uses its full key.
   const ownRepository = sourceControlClients.repositorySelector(identity) === repository;
   return sourceControlClients.get(identity.provider).changeRequestUrl({
     host,

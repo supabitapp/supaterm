@@ -142,7 +142,6 @@ const make = Effect.fn("makeProviderInstallation")(function* () {
       accountCheckOperations.get(input.instanceId) !== started.operationId
     ) {
       accountCheckOperations.set(input.instanceId, started.operationId);
-      // Installation outlives the request and may finish while every client is disconnected.
       yield* installation.changes.pipe(
         Stream.filter(
           (state) =>
@@ -186,8 +185,6 @@ const make = Effect.fn("makeProviderInstallation")(function* () {
       .pipe(Effect.mapError(failure(input.instanceId)));
   });
 
-  // Watching an installation is when its owner can act on an update, so the
-  // lookup runs then, in the background, unless update checks are off.
   const subscribe = (input: ProviderSetupInput) =>
     Stream.unwrap(
       requireInstance(input.instanceId, "observe-install").pipe(

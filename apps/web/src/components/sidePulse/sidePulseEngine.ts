@@ -51,7 +51,6 @@ export async function instantiateSidePulseEngine(
       const input = new Uint8Array(exports.memory.buffer, exports.sdled_input_ptr(), INPUT_BYTES);
       input.fill(0);
       input.set(bytes.subarray(0, INPUT_BYTES));
-      // The engine rejects anything past its input buffer as too long.
       const length = bytes.length > INPUT_BYTES ? INPUT_BYTES + 1 : bytes.length;
       return (exports.sdled_parse(SIDE_PULSE_LED_COUNT, length, 0) & 1) === 1;
     },

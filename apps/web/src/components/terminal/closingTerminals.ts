@@ -1,7 +1,6 @@
 import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import type { ScopedThreadRef } from "@supaterm/contracts";
 
-// Lifecycle commands run in order, so a queued close ends whichever shell holds its ID by then.
 const closingIdsByThread = new Map<string, Map<string, number>>();
 
 /** IDs a new terminal must not take until their pending closes settle. */

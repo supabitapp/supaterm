@@ -6,9 +6,6 @@ import type { PlatformConnectionRegistration } from "../connection/catalog.ts";
 export class PlatformConnectionSource extends Context.Service<
   PlatformConnectionSource,
   {
-    // Each emission is the full current set of platform-managed environments
-    // (the primary local environment plus any desktop-local backends running
-    // alongside it).
     readonly registrations: Stream.Stream<ReadonlyArray<PlatformConnectionRegistration>>;
   }
 >()("@supaterm/client-runtime/platform/source/PlatformConnectionSource") {}

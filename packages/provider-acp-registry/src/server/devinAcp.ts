@@ -55,7 +55,6 @@ export function extractDevinSubagentUpdate(
   };
 }
 
-// Devin's plan exit offers several allow_once options in no promised order; Supaterm never answers with bypass.
 export function devinAnswerablePermissionOptions(
   request: AcpSchema.RequestPermissionRequest,
 ): ReadonlyArray<AcpSchema.PermissionOption> {

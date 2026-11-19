@@ -175,7 +175,6 @@ export function PreviewChromeRow({
                   }}
                   onKeyDown={(event) => {
                     if (event.nativeEvent.isComposing || event.keyCode === 229) {
-                      // A trusted Enter would still submit the form implicitly.
                       if (event.key === "Enter") event.preventDefault();
                       return;
                     }

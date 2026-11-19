@@ -82,8 +82,6 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [composerHeight, setComposerHeight] = useState(64);
-  // Replies from "Load more" live only here, outside the activity an edit refreshes. After one
-  // is edited, drop the loaded pages so the next load reads the new body instead of the old one.
   const extraEdited = useRef(false);
   useFocusEffect(() => {
     if (!extraEdited.current) return;
@@ -167,7 +165,6 @@ function Discussion({ params }: { params: PullRequestParams & { readonly discuss
         automaticOffset
         behavior="height"
         className="flex-1 bg-screen"
-        // Any touch, such as replying or loading replies, ends the wait to reposition the link.
         onTouchStart={() => {
           pendingTop.current = null;
         }}

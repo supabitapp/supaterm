@@ -43,7 +43,6 @@ describe("groupProcesses", () => {
       process(50, 10, "chrome-headless"),
       process(60, 10, "git", "server-child", "git checkout claude/fix"),
       process(70, 99, "orphan"),
-      // An older Claude package runs as a script under node.
       process(
         80,
         10,
@@ -57,12 +56,10 @@ describe("groupProcesses", () => {
     assert.deepStrictEqual(Object.fromEntries(totals), {
       server: { residentBytes: 10_000, cpuPercent: 10, count: 1 },
       "resource-monitor": { residentBytes: 11_000, cpuPercent: 11, count: 1 },
-      // The agent's shell and the build it ran belong to the agent, not the terminal group.
       claude: { residentBytes: 143_000, cpuPercent: 143, count: 4 },
       codex: { residentBytes: 30_000, cpuPercent: 30, count: 1 },
       terminal: { residentBytes: 40_000, cpuPercent: 40, count: 1 },
       browser: { residentBytes: 50_000, cpuPercent: 50, count: 1 },
-      // `git` whose arguments mention claude, a parentless process, and a node script.
       other: { residentBytes: 220_000, cpuPercent: 220, count: 3 },
     });
   });

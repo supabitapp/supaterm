@@ -100,9 +100,6 @@ export function AutomationsPage() {
     linkedState.error === null &&
     linkedTask === undefined;
   const link = search.taskId === undefined ? null : `${linkEnvironmentId ?? ""}:${search.taskId}`;
-  // A `taskId` link opens its editor once, the first time the task loads. The editor then owns
-  // the session until close, so a disconnect that drops the task cannot drop unsaved edits.
-  // An editor the user already opened wins: a late-loading link must not replace its draft.
   const [openedLink, setOpenedLink] = useState<string | null>(null);
   if (link === null && openedLink !== null) setOpenedLink(null);
   if (link !== null && linkedState && linkedTask && openedLink !== link) {
@@ -198,7 +195,6 @@ interface AutomationEnvironmentState {
   readonly error: string | null;
 }
 
-/** Each environment's scheduled tasks in the scope, from its live subscription while connected. */
 function useAutomationEnvironmentStates(
   environments: readonly EnvironmentPresentation[],
   scope: ResolvedSettingsScope,
@@ -234,18 +230,12 @@ function useAutomationEnvironmentStates(
 interface AutomationListProps {
   readonly projectByKey: ReadonlyMap<string, SidebarProjectSnapshot>;
   readonly showProject: boolean;
-  /** A linked automation that its loaded environment does not have. */
   readonly linkUnavailable: boolean;
   readonly creationEnvironment: EnvironmentPresentation | undefined;
   readonly onCreate: (environmentId: EnvironmentId) => void;
   readonly onEdit: (environmentId: EnvironmentId, task: ScheduledTask) => void;
 }
 
-/**
- * With several environments, every loaded automation shares one table; the
- * rest fold into one status line each for empty, loading, failed, and
- * disconnected environments.
- */
 function AutomationEnvironmentList({
   states,
   projectByKey,

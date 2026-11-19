@@ -129,7 +129,6 @@ function toPersistenceSqlOrDecodeError(
 export const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
 
-  // Runtime payloads may be stale; only recordImportedTranscript can change source records.
   const upsertRuntimeRow = SqlSchema.void({
     Request: ProviderSessionRuntimeDbRowSchema,
     execute: (runtime) =>

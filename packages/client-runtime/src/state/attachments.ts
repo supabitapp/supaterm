@@ -70,9 +70,6 @@ export function verifyPersistedAttachmentUpload<A, E>(input: {
         environmentId: input.environmentId,
         input: { resource: { _tag: "attachment", attachmentId: input.attachmentId } },
       }),
-      // `refresh` forces a server round trip: the asset URL query atom caches
-      // results (SWR), so a retry right after a transient failure would
-      // otherwise re-observe the cached failure and never ask the server.
       { reportFailure: false, reportDefect: false, refresh: true },
     ),
   ).pipe(
@@ -205,7 +202,6 @@ export function clampFileAttachmentUploadBytes(advertisedMaxUploadBytes: number)
 
 export function formatAttachmentSize(sizeBytes: number): string {
   const kilobytes = Math.max(1, Math.ceil(sizeBytes / 1024));
-  // Pick the unit after rounding, so 1023.5 KB reads "1.0 MB", not "1024 KB".
   return kilobytes >= 1024 ? `${(sizeBytes / (1024 * 1024)).toFixed(1)} MB` : `${kilobytes} KB`;
 }
 

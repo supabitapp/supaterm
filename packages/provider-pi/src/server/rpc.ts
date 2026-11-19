@@ -1,4 +1,3 @@
-// Pi frames are LF-delimited with trailing CR stripped; readline also splits U+2028/U+2029 and corrupts them.
 import * as Clock from "effect/Clock";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
@@ -58,8 +57,6 @@ export function piRecordNumber(input: unknown, key: string): number | undefined 
   return Predicate.isNumber(value) && Number.isFinite(value) ? value : undefined;
 }
 
-// Pi provider names and model ids may both contain "/", so a slug only splits
-// reliably through the `{provider, id}` pairs `get_available_models` reported.
 export function findReportedPiModel(
   slug: string,
   reportedModels: unknown,
@@ -110,7 +107,6 @@ interface PendingPiRequest {
   readonly deferred: Deferred.Deferred<unknown, PiRpcError>;
 }
 
-// MCP duplicates images in model content and CallToolResult; budget both plus bounded overhead.
 const MAX_PI_RECORD_CHARS =
   2 * MAX_TOOL_OUTPUT_IMAGES * MAX_TOOL_OUTPUT_IMAGE_BASE64_LENGTH + 8 * 1024 * 1024;
 
@@ -145,7 +141,6 @@ function makeJsonlFramer() {
   };
 }
 
-// Report the observed length before LF arrives; an unterminated response can time out first.
 const logDroppedPiRecords = (droppedLengths: ReadonlyArray<number>) =>
   Effect.forEach(
     droppedLengths,
@@ -171,7 +166,6 @@ function summarizePiError(error: unknown): string {
     : text;
 }
 
-// Pi 0.84+ may exit 1 during import without any protocol output.
 function describePiStdoutClosure(exitCode: number | undefined): string {
   if (exitCode === undefined || !Number.isFinite(exitCode)) {
     return "pi process closed stdout";
@@ -188,11 +182,6 @@ function parsePiRecord(line: string): PiRpcRecord | undefined {
   }
 }
 
-/**
- * `hasExited` is consulted before each signal. Once the original child is
- * gone its pid/pgid can be recycled by the OS, so escalating blindly could
- * deliver SIGKILL to an unrelated process.
- */
 const terminatePiProcess = Effect.fn("PiRpc.terminatePiProcess")(function* (
   kill: (signal: NodeJS.Signals) => boolean,
   hasExited: () => boolean,
@@ -220,7 +209,6 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
         extendEnv: false,
         shell: spawnCommand.shell,
         detached: platform !== "win32",
-        // On stdin EOF Pi quits without its SIGTERM handler, so the later SIGTERM kills it mid-cleanup.
         stdin: { stream: "pipe", endOnDone: false },
       }),
     )
@@ -253,7 +241,6 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
     }
   };
 
-  // Windows process.kill leaves extension children and pipes alive; taskkill /T reaps the tree.
   const terminateWindowsTree = Effect.gen(function* () {
     if (hasExited()) return;
     const taskkill = yield* spawner.spawn(
@@ -265,7 +252,6 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
   const terminateProcess =
     platform === "win32" ? terminateWindowsTree : terminatePiProcess(killProcessGroup, hasExited);
 
-  // Register teardown immediately after spawn so interrupted setup cannot leak a detached process.
   yield* Scope.addFinalizer(scope, terminateProcess.pipe(Effect.ignore, Effect.uninterruptible));
 
   const pendingRequests = new Map<string, PendingPiRequest>();
@@ -286,32 +272,29 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
     yield* Queue.fail(events, error);
   });
 
-  const routeRecord =
-    /* Protocol records and writes include streaming deltas; avoid a span per record. */
-    Effect.fnUntraced(function* (record: PiRpcRecord) {
-      if (record["type"] === "response" && typeof record["id"] === "string") {
-        const pending = pendingRequests.get(record["id"]);
-        if (pending !== undefined) {
-          pendingRequests.delete(record["id"]);
-          if (record["success"] === true) {
-            yield* Deferred.succeed(pending.deferred, record["data"]);
-          } else {
-            yield* Deferred.fail(
-              pending.deferred,
-              new PiRpcError({
-                operation: String(record["command"] ?? "request"),
-                detail: summarizePiError(record["error"]),
-                ...(record["error"] === undefined ? {} : { cause: record["error"] }),
-              }),
-            );
-          }
-          return;
+  const routeRecord = Effect.fnUntraced(function* (record: PiRpcRecord) {
+    if (record["type"] === "response" && typeof record["id"] === "string") {
+      const pending = pendingRequests.get(record["id"]);
+      if (pending !== undefined) {
+        pendingRequests.delete(record["id"]);
+        if (record["success"] === true) {
+          yield* Deferred.succeed(pending.deferred, record["data"]);
+        } else {
+          yield* Deferred.fail(
+            pending.deferred,
+            new PiRpcError({
+              operation: String(record["command"] ?? "request"),
+              detail: summarizePiError(record["error"]),
+              ...(record["error"] === undefined ? {} : { cause: record["error"] }),
+            }),
+          );
         }
+        return;
       }
-      yield* Queue.offer(events, record);
-    });
+    }
+    yield* Queue.offer(events, record);
+  });
 
-  // Watch exit before reading stdout so immediate crashes populate exitDeferred for diagnosis.
   yield* child.exitCode.pipe(
     Effect.matchEffect({
       onFailure: (cause) =>
@@ -355,9 +338,7 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
   }).pipe(
     Effect.matchCauseEffect({
       onFailure: (cause) => failTransport(new PiRpcError({ operation: "read", cause })),
-      // The enclosing operation owns the span for this inline handler.
       onSuccess: Effect.fnUntraced(function* () {
-        // Claim stdout-close diagnosis before waiting so broken stdin cannot replace the exit error.
         diagnosingStdoutClose = true;
         const polled = yield* Deferred.poll(exitDeferred);
         const maybeExitCode = Option.isSome(polled)
@@ -367,7 +348,6 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
             )
           : yield* Deferred.await(exitDeferred).pipe(
               Effect.timeoutOption(Duration.millis(250)),
-              // Stdout-close waits need wall time; TestClock would strand Stop-with-restart without an exit.
               Effect.provideService(Clock.Clock, Clock.Clock.defaultValue()),
               Effect.orElseSucceed(() => Option.none<number>()),
             );
@@ -389,14 +369,12 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
     Stream.runForEach((chunk) =>
       chunk.trim().length === 0
         ? Effect.void
-        : // Log stderr length only; unbounded text may contain credentials or prompts.
-          Effect.logDebug("pi stderr", { stderrLength: chunk.length }),
+        : Effect.logDebug("pi stderr", { stderrLength: chunk.length }),
     ),
     Effect.ignore,
     Effect.forkIn(scope),
   );
 
-  // Start the reader first so stdout-close diagnosis can win over broken-pipe stdin.
   yield* Stream.fromQueue(outgoing).pipe(
     Stream.run(child.stdin),
     Effect.catchCause((cause) =>
@@ -407,17 +385,17 @@ export const makePiRpcConnection = Effect.fnUntraced(function* (options: PiRpcSp
     Effect.forkIn(scope),
   );
 
-  const send =
-    /* Protocol records and writes include streaming deltas; avoid a span per record. */
-    Effect.fnUntraced(function* (record: PiRpcRecord): Effect.fn.Return<void, PiRpcError> {
-      const accepted = yield* Queue.offer(
-        outgoing,
-        new TextEncoder().encode(`${encodeJsonLine(record)}\n`),
-      );
-      if (!accepted) {
-        return yield* Deferred.await(transportDown);
-      }
-    });
+  const send = Effect.fnUntraced(function* (
+    record: PiRpcRecord,
+  ): Effect.fn.Return<void, PiRpcError> {
+    const accepted = yield* Queue.offer(
+      outgoing,
+      new TextEncoder().encode(`${encodeJsonLine(record)}\n`),
+    );
+    if (!accepted) {
+      return yield* Deferred.await(transportDown);
+    }
+  });
 
   const request = Effect.fn("PiRpc.request")(function* (
     record: PiRpcRecord,

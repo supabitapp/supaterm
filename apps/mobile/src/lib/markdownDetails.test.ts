@@ -10,7 +10,6 @@ import { parseMarkdown } from "react-native-enriched-markdown/src/web/parseMarkd
 
 type NativeNode = Awaited<ReturnType<typeof parseMarkdown>>;
 
-/** Where the native parser sends each link and image in one rendered fragment of a reply. */
 async function referenceDestinations(reply: string, pick: number) {
   const segment = splitMarkdownDetails(reply)[pick];
   const fragment = segment?.kind === "details" ? segment.body : (segment?.markdown ?? "");
@@ -30,7 +29,6 @@ async function referenceDestinations(reply: string, pick: number) {
 }
 
 describe("splitMarkdownDetails", () => {
-  // regression: #28059 mobile chat showed every <details> fold open
   it("splits a top-level fold into its summary and hidden body", () => {
     const markdown =
       "Short answer.\n\n<details>\n<summary>Long details</summary>\n\nA long paragraph.\n\n</details>\n\nAfter.";
@@ -110,33 +108,27 @@ describe("withReferenceDefinitions", () => {
   it("resolves a fragment's references from the whole reply, its own definitions first", async () => {
     const fold = "\n\n<details><summary>A</summary>a</details>\n\n";
     for (const [reply, pick, expected] of [
-      // Into a fold, with an escaped label and a Windows destination kept as written.
       [
         "<details>\n<summary>A</summary>\n\n[config][c] ![B][a\\]b]\n\n</details>\n\n[c]: C:\\work\\.supaterm\\settings.json\n[a\\]b]: https://example.com/a",
         0,
         ["C:\\work\\.supaterm\\settings.json", "https://example.com/a"],
       ],
-      // Out of a fold.
       [
         "See [d].\n\n<details>\n<summary>A</summary>\n\n[d]: https://example.com\n\n</details>",
         0,
         ["https://example.com"],
       ],
-      // A quoted definition that wraps onto continuation lines.
       [`See [d].${fold}> [d]:\n> https://example.com\n> "Title"`, 0, ["https://example.com"]],
-      // A definition the compact HTML block hides from the reply's parse, with a label that wraps.
       [
         "See [the\n  doc].\n\n<details><summary>A</summary>a</details>\n[The Doc]: https://example.com",
         0,
         ["https://example.com"],
       ],
-      // A literal ">" in a wrapped label is part of the label, not a quote marker.
       [
         `[part rest] and [part > rest]${fold}[part\n    > rest]: https://example.com/a\n\n[part rest]: https://example.com/b`,
         0,
         ["https://example.com/b", "https://example.com/a"],
       ],
-      // A fragment's own definition wins, however the parser equates the two labels.
       [
         "[ x ]: https://outside.example\n\n<details>\n<summary>S</summary>\n\nSee [x].\n\n[X]: https://inside.example\n\n</details>",
         1,

@@ -5,7 +5,6 @@ import * as Effect from "effect/Effect";
 import type * as ProcessRunner from "../processRunner.ts";
 
 const NETSTAT_TIMEOUT = Duration.seconds(5);
-/** `netstat -ano` lists every connection, not just listeners; ~80 bytes per row, sized for ~200k rows. */
 const NETSTAT_MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 
 export interface WindowsTcpListener {
@@ -14,7 +13,6 @@ export interface WindowsTcpListener {
 }
 
 const parseWindowsTcpListenerLine = (line: string): WindowsTcpListener | null => {
-  // Foreign port `:0` identifies a listening TCP socket regardless of Windows locale.
   const fields = line.trim().split(/\s+/);
   if (fields.length < 4 || fields[0]?.toUpperCase() !== "TCP") return null;
   const localEndpoint = fields[1] ?? "";
@@ -54,8 +52,6 @@ export const queryWindowsTcpListeners = Effect.fn("windowsTcpListeners.query")(f
   const [tcp4, tcp6] = yield* Effect.all([runNetstat("tcp"), runNetstat("tcpv6")], {
     concurrency: 2,
   });
-  // One failed query leaves a partial snapshot that could hide another process sharing a
-  // port across IPv4/IPv6.
   if (exitedWithError(tcp4) || exitedWithError(tcp6)) return null;
   return parseWindowsTcpListeners(`${tcp4.stdout}\n${tcp6.stdout}`);
 });

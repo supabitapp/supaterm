@@ -59,7 +59,6 @@ function isSameLineOverIndentedCode(
 }
 
 function parseRecoveredMarkdown(value: string, parser: MarkdownParser): RecoveredMarkdown {
-  // Prefix block-looking input to parse inline extensions; retain later block children after blank lines.
   const source = `${INLINE_PARSE_PREFIX}${value}`;
   const document = parser.parse(source) as MarkdownAstNode;
   const blocks = document.children;
@@ -106,7 +105,6 @@ function blocksFromIndentedCode(node: MarkdownAstNode, parser: MarkdownParser): 
   };
 }
 
-// CommonMark treats four or more spaces after a list marker as code.
 function attachListItemIndentationNormalizer(this: MarkdownParser) {
   return (tree: MarkdownAstNode, file: MarkdownFile) => {
     if (typeof file.value !== "string") {

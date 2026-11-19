@@ -85,7 +85,6 @@ describe("makeConnection", () => {
       const fiber = yield* connection.request("device.status").pipe(Effect.forkChild);
       const sent = yield* Queue.take(device.sent);
       assert.deepStrictEqual(sent, { method: "device.status", params: null, id: sent.id });
-      // Another host app's reply that happens to reuse our id.
       device.reply(`{"id":${sent.id},"method":"v.oai.thstatus","result":{"ok":1}}`);
       device.reply(`{"id":${sent.id},"method":"device.status","result":{"battery":50}}`);
       assert.deepStrictEqual(yield* Fiber.join(fiber), { battery: 50 });

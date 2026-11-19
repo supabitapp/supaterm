@@ -18,7 +18,6 @@ import { useGuideRunStore, type GuideRunWatch } from "./guideRunStore";
 const RUN_POLL_MS = 5_000;
 const UNSEEN_RUN_MS = 60_000;
 
-// The detail panel marks the guide tab it has on screen.
 function isGuideShown(runKey: string): boolean {
   return document.querySelector(`[data-guide-shown="${CSS.escape(runKey)}"]`) !== null;
 }
@@ -38,7 +37,6 @@ export function startGuideRunNotifications(
     for (const [key, watch] of Object.entries(watches)) {
       if (running.has(key)) continue;
       const stop = watchGuideRun(registry, router, key, watch);
-      // The first read can settle the run before it is recorded as running.
       if (useGuideRunStore.getState().watches[key] === watch) running.set(key, stop);
       else stop();
     }
@@ -151,9 +149,7 @@ function watchGuideRun(
         window.focus();
         open();
       });
-    } catch {
-      // Some browsers expose Notification but reject desktop presentation.
-    }
+    } catch {}
   };
   const unsubscribe = registry.subscribe(
     atom,

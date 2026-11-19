@@ -38,7 +38,6 @@ class WorktreeRecreateNoBaseError extends Schema.TaggedError<WorktreeRecreateNoB
   }
 }
 
-// `git worktree remove` skips pnpm junctions on Windows, leaving these behind without a checkout.
 const LEFTOVER_WORKTREE_ENTRIES = new Set(["node_modules", ".next"]);
 
 interface WorktreeThread {
@@ -56,8 +55,6 @@ export const makeRestoreMissingWorktree = Effect.gen(function* () {
   const isManagedWorktreePath = yield* makeIsManagedWorktreePath;
   const serverConfig = yield* ServerConfig.ServerConfig;
 
-  // Storage cleanup prunes idle No project folders, which have no branch to restore from.
-  // An empty folder, only directly inside the No project's own root, lets the thread run again.
   const recreateScratchFolder = Effect.fn("restoreMissingWorktree.recreateScratchFolder")(
     function* (thread: WorktreeThread, folder: string) {
       if (path.resolve(folder) !== folder || (yield* fileSystem.exists(folder))) return;
@@ -73,11 +70,9 @@ export const makeRestoreMissingWorktree = Effect.gen(function* () {
       });
       yield* fileSystem.makeDirectory(folder, { recursive: true });
     },
-    // Turn start reports a folder that is still missing.
     Effect.orElseSucceed(() => undefined),
   );
 
-  // Only folders holding nothing but leftovers are cleared, never user files.
   const isLeftoverFolder = (worktreePath: string) =>
     fileSystem.exists(path.join(worktreePath, ".git")).pipe(
       Effect.flatMap((hasGit) =>
@@ -103,7 +98,6 @@ export const makeRestoreMissingWorktree = Effect.gen(function* () {
     cwd: string,
     remoteName: string | null,
   ) {
-    // Recovery can follow an external checkout, before the status cache expires.
     yield* gitWorkflow.invalidateLocalStatus(cwd);
     const { refName: currentBranch } = yield* gitWorkflow.localStatus({ cwd });
     if (currentBranch !== null) {
@@ -117,7 +111,6 @@ export const makeRestoreMissingWorktree = Effect.gen(function* () {
         refName: "HEAD",
         fallbackRemoteName: remoteName,
       });
-      // Start from the commit so the thread branch does not track the default branch.
       return { refName: commitSha, baseRefName: remoteHead };
     }
     if (yield* gitWorkflow.hasCommit({ cwd, refName: "HEAD" })) {
@@ -141,7 +134,6 @@ export const makeRestoreMissingWorktree = Effect.gen(function* () {
     const remoteName = yield* gitWorkflow
       .resolvePrimaryRemoteName(cwd)
       .pipe(Effect.orElseSucceed(() => null));
-    // Push keeps the tracking ref current, so recovery reads it without fetching.
     const pushedRef = remoteName === null ? null : `refs/remotes/${remoteName}/${branch}`;
     if (pushedRef !== null && (yield* gitWorkflow.hasCommit({ cwd, refName: pushedRef }))) {
       yield* gitWorkflow.createWorktree({
@@ -182,7 +174,6 @@ export const makeRestoreMissingWorktree = Effect.gen(function* () {
       worktreePath,
       branch,
     });
-    // `git worktree add` refuses a non-empty target.
     yield* (leftover ? fileSystem.remove(worktreePath, { recursive: true }) : Effect.void).pipe(
       Effect.andThen(recreateMissingWorktree({ cwd: project.workspaceRoot, worktreePath, branch })),
       Effect.mapError((cause) =>
@@ -203,7 +194,6 @@ export class ThreadWorktreeRestore extends Context.Service<
   }
 >()("supaterm/workspace/restoreMissingWorktree/ThreadWorktreeRestore") {}
 
-// Turn start restores under the same lease, so concurrent restores see each other's worktree.
 export const layerThreadWorktreeRestore = Layer.effect(
   ThreadWorktreeRestore,
   Effect.gen(function* () {
@@ -219,7 +209,6 @@ export const layerThreadWorktreeRestore = Layer.effect(
   }),
 );
 
-// Worktree setup uses terminals, so recovery must stay outside TerminalManager.
 export const makePrepareTerminalLaunch = Effect.fn(
   "restoreMissingWorktree.makePrepareTerminalLaunch",
 )(function* <LookupError>(
@@ -255,7 +244,6 @@ export const makePrepareTerminalLaunch = Effect.fn(
           }).pipe(Effect.andThen(Effect.fail(error))),
         ),
       );
-    // The lease must cover the worktree root, even when the terminal opens in a subdirectory.
     return { input: { ...input, worktreePath }, recover };
   });
 });

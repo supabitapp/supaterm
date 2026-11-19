@@ -3,7 +3,6 @@ import { isWindowsDrivePath } from "./path.ts";
 export type CloneProtocol = "ssh" | "https";
 
 const SCP_LIKE_URL = /^(?:[^@/\s]+@)?(\[[^\]@/\s]+\]|[^:/\s[\]]+):(?!\/)(.+)$/;
-// Userinfo may contain `@`; the last one before the first slash separates the host.
 const SSH_URL = /^ssh:\/\/(?:[^/\s]*@)?(\[[^\]@/\s]+\]|[^@:/\s]+)(:\d+)?\/(.+)$/;
 const HTTPS_URL = /^https?:\/\/(?:[^/\s]*@)?(\[[^\]@/\s]+\]|[^@:/\s]+)(:\d+)?\/(.+)$/;
 
@@ -46,8 +45,6 @@ export function cloneUrlForProtocol(url: string, protocol: CloneProtocol): strin
   if (!parsed) return null;
   if (parsed.protocol === protocol) return url.trim();
   if (parsed.customPort) return null;
-  // Azure's transports use different hosts and put the repository marker in
-  // different positions; changing only the scheme produces an invalid clone URL.
   if (parsed.protocol === "ssh" && parsed.host.toLowerCase() === "ssh.dev.azure.com") {
     const azure = /^v3\/([^/?#]+)\/([^/?#]+)\/([^/?#]+)$/.exec(parsed.path);
     return azure ? `https://dev.azure.com/${azure[1]}/${azure[2]}/_git/${azure[3]}` : null;
@@ -56,13 +53,11 @@ export function cloneUrlForProtocol(url: string, protocol: CloneProtocol): strin
     const azure = /^([^/?#]+)\/([^/?#]+)\/_git\/([^/?#]+)$/.exec(parsed.path);
     return azure ? `git@ssh.dev.azure.com:v3/${azure[1]}/${azure[2]}/${azure[3]}` : null;
   }
-  // Bitbucket Cloud serves SSH only from `ssh.bitbucket.org` and HTTPS only from `bitbucket.org`.
   const host = /^(?:(?:alt)?ssh\.)?bitbucket\.org$/i.test(parsed.host)
     ? protocol === "ssh"
       ? "ssh.bitbucket.org"
       : "bitbucket.org"
     : parsed.host;
-  // SCP paths are literal; URI paths use percent escapes.
   try {
     if (protocol === "ssh") return `git@${host}:${decodeURIComponent(parsed.path)}`;
     const path = parsed.scp

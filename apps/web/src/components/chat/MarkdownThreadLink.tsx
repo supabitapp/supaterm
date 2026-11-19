@@ -69,7 +69,6 @@ export function MarkdownThreadLink(props: {
       : null,
   );
   const childRef = candidates.find((ref) => childTitles.has(ref.threadId)) ?? null;
-  // Reading the family to settle an absence would hold the server's database reader for seconds.
   const mayBeOmitted = useShellOmitsThreads(environmentId) && !canLookUp;
   if (missing && resolved === null && childRef === null && !mayBeOmitted) {
     const unknown = unknownThreadLinkLabel(props.link, props.environmentId);

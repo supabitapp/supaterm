@@ -31,7 +31,6 @@ function processHandle(input: {
   readonly stdout?: string;
   readonly stderr?: string;
   readonly exitCode?: number;
-  /** Holds stdout and the exit back until it completes, like a CLI slow to answer. */
   readonly answered?: Effect.Effect<void>;
 }) {
   const answered = input.answered ?? Effect.void;
@@ -113,10 +112,8 @@ const piRpcProcess = (
     });
   });
 
-/** Makes the extension-free launch exit before answering, like launch args naming an extension provider. */
 const exitsWithoutExtensions = Symbol("exitsWithoutExtensions");
 
-// Text generation lists models with --no-extensions, so its inventory can differ.
 const piDiscoverySpawner = (
   inventory: unknown,
   extensionFreeInventory: unknown = inventory,
@@ -125,9 +122,7 @@ const piDiscoverySpawner = (
     readonly version?: string;
     readonly state?: unknown;
     readonly authCheck?: string | undefined;
-    /** Without `--no-approve`, print a project-trust dialog and exit 0 as Pi 1.x does. */
     readonly startupDialog?: boolean;
-    /** What `--no-approve` lists once project-local extensions are skipped. */
     readonly declinedProjectInventory?: unknown;
   } = {},
 ) =>
@@ -361,7 +356,6 @@ describe("PiProvider", () => {
       }).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner));
       assert.equal(snapshot.status, "ready");
       assert.equal(snapshot.auth.status, "authenticated");
-      // Pi default and custom models still run in chat, so the picker keeps them.
       assert.deepEqual(
         snapshot.models.map((model) => model.slug),
         ["default", "demo/extension-model", "local/custom-alias"],

@@ -102,7 +102,6 @@ const executeBundle = (source, sandboxModules) => {
     return sandboxModules.get(moduleName);
   };
 
-  // A real preload loads with the page's DOM; no page events fire while the bundle runs here.
   const document = Object.assign(new EventTarget(), { fullscreenElement: null });
   const window = Object.assign(new EventTarget(), { document });
 

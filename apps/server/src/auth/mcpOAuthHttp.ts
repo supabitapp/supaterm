@@ -28,7 +28,6 @@ const PAGE_HEADERS = {
   "x-content-type-options": "nosniff",
 };
 
-// OAuth responses contain credentials and must not be cached.
 const noStore = HttpEffect.appendPreResponseHandler((_request, response) =>
   Effect.succeed(
     HttpServerResponse.setHeaders(response, { "cache-control": "no-store", pragma: "no-cache" }),
@@ -37,31 +36,24 @@ const noStore = HttpEffect.appendPreResponseHandler((_request, response) =>
 
 const requestUrls = Effect.map(HttpServerRequest.HttpServerRequest, McpOAuth.requestUrls);
 const decodeAuthorizationRequest = Schema.decodeEffect(AuthMcpAuthorizationRequest);
-// Decoded by the handler so malformed metadata gets the RFC 7591 error, not HttpApi's empty 400.
 const decodeClientRegistration = Schema.decodeUnknownEffect(
   Schema.fromJsonString(AuthMcpClientRegistration),
 );
 
-/**
- * An unverified client or redirect is reported, never redirected; any other problem goes back to
- * the agent through its (verified) redirect URI.
- */
-const forwardedAuthorization =
-  /* Request instrumentation already owns the span; keep this helper in that context. */
-  Effect.fnUntraced(function* (
-    oauth: McpOAuth.McpOAuth["Service"],
-    request: AuthMcpAuthorizationRequest,
-  ) {
-    const urls = yield* requestUrls;
-    return yield* oauth.validateAuthorization({ urls, request }).pipe(
-      Effect.catchTags({
-        McpOAuthPageError: (error) =>
-          Effect.fail(new AuthMcpApprovalError({ message: error.description })),
-        McpOAuthRedirectError: (error) =>
-          Effect.succeed({ redirectTo: McpOAuth.redirectForError(error, urls.issuer) }),
-      }),
-    );
-  });
+const forwardedAuthorization = Effect.fnUntraced(function* (
+  oauth: McpOAuth.McpOAuth["Service"],
+  request: AuthMcpAuthorizationRequest,
+) {
+  const urls = yield* requestUrls;
+  return yield* oauth.validateAuthorization({ urls, request }).pipe(
+    Effect.catchTags({
+      McpOAuthPageError: (error) =>
+        Effect.fail(new AuthMcpApprovalError({ message: error.description })),
+      McpOAuthRedirectError: (error) =>
+        Effect.succeed({ redirectTo: McpOAuth.redirectForError(error, urls.issuer) }),
+    }),
+  );
+});
 
 export const layer = HttpApiBuilder.group(
   EnvironmentHttpApi,

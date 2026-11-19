@@ -50,7 +50,6 @@ export function acquireDesktopTab(
     ({
       references: 0,
       closeTimer: null,
-      // Include defaults at creation to avoid painting a frame at 100%/system.
       ready: enqueueDesktopTabOperation(tabId, async () =>
         previewBridge?.createTab(tabId, {
           ...browserDefaultTabState(await resolveBrowserDefaults()),

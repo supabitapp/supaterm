@@ -61,7 +61,6 @@ export function MediaVideoPlayer({
   const failed = src !== null ? failedSrc === src : sourceFailed;
   const preloaded = preloadedSrc === src || typeof IntersectionObserver === "undefined";
 
-  // Re-signing must not reload a loaded source. Changed files load once playback pauses.
   if (
     playbackSource !== null &&
     playbackSource.revision !== revision &&
@@ -73,10 +72,8 @@ export function MediaVideoPlayer({
     );
   }
 
-  // Retry and failure remount the element, so its listeners live and die with it.
   const attachVideo = (video: HTMLVideoElement) => {
     const pauseWhenHidden = () => {
-      // Native fullscreen can hide the inline page while this video is still visible.
       const fullscreen =
         document.fullscreenElement?.contains(video) ||
         ("webkitDisplayingFullscreen" in video && video.webkitDisplayingFullscreen === true);
@@ -90,12 +87,10 @@ export function MediaVideoPlayer({
       document.removeEventListener("fullscreenchange", pauseWhenHidden);
       video.removeEventListener("webkitendfullscreen", pauseWhenHidden);
       video.pause();
-      // A detached element's pause event never reaches onPause.
       setPlaying(false);
     };
   };
 
-  // On the wrapper, not the video: re-running the video's ref callback would pause playback.
   const observePreload = (player: HTMLSpanElement) => {
     if (src === null || failed || preload === "metadata" || preloaded) return;
     return observeIntersection(

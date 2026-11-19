@@ -97,8 +97,6 @@ export function ThreadMcpApp(props: {
   const [navigatedAway, setNavigatedAway] = useState(false);
   const [generation, setGeneration] = useState(0);
   const [crashed, setCrashed] = useState(false);
-  // A different app needs a new document even when its asset URL is unchanged,
-  // so the WebView key moves on with the document key, not only the URL.
   const [app, setApp] = useState(props.app);
   if (!mcpAppReferencesEqual(app, props.app)) {
     setApp(props.app);
@@ -345,7 +343,6 @@ export function ThreadMcpApp(props: {
         }
         if (mode === "fullscreen" && current.displayMode !== "fullscreen") {
           await next.teardown();
-          // A crash restart or reload during the wait already replaced this document.
           if (hostRef.current !== next) return "inline";
 
           if (latest.current.awaitingUser || !latest.current.navigation.isFocused()) {

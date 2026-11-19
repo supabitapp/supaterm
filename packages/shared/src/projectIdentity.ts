@@ -5,8 +5,6 @@ export interface ProjectIdentity {
   readonly color: ProjectIconColor;
 }
 
-// Hue-ordered and limited to hues that stay distinct on a 16px tile; neighbors such as
-// purple and fuchsia read as the same color there. The picker still offers every color.
 const AUTOMATIC_PROJECT_COLORS = [
   "red",
   "orange",

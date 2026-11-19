@@ -42,8 +42,6 @@ export function ThreadDetailsLimits({ providerInstanceId, providers }: ThreadDet
     providerInstanceId !== null
       ? collectProviderUsageLimits(providerInstanceId, providers, now)
       : null;
-  // Only this instance's data: the report keeps one instance per login, and any other entry may be
-  // a different login or workspace, so fall back to the instance's own snapshot.
   const limits =
     report?.accounts.find((entry) => entry.instanceId === providerInstanceId)?.limits ??
     providers.find((provider) => provider.instanceId === providerInstanceId)?.usageLimits;
@@ -106,7 +104,6 @@ function LimitRow({
   );
 }
 
-/** One label, hairline, and value row; the whole row opens the details tooltip. */
 function UsageRow({
   label,
   left,
@@ -116,7 +113,6 @@ function UsageRow({
   readonly label: string;
   readonly left: number | null;
   readonly tooltip: ReactNode;
-  /** Replaces the percentage when there is none. */
   readonly value?: string | undefined;
 }) {
   const tone = left === null ? null : left <= 10 ? "error" : left <= 20 ? "warning" : null;
@@ -151,7 +147,6 @@ function UsageRow({
         ) : null}
         <span
           className={cn(
-            // Text-only rows span the bar column so they never widen the shared value column.
             "text-end font-medium tabular-nums",
             left === null && "col-span-2",
             tone === "error"
@@ -166,7 +161,6 @@ function UsageRow({
           {value ?? `${left}%`}
         </span>
       </TooltipTrigger>
-      {/* Rows sit 8px inside the card; clear its edge instead of overlapping it. */}
       <TooltipPopup side="left" sideOffset={16}>
         <div className="flex flex-col gap-0.5">{tooltip}</div>
       </TooltipPopup>

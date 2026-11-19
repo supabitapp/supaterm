@@ -109,7 +109,6 @@ export function shortcutKeyFromEvent(
 ): string {
   const layoutKey = normalizeEventKey(event.key);
   if (/^[a-z]$/.test(layoutKey)) return layoutKey;
-  // An unshifted "+" is a dedicated zoom key (German, Spanish, Nordic); Czech types it on Digit1.
   const isZoomPlus = layoutKey === "+" && !event.shiftKey && !event.altKey;
   if (isZoomPlus && !event.code?.startsWith("Digit")) return layoutKey;
   const physicalKey = event.code ? EVENT_CODE_SHORTCUT_KEYS[event.code] : undefined;
@@ -166,12 +165,10 @@ type WhenToken =
   | { type: "lparen" }
   | { type: "rparen" };
 
-// Saved configs keep every default, so changing one also needs a SAVED_DEFAULT_MOVES entry in the server.
 export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+b", command: "sidebar.toggle" },
   { key: "f6", command: "workspace.focusNext" },
   { key: "shift+f6", command: "workspace.focusPrevious" },
-  // Some browsers keep plain F6 for their own toolbars; mod+F6 reaches the page in all of them.
   { key: "mod+f6", command: "workspace.focusNext" },
   { key: "mod+shift+f6", command: "workspace.focusPrevious" },
   { key: "mod+[", command: "navigation.back", when: "!terminalFocus" },
@@ -185,7 +182,6 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+n", command: "terminal.new", when: "terminalFocus" },
   { key: "mod+w", command: "terminal.close", when: "terminalFocus" },
   { key: "mod+w", command: "rightPanel.close", when: "!terminalFocus" },
-  // After the right panel's rule so it wins only while the panel is closed and panes are split.
   { key: "mod+w", command: "pane.close", when: "paneClosable && !terminalFocus" },
   { key: "mod+shift+t", command: "view.reopenClosed" },
   { key: "mod+d", command: "diff.toggle", when: "!terminalFocus" },

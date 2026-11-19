@@ -149,7 +149,6 @@ describe("VcsProcess.run", () => {
       }),
   );
 
-  // Without LANG, macOS Git follows the system language, as in an app launched from Finder.
   it.effect("reads Git failures in English when Git would follow the system language", () =>
     Effect.gen(function* () {
       let attempts = 0;

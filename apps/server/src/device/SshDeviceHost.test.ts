@@ -180,7 +180,6 @@ it.effect("preserves installed status after probes and cleans failed agent activ
     yield* host.ensureAgentReady(() => Effect.void);
     yield* host.platformAvailability("ios");
     expect((yield* host.summary).agentDeviceInstalled).toBe(true);
-    // Close releases agent sessions through the forwarded daemon.
     const agentReady = yield* host.current;
     yield* agentReady!.releaseAgentSession!("supaterm-session", "device");
     expect(releases).toEqual(["Bearer fixture"]);
@@ -394,12 +393,10 @@ it.effect("lists Android devices without probing the host again once it reports 
     expect(yield* androidNames).toEqual([]);
     expect(modes.splice(0)).toEqual(["probe"]);
 
-    // The SDK appears after connecting, so the next listing still probes the host.
     androidInstalled = true;
     expect(yield* androidNames).toEqual(["Pixel_8"]);
     expect(modes.splice(0)).toEqual(["probe", ""]);
 
-    // Android is now known to be available, so listing only runs `emulator -list-avds`.
     expect(yield* androidNames).toEqual(["Pixel_8"]);
     expect(modes.splice(0)).toEqual([""]);
 
@@ -430,7 +427,6 @@ it.effect(
         Effect.gen(function* () {
           if (command._tag !== "StandardCommand") return yield* Effect.die("Unexpected command");
           const forwarding = command.args.includes("-L");
-          // A fresh forward reaches a working hub again.
           if (forwarding && ++forwardSpawns > 1) hubAnswers = true;
           const output = JSON.stringify({
             nodePath: "/node",
@@ -473,16 +469,13 @@ it.effect(
       yield* host.ensureReady(() => Effect.void);
       expect(forwardSpawns).toBe(1);
 
-      // A loaded host can miss a probe or two without being gone; the forward stays up.
       hubAnswers = false;
       yield* TestClock.adjust("30 seconds");
       hubAnswers = true;
       yield* TestClock.adjust("2 minutes");
       expect(forwardSpawns).toBe(1);
 
-      // A hub that keeps missing probes is still replaced.
       hubAnswers = false;
-      // Recovery reset the miss count, so two new misses do not reconnect yet.
       yield* TestClock.adjust("30 seconds");
       expect(forwardSpawns).toBe(1);
       yield* TestClock.adjust("30 seconds");
@@ -672,7 +665,6 @@ it.effect.each([
             ? { _tag: "SshConnectError", ...connect, target: "test.example", cause: sshFailure }
             : sshFailure,
       );
-      // A transport failure has no remote shell to ask.
       if (exitCode === 255) expect(shellChecks).toEqual([]);
     }).pipe(Effect.scoped, Effect.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))),
 );

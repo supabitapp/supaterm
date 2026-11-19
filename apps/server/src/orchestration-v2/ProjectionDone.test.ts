@@ -198,7 +198,6 @@ it.effect.each([["sql", layerSql]] as const)(
       yield* setRequest(question);
       yield* assertPending(question.id, true);
 
-      // A request becoming pending can retain a creation time older than the snooze.
       yield* setRequest(approval);
       yield* assertPending(approval.id, false);
       yield* setRequest(newerApproval);

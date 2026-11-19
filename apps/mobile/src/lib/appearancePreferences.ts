@@ -162,7 +162,6 @@ export function resolveMarkdownFontSizes(baseFontSize: number): ResolvedMarkdown
   };
 }
 
-/** Keep text-variable roles in sync with global.css and MOBILE_TYPOGRAPHY. */
 const TEXT_SCALE_VARIABLE_ROLES = {
   "--text-3xs": MOBILE_TYPOGRAPHY.micro,
   "--text-2xs": MOBILE_TYPOGRAPHY.caption,
@@ -204,8 +203,6 @@ export function resolveScaledTextRole(role: keyof typeof MOBILE_TYPOGRAPHY, base
   };
 }
 
-// React Native text applies the system text size itself, but the iOS composer sets a fixed
-// UIFont, so it needs pre-scaled metrics. Android's editor already sizes text in sp.
 export function resolveComposerTextRole(
   role: { readonly fontSize: number; readonly lineHeight: number },
   fontScale: number,

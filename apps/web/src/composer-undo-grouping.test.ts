@@ -47,7 +47,6 @@ function composer(text = "") {
       }
       return api;
     },
-    // The custom paste path bypasses ProseMirror's clipboard tagging.
     paste: (s: string) => {
       clock += 80;
       dispatch(markAsClipboardEdit(state.tr.insertText(s), "paste"));

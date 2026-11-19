@@ -100,13 +100,10 @@ export function useComposerResume(input: ComposerResumeInput) {
     sendInFlightRef.current = true;
     setResumingThreadKeys((current) => new Set(current).add(routeThreadKey));
     setThreadError(threadId, null);
-    // Commands settle into a result, so this always runs.
     const resume = async () => {
       if (resumableRunId === null) {
         return resumeThreadQueue({ environmentId, input: { threadId } });
       }
-      // Read before the first await: the composer follows the route, so after the user switches
-      // threads it holds the other thread's model.
       const modelSelection = composerRef.current?.getSendContext().selectedModelSelection;
       const createdAt = new Date().toISOString();
       const settingsResult = await persistThreadSettingsForNextTurn({

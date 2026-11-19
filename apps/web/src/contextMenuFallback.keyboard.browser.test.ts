@@ -111,7 +111,6 @@ it("takes thumb Back and Forward presses so the app router stays put", () => {
   for (const button of [3, 4]) {
     const event = new MouseEvent("mouseup", { button, bubbles: true, cancelable: true });
     document.activeElement!.dispatchEvent(event);
-    // Chromium runs history back/forward on a thumb-button mouseup nobody cancelled.
     expect(event.defaultPrevented).toBe(true);
   }
   expect(isContextMenuOpen()).toBe(true);

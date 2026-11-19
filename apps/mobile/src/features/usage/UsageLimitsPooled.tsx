@@ -51,7 +51,6 @@ function accountHue(email: string) {
   return Math.abs(hash) % 360;
 }
 
-// Same hashed hue as the web account chip, so an account keeps its color across clients.
 function AccountChip({ email }: { readonly email: string }) {
   const hue = accountHue(email);
   return (
@@ -66,7 +65,6 @@ function AccountChip({ email }: { readonly email: string }) {
   );
 }
 
-// Same gap-and-tick as the Limits rows: two clipped copies of the segment leave a see-through gap.
 function PaceGap({
   timeLeft,
   children,
@@ -176,7 +174,6 @@ function PoolWindowCard({
 }) {
   const navigation = useNavigation();
   const [barWidth, setBarWidth] = useState(0);
-  // Each segment needs room for its account, percent and reset to label itself.
   const segmentWidth = barWidth / Math.max(pool.columns.length, 1);
   const inlineLabels = wide && segmentWidth >= 96;
   const inlineReset = wide && segmentWidth >= 150;

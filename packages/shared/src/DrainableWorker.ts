@@ -24,8 +24,6 @@ export const makeDrainableWorker = Effect.fn("DrainableWorker.makeDrainableWorke
 ): Effect.fn.Return<DrainableWorker<A>, never, Scope.Scope | R> {
   const outstanding = yield* TxRef.make(0);
   const queue = yield* Effect.acquireRelease(TxQueue.unbounded<A>(), (queue) =>
-    // Uncount only the dropped items: an item still running uncounts itself,
-    // even when a parallel scope closes it after this finalizer.
     TxQueue.clear(queue).pipe(
       Effect.flatMap((dropped) => TxRef.update(outstanding, (n) => n - dropped.length)),
       Effect.andThen(TxQueue.shutdown(queue)),
@@ -35,11 +33,7 @@ export const makeDrainableWorker = Effect.fn("DrainableWorker.makeDrainableWorke
 
   yield* TxQueue.take(queue).pipe(
     Effect.flatMap((a) =>
-      // `suspend` turns a `process` that throws while building its effect
-      // into this item's defect instead of the loop's.
       Effect.suspend(() => process(a)).pipe(
-        // Only the item's own failure, defect, or interruption lands here and
-        // the loop continues; interrupting the worker fiber still stops it.
         Effect.catchCause((cause) =>
           Cause.hasInterruptsOnly(cause)
             ? Effect.void

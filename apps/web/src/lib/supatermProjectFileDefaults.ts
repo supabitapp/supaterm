@@ -27,8 +27,6 @@ export async function readSupatermProjectFile(
   const connected =
     appAtomRegistry.get(environmentPresentations.presentationAtom(environmentId))?.connection
       .phase === "connected";
-  // Opening a new offline thread must not wait on a filesystem RPC. Reuse any
-  // cached project defaults; otherwise the normal project/server defaults apply.
   const result = connected
     ? await executeAtomQuery(appAtomRegistry, query, { reportDefect: false, reportFailure: false })
     : appAtomRegistry.get(query);

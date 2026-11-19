@@ -28,7 +28,6 @@ export function assertKiroCompactionOutput(
     outbound.filter((frame) => field(frame, "method") === "_kiro/session/compact"),
     1,
   );
-  // Compaction drops Supaterm's instructions from Kiro's context, so the next prompt carries them again.
   assert.deepEqual(
     prompts.map((frame) => promptText(frame).startsWith("<supaterm_instructions>")),
     [true, true],

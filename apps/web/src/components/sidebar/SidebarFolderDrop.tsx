@@ -54,7 +54,6 @@ export function SidebarFolderDrop(props: { children: ReactNode }) {
       );
       return;
     }
-    // One at a time, so the last folder is the one left open.
     for (const folder of folders) {
       const workspaceRoot = resolveDroppedFolderPath(folder, bridge.getPathForFile);
       const response =

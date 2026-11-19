@@ -65,7 +65,6 @@ export function createAssistantTextSelector(
   const end = normalizeWhitespace(text.slice(0, rawEnd)).length;
   let prefixStart = Math.max(0, start - ASSISTANT_CITATION_CONTEXT_LENGTH);
   let suffixEnd = Math.min(normalized.length, end + ASSISTANT_CITATION_CONTEXT_LENGTH);
-  // A split pair becomes a replacement character when the context enters a URL.
   if (splitsSurrogatePair(normalized, prefixStart)) prefixStart += 1;
   if (splitsSurrogatePair(normalized, suffixEnd)) suffixEnd -= 1;
   return {
@@ -120,7 +119,6 @@ export function findAssistantCitationText(
   return match ?? (quoteCount === 1 ? onlyQuote : null);
 }
 
-/** A text node, or a whole rendered formula standing for its TeX. */
 type TextChunk = { node: Text | Element; start: number; end: number };
 
 const isText = (node: Node): node is Text => node.nodeType === 3;
@@ -195,7 +193,6 @@ function selectedTextBoundary(range: Range, node: Node, last: boolean): Text | n
     const text = node as Text;
     const start = node === range.startContainer ? range.startOffset : 0;
     const end = node === range.endContainer ? range.endOffset : text.length;
-    // Triple-click ranges include unselected text from unselectable rows and the next response.
     return start < end && !isUnselectable(text) ? text : null;
   }
   for (
@@ -221,9 +218,6 @@ export function captureAssistantTextSelection(
   const source = first.parentElement?.closest<HTMLElement>("[data-assistant-citation-source]");
   if (!source || !viewport.contains(source)) return null;
 
-  // Paragraph selection can end at the next block's offset 0 or a parent
-  // boundary. Validate the text actually selected, not that empty endpoint.
-  // An endpoint inside a formula's glyphs takes in the whole formula.
   const startFormula = mathWrapperOf(first.parentElement);
   const endFormula = mathWrapperOf(last.parentElement);
   if (startFormula) range.setStartBefore(startFormula);
@@ -280,7 +274,6 @@ export function resolveAssistantCitationRange(
   if (first === undefined || last === undefined) return null;
 
   const range = root.ownerDocument.createRange();
-  // A match that touches a formula covers the formula as rendered.
   if (isText(first.node)) range.setStart(first.node, Math.max(0, start - first.start));
   else range.setStartBefore(first.node);
   if (isText(last.node)) range.setEnd(last.node, Math.min(last.node.length, end - last.start));

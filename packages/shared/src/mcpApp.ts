@@ -180,9 +180,6 @@ export function mcpAppContentSecurityPolicy(csp: McpAppCsp | undefined): string 
     `font-src data: ${resources}`.trim(),
     `media-src data: blob: ${resources}`.trim(),
     `connect-src ${list(csp?.connectDomains, "'none'")}`,
-    // A blob: frame holds HTML the app already has and inherits its opaque
-    // origin, sandbox and policy. Apps whose own embed can't load from an
-    // opaque origin fall back to one.
     `frame-src blob: ${csp?.frameDomains?.join(" ") ?? ""}`.trim(),
     "object-src 'none'",
     `base-uri ${list(csp?.baseUriDomains, "'none'")}`,
@@ -250,8 +247,6 @@ export function injectMcpAppThemeBootstrap(html: string): string {
  */
 export function injectMcpAppCookieBootstrap(html: string): string {
   const bootstrap = `<script>(function(){try{void document.cookie;}catch(error){if(error&&error.name==="SecurityError"){Object.defineProperty(document,"cookie",{configurable:true,get:function(){return "";},set:function(){}});}}})();</script>`;
-  // Saved captures begin with the CSP inserted by injectMcpAppCsp. Keep it
-  // ahead of executable code, including this bootstrap, without rewriting it.
   const prefix =
     /^(?:\uFEFF?\s*<!doctype[^>]*>\s*)?(?:<meta http-equiv="Content-Security-Policy" content="[^"]*">)?/i.exec(
       html,

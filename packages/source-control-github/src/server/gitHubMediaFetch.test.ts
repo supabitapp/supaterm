@@ -11,7 +11,6 @@ import * as GitHubRest from "./GitHubRest.ts";
 
 const PR_REPOSITORY = "enterprise/private";
 
-/** An SSO organization: the upload URL answers with a sign-in page, a rendered signed URL with bytes. */
 const makeSsoFixture = (uploadUrl: string) => {
   const state = { account: "account-a", expired: new Set<string>() };
   const rendered: Array<GitHubRest.GitHubRestInput> = [];
@@ -152,7 +151,6 @@ describe("GitHubMediaFetch", () => {
           }),
         ),
       ),
-      // GitHub's two routes to the object: the LFS media host and the Git LFS batch API.
       Effect.provideService(
         HttpClient.HttpClient,
         HttpClient.make((request) => {

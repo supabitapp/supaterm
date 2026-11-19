@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-// Writes the database scripts/smoke-desktop-app.ts opens: one project and two threads, through
-// the server's own event sink. Commit the result and keep it: packaged builds must migrate it
-// forward as they do for upgrading users, so do not regenerate it on schema changes.
 
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";

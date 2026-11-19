@@ -28,7 +28,6 @@ export async function recoverFailedThreadDraft(message: QueuedThreadMessage): Pr
     source.attachments.filter((attachment) => !existingIds.has(attachment.id)),
     { restore: true },
   );
-  // Recovery may exceed caps; preserve every file and leave trimming to the editor.
   await flushComposerDrafts();
   clearComposerDraftContent(sourceKey);
 }

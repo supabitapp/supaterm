@@ -38,7 +38,6 @@ import { EnvironmentRpcUnavailableError, request } from "../rpc/client.ts";
 import type { EnvironmentShellState } from "./shell.ts";
 import { fetchEnvironmentThreadTranscript } from "./threadTranscriptHttp.ts";
 
-// `scan` emits its seed first; skipping it keeps the view "loading" until the first frame.
 const commandOutputViews = <E, R>(frames: Stream.Stream<OrchestrationV2CommandOutputFrame, E, R>) =>
   frames.pipe(
     Stream.scan(() => EMPTY_COMMAND_OUTPUT, applyCommandOutputFrame),
@@ -70,7 +69,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
     staleTimeMs: 60_000,
     idleTtlMs: 60_000,
   });
-  // A settled item's revision is its updatedAt, so the answer for it never goes stale.
   const settledTurnItem = createEnvironmentRpcQueryAtomFamily(runtime, {
     label: "environment-data:orchestration:turn-item",
     tag: ORCHESTRATION_V2_WS_METHODS.getTurnItem,
@@ -97,8 +95,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       tag: ORCHESTRATION_V2_WS_METHODS.getThreadTitles,
       staleTimeMs: 0,
       idleTtlMs: 0,
-      // Deleting a thread the shell already left out keeps these ids, so the query would not rerun.
-      // A removal can also be an archive, so it only prompts a re-check.
       refreshTrigger: refreshThreadLookup,
     }),
     threadLinkMetadata: createEnvironmentQueryAtomFamily(runtime, {
@@ -163,9 +159,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
         tag: ORCHESTRATION_V2_WS_METHODS.subscribeThread,
         idleTtlMs: 0,
       }),
-      // One expanded command row's output. A running command's subscription ends
-      // as soon as its row closes, so hidden rows receive nothing; a finished
-      // command's final output stays cached so reopening it does not refetch.
       commandOutput: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
         label: "environment-data:orchestration-v2:command-output",
         tag: ORCHESTRATION_V2_WS_METHODS.subscribeCommandOutput,
@@ -174,7 +167,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
         completedTtlMs: 5 * 60_000,
         transform: commandOutputViews,
       }),
-      // One pending background command's output, while its details are open.
       backgroundTaskOutput: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
         label: "environment-data:orchestration-v2:background-task-output",
         tag: ORCHESTRATION_V2_WS_METHODS.subscribeBackgroundTaskOutput,
@@ -193,7 +185,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       staleTimeMs: 300_000,
       idleTtlMs: 300_000,
     }),
-    // Mounted only while a subagent inspector is open; running children change between opens.
     nativeChildWork: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:native-child-work",
       tag: ORCHESTRATION_V2_WS_METHODS.getNativeChildWork,
@@ -245,8 +236,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
     archivedShellSnapshot: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:archived-shell-snapshot",
       tag: ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,
-      // The shell reports archiving a thread, and deleting or changing an archived one, as a removal,
-      // and replaces `removedAt` on each one.
       refreshTrigger: ({ environmentId }) => {
         if (shellState === undefined) return undefined;
         const state = shellState(environmentId);
@@ -259,7 +248,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       staleTimeMs: 0,
       idleTtlMs: 0,
     }),
-    // Read right before deleting a worktree, so never served from cache.
     worktreeThreadIds: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:worktree-thread-ids",
       tag: ORCHESTRATION_V2_WS_METHODS.getWorktreeThreadIds,

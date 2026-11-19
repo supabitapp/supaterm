@@ -40,9 +40,7 @@ export function loadCachedAcpRegistryIcon(iconUrl: string): Promise<Blob> {
     if (typeof caches !== "undefined") {
       try {
         cache = await caches.open(ACP_REGISTRY_ICON_CACHE);
-      } catch {
-        // Privacy modes may expose CacheStorage but reject access; icons still load from the allowlisted CDN.
-      }
+      } catch {}
     }
     if (cache !== null) {
       try {
@@ -69,10 +67,6 @@ export function loadCachedAcpRegistryIcon(iconUrl: string): Promise<Blob> {
   return load;
 }
 
-// Falls back to the raw allowlisted CDN URL when the validating fetch fails: the
-// CDN serves no CORS headers, so the fetch is often blocked cross-origin while
-// native <img> loading still works. The object URL is shared per agent and
-// revoked when the last icon unmounts.
 const acpRegistryIconSourceAtom = Atom.family((iconUrl: string) =>
   Atom.make((get) => {
     let disposed = false;
@@ -107,8 +101,6 @@ export function AcpRegistryAgentIcon({
 }) {
   const colorFilterId = useId();
   const iconUrl = resolveOfficialAcpRegistryIconUrl(icon);
-  // Render only after the load pipeline resolves, so the fallback icon does
-  // not flash a broken image.
   const source = AsyncResult.getOrElse(
     useAtomValue(iconUrl === null ? NO_ICON_SOURCE_ATOM : acpRegistryIconSourceAtom(iconUrl)),
     () => null,
@@ -127,8 +119,6 @@ export function AcpRegistryAgentIcon({
         className,
       )}
     >
-      {/* Recolor alpha because external images cannot inherit currentColor; local SVG filters work despite
-       * CDN mask CORS restrictions. */}
       <svg aria-hidden className="pointer-events-none absolute size-0" focusable="false">
         <defs>
           <filter id={colorFilterId} colorInterpolationFilters="sRGB">

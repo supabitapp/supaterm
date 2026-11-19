@@ -457,7 +457,6 @@ export function resolveComposerProviderSelection(input: {
     ? (input.entries.find((entry) => entry.instanceId === input.lockedInstanceId)
         ?.continuationGroupKey ?? null)
     : null;
-  // Missing metadata must not move Antigravity history into another Google profile.
   const requiresExactInstance =
     input.lockedProvider === "antigravity" &&
     input.lockedInstanceId != null &&
@@ -551,7 +550,6 @@ export function reconcileMountedTerminalThreadIds(input: {
   return nextThreadIds;
 }
 
-// Null identifies the project checkout when a launch or session is known.
 export function resolveTerminalWorktreePath(input: {
   launchContext: { readonly worktreePath: string | null } | null;
   summary: { readonly worktreePath: string | null } | null;
@@ -737,8 +735,6 @@ export function branchMismatchKey(
   return `${threadId}:${mismatch.threadBranch}:${mismatch.currentBranch}`;
 }
 
-// Draft content is the intent signal — composer focus is useless here because
-// ChatView autofocuses the composer on every thread open.
 export function shouldShowBranchMismatchBanner(input: {
   hasMismatch: boolean;
   isDismissed: boolean;
@@ -761,9 +757,6 @@ export function isBranchMismatchDismissedForSession(key: string | null): boolean
   return key !== null && sessionDismissedBranchMismatchKeys.has(key);
 }
 
-// Git status for a checkout arrives after the composer paints, and the branch
-// strip mounts on the assumption that a project is a Git repo. Without a
-// memory, a non-Git project would mount the strip and drop it on every visit.
 const sessionCheckoutIsRepo = new Map<string, boolean>();
 
 function checkoutIsRepoKey(environmentId: EnvironmentId, cwd: string): string {
@@ -787,8 +780,6 @@ export function recallCheckoutIsRepo(
     : sessionCheckoutIsRepo.get(checkoutIsRepoKey(environmentId, cwd));
 }
 
-// Imported history has no session until its first prompt. Resolve its instance
-// through the environment's provider catalog before locking to a driver.
 export function deriveLockedProvider(input: {
   thread: Thread | null | undefined;
   selectedProvider: string | null;
@@ -803,8 +794,6 @@ export function deriveLockedProvider(input: {
   if (sessionProvider && isProviderDriverKind(sessionProvider)) {
     return sessionProvider;
   }
-  // Preserve the existing lock while an instance is missing from the catalog;
-  // a started thread must not silently fall back to a different driver.
   const threadProvider =
     input.providers.find((provider) => provider.instanceId === input.threadProvider)?.driver ??
     input.threadProvider;
@@ -859,7 +848,6 @@ export async function waitForRevertedMessage(
     (providerThread) => providerThread.id === providerThreadId,
   );
   const initialProviderThreadIds = new Set(initial?.providerThreads.map((thread) => thread.id));
-  // Paging can omit the source run. Rollback commits the entire settled suffix atomically.
   const witness = initial?.runs.reduce<(typeof initial.runs)[number] | undefined>((latest, run) => {
     if (
       run.ordinal <= turnCount ||
@@ -900,7 +888,6 @@ export async function waitForRevertedMessage(
         thread.providerThreads.some(
           (providerThread) =>
             (providerThread.id === providerThreadId ||
-              // Claude resets to a fresh root session when rewinding to thread start.
               (turnCount === 0 &&
                 providerThread.ownerNodeId === null &&
                 providerThread.appThreadId === initial?.thread.id &&
@@ -960,10 +947,6 @@ export function hasCompactableConversation(input: {
   );
 }
 
-// Window return puts the caret in the composer unless focus or a selection is deliberate: another
-// text field, a terminal, an open dialog, menu, or popup, a region, timeline, or sidebar row
-// reached from the keyboard, a text selection's action (only Tab reaches it), a region with its own
-// keys (aria-keyshortcuts), or selected text. A plain focused button or a clicked row yields.
 export function shouldRefocusComposerOnWindowFocus(
   activeElement:
     | (Pick<Element, "tagName" | "closest" | "getAttribute"> & { isContentEditable?: boolean })
@@ -1028,8 +1011,6 @@ export function mergeDirectPreviewAnnotation(input: {
         ...input.previewAnnotations,
         {
           ...direct.annotation,
-          // Claim an attached crop only when the screenshot really rides
-          // along; a cap-dropped image must not produce a lying prompt.
           screenshot:
             direct.annotation.screenshot && (imageAppended || imageAlreadyAttached)
               ? { ...direct.annotation.screenshot, dataUrl: "" }
@@ -1051,9 +1032,6 @@ export function formatOutgoingPrompt(params: {
   return applyClaudePromptEffortPrefix(params.text, promptEffort);
 }
 
-// Errors surface through two maps (draft-keyed and thread-keyed) whose entries
-// can race around promotion, so each write carries its time to let the latest
-// one win when they collide.
 export type LocalThreadErrorEntry = {
   readonly message: string | null;
   readonly at: number;
@@ -1068,11 +1046,6 @@ export function releaseChatTimelineAnchor<T extends { readonly messageId: Messag
 ): T {
   return current.messageId === null ? current : { ...current, messageId: null };
 }
-
-// The factories below build functions ChatView calls during render, or hands
-// to ChatComposer, which can call them after an await. They live outside the
-// component so each closure keeps only its inputs, not a whole render scope
-// (see useStableCallback), while still acting on the render that made them.
 
 /** Records a thread error in local state, keyed by the route the making render saw. */
 export function makeThreadErrorSetter(input: {
@@ -1165,7 +1138,6 @@ export function presentThreadShellFromProjection(
   const runtime = deriveThreadRuntime({ ...projection, updatedAt });
   const pendingRuntimeRequest =
     projection.runtimeRequests.findLast((request) => request.status === "pending") ?? null;
-  // Direct links can hydrate detail before the thread enters the shell index.
   return {
     ...presentThreadShell(environmentId, {
       ...projection.thread,
@@ -1200,7 +1172,6 @@ export function presentThreadShellFromProjection(
   };
 }
 
-// Excludes `waiting`: that is post-terminal checkpoint drain, so its agent turn is over.
 const LIVE_RUN_STATUSES = new Set(["queued", "preparing", "starting", "running"]);
 
 /**
@@ -1282,7 +1253,6 @@ export function deriveAvailableRevertTurnCounts(projection: ThreadStructure | nu
     const providerTurn =
       latestTurnByAttempt.get(run.activeAttemptId) ??
       (attempt?.providerTurnId == null ? undefined : providerTurnsById.get(attempt.providerTurnId));
-    // A ready file checkpoint alone cannot restore the provider conversation.
     if (providerTurn?.providerThreadId === providerThread.id) available.add(run.ordinal);
   }
   return available;

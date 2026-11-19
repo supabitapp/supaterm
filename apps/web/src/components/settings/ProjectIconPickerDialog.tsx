@@ -47,8 +47,6 @@ function initialIconName(current: ProjectIconOverride | null): string {
     : DEFAULT_PROJECT_ICON.name;
 }
 
-// Saving without picking another icon keeps the saved name, so recoloring an icon the
-// picker no longer offers does not replace it with the default.
 function symbolIconToSave(
   current: ProjectIconOverride | null,
   iconName: string,
@@ -83,7 +81,6 @@ export function ProjectIconPickerDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogPopup className="w-full sm:w-[32rem]">
-        {/* The popup mounts per open, so the draft below starts from `current` each time. */}
         <ProjectIconPickerBody
           current={current}
           automatic={automatic}

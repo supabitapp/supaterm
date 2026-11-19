@@ -30,10 +30,6 @@ const IMAGE_MIME_TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
   webp: "image/webp",
 };
 
-/**
- * Some sources (drags from other apps, files piped through a shell) hand over a
- * `File` with an empty or generic MIME type.
- */
 function inferImageMimeTypeFromName(name: string): string | null {
   const dotIndex = name.lastIndexOf(".");
   if (dotIndex <= 0) {
@@ -64,11 +60,9 @@ export function normalizeComposerImageFileMimeType(file: File): File {
 function composerImageSignature(
   image: Pick<ComposerImageAttachment, "mimeType" | "sizeBytes" | "name">,
 ): string {
-  // Hydrated images get fresh lastModified values, so exclude it from dedupe.
   return `${image.mimeType}\u0000${image.sizeBytes}\u0000${image.name}`;
 }
 
-// Byte hashes by file; a file whose bytes were never read gets a key that matches only itself.
 const composerImageFingerprints = new WeakMap<File, string>();
 let unreadComposerImageCount = 0;
 
@@ -83,7 +77,6 @@ function composerImageFingerprint(file: File): string {
 
 /** Records the bytes behind an image file, so a draft drops it only as a byte-for-byte repeat. */
 export function rememberComposerImageBytes(file: File, bytes: Uint8Array): void {
-  // cyrb53, synchronous: crypto.subtle is missing on plain-http remote origins.
   let first = 0xdeadbeef;
   let second = 0x41c6ce57;
   for (let index = 0; index < bytes.length; index++) {
@@ -99,7 +92,6 @@ export function rememberComposerImageBytes(file: File, bytes: Uint8Array): void 
 }
 
 export async function readComposerImageBytes(file: File): Promise<void> {
-  // An unreadable file keeps matching only itself.
   const bytes = await file.arrayBuffer().catch(() => null);
   if (bytes) rememberComposerImageBytes(file, new Uint8Array(bytes));
 }
@@ -114,7 +106,6 @@ export function composerImageDedupKey(
   return `${composerImageSignature(image)}\u0000${composerImageFingerprint(image.file)}`;
 }
 
-// Compression changes an image's bytes, so a compressed image answers for the file it came from.
 const composerImageSourceKeys = new WeakMap<File, string>();
 
 /** A pasted image's name, type and size: a guess, before its bytes are read, that the draft has it. */
@@ -144,7 +135,6 @@ function isDngFile(file: Pick<File, "name" | "type">): boolean {
 }
 
 export function composerFileAttachmentMimeType(file: Pick<File, "name" | "type">): string {
-  // Downstream image detection uses MIME, even for attachments staged as files.
   if (isDngFile(file)) return "image/x-adobe-dng";
   if (isSvgAttachment({ name: file.name, mimeType: file.type })) return "image/svg+xml";
   return (
@@ -168,7 +158,6 @@ export function classifyComposerAttachmentFile(
     return "file";
   }
   if (isProviderSendTurnSupportedImageMimeType(file.type)) return "image";
-  // These can be previewed as files, but providers must not receive them as images.
   return isWorkspaceImagePreviewPath(file.name) ? "file" : "unsupported-image";
 }
 

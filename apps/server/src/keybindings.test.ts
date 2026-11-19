@@ -327,7 +327,6 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       { key: "mod+shift+s", command: "thread.mark-done", when: "!terminalFocus" },
       { key, command: "script.custom-action.run" },
     ]),
-    // Off macOS, mod+m is Ctrl+M.
     ...["ctrl+m", "mod+m"].map((key): readonly KeybindingRule[] => [
       { key: "mod+shift+space", command: "composer.voice", when: "!terminalFocus" },
       { key, command: "script.custom-action.run" },
@@ -705,9 +704,6 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
 
         const changes = yield* keybindings.subscribeChanges;
 
-        // Revalidate when config on disk has not changed (e.g. atime bump on Windows).
-        // `revalidate` publishes before it returns, so a wrongly emitted event would be
-        // buffered in the subscription ahead of the real change observed below.
         yield* keybindings.revalidate;
 
         yield* writeKeybindingsConfig(keybindingsConfigPath, [
@@ -716,7 +712,6 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
         ]);
         yield* keybindings.revalidate;
 
-        // The first buffered event must be the real change, not the unchanged state.
         const change = Option.getOrThrow(yield* Stream.runHead(changes));
         assert.isTrue(
           change.keybindings.some(

@@ -92,11 +92,9 @@ function PullRequestRowImpl({
   showProvider: boolean;
   environmentLabel?: string;
   matchedElsewhere?: boolean;
-  /** Visibility key for deferred line-count reads. */
   statsKey?: string;
   statsRef?: RefCallback<HTMLDivElement>;
   onSelect: (entry: PullRequestRowTarget) => void;
-  /** The row the pointer or focus rests on, or null when it leaves. */
   onIntent?: (entry: PullRequestRowTarget | null) => void;
   hostActions: ReadonlySet<PullRequestAction>;
   onActed: (result: PullRequestSpeedActionResult) => void;

@@ -313,11 +313,7 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
   });
 
   const launcherLock = yield* Semaphore.make(1);
-  /** Launchers bound since startup, by agent-device session. */
   const boundLaunchers = new Map<string, string>();
-  // Binding and pruning read sessions under the lock, so neither acts on a session list the other has outdated.
-  // A retired session's agent-device session ends before its launcher goes, and a reopen of the same
-  // device waits for the lock, so the close cannot end the reopened session.
   const pruneLaunchers = launcherLock.withPermit(
     Effect.gen(function* () {
       if (!launchers) return;
@@ -359,7 +355,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
       ),
     );
 
-  // Uninterruptible so a committed retirement always prunes, even if its caller is cancelled.
   const publish = (update: (state: DeviceServiceState) => DeviceServiceState) =>
     SynchronizedRef.modifyEffect(stateRef, ({ state }) => {
       const next = { ...update(state), revision: state.revision + 1 };
@@ -384,7 +379,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     return host;
   });
 
-  // Readiness phases replace the shown detail; this restores an incomplete listing's cause once ready.
   const discoveryDetails = new Map<DeviceHostId, string>();
 
   const setHostStatus = (
@@ -552,8 +546,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
 
   const refresh = Effect.fn("DeviceService.refresh")(function* (ready: DeviceReadiness) {
     const host = hosts.get(ready.hostId);
-    // A session opened while the listing ran is on a device the listing could
-    // not have seen yet; only sessions from before it can be pruned by it.
     const sessionKey = (session: DeviceSession) =>
       `${session.hostId}\u0000${session.deviceId}\u0000${session.threadId}\u0000${session.openedAt}`;
     const before = new Set((yield* SynchronizedRef.get(stateRef)).state.sessions.map(sessionKey));
@@ -578,9 +570,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
             ),
             ...devices.filter((device) => !incompletePlatforms.includes(device.platform)),
           ],
-          // A host that ends devices itself (Expo stops sessions at their limits)
-          // leaves sessions on devices it no longer lists with nothing to stream.
-          // Other hosts can miss a device for one listing, so theirs stay.
           sessions: ready.devices.endsDevices
             ? state.sessions.filter(
                 (session) =>
@@ -763,7 +752,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
         return yield* new DeviceNotFoundError({ hostId: host.id, deviceId: input.deviceId });
       }
       if (device.platform === "android" && !device.physical && !ready.upstream) {
-        // Resolve the override on the device host the way its hub does.
         const encoders = yield* ready.run(ready.nodePath, [
           "-e",
           `const { spawnSync } = require("node:child_process");
@@ -811,7 +799,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           ),
         );
         state = yield* refresh(ready);
-        // Retained entries predate the boot, so only a complete listing confirms the booted device.
         device = state.hostStatuses[host.id]?.incompletePlatforms?.includes(device.platform)
           ? undefined
           : (findDevice(state, host.id, bootedId) ?? findDevice(state, host.id, device.id));
@@ -888,7 +875,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
 
   const close: DeviceService["Service"]["close"] = Effect.fn("DeviceService.close")(
     function* (input) {
-      // Open publishes under the same lock; an old close must not release a reopened claim.
       const closing = yield* lifecycleLock.withPermit(
         Effect.gen(function* () {
           const { state } = yield* SynchronizedRef.get(stateRef);
@@ -909,7 +895,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           for (const session of ending) {
             const host = yield* resolveHost(session.hostId);
             const ready = yield* host.current;
-            // A lost SSH tunnel does not establish that the remote daemon stopped.
             if (!ready && (yield* host.summary).kind === "ssh")
               return yield* new DeviceHostUnavailableError({
                 hostId: session.hostId,
@@ -956,8 +941,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     },
   );
 
-  // Sessions retire before the power-off, while their agent-device sessions can still close the app;
-  // agent-device keeps a claim whose app close fails.
   const shutdown: DeviceService["Service"]["shutdown"] = Effect.fn("DeviceService.shutdown")(
     function* (input) {
       const host = yield* resolveHost(input.hostId);
@@ -1084,7 +1067,6 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
     );
   });
 
-  // Sessions live in memory, so this removes every launcher a previous run left behind.
   yield* pruneLaunchers;
 
   return {
@@ -1291,7 +1273,6 @@ export const make = Effect.gen(function* () {
     bind: Effect.fn("DeviceService.bindLauncher")(
       function* (input) {
         const entryPath = yield* agentCli;
-        // The unbound launcher stays current for agents that still call it with flags.
         yield* ensureAgentDeviceShim({ entryPath, stateDir: config.stateDir });
         return yield* bindAgentDeviceLauncher({ entryPath, stateDir: config.stateDir, ...input });
       },
@@ -1323,8 +1304,6 @@ export const make = Effect.gen(function* () {
         Effect.provideService(FileSystem.FileSystem, fs),
         Effect.provideService(Path.Path, path),
       ),
-    // Best effort: an unreachable host fails fast in the launcher's connection check, and the
-    // launcher goes either way. Only a failed or timed-out close can leave the device claimed.
     release: (launcher) =>
       resolveNodeExecutable("Device automation").pipe(
         Effect.flatMap((node) =>
@@ -1435,7 +1414,6 @@ export const make = Effect.gen(function* () {
         return removed;
       }),
     );
-    // Stop old writers before deleting config files or publishing replacements, without blocking healthy hosts.
     yield* Effect.forEach(
       removed,
       ({ id, scope }) =>
@@ -1453,8 +1431,6 @@ export const make = Effect.gen(function* () {
           added = true;
           const hostScope = yield* Scope.fork(scope);
           if (host.kind === "eas") {
-            // Closing this scope stops the host's running sessions, so a changed
-            // limit or token never leaves a billed session behind.
             const instance = yield* EasDeviceHost.make(host).pipe(
               Effect.provideService(Scope.Scope, hostScope),
               Effect.provide(easContext),
@@ -1487,13 +1463,11 @@ export const make = Effect.gen(function* () {
           hosts.set(host.id, instance);
           configured.set(host.id, { config: host, scope: hostScope });
         }
-        // Refresh again after removed scopes closed so a late status write from an old host cannot linger.
         if (added || removed.length > 0) yield* service.refreshHosts;
       }),
     );
   });
   const changes = yield* settings.subscribeChanges;
-  // Settings keep EAS hosts apart from SSH hosts; an id both lists use stays the SSH host's.
   const configuredHosts = (value: {
     readonly deviceHosts: ReadonlyArray<SshDeviceHostConfig>;
     readonly easDeviceHosts: ReadonlyArray<EasDeviceHostConfig>;
@@ -1524,8 +1498,6 @@ export const make = Effect.gen(function* () {
       return { signedInAs: viewer.name, credentialSource: credential.source, apps: viewer.apps };
     },
     Effect.provide(easContext),
-    // Only bounded text reaches the browser: the credential errors' own
-    // guidance, or a category for what Expo answered, never Expo's text.
     Effect.mapError(
       (cause) =>
         new DeviceEasAccountError({
@@ -1552,7 +1524,6 @@ export const layer = Layer.effect(DeviceService, make).pipe(Layer.provide(LocalD
 export const stateStream = (service: DeviceService["Service"]): Stream.Stream<DeviceServiceState> =>
   Stream.unwrap(
     Effect.gen(function* () {
-      // Subscribe before reading so no change is lost.
       const subscription = yield* service.subscribe;
       const initial = yield* service.state;
       return Stream.concat(Stream.make(initial), Stream.fromSubscription(subscription));

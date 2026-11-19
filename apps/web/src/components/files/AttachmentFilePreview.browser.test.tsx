@@ -14,17 +14,12 @@ vi.mock(import("~/assets/assetUrls"), async (original) => ({
   useAssetUrlRefresh: () => refresh,
   useAssetUrlState: assetUrlState,
 }));
-// The real source view highlights through a worker pool; the text it receives is what matters here.
-// Never load the original: its highlighter graph can outlast waitFor on a cold CI browser.
 vi.mock(import("./ReadOnlySourcePreview"), () => ({
   default: ({ text, wordWrap }: { text: string; wordWrap?: boolean }) => (
     <pre data-word-wrap={String(wordWrap)}>{text}</pre>
   ),
 }));
 
-// The Word engine compiles about 30 MB of WebAssembly in a fresh worker per document, which took
-// 10-17 s per test on loaded CI runners. These tests cover fetching, preparation and remounts, so
-// the stand-in shows the prepared body's text instead of laying it out.
 vi.mock(import("./office/WordDocument"), async () => {
   const { use } = await import("react");
   const { default: Zip } = await import("jszip");
@@ -52,8 +47,6 @@ import { decodeImagePreview } from "./decodeImagePreview";
 import type { BinaryWorkerResult } from "./binaryPreviewProtocol";
 import type { TextPreviewResult } from "./largeTextProtocol";
 
-// Real worker imports and WASM initialization can exceed waitFor's default second
-// when the full browser project runs concurrently on CI.
 describe("bounded binary previews", () => {
   it("preserves length-delimited local and global PAX attributes", async () => {
     const encode = (value: string) => new TextEncoder().encode(value);
@@ -569,7 +562,6 @@ describe("large text preview recovery", () => {
       await using screen = await render(preview("first"));
       await vi.waitFor(() => expect(workers).toHaveLength(1));
       await vi.waitFor(() => expect(screen.container.textContent).toContain("original"));
-      // A cold worker can take longer than waitFor allows to load and index on CI.
       await indexed[0];
       await vi.waitFor(() => expect(screen.container.textContent).toContain("1,000 lines"));
       const viewport = screen.container.querySelector<HTMLElement>('[tabindex="0"]')!;
@@ -587,7 +579,6 @@ describe("large text preview recovery", () => {
       expect(workers).toHaveLength(1);
       state(`${changed}#updated`, "two");
       await screen.rerender(preview("file-edit"));
-      // The prefetched first screen paints before the worker starts, so wait for the worker itself.
       await vi.waitFor(() => expect(workers).toHaveLength(2));
       await vi.waitFor(() => expect(screen.container.textContent).toContain("changed"));
       await screen.rerender(preview("file-edit", 1));
@@ -966,7 +957,6 @@ it.each([
     <AttachmentFilePreview name={name} mimeType={mimeType} sizeBytes={file.size} file={file} />,
   );
   const status = () => screen.container.querySelector('[role="status"]')?.textContent ?? "";
-  // A cold large-text worker can take longer than waitFor's default to boot on CI.
   await vi.waitFor(() => expect(status()).toMatch(/ [KM]?B$/), { timeout: 10_000 });
   expect(status()).toContain(label);
 });
@@ -1011,7 +1001,6 @@ it.each([false, true])(
     try {
       await expect(prepareOffice(bytes, "docx")).rejects.toThrow("2,048 entries");
       expect(load).not.toHaveBeenCalled();
-      // The actual central-directory records must also be bounded if EOCD lies.
       const view = new DataView(bytes);
       view.setUint16(bytes.byteLength - 22 + 8, 1, true);
       view.setUint16(bytes.byteLength - 22 + 10, 1, true);
@@ -1139,7 +1128,6 @@ it.each([
       });
       expect(result.type).toBe("xlsx");
       if (result.type !== "xlsx") throw new Error("Expected bounded workbook");
-      // The engine counts the chart sheet before it.
       expect(result.view?.hiddenGridlines).toEqual([1]);
       const bounded = await JSZip.loadAsync(result.bytes);
       const sheet = new DOMParser().parseFromString(
@@ -1160,10 +1148,8 @@ it.each([
       const columns = [...sheet.getElementsByTagNameNS(ns, "col")].map((column) =>
         ["min", "max", "width"].map((name) => column.getAttribute(name)),
       );
-      // The engine ignores `defaultColWidth`, so the columns it sizes are spelled out.
       expect(columns).toEqual([
         [String(OFFICE_PREVIEW_MAX_COLUMNS - 1), String(OFFICE_PREVIEW_MAX_COLUMNS), "20"],
-        // Hidden columns keep their span past the limit, so they stay hidden.
         [String(OFFICE_PREVIEW_MAX_COLUMNS + 1), String(OFFICE_PREVIEW_MAX_COLUMNS + 30), null],
         ["1", String(OFFICE_PREVIEW_MAX_COLUMNS - 2), "30"],
       ]);
@@ -1417,8 +1403,6 @@ async function expandedWordFixture(role: (typeof EXPANDED_WORD_ROLES)[number]) {
     '<Relationships><Relationship Id="doc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
   );
   const text = (value: string) => `<w:p><w:r><w:t>${value}</w:t></w:r></w:p>`;
-  // Each copy of the 2,000-paragraph payload costs 6,000 markup units, so enough
-  // references (or pages) exceed the expansion budget.
   const copies = Math.ceil(WORD_LIMITS.expandedMarkup / 6_000) + 1;
   archive.file(
     "word/document.xml",
@@ -1440,7 +1424,6 @@ async function expandedWordFixture(role: (typeof EXPANDED_WORD_ROLES)[number]) {
             : `<w:${role} xmlns:w="${ns}"><w:${role.slice(0, -1)} w:id="1">${text("omitted payload").repeat(2_000)}</w:${role.slice(0, -1)}></w:${role}>`;
   archive.file("word/media/aux.xml", xml);
   if (role === "note roots") {
-    // Each note's XML repeats the 32 KB root, which the expansion budget charges twice.
     const notes = Math.ceil(WORD_LIMITS.expandedBytes / 64_000) + 1;
     archive.file(
       "word/document.xml",
@@ -1454,9 +1437,6 @@ async function expandedWordFixture(role: (typeof EXPANDED_WORD_ROLES)[number]) {
   return archive.generateAsync({ type: "blob", compression: "DEFLATE" });
 }
 
-// Rendering starts a Word engine worker per case, which compiles about 30 MB of WebAssembly and
-// took 10-17 s per test on loaded CI runners. Omission and retention are prepareOffice decisions,
-// so they are checked there.
 it.each(EXPANDED_WORD_ROLES)(
   "keeps the body and omits expanded %s from the prepared document",
   async (role) => {
@@ -1478,7 +1458,6 @@ it.each(EXPANDED_WORD_ROLES)(
       const markup = await bounded.file("word/document.xml")!.async("string");
       expect(markup).toContain("body retained");
       expect(bounded.file("word/media/aux.xml")).toBeNull();
-      // A dangling header or footer reference makes the engine reject the whole body.
       expect(markup).not.toMatch(/<w:(header|footer)Reference/);
       for (const entry of Object.values(bounded.files))
         if (!entry.dir) expect(await entry.async("string")).not.toContain("omitted payload");
@@ -1694,7 +1673,6 @@ it.each([false, true])(
   },
 );
 
-// A body just over the read limit once each paragraph repeats its text this often.
 it.each([1, Math.ceil(WORD_LIMITS.bodyBytes / 5_000 / 4)])(
   "counts shared Word settings once with %s text repetitions",
   async (repetitions) => {
@@ -1794,7 +1772,6 @@ it.each(["XFD200", "XFD300", "XFD1048576", "AX500", "AZ9999999"])(
       "xl/workbook.xml",
       '<workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Sheet" sheetId="1" r:id="rId1"/></sheets></workbook>',
     );
-    // A nonstandard relationship target must get the same bounds.
     archive.file(
       "xl/_rels/workbook.xml.rels",
       '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="custom.xml"/></Relationships>',
@@ -1885,7 +1862,6 @@ it.each(['<u val="double"/>', '<u val="double"></u>'])(
         sheet: 0,
         range: { top: 0, bottom: 0, left: 0, right: 1 },
       });
-      // Ids under 164 that a workbook defines keep its formats, not Excel's built-in ones.
       expect(cells[0]).toEqual(["￥100.00", "01-Mar-2023"]);
     } finally {
       worker.terminate();
@@ -1921,7 +1897,6 @@ it("keeps spreadsheet dates on their calendar day west of UTC", async () => {
     "./office/spreadsheet.worker.ts?worker_file&type=module",
     import.meta.url,
   ).href;
-  // Give the worker a west-of-UTC default while preserving explicit format options.
   const bootstrap = URL.createObjectURL(
     new Blob(
       [
@@ -1991,7 +1966,6 @@ it.each([60, 100])("prepares all %i pages of a table-heavy Word report", async (
     "[Content_Types].xml",
     '<Types><Default Extension="png" ContentType="image/png"/></Types>',
   );
-  // Binary media must not consume the document's markup budget.
   archive.file("word/media/image.png", new Uint8Array(2_500_000));
   const file = await archive.generateAsync({ type: "blob", compression: "DEFLATE" });
   await using screen = await render(
@@ -2002,7 +1976,6 @@ it.each([60, 100])("prepares all %i pages of a table-heavy Word report", async (
       sizeBytes={file.size}
     />,
   );
-  // The first Office preview in the file loads the lazy viewer chain and the preparation worker.
   await vi.waitFor(() => expect(screen.container.textContent).toContain("page " + pages), {
     timeout: 10_000,
   });

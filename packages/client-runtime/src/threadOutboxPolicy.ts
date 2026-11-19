@@ -21,7 +21,6 @@ export function shouldRetryThreadOutboxDelivery(error: unknown): boolean {
       case "EnvironmentRpcUnavailableError":
       case "EnvironmentNotRegisteredError":
         return true;
-      // A shared upload's failure decides by what made the upload fail.
       case "AttachmentUploadError":
         return "cause" in error && shouldRetryThreadOutboxDelivery(error.cause);
     }
@@ -54,18 +53,11 @@ export function resolveThreadOutboxDeliveryAction(input: {
   readonly familyRead?: ThreadFamilyRead;
 }): ThreadOutboxDeliveryAction {
   if (input.isCreation) {
-    // A pending task creates its thread on delivery. If the thread already
-    // exists the creation command went through and only cleanup remains.
     if (input.threadExists) {
       return "remove";
     }
-    // Wait for the shell to be live before sending: until the thread list has
-    // synchronized, a previously delivered creation whose cleanup failed would
-    // look missing and get re-issued, duplicating the thread.
     return input.environmentConnected && input.shellStatus === "live" ? "send" : "wait";
   }
-  // A follow-up queued behind its thread's creation becomes the head as soon
-  // as the creation leaves the queue, which can be before the shell lands.
   if (!input.threadExists) {
     return input.shellStatus === "live" &&
       !input.awaitingCreatedThread &&

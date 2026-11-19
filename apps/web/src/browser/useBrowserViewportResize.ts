@@ -215,9 +215,7 @@ export function useBrowserViewportResize(options: {
       dragCleanupRef.current = null;
       try {
         target.releasePointerCapture(pointerId);
-      } catch {
-        // The browser may already have released capture on pointerup.
-      }
+      } catch {}
     }
     function finish(upEvent: PointerEvent) {
       if (upEvent.pointerId !== pointerId) return;

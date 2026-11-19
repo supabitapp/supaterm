@@ -15,7 +15,6 @@ import * as CodexMicroIpc from "./CodexMicroIpc.ts";
 
 const { logWarning } = makeComponentLogger("desktop-codex-micro");
 
-// Written by `build-desktop-artifact --without-codex-micro`, which also leaves node-hid out.
 const PackageFeatures = Schema.Struct({
   supatermFeatures: Schema.optional(Schema.Struct({ codexMicro: Schema.optional(Schema.Boolean) })),
 });

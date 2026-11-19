@@ -48,7 +48,6 @@ export function sidebarProjectGroupBlocks(
   for (const [index, item] of items.entries()) {
     const last = blocks.at(-1);
     if (item.kind === "group") {
-      // "Other projects" has no project to order and always comes last.
       if (item.projectKey === null) break;
       blocks.push({ item, start: index, end: index + 1 });
     } else if (item.kind === "thread" && last?.end === index) {
@@ -58,8 +57,6 @@ export function sidebarProjectGroupBlocks(
   return blocks;
 }
 
-/** The space each block takes in the list. The dragged block shrinks to its
- * header: its rows hide while it moves and reappear under it on drop. */
 function groupBlockSpans(
   blocks: readonly SidebarGroupBlock[],
   rectAt: (index: number) => ClientRect | undefined,
@@ -132,7 +129,6 @@ export function createSidebarCollisionDetection(
       ?.getBoundingClientRect();
     if (items && boundary && source?.kind === "thread" && pointer) {
       boundarySection ??= source.section === "pinned" ? "pinned" : "active";
-      // Only pointer movement changes sections; opening the destination moves rows under stationary gestures.
       const previousY = previousPointerY ?? pointer.y;
       previousPointerY = pointer.y;
       if (pointer.x >= boundary.left && pointer.x <= boundary.right) {
@@ -218,8 +214,6 @@ export function createSidebarSortingStrategy(input: {
       const block = blocks[index]!;
       const y = top - (rects[block.start]?.top ?? top);
       for (let item = block.start; item < block.end; item += 1) {
-        // Hidden rows ride along with their header's slot so the drop
-        // settles them in place instead of sliding them across the list.
         result[item] =
           index === from && item !== block.start ? { ...hidden, y } : { ...stationary, y };
       }
@@ -258,7 +252,6 @@ export function createSidebarSortingStrategy(input: {
       if (item.key !== active.key && item.section !== "active" && item.section !== "working")
         groups[item.section].push(item);
     }
-    // Two-line rows are h-12; parked rows/placeholders are h-9.
     const scale =
       slimHeight !== undefined ? slimHeight / 36 : (headerScale ?? (cardHeight ?? 48) / 48);
     cardHeight ??= 48 * scale;

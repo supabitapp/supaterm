@@ -32,7 +32,6 @@ const NOTICE_CONTENT = {
 
 export function ThreadUndoNotice(props: { readonly visible: boolean }) {
   const notice = useThreadUndoNotice();
-  // Replacing a notice must also cancel the native gesture tracking the old one.
   const [instance, setInstance] = useState({ notice, key: 0 });
   if (instance.notice !== notice) setInstance({ notice, key: instance.key + 1 });
   if (!props.visible || notice === null) return null;
@@ -55,16 +54,13 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
     easing: Easing.out(Easing.cubic),
     reduceMotion,
   };
-  // Float above the tab bar, dock, or keyboard, within reach of the thumb that triggered it.
   const bottom = workspace?.bottomClearance ?? Math.max(insets.bottom, 12) + 12;
   const translation = useSharedValue(0);
   const height = useSharedValue(0);
 
   const dismiss = () => {
-    // A newer action can replace the notice while the swipe is animating out.
     if (readThreadUndoNotice() === notice) dismissThreadUndoNotice();
   };
-  // It leaves through the edge it arrived from.
   const gesture = usePanGesture({
     activeOffsetY: [-10, 10],
     failOffsetX: [-20, 20],
@@ -111,7 +107,6 @@ function SwipeableUndoNotice(props: { readonly notice: Notice }) {
           }}
           onAccessibilityEscape={dismiss}
         >
-          {/* Keep the dismiss target separate so screen readers can also focus Undo. */}
           <View
             accessible
             accessibilityRole="alert"

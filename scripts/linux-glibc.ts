@@ -4,7 +4,6 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as NodeUtil from "node:util";
 
-// Both Linux release jobs build on Ubuntu 24.04; this is a build ceiling, not a distro support promise.
 const GLIBC_BUILD_CEILING = "2.39";
 const readelf = NodeUtil.promisify(NodeChildProcess.execFile);
 
@@ -26,7 +25,6 @@ export function parseGlibcNeeds(output: string): string | undefined {
     if (!inNeeds) continue;
     const name = /\bName:\s+(GLIBC_\S+)/.exec(line)?.[1];
     if (!name) continue;
-    // DT_RELR's named ABI requirement was introduced in glibc 2.36.
     const version =
       name === "GLIBC_ABI_DT_RELR" ? "2.36" : /^GLIBC_(\d+(?:\.\d+)+)$/.exec(name)?.[1];
     if (!version) throw new Error(`Unhandled glibc requirement: ${name}`);
@@ -61,7 +59,6 @@ export async function scanGlibcNeeds(appOutDir: string): Promise<{
       if (!isElf) continue;
       elfCount++;
       try {
-        // readelf inspects either release architecture without executing the binary.
         const { stdout, stderr } = await readelf("readelf", ["--wide", "--version-info", file], {
           env: { ...process.env, LC_ALL: "C" },
           maxBuffer: 16 * 1024 * 1024,

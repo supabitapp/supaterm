@@ -77,7 +77,6 @@ import { LegendList, type LegendListRef } from "@legendapp/list/react";
 interface ReactionSurface {
   revealAnchor?: string | null;
   readonly canReact: (event: PullRequestTimelineEvent) => boolean;
-  /** Absent where there is no composer beside the panel to add a remark to. */
   readonly onAddToChat?: ((comment: PullRequestComment) => void) | undefined;
   readonly environmentId: EnvironmentId;
   readonly threadRef: ScopedThreadRef | null;
@@ -243,7 +242,6 @@ function ConversationCard({
   onOpen: (url: string) => void;
   reactions: ReactionSurface;
   showPath?: boolean;
-  /** A reply goes with its conversation, from the card that heads it. */
   reply?: boolean;
 }) {
   const canReact = reactions.canReact(event);
@@ -276,7 +274,6 @@ function ConversationCard({
         ? {
             "data-pr-link-target": true,
             tabIndex: -1,
-            // Inset: the collapsible panel clips an outer ring's left and right edges.
             className: "group rounded-lg py-2 ring-1 ring-inset ring-primary/40 outline-none",
           }
         : { className: "group py-2" })}
@@ -421,7 +418,6 @@ function ConversationGroup({
               <div className="mt-1 space-y-1">
                 {events.map((event) => (
                   <ConversationCard
-                    // Host comment ids can collide across pull requests.
                     key={`${reactions.reference.projectId}#${reactions.reference.number}:${event.id}`}
                     event={event}
                     editable={editable.get(event.id) ?? null}
@@ -762,14 +758,12 @@ export function PullRequestTimelineTab({
   const events = buildPullRequestTimeline(detail);
   const location = parsePullRequestAnchor(revealUrl);
   const revealAnchor = location?.kind === "timeline" ? location.anchor : null;
-  // The linked item stays marked and open after it is shown, until another link replaces it.
   const [linked, setLinked] = useState<{ readonly anchor: string; readonly count: number } | null>(
     () => (revealAnchor === null ? null : { anchor: revealAnchor, count: 1 }),
   );
   const [seenRevealUrl, setSeenRevealUrl] = useState(revealUrl);
   if (revealUrl !== seenRevealUrl) {
     setSeenRevealUrl(revealUrl);
-    // Each click remounts the linked row, so it opens again even after the user closed it.
     if (revealAnchor !== null) setLinked({ anchor: revealAnchor, count: (linked?.count ?? 0) + 1 });
   }
   const anchor = linked
@@ -832,7 +826,6 @@ export function PullRequestTimelineTab({
     if (row.kind === "comments")
       return `comments:${row.events[0]?.id ?? "empty"}:${row.events.some(matches) ? (linked?.count ?? "") : ""}`;
     const event = row.event;
-    // A thread's resolution or dismissal remounts it, so its disclosure starts in the new state.
     return event.thread === undefined
       ? `${event.id}:${matches(event) ? (linked?.count ?? "") : ""}`
       : `thread:${event.id}:${matches(event) ? (linked?.count ?? "") : ""}:${event.thread.isResolved}:${pullRequestReviewOutcome(event.reviewState) === "dismissed"}`;
@@ -893,8 +886,6 @@ export function PullRequestTimelineTab({
     );
   }
 
-  // Virtualized: a large pull request has thousands of events, and mounting every one stalls
-  // the page. The connector line is drawn by the content container, behind the rows.
   return (
     <LegendList<PullRequestTimelineRow>
       ref={(list: LegendListRef | null) => {

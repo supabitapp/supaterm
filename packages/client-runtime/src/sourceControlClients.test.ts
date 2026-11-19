@@ -276,7 +276,6 @@ describe("sourceControlClients.recognizeRemote", () => {
 });
 
 describe("sourceControlClients repository keys", () => {
-  // Persisted as `repositoryIdentity.canonicalKey` and in thread pull request keys.
   it.each([
     ["git@github.com:SupabitApp/Supaterm.git", "github.com/supabitapp/supaterm"],
     ["ssh://git@gitlab.company.com:2222/team/project.git", "gitlab.company.com/team/project"],

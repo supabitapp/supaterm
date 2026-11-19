@@ -7,11 +7,6 @@ import { presentConnectionState } from "../connection/presentation.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
 import type { EnvironmentShellState, EnvironmentShellStatus } from "./shell.ts";
 
-/**
- * How long fresh rows wait for environments that are still connecting. Each environment
- * gets its server data at its own time, and a list that follows each one moves once per
- * environment; within this time they move together.
- */
 const STEADY_SHELL_RELEASE_WINDOW_MS = 2_000;
 
 export interface SteadyShellInput {
@@ -99,12 +94,8 @@ export function stepSteadyShells(
       continue;
     }
     const newSnapshot = input.generation > current.shownGeneration;
-    // Without new server data the change is local (cached links, rows loaded on demand), and
-    // an environment that shows nothing (its cache is not read yet) has nothing to hold back.
     const local =
       current.shown === null || (input.serverSequence === current.shownSequence && !newSnapshot);
-    // The hold stops changes the user did not cause. After the user moves or removes a row,
-    // the environment's rows follow the live data until it is live.
     const userActed = input.rowActions !== current.rowActions;
     if (local || userActed || (input.status === "live" && current.following)) {
       const caughtUp = synchronizing && (current.caughtUp || newSnapshot);
@@ -113,7 +104,6 @@ export function stepSteadyShells(
       waiting.push(input);
       shells.set(input.environmentId, current);
     } else {
-      // Events that a synchronizing environment replays are complete only when it is live.
       keep(input, { ...current, following: false }, current);
     }
   }
@@ -157,7 +147,6 @@ export function createSteadyShellAtoms<E>(input: {
     // @effect-diagnostics-next-line globalDate:off - The release window is wall-clock time.
     return Date.now();
   };
-  // Outlives the atom's rebuilds, and its unmount while no list is on screen.
   let state = EMPTY_STEADY_SHELLS_STATE;
   const stateAtom = Atom.make((get) => {
     const inputs: Array<SteadyShellInput> = [];
@@ -168,7 +157,6 @@ export function createSteadyShellAtoms<E>(input: {
         get(input.connectionStateAtom(environmentId)),
         () => AVAILABLE_CONNECTION_STATE,
       );
-      // An enabled environment starts out connecting, before its supervisor reports.
       const phase =
         connection === AVAILABLE_CONNECTION_STATE
           ? "connecting"
@@ -179,7 +167,6 @@ export function createSteadyShellAtoms<E>(input: {
         serverSequence: snapshot?.snapshotSequence ?? null,
         status: shell.status,
         generation: shell.generation,
-        // A retry after a failure can take minutes, so it is not waited for until it connects.
         connecting: phase === "connecting" || phase === "connected",
         rowActions: get(input.rowActionsAtom(environmentId)),
       });
@@ -199,7 +186,6 @@ export function createSteadyShellAtoms<E>(input: {
     ).pipe(Atom.withLabel(`steady-shell-snapshot:${environmentId}`)),
   );
 
-  // Reads the live snapshots too, so it is current when a handler reads it once.
   const holdingAtom = Atom.make((get) => {
     const { shells } = get(stateAtom);
     for (const environmentId of enabledEnvironmentIds(get(input.catalogValueAtom))) {
@@ -209,9 +195,7 @@ export function createSteadyShellAtoms<E>(input: {
   }).pipe(Atom.withLabel("steady-shells-holding"));
 
   return {
-    /** The snapshot a thread list shows for an environment. */
     snapshotAtom,
-    /** True while a list shows rows older than the server data the client holds. */
     holdingAtom,
   };
 }

@@ -410,7 +410,6 @@ describe("resolveSnoozePresets", () => {
     );
 
   it("lists custom presets soonest first and names the day when the label does not", () => {
-    // Wednesday 20:00.
     expect(
       menu(localDate(2026, 4, 8, 20), [
         { kind: "at", day: "monday", time: "18:00" },
@@ -422,7 +421,6 @@ describe("resolveSnoozePresets", () => {
   });
 
   it("drops a today preset once its time passes and moves a weekday on that day to next week", () => {
-    // Monday 18:30.
     const now = localDate(2026, 4, 13, 18, 30);
     const presets = resolveSnoozePresets(now, {
       presets: [
@@ -440,13 +438,11 @@ describe("resolveSnoozePresets", () => {
       { kind: "at", day: "monday", time: "18:00" },
       { kind: "at", day: "friday", time: "17:00" },
     ];
-    // Sunday 14:00.
     expect(menu(localDate(2026, 8, 30, 14), theo)).toEqual([
       "Tomorrow 18:00",
       "Tomorrow 21:00",
       "Friday 17:00",
     ]);
-    // Friday 10:00: today's 17:00 is a week away.
     expect(menu(localDate(2026, 9, 4, 10), theo)).toEqual([
       "Tomorrow 21:00",
       "Next week Mon 18:00",
@@ -455,7 +451,6 @@ describe("resolveSnoozePresets", () => {
   });
 
   it("shows one row when two presets wake at the same time", () => {
-    // Sunday, so Tomorrow 9:00 and Next week 9:00 are the same Monday.
     expect(menu(localDate(2026, 8, 30, 7, 1))).toEqual([
       "In 1 hour 8:01",
       "In 3 hours 10:01",
@@ -482,7 +477,6 @@ describe("pickSnoozePreset", () => {
       { kind: "at", day: "today", time: "18:30" },
       { kind: "after", minutes: 180 },
     ];
-    // At 15:00 the two differ; at 15:30 "In 3 hours" lands on 18:30 and the menu shows one row.
     const shown = resolveSnoozePresets(localDate(2026, 4, 8, 15), { presets });
     const picked = pickSnoozePreset({
       shown,
@@ -494,7 +488,6 @@ describe("pickSnoozePreset", () => {
   });
 
   it("keeps a set time's shown wake when the day changes while the menu is open", () => {
-    // Sunday 23:59: "Tomorrow" means Monday 9:00, even if the pick lands after midnight.
     const shown = resolveSnoozePresets(localDate(2026, 8, 30, 23, 59));
     const picked = pickSnoozePreset({
       shown,

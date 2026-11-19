@@ -252,7 +252,6 @@ export function createPreviewStreamClient(
   let control: PreviewStreamControl | null = null;
   let fileChooser: string | null = null;
 
-  // The server re-offers a picker still open, under a new id, when this viewer reattaches.
   const withdrawFileChooser = () => {
     if (fileChooser === null) return;
     fileChooser = null;
@@ -393,7 +392,6 @@ export function createPreviewStreamClient(
         events.onHostSetup?.(decodeHostSetup(event.reason));
         return;
       }
-      // Rejected upgrades surface as 1006 before open for both cookies and tickets.
       if (event.code === 1008 || event.code === 4401 || (!opened && event.code === 1006)) {
         stopped = true;
         events.onUnauthorized();

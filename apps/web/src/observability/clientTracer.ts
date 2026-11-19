@@ -16,7 +16,6 @@ export function hasDelegate(): boolean {
   return delegate !== null;
 }
 
-// Install before exporters exist so spans reach whichever exporter is configured later.
 export const layer = Layer.succeed(
   Tracer.Tracer,
   Tracer.make({

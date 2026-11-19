@@ -80,8 +80,6 @@ export const make = Effect.gen(function* () {
           NodeFS.writeFileSync(path, value, "utf8");
         },
       });
-      // The portal also requires a valid desktop entry. An AppImage update may
-      // have removed the executable referenced by the previous launch's entry.
       try {
         const applicationsDir = NodePath.posix.join(
           process.env.XDG_DATA_HOME?.trim() ||
@@ -100,7 +98,6 @@ export const make = Effect.gen(function* () {
         if (iconPath !== undefined) {
           try {
             NodeFS.mkdirSync(NodePath.posix.dirname(iconPath), { recursive: true });
-            // Electron's copyFileSync from app.asar extracts to a temp file it never deletes.
             NodeFS.writeFileSync(
               iconPath,
               NodeFS.readFileSync(
@@ -117,7 +114,6 @@ export const make = Effect.gen(function* () {
         if (
           appImagePath &&
           !process.env.SUPATERM_DESKTOP_LAUNCHER_PATH?.trim() &&
-          // electron-updater sets this on the AppImage it relaunches after installing an update.
           process.env.APPIMAGE_SILENT_INSTALL?.trim() === "true"
         ) {
           try {
@@ -125,7 +121,6 @@ export const make = Effect.gen(function* () {
               previousEntry: NodeFS.readFileSync(desktopEntryPath, "utf8"),
               appImagePath,
             });
-            // Relative, so the pair survives a moved folder; symlink never overwrites a file.
             if (replacedPath !== null) {
               NodeFS.symlinkSync(NodePath.posix.basename(appImagePath), replacedPath);
             }
@@ -148,12 +143,10 @@ export const make = Effect.gen(function* () {
           "utf8",
         );
       } catch {}
-      // Chromium caches portal identity; set it before any asynchronous initialization.
       Electron.app.setDesktopName(linux.linuxDesktopEntryName);
       if (linux.passwordStore !== null && linuxPasswordStoreCommandLine === null) {
         Electron.app.commandLine.appendSwitch("password-store", linux.passwordStore);
       }
-      // Chromium keeps only the last --disable-features value, so pass the merged list.
       const disableFeatures = DesktopEarlyElectronStartup.resolveLinuxDisableFeaturesSwitch({
         env: process.env,
         ozonePlatform: readCommandLineSwitchValue(Electron.app.commandLine, "ozone-platform"),
@@ -176,7 +169,6 @@ export const make = Effect.gen(function* () {
   });
 }).pipe(Effect.withSpan("desktop.electron.configureBeforeReady"));
 
-// Complete scheme privileges and switches before later layers can observe app readiness.
 export const layer = Layer.mergeAll(
   ElectronProtocol.layerSchemePrivileges,
   Layer.effect(DesktopPreReadyElectronOptions, make),

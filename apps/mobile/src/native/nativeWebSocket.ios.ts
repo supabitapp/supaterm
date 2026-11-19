@@ -81,7 +81,6 @@ export class Connection implements Socket.WebSocketLike {
     if (this.readyState === Connection.CONNECTING) {
       throw new Error("InvalidStateError: WebSocket is still connecting");
     }
-    // Browsers drop writes after close instead of throwing.
     if (this.readyState !== Connection.OPEN) return;
     if (typeof data === "string") {
       this.#sockets.native.sendText(this.#id, data);
@@ -188,6 +187,5 @@ function layerFromModule(native: NativeModule): Layer.Layer<Socket.WebSocketCons
 
 const native = requireOptionalNativeModule<NativeModule>("SupatermWebSocket");
 
-// A dev client built before this module shipped still has SocketRocket.
 export const layer: Layer.Layer<Socket.WebSocketConstructor> =
   native === null ? Socket.layerWebSocketConstructorGlobal : layerFromModule(native);

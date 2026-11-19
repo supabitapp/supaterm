@@ -2,7 +2,6 @@ import type { NavigationState } from "@react-navigation/native";
 import { isSettingsRoute } from "../features/settings/settings-navigation";
 import { resetRootStack, type RootStackNavigation } from "./root-stack-reset";
 
-// Back follows history; Git confirmations can stack copies of the current thread, so skip those too.
 function androidWorkspaceBackTarget(state: NavigationState) {
   let index = state.index;
   const params = state.routes[index]?.params as ReactNavigation.RootParamList["Thread"] | undefined;
@@ -67,9 +66,6 @@ export function returnToAndroidWorkspaceList(
   resetRootStack(navigation, () => ({ ...state, index, routes: state.routes.slice(0, index + 1) }));
 }
 
-// Split view: Thread, PullRequest, and a Settings page picked from the list swap the detail pane
-// rather than stack, so they don't animate. Pages opened from a Settings page crossfade inside the
-// pane's card; the default push edge-extends the incoming page, bleeding a stripe beside the list.
 export function androidWorkspaceDestinationAnimation(
   route: { readonly key: string; readonly name: string },
   routes: readonly { readonly key: string; readonly name: string }[],

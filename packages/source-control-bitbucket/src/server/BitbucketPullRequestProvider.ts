@@ -33,7 +33,6 @@ const CAPABILITIES: PullRequestCapabilities = {
   },
   reviewers: { request: true, listCandidates: true, searchCandidates: false },
   edit: { changeRequest: true, comment: true },
-  // Bitbucket PR properties are shared, not per-reader viewed marks.
   viewedFiles: "environment",
 };
 
@@ -114,7 +113,6 @@ function toChangeRequest(pullRequest: BitbucketPullRequest): ProviderChangeReque
   };
 }
 
-/** The write's reply has no `closed_on`, line counts, or conflict state, so those stay absent. */
 function toActionSummary(pullRequest: BitbucketPullRequest): ProviderChangeRequestSummary {
   return {
     number: pullRequest.number,
@@ -252,7 +250,6 @@ export const make = Effect.gen(function* () {
             closedAt: pullRequest.state === "closed" ? pullRequest.closedAt : null,
             reviewers: pullRequest.reviewers,
             checks,
-            // Bitbucket exposes no strategy permissions; unsupported strategies fail at merge.
             mergeCapabilities: { merge: true, squash: true, rebase: true },
             viewerPermissions: bitbucketViewerPermissions({ canWrite }),
           }),
@@ -289,7 +286,6 @@ export const make = Effect.gen(function* () {
         Effect.map((canWrite) => bitbucketViewerPermissions({ canWrite })),
       ),
 
-    // `/diff` returns the whole patch without pagination.
     getDiff: (input) =>
       api
         .getPullRequestDiff({
@@ -311,7 +307,6 @@ export const make = Effect.gen(function* () {
         })
         .pipe(Effect.mapError(fail("getFileRevisions"))),
 
-    // Bitbucket supports user reviewers only.
     listReviewerCandidates: (input) =>
       api
         .listReviewerCandidates({ repository: input.repository, number: input.number })

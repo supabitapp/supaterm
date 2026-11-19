@@ -6,7 +6,6 @@ import {
   formatUpcomingTimestamp,
 } from "./timestampFormat";
 
-// Node re-resolves the default zone when TZ is assigned, like a renderer after the OS zone changes.
 function useTimeZone(timeZone: string): Disposable {
   const previous = process.env.TZ;
   process.env.TZ = timeZone;
@@ -19,7 +18,6 @@ function useTimeZone(timeZone: string): Disposable {
 }
 
 describe("timestamps in an explicit time zone", () => {
-  // 23:00 UTC on July 1 is 7 PM on July 1 in New York, whatever the host zone.
   const now = Date.parse("2026-07-01T23:00:00.000Z");
   const zone = "America/New_York";
 
@@ -37,7 +35,6 @@ describe("timestamps in an explicit time zone", () => {
 });
 
 describe("timestamps after the system time zone changes", () => {
-  // Built fresh with an explicit zone, so expectations follow the host locale but not a stale zone.
   const timeIn = (iso: string, timeZone: string) =>
     new Intl.DateTimeFormat(undefined, {
       hour: "numeric",

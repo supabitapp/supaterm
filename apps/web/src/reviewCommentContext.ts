@@ -346,7 +346,6 @@ export function resolveDiffReviewPosition(
   })[0];
   if (line === undefined) return null;
 
-  // An explicit selection must not resolve to a same-numbered line on the other side.
   if (
     (side === "additions" && line.newLineNumber !== lineNumber) ||
     (side === "deletions" && line.oldLineNumber !== lineNumber)
@@ -360,8 +359,6 @@ export function resolveDiffReviewPosition(
     case "delete":
       return line.oldLineNumber === null ? null : { kind: "deleted", oldLine: line.oldLineNumber };
     case "context":
-      // An expanded file also shows the gaps between hunks, and GitHub rejects a whole review
-      // over one comment anchored there.
       return line.oldLineNumber === null ||
         line.newLineNumber === null ||
         !isLineInFileDiff(fileDiff, "right", line.newLineNumber)

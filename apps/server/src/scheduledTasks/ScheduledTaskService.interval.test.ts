@@ -92,7 +92,6 @@ it.effect.each([
       const resumed = yield* service.setEnabled({ id: created.task.id, enabled: true });
       expect(resumed.task.nextRunAt).toBe(expected);
 
-      // Exercise completion rescheduling without starting any provider process.
       const completed = yield* service.runNow({ id: created.task.id });
       expect(completed.task.lastRunStatus).toBe("failed");
       expect(completed.threadId).toBeNull();
@@ -101,7 +100,6 @@ it.effect.each([
       expect((yield* service.list()).tasks[0]?.nextRunAt).toBe(expected);
     }).pipe(Effect.provide(serviceLayer));
   }).pipe(
-    // Keep the real scheduler parked while exercising finite service actions.
     Effect.provideService(ServerActivation, Effect.never),
     Effect.provide(SqlitePersistence.layerMemory),
   ),
@@ -130,7 +128,6 @@ it.effect.each([
   ),
 );
 
-// Each launch takes two minutes, so a manual run can start before the run time and end after it.
 const slowLaunchLayer = ScheduledTaskService.layer.pipe(
   Layer.provide(
     Layer.merge(
@@ -155,7 +152,6 @@ it.effect("runs a one-time schedule once and rejects past times", () =>
       expect(created.task.schedule).toEqual({ type: "once", runAt: "2026-11-01T08:00:00.000Z" });
       expect(created.task.nextRunAt).toBe("2026-11-01T08:00:00.000Z");
 
-      // A manual run that starts before the time keeps the scheduled run, even if it ends after.
       const early = yield* service.runNow({ id: created.task.id });
       expect(early.task.nextRunAt).toBe("2026-11-01T08:00:00.000Z");
 
@@ -181,7 +177,6 @@ it.effect("runs a one-time schedule once and rejects past times", () =>
 );
 
 const ONCE = { type: "once", runAt: "2026-11-01T08:00:00Z" } as const;
-/** A next run that only the simulated concurrent write produces. */
 const MOVED = "2030-01-01T00:00:00.000Z";
 
 const onceInput = {
@@ -211,8 +206,6 @@ it.effect.each([
   ({ saved, edited, pause, expected }) =>
     Effect.gen(function* () {
       yield* TestClock.setTime(Date.parse("2026-11-01T07:00:00.000Z"));
-      // The project check runs between the save's read and write, so it stands in for
-      // a concurrent write in that gap.
       const writeMidSave = Layer.unwrap(
         Effect.gen(function* () {
           const sql = yield* SqlClient.SqlClient;
@@ -283,7 +276,6 @@ it.effect("keeps a one-time run after a restart interrupts an earlier manual run
 it.effect("reports the stored task when the row was replaced during the run", () =>
   Effect.gen(function* () {
     yield* TestClock.setTime(Date.parse("2026-11-01T07:00:00.000Z"));
-    // The launch stands in for a delete and same-id recreate while the run is out.
     const replaceRowDuringLaunch = Layer.unwrap(
       Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;

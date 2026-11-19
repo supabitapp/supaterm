@@ -369,7 +369,6 @@ describe("pull request timeline", () => {
       kind: "comment",
       excerpt: "Looks good, see run()",
     });
-    // A review with no text of its own is shown through the comment it posted.
     expect(pullRequestLinkSubject(`${pr}#pullrequestreview-9`, activity)).toMatchObject({
       kind: "comment",
       author: { login: "reviewer" },
@@ -382,7 +381,6 @@ describe("pull request timeline", () => {
     for (const url of [pr, `${pr}/files`, `${pr}/checks`, `${pr}#issuecomment-6`]) {
       expect(pullRequestLinkSubject(url, activity), url).toBeNull();
     }
-    // An emoji straddling the cut is dropped whole rather than split into a lone surrogate.
     const long = {
       ...activity,
       comments: [{ ...activity.comments[0]!, body: `${"i ".repeat(139)}😀bb` }],

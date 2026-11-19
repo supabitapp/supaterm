@@ -20,7 +20,6 @@ import { focusTerminal } from "../../lib/terminalFocus";
 import { resolveVisibleWorktreeSetup, resolveWorktreeSetupProgress } from "../ChatView.logic";
 import { worktreeSetupAgentStarted } from "@supaterm/client-runtime/worktree-setup";
 
-/** Runs with a workspace preparation retry in flight, across ChatView instances. */
 const retryingWorkspacePreparationRunIds = new Set<RunId>();
 
 /**
@@ -29,8 +28,6 @@ const retryingWorkspacePreparationRunIds = new Set<RunId>();
  */
 export function useWorktreeSetup(input: {
   readonly routeThreadRef: ScopedThreadRef;
-  // The draft id for a draft route, else the route's thread key. A bootstrap
-  // rotates the thread id, so setup started from a draft stays keyed by it.
   readonly ownerKey: string;
   readonly activeThread:
     | { readonly id: ThreadId; readonly worktreePath: string | null }
@@ -38,7 +35,6 @@ export function useWorktreeSetup(input: {
   readonly threadRef: ScopedThreadRef | null;
   readonly serverProjection: ThreadStructure | null;
   readonly activityRun: Thread["latestRun"] | null;
-  // A send the server queues behind the setup run, or the outbox behind the pending task.
   readonly sendQueuesBehindSetup: boolean;
   readonly followUpSent: boolean;
 }) {
@@ -57,19 +53,13 @@ export function useWorktreeSetup(input: {
   });
   const retryWorkspacePreparation = useAtomCommand(threadEnvironment.retryWorkspacePreparation);
   const storeEnsureTerminal = useTerminalUiStateStore((state) => state.ensureTerminal);
-  // The thread a send is setting up, recorded by begin() before the server knows it.
   const [startedSetup, setStartedSetup] = useState<{
     readonly environmentId: EnvironmentId;
     readonly threadId: ThreadId;
     readonly ownerKey: string;
   } | null>(null);
-  // Last live snapshot from the setup stream. The server drops a finished
-  // snapshot after a grace period and emits null; holding it here bridges the
-  // gap until the settled activity arrives on the thread projection.
   const [heldSnapshot, setHeldSnapshot] = useState<WorktreeSetupSnapshot | null>(null);
   const started = startedSetup !== null && startedSetup.ownerKey === ownerKey;
-  // Keep the sending environment during local draft setup; revisiting a
-  // canonical thread subscribes by its durable identity.
   const target = started ? startedSetup : routeThreadRef;
   const runPreparing = activityRun?.status === "preparing";
   const snapshotQuery = useEnvironmentQuery(
@@ -83,8 +73,6 @@ export function useWorktreeSetup(input: {
       : null,
   );
   const latestSnapshot = snapshotQuery.data;
-  // A newer snapshot replaces the held one; a late older one for the same
-  // thread does not. Switching routes drops it.
   const routeThreadKey = scopedThreadKey(routeThreadRef);
   const [heldSource, setHeldSource] = useState({ latest: latestSnapshot, routeThreadKey });
   if (heldSource.routeThreadKey !== routeThreadKey) {
@@ -112,15 +100,12 @@ export function useWorktreeSetup(input: {
     runs: serverProjection?.runs ?? [],
     followUpSent,
   });
-  // Sends wait for the agent handoff, not the setup script, so a follow-up is never held behind a
-  // slow install. The starting session stands in until the first snapshot arrives.
   const blocksSend =
     !sendQueuesBehindSetup &&
     (worktreeSetup !== null
       ? worktreeSetup.phase === "running" && !worktreeSetupAgentStarted(worktreeSetup)
       : isPreparingWorktree);
 
-  // Keyed by content so the timeline context only changes when a retry appears or clears.
   const retryableRunIdsKey = [
     ...workspacePreparationRetryRunIds(
       serverProjection?.runs ?? [],
@@ -138,12 +123,10 @@ export function useWorktreeSetup(input: {
     });
   }
 
-  /** Records the thread a send is about to set up; null when the send needs none. */
   const begin = useStableCallback(
     (thread: { readonly environmentId: EnvironmentId; readonly threadId: ThreadId } | null) =>
       setStartedSetup(thread === null ? null : { ...thread, ownerKey }),
   );
-  /** Cancels a running setup. Resolves true once the server cancelled it. */
   const cancel = useStableCallback(async () => {
     if (!worktreeSetup || worktreeSetup.phase !== "running") return false;
     const result = await cancelWorktreeSetup({
@@ -153,7 +136,6 @@ export function useWorktreeSetup(input: {
     return result._tag === "Success" && result.value.cancelled;
   });
   const retryPreparation = useStableCallback((runId: RunId) => {
-    // One retry per failed run: a second click lands after the run is preparing again.
     if (!threadRef || retryingWorkspacePreparationRunIds.has(runId)) return;
     retryingWorkspacePreparationRunIds.add(runId);
     void retryWorkspacePreparation({
@@ -161,9 +143,6 @@ export function useWorktreeSetup(input: {
       input: { threadId: threadRef.threadId, runId },
     }).finally(() => retryingWorkspacePreparationRunIds.delete(runId));
   });
-  // The setup terminal belongs to the thread that was set up. A failed
-  // bootstrap deletes that thread and closes its terminals, so only offer the
-  // terminal while the setup thread is still the active one.
   const setupThreadRef =
     worktreeSetup && threadRef && worktreeSetup.threadId === threadRef.threadId ? threadRef : null;
   const openSetupTerminal = setupThreadRef

@@ -40,7 +40,6 @@ export function HighlightedCodeLines({ root }: { root: HighlightedDocument }) {
       elementShell(code),
       undefined,
       withOccurrenceKeys(code.children, (node) => node.type).map(({ item: node, key }) => (
-        // A line's position is stable as tokens and new lines are appended.
         <HighlightedLine key={key} node={node} />
       )),
     ),

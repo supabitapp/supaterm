@@ -6,7 +6,6 @@ import * as StorageCleanup from "./storageCleanup.ts";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
 import * as PullRequestWatchReactor from "./orchestration-v2/PullRequestWatchReactor.ts";
 import * as DelegatedTaskQuestionReactor from "./orchestration-v2/DelegatedTaskQuestionReactor.ts";
-// Effect wraps this raw Node HTTP server after its startup and write-error guards attach.
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeHttp from "node:http";
 
@@ -183,15 +182,10 @@ import {
 } from "@supaterm/tailscale";
 import * as ServerActivation from "./serverActivation.ts";
 
-// MCP handoff thread IDs include escaped provenance and can exceed find-my-way's
-// 100-character default for one path segment.
 const HTTP_ROUTER_CONFIG = {
   maxParamLength: 512,
 } as const;
 
-// Effect's default preemptive shutdown waits 20s before finalizing request scopes.
-// Supaterm's primary transport is long-lived WebSocket RPC, whose Effect scope finalizer
-// already closes the websocket gracefully.
 const HTTP_PREEMPTIVE_SHUTDOWN_GRACE_MS = 0;
 const layerResourceAttribution = ResourceAttribution.layer;
 const layerApplicationObservability = EventLoopMonitor.layer.pipe(
@@ -243,8 +237,6 @@ const layerHostPowerMonitor = HostPowerMonitor.layer.pipe(
   Layer.provide(layerDesktopTelemetryReceiver),
 );
 
-// Reuses DesktopTelemetryReceiverLayerLive: a fresh receiver layer here
-// would open a second reader on the desktop telemetry fd.
 const layerDesktopAppUpdate = DesktopAppUpdate.layer.pipe(
   Layer.provide(layerDesktopTelemetryReceiver),
 );
@@ -274,7 +266,6 @@ const layerResourceDiagnostics = Layer.mergeAll(
   ProcessGroupMetrics.layer.pipe(Layer.provide(layerResourceTelemetry)),
 );
 
-// NodeServices and NodeHttpServer each output Node's own spawner, so each is followed by this one.
 const layerSpawner = SpawnWorker.layerServer.pipe(Layer.provide(NodeServices.layer));
 
 const layerHttpServer = Layer.unwrap(
@@ -285,17 +276,10 @@ const layerHttpServer = Layer.unwrap(
       host: config.host ?? "127.0.0.1",
       port: config.port,
       gracefulShutdownTimeout: HTTP_PREEMPTIVE_SHUTDOWN_GRACE_MS,
-      // Context takeover stays enabled (ws default) so the compression
-      // window is shared across frames — that also makes small frames cheap
-      // to compress, so no size threshold is set (ws only honors
-      // `threshold` when context takeover is disabled).
       websocket: { perMessageDeflate: true },
     }).pipe(Layer.provideMerge(RelayIngress.layerFromServer(server)), Layer.merge(layerSpawner));
   }),
-).pipe(
-  // NodeHttpServer.layer also outputs NodeServices, whose spawner would shadow the wrapped one.
-  (layer) => NonBlockingSpawner.layer.pipe(Layer.provideMerge(layer)),
-);
+).pipe((layer) => NonBlockingSpawner.layer.pipe(Layer.provideMerge(layer)));
 
 const layerPlatformServices = DocumentText.layer.pipe(
   Layer.provideMerge(NonBlockingSpawner.layer),
@@ -392,9 +376,6 @@ const layerVcs = Layer.empty.pipe(
   Layer.provideMerge(
     VcsStatusBroadcaster.layer.pipe(
       Layer.provide(layerGitWorkflow),
-      // The orchestration runtime also consumes the broadcaster (run
-      // finalization), so the policy cannot read the store from the runtime's
-      // output.
       Layer.provide(
         VcsStatusBroadcaster.layerAutoPullPolicy.pipe(Layer.provide(ProjectStore.layer)),
       ),
@@ -447,8 +428,6 @@ const layerProjectFaviconResolver = ProjectFaviconResolver.layer.pipe(
   Layer.provide(SupatermProjectFileLoader.layer),
 );
 
-// One identity instance, so a direct tunnel advertisement sees the identity that
-// Encrypted Relay creates when it is first turned on.
 const layerRelayAccess = Layer.merge(RelayAccess.layer, DirectTunnel.layer).pipe(
   Layer.provideMerge(RelayIdentity.layer.pipe(Layer.provide(ServerSecretStore.layer))),
   Layer.provide(layerServerSettings),
@@ -492,9 +471,6 @@ const layerOrchestrationApplication = Layer.merge(
   NativeChildWorkQuery.layer,
 ).pipe(Layer.provideMerge(layerCheckpointStore), Layer.provideMerge(layerOrchestrationV2Runtime));
 
-// Automatic thread completion: a server-owned sweep evaluates
-// inactivity and merged pull requests, then marks done through the orchestrator
-// so every client sees the same shelf.
 const layerThreadDoneWorker = Layer.effectDiscard(
   ThreadDoneService.make.pipe(Effect.flatMap((service) => service.start())),
 ).pipe(Layer.provide(layerPullRequestService), Layer.provide(ProjectionStoreV2.layer));
@@ -535,16 +511,13 @@ const layerProviderInstallationRefresh = Layer.effectDiscard(
   }),
 );
 
-// The desktop app and the background service start the server again after it exits.
 const layerServerRestart = Layer.effect(
   DatabaseStorage.ServerRestart,
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
     const launcher = yield* ServiceLauncherClient.ServiceLauncherClient;
-    // As in runServerCommand, only the desktop app passes a bootstrap token; `serve --mode desktop` by hand has no supervisor.
     const desktopLaunched = config.mode === "desktop" && config.desktopBootstrapToken !== undefined;
     if (!desktopLaunched && !launcher.managed) return null;
-    // Stop as a SIGTERM would: runMain's listener interrupts the server, so its shutdown path runs.
     return Effect.sync(() => void process.emit("SIGTERM"));
   }),
 );
@@ -607,11 +580,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   Layer.provideMerge(
     ProviderInstanceRegistryHydration.layer.pipe(Layer.provide(SqlitePersistence.layerConfig)),
   ),
-  // One gate for the server, below hydration so the Claude adapter sees it: layers memoize by
-  // reference, so the runtime layer shares it.
   Layer.provideMerge(ProviderInstallationGate.layer),
-  // Provider hydration builds the Claude runner, which reports agents to the same scanner the
-  // terminal and preview layers share.
   Layer.provideMerge(layerPortScanner),
   Layer.provideMerge(
     Layer.mergeAll(
@@ -669,8 +638,6 @@ const layerRuntimeDependencies = layerRuntimeCoreDependencies.pipe(
   Layer.provideMerge(RemoteOpenTargets.layer),
   Layer.provideMerge(DirectEndpoints.layer.pipe(Layer.provide(layerServerEnvironment))),
   Layer.provideMerge(ServerLifecycleEvents.layer),
-  // GitVcsDriver.layer is memoized and some of its build sites live outside this file, so the
-  // fetch interval goes in context here, before the first build captures it.
   Layer.provideMerge(VcsAutomaticFetchInterval.layer.pipe(Layer.provide(layerServerSettings))),
   Layer.provide(NetService.layer),
 );
@@ -719,10 +686,7 @@ const layerMakeRoutes = Layer.mergeAll(
       Layer.provideMerge(Transcription.layer.pipe(Layer.provide(ProjectionStoreV2.layer))),
     ),
   ),
-  // Both transports consume the same service instance, so caches single-flight across clients
-  // and mutations observed on WebSocket invalidate patches subsequently read over HTTP.
   Layer.provide(layerPullRequestService),
-  // The same activity instance RunExecutionService reports to, by layer memoization.
   Layer.provide(
     ServerBrowser.layer.pipe(
       Layer.provide(Layer.merge(DesktopBrowserChannel.layer, PreviewAgentActivity.layer)),
@@ -740,7 +704,6 @@ const layerMakeRoutes = Layer.mergeAll(
 const layerMakeServer = Layer.unwrap(
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
-    // Before anything opens the database: one server per Supaterm home.
     const ownership = yield* ServerOwnership.acquireServerOwnership(config.serverRuntimeStatePath);
     const activation = yield* Deferred.make<void>();
     const awaitActivation = Deferred.await(activation);
@@ -751,7 +714,6 @@ const layerMakeServer = Layer.unwrap(
     const routesReady = yield* Deferred.make<void>();
     const layerLauncher = ServiceLauncherClient.layer;
 
-    // fixPath rewrites PATH, so pin the launcher the shell chose before it does.
     const invokedAs = (yield* resolveLauncherPath) ?? (yield* HostProcess.InvokedAs);
     yield* fixPath({ shellEnvironmentPrepared: config.shellEnvironmentPrepared });
 
@@ -868,8 +830,6 @@ const layerMakeServer = Layer.unwrap(
                     ],
                     { concurrency: 2 },
                   ).pipe(
-                    // Another service may hold the root route by now, or it may sit under a
-                    // former name, where `off` would act on the current one; only ours goes.
                     Effect.map(([routes, status]) =>
                       routes.some(
                         (route) =>
@@ -906,8 +866,6 @@ const layerMakeServer = Layer.unwrap(
                   )
                 : Effect.void,
           ).pipe(
-            // Startup is not the only time the route can go stale, so whoever finds it on a dead
-            // port takes it back.
             Effect.tap((configured) =>
               configured === null
                 ? Effect.void
@@ -1002,6 +960,5 @@ const layerMakeServer = Layer.unwrap(
 ).pipe(Layer.provide(ProcessRunner.layer));
 
 export const runServer = Layer.launch(
-  // For the layers above whose spawner requirement is not met by one of them.
   layerMakeServer.pipe(Layer.provide(NonBlockingSpawner.layer.pipe(Layer.provide(layerSpawner)))),
 );

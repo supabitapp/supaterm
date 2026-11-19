@@ -24,7 +24,6 @@ export const layer = Layer.unwrap(
 
     const traces = config.otlpTracesExport;
     const metrics = config.otlpMetricsExport;
-    // Keep serialization in context for the browser trace forwarder's exporter.
     const layerSerialization = SharedObservability.layerOtlpSerialization(traces.protocol);
     const resource = ServerConfig.otlpResource(config, yield* HostProcess.Hostname);
     const attribution = yield* ResourceAttribution.ResourceAttribution;
@@ -32,9 +31,7 @@ export const layer = Layer.unwrap(
     const layerTraceReferences = Layer.mergeAll(
       Layer.succeed(Tracer.MinimumTraceLevel, config.traceMinLevel),
       Layer.succeed(References.TracerTimingEnabled, config.traceTimingEnabled),
-      // Preserve SQL spans while awaiting connections so lock waits can be recorded on them.
       Layer.succeed(Statement.SpanPropagationEnabled, true),
-      // Socket tickets, pairing tokens, and OAuth codes travel in query strings.
       Layer.effect(
         UrlParams.CurrentRedactedNames,
         Effect.map(UrlParams.CurrentRedactedNames, (names) => [

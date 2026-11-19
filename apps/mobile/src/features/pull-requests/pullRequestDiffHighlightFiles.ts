@@ -66,7 +66,6 @@ export function createPullRequestDiffHighlightFiles<E>(
     commit,
   ]);
   const firstFile = parsed.files[0];
-  // Appended pages share one loader budget; a new first file starts a new snapshot.
   let snapshot = cache.snapshot;
   if (!snapshot || snapshot.firstFile !== firstFile || snapshot.scope !== scope) {
     snapshot = {

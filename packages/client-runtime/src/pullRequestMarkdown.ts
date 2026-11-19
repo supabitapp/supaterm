@@ -34,15 +34,9 @@ type PullRequestBodyTableCell = {
   readonly segments: ReadonlyArray<PullRequestBodySegment>;
 };
 
-// `.` stops at the `\r` of a CRLF body, which is how GitHub stores one written in its web editor.
 const FENCE_PATTERN = /^\s{0,3}((?:`{3,})|(?:~{3,}))(.*)\r?$/u;
-/**
- * How far a `<video>` tag may reach for its closing tag. Real embeds are one to three lines,
- * and the bound keeps an unclosed tag from making each one rescan the rest of the body.
- */
 const VIDEO_TAG_MAX_LINES = 8;
 
-// A tab after up to three spaces still reaches the fourth column.
 const INDENTED_CODE_PATTERN = /^(?: {4}| {0,3}\t)/u;
 const BARE_URL_PATTERN = /^<?(https?:\/\/\S+?)>?$/u;
 const IMAGE_EXTENSION_PATTERN = /\.(?:png|jpe?g|gif|webp|avif|heic|heif|svg)(?:$|[?#])/iu;
@@ -54,19 +48,13 @@ const VIDEO_TAG_SRC_PATTERN = /<(?:video|source)\b[^>]*\bsrc\s*=\s*["']([^"']+)[
 const STANDALONE_VIDEO_TAG_PATTERN = /^\s*<video\b/iu;
 const VIDEO_TAG_END_PATTERN = /<\/video>\s*$/iu;
 
-/** Bounded like `VIDEO_TAG_MAX_LINES`; room for a before/after table with several rows. */
 const TABLE_MAX_LINES = 64;
 const TABLE_START_PATTERN = /^\s*<table\b/iu;
 const TABLE_END_PATTERN = /<\/table>\s*$/iu;
 const TABLE_OPEN_PATTERN = /<table\b/giu;
 const TABLE_CLOSE_PATTERN = /<\/table\s*>/giu;
-/**
- * Quoted attribute values may hold `>`. The alternatives start on disjoint characters and an
- * unquoted run stops at the next `<`, so a run of unterminated tags stays linear.
- */
 const TABLE_STRUCTURE_TAG_PATTERN =
   /<(\/?)(table|thead|tbody|tfoot|tr|td|th)\b((?:[^<>"']|"[^"]*"|'[^']*')*)>/giu;
-/** Rows are laid out independently, so a spanning cell would shift the cells after it. */
 const CELL_SPAN_PATTERN = /\b(?:col|row)span\b/iu;
 
 function isWebUrl(url: string): boolean {
@@ -93,10 +81,6 @@ function attachmentFromLine(
 
 type TableRows = ReadonlyArray<ReadonlyArray<PullRequestBodyTableCell>>;
 
-/**
- * Cells of a table made only of rows and cells, or null when anything else is in it: a caption,
- * text between cells, a nested table. Cell contents are split on their own, so tables never nest.
- */
 function tableRows(html: string, htmlOffset: number): TableRows | null {
   const rows: PullRequestBodyTableCell[][] = [];
   let row: PullRequestBodyTableCell[] | null = null;
@@ -110,7 +94,6 @@ function tableRows(html: string, htmlOffset: number): TableRows | null {
     if (cell !== null) {
       if (!closing || tag !== cell.tag) return null;
       const content = html.slice(cell.contentStart, match.index);
-      // Indented HTML would render as a code block once the cell is markdown on its own.
       if (content.split("\n").some((line) => INDENTED_CODE_PATTERN.test(line) && line.trim()))
         return null;
       row!.push({
@@ -142,10 +125,6 @@ function tableRows(html: string, htmlOffset: number): TableRows | null {
   return rows.filter((cells) => cells.length > 0);
 }
 
-/**
- * The table opening at `start`, through its matching close. `end` is the last line looked at
- * even when the table is not usable, so the caller never re-reads an inner table on its own.
- */
 function mediaTableAt(
   lines: ReadonlyArray<string>,
   start: number,
@@ -162,7 +141,6 @@ function mediaTableAt(
     if (depth <= 0 || end === lastCandidate) break;
   }
   if (depth !== 0 || !TABLE_END_PATTERN.test(lines[end]!)) return { end, rows: null };
-  // Lifting attachment links out of a table's cells would tear the table apart.
   const rows = tableRows(lines.slice(start, end + 1).join("\n"), startOffset);
   const hasMedia = rows?.some((cells) =>
     cells.some((cell) => cell.segments.some((segment) => segment.kind === "attachment")),
@@ -172,10 +150,6 @@ function mediaTableAt(
 
 const definitionParser = unified().use(remarkParse).use(remarkGfm);
 
-/**
- * The first definition of each label in the body, as authored, each joined onto one line so it
- * stands outside the quote or list it was written in.
- */
 function referenceDefinitions(body: string): string[] {
   const definitions = new Map<string, string>();
   const visit = (node: Root | RootContent, quotes: number) => {
@@ -191,10 +165,6 @@ function referenceDefinitions(body: string): string[] {
   return [...definitions.values()];
 }
 
-/**
- * Each markdown segment renders as its own document, so it leads with the body's definitions.
- * Leading, they win over a later redefinition in the segment, as the first one does in the body.
- */
 function withDefinitions(
   segment: PullRequestBodySegment,
   definitions: string,
@@ -221,7 +191,6 @@ function withDefinitions(
 
 export function splitPullRequestBody(body: string): ReadonlyArray<PullRequestBodySegment> {
   const segments = splitBodyAt(body, 0);
-  // One markdown segment is the whole body, which resolves its own references.
   const whole = segments.length === 1 && segments[0]!.kind === "markdown";
   if (whole || !body.includes("]:")) return segments;
   const definitions = referenceDefinitions(body);
@@ -230,15 +199,12 @@ export function splitPullRequestBody(body: string): ReadonlyArray<PullRequestBod
   return segments.map((segment) => withDefinitions(segment, leading));
 }
 
-/** `baseOffset` is where `body` starts in the whole body, so a table cell's edits write back. */
 function splitBodyAt(body: string, baseOffset: number): ReadonlyArray<PullRequestBodySegment> {
   const segments: PullRequestBodySegment[] = [];
   const markdown: string[] = [];
   let markdownStart = 0;
   let openFence: string | null = null;
 
-  // Blank lines around a run are dropped, but never leading spaces: four of them open an
-  // indented code block, so trimming a run would silently turn code into prose.
   const flushMarkdown = () => {
     const joined = markdown.join("\n");
     const text = joined.replace(/^(?:\r?\n)+/u, "");
@@ -261,17 +227,12 @@ function splitBodyAt(body: string, baseOffset: number): ReadonlyArray<PullReques
     const line = lines[index]!;
     if (markdown.length === 0) markdownStart = lineStart;
     const fenceMatch = FENCE_PATTERN.exec(line);
-    // ```` ```npm test``` ```` is a code span, not an opener that would flip every later fence.
-    // A span that runs past this line is left an opener, so its lines stay out of media.
     const isInlineCode =
       openFence === null &&
       fenceMatch?.[1]![0] === "`" &&
       (fenceMatch[2]!.match(/`+/gu) ?? []).some((run) => run.length === fenceMatch[1]!.length);
     if (fenceMatch !== null && !isInlineCode) {
       const fence = fenceMatch[1]!;
-      // A fence closes only on the same marker, at least as long as the one that opened it,
-      // and with nothing after it: `~~~` cannot end a ``` block, and ```` ```ts ```` is an
-      // info string opening a nested fence, not a close.
       const closes =
         openFence !== null &&
         fence[0] === openFence[0] &&
@@ -331,8 +292,6 @@ function splitBodyAt(body: string, baseOffset: number): ReadonlyArray<PullReques
       });
       for (; index < cursor; index += 1) lineStart += lines[index]!.length + 1;
     } else {
-      // Unclosed, or nothing linkable in it: prose. Only this line is consumed, so the
-      // lines that were looked at are still parsed on their own terms.
       markdown.push(line);
     }
   }

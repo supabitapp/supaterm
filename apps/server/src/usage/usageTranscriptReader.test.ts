@@ -1,6 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - resume coverage writes, appends
-// to, and truncates real transcript files byte-exactly, mirroring the reader's
-// own deliberate node:fs usage.
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -108,7 +106,6 @@ describe("compressed transcripts", () => {
       await NodeFSP.writeFile(NodePath.join(nested, "a.jsonl"), "");
       await NodeFSP.writeFile(NodePath.join(nested, "..", "b.jsonl"), "");
     }
-    // Usage that two transcripts share counts in the first one listed, so the order is part of the result.
     const inOrder = async (folder: string): Promise<string[]> => {
       const paths: string[] = [];
       for (const entry of await NodeFSP.readdir(folder, { withFileTypes: true })) {
@@ -230,7 +227,6 @@ describe("readTranscriptRecords resume", () => {
     };
     const path = NodePath.join(dir, "diagnostics.jsonl");
     const malformed = JSON.stringify({ usage: "malformed" });
-    // Completed lines enter the projected parser only when they cross a stream chunk.
     const committed = `${JSON.stringify({ usage: "malformed", padding: "x".repeat(256 * 1024) })}\n${claudeLine(1, 5)}`;
     await NodeFSP.writeFile(path, committed + malformed);
 
@@ -316,7 +312,6 @@ describe("readTranscriptRecords resume", () => {
     assert.isNotNull(first);
     assert.strictEqual(first.records.length, 1);
 
-    // Codex duplicates token_count at stream boundaries, including after resume points.
     await NodeFSP.appendFile(path, codexUsageLine(9, 5) + codexUsageLine(21, 8));
     const second = await readTranscriptRecords(path, TEST_FORMATS.codex, first.position);
     assert.isNotNull(second);
@@ -449,7 +444,6 @@ describe("readTranscriptRecords resume", () => {
         context(1),
         request(1, 1, "2026-11-02T10:00:01.000Z", usage(100, 20)),
         tokenCount("2026-11-02T10:00:01.001Z", usage(100, 20), usage(100, 20)),
-        // Interrupted after this request finished: no token_count reports it.
         request(1, 2, "2026-11-02T10:00:02.000Z", usage(150, 10)),
         {
           type: "event_msg",
@@ -460,7 +454,6 @@ describe("readTranscriptRecords resume", () => {
         request(2, 3, "2026-11-02T10:00:05.000Z", usage(200, 30)),
         tokenCount("2026-11-02T10:00:05.001Z", usage(200, 30), usage(450, 60)),
       ];
-      // Lines longer than a read chunk take the projected path when streaming.
       const padding = "x".repeat(256 * 1024);
       await NodeFSP.writeFile(
         path,
@@ -584,8 +577,6 @@ describe("readPhysicalSourceId", () => {
   const scope = "0123456789abcdef0123456789abcdef";
   const windowsPath = "C:\\Users\\User\\.claude\\projects";
 
-  // One NTFS directory the Windows server reads natively and the WSL server
-  // through drvfs. The temp dir stands in for the drive's mount point.
   async function drvfsFixture(extraMounts: (escapedMountPoint: string) => string = () => "") {
     const mountPoint = NodePath.join(dir, "drive c");
     await NodeFSP.mkdir(NodePath.join(mountPoint, "Users", "User", ".claude", "projects"), {

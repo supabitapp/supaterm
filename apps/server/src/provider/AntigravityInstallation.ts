@@ -166,7 +166,6 @@ function executableNames(platform: NodeJS.Platform) {
     : { executable: "agy_acp_server.par", harness: "localharness_external" };
 }
 
-/** Antigravity CLI 1.5.0+ serves ACP itself (`agy acp`), so it has no `localharness_external` sibling. */
 function isAntigravityCli(...candidates: ReadonlyArray<string>) {
   return candidates.some((candidate) =>
     /^(?:agy|antigravity)(?:\.(?:exe|cmd|bat))?$/iu.test(candidate.split(/[\\/]/u).at(-1) ?? ""),
@@ -324,7 +323,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
       const installed = yield* completedRelease(path.basename(directory));
       return { ...installed, source };
     }
-    // Keep launcher symlinks intact: version-manager shims dispatch by their invoked name.
     if (isAntigravityCli(candidate, executablePath)) {
       return {
         executablePath: candidate,
@@ -353,7 +351,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
       Effect.provideService(Path.Path, path),
     );
 
-  // Resolve per PATH entry so an executable without its harness falls through to later entries.
   const commandCandidates = Effect.fn("AntigravityInstallation.commandCandidates")(function* (
     command: string,
     processEnvironment = environment,
@@ -463,7 +460,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
           fs.makeTempDirectory({ prefix: "supaterm-antigravity-validate-" }),
           (directory) =>
             fs.remove(directory, { recursive: true, force: true }).pipe(
-              // Windows may retain DLL handles briefly after taskkill returns.
               Effect.retry({
                 times: platform === "win32" ? 10 : 0,
                 schedule: Schedule.spaced("100 millis"),
@@ -479,7 +475,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
           profileDirectory,
           platform,
           baseEnv: environment,
-          // A shallow scoped profile cleans up unpacked files within Windows' path limit.
           tempDirectory: profileDirectory,
         });
         const runtime = yield* makeAntigravityAcpRuntime({
@@ -496,7 +491,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
               ? ChildProcessSpawner.make(
                   Effect.fnUntraced(function* (command) {
                     const child = yield* spawner.spawn(command);
-                    // Stop PyInstaller's tree before ACP closes pipes; after launcher exit, taskkill cannot reach children holding DLLs open.
                     yield* Scope.addFinalizer(
                       validationScope,
                       child.kill({ forceKillAfter: "1 second" }).pipe(Effect.orDie),
@@ -512,7 +506,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
             ? initialized.agentInfo?.name !== "Antigravity ACP Server"
             : initialized.agentInfo?.name !== "antigravity-acp") ||
           initialized.agentInfo?.version !== expectedVersion ||
-          // Antigravity 1.1.1 may report protocol 2 with legacy ACP; choose wire format from the response shape.
           (initialized.protocolVersion !== 1 && initialized.protocolVersion !== 2) ||
           initialized.agentCapabilities?.loadSession !== true ||
           !initialized.agentCapabilities.sessionCapabilities?.resume ||
@@ -545,7 +538,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
     function* (asset: AntigravityReleaseAsset | AntigravityCliReleaseAsset) {
       yield* ensureEligible(asset.version);
       const cli = "sha512" in asset;
-      // Existing installation records use 64-character IDs, including native SHA-512 prefixes.
       const releaseId = cli ? asset.sha512.slice(0, 64) : asset.sha256;
       const archiveBytes = cli ? null : asset.archiveBytes;
       yield* resolveNodeExecutable("Antigravity", environment).pipe(
@@ -650,7 +642,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
         const response = yield* http
           .execute(HttpClientRequest.get(asset.url))
           .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk));
-        // dl.google.com may gzip the zip: content-length is encoded, while byte/hash checks use decoded data.
         const contentLength = response.headers["content-length"];
         const contentEncoding = response.headers["content-encoding"]?.trim().toLowerCase();
         const identityBody = contentEncoding === undefined || contentEncoding === "identity";
@@ -835,8 +826,6 @@ export const makeAntigravityInstallation = Effect.fn("AntigravityInstallation.ma
         if (harnessPath !== null) yield* fs.chmod(harnessPath, 0o755);
       }
       if (!cli && platform === "darwin" && arch === "x64") {
-        // Google signs the Intel build with the hardened runtime but no JIT entitlement, so
-        // libffi's writable+executable trampolines spin forever. Re-sign ad hoc after the hash check.
         const exitCode = yield* spawner
           .spawn(
             ChildProcess.make(

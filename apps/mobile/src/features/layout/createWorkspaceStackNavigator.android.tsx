@@ -49,7 +49,6 @@ function WorkspaceStackView(props: ViewProps) {
   if (!visibleRoute) return <NativeStackView {...props} />;
 
   const visibleDescriptor = props.descriptors[visibleRoute.key]!;
-  // Home is the sidebar beside the pages, and under them the page shown when none is selected.
   const home = workspaceRoutes.find((route) => route.name === "Home");
   const baseRoute = { key: `${props.state.key}:workspace`, name: "Workspace" };
   const baseDescriptor: Descriptor = {
@@ -126,8 +125,6 @@ function WorkspaceStackNavigator({
               key,
               {
                 ...descriptor,
-                // Screens draw their bar in-tree; hiding the native one only after mount
-                // shows it for the first frame and leaves the page measured short.
                 options: { ...descriptor.options, headerShown: false },
                 ...(descriptor.options.presentation === "formSheet"
                   ? {

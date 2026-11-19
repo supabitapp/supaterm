@@ -34,7 +34,6 @@ function Viewer(props: FilePreviewViewerProps) {
   useState(() => harness.mounts++);
   harness.previews.push(props.source);
   const { onPresent } = props;
-  // Stands in for the native presentation starting.
   useEffect(() => onPresent?.(() => harness.presentationFinished), [onPresent]);
   return null;
 }
@@ -176,10 +175,8 @@ it("names the checked path when the server cannot find the file", async () => {
 });
 
 it.each([
-  // Handed to native but not yet started there, or still on screen.
   ["image", false, 1],
   ["image", true, 2],
-  // A PDF is still resolving here, so its viewer never presented and a re-render must not restart it.
   ["pdf", true, 1],
 ] as const)(
   "a re-tap of the open %s restarts the preview only once its native viewer closed (closed: %s)",

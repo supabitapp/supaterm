@@ -4,7 +4,6 @@ import * as EventLoopMonitor from "./EventLoopMonitor.ts";
 
 const ms = (value: number) => value * 1e6;
 
-// Node reports a stall of S as a gap of up to S + 1 s, the histogram resolution.
 const stalled: EventLoopMonitor.EventLoopReadings = {
   delayMaxNs: ms(5_950),
   activeMs: 6_200,

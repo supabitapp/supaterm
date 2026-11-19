@@ -84,7 +84,6 @@ it.live("image searches match the image subset of a file search without fetching
     if (!nativeResult.ok) return yield* Effect.die(nativeResult.error);
     expect(nativeResult.value.items.length).toBeLessThanOrEqual(201);
 
-    // The image glob must not change fff's parse of fuzzy paths, globs, negations or locations.
     for (const query of [
       "",
       "logo",
@@ -116,8 +115,6 @@ it.live("image searches match the image subset of a file search without fetching
       }
     }
 
-    // Past 15,000 matches fff drops its filename fallback, which the image glob would otherwise
-    // reorder: "x/logo/logo.png" must keep its place relative to "a/xxlogo.png".
     const largeCwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-image-rank-" });
     yield* writeFiles(largeCwd, [
       ...Array.from({ length: 14_998 }, (_, index) => `b/logo-${index}.png`),
@@ -183,7 +180,6 @@ it.effect("fetches past a first page of Git-ignored results", () =>
   ).pipe(Effect.provide(testLayer)),
 );
 
-// A backslash is a file name character on Linux and macOS, so only Windows may treat it as a separator.
 it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
   "keeps a backslash in a POSIX folder name as part of the search result path",
   () =>
@@ -309,7 +305,6 @@ it.live("answers content searches with git grep while a slow content index build
       "const Needle = 1;\r\nneedles(a.b);\nnone\n",
     );
     yield* fileSystem.writeFileString(path.join(cwd, "ignored.txt"), "needle\n");
-    // fff leaves out what `.ignore` excludes, so git results must leave it out too.
     yield* fileSystem.writeFileString(path.join(cwd, ".ignore"), "out/\n");
     yield* fileSystem.makeDirectory(path.join(cwd, "out/deep"), { recursive: true });
     yield* fileSystem.writeFileString(path.join(cwd, "out/deep/g.txt"), "needle\n");
@@ -405,7 +400,6 @@ it.live("answers content searches with git grep while a slow content index build
     expect(yield* search({ limit: 1 })).toMatchObject({ truncated: true });
     expect(grep).not.toHaveBeenCalled();
 
-    // When git cannot give regex results or their ranges, fff answers once ready instead.
     const failingGitIndex = (
       failingArgument: string,
       stderr: string,
@@ -447,7 +441,6 @@ it.live("answers content searches with git grep while a slow content index build
     const noRangesIndex = yield* failingGitIndex("-o", "fatal: unexpected failure\n");
     yield* noRangesIndex.searchContents(regexInput);
     expect(grep).toHaveBeenCalledTimes(2);
-    // Ranges output cut off after line 1: line 2 is left out and the result says so.
     const cutRangesIndex = yield* failingGitIndex("-o", "", {
       exitCode: 0,
       stdout: "src/a.ts\u00001\u00007\u0000Needle\nsrc/a.ts\u00002",
@@ -483,7 +476,6 @@ function fakeSymlinkFinder(
 ) {
   const watchers: Array<(events: ReadonlyArray<WatchEvent>) => void> = [];
   let watchFailures = options.watchFailures ?? 0;
-  // fff's pageIndex is an offset into the results, not a page number.
   const directorySearch = vi.fn(
     async (_query: string, searchOptions?: { pageIndex?: number; pageSize?: number }) => {
       const offset = searchOptions?.pageIndex ?? 0;
@@ -504,7 +496,6 @@ function fakeSymlinkFinder(
   const finder = {
     destroy: vi.fn(),
     waitForIndexReady: vi.fn(async () => ({ ok: true as const, value: true })),
-    // fff's isScanning waits on the picker lock on the JS thread.
     isScanning: () => {
       throw new Error("isScanning must not run on the JS thread");
     },
@@ -512,7 +503,6 @@ function fakeSymlinkFinder(
       ok: true as const,
       value: { isScanning: false },
     }),
-    // fff's watch waits on the picker lock on the JS thread.
     watch: () => {
       throw new Error("watch must not run on the JS thread");
     },
@@ -565,12 +555,10 @@ it.effect("reads symlinks again after the watcher reports a change", () =>
       yield* fileSystem.remove(path.join(cwd, "old-link.ts"));
       yield* fileSystem.symlink("a.ts", path.join(cwd, "new-link.ts"));
       const beforeNotice = yield* listedPaths(searchIndex);
-      // Editing a file cannot move a link, so it does not cost a rescan.
       notifyWatchers([{ kind: "modified", path: path.join(cwd, "a.ts") }]);
       const afterEdit = yield* listedPaths(searchIndex);
       notifyWatchers([{ kind: "created", path: path.join(cwd, "new-link.ts") }]);
       const afterNotice = yield* listedPaths(searchIndex);
-      // fff reports a link replaced in place as modified.
       yield* fileSystem.remove(path.join(cwd, "new-link.ts"));
       yield* fileSystem.symlink(outside, path.join(cwd, "new-link.ts"));
       notifyWatchers([{ kind: "modified", path: path.join(cwd, "new-link.ts") }]);
@@ -596,7 +584,6 @@ it.effect("answers from the last symlink scan while a slow rescan runs", () =>
       yield* fileSystem.writeFileString(path.join(cwd, "a.ts"), "");
       yield* fileSystem.symlink("a.ts", path.join(cwd, "old-link.ts"));
       const { notifyWatchers } = fakeSymlinkFinder([]);
-      // Holding git's ignore check open keeps the rescan from finishing.
       const gate = yield* Deferred.make<void>();
       let holdIgnoreChecks = false;
       const vcsProcess = yield* VcsProcess.VcsProcess;
@@ -644,7 +631,6 @@ it.effect("keeps symlinks once the watcher subscribes after starting late", () =
         yield* TestClock.adjust("1 minute");
       }
 
-      // An unwatched scan serves reads only briefly; the third has a watcher and is kept.
       expect(scansAfterRound).toEqual([1, 2, 3, 3, 3]);
     }),
   ).pipe(Effect.provide(testLayer)),
@@ -662,7 +648,6 @@ it.effect(
         const outside = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-outside-" });
         yield* fileSystem.makeDirectory(path.join(cwd, "src"));
         yield* fileSystem.symlink("src", path.join(cwd, "src-link"));
-        // A link the scan rejects stays out even when the watcher indexed it.
         yield* fileSystem.symlink(outside, path.join(cwd, "outside-link"));
         fakeSymlinkFinder([], {
           indexed: [
@@ -681,7 +666,6 @@ it.effect(
           { path: "src-link", kind: "directory" },
           { path: "link-file.ts", kind: "file" },
         ]);
-        // The dropped link does not take the only slot.
         expect(files).toEqual({
           entries: [{ path: "link-file.ts", kind: "file" }],
           truncated: false,
@@ -704,7 +688,6 @@ it.effect("finds symlinks in folders past the first page of the index", () =>
       yield* fileSystem.makeDirectory(path.join(cwd, "late"));
       yield* fileSystem.writeFileString(path.join(cwd, "late/a.ts"), "");
       yield* fileSystem.symlink("a.ts", path.join(cwd, "late/link.ts"));
-      // Folders fff lists but that are gone by the time they are read are skipped.
       const firstPage = Array.from({ length: 1_000 }, (_, index) => `missing-${index}`);
       const { directorySearch } = fakeSymlinkFinder([...firstPage, "late"]);
 
@@ -718,7 +701,6 @@ it.effect("finds symlinks in folders past the first page of the index", () =>
   ).pipe(Effect.provide(testLayer)),
 );
 
-// fff reads HOME on Linux and macOS but the user profile on Windows, so a temp HOME cannot stand in there.
 it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
   "refuses to index a workspace rooted at the home directory",
   () =>

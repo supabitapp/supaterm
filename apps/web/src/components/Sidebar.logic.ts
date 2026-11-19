@@ -94,8 +94,6 @@ export function useSidebarRowSubscriptionLease(isActive: boolean): {
     leaseLiveStatus: isActive || isNearViewport || !canObserve,
     rowRef: (row) => {
       if (row === null || isActive || !canObserve) return undefined;
-      // The overscan has to apply to the sidebar's own scroller; a viewport-rooted
-      // margin is still clipped by it.
       return observeIntersection(row, (entry) => setIsNearViewport(entry.isIntersecting), {
         root: row.closest('[data-slot="scroll-area-viewport"]'),
         rootMargin: `${SIDEBAR_ROW_SUBSCRIPTION_OVERSCAN_PX}px 0px`,
@@ -145,9 +143,6 @@ export function useSnoozeWakeClock(
     if (nextWakeAt === null || wakeAt < nextWakeAt) nextWakeAt = wakeAt;
   }
   const woke = useDeadlinePassed(nextWakeAt);
-  // Advancing to the latest wake that has passed skips every wake that elapsed
-  // meanwhile, e.g. across a laptop sleep. Stepping one wake at a time would
-  // re-render once per elapsed wake and hit React's limit.
   if (woke && nextWakeAt !== null) {
     let nextClockMs = nextWakeAt;
     for (const wakeAt of wakeTimes) {
@@ -159,7 +154,6 @@ export function useSnoozeWakeClock(
   return clockMs;
 }
 
-// Live status that says the cwd is not a repository means the checkout was removed.
 export function withoutRemovedCheckout<
   T extends { readonly branch: string | null; readonly worktreePath: string | null },
 >(thread: T, gitStatus: { readonly isRepo?: boolean | undefined } | null): T {
@@ -178,14 +172,8 @@ export function useRetainedValue<T>(key: string | null, value: T | null): T | nu
   return key !== null && retained?.key === key ? retained.value : null;
 }
 
-// Sidebar.motion handles ordinary section changes. Sortable transforms own
-// dragging; replaying their committed DOM order would animate the drop twice.
 export const animateSidebarLayoutChanges: AnimateLayoutChanges = (args) =>
   args.isSorting ? defaultAnimateLayoutChanges(args) : false;
-
-// Rows and section markers share one sortable list; the separators resolve the lifecycle action.
-// Dropping into the snoozed shelf is unsupported because snoozing needs a wake time, and Working
-// follows live status, so its rows only drag out as chat context.
 
 export type SidebarSection = "pinned" | "active" | "working" | "snoozed" | "done";
 
@@ -241,10 +229,6 @@ export function isSidebarGroupId(id: string): boolean {
   return id.startsWith(SIDEBAR_GROUP_PREFIX);
 }
 
-/** The section a slot belongs to, read off the markers around it: from
-    the top down, everything before the pinned divider is pinned, then the
-    inbox until the first shelf header, each shelf until the next header,
-    then done. */
 function sectionAtSidebarSlot(items: readonly SidebarListItem[], index: number): SidebarSection {
   let section: SidebarSection = "pinned";
   for (let i = 0; i < index && i < items.length; i += 1) {
@@ -312,7 +296,6 @@ type SidebarThreadDropPlan =
       readonly orderKey: string | undefined;
       readonly extraAssignments: ReadonlyArray<{ readonly id: string; readonly orderKey: string }>;
     }
-  /** Into the time-ordered inbox: the drop has no placement to write. */
   | {
       readonly kind: "move-active";
       readonly unpin: boolean;
@@ -370,7 +353,6 @@ export function resolveSidebarReorderableThreadKeys(input: {
   const connectedEnvironmentIds = new Set(input.connectedEnvironmentIds);
   const draggableThreadKeys = new Set<string>();
   for (const thread of input.threads) {
-    // Config is cached for offline rendering, so its presence does not make a row writable.
     if (
       !connectedEnvironmentIds.has(thread.environmentId) ||
       !input.serverConfigs.has(thread.environmentId)
@@ -422,8 +404,6 @@ export function planSidebarThreadDrop(input: {
       movedId: activeKey,
     });
     if (assignments.some(({ id }) => !writable.has(id))) return null;
-    // Keyless pinned rows sort after keyed rows, so a row materialized after a frozen keyless row
-    // cannot persist that position.
     const assignedIds = new Set(assignments.map(({ id }) => id));
     let hasFrozenKeylessBefore = false;
     for (const id of order) {
@@ -434,8 +414,6 @@ export function planSidebarThreadDrop(input: {
   };
   switch (target.section) {
     case "active":
-      // Like the done tail: threads can enter the time-ordered inbox, but
-      // not be arranged inside it.
       return activeSection === "active"
         ? { kind: "none" }
         : {
@@ -604,7 +582,6 @@ type ThreadStatusInput = Pick<
   blockedOnThreadWait?: boolean | undefined;
 };
 
-// Read at event time: subscribing Sidebar to terminal or modifier state re-renders every row.
 export function threadShortcutContext(routeThreadRef: ScopedThreadRef | null) {
   return {
     terminalFocus: isTerminalFocused(),
@@ -624,7 +601,6 @@ export function threadShortcutContext(routeThreadRef: ScopedThreadRef | null) {
   };
 }
 
-/** Whether the current modifier combination, including none, has been held unchanged for `delayMs`. */
 function createModifierHoldStore(delayMs: number): ClockStore<boolean> {
   const listeners = new Set<() => void>();
   let held = false;
@@ -640,7 +616,6 @@ function createModifierHoldStore(delayMs: number): ClockStore<boolean> {
     stopDeadline();
     const deadline = deadlineStore(deadlineAfter(delayMs));
     stopDeadline = deadline.subscribe(() => setHeld(true));
-    // A deadline another subscriber already passed never notifies a late joiner.
     setHeld(deadline.getSnapshot());
   };
 
@@ -716,8 +691,6 @@ export function hasUnseenCompletion(thread: ThreadStatusInput): boolean {
   return completedAt > lastVisitedAt;
 }
 
-// A double-click dispatches a second `click` with `detail === 2` before `dblclick`; it must not
-// navigate, or double-click-to-rename would too. Keyboard activations have `detail === 0`.
 export function isTrailingDoubleClick(detail: number): boolean {
   return detail > 1;
 }
@@ -848,7 +821,6 @@ export function resolveWindowTitleThreadStatus(
     case "working":
       return THREAD_STATUS_TEXT.working;
     case "waiting":
-      // Waiting on a child thread is still this turn, so it must not read as finished.
       return thread.runtime?.status === "running" ? THREAD_STATUS_TEXT.working : null;
     default:
       return null;
@@ -909,7 +881,6 @@ export function firstValidTimestampMs(
   return 0;
 }
 
-// The Working section folds and orders the inbox the same way on mobile.
 export {
   sortInboxThreadsByReturn,
   sortWorkingThreadsBySend,
@@ -1078,8 +1049,6 @@ function sortProjectsByActivity<TProject extends SidebarProject>(
     return [...projects];
   }
 
-  // Each project's timestamp walks all of its threads, so compute it once
-  // per project instead of once per comparison.
   return projects
     .map((project) => ({
       project,

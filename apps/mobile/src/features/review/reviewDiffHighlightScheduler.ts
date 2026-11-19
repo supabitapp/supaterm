@@ -31,8 +31,6 @@ export function createReviewDiffHighlightScheduler(
       visibleRange = nextRange;
       cancel();
       if (!requestedRange) {
-        // Native publishes a pre-jump range and its initial destination together.
-        // Yield once so the destination wins before sending an unabortable source RPC.
         timer = setTimeout(flush, 0);
         return;
       }

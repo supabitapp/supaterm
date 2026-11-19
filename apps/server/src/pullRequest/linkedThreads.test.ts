@@ -319,15 +319,12 @@ it("signals when activity reorders the threads linked to a pull request", () => 
       activity("a", 4),
       activity("b", 5),
       activity("b", 5),
-      // Seen since startup without links, so its activity can't reorder an answer.
       thread("unlinked", 5, []),
       activity("unlinked", 6),
-      // Not seen since startup, so it may be linked from before the restart.
       activity("persisted", 6),
     ].map(changed),
   ).toEqual(["reordered", "reordered", "reordered", null, "changed", null, "reordered"]);
 
-  // Other threads linked to the pull request may have had no event since the restart.
   const afterRestart = makeLinkedThreadsChangeDetector();
   afterRestart(thread("a", 2));
   expect(

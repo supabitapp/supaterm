@@ -144,7 +144,6 @@ export function AnnotatableCodeView({
   if (
     draft !== null &&
     !filesByKey.has(draft.fileKey) &&
-    // Lazy placeholders have provisional change types, so match both paths instead.
     !pendingFiles.some(
       (file) =>
         resolveFileDiffPath(file) === draft.filePath &&

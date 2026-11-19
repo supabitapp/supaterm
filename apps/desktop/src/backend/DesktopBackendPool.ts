@@ -1,8 +1,3 @@
-// The primary backend starts with the app; DesktopWslBackend registers WSL instances on demand.
-// Each instance runs in its own child scope so unregister stops it without the pool. The primary
-// refuses unregister and is the only one the window follows. The renderer connects to the others
-// as desktop-local targets (apps/web/src/connection/desktopLocal.ts).
-
 import {
   DESKTOP_UPDATE_IN_PROGRESS_MARKER_FILE,
   DESKTOP_UPDATE_IN_PROGRESS_TTL_MS,
@@ -130,10 +125,6 @@ export const layer = Layer.effect(
     const electronApp = yield* ElectronApp.ElectronApp;
     const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
     const { primaryBackendStartup } = yield* DesktopState.DesktopState;
-    // Without this, instance scopes are orphaned: they only close via explicit unregister() calls,
-    // so on app shutdown the WSL backend child process gets hard-killed by the OS instead of
-    // receiving the graceful SIGTERM + grace period the instance's stop finalizer would otherwise
-    // run.
     const layerScope = yield* Scope.Scope;
     const factoryContext = yield* Effect.context<BackendInstanceFactoryRequirements>();
     const homeOwnerContext = yield* Effect.context<
@@ -146,8 +137,6 @@ export const layer = Layer.effect(
       DESKTOP_UPDATE_IN_PROGRESS_MARKER_FILE,
     );
     const serverRuntimePath = environment.path.join(environment.stateDir, "server-runtime.json");
-    // The server publishes its runtime after HTTP readiness. Until then an SSH launcher
-    // finds nothing to adopt, so dropping the marker earlier lets it start a competing server.
     const releaseUpdateMarker = Effect.fn("desktop.backendPool.releaseUpdateMarker")(function* (
       httpBaseUrl: URL,
       pid: number,
@@ -166,17 +155,13 @@ export const layer = Layer.effect(
         }),
         Effect.timeoutOption(Duration.millis(DESKTOP_UPDATE_IN_PROGRESS_TTL_MS)),
       );
-      // A later update may have replaced the marker; that handoff is not ours to end.
       const current = yield* fileSystem.readFileString(updateMarkerPath).pipe(Effect.option);
       if (Option.isSome(current) && current.value === marker.value) {
         yield* fileSystem.remove(updateMarkerPath, { force: true }).pipe(Effect.ignore);
       }
     });
-    // One wait at a time: each run's shutdown or readiness ends the previous run's wait.
     const updateMarkerWait = yield* FiberHandle.make<void>();
 
-    // The main window loads during startup and reads the primary endpoint once; a Windows fallback
-    // before the first readiness replaces the WSL endpoint it read.
     let primaryWasReady = false;
     let reloadMainOnReady = false;
     const reloadStaleMain = Effect.suspend(() => {
@@ -186,9 +171,6 @@ export const layer = Layer.effect(
       return desktopWindow.runMainContentsCommand("reload");
     });
 
-    // Fatal configuration failures persist the Windows fallback. Bounded
-    // transport failures use an in-memory fallback for this launch so the app
-    // opens without overwriting the user's WSL preference.
     const handlePrimaryPreflightFailure = Effect.fn("desktop.backendPool.primaryPreflightFailed")(
       function* (failure: DesktopBackendManager.PreflightFailure) {
         const { reason, fatal } = failure;
@@ -213,9 +195,6 @@ export const layer = Layer.effect(
           "WSL backend couldn't start",
           `${reason}\n\nFalling back to the Windows backend so Supaterm can open. Re-enable the WSL backend from Settings > Sharing & access once the WSL distro is fixed.`,
         );
-        // Clearing wslBackendEnabled alone would leave a stale wslOnly:true that silently re-traps
-        // the user in wsl-only mode the next time they enable WSL. If the persisted write fails,
-        // keep this process recoverable by applying the fallback to in-memory settings.
         yield* appSettings.applyWslWindowsFallback.pipe(
           Effect.catch((error) =>
             logBackendPoolWarning(
@@ -232,19 +211,12 @@ export const layer = Layer.effect(
 
     const primary = yield* DesktopBackendManager.makeBackendInstance({
       id: DesktopBackendManager.PRIMARY_INSTANCE_ID,
-      // Keep this lazy. The pool layer is initialized before startup loads
-      // persisted desktop settings, so resolving the primary label here would
-      // permanently capture DEFAULT_DESKTOP_SETTINGS and mislabel WSL-only
-      // primaries as Windows.
       label: configuration.resolvePrimaryLabel,
       configResolve: configuration.resolvePrimary,
-      // Window creation errors propagating out of handleBackendReady must not block the readiness
-      // callback (that would prevent restartAttempt from being reset), so we absorb them here.
       onReady: (httpBaseUrl, pid) =>
         FiberHandle.run(updateMarkerWait, releaseUpdateMarker(httpBaseUrl, pid)).pipe(
           Effect.andThen(reloadStaleMain),
           Effect.andThen(desktopWindow.handleBackendReady(httpBaseUrl)),
-          // Only once the main window exists, so the recovery window never closes into nothing.
           Effect.andThen(SubscriptionRef.set(primaryBackendStartup, { _tag: "Ready" })),
           Effect.catch((error) =>
             logBackendPoolWarning("failed to open main window after backend readiness", {

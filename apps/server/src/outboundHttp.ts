@@ -3,8 +3,6 @@ import * as NodeNet from "node:net";
 
 import type * as Undici from "undici";
 
-// undici stays external to the CLI bundle (scripts/lib/cli-external-packages.ts).
-// Inside a Node single-executable only `require` can load it from disk.
 const requireUndici = NodeModule.createRequire(import.meta.url);
 
 /**
@@ -20,14 +18,11 @@ export const builtinFetchUsesHttp2 = (bundledUndiciVersion: string | undefined) 
  */
 export function installHttp1FetchDispatcher(): void {
   const undici = requireUndici("undici") as typeof Undici;
-  // Node's agent comes from its internal undici copy, so `instanceof` against the npm class is false.
   const usesEnvProxy = undici.getGlobalDispatcher().constructor.name === "EnvHttpProxyAgent";
   undici.setGlobalDispatcher(
     usesEnvProxy
       ? new undici.EnvHttpProxyAgent({
           allowH2: false,
-          // The connection to an HTTPS proxy is built here, not from `allowH2`. ProxyAgent's
-          // `connect` option is dropped on purpose: its connector has h2 fixed on.
           clientFactory: (origin) => new undici.Pool(origin, { allowH2: false }),
         })
       : new undici.Agent({ allowH2: false }),
@@ -43,13 +38,10 @@ export function keepOutboundFetchOnHttp1(): void {
   if (builtinFetchUsesHttp2(process.versions.undici)) installHttp1FetchDispatcher();
 }
 
-// @types/node does not declare setTypeOfService yet.
 type TypeOfServiceSocket = {
   setTypeOfService?: (this: NodeNet.Socket, typeOfService: number) => NodeNet.Socket;
 };
 
-// Bundled undici calls this from a socket callback without catching. On macOS,
-// EINVAL after a peer reset must not exit the server over an optional QoS hint.
 export function ignoreMacosTypeOfServiceEinval(
   // oxlint-disable-next-line supaterm/no-global-process-runtime -- Runs before ACP dispatch without loading the Effect graph.
   platform = process.platform,

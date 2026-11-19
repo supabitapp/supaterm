@@ -693,8 +693,6 @@ function transparentWrapperCommandIndex(
   }
 
   if (wrapper === "script") {
-    // BSD `script` takes an output file before the optional command. Requiring
-    // an option and both operands avoids guessing about a plain `script file`.
     return /^-[adkpqr]+$/u.test(tokens[index + 1] ?? "") && tokens[index + 3] !== undefined
       ? index + 3
       : null;
@@ -789,8 +787,6 @@ function powerShellAssignmentProgramName(
   }
 
   const value = assignment[2]!.trim();
-  // The POSIX-oriented segment splitter does not balance PowerShell arrays or
-  // hashtables. Do not mistake a key after an internal semicolon for a command.
   if (/^(?:\[ordered\]\s*)?@\s*[{(]/iu.test(value)) {
     return { matched: true, program: null };
   }
@@ -1077,8 +1073,6 @@ function parseCommandProgramName(
     return null;
   }
   if (/^[A-Za-z_][A-Za-z0-9_]*\s*\(\s*\)\s*\{/u.test(commandWithoutComments)) return null;
-  // `&&` and `||` inside a `[[ ... ]]` expression are not top-level command
-  // separators. Keep the label conservative instead of scanning the test body.
   if (commandWithoutComments.startsWith("[[")) return null;
   const commandSplit = splitFirstShellCommand(commandWithoutComments);
   if (/^@["'](?:\r?\n)/u.test(commandSplit.firstCommand.trimStart())) {
@@ -1358,9 +1352,6 @@ export function commandProgramName(command: string, depth = 0): string | null {
   return commandProgramNameInternal(command, depth, "shell", MAX_COMMAND_SEGMENTS);
 }
 
-// Escape bytes and other control characters render as invisible gaps; display
-// shows them as Unicode control pictures (ESC becomes ␛) instead. Tab, newline
-// and carriage return lay out as whitespace, so CRLF scripts stay unmarked.
 const CONTROL_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/gu;
 
 export function commandDisplayText(command: string): string {
@@ -1373,9 +1364,6 @@ export function withVisibleControlCharacters(text: string): string {
   );
 }
 
-// A wrapper whose quoting does not balance is kept: the script's end cannot be
-// known, which happens when Codex's secret redaction removes the backslash of
-// an escaped quote inside `-lc "…"`.
 function withoutShellWrapper(command: string): string {
   const trimmed = command.trim();
   const split = splitFirstShellCommand(trimmed);
@@ -1387,7 +1375,6 @@ function withoutShellWrapper(command: string): string {
     ?.replace(/\.exe$/iu, "");
   if (!tokens || !program || !SHELL_PROGRAMS.has(program)) return trimmed;
   const scriptIndex = shellCommandArgumentIndex(tokens, 1);
-  // Positional arguments can affect the script; keep those invocations intact.
   if (scriptIndex === null || scriptIndex !== tokens.length - 1) return trimmed;
   return tokens[scriptIndex]?.trim() || trimmed;
 }

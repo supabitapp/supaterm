@@ -21,7 +21,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// Modes were removed from ACP v2, so the v1 wire schema is the source of truth.
 const isSessionModelState = Schema.is(EffectAcpSchema.SessionModelState);
 const isSessionModeState = Schema.is(EffectAcpSchemaV1.SessionModeState);
 
@@ -129,7 +128,6 @@ function decodeTerminalOutputChunk(
     : { text, pendingOutputBytes: Uint8Array.from(bytes.subarray(completeEnd)) };
 }
 
-// Drop an extra batch at UTF-8 boundaries so flattening the retained string is amortized.
 function appendTerminalOutput(
   output: string,
   outputBytes: number,
@@ -406,7 +404,6 @@ type AcpSelectConfigOption = Extract<
   { readonly type: "select" }
 >;
 
-// ACP resolves options in the same category by array order.
 export function findModelConfigOption(
   configOptions: ReadonlyArray<EffectAcpSchema.SessionConfigOption> | null | undefined,
 ): AcpSelectConfigOption | undefined {
@@ -575,8 +572,6 @@ function extractToolCallCommand(
       return executable;
     }
   }
-  // Titles like `Read \`src/a.ts\`` are not commands. Only execute tools
-  // fall back to a backtick or bare title.
   if (kind !== "execute") {
     return undefined;
   }
@@ -645,9 +640,6 @@ function locationsFromToolCallInput(input: {
   return locations.length > 0 ? locations : undefined;
 }
 
-// Some ACP agents (Grok's CLI) resend the entire accumulated output on every
-// `tool_call_update`, so a redrawing progress bar reaches hundreds of KB per update. Keep a
-// bounded tail so one busy tool call cannot flood runtime event ingestion.
 const TOOL_CALL_CONTENT_MAX_CHARS = 8_000;
 const TOOL_CALL_CONTENT_TRUNCATION_MARKER = "[Earlier output truncated]\n\n";
 
@@ -661,10 +653,6 @@ function boundToolCallOutputText(text: string): string {
 
 const RAW_OUTPUT_TEXT_FIELDS = ["content", "stdout", "stderr", "output"] as const;
 
-// `rawOutput` is provider-defined and, for terminal-shaped tools, mirrors the same
-// cumulative text-growth problem as `content` (see the comment above). Bound its known
-// text-bearing fields the same way so a chatty provider cannot smuggle unbounded output
-// through this field instead.
 function boundToolCallRawOutput(rawOutput: unknown): unknown {
   if (!isRecord(rawOutput)) {
     return rawOutput;
@@ -848,7 +836,6 @@ function makeToolCallState(
       ? title
       : undefined;
   const data: Record<string, unknown> = { toolCallId };
-  // ACP v2 clears a field set to null; mergeToolCallState consumes these markers.
   const clearable = {
     name: input.name,
     title: input.title,
@@ -866,9 +853,6 @@ function makeToolCallState(
     data.kind = kind;
   }
   if (title) {
-    // The agent's verbatim title. Presentation summarizes `title` on the
-    // state (e.g. a command line becomes "Ran command"), so identity checks
-    // such as MCP-fallback detection need the raw value preserved here.
     data.title = title;
   }
   if (command) {
@@ -878,8 +862,6 @@ function makeToolCallState(
     data.rawInput = input.rawInput;
   }
   if (isRecord(input._meta)) {
-    // Some agents identify MCP calls only here (goose `goose.toolCall`,
-    // qwen `toolName`/`serverId`, claude-acp `claudeCode.toolName`).
     data.meta = input._meta;
   }
   if (input.rawOutput !== undefined) {
@@ -968,9 +950,6 @@ export function mergeToolCallState(
   };
 }
 
-// Even with bounded content (see TOOL_CALL_CONTENT_MAX_CHARS above), a redrawing terminal
-// can still shift its bounded tail window on nearly every notification, which would emit
-// a runtime event per redraw.
 const TOOL_CALL_UPDATE_MIN_DETAIL_GROWTH_CHARS = 256;
 const TOOL_CALL_UPDATE_COALESCE_LIMIT = 10;
 
@@ -992,9 +971,6 @@ function toolCallOutputUnchanged(previous: AcpToolCallState, next: AcpToolCallSt
   );
 }
 
-// Command tools keep `detail` equal to the command, so live stdout lives on
-// `data.content` / `data.rawOutput`. Measure that too, otherwise coalescing never
-// sees growth and in-progress output is held until completed/failed.
 export function toolCallProgressLength(state: AcpToolCallState): number {
   let contentChars = 0;
   const content = state.data.content;
@@ -1086,28 +1062,14 @@ function acpMcpFallbackInput(value: string | undefined): Record<string, unknown>
       const parsed: unknown = JSON.parse(candidate);
       const unwrapped = typeof parsed === "string" ? JSON.parse(parsed) : parsed;
       if (isRecord(unwrapped)) return unwrapped;
-    } catch {
-      // ACP agents choose their own shell quoting. An unrecognized form keeps
-      // the MCP identity but leaves the input empty instead of misreporting it.
-    }
+    } catch {}
   }
   return undefined;
 }
 
-/**
- * Agents name injected MCP tools with no shared convention (`supaterm_<tool>`,
- * `mcp__supaterm__<tool>`, `supaterm___<tool>`, `supaterm-<tool>`, Kiro's `@supaterm/<tool>`,
- * cline appends `: <args json>`). Matches are also gated on the known Supaterm tool inventory,
- * so the separator match can stay loose.
- */
 const SUPATERM_MCP_TITLE_CALL =
   /^(?:@|mcp[-_]{1,2})?supaterm[-_.:/ ]{1,3}(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*)(?::.*)?$/i;
 
-/**
- * Gemini CLI titles injected MCP calls "<tool> (<server> MCP Server)" and
- * qwen-code appends ": <args json>" to the same template; Auggie namespaces
- * tool-first as "<tool>_supaterm".
- */
 const SUPATERM_MCP_TITLE_SUFFIX_CALL =
   /^(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*?)(?: \(supaterm MCP Server\)(?::|$)|[-_.]supaterm$)/i;
 
@@ -1132,8 +1094,6 @@ export function extractMcpToolCallIdentity(
   if (meta?.is_mcp_tool_call === true && server.length > 0 && tool.length > 0) {
     return { server, tool };
   }
-  // Kiro names the server in `_meta.kiro.serverName` and the call in `rawInput.tool_id`
-  // ("<server>::<tool>"), with the tool's own input under `rawInput.arguments`.
   const kiroServer = isRecord(meta?.kiro) ? meta.kiro.serverName : undefined;
   const kiroToolId = typeof rawInput?.tool_id === "string" ? rawInput.tool_id.trim() : "";
   if (
@@ -1170,10 +1130,6 @@ export function extractMcpToolCallIdentity(
   const assertsForeignOrigin =
     (metaServerId.length > 0 && !/^supaterm$/i.test(metaServerId)) ||
     (gooseExtension.length > 0 && !/^supaterm$/i.test(gooseExtension));
-  // A foreign origin never brands as Supaterm. qwen's serverId marks a real MCP
-  // server, but goose reports its built-in extensions (developer__shell,
-  // edits) the same way as user MCP servers, so goose stays unclassified and
-  // keeps its command and file-change projections.
   if (assertsForeignOrigin) {
     if (metaServerId.length === 0 || metaToolName.length === 0) return undefined;
     const prefix = [`mcp__${metaServerId}__`, `mcp::${metaServerId}::`].find((prefix) =>
@@ -1182,8 +1138,6 @@ export function extractMcpToolCallIdentity(
     const tool = prefix === undefined ? metaToolName : metaToolName.slice(prefix.length);
     return tool ? { server: metaServerId, tool } : undefined;
   }
-  // OMP mounts MCP tools as xd://mcp__<server>_<tool> devices and calls them by writing JSON
-  // args; a read of the same path only fetches the tool's docs.
   const devicePath = typeof rawInput?.path === "string" ? rawInput.path : "";
   if (devicePath.startsWith("xd://") && typeof rawInput?.content === "string") {
     const deviceTool = SUPATERM_MCP_TITLE_CALL.exec(devicePath.slice("xd://".length))?.groups?.tool;
@@ -1201,7 +1155,6 @@ export function extractMcpToolCallIdentity(
   for (const candidate of candidates) {
     const trimmed = candidate.trim();
     const qualified = /^mcp__(.+?)__(.+)$/i.exec(trimmed);
-    // Hermes renames client MCP servers to editor_<sanitized name>_<8 hex of a per-session hash>.
     if (
       qualified?.[1] &&
       qualified[2] &&
@@ -1225,7 +1178,6 @@ export function extractMcpToolCallIdentity(
   }
   const commands = [
     ...(toolCall.command === undefined ? [] : [toolCall.command]),
-    // pi-acp reports the exec command line only as the verbatim title.
     ...(typeof toolCall.data.title === "string" ? [toolCall.data.title] : []),
     ...(options?.embeddedTerminalCommands ?? []),
   ];
@@ -1271,7 +1223,6 @@ export function withTrackedPermissionToolCall(
       ...(title === undefined && typeof tracked.data.title === "string"
         ? { title: tracked.data.title }
         : {}),
-      // Unrecognised kinds map to command approvals, so only a tracked execute kind may grant execution.
       ...(kind === undefined && tracked.kind === "execute" ? { kind: "execute" as const } : {}),
       ...(rawInput === undefined && tracked.data.rawInput !== undefined
         ? { rawInput: tracked.data.rawInput }
@@ -1402,9 +1353,6 @@ export function syntheticLoadSessionResponseFromInitialize(
   };
 }
 
-// The raw notification is persisted on the runtime event as `rawPayload`, so it gets the same
-// bounded `content`/`rawOutput` as the parsed state; otherwise an oversized cumulative update
-// would smuggle the unbounded buffer back in.
 function boundToolCallRawPayload(
   params: EffectAcpSchema.SessionNotification,
   update: AcpToolCallUpdate,

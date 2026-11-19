@@ -46,7 +46,6 @@ describe.runIf(NodeFS.existsSync("/proc/self/task"))("stopChildProcessesBeforeEx
       await new Promise((resolve) => child.once("spawn", resolve));
       return child;
     };
-    // Chromium rewrites a zygote's argv into one space-separated title.
     const zygote = await spawnTitled("/opt/Supaterm/supaterm --type=zygote --no-sandbox");
     const utility = await spawnTitled("/opt/Supaterm/supaterm --type=utility");
     try {

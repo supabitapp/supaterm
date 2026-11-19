@@ -98,9 +98,6 @@ export function sessionGrantsScope(
   return session.authenticated && (session.scopes ?? []).includes(scope);
 }
 
-// Access management is included because terminal:operate and
-// orchestration:operate already reach that authority through a shell or a
-// full-access agent. Narrowing a grant means choosing explicit scopes.
 export const AuthStandardClientScopes = [
   AuthOrchestrationReadScope,
   AuthOrchestrationOperateScope,

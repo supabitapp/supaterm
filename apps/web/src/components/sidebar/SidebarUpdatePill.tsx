@@ -65,7 +65,6 @@ function openSidebarUpdateReleaseNotesPopoverOnForwardTab(
   triggerId: string,
 ): void {
   if (event.key !== "Tab" || event.shiftKey) return;
-  // Hover-open popovers do not manage focus. Promote this one before native Tab runs.
   flushSync(() => handle.open(triggerId));
 }
 
@@ -163,7 +162,6 @@ export function SidebarUpdatePill() {
 
 function SidebarUpdateControl() {
   const liveState = useDesktopUpdateState();
-  // Update checks stay hidden: hold the last state that wasn't a check in progress.
   const [state, setState] = useState(liveState);
   if (liveState?.status !== "checking" && liveState !== state) setState(liveState);
   const isChecking = liveState?.status === "checking";
@@ -205,8 +203,6 @@ function SidebarUpdateControl() {
 
   const [releaseNotesOpen, setReleaseNotesOpen] = useState(false);
   const [releaseNotesTriggerFocusVisible, setReleaseNotesTriggerFocusVisible] = useState(false);
-  // Release notes close when they stop applying, and open when they start
-  // applying while the trigger already holds keyboard focus.
   const [releaseNotesShownBefore, setReleaseNotesShownBefore] = useState(showReleaseNotesPopover);
   if (releaseNotesShownBefore !== showReleaseNotesPopover) {
     setReleaseNotesShownBefore(showReleaseNotesPopover);
@@ -219,7 +215,6 @@ function SidebarUpdateControl() {
 
     if (runsEverything) {
       setIsConfirmingEverything(true);
-      // Machines that still cache an older latest version add their rows while the dialog is open.
       setIsCheckingProviders(true);
       void checkProviderUpdates({ quiet: true }).finally(() => setIsCheckingProviders(false));
       return;

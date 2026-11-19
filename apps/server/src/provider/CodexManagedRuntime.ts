@@ -22,7 +22,6 @@ const decodeSettings = Schema.decodeSync(CodexSettings);
 const managedCodexLaunchArgs = (command: string, args: ReadonlyArray<string>) =>
   [
     'model_provider="openai_token_sharing"',
-    // Codex persists this provider ID in rollouts and needs it unchanged to resume.
     `model_providers.openai_token_sharing={name="OpenAI Token Sharing",base_url="https://api.openai.com/v1",model_catalog_url="https://api.openai.com/v1/models",wire_api="responses",requires_openai_auth=false,supports_websockets=false,auth={command=${JSON.stringify(command)},args=${JSON.stringify(args)},timeout_ms=${COMMAND_TIMEOUT_MS},refresh_interval_ms=0}}`,
     "features.api_key_model_discovery=true",
     "features.multi_agent=false",
@@ -59,7 +58,6 @@ export const makeCodexManagedRuntime = Effect.fn("makeCodexManagedRuntime")(func
   );
   const homePath = homeLayout.effectiveHomePath ?? homeLayout.sharedHomePath;
   const resolve = Effect.gen(function* () {
-    // Establish renewal availability before auth.access can consume a refresh token.
     const endpoint = yield* broker.endpoint.pipe(
       Effect.mapError(
         (cause) =>
@@ -113,7 +111,6 @@ export const makeCodexManagedRuntime = Effect.fn("makeCodexManagedRuntime")(func
           }),
       ),
     );
-    // Ambient CLI overrides cannot redirect a Supaterm-owned token to a different provider.
     const environment: NodeJS.ProcessEnv = {
       ...options.environment,
       CODEX_HOME: homePath,

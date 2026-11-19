@@ -10,7 +10,6 @@ describe("reconcileSnoozeDraft", () => {
 
   it("adopts a value from elsewhere, even one this editor wrote earlier", () => {
     expect(reconcileSnoozeDraft(["b"], "c")).toEqual({ adopt: true });
-    // "a" was written and acknowledged before; seeing it again means someone restored it.
     expect(reconcileSnoozeDraft([], "a")).toEqual({ adopt: true });
   });
 
@@ -21,7 +20,6 @@ describe("reconcileSnoozeDraft", () => {
 
 describe("sortSnoozeRows", () => {
   it("orders rows by wake time and puts a passed today option last", () => {
-    // 16:00 local, so 20 hours wakes tomorrow and today 09:00 has passed.
     const now = new Date(2026, 9, 28, 16, 0);
     const sorted = sortSnoozeRows(
       [

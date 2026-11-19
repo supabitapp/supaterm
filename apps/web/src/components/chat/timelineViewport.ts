@@ -63,7 +63,6 @@ export interface TimelineViewport {
 
 const UP_KEYS = new Set(["PageUp", "Home", "ArrowUp"]);
 const DOWN_KEYS = new Set(["PageDown", "End", "ArrowDown", " "]);
-// Wide enough for an overlay scrollbar, which takes no layout space (macOS Firefox).
 const SCROLLBAR_HIT_PX = 16;
 
 /**
@@ -92,8 +91,6 @@ export function attachTimelineViewport(
     emit({ source: "wheel", direction: event.deltaY < 0 ? "up" : "down" });
   };
   const handleTouchMove = () => emit({ source: "touch" });
-  // Scrollbar drags produce no wheel/touch events. The scroll node's own padding
-  // also targets it, so only a press at its trailing edge counts.
   const handlePointerDown = (event: PointerEvent) =>
     emit({
       source: "pointer",
@@ -102,8 +99,6 @@ export function attachTimelineViewport(
         scrollNode.getBoundingClientRect().right - event.clientX <=
           Math.max(SCROLLBAR_HIT_PX, scrollNode.offsetWidth - scrollNode.clientWidth),
     });
-  // Clicking message text can leave DOM focus on body, and keyboard scrolling
-  // bypasses wheel and pointer events, so scroll keys are heard app-wide.
   const handleKeyDown = (event: KeyboardEvent, consumed: boolean) => {
     const direction = UP_KEYS.has(event.key) ? "up" : DOWN_KEYS.has(event.key) ? "down" : null;
     if (
@@ -127,14 +122,10 @@ export function attachTimelineViewport(
     }
     emit({ source: "key", key: event.key, direction });
   };
-  // Input inside an embedded frame reaches none of the listeners above, but
-  // its scroll still chains out to the timeline.
   const scrolledUp = createUpwardScrollDetector({
     top: scrollNode.scrollTop,
     height: scrollNode.scrollHeight,
   });
-  // Only a frame's input reaches the timeline unseen. Any other unexplained upward move is not
-  // the reader's: the browser clamps scrollTop when content briefly shrinks.
   const frameHasInput = () =>
     scrollNode.querySelector("iframe:hover") !== null ||
     (document.activeElement instanceof HTMLIFrameElement &&
@@ -147,7 +138,6 @@ export function attachTimelineViewport(
         programmatic: programmaticHolds > 0,
       }) &&
       frameHasInput() &&
-      // LegendList updates its scroll state on the next animation frame.
       resolveTimelineIsAtEnd({
         contentLength: scrollNode.scrollHeight,
         scroll: scrollNode.scrollTop,
@@ -172,7 +162,6 @@ export function attachTimelineViewport(
       options.onFrameResize?.(frame);
     }
   };
-  // Run before frame listeners resize rows, so an accordion cannot drag the reader to the end.
   window.addEventListener("message", handleFrameResize, true);
   scrollNode.addEventListener("scroll", handleScroll, { passive: true });
   scrollNode.addEventListener("wheel", handleWheel, { passive: true });
@@ -233,8 +222,6 @@ export function navigationReleasesFollow(
     case "pointer":
       return navigation.onScrollbar ? viewport.contentScrollsUp() : viewport.awayFromEnd();
     case "touch":
-      // Touch direction is not observable; an upward flick leaves the end
-      // band within its first few events.
       return viewport.awayFromEnd();
     case "scroll":
       return true;
@@ -275,12 +262,8 @@ export function transitionTimelineFollow(
     case "followEnd":
       return FOLLOWING;
     case "reachedEnd":
-      // Navigating away while still at the end stays released until the list
-      // reports leaving and returning, so a scroll key at the end cannot re-arm.
       return state.mode === "released" && !state.atEnd ? FOLLOWING : state;
     case "leftEnd":
-      // While following, the list leaves the end band for a frame on every
-      // streamed chunk before the follow scroll catches up.
       return state.mode === "released" && state.atEnd ? { mode: "released", atEnd: false } : state;
   }
 }

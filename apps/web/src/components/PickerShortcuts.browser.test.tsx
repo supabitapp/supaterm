@@ -18,7 +18,6 @@ vi.mock(import("@effect/atom-react"), async (original) => ({
   ...(await original()),
   useAtomValue: (() => DEFAULT_RESOLVED_KEYBINDINGS) as never,
 }));
-// Layout and scrolling belong to the virtualizer; exercise real combobox rows and keyboard handling.
 vi.mock(import("@legendapp/list/react"), async (original) => ({
   ...(await original()),
   LegendList: (({

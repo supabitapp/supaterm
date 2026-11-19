@@ -37,19 +37,15 @@ export function getFileMetadataQueryAtom(
         : resolvePathLinkTarget(hostPath, cwd),
   );
   const absolute = isAbsolutePath(targetPath) || targetPath.startsWith("~/");
-  return (
-    // Servers stat what they are asked about, and a network path leaks the
-    // Windows user's NTLM credentials to its host before any chip is clicked.
-    absolute && !isNetworkPath(targetPath) && targetPath.length <= 512
-      ? projectEnvironment.fileMetadata({
-          environmentId,
-          input: {
-            path: targetPath,
-            ...(threadRef?.environmentId === environmentId ? { threadId: threadRef.threadId } : {}),
-          },
-        })
-      : null
-  );
+  return absolute && !isNetworkPath(targetPath) && targetPath.length <= 512
+    ? projectEnvironment.fileMetadata({
+        environmentId,
+        input: {
+          path: targetPath,
+          ...(threadRef?.environmentId === environmentId ? { threadId: threadRef.threadId } : {}),
+        },
+      })
+    : null;
 }
 
 export function useFileMetadata(

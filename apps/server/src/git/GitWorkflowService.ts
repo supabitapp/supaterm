@@ -194,7 +194,6 @@ export const make = Effect.gen(function* () {
   const gitManager = yield* GitManager.GitManager;
   const fileSystem = yield* FileSystem.FileSystem;
 
-  // Nested projects and path aliases must share the checkout's branch-mutation lease.
   const withCheckoutLease = <A, E, R>(rootPath: string, effect: Effect.Effect<A, E, R>) =>
     fileSystem.realPath(rootPath).pipe(
       Effect.orElseSucceed(() => rootPath),
@@ -316,7 +315,6 @@ export const make = Effect.gen(function* () {
       );
     }),
     hasRefNamed: Effect.fn("GitWorkflowService.hasRefNamed")(function (input) {
-      // Pattern characters would widen the ref match.
       return /[*?[\\]/.test(input.refName)
         ? Effect.succeed(false)
         : ensureGitCommand("GitWorkflowService.hasRefNamed", input.cwd).pipe(

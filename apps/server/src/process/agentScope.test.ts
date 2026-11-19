@@ -343,7 +343,6 @@ describe("AgentScope service", () => {
         yield* launch;
         expect(memoryLimits()).toEqual([[`MemoryHigh=${10 * GiB}`, `MemoryMax=${12 * GiB}`]]);
 
-        // A VM balloon or `pct set --memory` grows RAM while the server keeps running.
         memory.total = 22 * GiB;
         failingVerbs.add("set-property");
         yield* launch;

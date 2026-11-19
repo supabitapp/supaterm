@@ -223,15 +223,11 @@ function claudeAuthStatus(
     return "authenticated";
   }
   if (capabilities.tokenSource !== "none") return "authenticated";
-  // API keys can authenticate with tokenSource: none; also check key and account fields.
   return hasApiKey(capabilities.apiKeySource) || capabilities.email || capabilities.subscriptionType
     ? "authenticated"
     : "unauthenticated";
 }
 
-// The CLI names a signed-in claude.ai login by its subscription and leaves the token source out;
-// it reports a source only for a token passed in through its variable. A token handed over a
-// file descriptor can't be read from outside the CLI.
 const CLAUDE_SUBSCRIPTION_TOKEN_SOURCES: ReadonlySet<string> = new Set([
   "claude.ai",
   "CLAUDE_CODE_OAUTH_TOKEN",
@@ -250,15 +246,12 @@ function claudeTranscriptionStatus(
     capabilities.subscriptionType !== undefined ||
     (capabilities.tokenSource !== undefined &&
       CLAUDE_SUBSCRIPTION_TOKEN_SOURCES.has(capabilities.tokenSource));
-  // Turns follow an API key over a stored login, so that login would be another account.
   const apiKey = capabilities.apiKeySource !== undefined && capabilities.apiKeySource !== "none";
   return firstParty && !customApiEndpoint && subscriptionLogin && !apiKey
     ? { status: "ready" }
     : { status: "unavailable", reason: "unsupportedLogin" };
 }
 
-// Amazon Bedrock initializes far slower than first-party auth: the SDK boots the Bedrock
-// backend and runs the `awsAuthRefresh` credential hook before returning account info.
 const CAPABILITIES_PROBE_TIMEOUT_MS = 25_000;
 const CAPABILITIES_PROBE_TTL = Duration.minutes(5);
 const CLAUDE_VERSION_CHECK_TIMEOUT_MS = 20_000;
@@ -286,15 +279,12 @@ export function spawnClaudeProbeThroughEnv({
     ...("cwd" in launch ? { cwd: launch.cwd } : {}),
     env,
     signal,
-    // The probe ignores stderr.
     stdio: ["pipe", "pipe", "ignore"],
   });
 }
 
-/** Windows runs CreateProcess on the calling thread, so the probe launches from a launcher thread. */
 function spawnClaudeProbeOffThread({ command, args, cwd, env, signal }: ClaudeSpawnOptions) {
   const child = SpawnWorker.spawnPiped(command, args, { cwd, env, signal, windowsHide: true });
-  // The probe ignores stderr; drain it so a full pipe cannot stall the CLI.
   child.stderr.resume();
   return child;
 }
@@ -316,23 +306,13 @@ export function buildClaudeCapabilitiesProbeQueryOptions(input: {
     pathToClaudeCodeExecutable: input.executablePath,
     abortController: input.abortController,
     settingSources: [...CLAUDE_CAPABILITIES_PROBE_SETTING_SOURCES],
-    // The probe keeps filesystem setting sources for slash-command discovery,
-    // but must not run the user's hooks: it fires every few minutes, so
-    // SessionStart hooks would run on every health check.
     settings: { disableAllHooks: true },
     allowedTools: [],
-    // Ignore MCP definitions from every filesystem setting source above. The
-    // SDK combines this empty explicit map with --strict-mcp-config, which
-    // Claude refuses next to a managed-mcp.json that already excludes them.
     mcpServers: {},
     ...(input.managedMcpConfig ? {} : { strictMcpConfig: true }),
     env: {
       ...providerProbeEnvironment(input.environment),
-      // Connected claude.ai MCP servers are discovered outside filesystem
-      // config; disable them independently for this health check.
       ENABLE_CLAUDEAI_MCP_SERVERS: "false",
-      // Skipping it also avoids Claude spawning a Windows `tasklist | findstr` process tree on
-      // every periodic refresh.
       FORCE_CODE_TERMINAL: undefined,
       CLAUDE_CODE_AUTO_CONNECT_IDE: "0",
       CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL: "1",
@@ -374,8 +354,6 @@ export type ClaudeCapabilitiesProbe = {
   readonly effortCapSources?: ReadonlyArray<ClaudeEffortCapSource>;
 };
 
-// `getSettings` exists at runtime but is missing from the SDK's `Query` type, and older CLIs
-// reject the control request.
 type ClaudeSettingsQuery = {
   readonly getSettings?: () => Promise<{
     readonly effective?: unknown;
@@ -419,8 +397,6 @@ function parseClaudeEffortCapSource(settings: unknown): ClaudeEffortCapSource | 
     : undefined;
 }
 
-// `sources` holds each settings file's raw settings. CLIs that report only the merged `effective`
-// settings are read as a single source.
 function parseClaudeEffortCapSources(
   settings: { readonly effective?: unknown; readonly sources?: unknown } | undefined,
 ): ReadonlyArray<ClaudeEffortCapSource> | undefined {
@@ -509,10 +485,6 @@ function waitForAbortSignal(signal: AbortSignal): Promise<void> {
   });
 }
 
-/**
- * With gateway model discovery on, Claude Code refreshes its model cache in the background after
- * initialization, so the probe subprocess outlives init by Claude Code's discovery timeout.
- */
 function claudeGatewayDiscoveryGraceMs(environment: Readonly<Record<string, unknown>>): number {
   const enabled = String(environment.CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY ?? "")
     .trim()
@@ -546,7 +518,6 @@ const probeClaudeCapabilities = (
       claudeEnvironment,
     );
     const managedMcpConfig = yield* hasClaudeManagedMcpConfig();
-    // Workspace probes (no usage) discard models; the machine probe refreshes the shared cache.
     const graceMs = includeStatus
       ? claudeGatewayDiscoveryGraceMs({
           ...claudeEnvironment,
@@ -562,9 +533,7 @@ const probeClaudeCapabilities = (
           : undefined;
     return yield* Effect.tryPromise(async () => {
       const q = claudeQuery({
-        // Never yield — we only need initialization data, not a conversation.
-        // This prevents any prompt from reaching the Anthropic API.
-        // oxlint-disable-next-line require-yield
+        // oxlint-disable-next-line require-yield -- Never yield; we only need initialization data, not a conversation. This prevents any prompt from reaching the Anthropic API.
         prompt: (async function* (): AsyncGenerator<SDKUserMessage> {
           await waitForAbortSignal(abort.signal);
         })(),
@@ -586,10 +555,6 @@ const probeClaudeCapabilities = (
     ),
     Effect.flatMap(({ q, init, graceMs }) =>
       Effect.gen(function* () {
-        // Usage has its own deadline so a slow optional request cannot discard initialization.
-        // Only the rate limits are read, so skip the local transcript scan that fills
-        // `behaviors`: with a few GB of transcripts it outlasts the deadline.
-        // The effort caps are read in parallel under the same deadline; workspace probes skip both.
         const usageCheckedAt = DateTime.formatIso(yield* DateTime.now);
         const { getSettings } = q as ClaudeSettingsQuery;
         const [usageResult, settingsResult] = yield* Effect.all(
@@ -734,7 +699,6 @@ export const probeClaudeWorkspaceSnapshot = Effect.fn("probeClaudeWorkspaceSnaps
   if (!claudeSettings.enabled) return machineSnapshot;
   const skills = yield* discoverClaudeSkills(claudeSettings, cwd, environment);
   const fileSystem = yield* FileSystem.FileSystem;
-  // A deleted worktree can never answer the probe. Pending would make clients rescan it forever.
   const cwdExists = yield* fileSystem.exists(cwd).pipe(Effect.orElseSucceed(() => true));
   const capabilities = cwdExists
     ? yield* probeClaudeCapabilities(claudeSettings, environment, cwd, false).pipe(
@@ -760,7 +724,6 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
   environment?: NodeJS.ProcessEnv,
   cwd?: string,
   modelCatalog: ClaudeModelCatalog = BUNDLED_CLAUDE_MODEL_CATALOG,
-  /** Shared with the adapter so turn events reuse the scoped-bucket names this probe saw. */
   scopedLimitNames?: Ref.Ref<ClaudeScopedLimitNames>,
   resolveResetCredits?: (version: string) => Effect.Effect<ServerProviderResetCredits | undefined>,
 ): Effect.fn.Return<
@@ -914,7 +877,6 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     });
   }
 
-  // First-party account fields cannot verify custom endpoint credentials.
   const baseUrl =
     (yield* readClaudeSettingsEnv(claudeSettings, cwd, resolvedEnvironment)).ANTHROPIC_BASE_URL ??
     resolvedEnvironment.ANTHROPIC_BASE_URL;
@@ -945,7 +907,6 @@ export const checkClaudeProviderStatus = Effect.fn("checkClaudeProviderStatus")(
     });
   }
 
-  // A proxy's ANTHROPIC_AUTH_TOKEN reads as an API key; the endpoint is what the token is for.
   const authMetadata =
     apiProviderAuthMetadata(capabilities.apiProvider) ??
     (customApiEndpoint ? { type: "customEndpoint", label: "Custom API endpoint" } : undefined) ??

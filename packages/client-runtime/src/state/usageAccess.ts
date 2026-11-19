@@ -19,8 +19,6 @@ export function resolveUsageAccess(input: {
     };
   }
   if (input.session === null) {
-    // An unprepared offline connection cannot finish its session check. Keep
-    // it out of pending totals until the connection starts another attempt.
     const isPending =
       input.connectionPhase === "connected" ||
       input.connectionPhase === "connecting" ||

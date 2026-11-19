@@ -1,4 +1,3 @@
-// A withheld file's diff line the server cut short ends in this note, which clients style apart.
 const CUT_LINE_NOTE = / …\[[\d,]+ more characters\]$/;
 
 export function cutLineNote(omittedCharacters: number): string {

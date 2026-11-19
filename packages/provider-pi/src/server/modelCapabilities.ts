@@ -6,7 +6,6 @@ import {
 import { createModelCapabilities } from "@supaterm/shared/model";
 import * as Predicate from "effect/Predicate";
 
-// xhigh/max require per-model thinkingLevelMap opt-in; global advertising makes set_thinking_level fail.
 const PI_THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 export type PiThinkingLevel = (typeof PI_THINKING_LEVELS)[number];
@@ -64,8 +63,6 @@ function thinkingDescriptor(
   };
 }
 
-// Pi has no service tier concept; provider extensions advertise `serviceTiers` on a model,
-// and Supaterm's injected extension sends the chosen id as the request's `service_tier`.
 function serviceTierDescriptor(model: unknown): ProviderOptionDescriptor | undefined {
   const tiers = recordField(model, "serviceTiers");
   if (!Array.isArray(tiers)) return undefined;

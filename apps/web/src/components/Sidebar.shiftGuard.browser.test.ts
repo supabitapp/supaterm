@@ -31,7 +31,6 @@ function mountList(container: HTMLElement, names: readonly string[]) {
   };
 }
 
-// userEvent cannot hold the mouse, so `act` runs inside the real press, after the guard saw it.
 function duringPress(act: () => void) {
   const listener = () => act();
   window.addEventListener("pointerdown", listener, { capture: true, once: true });

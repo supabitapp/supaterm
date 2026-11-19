@@ -54,7 +54,6 @@ export function paneDropVerb(zone: PaneDropZone, payload: PaneDragPayload): stri
   return `${moving ? "Move" : "Split"} ${direction}`;
 }
 
-/** The pane a dragged thread or pane already occupies, if any. */
 function sourcePaneId(payload: PaneDragPayload): string | null {
   const layout = useChatPaneStore.getState().layout;
   if (!layout) return null;

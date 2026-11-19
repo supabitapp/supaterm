@@ -64,7 +64,6 @@ const MOCK_DIRS = new Set([
 
 const TEST_NAME =
   /(\.(test|spec|e2e|eval|stories)\.[^.]+$|_(test|spec)\.[^.]+$|^test_.+\.py$|^conftest\.py$|^(vitest|jest)\.setup\.[^.]+$)/i;
-// Case-sensitive: `FooTest.java` is a test class, `Latest.java` is not.
 const CLASS_TEST_NAME = /(Tests?|Spec)\.(java|kt|kts|scala|groovy|cs|php|swift|m)$/;
 const TEST_DIRS = new Set([
   "__tests__",
@@ -79,7 +78,6 @@ const TEST_DIRS = new Set([
 ]);
 
 const DOCS_NAME = /\.(md|mdx|markdown|rst|adoc|txt)$/i;
-// Plain-text files that tools read as config or input, not prose.
 const NOT_DOCS_NAME = /^(requirements.*|constraints.*|CMakeLists|robots|llms)\.txt$/i;
 
 /**

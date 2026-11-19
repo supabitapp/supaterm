@@ -15,8 +15,6 @@ export type OrchestrationThreadSearchSource = typeof OrchestrationThreadSearchSo
 /** Longer queries are cut to this before they are sent. */
 export const THREAD_SEARCH_QUERY_MAX_LENGTH = 200;
 
-// The server's SQLite client is synchronous and single-connection. Bound both
-// scan input and response size so a search cannot monopolize that connection.
 export const OrchestrationSearchThreadsInput = Schema.Struct({
   query: TrimmedString.check(
     Schema.isMinLength(2),

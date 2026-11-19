@@ -20,7 +20,6 @@ export const makeChildStdio = (
 ) =>
   Stdio.make({
     args: Effect.succeed([]),
-    // Finish stderr separately from the protocol's exit-status deadline.
     stdin: handle.stdout.pipe(Stream.onEnd(stderrDrained)),
     stdout: () =>
       Sink.mapInput(handle.stdin, (chunk: string | Uint8Array) =>
@@ -54,7 +53,6 @@ export const makeInMemoryStdio = Effect.fn("makeInMemoryStdio")(function* () {
 
 const STDERR_TAIL_MAX_CHARS = 8_192;
 const STDERR_EXCERPT_MAX_CHARS = 512;
-// `Error: …`, `TypeError: …`, `Error [ERR_MODULE_NOT_FOUND]: …`, `error: …`, `ERROR: …`, `fatal: …`
 const ERROR_LINE_PATTERN = /^(?:[a-z]*error|fatal)(?: ?\[[^\]]+\])?:\s*\S/i;
 const EXIT_SUMMARY_PATTERN = /\b(?:exit status|exit code|exited with code)\s+\d+\.?$/i;
 
@@ -63,7 +61,6 @@ export const appendStderrTail = (current: string, chunk: string): string => {
   return next.length <= STDERR_TAIL_MAX_CHARS ? next : next.slice(-STDERR_TAIL_MAX_CHARS);
 };
 
-// Node launchers print the actionable error between a source excerpt and stack frames.
 export const stderrExcerpt = (tail: string): string | undefined => {
   const lines = NodeUtil.stripVTControlCharacters(tail)
     .split(/\r?\n/)
@@ -78,7 +75,6 @@ export const stderrExcerpt = (tail: string): string | undefined => {
   if (line === undefined) {
     return undefined;
   }
-  // Wrappers can print the actual failure before their generic exit-status summary.
   const excerpt = EXIT_SUMMARY_PATTERN.test(line)
     ? lines.slice(Math.max(0, lineIndex - 2), lineIndex + 1).join(" | ")
     : line;

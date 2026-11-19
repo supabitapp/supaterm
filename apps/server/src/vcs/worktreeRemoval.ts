@@ -9,10 +9,6 @@ import type * as GitVcsDriver from "./GitVcsDriver.ts";
 
 const INDEX_LIST_MAX_BYTES = 64 * 1024 * 1024;
 
-/**
- * git-annex replaces a linked worktree's `.git` file with a symlink to its admin
- * directory, so its symlinks into `.git/annex` resolve. Git then refuses to remove it.
- */
 const annexedAdminDir = Effect.fn("WorktreeRemoval.annexedAdminDir")(
   function* (worktreePath: string) {
     const fileSystem = yield* FileSystem.FileSystem;
@@ -66,10 +62,7 @@ export const removeLinkedWorktree = Effect.fn("WorktreeRemoval.removeLinkedWorkt
   const path = yield* Path.Path;
   const worktreePath = input.worktreePath;
   const gitFile = path.join(worktreePath, ".git");
-  // Git refuses to remove a worktree with untracked files unless forced, but
-  // its check honors `status.showUntrackedFiles=no` and would delete them.
   const statusConfig = ["-c", "status.showUntrackedFiles=normal"];
-  // Git's own refusals, worded the way it prints them.
   const refuse = (message: string, cause?: unknown) =>
     new GitCommandError({
       operation: input.operation,
@@ -82,8 +75,6 @@ export const removeLinkedWorktree = Effect.fn("WorktreeRemoval.removeLinkedWorkt
   if (Option.isSome(annexed)) {
     const adminDir = annexed.value;
     const writeGitFile = fileSystem.writeFileString(gitFile, `gitdir: ${adminDir}\n`);
-    // A kept worktree's annexed files resolve only through the symlink; a gitdir
-    // file is the fallback when it cannot be recreated.
     yield* Effect.addFinalizer(() =>
       fileSystem.exists(worktreePath).pipe(
         Effect.flatMap((kept) =>
@@ -135,8 +126,6 @@ export const removeLinkedWorktree = Effect.fn("WorktreeRemoval.removeLinkedWorkt
       Effect.orElseSucceed(() => false),
     );
 
-  // A registered worktree of this repository: its `.git` file names an admin
-  // directory under the common `worktrees/`, whose `gitdir` points back.
   const notAWorktree = refuse(`'${worktreePath}' is not a working tree`);
   const adminDir = path.resolve(
     worktreePath,
@@ -154,9 +143,6 @@ export const removeLinkedWorktree = Effect.fn("WorktreeRemoval.removeLinkedWorkt
   );
   if (!pointsBack || !(yield* samePath(path.dirname(adminDir), path.join(commonDir, "worktrees"))))
     return yield* notAWorktree;
-  // Git counts the file's existence as a lock. Supaterm passes at most one
-  // `--force`, which never removes a locked worktree. Anything but a
-  // confirmed absence refuses.
   const lockFile = path.join(adminDir, "locked");
   const locked = yield* fileSystem.stat(lockFile).pipe(
     Effect.as(true),
@@ -178,10 +164,8 @@ export const removeLinkedWorktree = Effect.fn("WorktreeRemoval.removeLinkedWorkt
     );
   }
   if (!input.force) {
-    // Bound like Git's own check, so `core.worktree` can't point it elsewhere.
     const boundEnv = { GIT_DIR: gitFile, GIT_WORK_TREE: worktreePath };
     const submodules = refuse("working trees containing submodules cannot be moved or removed");
-    // An unreadable path counts as present, so a doubt refuses.
     const present = (target: string) =>
       fileSystem.exists(target).pipe(Effect.orElseSucceed(() => true));
     if (yield* present(path.join(adminDir, "modules"))) return yield* submodules;
@@ -202,8 +186,6 @@ export const removeLinkedWorktree = Effect.fn("WorktreeRemoval.removeLinkedWorkt
       );
   }
 
-  // A file held open can stop the delete partway. Putting `.git` back, when
-  // that works, leaves a worktree that a retry can remove.
   const gitFileContents = yield* fileSystem
     .readFileString(gitFile)
     .pipe(Effect.mapError(() => notAWorktree));
@@ -211,6 +193,5 @@ export const removeLinkedWorktree = Effect.fn("WorktreeRemoval.removeLinkedWorkt
     Effect.tapError(() => fileSystem.writeFileString(gitFile, gitFileContents).pipe(Effect.ignore)),
     Effect.mapError((cause) => refuse(`failed to delete '${worktreePath}'`, cause)),
   );
-  // The folder is gone, so Git only drops the worktree's metadata.
   return yield* input.run(["worktree", "remove", "--force", "--force", "--", worktreePath]);
 }, Effect.scoped);

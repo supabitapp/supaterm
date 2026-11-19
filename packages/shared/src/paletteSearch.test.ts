@@ -88,7 +88,6 @@ describe("scoreThreadSearch", () => {
     expect(starts("Fix JSONSchema parsing", "sch")).toEqual([{ start: 8, end: 11 }]);
     expect(starts("Fix HTTPServer crash", "ser")).toEqual([{ start: 8, end: 11 }]);
     expect(starts("Rename index.ts", ".ts")).toEqual([{ start: 12, end: 15 }]);
-    // A match is whole only where a word ends: "githuba" does not fill "GitHubActions".
     expect(scoreThreadSearch("githuba", thread("GitHubActions setup"), NOW)?.quality).toBeLessThan(
       1,
     );
@@ -96,7 +95,6 @@ describe("scoreThreadSearch", () => {
       "Rename index.ts",
       "Fix parser.tsx",
     ]);
-    // Short tokens never match mid-word.
     expect(scoreThreadSearch("ci", thread("Decision log"), NOW)).toBeNull();
   });
 
@@ -126,7 +124,6 @@ describe("scoreThreadSearch", () => {
       thread("Relay pairing", { activityAt: NOW }),
     ];
     expect(rankTitles("rel", threads)).toEqual(["Release checklist", "Relay pairing"]);
-    // A pick never lifts a match inside a word above a word match.
     expect(
       rankTitles("auth", [
         thread("Fix oauth redirect", {
@@ -135,11 +132,8 @@ describe("scoreThreadSearch", () => {
         thread("Share auth across worktrees"),
       ]),
     ).toEqual(["Share auth across worktrees", "Fix oauth redirect"]);
-    // Two letters are too little to go on.
     expect(rankTitles("re", threads)).toEqual(["Relay pairing", "Release checklist"]);
-    // Once the query leaves the pick behind, the better match wins again.
     expect(rankTitles("rela", threads)).toEqual(["Relay pairing"]);
-    // An old pick fades with the thread's last open.
     const stale = [
       thread("Release checklist", {
         opens: {
@@ -151,7 +145,6 @@ describe("scoreThreadSearch", () => {
       thread("Relay pairing", { activityAt: NOW }),
     ];
     expect(rankTitles("rel", stale)).toEqual(["Relay pairing", "Release checklist"]);
-    // Opening an old pick some other way does not revive it over a newer pick.
     const reopened = [
       thread("Release checklist", {
         opens: { openedAt: NOW - DAY, score: 2, picks: [{ query: "rel", at: NOW - 30 * DAY }] },
@@ -161,7 +154,6 @@ describe("scoreThreadSearch", () => {
       }),
     ];
     expect(rankTitles("rel", reopened)).toEqual(["Relay pairing", "Release checklist"]);
-    // The latest pick for a query wins over an earlier one with a better title match.
     const repicked = [
       thread("Deploy", {
         opens: { openedAt: NOW - DAY, score: 1, picks: [{ query: "deploy", at: NOW - DAY }] },
@@ -171,7 +163,6 @@ describe("scoreThreadSearch", () => {
       }),
     ];
     expect(rankTitles("deploy", repicked)).toEqual(["Deploy timeout on Railway", "Deploy"]);
-    // A thread's exact pick counts even after a newer pick for a longer query.
     const exact = [
       thread("Fix browser", {
         opens: {
@@ -188,7 +179,6 @@ describe("scoreThreadSearch", () => {
       }),
     ];
     expect(rankTitles("fix", exact)).toEqual(["Fix sidebar", "Fix browser"]);
-    // A pick for a longer query does not pass the thread named by the query.
     const named = [
       thread("Lakebed perf audit", {
         opens: { openedAt: NOW, score: 1, picks: [{ query: "lakebed perf", at: NOW }] },
@@ -252,36 +242,28 @@ describe("scoreThreadSearch", () => {
     expect(rankTitles("22889", [thread("Stats", { pullRequests: [{ number: 22189 }] })])).toEqual(
       [],
     );
-    // Words with digits still forgive one.
     expect(rankTitles("s3snyc", [thread("s3sync perf audit"), thread("Other")])).toEqual([
       "s3sync perf audit",
     ]);
     expect(rankTitles("oath2", [thread("Fix oauth2 redirect")])).toEqual(["Fix oauth2 redirect"]);
-    // A typo beats a mid-word accident: "ilde" is "idle", not the middle of "Builder".
     expect(
       rankTitles("ilde", [thread("Typesafe App Builder"), thread("De-risk idle tunnel cleanup")]),
     ).toEqual(["De-risk idle tunnel cleanup", "Typesafe App Builder"]);
-    // "ing" is not "Nightly": a three-letter typo keeps the first letter.
     expect(rankTitles("ing", [thread("Nightly build fix")])).toEqual([]);
-    // A short word may miss one letter while it is typed, but not change one.
     expect(rankTitles("srv", [thread("Server restart"), thread("Other")])).toEqual([
       "Server restart",
     ]);
     expect(rankTitles("sidb", [thread("Fix sidebar lag")])).toEqual(["Fix sidebar lag"]);
     expect(rankTitles("cron", [thread("Config cleanup")])).toEqual([]);
-    // Filler words in a phrase-style query are not required, but alone they are.
     expect(rankTitles("fix the sidebar", [thread("Fix Sidebar Lag")])).toEqual(["Fix Sidebar Lag"]);
     expect(rankTitles("the", [thread("Fix sidebar lag")])).toEqual([]);
-    // A typed straight apostrophe finds a curly one.
     expect(rankTitles("don't", [thread("Don’t merge yet")])).toEqual(["Don’t merge yet"]);
-    // Typos count across camelCase joins.
     expect(rankTitles("githbu", [thread("GitHub API usage"), thread("Other")])).toEqual([
       "GitHub API usage",
     ]);
     expect(rankTitles("macso", [thread("Fix macOS window"), thread("Other")])).toEqual([
       "Fix macOS window",
     ]);
-    // "enter" is not "external" when the right thread is already there.
     expect(
       rankTitles("cmd enter", [thread("Fix Cmd+Enter"), thread("Open links external")]),
     ).toEqual(["Fix Cmd+Enter"]);
@@ -308,7 +290,6 @@ describe("scoreThreadSearch beyond Latin text and titles", () => {
       ],
     });
     expect(scoreThreadSearch("fix ci", scattered, NOW)).toBeNull();
-    // The project explains its own words; one field explains the rest.
     const lakebed = thread("Weekly notes", {
       projectTitle: "lakebed",
       pullRequests: [{ number: 243, title: "perf: faster cold starts" }],
@@ -332,14 +313,12 @@ describe("scoreThreadSearch beyond Latin text and titles", () => {
         ranges: [{ start: 1, end: 6 }],
       });
     }
-    // The app's own worktree prefix is not part of what the branch says.
     expect(scoreThreadSearch("cleanup", subject, NOW)?.explain?.()).toEqual({
       label: "Branch",
       text: "cleanup-payloads",
       ranges: [{ start: 0, end: 7 }],
     });
     expect(scoreThreadSearch("trim", subject, NOW)?.explain?.()).toBeUndefined();
-    // Nor is it in the flat supaterm-<hex> form used when a `supaterm` branch blocks nested refs.
     const flat = thread("Add search", { branch: "supaterm-abcd1234" });
     expect(scoreThreadSearch("supaterm", flat, NOW)).toBeNull();
     expect(scoreThreadSearch("supaterm connect", flat, NOW)).toBeNull();
@@ -375,20 +354,15 @@ describe("scoreThreadSearch beyond Latin text and titles", () => {
     expect(rankTitles("vscode", threads)).toEqual(["VS Code extension settings"]);
     expect(rankTitles("fixuibug", threads)).toEqual(["Fix UI bug in sidebar"]);
     expect(rankTitles("lint", threads)).toEqual([]);
-    // Short words before a mere prefix are a coincidence.
     expect(rankTitles("inth", [thread("Show skill names in thread overview")])).toEqual([]);
     expect(rankTitles("tos", [thread("Move Client State to Server")])).toEqual([]);
     expect(rankTitles("v2co", [thread("V2 Code vs Gemini")])).toEqual(["V2 Code vs Gemini"]);
     expect(rankTitles('"sidebar lag"', [thread("Fix sidebar lag")])).toEqual(["Fix sidebar lag"]);
-    // A pasted query with a separate accent mark matches the composed title.
     expect(rankTitles("cafe\u0301", [thread("Café menu")])).toEqual(["Café menu"]);
-    // Three letters of the last word are enough, as it is typed.
     expect(rankTitles("gomod", [thread("Migrate to Go modules")])).toEqual([
       "Migrate to Go modules",
     ]);
-    // Joined words beat an earlier match inside a word.
     expect(scoreThreadSearch("vscode", thread("Fixvscode and VS Code"), NOW)?.quality).toBe(0.6);
-    // A strong match elsewhere does not hide joined words.
     expect(
       rankTitles("vscode", [
         thread("VS Code remote support"),
@@ -400,7 +374,6 @@ describe("scoreThreadSearch beyond Latin text and titles", () => {
   it("stores picked queries without splitting an emoji", () => {
     expect(pickedQuery(`${"a".repeat(31)}🚀`)).toBe("a".repeat(31));
     expect(pickedQuery("  Upl ")).toBe("upl");
-    // Folded before it is cut, as stored and as compared.
     const spaced = "investigate    workspace thread reset bug";
     expect(pickedQuery(spaced)).toBe(pickedQuery(foldSearchQuery(spaced)));
   });
@@ -432,7 +405,6 @@ describe("scoreThreadSearch with heavy use and loose input", () => {
   it("reads a word and the start of the next typed together, highlighting each part", () => {
     const threads = [thread("Fix sidebar lag"), thread("Unrelated work")];
     expect(rankTitles("fixsid", threads)).toEqual(["Fix sidebar lag"]);
-    // A later "F" can start the run.
     expect(rankTitles("fixsid", [thread("Feature: Fix sidebar lag")])).toEqual([
       "Feature: Fix sidebar lag",
     ]);
@@ -440,7 +412,6 @@ describe("scoreThreadSearch with heavy use and loose input", () => {
       { start: 0, end: 3 },
       { start: 4, end: 7 },
     ]);
-    // Initials are not words typed together.
     expect(rankTitles("fsl", threads)).toEqual([]);
   });
 
@@ -484,7 +455,6 @@ describe("scoreThreadSearch with heavy use and loose input", () => {
       expect(scoreThreadSearch(foldSearchQuery(query), subject, NOW), query).not.toBeNull();
     }
     expect(scoreThreadSearch("github.com", subject, NOW)).toBeNull();
-    // A number is never cut short.
     for (const query of ["github.com/supabitapp/supaterm/pull/2288", "supaterm#2288"]) {
       expect(scoreThreadSearch(foldSearchQuery(query), subject, NOW), query).toBeNull();
     }
@@ -505,7 +475,6 @@ describe("rankMessageMatches", () => {
         }),
       ],
     ]);
-    // Environment A sent two whole words, environment B a prefix and two more.
     const matches = [
       { key: "a-word", quality: 1 },
       { key: "a-word-2", quality: 1 },
@@ -518,7 +487,6 @@ describe("rankMessageMatches", () => {
         (match) => match.key,
       ),
     ).toEqual(["b-picked", "b-recent", "a-word", "a-word-2", "b-prefix"]);
-    // A palette lists title matches above, so they use up no message rows.
     const titled = new Map([...subjects, ["c-titled", thread("Needle cleanup")]]);
     expect(
       rankMessageMatches(
@@ -532,7 +500,6 @@ describe("rankMessageMatches", () => {
   });
 
   it("ranks a thread that keeps using the word above a passing mention of equal quality", () => {
-    // The real case: 21 hits seven weeks back against one this week, opened today.
     const subjects = new Map([
       [
         "mention",
@@ -613,7 +580,6 @@ describe("rankSearchGroups with keywords and picks", () => {
     expect(groups.map(({ group }) => group)).toEqual(["settings"]);
     expect(scoreSearchTerms("duckdb", ["Search engine", "duckduckgo"], { typos: true })).toBeNull();
     expect(scoreSearchTerms("rust", ["GitHub sharing", "trusted"])).toBeNull();
-    // Filler words do not make a short query long enough for keyword prefixes.
     expect(scoreSearchTerms("the ci", ["Context window indicator", "circle"])).toBeNull();
   });
 
@@ -634,8 +600,6 @@ describe("rankSearchGroups with keywords and picks", () => {
       opens: { openedAt: NOW, score: 1, picks: [{ query: "mcp", at: NOW }] },
     });
     expect(rank(["Restart agent session", "reload", "mcp"], named)).toEqual(["threads", "actions"]);
-    // A command named for the query stays first; a pick reorders threads but
-    // never moves their group, so one pick for "mcp" does not pass the command.
     expect(rank(["Reload MCP servers"], named)).toEqual(["actions", "threads"]);
     expect(rank(["Reload MCP servers"], picked)).toEqual(["actions", "threads"]);
   });
@@ -739,36 +703,29 @@ describe("scoreMessageMatch", () => {
     ] as const) {
       expect(scoreMessageMatch(text, query), `${query} in ${text}`).toEqual(expected);
     }
-    // Words written together as typed rank above the same words apart, and
-    // the snippet starts where they are together.
     const together = "Run the tests, then vp run dev to check";
     expect(scoreMessageMatch(together, "vp run dev")).toEqual({
       quality: 1.25,
       offset: together.indexOf("vp run dev"),
     });
-    // Near each other ranks above far apart.
     expect(scoreMessageMatch("dev notes: vp is slow, run it", "vp run dev")?.quality).toBe(1.1);
     const far = `run the tests. ${"More notes. ".repeat(10)}Then dev mode, then vp`;
     expect(scoreMessageMatch(far, "vp run dev")?.quality).toBe(1);
     expect(scoreMessageMatch("I don\u2019t know why", "don't know")?.quality).toBe(1.25);
     expect(scoreMessageMatch("Le Café open late", "cafe open")?.quality).toBe(1.25);
     expect(scoreMessageMatch("The cafe open late", "café open")?.quality).toBe(1.25);
-    // The snippet starts where the words meet, not at an early one.
     const phrase = `The plan. ${"More notes. ".repeat(10)}Since the last fix, the sidebar works`;
     expect(scoreMessageMatch(phrase, "fix the sidebar")?.offset).toBe(phrase.indexOf("fix,"));
     const apart = `The lakebed app. ${"Notes. ".repeat(30)}Lakebed page perf is slow`;
     expect(apart.slice(scoreMessageMatch(apart, "lakebed perf")?.offset)).toMatch(/^Lakebed page/);
-    // Only where a word counts: not "fix" in "prefix".
     const prefix = `fix ${"unrelated words ".repeat(40)}prefix has CI`;
     expect(scoreMessageMatch(prefix, "fix ci")?.offset).toBe(0);
-    // A commit SHA is one word: "cafe" inside one does not match, its start does.
     expect(scoreMessageMatch("see commit 7cafe52bb8", "cafe")).toBeNull();
     expect(scoreMessageMatch("see commit 7cafe52bb8", "7cafe52")).toEqual({
       quality: 1,
       offset: 11,
     });
     expect(scoreMessageMatch("7cafe52bb8, then the cafe", "cafe")?.quality).toBe(1);
-    // A whole word beats a word prefix: "mode" prefers "mode" over "model".
     expect(scoreMessageMatch("model settings", "mode")?.quality).toBe(0.8);
     expect(scoreMessageMatch("The model and the mode switch", "mode")).toEqual({
       quality: 1,
@@ -776,12 +733,9 @@ describe("scoreMessageMatch", () => {
     });
     expect(scoreMessageMatch("v12rc build", "rc")?.quality).toBe(1);
     expect(scoreMessageMatch("Fix the CLIAdapter state", "ada")?.quality).toBe(0.8);
-    // Words too short for the index must start a word too.
     expect(scoreMessageMatch("Switch off the connection", "switch on")).toBeNull();
     expect(scoreMessageMatch("Upgrade pnpm 512 today", "pnpm 12")).toBeNull();
     expect(scoreMessageMatch("Upgrade to pnpm12 today", "pnpm 12")?.quality).toBe(1);
-    // A word too short to search only narrows, so typing the next word
-    // ("nvme s") does not reorder results; written together still counts.
     expect(scoreMessageMatch("Fix circle rendering", "fix ci")?.quality).toBe(1);
     expect(scoreMessageMatch("Fix CI failures", "fix ci")?.quality).toBe(1.25);
     expect(scoreMessageMatch("Upgrade pnpm 123 today", "pnpm 12")?.quality).toBe(1);
@@ -793,7 +747,6 @@ describe("scoreMessageMatch", () => {
       offset: 15,
     });
     expect(scoreMessageMatch("Le CAFÉ ouvert", "cafe")).toMatchObject({ quality: 1, offset: 3 });
-    // An accented whole word beats a plain prefix earlier on.
     expect(scoreMessageMatch("The cafeteria, then the Café", "cafe")).toMatchObject({
       quality: 1,
       offset: 24,
@@ -803,14 +756,12 @@ describe("scoreMessageMatch", () => {
       offset: 16,
     });
     expect(scoreMessageMatch("明天部署到生产环境", "部署")).toMatchObject({ offset: 2 });
-    // Vietnamese and combining accents fold too.
     expect(scoreMessageMatch("Properties: tiếng Việt support", "tie")).toMatchObject({
       offset: 12,
     });
     expect(scoreMessageMatch("Properties: tie\u0301ng support", "tie")).toMatchObject({
       offset: 12,
     });
-    // A letter that grows when lowercased does not shift later offsets.
     expect(scoreMessageMatch("İ Enable fts and model", "fts")).toMatchObject({ offset: 9 });
     expect(scoreMessageMatch("İ Enable fts and model", "model")?.quality).toBe(1);
     expect(scoreMessageMatch("Trip to İstanbul", "İstanbul")).toEqual({ quality: 1, offset: 8 });

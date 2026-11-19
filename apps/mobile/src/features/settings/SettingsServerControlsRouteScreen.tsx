@@ -175,7 +175,6 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
   const reference = displayTargets[0] ?? null;
   const uniform = <K extends keyof ServerSettings>(key: K) =>
     uniformMobileSetting(displayTargets, key);
-  // `uniform` folds a real null into "mixed"; nullable keys need the distinction.
   const isMixed = (key: keyof ServerSettings) =>
     reference === null ||
     displayTargets.some((entry) => entry.settings[key] !== reference.settings[key]);

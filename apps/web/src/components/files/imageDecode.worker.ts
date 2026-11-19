@@ -27,7 +27,6 @@ function validateTiffMetadata(bytes: ArrayBuffer) {
       if (!width) throw new Error("Unsupported TIFF metadata type.");
       const length = values * width;
       const start = length > 4 ? view.getUint32(entry + 8, littleEndian) : entry + 8;
-      // The decoder retains a separate array or string for every tag, including aliases.
       allocation += values * Math.max(16, width);
       if (start + length > bytes.byteLength || allocation > 8 * 1024 * 1024)
         throw new Error("This TIFF has too much or truncated metadata.");
@@ -78,7 +77,6 @@ function validateHeif(bytes: ArrayBuffer) {
   if (!found) throw new Error("This HEIF image has no readable dimensions.");
 }
 
-// Count LZW output without building strings before the decoder allocates its strip buffer.
 function validateLzw(bytes: Uint8Array, limit: number) {
   const lengths = new Uint16Array(4096).fill(1, 0, 256);
   let bits = 9;
@@ -142,7 +140,6 @@ async function validateTiffStrips(bytes: ArrayBuffer, image: import("tiff").Tiff
         await reader.cancel();
       }
     } else if (image.compression !== 1) throw new Error("This TIFF compression is not supported.");
-    // Bound repeated strips and padding as well as the visible image dimensions.
     expanded += limit;
     if (expanded > 256 * 1024 * 1024) throw new Error("This TIFF has too much image data.");
   }

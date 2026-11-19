@@ -18,7 +18,6 @@ const isJsonRpcId = Schema.is(JsonRpcId);
 const isJsonRpcResponseEnvelope = Schema.is(JsonRpcResponseEnvelope);
 const isCodexAppServerError = Schema.is(CodexError.CodexAppServerError);
 const MAX_BUFFERED_RAW_MESSAGES = 32;
-// Bound JSONL lines before joining and parsing; the LF delimiter is excluded.
 const MAX_INCOMING_MESSAGE_BYTES = 128 * 1024 * 1024;
 const EXIT_STATUS_GRACE = "250 millis";
 
@@ -44,7 +43,6 @@ export interface CodexAppServerPatchedProtocolOptions {
   readonly terminationError?: Effect.Effect<CodexError.CodexAppServerError>;
   readonly logIncoming?: boolean;
   readonly logOutgoing?: boolean;
-  // Test override; production uses MAX_INCOMING_MESSAGE_BYTES.
   readonly maxIncomingMessageBytes?: number;
   readonly logger?: (event: CodexAppServerProtocolLogEvent) => Effect.Effect<void, never>;
   readonly onNotification?: (
@@ -229,9 +227,6 @@ export const makeCodexAppServerPatchedProtocol = Effect.fn("makeCodexAppServerPa
         ] as const;
       }).pipe(Effect.flatten);
 
-    // Node ends stdout before it reports the exit of a crashed process, so wait briefly
-    // for the exit status. Pipes can also close while the process keeps running, so the
-    // wait must not hang pending requests.
     const exitStatusOr = (
       fallback: CodexError.CodexAppServerError,
       operation: "read-input-stream" | "write-output-stream",
@@ -243,38 +238,35 @@ export const makeCodexAppServerPatchedProtocol = Effect.fn("makeCodexAppServerPa
               duration: EXIT_STATUS_GRACE,
               orElse: () => Effect.succeed(fallback),
             }),
-            // A defect here would leave termination marked handled but unfinished.
             Effect.catchDefect((cause) =>
               Effect.succeed(new CodexError.CodexAppServerTransportError({ operation, cause })),
             ),
           );
 
-    const offerOutgoing =
-      /* Every protocol write reaches this helper; request spans cover the operation. */
-      Effect.fnUntraced(function* (message: Record<string, unknown>) {
-        const failure = yield* Ref.get(terminationFailure);
-        if (Option.isSome(failure)) return yield* failure.value;
+    const offerOutgoing = Effect.fnUntraced(function* (message: Record<string, unknown>) {
+      const failure = yield* Ref.get(terminationFailure);
+      if (Option.isSome(failure)) return yield* failure.value;
 
-        yield* logProtocol({
-          direction: "outgoing",
-          stage: "decoded",
-          payload: message,
-        });
-        const encoded = yield* encodeWireMessage(message);
-        yield* logProtocol({
-          direction: "outgoing",
-          stage: "raw",
-          payload: encoded,
-        });
-        const accepted = yield* Queue.offer(outgoing, encoded);
-        if (!accepted) {
-          const closed = yield* Ref.get(terminationFailure);
-          return yield* Option.getOrElse(
-            closed,
-            () => new CodexError.CodexAppServerInputStreamEndedError({}),
-          );
-        }
+      yield* logProtocol({
+        direction: "outgoing",
+        stage: "decoded",
+        payload: message,
       });
+      const encoded = yield* encodeWireMessage(message);
+      yield* logProtocol({
+        direction: "outgoing",
+        stage: "raw",
+        payload: encoded,
+      });
+      const accepted = yield* Queue.offer(outgoing, encoded);
+      if (!accepted) {
+        const closed = yield* Ref.get(terminationFailure);
+        return yield* Option.getOrElse(
+          closed,
+          () => new CodexError.CodexAppServerInputStreamEndedError({}),
+        );
+      }
+    });
 
     const removePending = (requestId: string) =>
       Ref.update(pending, (current) => {
@@ -348,7 +340,6 @@ export const makeCodexAppServerPatchedProtocol = Effect.fn("makeCodexAppServerPa
               }
 
               return Effect.suspend(() => handler(request)).pipe(
-                // Adapter handlers end in Effect.orDie; Codex waits for an answer regardless.
                 Effect.catchDefect(() =>
                   Effect.logError("Codex request handler failed").pipe(
                     Effect.annotateLogs({
@@ -391,7 +382,6 @@ export const makeCodexAppServerPatchedProtocol = Effect.fn("makeCodexAppServerPa
         Effect.asVoid,
       );
 
-    // Codex settles requests itself when their turn ends; a handler still waiting would hold its slot.
     const releaseResolvedRequest = (notification: CodexAppServerIncomingNotification) =>
       notification.method === "serverRequest/resolved" &&
       isObject(notification.params) &&
@@ -460,7 +450,6 @@ export const makeCodexAppServerPatchedProtocol = Effect.fn("makeCodexAppServerPa
           while (start < chunk.length) {
             const newline = chunk.indexOf("\n", start);
             const fragment = chunk.slice(start, newline === -1 ? chunk.length : newline);
-            // decodeText holds back split UTF-8 sequences, so fragment byte sums are exact.
             remainderBytes += Buffer.byteLength(fragment, "utf8");
             if (remainderBytes > maxIncomingMessageBytes) {
               remainder.length = 0;
@@ -520,7 +509,6 @@ export const makeCodexAppServerPatchedProtocol = Effect.fn("makeCodexAppServerPa
       Stream.run(options.stdio.stdout()),
       Effect.catchCause((cause) =>
         handleTermination(() =>
-          // Writing to a process that already exited fails with EPIPE; report the exit.
           exitStatusOr(
             new CodexError.CodexAppServerTransportError({
               operation: "write-output-stream",
@@ -559,7 +547,6 @@ export const makeCodexAppServerPatchedProtocol = Effect.fn("makeCodexAppServerPa
               method,
               ...(payload !== undefined ? { params: payload } : {}),
             }).pipe(Effect.withSpan("CodexAppServerProtocol.request.enqueue", { attributes }));
-            // Includes queue/stdin delivery, Codex work and response routing, not just Supaterm CPU.
             return yield* Deferred.await(deferred).pipe(
               Effect.withSpan("CodexAppServerProtocol.request.awaitResponse", { attributes }),
             );

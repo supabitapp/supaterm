@@ -41,7 +41,6 @@ export function createPhoneInteraction(options: {
     null;
   return {
     navigate(gesture: PhoneNavigation) {
-      // Moving the camera during a captured device touch would change its projected coordinates.
       if (active) return false;
       if (gesture.type === "zoom") options.zoomBy(gesture.delta);
       else options.orbit(gesture.x, gesture.y);

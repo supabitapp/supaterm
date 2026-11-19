@@ -304,7 +304,6 @@ export const make = Effect.gen(function* () {
         `Command ${command.commandId} was already used by ${receipt.commandType} for ${receipt.projectId}.`,
       );
     }
-    // Retries re-plan against their own effects; the first receipt determines the outcome.
     if (receipt.status === "accepted") return;
     const rejection = Option.getOrUndefined(decodeProjectCommandRejection(receipt.error));
     switch (rejection?._tag) {
@@ -512,14 +511,12 @@ export const make = Effect.gen(function* () {
           (cause) => new ProjectOperationError({ operation: "list-threads", projectId, cause }),
         ),
       );
-    // Newest first: a source deleted while its fork lives keeps the pages that fork shows.
     const projectThreads = [...snapshot.threads, ...snapshot.archivedThreads].sort(
       (a, b) => DateTime.toEpochMillis(b.createdAt) - DateTime.toEpochMillis(a.createdAt),
     );
     if (projectThreads.length > 0 && input.force !== true) {
       return yield* new ProjectNotEmptyError({ projectId });
     }
-    // Delete children durably before the project so a failed cascade can be retried.
     yield* Effect.forEach(
       projectThreads,
       (thread) =>
@@ -535,7 +532,6 @@ export const make = Effect.gen(function* () {
     );
   });
 
-  // Best-effort cleanup releases disabled instances kept alive by overrides; crashes have no replay to revisit deletion.
   const clearProjectSettingsOverrides = (projectId: ProjectId) =>
     serverSettings.getSettings.pipe(
       Effect.flatMap(({ projectSettingsOverrides }) =>
@@ -557,7 +553,6 @@ export const make = Effect.gen(function* () {
   const deleteProject: ProjectService["Service"]["delete"] = Effect.fn("ProjectService.delete")(
     function* (input) {
       const { projectId } = input;
-      // Read deleted rows so retries replay receipts and other command ids fail as not found.
       const existing = yield* readRow(projectId, { includeDeleted: true });
       if (Option.isNone(existing)) {
         return yield* new ProjectNotFoundError({ projectId });

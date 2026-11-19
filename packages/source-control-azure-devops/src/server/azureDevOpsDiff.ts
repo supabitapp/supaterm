@@ -45,7 +45,6 @@ export interface AzureDevOpsFilePatch {
   readonly edits: number;
 }
 
-/** Azure returns whole files; oversized files incur both reads before diffing. */
 const MAX_FILE_BYTES = 512 * 1024;
 
 const PATCH_CONTEXT_LINES = 3;
@@ -77,13 +76,11 @@ function isBinary(contents: string): boolean {
 
 export const byteLength = (contents: string) => Buffer.byteLength(contents, "utf8");
 
-/** Git anchors empty ranges at the preceding line, which may be zero. */
 function hunkRange(start: number, lines: number): string {
   if (lines === 0) return `${start - 1},0`;
   return lines === 1 ? String(start) : `${start},${lines}`;
 }
 
-/** Azure omits modes. Quote prefixed paths to preserve tabs/newlines. */
 function patchHeader(change: AzureDevOpsChangeEntry): string {
   const oldSide = quoteGitPatchPath(`a/${change.oldPath}`);
   const newSide = quoteGitPatchPath(`b/${change.path}`);
@@ -91,7 +88,6 @@ function patchHeader(change: AzureDevOpsChangeEntry): string {
   if (change.changeKind === "new") lines.push("new file mode 100644");
   if (change.changeKind === "deleted") lines.push("deleted file mode 100644");
   if (change.changeKind === "rename-pure" || change.changeKind === "rename-changed") {
-    // Pierre needs this header to keep the rename.
     lines.push(
       `similarity index ${change.changeKind === "rename-pure" ? 100 : 0}%`,
       `rename from ${quoteGitPatchPath(change.oldPath)}`,
@@ -143,7 +139,6 @@ export function azureDevOpsFilePatch(input: {
   if (created || deleted) {
     const contents = created ? newContents : oldContents;
     const lines = contentLines(contents);
-    // Include per-line markers in the byte budget.
     if (byteLength(contents) + lines.length > MAX_FILE_BYTES) {
       return { section: `${header}\n`, truncated: true, abandoned: false, edits: lines.length };
     }
@@ -167,7 +162,6 @@ export function azureDevOpsFilePatch(input: {
       timeout: MAX_FILE_DIFF_MILLIS,
     },
   );
-  // A full replacement could bury a small change that hit the edit limit.
   if (patch === undefined) {
     return {
       section: `${header}\n`,
@@ -188,7 +182,6 @@ export function azureDevOpsFilePatch(input: {
     ].join("\n");
   });
   const section = hunks.length === 0 ? `${header}\n` : `${header}\n${hunks.join("\n")}\n`;
-  // Long lines can exceed the byte budget even within the edit budget.
   if (byteLength(section) > MAX_FILE_BYTES) {
     return { section: `${header}\n`, truncated: true, abandoned: false, edits };
   }

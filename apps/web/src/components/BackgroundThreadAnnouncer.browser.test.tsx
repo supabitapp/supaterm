@@ -103,7 +103,6 @@ it("announces a split-pane thread finishing once the panes are no longer on scre
   resources.defer(startBackgroundThreadAnnouncements(registry, router));
   const region = page.elementLocator(screen.container.querySelector("[aria-live]")!);
 
-  // The thread route shows both panes, and each pane speaks for its own thread.
   await setPaneRun("run-1", "completed");
   expect(region.element().textContent).toBe("");
 

@@ -69,8 +69,6 @@ export function ChatTerminalDrawers(props: ChatTerminalDrawersProps) {
     panelAnimationDurationMs,
   );
   const [mountedTerminalThreadKeys, setMountedTerminalThreadKeys] = useState<string[]>([]);
-  // A thread's terminals attach once: a pane never keeps a hidden drawer for a thread another
-  // pane shows, and the panes share one budget of hidden drawers.
   const otherPaneThreadKeys = useChatPaneStore(
     useShallow((state) =>
       paneScope === null || state.layout === null

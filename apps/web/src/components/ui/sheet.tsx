@@ -15,7 +15,6 @@ function Sheet<Payload>(props: SheetPrimitive.Root.Props<Payload>) {
 
 const SheetPortal = SheetPrimitive.Portal;
 
-// Backdrop and popup share one duration so `transitionDurationMs` retimes both.
 const SHEET_TRANSITION_TIMING_CLASS =
   "[--sheet-duration:200ms] duration-(--sheet-duration) ease-drawer data-ending-style:duration-[calc(var(--sheet-duration)*0.75)] data-ending-style:ease-in motion-reduce:transition-none";
 

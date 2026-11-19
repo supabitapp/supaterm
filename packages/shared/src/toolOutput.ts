@@ -18,7 +18,6 @@ import {
 import { resolveSupatermMcpToolId } from "./supatermMcpToolPresentation.ts";
 
 export const SEND_TO_USER_TOOL_NAME = "send_to_user";
-// 4,000 UTF-16 units stay inside MAX_PARSED_BYTES even as 3-byte characters.
 export const SEND_TO_USER_MAX_LENGTH = 4_000;
 
 const MAX_PARSED_BYTES = 16_384;
@@ -179,8 +178,6 @@ export function compactDynamicToolOutput(value: unknown): CompactToolOutput | un
       }
       if (complete) output.threads = threads;
       else {
-        // A partial batch or a top-level ID would turn an unknown creation
-        // count into a confidently wrong one in the existing summary parser.
         delete output.threadId;
         delete output.status;
       }
@@ -202,7 +199,6 @@ export function compactDynamicToolOutput(value: unknown): CompactToolOutput | un
   return Object.keys(output).length === 0 ? undefined : output;
 }
 
-// OpenCode 2 Code Mode reports a script's nested Supaterm tool calls as one item with the script's result.
 const OPENCODE_CODE_MODE_TOOL_NAME = "execute";
 
 export function htmlRenderFromToolItem(item: {
@@ -261,7 +257,6 @@ export function mcpAppFromToolItem(item: {
     : undefined;
 }
 
-// A superset of every needle below, so most outputs are rejected by this single scan.
 const FAILURE_HINT =
   /enoent|no such|no files found|not found|commandnotfound|not recognized|cannot (?:find path|be found)|exit/i;
 

@@ -8,7 +8,6 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 
-/** The launcher install.sh, `supaterm install`, and `supaterm update` write; exec by absolute path. */
 const launcherScript = (executable: string) =>
   `#!/bin/sh\nexec '${executable.replaceAll("'", "'\\''")}' "$@"\n`;
 
@@ -50,7 +49,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer home
           },
           encoding: "utf8",
         });
-      // The second run replaces the launcher the first wrote, newlines in its path and all.
       const first = install();
       expect(first.status, first.stdout + first.stderr).toBe(0);
       const { status, stdout, stderr } = install();
@@ -71,10 +69,8 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer home
   });
 });
 
-// regression: #22490
 describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer channel lookup", () => {
   it.each([
-    // regression: #32897
     ["stable", "1.2.3", 1],
     ["preview", "1.2.4-preview.20261019.50", 0],
   ])("finds %s %s behind nightlies and %i HTTP 504s", async (channel, version, failures) => {
@@ -93,11 +89,9 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer chan
               ]
             : undefined;
       if (body === undefined) response.statusCode = 404;
-      // The API pretty-prints and the installer reads it line by line.
       response.end(JSON.stringify(body ?? [], null, 2));
     });
     try {
-      // An existing completed install isolates release resolution from archive downloads.
       await NodeFSP.mkdir(target, { recursive: true });
       await NodeFSP.writeFile(NodePath.join(target, ".install-complete"), `${version}\n`);
       await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
@@ -119,7 +113,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer chan
               SUPATERM_CHANNEL: channel,
               SUPATERM_HOME: NodePath.join(root, "home"),
               SUPATERM_INSTALL_BIN_DIR: NodePath.join(root, "bin"),
-              // A wrong version must fail here instead of downloading a real release.
               SUPATERM_RELEASE_BASE_URL: origin,
             },
             stdio: ["ignore", "pipe", "pipe"],
@@ -141,7 +134,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("installer chan
   });
 });
 
-// regression: #35834
 describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
   "installer archive download",
   () => {
@@ -195,7 +187,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
   },
 );
 
-/** Runs an installer for a version that is already unpacked, so only the supaterm command step runs. */
 async function installOver(input: {
   readonly script: "install.sh" | "install.ps1";
   readonly home: string;
@@ -243,7 +234,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
         expect(foreign.code).not.toBe(0);
         expect(foreign.output).toContain(`another supaterm is already at ${link}`);
         expect(await NodeFSP.readFile(link, "utf8")).toBe("#!/bin/sh\necho mine\n");
-        // Not even from inside the versions folder, where `.` would resolve into it.
         const fromVersions = await installOver({
           script: "install.sh",
           home,
@@ -253,7 +243,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
         expect(fromVersions.code).not.toBe(0);
         expect(await NodeFSP.readFile(link, "utf8")).toBe("#!/bin/sh\necho mine\n");
 
-        // A link that only looks like it points into versions (join() would normalize the ..).
         await NodeFSP.rm(link);
         await NodeFSP.mkdir(NodePath.join(home, "other"), { recursive: true });
         await NodeFSP.writeFile(NodePath.join(home, "other/supaterm"), "#!/bin/sh\n");
@@ -262,7 +251,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
         expect(climbing.code).not.toBe(0);
         expect(await NodeFSP.readlink(link)).toBe(`${home}/runtime/versions/../../other/supaterm`);
 
-        // Only `<version>/supaterm` counts, not another program inside a version.
         await NodeFSP.rm(link);
         await NodeFSP.symlink(NodePath.join(home, "runtime/versions/1.0.0/helper"), link);
         const sibling = await installOver({ script: "install.sh", home, binDir });
@@ -271,7 +259,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
           NodePath.join(home, "runtime/versions/1.0.0/helper"),
         );
 
-        // An upgrade over an older version's link, written through a symlinked Supaterm home.
         await NodeFSP.rm(link);
         await NodeFSP.symlink(NodePath.join(home, "runtime/versions/1.0.0/supaterm"), link);
         await NodeFSP.symlink(home, NodePath.join(root, "alias"));
@@ -289,7 +276,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
           `printf '\\n%s\\n' 'export PATH="$PATH:$HOME/bin"' >> ~/.zshrc`,
         );
 
-        // Containers and CI often have no SHELL; `set -u` must not stop the installer there.
         const noShell = await installOver({
           script: "install.sh",
           home,
@@ -299,7 +285,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
         expect(noShell.code, noShell.output).toBe(0);
         expect(noShell.output).toContain(`Add ${binDir} to your PATH`);
 
-        // Its folder on PATH with a trailing slash is still this supaterm, not another one.
         const slashed = await installOver({
           script: "install.sh",
           home,
@@ -309,7 +294,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
         expect(slashed.code, slashed.output).toBe(0);
         expect(slashed.output).toContain("Run supaterm to get started");
 
-        // A relative folder is made absolute, so the PATH command never follows the working directory.
         const relative = await installOver({
           script: "install.sh",
           home,
@@ -320,7 +304,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
         expect(relative.code, relative.output).toBe(0);
         expect(relative.output).toContain(`'export PATH="$PATH:$HOME/bin"'`);
 
-        // A launcher script someone edited is theirs now.
         const edited = `${launcherScript(NodePath.join(home, "runtime/versions/1.2.3/supaterm"))}# mine\n`;
         await NodeFSP.writeFile(link, edited);
         const overEdited = await installOver({ script: "install.sh", home, binDir });
@@ -351,7 +334,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "win32")(
     it("replaces only its own supaterm.cmd, also in non-ASCII and bracketed paths", async () => {
       const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-install-ps1-"));
       try {
-        // Windows PowerShell 5.1 reads files as ANSI by default and expands wildcards in paths.
         const home = NodePath.join(root, "José", ".supaterm");
         const binDir = NodePath.join(root, "bin[supaterm]");
         const shim = NodePath.join(binDir, "supaterm.cmd");
@@ -364,7 +346,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "win32")(
         expect(foreign.output).toContain("another supaterm is already at");
         expect(await NodeFSP.readFile(shim, "utf8")).toBe(desktopShim);
 
-        // A hand-edited wrapper may set its own environment; replacing it would drop that.
         const edited = `@echo off\r\nset "SUPATERM_HOME=D:\\other"\r\n"${NodePath.join(home, "runtime", "versions", "1.0.0", "supaterm.exe")}" %*`;
         await NodeFSP.writeFile(shim, edited, "utf8");
         const wrapper = await installOver({ script: "install.ps1", home, binDir });
@@ -388,11 +369,9 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "win32")(
         const again = await installOver({ script: "install.ps1", home, binDir });
         expect(again.code, again.output).toBe(0);
 
-        // Another supaterm first on PATH still runs, so the installer names this one in full.
         const otherBin = NodePath.join(root, "other");
         await NodeFSP.mkdir(otherBin);
         await NodeFSP.writeFile(NodePath.join(otherBin, "supaterm.cmd"), "@echo off\r\n");
-        // Windows spells it Path; a second PATH key would be ambiguous.
         const pathKey =
           Object.keys(process.env).find((key) => key.toUpperCase() === "PATH") ?? "PATH";
         const shadowed = await installOver({
@@ -406,7 +385,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "win32")(
           `Another supaterm at ${NodePath.join(otherBin, "supaterm.cmd")} runs first`,
         );
 
-        // Its own folder on PATH with a trailing separator is already on PATH.
         const slashed = await installOver({
           script: "install.ps1",
           home,
@@ -415,7 +393,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "win32")(
         });
         expect(slashed.code, slashed.output).toBe(0);
         expect(slashed.output).toContain("to get started");
-        // The same when the install folder itself is given with a trailing separator.
         const bothSlashed = await installOver({
           script: "install.ps1",
           home,

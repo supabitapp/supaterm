@@ -43,7 +43,6 @@ describe("Pcm16Resampler", () => {
       signal.slice(1000),
     ]);
     expect(split).toEqual(whole);
-    // 1,764 samples at 44.1 kHz are 40 ms: 640 samples at 16 kHz, give or take the last one.
     expect(whole.length).toBeGreaterThanOrEqual(639);
     expect(whole.length).toBeLessThanOrEqual(640);
   });

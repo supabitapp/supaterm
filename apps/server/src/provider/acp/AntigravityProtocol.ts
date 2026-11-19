@@ -53,7 +53,6 @@ export function isAntigravityUserInputRequest(
   return request.toolCall.toolCallId.startsWith("interaction_");
 }
 
-/** Copy truncated text so V8 cannot retain the original large string. */
 const SECURITY_WARNING_META_KEY = "agy.security.warning";
 const WARNING_TEXT_LIMIT = 512;
 const decodeSecurityWarning = Schema.decodeUnknownOption(
@@ -63,7 +62,6 @@ const decodeSecurityWarning = Schema.decodeUnknownOption(
   }),
 );
 
-/** Expose shell/web Allow Always _meta warnings as option text for both clients. */
 function antigravitySecurityWarning(option: EffectAcpSchema.PermissionOption): string | undefined {
   const meta = option._meta;
   if (!Predicate.isObject(meta)) return undefined;
@@ -256,18 +254,12 @@ export function makeAntigravityReadRepair() {
     string,
     { readonly path: string; readonly sessionId: string; outcome?: Outcome }
   >();
-  // The agent runs a client tool in a background task, so its request can precede the announcement.
   const earlyOutcomes: Array<{ readonly path: string; readonly outcome: Outcome }> = [];
   return {
-    /** Earlier turns' rows are already settled, and their unanswered reads must not take credit. */
     reset: () => {
       openReads.clear();
       earlyOutcomes.length = 0;
     },
-    /**
-     * Each `fs/read_text_file` request answers the oldest open read of its path, in order.
-     * Returns the call a served read completes, so Supaterm can report it without waiting.
-     */
     attempted: (path: string, served: boolean) => {
       const outcome = served ? "served" : "refused";
       for (const [toolCallId, read] of openReads) {
@@ -368,7 +360,6 @@ function hasTruncatedText(value: unknown): boolean {
   return Predicate.isObject(value) && Object.values(value).some(hasTruncatedText);
 }
 
-/** The ACP adapter renders a diff's `patch.text` ahead of its bare old/new snippets. */
 function withAntigravityEditPatches(
   content: ReadonlyArray<unknown>,
   data: Record<string, unknown>,
@@ -377,8 +368,6 @@ function withAntigravityEditPatches(
   return content.map((entry) => {
     if (!Predicate.isObject(entry) || entry.type !== "diff" || typeof entry.path !== "string")
       return entry;
-    // Keep the first patch: once the edit runs, the file no longer holds the old text. A later
-    // update's shared text budget can cut or drop it, and a cut patch would misplace the hunk.
     if (entry.patch !== undefined) {
       const patch: unknown = entry.patch;
       const cut =
@@ -387,8 +376,6 @@ function withAntigravityEditPatches(
         (typeof patch.text !== "string" || patch.text.startsWith(TOOL_TEXT_TRUNCATED));
       return cut ? { ...entry, patch: { format: "omitted" } } : entry;
     }
-    // Bounding keeps only the tail of long text, so a cut snippet cannot be located and a cut
-    // old or new text would render the cut as file content.
     if ([data.rawInput, entry.oldText, entry.newText].some(hasTruncatedText))
       return { ...entry, patch: { format: "omitted" } };
     const text = antigravityEditPatch({
@@ -397,7 +384,6 @@ function withAntigravityEditPatches(
       locations: data.locations,
       readPreEditFile,
     });
-    // A truncated patch would no longer parse, and bare snippets would render at line 1.
     if (
       text === ANTIGRAVITY_EDIT_DIFF_OMITTED ||
       (text !== undefined && text.length > TOOL_TEXT_LIMIT)
@@ -448,7 +434,6 @@ export function normalizeAntigravityToolCall(
   if (imagePath !== undefined) data.imagePath = imagePath;
   if (kind === "edit") {
     const content = Array.isArray(data.content) ? data.content : [];
-    // Full-access edits report only a path; without a hunk the checkpoint diff is the review.
     data.content = content.some((entry) => Predicate.isObject(entry) && entry.type === "diff")
       ? withAntigravityEditPatches(
           content,

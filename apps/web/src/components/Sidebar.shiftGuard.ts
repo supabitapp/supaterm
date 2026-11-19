@@ -1,15 +1,8 @@
-// How long a row the list just moved ignores presses. A click that was already
-// on its way when the row slid under the pointer lands within this window.
 const MOVED_ROW_PRESS_DELAY_MS = 500;
-// Moves this soon after the user's own press or key are theirs, such as the next
-// row sliding up after Settle. Same window as Cumulative Layout Shift's
-// hadRecentInput.
 const OWN_INPUT_WINDOW_MS = 500;
 
 const PRESS_FOLLOW_UPS = ["click", "auxclick", "dblclick", "contextmenu"] as const;
 
-// Editing text cannot move rows. Enter and modified keys in a field can, such as
-// sending a message or a shortcut.
 function editsText(event: KeyboardEvent) {
   const target = event.target;
   const editable =
@@ -39,8 +32,6 @@ export function createSidebarShiftGuard(list: HTMLElement) {
   let tops = readTops(list);
   const movedAt = new WeakMap<Element, number>();
   let lastInputAt = Number.NEGATIVE_INFINITY;
-  // Pointers still down on a dropped press. Only their own release or cancel ends the drop, so
-  // a key or another pointer meanwhile cannot hand that press's click to the row.
   const heldDrops = new Set<number>();
   let pressDropped = false;
   let releasedDrop: number | null = null;
@@ -55,7 +46,6 @@ export function createSidebarShiftGuard(list: HTMLElement) {
     event.stopPropagation();
   };
   const onPointerDown = (event: PointerEvent) => {
-    // A new press from the same pointer means its earlier release was missed.
     heldDrops.delete(event.pointerId);
     if (releasedDrop === event.pointerId) releasedDrop = null;
     const now = performance.now();
@@ -88,7 +78,6 @@ export function createSidebarShiftGuard(list: HTMLElement) {
     if (!editsText(event)) lastInputAt = performance.now();
   };
   const onPressFollowUp = (event: MouseEvent) => {
-    // Keyboard activation clicks carry no click count; only pointer presses are dropped.
     if (event.type === "click" && event.detail === 0) return;
     const dropped =
       event instanceof PointerEvent && event.pointerId >= 0
@@ -97,7 +86,6 @@ export function createSidebarShiftGuard(list: HTMLElement) {
     if (dropped && rowOf(event.target) !== null) swallow(event);
   };
 
-  // Window capture runs before React and dnd-kit see the press.
   view?.addEventListener("pointerdown", onPointerDown, { capture: true });
   view?.addEventListener("pointerup", onPointerUp, { capture: true });
   view?.addEventListener("pointercancel", onPointerCancel, { capture: true });
@@ -110,15 +98,11 @@ export function createSidebarShiftGuard(list: HTMLElement) {
     update() {
       const next = readTops(list);
       const now = performance.now();
-      // A list filling from empty slid nothing under the pointer.
       const ownMove = tops.size === 0 || now - lastInputAt < OWN_INPUT_WINDOW_MS;
       for (const [row, top] of next) {
         const previous = tops.get(row);
         if (previous === top) continue;
-        // A nudge of under half a row, such as a header settling, still leaves the row the pointer
-        // aimed at under it.
         if (previous !== undefined && Math.abs(top - previous) * 2 < row.offsetHeight) continue;
-        // The latest move decides: one the user caused clears an earlier mark.
         if (ownMove) movedAt.delete(row);
         else movedAt.set(row, now);
       }

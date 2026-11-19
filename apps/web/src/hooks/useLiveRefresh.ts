@@ -14,10 +14,6 @@ function shouldLiveRefresh(input: {
   return input.visible && input.now - input.lastRefreshedAt >= LIVE_REFRESH_MIN_INTERVAL_MS;
 }
 
-/**
- * A view nobody has read this session is left alone: mounting it starts its own read, and
- * refreshing on top of that cancels the request in flight and pays for the same answer twice.
- */
 function shouldRefreshOnArrival(input: {
   readonly visible: boolean;
   readonly now: number;
@@ -40,7 +36,6 @@ function shouldRefreshOnInterval(input: {
   );
 }
 
-// Survive remounts so returning to a view does not make fresh reads look overdue.
 const lastRefreshedAtByView = new Map<string, number>();
 
 let lastInteractedAt = 0;

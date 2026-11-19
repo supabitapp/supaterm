@@ -30,7 +30,6 @@ export function UsageShareBar({
         <h3 className="text-sm font-medium text-foreground">{label}</h3>
         {aside}
       </div>
-      {/* The legend below carries every figure; the bar's tooltips are pointer-only. */}
       <div aria-hidden className="flex h-2 gap-0.5">
         {visible.map((segment) => (
           <Tooltip key={segment.label}>

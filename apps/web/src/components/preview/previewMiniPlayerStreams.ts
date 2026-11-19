@@ -11,9 +11,6 @@ type PreviewMiniPlayerStreams = Readonly<Record<string, PreviewMiniPlayerStream>
 
 const NOT_REPORTED: PreviewMiniPlayerStream = { viewport: null, frameTabId: null };
 
-// Lives outside the player so the chat canvas lays out the frame from the same state the
-// player uses. Keyed per player because split panes render several at once; a player
-// forgets its entry when its stream ends.
 export const usePreviewMiniPlayerStreams = create<PreviewMiniPlayerStreams>(() => ({}));
 
 export const selectPreviewMiniPlayerStream = (

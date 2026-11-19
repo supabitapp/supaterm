@@ -325,7 +325,6 @@ import type { ReviewCommentContext } from "../../reviewCommentContext";
 
 const COMPOSER_TASKS_EXPANDED_KEY = "supaterm:composer:tasks-expanded";
 
-/** Reads and disarms a paste-as-text deadline: the shortcut applies to one paste only. */
 function consumePasteAsTextShortcut(deadline: { current: number }): boolean {
   const armed = Date.now() <= deadline.current;
   deadline.current = 0;
@@ -500,14 +499,12 @@ export interface ChatComposerProps {
   onPageScrollRelease: () => void;
 
   queuedRunsControl?: ReactNode;
-  // Context strip attached closest to the prompt, below any notices.
   attachedContextStrip?: ReactNode;
   editingQueuedAttachments: ReadonlyArray<{
     readonly attachment: ContractChatAttachment;
     readonly url: string | null;
   }> | null;
   onRemoveEditingQueuedAttachment: (attachmentId: string) => void;
-  // True when it took the key, even if the latest queued message cannot be edited yet.
   onEditLatestQueuedMessage: (repeat: boolean) => boolean;
   onCancelQueuedMessageEdit: () => void;
 
@@ -720,7 +717,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activePendingProgress?.activeQuestion?.allowCustomAnswer !== false &&
     !activePendingIsResponding;
   const questionRequest = pendingUserInputs[0];
-  // Publish eligibility before async captures can observe a question the UI has already closed.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- registers the open question's attachment draft in the module tracker before async captures read it
   useLayoutEffect(() => {
     if (!questionAttachmentTarget || !questionRequest || !questionTakesSnapShots) return;
@@ -744,8 +740,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     routeThreadRef,
   ]);
   const attachmentTargetKey = composerTargetKey(attachmentDraftTarget);
-  // An import that finishes after a draft change must compare against the draft open *now*, not
-  // the one captured in the closure that started it.
   const attachmentTargetKeyRef = useRef(attachmentTargetKey);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed attachment target key to a ref so async imports reject after a draft switch
   useLayoutEffect(() => {
@@ -906,9 +900,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       return;
     }
     if (!supportsAttachmentUploads) {
-      // The capability can flap on reconnect or version skew. Deleting a
-      // persisted hydrated upload here would make the next send fail
-      // verification while the file still sits in the draft.
       for (const attachment of attachmentsToReleaseOnUploadCapabilityLoss([
         ...composerImages,
         ...composerFiles,
@@ -1114,8 +1105,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     false,
     Schema.Boolean,
   );
-  // Set by the voice session, which starts later in this component, so its controls in the
-  // footer stay on screen while recording.
   const [voiceSessionOpen, setVoiceSessionOpen] = useState(false);
   const isComposerCollapsedMobile =
     isMobileViewport &&
@@ -1152,9 +1141,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to window keydown, blur and the desktop paste-as-text event to arm plain-text paste
   useEffect(() => {
     const armPasteAsTextShortcut = () => {
-      // Electron can deliver its native menu action just before the paste
-      // event, while browsers normally deliver keydown first. A short deadline
-      // bridges both event paths without leaving later pastes in bypass mode.
       pasteAsTextShortcutUntilRef.current = Date.now() + 1_000;
     };
     const onKeyDown = (event: KeyboardEvent) => {
@@ -1264,8 +1250,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const nonPersistedComposerImageIdSet = new Set(nonPersistedComposerImageIds);
 
   const isComposerApprovalState = activePendingApproval !== null;
-  // A send declines the approvals shown here to redirect the agent, so it steers the waiting
-  // turn instead of queueing behind it. Approvals the typing guard holds stay unseen and pending.
   const followUpBehavior = pendingApprovals.some(
     (approval) => !heldRequestIds.has(approval.requestId),
   )
@@ -1325,7 +1309,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           activePendingProgress.canAdvance &&
           !attachmentBlockReason &&
           !(questionPreparations[attachmentTargetKey] ?? 0),
-        // activePendingIsResponding is also set for a request that can no longer be answered.
         response:
           activePendingUserInput?.responseCapability === "not_resumable"
             ? "not-resumable"
@@ -1360,7 +1343,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     followUpBehavior,
     canSteer,
     isSendBusy,
-    // An answer follows only its own blockers, as submitComposer does.
     sendDisabledReason: activePendingProgress ? attachmentBlockReason : sendDisabledReason,
     isEnvironmentUnavailable: environmentUnavailable !== null,
     providerAvailability: canQueueSelectedProvider
@@ -1379,7 +1361,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     canInterrupt,
     canOperateThread,
   });
-  // Collapsed only with no pending question; during a run it offers only Stop.
   const collapsedComposerPrimaryAction = resolveComposerPrimaryAction({
     ...composerPrimaryActionFacts,
     pendingAction: null,
@@ -1423,8 +1404,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   const removeComposerFileFromDraft = (fileId: string) => {
     if (questionAttachmentTarget && activePendingIsResponding) return;
-    // Release by the draft attachment, not the bare queue key: a hydrated
-    // file's upload lives server-side under its persisted attachment id.
     const file = composerFilesRef.current.find((candidate) => candidate.id === fileId);
     if (file) {
       releaseDraftAttachment(file);
@@ -1783,8 +1762,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     contextIds: string[],
   ) => {
     expandComposerForEditorChange();
-    // Typing is when the menu is about to need skills, so it re-checks a
-    // snapshot that has aged past its TTL.
     refreshWorkspaceSnapshotOnTyping();
     const activeQuestion = activePendingProgress?.activeQuestion;
     if (activeQuestion && pendingUserInputs.length > 0) {
@@ -2276,9 +2253,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       event?.preventDefault();
       return null;
     }
-    // A send while a pasted image is still compressing would strand that image:
-    // the turn snapshot wouldn't include it, and it would surface in the *next*
-    // draft instead.
     if (activeThreadId && countPreparingComposerImages(attachmentTargetKey) > 0) {
       event?.preventDefault();
       toastManager.add({
@@ -2297,7 +2271,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       });
       return null;
     }
-    // An empty draft has nothing to send; Enter does what the Resume thread button does.
     if (showResumeAction && !activePendingProgress) {
       event?.preventDefault();
       if (!isSendBusy && environmentUnavailable === null) onResume();
@@ -2359,8 +2332,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       }),
     ) !== null;
   const submitCitationAndSendStable = useStableCallback(submitCitationAndSend);
-  // A question took the editor while a citation comment was
-  // unsaved. Keep the comment in the prompt that comes back afterward.
   const saveCitationDraftToPrompt = (replacedValue: string, savedValue: string) => {
     if (replacedValue !== prompt) return;
     if (promptRef.current === replacedValue) promptRef.current = savedValue;
@@ -2414,7 +2385,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     latestRun: activeThreadShell?.latestRun,
     runs: activeThreadRuns,
   });
-  // Matches when the editor shows its placeholder, so a key never accepts text the user cannot see.
   const promptSuggestion =
     nextPrompt.suggestion !== null &&
     prompt === "" &&
@@ -2534,9 +2504,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       upload.environmentId === environmentId;
     return nonPersistedComposerImageIdSet.has(image.id) && !failedInCurrentEnvironment;
   });
-  // Banners and the tasks drawer dock above the surface rather than inside
-  // it, so they do not hold the composer open; only surface-internal chrome
-  // does.
   const composerHasExpandedChrome =
     isEditingQueuedMessage ||
     showComposerTopDrawer ||
@@ -2603,8 +2570,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const videoExits = useAttachmentExits(attachmentTray, composerVideos, (file) => file.id);
   const otherFileExits = useAttachmentExits(attachmentTray, composerOtherFiles, (file) => file.id);
   const composerControlsCollapsed = isComposerResting || isComposerCollapsedMobile;
-  // A scroll-collapsed desktop composer is a bare input. Only the phone layout keeps its controls,
-  // in the context strip when there is one and otherwise in a compact row inside the input.
   const showInlineRestingControls = isComposerCollapsedMobile && restingControlsHost === null;
   const composerControlsVisibleInStrip =
     isComposerCollapsedMobile && restingControlsHost !== null && restingControlsVisible;
@@ -2668,8 +2633,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     !hasMultilinePrompt &&
     !composerHasExpandedChrome &&
     !showInlineTasksBadge;
-  // Clear rather than mask: once eligibility drops, the composer stays expanded until the next
-  // scroll gesture even if it becomes eligible again.
   if (!canScrollCollapseComposer && isComposerScrollCollapsed) {
     setIsComposerScrollCollapsed(false);
   }
@@ -2678,9 +2641,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerScrollCollapseEligibleRef.current = canScrollCollapseComposer && !isComposerResting;
   });
 
-  // Returning to the window re-fires focus on the element that already held
-  // it. That focus arrives after the window's own event, so a window focus
-  // marks the frame in which it should be ignored by the form's capture.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window focus listener and animation frame that ignore activation focus while the composer is collapsed
   useEffect(() => {
     if (!isComposerScrollCollapsed) return;
@@ -2762,7 +2722,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         collapseThresholdPx: COMPOSER_SCROLL_COLLAPSE_THRESHOLD_PX,
         collapseEligible: targetsTimeline && composerScrollCollapseEligibleRef.current,
         canScrollInGestureDirection,
-        // Wheel events fire before they scroll, so judge the end band where this one lands.
         atLogicalEnd: isTimelineAtLogicalEnd(Math.sign(event.deltaY) * deltaPx),
       });
       if (!shouldCollapse) {
@@ -2928,8 +2887,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     pendingInsertion?: ComposerAttachmentInsertion,
   ): boolean => {
     if (references.length === 0) return false;
-    // Question answers carry attachments beside the answer, never as chips. Falling back to
-    // the thread prompt here would hide the file behind a reference the question never shows.
     if (questionAttachmentTarget) return false;
     return insertAttachmentReferencesForDraft({
       target: composerDraftTarget,
@@ -2992,9 +2949,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const insertComposerTextAtEnd: ChatComposerHandle["insertTextAtEnd"] = (text, options) => {
     const inserted = insertComposerText(text, "end", options);
     if (inserted && isComposerCollapsedMobile) {
-      // The expanded editor is hidden at phone widths, so its scheduled
-      // focus cannot expand the composer by itself. Reveal it before the
-      // focus frame runs to preserve type-to-focus and external inserts.
       expandMobileComposer();
     }
     return inserted;
@@ -3015,7 +2969,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           : ((await bridge
               ?.toLocalBackendPath(target.wslBackendId, droppedPath)
               .catch(() => null)) ?? null);
-      // ChatView is reused across threads, so a slow conversion must not land in the next draft.
       if (!composerMountedRef.current || attachmentTargetKeyRef.current !== draftKey) return;
       if (path === null) {
         toastManager.add({
@@ -3064,7 +3017,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       return;
     }
     const draftKey = attachmentTargetKeyRef.current;
-    // Hold send until every conversion lands, or the folder misses the message.
     pendingDraftWork.begin(draftKey);
     void insertComposerFolders(folders, target, draftKey).finally(() =>
       pendingDraftWork.end(draftKey),
@@ -3103,8 +3055,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     event.preventDefault();
     event.stopPropagation();
   };
-  // The editor is memoized; fresh closures here re-render it on every parent
-  // render, which during a stream is every delta.
   const onComposerPasteStable = useStableCallback(onComposerPaste);
   const insertContextReferencesAtCaret = (
     references: ReadonlyArray<ComposerContextReference>,
@@ -3121,9 +3071,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     return setContextInsertionHandler(composerDraftTarget, insertContextReferencesAtCaretStable);
   }, [composerDraftTarget, insertContextReferencesAtCaretStable, setContextInsertionHandler]);
 
-  // File-tree drags land as mentions, pull request rows as their context chip. Handled in the capture phase so the
-  // editor never sees the drop; the load-bearing rules (native stop, "move"
-  // effect, no eager focus) live in makeComposerMentionDragHandlers.
   const createComposerMentionDragHandlers = () =>
     makeComposerMentionDragHandlers({
       insertMentionAtEnd: (text) => insertComposerTextAtEnd(text, { ensureLeadingBoundary: true }),
@@ -3254,10 +3201,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     setIsDragOverComposer(false);
   };
 
-  // A cancelled drag (Escape) can end without a dragleave on the hovered
-  // target, which would leave the drop highlight stuck. dragend always fires
-  // on the in-page drag source and bubbles to window, so it is the reset of
-  // last resort while the highlight is up.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window dragend listener clears the drop highlight when a drag is cancelled without dragleave
   useEffect(() => {
     if (!isDragOverComposer) return;
@@ -3393,12 +3336,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       ),
     openModelPicker: openModelPickerStable,
     stepReasoningEffort: (direction) => {
-      if (
-        noProviderAvailable ||
-        pendingUserInputs.length > 0 ||
-        // A queued-message edit draft is discarded when the edit ends.
-        isEditingQueuedMessage
-      ) {
+      if (noProviderAvailable || pendingUserInputs.length > 0 || isEditingQueuedMessage) {
         return;
       }
       const change = getComposerReasoningStep({
@@ -3507,8 +3445,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     },
     addTerminalContext: (selection: TerminalContextSelection) => {
       if (!activeThread) return;
-      // Answers are plain text, so a terminal excerpt cannot ride along with one. Writing it
-      // to the thread draft instead would hide it until the question closes.
       if (activePendingProgress) {
         toastManager.add({
           type: "info",
@@ -4091,7 +4027,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 <ComposerContextActionsContext value={composerContextActions}>
                   <ComposerPromptEditor
                     draftKey={composerDraftTargetKey}
-                    // Switching threads lands focus here, so the label names the thread.
                     ariaLabel={activeThread ? `Message ${activeThread.title}` : "Message"}
                     suggestionListId={composerSuggestionListId}
                     activeSuggestionId={
@@ -4244,7 +4179,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         />
                       ) : null}
                       <ComposerPrimaryActions
-                        // Stop state belongs to one thread; the composer stays mounted across threads.
                         key={`${environmentId}:${activeThreadId ?? "new"}`}
                         compact={isComposerResting || isComposerPrimaryActionsCompact}
                         keybindings={keybindings}

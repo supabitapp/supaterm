@@ -108,7 +108,6 @@ export const MuseDriver: ProviderDriver<
       accentColor,
       continuationGroupKey: continuationIdentity.continuationKey,
     });
-    // Only a running CLI reports usage; status probes cannot fetch it.
     const latestUsage = yield* Ref.make<ProviderUsageLimitsReport | undefined>(undefined);
     const usagePermit = yield* Semaphore.make(1);
     const withLatestUsage = (provider: ServerProvider) =>
@@ -154,7 +153,6 @@ export const MuseDriver: ProviderDriver<
       return latestVersion !== undefined ? { ...capabilities, latestVersion } : capabilities;
     });
     const snapshot = yield* makeManagedServerProvider<ProviderSnapshotSettings<MuseSettings>>({
-      // Status refresh respects update checks; explicit updates use the resolver below.
       resolveMaintenance: (options) =>
         host.settings.get.pipe(
           Effect.orDie,

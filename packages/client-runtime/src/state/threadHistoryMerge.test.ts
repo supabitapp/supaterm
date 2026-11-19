@@ -313,7 +313,6 @@ describe("threadHistoryMerge", () => {
     expect(next?.visibleTurnItems[3]?.item).toEqual(liveItem);
   });
 
-  // regression: #25806 a pending question card retained outside the window shows when paged in
   it.each(["completed", "rolled_back"] as const)(
     "keeps a pending question actionable when paging a %s run",
     (status) => {

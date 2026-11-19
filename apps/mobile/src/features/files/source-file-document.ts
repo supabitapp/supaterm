@@ -54,7 +54,6 @@ export function prepareSourceFileDocument(contents: string): SourceFileDocument 
   return document;
 }
 
-// Virtualization prevents document-wide selection; cap spans and fall back to a fully selectable string.
 export function boundedSelectableSourceTokens(
   tokens: ReadonlyArray<ReadonlyArray<HighlightedToken>> | null,
 ): typeof tokens {
@@ -75,7 +74,6 @@ export interface SelectableSourceHtmlStyle {
   readonly wordBreak: boolean;
 }
 
-// A <pre> would drop a leading newline, so whitespace is preserved on a plain <div>.
 export function selectableSourceHtml(contents: string, style: SelectableSourceHtmlStyle): string {
   const text = contents
     .split("\n")

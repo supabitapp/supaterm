@@ -6,7 +6,6 @@ import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import { AppRoot } from "~/AppRoot";
-// The thread route loads ChatView lazily; its first transform would eat the test's timeout.
 import "~/components/ChatView";
 import { __setClientSettingsForTests } from "~/hooks/useSettings";
 import { useRightPanelStore } from "~/rightPanelStore";
@@ -19,7 +18,6 @@ import {
 } from "../../test/fakeEnvironment";
 import { act, render } from "../../test/render";
 
-// The socket is the only fake layer; see test/appScenarios.renders.tsx.
 vi.mock("../../../../packages/client-runtime/src/connection/driver.ts", async (importOriginal) => {
   const [actual, { fakeDriver }, Layer] = await Promise.all([
     importOriginal<{ readonly ConnectionDriver: Context.Key<unknown, FakeDriver> }>(),
@@ -59,7 +57,6 @@ it("leaves thread shortcuts and their hints to the preview when their rules excl
   );
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
   await expect.element(page.getByText(`Thread ${second.id}`).first()).toBeVisible();
@@ -73,7 +70,6 @@ it("leaves thread shortcuts and their hints to the preview when their rules excl
   const press = () => userEvent.keyboard("{Control>}{Shift>}]{/Shift}{/Control}");
   const jumpHint = () => document.querySelector("[data-jump-hint]");
   const whileHoldingControl = async (assertJumpHints: () => void) => {
-    // Every deadline reads as due on subscribe, so hints skip the hold delay.
     let now = Date.parse("2026-01-01T00:00:00.000Z");
     using _clock = vi.spyOn(Date, "now").mockImplementation(() => (now += 1000));
     await userEvent.keyboard("{Control>}");

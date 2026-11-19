@@ -27,13 +27,11 @@ export function Sheet(props: SheetProps) {
       detents={formSheetDetents(0.5, 0.9)}
       prefersGrabberVisible
       preventNativeDismiss={props.dismissDisabled}
-      // The header holds the close button, so the Duo needs no rail inside this sheet.
       prefersHorizontalBars
       nativeContainerStyle={containerStyle}
       onDismiss={props.onClose}
       onNativeDismiss={props.onClose}
     >
-      {/* Flex children are not bounded by the FormSheet host, so pin to its edges. */}
       <View collapsable={false} className="absolute inset-0 bg-sheet">
         <ScreenStack style={{ flex: 1 }}>
           <NativeScreen

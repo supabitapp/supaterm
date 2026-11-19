@@ -86,9 +86,6 @@ export const INITIAL_NEW_TASK_FLOW_STATE: NewTaskFlowState = {
   environmentSwitch: null,
 };
 
-// Every draft route on the stack keeps its flow, not just the one the provider
-// currently serves: a draft Thread pushed above draft A must not drop A's
-// selection. Entries live exactly as long as their route (see prune below).
 const flowStatesAtom = Atom.make<Readonly<Record<string, NewTaskFlowState>>>({}).pipe(
   Atom.keepAlive,
   Atom.withLabel("mobile:new-task-flows"),
@@ -121,7 +118,6 @@ export type RouteDraftResolution =
   | { readonly kind: "none" }
   | { readonly kind: "pending" }
   | { readonly kind: "missing" }
-  /** The draft survives but its project is gone: pick another for it. */
   | { readonly kind: "pickProject" }
   | { readonly kind: "open"; readonly flow: NewTaskFlowState };
 
@@ -143,9 +139,6 @@ export function resolveRouteDraft(input: {
   if (routeDraftId === undefined || input.flow.draftKey !== null) return { kind: "none" };
   if (!input.draftsLoaded) return { kind: "pending" };
   if (!isNewTaskDraftKey(routeDraftId) || stamp === undefined) return { kind: "missing" };
-  // The stamped project must be loaded: the composer falls back to the
-  // environment's first project otherwise, and the draft would be sent
-  // somewhere the user never chose.
   const loaded = input.projects.some(
     (project) => project.environmentId === stamp.environmentId && project.id === stamp.projectId,
   );
@@ -178,8 +171,6 @@ export function stampedEnvironmentProjectsLoading(input: {
   if (!input.connectionsReady) return true;
   if (input.connectionState === null) return false;
   if (!input.shellCacheRead) return true;
-  // Only a first attempt is worth waiting out; a reconnecting environment's
-  // retries leave its shell synchronizing.
   if (input.connectionState === "connecting") return true;
   if (input.connectionState !== "connected") return false;
   return input.shellStatus === "synchronizing" || input.shellStatus === "empty";

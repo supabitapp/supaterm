@@ -88,13 +88,9 @@ export function useLinkedThreadPullRequest(
   enabled = true,
 ): LinkedThreadPullRequestStatus | null {
   const current = resolveThreadCurrentPullRequestLink(pullRequests ?? []);
-  // Callers key on the returned status, so it stays cached across the query hooks.
   const currentStatus = current === null ? null : linkedPullRequestSnapshotStatus(current);
   const fallback = current === null ? branchPullRequest : null;
-  // The query atom and shared summary effect key on this object, and a sidebar row
-  // must not touch the summary cache on every render.
   const reference = fallback == null ? null : linkedPullRequestReference(fallback);
-  // Mounted for its answers, which land in the shared summary read below.
   useEnvironmentQuery(
     !enabled || environmentId === null || reference === null
       ? null
@@ -264,8 +260,6 @@ export function ThreadPullRequestBadgeControl({
   );
 }
 
-// The badge sits inside rows with their own menu, and React bubbles its popup's events there
-// through the portal, so the right-click must stop here.
 function showPullRequestContextMenuAt(
   event: MouseEvent<HTMLElement>,
   url: string,
@@ -680,7 +674,6 @@ export function ThreadRowLeadingStatus({ thread }: { thread: SidebarThreadSummar
     isEnvironmentConnected,
   );
   const { leaseLiveStatus, rowRef } = useSidebarRowSubscriptionLease(false);
-  // A new ref callback would detach and reattach the row, and each reattach sets lease state.
   const statusRef = useStableCallback((node: HTMLSpanElement | null) =>
     rowRef(node?.parentElement ?? null),
   );
@@ -838,7 +831,6 @@ function donePrHoverColorClass(state: ThreadPullRequestBadge["state"]): string {
   }
 }
 
-// Search rows are already buttons, so this renders the sidebar badge's look without its controls.
 export function ThreadSearchPullRequestNumber({
   thread,
   query,
@@ -860,7 +852,6 @@ export function ThreadSearchPullRequestNumber({
   if (!matched) return null;
   const badge = resolveThreadPullRequestBadge(thread.pullRequests);
   const pr = linked?.pr ?? null;
-  // Stored references already carry a number, so the badge shows before PR details load.
   const stored =
     resolveThreadCurrentPullRequestLink(thread.pullRequests) ??
     (thread.branchPullRequest != null &&
@@ -892,7 +883,6 @@ export function ThreadSearchPullRequestNumber({
           : presentation.toneClassName,
       )}
     >
-      {/* text-current opts out of the command palette's muted icon color. */}
       <presentation.Icon aria-hidden className="size-3 shrink-0 text-current" />
       <span>{presentation.text}</span>
     </span>

@@ -13,8 +13,6 @@ const TEST_EXCLUDE = [
   "**/.{idea,git,cache,output,temp}/**",
 ];
 
-// Directories whose tests belong to a package's own test config. desktop also
-// owns the kde-snap-shot tests through its `include`.
 const TEST_CONFIG_PACKAGES = [
   "apps/desktop",
   "apps/mobile",
@@ -23,9 +21,6 @@ const TEST_CONFIG_PACKAGES = [
   "packages/client-runtime",
 ];
 
-// `vp test run <file>` from the repo root hands each file to its package's
-// config. Packages that borrow this config (`--config ../../vite.config.ts`) run
-// from their own directory, as CI does, so they keep one plain project.
 const isRepoRootTestRun = process.cwd() === import.meta.dirname;
 
 const RESTRICTED_IMPORT_PATHS = [
@@ -95,8 +90,6 @@ const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
     "Pick a glyph by meaning from PullRequestGlyph in apps/web/src/components/pullRequest/pullRequestIcons.tsx so every surface draws the same pull request the same way.",
 };
 
-// Polls that predate no-unsignaled-poll, as exact per-file counts. Lower an entry as polls are
-// replaced with awaited signals; the rule reports a count that is too high.
 const LEGACY_UNSIGNALED_POLLS = {
   "apps/mobile/src/features/threads/NewTaskDraftRouteScreen.test.tsx": 1,
   "apps/mobile/src/features/threads/new-task-branch-checkout.test.ts": 7,
@@ -153,7 +146,6 @@ export default defineConfig({
     hookTimeout: 60_000,
     testTimeout: 60_000,
     allowOnly: !process.env.CI,
-    // Flaky tests are fixed, not retried.
     retry: 0,
     fakeTimers: {
       toFake: [
@@ -200,8 +192,6 @@ export default defineConfig({
   },
   fmt: {
     ignorePatterns: [
-      // Macroscope's glob-per-line ignore grammar, not Markdown: formatting
-      // it rewrites `*` as `_` and joins lines.
       ".macroscope/ignore.md",
       "dist",
       "dist-electron",
@@ -216,7 +206,6 @@ export default defineConfig({
       "apps/mobile/android/**",
       "apps/mobile/ios/**",
       "apps/mobile/uniwind-types.d.ts",
-      // Vendored and generated C.
       "apps/mobile/modules/supaterm-highlights/Vendor/**",
       "apps/mobile/modules/supaterm-highlights/cpp/generated/**",
       "apps/mobile/modules/supaterm-highlights/nitrogen/generated/**",
@@ -361,7 +350,6 @@ export default defineConfig({
       "supaterm/no-low-value-comments": "error",
       "supaterm/no-manual-effect-runtime-in-tests": "error",
       "supaterm/no-native-title-tooltip": "error",
-      // Test files only (the rule checks the filename). denyWarnings makes it fail lint like an error.
       "supaterm/no-polling-loop-in-tests": "warn",
       "supaterm/no-raw-mcp-registration": "error",
       "supaterm/no-real-time-wait-in-tests": "error",
@@ -400,6 +388,13 @@ export default defineConfig({
         },
       },
       {
+        files: ["**/_generated/**", "**/generated/**", "**/*.generated.ts", "**/*.gen.ts"],
+        rules: {
+          "landmines-style/no-comments": "off",
+          "landmines-types/no-explicit-return-types": "off",
+        },
+      },
+      {
         files: ["**/*.live.test.ts"],
         rules: { "test-waits/no-long-waits": "off" },
       },
@@ -413,7 +408,6 @@ export default defineConfig({
       },
       {
         files: ["apps/web/src/**", "apps/mobile/src/**", "apps/desktop/src/**"],
-        // Users still pick their own project icon from the full project icon set.
         excludeFiles: ["apps/web/src/projectIconOptions.ts"],
         rules: { "supaterm/no-sparkles-icon": "error" },
       },
@@ -470,7 +464,6 @@ export default defineConfig({
         rules: { "supaterm/no-global-process-runtime": "off" },
       },
       {
-        // The `supaterm` npm launcher is published as plain, dependency-free Node.
         files: ["scripts/npm-launcher/**"],
         rules: {
           "supaterm/no-global-process-runtime": "off",
@@ -503,8 +496,6 @@ export default defineConfig({
         rules: { "eslint/no-restricted-imports": ["error", { paths: RESTRICTED_IMPORT_PATHS }] },
       },
       {
-        // The server and every client load a forge's shared definition, so a UI runtime
-        // imported there would break the server; client-only forge code goes in `src/client/`.
         files: ["packages/source-control-*/src/shared/**"],
         rules: {
           "eslint/no-restricted-imports": [
@@ -584,8 +575,6 @@ export default defineConfig({
         rules: { "supaterm/no-ambiguous-detail-navigation": "error" },
       },
       {
-        // React commits state set in a raw ResizeObserver callback after the paint, so derived
-        // layout lands a frame late. observeResize flushes every observed resize in one render.
         files: ["apps/web/src/**"],
         excludeFiles: [
           "apps/web/src/lib/observeResize.ts",
@@ -611,7 +600,6 @@ export default defineConfig({
           "**/*.{test,spec}.{ts,tsx,js,jsx,mts,cts,mjs,cjs}",
           "**/testkit/**",
           "**/_generated/**",
-          // Real user quotes stay verbatim.
           "apps/marketing/src/lib/tweets.ts",
         ],
         rules: { "supaterm/no-em-dash-copy": "error" },
@@ -621,8 +609,6 @@ export default defineConfig({
         rules: { "shadcn/no-raw-colors": "error" },
       },
       {
-        // Third-party marks (brand logos, the macOS permission panes, Codex's Computer Use
-        // mark) must keep their exact colors, so the files that hold them are exempt.
         files: ["apps/web/src/components/Icons.tsx", "apps/web/src/components/JetBrainsIcons.tsx"],
         rules: { "shadcn/no-raw-colors": "off" },
       },
@@ -660,9 +646,6 @@ export default defineConfig({
               allow: ["layout"],
               contracts: [
                 {
-                  // CollapsibleTrigger is a bare button with no styled counterpart
-                  // (a disclosure row is not a Button), so its className is the API.
-                  // Every other trigger has one: style them with render={<Button …/>}.
                   pattern: "^CollapsibleTrigger$",
                   allow: ["layout", "color", "typography", "spacing", "shape", "effects", "motion"],
                 },
@@ -672,22 +655,15 @@ export default defineConfig({
         },
       },
       {
-        // Every web file must compile under the React Compiler. Its bailout rules are errors here,
-        // and manual memoization is redundant. No built-in oxlint rule bans useMemo/useCallback,
-        // hence supaterm/no-manual-memo.
         files: ["apps/web/src/**/*.{ts,tsx}"],
         rules: {
           "react/exhaustive-effect-dependencies": "error",
           "react/globals": "error",
           "react/hooks": "error",
           "react/immutability": "error",
-          // The compiler memoizes context values; this rule would ask for useMemo.
           "react/jsx-no-constructed-context-values": "off",
           "react/memo-dependencies": "error",
           "react/preserve-manual-memoization": "error",
-          // Render-time clock reads use @supaterm/client-runtime/clock or state seeded with the
-          // time; any other read carries a suppression that says why. oxlint also flags time reads
-          // inside event handlers (oxc#27309); those suppressions cite it.
           "react/purity": "error",
           "react/refs": "error",
           "react/set-state-in-effect": "error",
@@ -698,9 +674,6 @@ export default defineConfig({
         },
       },
       {
-        // Shared client code must not call APIs missing from Hermes. Our ESNext
-        // TypeScript target accepts them even when they would crash mobile at launch.
-        // Tests run on Node and are exempt.
         files: [
           "apps/mobile/src/**",
           "packages/client-runtime/src/**",
@@ -711,9 +684,6 @@ export default defineConfig({
         rules: { "supaterm/no-hermes-unsupported-apis": "error" },
       },
       {
-        // Mobile is ratcheting toward full React Compiler coverage
-        // (apps/mobile/src/reactCompilerCoverage.test.ts). Directives would hide bailouts from it;
-        // the manual memo hooks go once the allowlist there is empty.
         files: ["apps/mobile/src/**/*.{ts,tsx}"],
         rules: { "supaterm/no-manual-memo": ["error", { allowMemoHooks: true }] },
       },
@@ -770,9 +740,7 @@ export default defineConfig({
           "react/button-has-type": "error",
           "react/checked-requires-onchange-or-readonly": "error",
           "react/jsx-no-target-blank": "error",
-          // oxlint files this under pedantic, so the categories above leave it off.
           "react/rules-of-hooks": "error",
-          // These still report in this code. Delete a line once its hits are fixed.
           "jsx-a11y/alt-text": "off",
           "jsx-a11y/anchor-has-content": "off",
           "jsx-a11y/click-events-have-key-events": "off",
@@ -787,7 +755,6 @@ export default defineConfig({
           "jsx-a11y/no-static-element-interactions": "off",
           "jsx-a11y/role-has-required-aria-props": "off",
           "jsx-a11y/role-supports-aria-props": "off",
-          // Outside the plugin's own recommended set.
           "jsx-a11y/control-has-associated-label": "off",
           "jsx-a11y/prefer-tag-over-role": "off",
         },

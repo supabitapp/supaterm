@@ -36,7 +36,6 @@ const hubFrame: OrchestrationV2CommandOutputFrame = {
 
 const subscribe = (input: {
   readonly taskId: string;
-  /** What the provider runtime streams, or null when it cannot read task output. */
   readonly runtimeOutput: ReadonlyArray<string> | null;
 }) => {
   const hubTargets: Array<unknown> = [];
@@ -103,7 +102,6 @@ const subscribe = (input: {
 
 it.effect("frames a provider's own task output so a client rebuilds its bounded tail", () =>
   Effect.gen(function* () {
-    // Past the tail limit, so the client is sent the bounded tail instead of raw text.
     const chunks = ["one\n", "x".repeat(TERMINAL_OUTPUT_TAIL_CHARS + 1_000), "\ntail\n"];
     const { result, hubTargets, runtimeTasks } = yield* subscribe({
       taskId: "build",
@@ -113,7 +111,6 @@ it.effect("frames a provider's own task output so a client rebuilds its bounded 
     expect(runtimeTasks).toEqual(["build"]);
     expect(hubTargets).toEqual([]);
     const frames = Result.getOrThrow(result);
-    // What a client holds after applying each frame, as `applyCommandOutputFrame` does.
     const rebuilt = frames.reduce((output, frame) => {
       const base = frame.kind === "replace" ? EMPTY_TERMINAL_OUTPUT : output;
       return appendTerminalOutput(

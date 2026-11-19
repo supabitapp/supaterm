@@ -13,8 +13,6 @@ import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
 import { usePresence } from "~/hooks/usePresence";
 
-// A release outside the window can skip `mouseup`, so the next button-free
-// `mousemove` also counts.
 function onMouseButtonsReleased(onRelease: () => void): () => void {
   const check = (event: globalThis.MouseEvent) => {
     if (event.buttons !== 0) return;
@@ -202,10 +200,6 @@ export function TimelineMinimap({
               const activeDistance =
                 resolvedActiveIndex === null ? null : Math.abs(index - resolvedActiveIndex);
               return (
-                // Compositor-friendly on purpose: in-view state and the hover
-                // fisheye animate constantly (every scroll tick and streaming
-                // update flips a band of strips), so the strip animates only
-                // transform and opacity.
                 <span
                   aria-hidden="true"
                   className={cn(
@@ -241,7 +235,6 @@ export function TimelineMinimap({
               );
             })}
             {preview.value ? (
-              // Display-only: it overlaps the message column, and the strip keeps tracking beneath it.
               <span
                 className="pointer-events-none absolute left-8 w-80 -translate-y-1/2"
                 style={{ top: `${preview.value.top}%` }}

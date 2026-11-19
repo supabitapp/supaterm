@@ -177,7 +177,6 @@ describe("environment shell synchronization", () => {
       yield* Queue.offerAll(first.events, [rowUpdate(11, "completed"), { kind: "synchronized" }]);
       yield* liveRow(11, "completed");
 
-      // Without a reconnect or wakeup, the stream resubscribes once the backoff passes.
       yield* failWithDefect(first.events);
       yield* TestClock.adjust("250 millis");
       const retried = yield* Queue.take(subscriptions);
@@ -389,7 +388,6 @@ describe("environment shell synchronization", () => {
   it.effect.each([
     { bufferSize: Infinity, expectedSequences: [51], existingRows: false },
     { bufferSize: Infinity, expectedSequences: [51], existingRows: true },
-    // RpcClient defaults to a 16-event buffer, which splits larger server chunks.
     { bufferSize: 16, expectedSequences: [17, 33, 49, 51], existingRows: false },
     { bufferSize: 16, expectedSequences: [17, 33, 49, 51], existingRows: true },
   ])("batches $bufferSize events (existing: $existingRows)", (input) =>
@@ -463,7 +461,6 @@ describe("environment shell synchronization", () => {
         Stream.runHead,
       );
 
-      // Observe before publishing so no batch can arrive before the subscription.
       const observed = yield* SubscriptionRef.changes(shellState).pipe(
         Stream.drop(1),
         Stream.takeUntil(
@@ -491,7 +488,6 @@ describe("environment shell synchronization", () => {
       );
       const states = yield* Fiber.join(observed);
       if (existingRows) {
-        // Index each received batch once; distinct updates must not rescan every row.
         expect(rowVisits).toBeLessThanOrEqual(50 * (expectedSequences.length + 10));
       }
       const snapshots = states.map((state) => Option.getOrThrow(state.snapshot));
@@ -526,7 +522,6 @@ describe("environment shell synchronization", () => {
       expect(removedState.generation).toBe(states.at(-1)!.generation);
       expect([...removedState.removedAt]).toEqual([[ThreadId.make("thread-0"), 52]]);
 
-      // An authoritative snapshot resets even a higher live cursor in the same batch.
       const resetRow = { ...v2ThreadShell, id: ThreadId.make("reset-row") };
       const resetObserved = yield* SubscriptionRef.changes(shellState).pipe(
         Stream.filter(
@@ -880,8 +875,6 @@ describe("environment shell synchronization", () => {
         Stream.runHead,
       );
 
-      // Disconnect flush starts an immediate persist of the unenriched snapshot
-      // (debounced path needs TestClock advancement; flush does not).
       yield* SubscriptionRef.set(supervisorState, {
         desired: false,
         network: "online",
@@ -1139,7 +1132,6 @@ describe("environment shell synchronization", () => {
       const stateWhere = (predicate: (state: EnvironmentShellState) => boolean) =>
         SubscriptionRef.changes(shellState).pipe(Stream.filter(predicate), Stream.runHead);
 
-      // Both transports must omit, or omitted children would come back through the socket.
       expect(yield* Deferred.await(subscribeInput)).toMatchObject({
         afterSequence: 1,
         omitIdleSubagents: true,
@@ -1164,7 +1156,6 @@ describe("environment shell synchronization", () => {
         threadId: gone,
       });
       const removed = Option.getOrThrow(yield* stateWhere((state) => state.removedAt.size > 0));
-      // An enrichment refresh is not authoritative.
       expect(removed.generation).toBe(loaded.generation);
       expect(removed.removedAt.get(gone)).toBe(2);
 

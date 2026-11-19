@@ -268,8 +268,6 @@ describe("updateOutdatedHost", () => {
           Effect.sync(() => {
             const origin = new URL(request.url).origin;
             polledOrigins.push(origin);
-            // After restart this address belongs to a different server. A successful
-            // descriptor response must not stop the search for our environment.
             const response =
               origin === fallbackUrl
                 ? { ...served, environmentId: EnvironmentId.make("unrelated-environment") }
@@ -442,7 +440,6 @@ describe("updateOutdatedHost", () => {
         (stage) =>
           Effect.sync(() => {
             stages.push(stage);
-            // Lose the transport only after the consumer has observed progress.
             if (stage === "downloading") sockets[0]?.close();
           }),
       ).pipe(

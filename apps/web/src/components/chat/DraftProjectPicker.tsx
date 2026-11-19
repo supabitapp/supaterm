@@ -55,7 +55,6 @@ import { ComposerControl } from "./ComposerControl";
 import { useComposerMenuProps } from "./composerEventScope";
 import { normalizeSearchQuery, scoreQueryMatch } from "@supaterm/shared/searchRanking";
 
-// Menu value for "No project"; real entries are keyed by logical project key.
 const NO_PROJECT_VALUE = "no-project";
 
 interface DraftProjectPickerProps {
@@ -65,8 +64,6 @@ interface DraftProjectPickerProps {
   readonly isSendInFlight: () => boolean;
 }
 
-// The picker's handlers pass catalog entries to plain functions after later hooks, so the
-// catalog is derived in its own hook, where the compiler can cache it.
 function useDraftProjectCatalog(activeProjectRef: ScopedProjectRef | null) {
   const projects = useProjects();
   const { environments } = useEnvironments();
@@ -132,8 +129,6 @@ export function DraftProjectPicker({
         ) ?? null);
   const activeProjectKey = activeProjectGroup?.projectKey ?? "";
   const canChooseProject = projectPickerEntries.length > 0;
-  // The project that hosts threads without a project appears once, as the
-  // "No project" item, not as a project row.
   const menuEntries = projectPickerEntries.filter(
     ({ targetProject }) =>
       !isScratchProject(targetProject, scratchWorkspaceRootFor(targetProject.environmentId)),
@@ -153,20 +148,12 @@ export function DraftProjectPicker({
   const isScratchDraft =
     activeProject !== null && isScratchProject(activeProject, scratchWorkspaceRoot);
 
-  // The draft can move elsewhere while the no-project home is still being
-  // opened; a stale continuation must not retarget it again.
   const latestTargetRef = useRef({ draftId, activeProjectKey, scratchTargetEnvironmentId });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- publishes the committed draft target to a ref that async no-project continuations check for staleness
   useEffect(() => {
     latestTargetRef.current = { draftId, activeProjectKey, scratchTargetEnvironmentId };
   }, [activeProjectKey, scratchTargetEnvironmentId, draftId]);
-  // Project selection changes the target of the open draft in place. The
-  // prompt stays in the same composer session, so the sidebar only gets a
-  // draft row if the user later navigates away.
   const openProjectDraft = useNewThreadHandler();
-  // Each choice takes a new request, so one still waiting on its project's
-  // defaults or folder yields to a later choice, even one that keeps the
-  // current project.
   const moveRequestRef = useRef(0);
   const selectProject = (project: (typeof projects)[number], logicalProjectKey: string) => {
     if (!draftId) {
@@ -185,7 +172,6 @@ export function DraftProjectPicker({
       (environment) => environment.environmentId === project.environmentId,
     )?.serverConfig;
     void resolveNewDraftWorkspace(projectRef, serverConfig).then((workspace) => {
-      // A send that started meanwhile goes to the project still shown.
       if (moveRequestRef.current !== moveRequest || isSendInFlight()) {
         return;
       }
@@ -197,8 +183,6 @@ export function DraftProjectPicker({
       });
     });
   };
-  // Moves the draft to No project. Focus goes to the prompt unless the user has
-  // already moved it elsewhere while the folder was being prepared.
   const startScratch = async () => {
     const moveRequest = ++moveRequestRef.current;
     if (scratchTargetEnvironmentId === null || isScratchDraft) {
@@ -225,7 +209,6 @@ export function DraftProjectPicker({
 
   const noProjectItem =
     scratchWorkspaceRoot === null ? undefined : { value: NO_PROJECT_VALUE, label: "No project" };
-  // Pinning from a row keeps rows in place while the picker is open.
   const pickerItems = useOrderWhileOpen(
     [
       ...(noProjectItem ? [noProjectItem] : []),

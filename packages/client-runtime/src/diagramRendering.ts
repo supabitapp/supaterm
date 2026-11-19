@@ -7,7 +7,6 @@ import {
   type MathResolver,
 } from "@supaterm/mermaid/diagram";
 
-// Typeset and literal math labels lay out differently, so they never share a cache entry.
 const diagramKey = (source: string, options: DiagramOptions, math: MathResolver | undefined) =>
   JSON.stringify(
     math ? [source, diagramOptions(options), "math"] : [source, diagramOptions(options)],
@@ -96,7 +95,6 @@ export function createDiagramRenderer(
       void drain();
       return promise;
     },
-    /** A finished render for these inputs, so a remounted view can draw it in the same frame. */
     peek(source: string, options: DiagramOptions = {}, math?: MathResolver) {
       return cache.get(diagramKey(source, options, math))?.output;
     },

@@ -23,7 +23,6 @@ const FOLDED_SCRIPT_LINES = 10;
 
 export function useWorkflowOpening(environmentId: EnvironmentId, threadId: ThreadId) {
   const threadAtom = environmentThreadDetails.threadAtom(scopeThreadRef(environmentId, threadId));
-  // Selected as a primitive so an ordinary thread's updates never change the result.
   const parentId = useAtomValue(threadAtom, (thread) =>
     thread === null
       ? null
@@ -54,7 +53,6 @@ function memberRowSubagent(
   coordinatorThreadId: ThreadId,
 ) {
   return {
-    // A member's parent thread is the coordinator's thread, the one showing this opening.
     threadId: coordinatorThreadId,
     childThreadId: member.childThreadId as ThreadId | null,
     model: member.model,

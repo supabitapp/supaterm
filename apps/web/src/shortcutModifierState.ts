@@ -44,7 +44,6 @@ function createShortcutModifierStore(ignoreEditable: boolean) {
         : shortcutModifierStateAfterKeyboardEvent(state, event),
     );
   };
-  // Dictation tools can omit Meta keyup after synthetic paste, leaving jump hints stuck.
   const onResetEvent = () => {
     updateState(EMPTY_SHORTCUT_MODIFIER_STATE);
   };
@@ -121,7 +120,6 @@ export function shortcutModifierStateAfterKeyboardEvent(
       [normalizedModifierKey]: event.type === "keydown",
     };
   } else {
-    // Dictation paste can poison real events with metaKey=true until a physical Meta press.
     nextState = {
       metaKey: currentState.metaKey && event.metaKey,
       ctrlKey: currentState.ctrlKey && event.ctrlKey,

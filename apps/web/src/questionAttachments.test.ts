@@ -139,8 +139,6 @@ it("clears attachment drafts for requests the thread resolved, wherever they wer
     [userInputDraftKey(environmentId, threadId, resolved)]: { first: { customAnswer: "Sent" } },
   });
 
-  // The thread's projection synchronizes with only `pending` left, e.g. after
-  // `resolved` was answered on another device while no composer showed it.
   makeThreadRequestsResolvedAnnouncer(
     environmentId,
     threadId,
@@ -153,12 +151,10 @@ it("clears attachment drafts for requests the thread resolved, wherever they wer
   expect(store.getComposerDraft(drop)).toBeNull();
   expect(store.getComposerDraft(elsewhere)?.prompt).toBe("Answer context");
   expect(useQuestionAttachmentPreparation.getState().counts[drop]).toBeUndefined();
-  // An answered question's text was sent, so it does not come back as a draft.
   expect(store.getComposerDraft({ environmentId, threadId })).toBeNull();
   expect(usePendingUserInputAnswers.getState()).toEqual({});
 });
 
-// Stop cancels an open question; a provider timeout expires it. Neither sends the answer.
 it.each(["cancelled", "expired"] as const)(
   "returns typed answers and their thread chips to the thread draft when a question is %s",
   (status) => {

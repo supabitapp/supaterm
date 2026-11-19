@@ -2,7 +2,6 @@ import { closeHistory, isHistoryTransaction } from "@tiptap/pm/history";
 import type { Transaction } from "@tiptap/pm/state";
 import { ReplaceStep } from "@tiptap/pm/transform";
 
-// Whole-draft rewrites make all edits adjacent; explicit boundaries keep change kinds separate.
 export const COMPOSER_UNDO_GROUP_DELAY = 1000;
 
 export type ComposerChangeKind = "insert" | "delete" | "other";
@@ -22,7 +21,6 @@ function changeKindOf(tr: Transaction): ComposerChangeKind | null {
   const uiEvent = tr.getMeta("uiEvent");
   if (uiEvent === "paste" || uiEvent === "drop" || uiEvent === "cut") return "other";
   if (tr.getMeta(CLIPBOARD_EDIT_META) != null) return "other";
-  // IME input replaces its own range on each keystroke; it is still typing.
   if (tr.getMeta("composition") != null) return "insert";
   let kind: ComposerChangeKind | null = null;
   for (const step of tr.steps) {

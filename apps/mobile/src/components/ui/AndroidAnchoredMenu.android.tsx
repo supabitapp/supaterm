@@ -18,7 +18,6 @@ import { MenuPopup } from "./MenuPopup";
 const SCREEN_MARGIN = 12;
 const ANCHOR_GAP = 6;
 
-// Freeze both snapshots at opening so keyboard and screen reflows cannot flip menu direction.
 type AnchorSnapshot = {
   readonly x: number;
   readonly y: number;
@@ -73,7 +72,6 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
     if (anchor?.keyboardWasVisible) setClosing(true);
     else reset();
   }, [anchor, reset]);
-  // The in-window menu is pinned to the trigger's spot above the keyboard, which is stale once it hides.
   if (anchor?.keyboardWasVisible === true && !keyboardVisible) {
     reset();
   }
@@ -140,7 +138,6 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
           anchorY: local.y,
           anchorHeight: local.height,
           overlayHeight: overlay.height,
-          // This in-window menu preserves keyboard focus; subtract the IME area so its items remain tappable.
           keyboardInset: keyboardVisible ? keyboardHeight : 0,
           gap: ANCHOR_GAP,
           margin: SCREEN_MARGIN,
@@ -202,7 +199,6 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
             <Pressable accessible={false} className="absolute inset-0" onPress={close} />
             {local === null ? null : !anchor.keyboardWasVisible ? (
               <MenuPopup
-                // Compose aligns to the trigger's start if it fits; hinge-safe triggers keep menus on their side.
                 anchor={windowHinge ? { ...local, x: left, width: menuWidth } : local}
                 menuWidth={menuWidth}
                 actions={levelActions}
@@ -226,9 +222,6 @@ export function AndroidAnchoredMenu(props: AndroidAnchoredMenuProps) {
                   ...verticalPlacement,
                 }}
               >
-                {/* Compose DropdownMenu takes focus; in-window editor menus preserve the keyboard. */}
-
-                {/* The first item tap must act while the keyboard is open. */}
                 <ScrollView
                   contentContainerStyle={{ paddingVertical: 7 * scale }}
                   bounces={false}

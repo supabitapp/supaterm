@@ -8,7 +8,6 @@ import * as BitbucketPullRequestProvider from "./BitbucketPullRequestProvider.ts
 
 it.effect("pages through rows that share an update instant by excluding those already sent", () =>
   Effect.gen(function* () {
-    // Bitbucket stamps to the microsecond; 3 shares 1 and 2's millisecond but sorts after them.
     const boundary = "2026-10-12T00:00:00.000500+00:00";
     const sameMillisecond = "2026-10-12T00:00:00.000200+00:00";
     const older = "2026-10-11T00:00:00.000000+00:00";
@@ -76,7 +75,6 @@ it.effect("pages through rows that share an update instant by excluding those al
     );
     assert.isTrue(first.truncated);
 
-    // The cursor carries the instant cut to the millisecond, as the app normalizes it.
     const second = yield* list({
       updatedBefore: "2026-10-12T00:00:00.000Z",
       delivered: 2,

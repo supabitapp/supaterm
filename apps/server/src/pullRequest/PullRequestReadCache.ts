@@ -26,16 +26,9 @@ import { detachStackFrame } from "../git/detachStackFrame.ts";
 import { forkParked } from "../serverActivation.ts";
 
 const CONCURRENT_READS = 512;
-/** Invalidation excludes only reads whose scopes share its stripe, not every PR read. */
 const SCOPE_STRIPES = 64;
-// Entry filenames are the URI-encoded `<storeId>:<key>`; the scope revisions file has
-// no store id. Effect before 4.1 wrote `<storeId><key>`, still pruned here.
 const STORE_ID = "pr-v2";
 const ENTRY_FILE_NAME = new RegExp(`^${STORE_ID}(?:%3A)?[0-9a-f]{64}$`);
-/**
- * A file untouched for a day is long expired; the day only leaves slack for
- * clock changes.
- */
 const ENTRY_FILE_MAX_AGE = Duration.days(1);
 type ReadError = PullRequestOperationError | PullRequestUnavailableError;
 const revisionCodec = Schema.fromJsonString(
@@ -102,7 +95,6 @@ export const make = Effect.gen(function* () {
         Effect.flatMap((raw) => Schema.decodeEffect(revisionCodec)(raw ?? "{}")),
         Effect.catchTags({
           SchemaError: Effect.fn("PullRequestReadCache.recoverRevisions")(function* () {
-            // Without scope revisions, persisted PR entries cannot be trusted.
             yield* backing.clear;
             yield* Effect.logWarning("PR cache reset after invalid scope revisions");
             return yield* Schema.decodeEffect(revisionCodec)("{}");
@@ -143,8 +135,6 @@ export const make = Effect.gen(function* () {
     }),
     { capacity: CONCURRENT_READS, timeToLive: () => Duration.zero },
   );
-  // A cache entry keeps the fiber that filled it, whose lazy stack frames would keep the caller's
-  // data (e.g. a whole sync sweep) alive until eviction.
   return PullRequestReadCache.of({
     get: Effect.fn("PullRequestReadCache.get")(function* (key, lookup, scopes = []) {
       if (!enabled) return yield* lookup;
@@ -169,8 +159,6 @@ export const make = Effect.gen(function* () {
           PersistenceError: () => read,
           SchemaError: () => read,
         }),
-        // A read stores its result under the revisions it started with, so an invalidation of
-        // one of its scopes must wait for it; reads of other scopes run on.
         (effect) =>
           [...new Set(scopes.map(stripeOf))]
             .toSorted((left, right) => left - right)
@@ -241,7 +229,6 @@ export const layer = Layer.unwrap(
     const directory = path.join(config.providerStatusCacheDir, "pull-requests");
     return Layer.effect(PullRequestReadCache, make).pipe(
       Layer.provide(
-        // Memoize cleanup acquisition with the store; Layer.tap runs per consumer.
         Layer.effectDiscard(
           forkParked(
             pruneExpiredEntryFiles(directory).pipe(

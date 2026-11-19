@@ -734,7 +734,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("EnvironmentAuth.
       const mediaOnRpc = yield* Effect.flip(upgrade(Redacted.value(media.ticket), "rpc"));
       expect(mediaOnRpc._tag).toBe("ServerAuthInvalidCredentialError");
 
-      // Clients that predate ticket audiences, and the relay tunnel, mint at the bare path.
       const legacy = yield* serverAuth.issueWebSocketTicket(bearer);
       expect((yield* upgrade(Redacted.value(legacy.ticket), "rpc")).sessionId).toBe(
         bearer.sessionId,

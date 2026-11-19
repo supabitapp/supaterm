@@ -9,7 +9,6 @@ export type { KeyboardSheetBodyProps } from "./KeyboardSheetBody.types";
 /** A sheet's body that stays above the keyboard, with its toolbar between the two. */
 export function KeyboardSheetBody(props: KeyboardSheetBodyProps) {
   const insets = useSafeAreaInsets();
-  // The sheet's glass bar floats over its content, and only scroll views inset for it on their own.
   const barOverlap = useBarOverlap();
   return (
     <KeyboardAvoidingView automaticOffset behavior="padding" className="flex-1">

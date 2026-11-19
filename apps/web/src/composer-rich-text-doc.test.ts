@@ -92,7 +92,6 @@ const schema = getSchemaByResolvedExtensions(
 function roundTrip(value: string) {
   const json = buildDocJson(value, (name) => ({ label: name, description: null }));
   const doc = ProseMirrorNode.fromJSON(schema, json);
-  // `insertContent` validates every node against the schema; `fromJSON` does not.
   doc.check();
   return serializeEditorDoc(doc);
 }
@@ -165,8 +164,6 @@ describe("editable math source", () => {
   });
 });
 
-// Plain mode: the same engine with the mark extensions off. Markers stay
-// literal characters and task lines stay paragraphs.
 const plainSchema = getSchemaByResolvedExtensions(
   resolveExtensions([
     StarterKit.configure({
@@ -643,7 +640,6 @@ describe("composer rich text document model", () => {
       for (let flat = 0; flat <= map.docLength; flat += 1) {
         expect(markdownToFlat(map, flatToMarkdown(map, flat))).toBe(flat);
       }
-      // The blank line is not a place to type: it clamps to the rule.
       expect(flatToMarkdown(map, "text".length)).toBe("text".length);
       expect(markdownToFlat(map, "text\n".length)).toBe("text".length + 1);
       expect(flatToMarkdown(map, "text".length + 1)).toBe("text\n\n---".length);
@@ -954,7 +950,6 @@ describe("composer rich text document model", () => {
     for (let flat = 0; flat <= map.docLength; flat += 1) {
       expect(markdownToFlat(map, flatToMarkdown(map, flat))).toBe(flat);
     }
-    // Reconciling against the provider's skills leaves the code alone too.
     expect(skillChipReplacements(doc, known)).toEqual([]);
   });
 
@@ -1239,7 +1234,6 @@ describe("inline code entry", () => {
       ],
       content: { type: "doc", content: [{ type: block }] },
     });
-    // Unmounted editors need the same plugins that Tiptap installs on mount.
     editor.view.updateState(editor.state.reconfigure({ plugins: editor.extensionManager.plugins }));
     if (mark) editor.commands.setMark(mark);
     onTestFinished(() => editor.destroy());
@@ -1440,7 +1434,6 @@ describe("inline code entry", () => {
     editor.commands.setTextSelection(caret);
     type(editor, "literal");
     const before = editor.state.doc.toJSON();
-    // Visit both the gap between closing ticks and the end of the pair.
     editor.commands.setTextSelection(caret + "literal".length + 1);
     expect(editor.state.doc.toJSON()).toEqual(before);
     editor.commands.setTextSelection(editor.state.doc.content.size - 1);
@@ -1457,7 +1450,6 @@ describe("inline code entry", () => {
     return text;
   }
 
-  /** Types `text` into a backtick pair and steps the caret out so it formats. */
   function typeCode(editor: Editor, text: string) {
     const offset = editor.state.selection.from;
     type(editor, "``");

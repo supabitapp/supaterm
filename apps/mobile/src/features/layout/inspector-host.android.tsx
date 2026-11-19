@@ -10,7 +10,6 @@ import {
   type InspectorPane,
 } from "./inspector-panes";
 
-// AppBar draws the bar inline on Android; the slot keeps a pane's options off the thread's route.
 function PaneContent(props: {
   readonly pane: InspectorPane;
   readonly resetKeys: ReadonlyArray<unknown> | undefined;
@@ -53,7 +52,6 @@ export function InspectorPanes(props: {
                   position: "absolute",
                   inset: 0,
                   opacity: visible ? 1 : 0,
-                  // A lower zIndex puts the visible pane first in native order, where Material finds its scroll view.
                   zIndex: visible ? 0 : 1,
                 }}
               >

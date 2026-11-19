@@ -41,7 +41,6 @@ const makeHarness = Effect.fn("test.makeCodexInstallation")(function* (
     platform?: NodeJS.Platform;
     spawner?: ChildProcessSpawner.ChildProcessSpawner["Service"];
     runtimeRenameFailures?: number;
-    /** Served by URL instead of the pinned package. */
     responses?: Readonly<Record<string, () => Response>>;
   } = {},
 ) {
@@ -66,7 +65,6 @@ const makeHarness = Effect.fn("test.makeCodexInstallation")(function* (
   const failedRenames = yield* Queue.unbounded<void>();
   const lockingFs: FileSystem.FileSystem = {
     ...fs,
-    // Suspended so each retry of the same effect is a fresh attempt, like the real rename.
     rename: (from, to) =>
       Effect.suspend(() =>
         /[/\\]runtime$/u.test(from) && runtimeRenameFailures-- > 0
@@ -622,7 +620,6 @@ it.effect("updates a managed install to OpenAI's newest release and never downgr
     );
     const h = yield* makeHarness({ responses: upstreamResponses(checksum) });
     yield* h.installation.checkForUpdate;
-    // A fresh install still gets the pinned release.
     expect((yield* h.installation.state).version).toBe("0.156.1");
     yield* h.installation.start;
     expect(yield* terminalState(h.installation)).toMatchObject({
@@ -639,7 +636,6 @@ it.effect("updates a managed install to OpenAI's newest release and never downgr
     });
     expect((yield* h.installation.resolve()).version).toBe(upstreamVersion);
 
-    // Without upstream information the older pin is not offered as a reinstall.
     const restarted = yield* makeHarness({ baseDir: h.baseDir });
     expect(yield* restarted.installation.state).toMatchObject({
       installedVersion: upstreamVersion,

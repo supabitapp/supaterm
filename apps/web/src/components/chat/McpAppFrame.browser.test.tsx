@@ -5,8 +5,6 @@ import { userEvent } from "vite-plus/test/browser";
 import "~/index.css";
 import { act, fakeTimers, render } from "../../../test/render";
 
-// Asks to close twice when told to, and answers only the first teardown, so
-// the second one is left to finish on the host's timeout.
 const APP_HTML = `<script>
 let answered = false;
 addEventListener("message", (event) => {

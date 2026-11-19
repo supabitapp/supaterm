@@ -1,4 +1,3 @@
-// Embedded so desktop bundles and standalone executables carry the same skills.
 export const ORCHESTRATION_SKILLS = [
   {
     name: "supaterm-commitee",

@@ -246,7 +246,6 @@ it.effect("installs the build the update action downloaded, not the one it offer
               subscribe: Effect.succeed({ latest: offered, changes: Stream.empty }),
               check: () => Effect.void,
               getState: Effect.succeed(offered),
-              // A release published since the offer: the download fetches it instead.
               download: Effect.succeed({
                 accepted: true,
                 completed: true,

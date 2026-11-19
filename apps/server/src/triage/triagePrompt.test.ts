@@ -12,7 +12,6 @@ import {
 } from "./triagePrompt.ts";
 
 it("stays byte-identical to .github/triage/PLAYBOOK.md", () => {
-  // Older releases fetch the repository playbook.
   const canonicalPath = NodePath.join(
     import.meta.dirname,
     "../../../../.github/triage/PLAYBOOK.md",
@@ -21,7 +20,6 @@ it("stays byte-identical to .github/triage/PLAYBOOK.md", () => {
 });
 
 it("launch prompt stays a single argv-safe line naming the prompt file", () => {
-  // Windows .cmd shims cannot carry multiline argv.
   const launch = buildTriageLaunchPrompt(
     String.raw`C:\Users\a b\.supaterm\userdata\triage\x\prompt.md`,
   );

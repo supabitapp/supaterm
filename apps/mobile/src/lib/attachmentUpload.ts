@@ -44,7 +44,6 @@ export function withUploadedMobileAttachmentReferences(input: {
 }): ReadonlyArray<DraftComposerAttachment> {
   return input.attachments.map((attachment, index) => {
     const uploaded = input.uploadedAttachments[index];
-    // Files-picked images upload as images; compare wire types to retain uploaded ids and avoid re-uploading.
     const uploadedAs = isComposerImageAttachment(attachment) ? "image" : attachment.type;
     if (
       !uploaded ||
@@ -118,7 +117,6 @@ export type PrepareTurnAttachmentsResult =
   | PreparedTurnAttachments
   | { readonly status: "abandoned" };
 
-/** Promote Files-picked images consistently in headers, payloads and references or ChatImageAttachment rejects them. */
 function composerAttachmentWireMimeType(attachment: DraftComposerAttachment): string {
   if (!isComposerImageAttachment(attachment)) return attachment.mimeType;
   return supportedImageWireMimeType(attachment);
@@ -196,7 +194,6 @@ async function uploadFileBytes(
       signal,
       ...(onProgress
         ? {
-            // Native events carry Int64 counts, which expo-modules-jsi delivers as BigInt despite the `number` type.
             onProgress: ({ bytesSent, totalBytes }) => {
               const total = Number(totalBytes);
               if (total > 0) onProgress(Number(bytesSent) / total);
@@ -264,7 +261,6 @@ export const uploadComposerAttachment = Effect.fn("uploadComposerAttachment")(fu
     remove: attachmentEnvironment.remove,
     environmentId,
     upload: attachmentUploadInput(attachment),
-    // Resolve at transfer time; reconnects may change the base URL.
     resolveUploadUrl: (relativeUrl) => {
       if (!readEnvironmentScope(environmentId, AuthOrchestrationOperateScope)) return null;
       const connection = appAtomRegistry.get(

@@ -40,7 +40,6 @@ describe("readGtkPrimaryPasteEnabled", () => {
     Effect.gen(function* () {
       assert.isFalse(yield* read(spawnerWithStdout(Stream.make(encoder.encode("false\n")))));
       assert.isTrue(yield* read(spawnerWithStdout(Stream.make(encoder.encode("true\n")))));
-      // A missing schema prints nothing on stdout.
       assert.isTrue(yield* read(spawnerWithStdout(Stream.empty)));
     }),
   );

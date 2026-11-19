@@ -163,10 +163,6 @@ export function appendReviewCommentToDraft(input: {
   }
 }
 
-/**
- * Resolved per call rather than captured, so a callback created before the
- * edit began still writes to the right place.
- */
 function activeComposerDraftKey(thread: {
   readonly environmentId: EnvironmentId;
   readonly id: ThreadId;
@@ -226,7 +222,6 @@ export function useThreadComposerState() {
         (message) => message.creation === undefined,
       )
     : [];
-  // The thread sends one message at a time, the head of its queue.
   const dispatchingQueuedMessageId =
     selectedThreadQueuedMessages.find((message) => dispatchingQueuedMessageIds[message.messageId])
       ?.messageId ?? null;
@@ -253,10 +248,6 @@ export function useThreadComposerState() {
       ? EMPTY_CHECKPOINT_SUMMARIES_ATOM
       : environmentThreadDetails.checkpointSummariesAtom(selectedThreadRef),
   );
-  // A thread whose creation has not delivered its turn yet: the prompt only
-  // exists in the outbox, so it is appended to whatever the server has. The
-  // detail is usually present but empty during a worktree checkout, so this
-  // cannot be an either/or with the loaded messages.
   const pendingCreationMessage = selectedThreadCreation?.message ?? null;
   const [feedCache] = useState(createThreadFeedCache);
   const selectedThreadFeed = (() => {
@@ -457,7 +448,6 @@ export function useThreadComposerState() {
       );
       return;
     }
-    // A queued message stays in its thread, so saving `/side` would send it to main.
     if (parseSideChatCommand(text)) {
       Dialog.alert(
         "Queued message not updated",
@@ -518,7 +508,6 @@ export function useThreadComposerState() {
     savingQueuedEditRef.current = false;
     setIsSavingQueuedEdit(false);
     if (result._tag !== "Success") {
-      // The run left the queue during the save; its exit already told the composer what happened.
       if (!finishSave(false)) return;
       Dialog.alert(
         "Could not save the queued message",
@@ -526,7 +515,6 @@ export function useThreadComposerState() {
       );
       return;
     }
-    // False when the edit was cancelled or begun again meanwhile; its draft is the newer edit's.
     if (finishSave(true)) {
       clearComposerDraft(queuedEditDraftKey(threadKey, edit.runId), {
         deferAttachmentCleanup: true,
@@ -535,7 +523,6 @@ export function useThreadComposerState() {
     scheduleUnusedComposerAttachmentCleanup(draft.attachments);
   };
 
-  // Resolved at send, not drain: the outbox can deliver minutes later.
   const resolveFollowUpDispatchMode = (
     activeTurnDefault: FollowUpBehavior,
     followUpOverride?: ActiveTurnComposerAction,
@@ -545,10 +532,6 @@ export function useThreadComposerState() {
       alternateModifier: followUpOverride !== undefined && followUpOverride !== activeTurnDefault,
       activeTurnDefault,
     });
-    // A send while the thread is still being created or its worktree set up
-    // waits behind that work, so the server can hold it if the setup ends
-    // without a worktree. Before detail loads, the shell's latest run can be
-    // a queued follow-up while its runtime still reports the setup.
     const setupRunning =
       selectedThreadCreation !== null ||
       [selectedThreadActivityRun?.status, selectedThreadRuntime?.status].some(
@@ -557,7 +540,6 @@ export function useThreadComposerState() {
     return outboxFollowUpDispatchMode({ followUpAction, setupRunning, deferredSteering });
   };
 
-  /** Queues a recording as the message; it is moved into the outbox before it shows as queued. */
   const onSendVoiceMessage = async (
     recordingUri: string,
     language: string,
@@ -629,8 +611,6 @@ export function useThreadComposerState() {
     if (!selectedThreadShell) {
       return null;
     }
-    // A rejected creation never made the thread; its failure card owns the
-    // next step. A pending one takes follow-ups queued behind it.
     if (selectedThreadCreation?.outcome?.kind === "failed") {
       return null;
     }
@@ -660,7 +640,6 @@ export function useThreadComposerState() {
     if (text.length === 0 && attachments.length === 0) {
       return null;
     }
-    // A redirect's text answers its approval, so /clear there is that text, not the command.
     if (
       beforeDispatch === undefined &&
       selectedEnvironmentRuntime?.serverConfig?.environment.capabilities.freshContext === true &&
@@ -673,10 +652,6 @@ export function useThreadComposerState() {
       clearComposerDraftContent(threadKey);
       return null;
     }
-    // A send-failure restore appends with restore: true so it never drops the
-    // user's files, which can leave the draft over the cap. Sending it anyway
-    // would enqueue a message that outbox recovery rejects forever, so block
-    // here until the user removes attachments.
     if (attachments.length > PROVIDER_SEND_TURN_MAX_ATTACHMENTS) {
       Dialog.alert(
         "Too many attachments",
@@ -754,8 +729,6 @@ export function useThreadComposerState() {
         attachments.length > 0 || draft.context !== undefined,
       );
       if (!response) return null;
-      // A context paste still landing, or any draft or settings change while approvals were
-      // declined, means this snapshot is no longer what the user sent.
       if (appAtomRegistry.get(composerContextImportsAtom)[threadKey]) return null;
       const current = getComposerDraftSnapshot(threadKey);
       if (
@@ -773,13 +746,11 @@ export function useThreadComposerState() {
       }
     }
 
-    // A redirect declined approvals to steer the waiting turn, not to queue behind it.
     const followUpDispatchMode = resolveFollowUpDispatchMode(
       beforeDispatch !== undefined ? "steer" : followUpBehavior,
       followUpOverride,
     );
 
-    // A redirect belongs to the approval it answers; the armed session waits for the next message.
     const freshContext = beforeDispatch === undefined && isFreshSessionPending(threadKey);
     const metadata = makeQueuedMessageMetadata();
     const messageId = MessageId.make(metadata.messageId);
@@ -805,10 +776,6 @@ export function useThreadComposerState() {
     enqueuePromise.then(
       () => scheduleUnusedComposerAttachmentCleanup(attachments),
       (error: unknown) => {
-        // Restore text via merge (idempotent) but attachments via the uncapped
-        // append: the merge path slots existing attachments first and truncates
-        // at the send limit, which would silently drop this message's images if
-        // the user attached new ones while the write was in flight.
         void mergeComposerDraftContent(threadKey, {
           text,
           context: draft.context,

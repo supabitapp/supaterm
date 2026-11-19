@@ -28,7 +28,6 @@ import { SkillChipIcon } from "./SkillInlineText";
 
 type Theme = "light" | "dark";
 
-// Upload progress and PR state stay with the editor, so the row shows each reference by kind.
 const CONTEXT_REFERENCE_ICONS: Record<
   ComposerDraftContextRecord["kind"],
   (label: string, theme: Theme) => ReactElement
@@ -42,7 +41,6 @@ const CONTEXT_REFERENCE_ICONS: Record<
   model: () => <BotIcon />,
 };
 
-// Mirrors the editor's chip: only a draft record of the same kind resolves a reference.
 function resolvedContextRecord(
   records: ComposerDraftContextRecords,
   kind: string,

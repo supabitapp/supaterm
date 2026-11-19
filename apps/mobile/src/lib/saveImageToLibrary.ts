@@ -7,7 +7,6 @@ function baseMimeType(mimeType: string): string {
   return mimeType.split(";", 1)[0]?.trim() ?? "";
 }
 
-// Android 9 and older need a storage permission to add photos, so they keep the share sheet.
 export function canSaveImageToLibrary(mimeType: string): boolean {
   return (
     SAVABLE_IMAGE_MIME_TYPE.test(baseMimeType(mimeType)) &&

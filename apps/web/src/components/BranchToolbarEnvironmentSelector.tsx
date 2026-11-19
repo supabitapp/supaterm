@@ -39,7 +39,6 @@ interface BranchToolbarEnvironmentSelectorProps {
   onAddToMachine?: (() => void) | undefined;
 }
 
-// Action values cannot collide with server-minted environment IDs.
 const AUTO_VALUE = "action:auto";
 const ADD_MACHINE_VALUE = "action:add-machine";
 const environmentValue = (id: EnvironmentId) => `env:${id}`;
@@ -103,8 +102,6 @@ export const BranchToolbarEnvironmentSelector = memo(function BranchToolbarEnvir
     },
   });
 
-  // The static label carries the xs control's height: the context strip has no min-height and the
-  // glass seam joining it to the composer assumes a fixed strip height.
   if (!interactive) {
     const lockedRow = (
       <span

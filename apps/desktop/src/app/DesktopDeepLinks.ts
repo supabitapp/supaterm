@@ -56,7 +56,6 @@ export const make = Effect.gen(function* () {
     yield* electronApp.quit;
     return yield* Effect.interrupt;
   }
-  // Chromium opens these caches at the first event-loop turn, before ready. Plain Node has none.
   if (process.versions.electron) {
     yield* DesktopUserData.clearStaleGpuCaches({
       userDataPath: DesktopUserData.userDataPath(environment),

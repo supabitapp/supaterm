@@ -1,5 +1,3 @@
-// Formatters pin the default zone when built, and Hermes keeps Date's local offset until a cold
-// start (react/react-native#59131), so formatting and day checks follow the zone Intl reports.
 function buildFormatters(timeZone: string) {
   return {
     timeZone,
@@ -15,7 +13,6 @@ function buildFormatters(timeZone: string) {
   };
 }
 
-// Reading the zone builds a formatter (tens of µs), so feed rows share one read per second.
 const ZONE_RECHECK_MS = 1_000;
 let formatters: ReturnType<typeof buildFormatters> | null = null;
 let zoneCheckedAt = 0;

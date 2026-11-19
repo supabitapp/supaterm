@@ -56,7 +56,6 @@ const makeClient = (host: FakeLauncherProcess, currentVersion: string) =>
     Effect.provide(NodeServices.layer),
   );
 
-// regression: #34502 a remote update never replaces the launcher, so an installed one stays protocol 3
 it.effect.each([3, SERVICE_LAUNCHER_PROTOCOL])(
   "waits for a protocol-%i launcher to durably commit the trial update ID, then moves owned launchers",
   (protocol) =>
@@ -101,7 +100,6 @@ it.effect.each([3, SERVICE_LAUNCHER_PROTOCOL])(
       expect(yield* Fiber.join(prepared)).toEqual(committed);
       assert.equal(yield* fs.readFileString(installed), posixLauncherScript(exe("1.1.0")));
 
-      // A later start replays the stored outcome; user pins made since then stay put.
       yield* fs.remove(installed);
       yield* fs.symlink(exe("1.0.0"), installed);
       const restarted = new FakeLauncherProcess({
@@ -220,7 +218,6 @@ it.layer(NodeServices.layer)("self-update launchers", (it) => {
           }),
         );
 
-        // The script is rewritten and the legacy symlink becomes one.
         assert.equal(yield* fs.readFileString(installed), posixLauncherScript(exe("2.0.0")));
         assert.equal(yield* fs.readFileString(onPath), posixLauncherScript(exe("2.0.0")));
       }).pipe(Effect.provideService(HostProcess.Platform, "linux")),

@@ -66,7 +66,6 @@ async function resolvePreviewUri(
       throw new PreviewResolutionError(error, "Attach the file again and retry.");
     });
   }
-  // Refresh expired URLs before handing them to Quick Look or ACTION_VIEW, which retain them.
   const url = await refreshAssetUrl(item.environmentId, item.resource, signal)
     .then((value) => {
       if (!value) throw new Error("Reconnect to this environment and try again.");
@@ -78,7 +77,6 @@ async function resolvePreviewUri(
   return { uri: url + (item.srcFragment ?? "") };
 }
 
-// Shares from the unresolved item so remote URLs refresh and draft files take their own lease.
 function pdfActionsSource(item: FilePreviewItem): MediaActionsSource {
   const metadata = {
     name: filePreviewName(item),
@@ -99,12 +97,10 @@ function ResolvedFilePreview(
   },
 ) {
   const { progressiveGallery, Viewer } = props;
-  // Freeze the group at opening; streaming messages and URL refreshes must not reopen the viewer.
   const [items] = useState(() => filePreviewGallery(props.source, []));
   const selectedIndex = items.findIndex(
     (item) => filePreviewKey(item) === filePreviewKey(props.source),
   );
-  // Undefined while resolving, null once it cannot be.
   const [uris, setUris] = useState<readonly (string | null | undefined)[]>(() =>
     items.map((item) => ("uri" in item ? item.uri : undefined)),
   );
@@ -117,7 +113,6 @@ function ResolvedFilePreview(
     else Dialog.alert("Could not open preview", failure.fallbackMessage);
     props.onRequestClose();
   });
-  // A sibling that cannot resolve only loses its own page; the selected item closes the preview.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- resolves the frozen gallery once per presentation and holds its local file leases until it closes
   useEffect(() => {
     const controller = new AbortController();
@@ -168,7 +163,6 @@ function ResolvedFilePreview(
         />
       );
     }
-    // A viewer that resets image gestures when its sources change waits for every image.
     if (uris.some((uri) => uri === undefined) || uris[selectedIndex] === null) return null;
     const shown = images.filter((_, index) => uris[index] !== null);
     return (
@@ -240,9 +234,6 @@ export function FilePreviewSession(props: FilePreviewModalProps & FilePreviewSes
       ? null
       : { ...props.source, gallery: filePreviewGallery(props.source, group) };
   usePreviewPresentation(source && filePreviewKey(source), props.onRequestClose);
-  // A tap can land after the native viewer closed but before its close reached the caller, which
-  // still holds the same item; that tap only opens a new viewer under a new key.
-  // Only a viewer that presented and has since closed reopens; one still resolving never does.
   const [opening, setOpening] = useState<{
     readonly source: FilePreviewModalProps["source"];
     readonly count: number;

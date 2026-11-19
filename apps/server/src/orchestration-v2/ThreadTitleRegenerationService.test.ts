@@ -169,7 +169,6 @@ function dispatchUserMessage(input: {
   });
 }
 
-/** Records a settled source run with one exchange, as a provider turn would. */
 function recordRun(input: {
   readonly threadId: ThreadId;
   readonly runId: RunId;
@@ -273,7 +272,6 @@ function armRegeneration(input: { readonly command: string; readonly threadId: T
   });
 }
 
-/** Forks a source thread at its middle run, between a rolled-back run and later work. */
 function forkSeededSource(prefix: string, sideChat = false, rollbackPriorRun = true) {
   return Effect.gen(function* () {
     const threads = yield* ThreadManagement.ThreadManagementService;
@@ -341,7 +339,6 @@ describe("ThreadTitleRegenerationService", () => {
       yield* Effect.gen(function* () {
         const threads = yield* ThreadManagement.ThreadManagementService;
         const outbox = yield* EffectOutbox.EffectOutboxV2;
-        // An MCP launch names the thread, or leaves a placeholder, and sends no message.
         for (const [key, title, expectedTitle, generates] of [
           ["preset", "[API] #4821 — retry webhook deliveries after a timeout", undefined, false],
           ["placeholder", placeholderThreadTitle("Parent", 0), seed, true],

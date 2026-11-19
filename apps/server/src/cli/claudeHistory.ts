@@ -9,7 +9,6 @@ export const claudeHistoryCommand = Command.make("__claude-history", {
 }).pipe(
   Command.unlisted,
   Command.withHandler(({ method, sessionId, options }) =>
-    // Two effects, so an interrupt during the import never starts the worker.
     Effect.promise(() => import("../claudeHistoryWorker.ts")).pipe(
       Effect.flatMap(({ runClaudeHistoryWorker }) =>
         Effect.promise(() =>

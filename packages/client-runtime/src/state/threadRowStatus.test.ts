@@ -121,7 +121,6 @@ describe("resolveThreadRowShownStatus", () => {
     expect(resolveThreadRowStatus(failed)).toBe("failed");
     expect(resolveThreadRowShownStatus(failed)).toBe("ready");
     expect(resolveThreadRowShownStatus({ ...failed, lastVisitedAt: null })).toBe("failed");
-    // A runtime failure without a failed run has no date, so a visit cannot settle it.
     expect(resolveThreadRowShownStatus({ ...failed, latestRun: null })).toBe("failed");
   });
 });

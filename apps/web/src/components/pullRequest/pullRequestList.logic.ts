@@ -125,12 +125,6 @@ export function collectPullRequestListFacets(
   };
 }
 
-/**
- * What a filter picker offers for `query`: the loaded rows that match keep their counts and lead,
- * then whatever the host found that no loaded row carries, so a name nobody has loaded yet is
- * still one search away.
- */
-/** How many loaded matches come before the host's answers. */
 const HOSTED_CHOICE_ROOM = 15;
 
 export function pullRequestAuthorChoices(
@@ -154,7 +148,6 @@ export function pullRequestAuthorChoices(
     seen.add(key);
     added.push(known.get(key) ?? { actor, count: 0, mergedCount: 0 });
   }
-  // The picker shows a short list, and loaded matches alone could fill it.
   return [...loaded.slice(0, HOSTED_CHOICE_ROOM), ...added, ...loaded.slice(HOSTED_CHOICE_ROOM)];
 }
 
@@ -453,7 +446,6 @@ export function partitionPullRequestsWithPriority<Entry extends PullRequestListE
   authored: ReadonlyArray<Entry>,
   reviewRequested: ReadonlyArray<Entry>,
 ): ReadonlyArray<PullRequestGroup<Entry>> {
-  // Matched by URL: each list may hold the pull request under a different environment.
   const authoredByKey = new Map(authored.map((entry) => [entry.url, entry]));
   const reviewByKey = new Map(
     reviewRequested.flatMap((entry) =>
@@ -562,7 +554,6 @@ export function mergePullRequestLists(
     }
     for (const entry of answer.entries) {
       const held = entries.get(entry.url);
-      // The first environment to answer keeps a pull request that several of them read.
       if (
         held === undefined ||
         (held.environmentId === environmentId && entry.updatedAt > held.updatedAt)
@@ -1008,7 +999,6 @@ export function findProjectForRepository<
       sourceControlClients.changeRequestHost(identity, identity.provider) === host
     );
   });
-  // Azure repository names can collide across projects on the same host.
   const scoped = findScopedProject(candidates, input.scopedEnvironmentId, input.scopedProjectId);
   return scoped ?? candidates[0];
 }

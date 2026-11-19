@@ -217,8 +217,6 @@ export const makeConnection = Effect.fnUntraced(function* (
     string,
     { readonly method: string; readonly response: Deferred.Deferred<ResponseBody> }
   >();
-  // Another host app on the keyboard sees our replies and we see its; a random
-  // start keeps both from counting up through the same ids.
   let previousId = yield* Random.nextIntBetween(0, REQUEST_ID_RANGE, { halfOpen: true });
 
   handle.onData((report) => {
@@ -277,14 +275,11 @@ export const makeConnection = Effect.fnUntraced(function* (
     }).pipe(Effect.ensuring(Effect.sync(() => pending.delete(key))));
   });
 
-  // The permit is held through the post-request gap so the next request waits
-  // for it, without delaying the caller that already has its answer.
   const paced = (method: string, params: unknown) =>
     Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
         yield* restore(permits.take(1));
         const exit = yield* Effect.exit(restore(exchange(method, params)));
-        // A fiber forked into a closed scope never starts, so it would never release the permit.
         if (scope.state._tag === "Closed") {
           yield* permits.release(1);
         } else {
@@ -333,7 +328,6 @@ export class CodexMicroTransport extends Context.Service<
 
 const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
-  // node-hid is a native addon; it loads only once the feature is in use.
   let binding: Promise<typeof NodeHid> | undefined;
   const loadBinding = Effect.suspend(() => {
     const loading = (binding ??= import("node-hid"));
@@ -352,7 +346,6 @@ const make = Effect.gen(function* () {
   const discover = Effect.gen(function* () {
     const hid = yield* loadBinding;
     const devices = yield* Effect.tryPromise({
-      // A product id of 0 matches every product from the vendor.
       try: () => hid.devicesAsync(CODEX_MICRO_VENDOR_ID, 0),
       catch: (cause) => new CodexMicroDiscoveryError({ cause }),
     });
@@ -365,15 +358,11 @@ const make = Effect.gen(function* () {
     const hid = yield* loadBinding.pipe(
       Effect.mapError((error) => new CodexMicroConnectError({ cause: error })),
     );
-    // Linux hidraw nodes are root-only unless a udev rule grants access to
-    // vendor 303a, so this open is where a missing rule surfaces.
     const handle = yield* Effect.acquireRelease(
       Effect.tryPromise({
         try: () =>
           hid.HIDAsync.open(
             device.path,
-            // hidapi opens macOS interfaces exclusively by default, which would
-            // lock every other app out of the keyboard's vendor interface.
             platform === "darwin" ? { nonExclusive: true } : undefined,
           ),
         catch: (cause) => new CodexMicroConnectError({ cause }),

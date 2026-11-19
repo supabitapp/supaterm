@@ -285,7 +285,6 @@ export function shouldShowThreadJumpHintsForModifiers(
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
 ): boolean {
-  // Holding a modifier is routine in a shell (Ctrl+C, Ctrl+R), so don't flash hints over it.
   if (resolveContext(options).terminalFocus) {
     return false;
   }

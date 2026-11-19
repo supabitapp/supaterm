@@ -125,7 +125,6 @@ it.effect.each([
         canonicalKey: normalizeGitRemoteUrl(remoteUrl),
         locator: { source: "git-remote" as const, remoteName: "upstream", remoteUrl },
         rootPath: "/repo",
-        // Only a remote no host recognised is left for glab to refine.
         provider: SourceControlProviderKind.make(
           expectedProvider === "github" ? "github" : "unknown",
         ),

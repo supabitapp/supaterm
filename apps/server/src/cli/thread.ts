@@ -30,10 +30,6 @@ import {
   withServerTools,
 } from "./serverTools.ts";
 
-/**
- * Short enough that a run which stops to ask the user something is noticed
- * soon, since `supaterm_thread_wait` only returns on a terminal run.
- */
 const WAIT_SLICE_MS = 15_000;
 const WAKE_GRACE_MS = 10_000;
 const WAKE_POLL_MS = 500;
@@ -116,7 +112,6 @@ const readMessageArgument = Effect.fn("cli.thread.readMessage")(function* (argum
   return text;
 });
 
-/** Every item on a timeline view, oldest first. */
 const readTimeline = Effect.fn("cli.thread.readTimeline")(function* (
   tools: ServerTools,
   threadId: ThreadId,
@@ -160,8 +155,6 @@ export const readLatestMessages = Effect.fn("cli.thread.readLatestMessages")(fun
     OrchestratorMcpThreadReadResult,
   );
   let messages: Array<OrchestratorMcpThreadTimelineItem> = [];
-  // The newest window has no upper bound, so items added since the first
-  // read are still shown.
   let before: number | undefined;
   let start = thread.itemCount;
   let span = Math.max(count, READ_PAGE_LIMIT);
@@ -194,7 +187,6 @@ export const readLatestMessages = Effect.fn("cli.thread.readLatestMessages")(fun
       afterPosition = page.nextPosition ?? Number.POSITIVE_INFINITY;
     } while (page.hasMore && afterPosition < (end ?? Number.POSITIVE_INFINITY) - 1);
     thread = page.thread;
-    // A window can hold the whole --messages count, too many to spread as arguments.
     messages = window.concat(messages);
     before = start;
     span *= 2;
@@ -202,7 +194,6 @@ export const readLatestMessages = Effect.fn("cli.thread.readLatestMessages")(fun
   return { thread, messages: messages.slice(Math.max(0, messages.length - count)) };
 });
 
-/** Item text past the read's per-item cap. */
 const readFullText = Effect.fn("cli.thread.readFullText")(function* (
   tools: ServerTools,
   threadId: ThreadId,
@@ -230,7 +221,6 @@ const readFullText = Effect.fn("cli.thread.readFullText")(function* (
   return text;
 });
 
-/** The run's last assistant message, or its last error when it did not complete. */
 const runResultText = Effect.fn("cli.thread.runResultText")(function* (
   tools: ServerTools,
   threadId: ThreadId,
@@ -254,11 +244,6 @@ type WaitOutcome =
     }
   | { readonly type: "needs_input" };
 
-/**
- * Whether the thread has nothing left to do: no active run and no delegated
- * or background work. Only then is the work a later wait settles on this
- * send's own.
- */
 const threadIsIdle = Effect.fn("cli.thread.threadIsIdle")(function* (
   tools: ServerTools,
   threadId: ThreadId,
@@ -271,11 +256,6 @@ const threadIsIdle = Effect.fn("cli.thread.threadIsIdle")(function* (
   return !waited.timedOut;
 });
 
-/**
- * The runs after `runId`, and whether one holds a message someone sent.
- * Background work wakes a run with a notification, never a user message, so
- * such a run is another request and its reply is not this one's.
- */
 const runsAfter = Effect.fn("cli.thread.runsAfter")(function* (
   tools: ServerTools,
   threadId: ThreadId,
@@ -326,16 +306,12 @@ export const waitForRun = Effect.fn("cli.thread.waitForRun")(function* (
     while (true) {
       const waited = yield* waitSlice(WAIT_SLICE_MS);
       if (!waited.timedOut) return ended(waited);
-      // A pending request on this run, or on an earlier run this one is queued
-      // behind, blocks it until someone answers.
       const { thread } = yield* tools.call(
         "supaterm_thread_read",
         { threadId, limit: 1, runLimit: 1 },
         OrchestratorMcpThreadReadResult,
       );
       if (thread.pendingRequestCount > 0) {
-        // The count is thread-wide: if this run ended since the slice, the
-        // request belongs to a later run.
         const recheck = yield* waitSlice(1);
         return recheck.timedOut ? ({ type: "needs_input" } satisfies WaitOutcome) : ended(recheck);
       }
@@ -344,8 +320,6 @@ export const waitForRun = Effect.fn("cli.thread.waitForRun")(function* (
   const outcome = yield* ownRun;
   if (!followWakes || outcome.type !== "ended" || outcome.status !== "completed") return outcome;
   const finalRunId = outcome.runId ?? runId;
-  // A provider records the run that background work wakes only after that
-  // work has ended, so the thread briefly looks settled in between.
   const wakeRunRecorded = Effect.gen(function* () {
     for (let waited = 0; waited < WAKE_GRACE_MS; waited += WAKE_POLL_MS) {
       yield* Effect.sleep(WAKE_POLL_MS);
@@ -358,7 +332,6 @@ export const waitForRun = Effect.fn("cli.thread.waitForRun")(function* (
   let workOutlivedRun = false;
   while (true) {
     const waited = yield* waitSlice(WAIT_SLICE_MS, true);
-    // `resultRun` is the thread's latest finished run, whoever sent it.
     const result = waited.timedOut ? undefined : waited.resultRun;
     const after = yield* runsAfter(tools, threadId, finalRunId);
     if (after.sent) return outcome;
@@ -377,15 +350,10 @@ export const waitForRun = Effect.fn("cli.thread.waitForRun")(function* (
       { threadId, limit: 1, runLimit: 1 },
       OrchestratorMcpThreadReadResult,
     );
-    // Earlier runs have ended, so the request is on a run this one's work woke.
     if (thread.pendingRequestCount > 0) return { type: "needs_input" } satisfies WaitOutcome;
   }
 });
 
-/**
- * With --json the result always reaches stdout, so a script keeps the thread
- * id even when the run fails.
- */
 const finishRun = Effect.fn("cli.thread.finishRun")(function* (
   tools: ServerTools,
   input: {
@@ -643,7 +611,6 @@ const threadSendCommand = Command.make("send", {
       yield* withThreadTools(
         flags,
         Effect.fn("cli.thread.send")(function* (tools) {
-          // Work already running when this is sent is not this message's to wait for.
           const followWakes = flags.wait ? yield* threadIsIdle(tools, threadId) : false;
           const sent = yield* tools.call(
             "supaterm_thread_send",

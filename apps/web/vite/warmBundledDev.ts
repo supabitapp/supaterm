@@ -9,9 +9,6 @@ const STARTUP_LAZY_ENTRIES = [
 
 const WARMUP_CLIENT_ID = "supaterm-startup-warmup";
 
-// Bundled dev keeps these private and untyped. A Vite upgrade that moves them
-// skips the warmup or logs a warning, never breaks dev; bundledDev.test.ts
-// fails so the upgrade cannot drop the warmup silently.
 interface BundledDevInternals {
   waitForInitialBuildFinish(): Promise<void>;
   triggerLazyBundling(
@@ -41,26 +38,17 @@ function hasBundledDevInternals(value: unknown): value is BundledDevInternals {
   );
 }
 
-/**
- * Compiles `entries` as lazy chunks once, for a throwaway client, and returns
- * the lazy module ids it compiled. The browser's own requests then reuse
- * Rolldown's transform cache. Entries are paths relative to the Vite root.
- */
 async function warmLazyEntries(
   server: ViteDevServer,
   entries: readonly string[],
 ): Promise<string[]> {
-  // Widened so the guard narrows to the internals, not to Vite's public class.
   const bundledDev: unknown = server.environments.client.bundledDev;
   if (!hasBundledDevInternals(bundledDev)) return [];
   await bundledDev.waitForInitialBuildFinish();
 
   const { moduleGraph } = bundledDev.devEngine;
-  // Vite's root and Rolldown's module ids are both absolute, slash-separated paths.
   const wanted = new Set(entries.map((entry) => `${server.config.root}/${entry}`));
   const warmed = new Set<string>();
-  // A lazy entry is only in the graph after its parent compiled, so walk in
-  // passes. Each pass compiles at least one new wanted id, so it ends.
   const nextLazyIds = () =>
     new Set(
       moduleGraph
@@ -77,7 +65,6 @@ async function warmLazyEntries(
       for (const id of pending) {
         warmed.add(id);
         const result = await bundledDev.triggerLazyBundling(id, WARMUP_CLIENT_ID);
-        // Acked so the engine drops the pending payload instead of holding the chunk.
         if (result) bundledDev.markPayloadDelivered(result.filename);
       }
     }
@@ -87,8 +74,6 @@ async function warmLazyEntries(
   return [...warmed];
 }
 
-// Bundled dev compiles lazy chunks on first request and ignores `server.warmup`.
-// Warm them on listening to avoid serial compilation before first paint.
 export function warmBundledDevPlugin(): Plugin {
   return {
     name: "supaterm:warm-bundled-dev",

@@ -353,8 +353,6 @@ it.effect.each([relayAdvertisement, null])(
 
 it.effect("runs editor, remote open target and direct endpoint discovery side by side", () =>
   Effect.gen(function* () {
-    // Each discovery finishes only once the other two have started, so a
-    // config that ran them one after another would never resolve.
     const editorsStarted = yield* Deferred.make<void>();
     const targetsStarted = yield* Deferred.make<void>();
     const endpointsStarted = yield* Deferred.make<void>();
@@ -492,8 +490,6 @@ const resumeSkipsUnknownTypes = (scope: "thread" | "shell") =>
     );
     assert.deepEqual(
       items.flatMap((item) => (item.sequence === undefined ? [] : [item.sequence])),
-      // Shell resume reads no payloads, so its row carries the newest sequence
-      // even when that event's type is unknown to this build.
       [scope === "thread" ? after!.sequence : highWater!.sequence, liveSequence],
     );
   }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer));
@@ -502,7 +498,6 @@ it.effect("thread resume skips unknown types, synchronizes, and receives the liv
   resumeSkipsUnknownTypes("thread"),
 );
 
-// Shell updates batch through `Stream.groupedWithin`, whose window needs real time to close.
 it.live("shell resume skips unknown types, synchronizes, and receives the live tail", () =>
   resumeSkipsUnknownTypes("shell"),
 );
@@ -581,7 +576,6 @@ it.effect("shares each live event item across subscribers and dedupes bodies per
     const messageId = MessageId.make("message:shared-live");
     const at = DateTime.makeUnsafe("2026-10-31T00:00:00.000Z");
     const owner = { threadId, runId: null, nodeId: null, createdAt: at, updatedAt: at };
-    // DateTime memoizes its formatted parts, so only the plain records are frozen.
     const freeze = <A>(value: A): A => {
       if (typeof value === "object" && value !== null && !DateTime.isDateTime(value)) {
         for (const child of Object.values(value)) freeze(child);
@@ -642,7 +636,6 @@ it.effect("shares each live event item across subscribers and dedupes bodies per
       Effect.sync(() => vi.spyOn(JSON, "stringify")),
       (spy) => Effect.sync(() => spy.mockRestore()),
     );
-    // The EventSink hands every subscriber the same projected objects.
     const subscribe = (acceptDedupedBodies: boolean) =>
       subscribeOrchestrationV2Thread({ threadId, afterSequence: 0, acceptDedupedBodies }).pipe(
         Effect.flatMap(Stream.runCollect),
@@ -665,7 +658,6 @@ it.effect("shares each live event item across subscribers and dedupes bodies per
       text: "",
       textOmitted: true,
     });
-    // The live buffer sizes each shared item once, not once per subscriber.
     assert.lengthOf(
       stringify.mock.calls.filter(([value]) => value?.kind === "event"),
       live.length,
@@ -775,7 +767,6 @@ it.effect("shell snapshots omit idle children and older done threads only on req
   }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
 );
 
-// Build the production RPC layer; unrelated capabilities fail if this test calls them.
 const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(DocumentText.DocumentText)({}),
   Layer.succeed(ShellSyncGeneration.ShellSyncGeneration, { id: "generation:config-test" }),
@@ -1075,8 +1066,6 @@ it.effect.each([
               sessionCookieName: "config-test-session",
             }),
         }),
-        // Signal subscription on either accessor so the test also fails, rather
-        // than hangs, against a handler that subscribes after the snapshot.
         Layer.succeed(Keybindings.Keybindings, {
           ...keybindings,
           streamChanges: Stream.unwrap(keybindingsChanges),
@@ -1149,7 +1138,6 @@ it.effect.each([
       yield* Deferred.await(keybindingsSubscribed);
       yield* Deferred.await(settingsSubscribed);
 
-      // Later updates expose a dropped buffered event as a value mismatch, not a timeout.
       const latestSettings = yield* settings.updateSettings({ enableProviderUpdateChecks: false });
       const latestKeybindings = yield* keybindings.upsertKeybindingRule({
         key: "mod+alt+z",
@@ -1159,7 +1147,6 @@ it.effect.each([
         ServerSettings.redactServerSettingsForClient,
       );
       const expectedKeybindings = [duringAck.keybindings, latestKeybindings.keybindings];
-      // The two sources can interleave, but each must retain its own publication order.
       for (let i = 0; i < 4; i++) {
         const event = yield* Queue.take(responses);
         if (event.type === "settingsUpdated") {
@@ -1278,7 +1265,6 @@ it.effect("access changes made while the snapshot loads reach the client after i
               Layer.mock(ServerEnvironment.ServerEnvironment)({}),
               Layer.mock(EnvironmentAuth.EnvironmentAuth)({
                 listPairingLinks: () => Effect.succeed([]),
-                // Another client revokes a session after the snapshot read it.
                 listClientSessions: () =>
                   PubSub.publish(sessionChanges, {
                     type: "clientRemoved",
@@ -1311,7 +1297,6 @@ it.effect("access changes made while the snapshot loads reach the client after i
     yield* Queue.take(subscribed);
     yield* Queue.take(subscribed);
 
-    // A later change arrives either way, so a dropped revocation fails as a mismatch.
     yield* PubSub.publish(pairingChanges, { type: "pairingLinkRemoved", id: "later" });
     const next = yield* Queue.take(responses);
     assert.deepEqual(next, {
@@ -1472,20 +1457,17 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
     const snapshot = (yield* Queue.take(responses)) as ServerConfigStreamEvent;
     if (snapshot.type !== "snapshot") return yield* Effect.die("Missing initial snapshot");
     assert.isUndefined(snapshot.config.providers[0]?.workspaceSnapshots);
-    // The cwd snapshot the client fetches carries the catalog, so only command names are sent.
     assert.deepEqual(snapshot.config.providers[0]?.slashCommands, [{ name: "machine-command" }]);
     assert.deepEqual(snapshot.config.providers[0]?.skills, [
       { name: "machine-skill", path: "/skills/machine-skill", enabled: true },
     ]);
     yield* server.write(0, { _tag: "Ack", requestId: configRequest });
 
-    // A rescan that only touches a snapshot sends nothing; the next real change does.
     yield* Queue.offer(providerChanges, [
       { ...provider, workspaceSnapshots: [snapshotFor("/a", "2026-10-25T00:05:00.000Z")] },
     ]);
     yield* Queue.take(pulled);
     yield* TestClock.adjust("1 second");
-    // Late /usage-limits discovery still reaches the client, so it refetches its cwd snapshot.
     yield* Queue.offer(providerChanges, [
       {
         ...provider,
@@ -1504,7 +1486,6 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
       { name: USAGE_LIMITS_COMMAND.name },
     ]);
     yield* server.write(0, { _tag: "Ack", requestId: configRequest });
-    // A replacement that cannot scan a cwd sends its full machine catalog.
     scansCwd = false;
     yield* Queue.offer(providerChanges, [{ ...provider, status: "warning" }]);
     yield* Queue.take(pulled);
@@ -1528,7 +1509,6 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
       refreshed.providers.map((entry) => [entry.workspaceSnapshots, entry.slashCommands]),
       [[[snapshotFor("/b", "2026-10-25T00:00:00.000Z")], []]],
     );
-    // A failed scan still gives a client without the machine catalog its commands.
     scansCwd = true;
     yield* server.write(0, {
       _tag: "Request",
@@ -1556,7 +1536,6 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
     ]);
     yield* server.write(0, { _tag: "Interrupt", requestId: configRequest, interruptors: [] });
 
-    // A client that takes digests and deltas, against a catalog of over 200 KB.
     const heavy: ServerProvider = {
       ...provider,
       slashCommands: Array.from({ length: 250 }, (_, index) => ({
@@ -1592,11 +1571,9 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
       [light.config.providers[0]?.slashCommands, light.config.providers[0]?.skills],
       [[], []],
     );
-    // Budget for the first config a phone decodes: the catalog stays out of it.
     assert.isBelow(JSON.stringify(light.config.providers).length, 1024);
     yield* server.write(0, { _tag: "Ack", requestId: lightRequest });
 
-    // A health check sends the provider without the lists the client already holds.
     yield* Queue.offer(providerChanges, [{ ...heavy, checkedAt: "2026-10-25T00:10:00.000Z" }]);
     yield* Queue.take(pulled);
     yield* TestClock.adjust("1 second");
@@ -1614,7 +1591,6 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
     );
     yield* server.write(0, { _tag: "Ack", requestId: lightRequest });
 
-    // A changed description changes the digest, so the client loads the lists again.
     yield* Queue.offer(providerChanges, [
       {
         ...heavy,
@@ -1633,7 +1609,6 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
     assert.notEqual(redescribed.payload.providers[0]?.catalogDigest, digest);
     yield* server.write(0, { _tag: "Ack", requestId: lightRequest });
 
-    // A caller that only waits for a machine refresh gets no provider list back.
     yield* server.write(0, {
       _tag: "Request",
       id: RpcMessage.RequestId("refresh-omitted"),
@@ -1643,7 +1618,6 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
     });
     assert.deepEqual(yield* Queue.take(responses), { providers: [] });
 
-    // The cwd snapshot brings the lists the digest stands for, under the same digest.
     yield* server.write(0, {
       _tag: "Request",
       id: RpcMessage.RequestId("refresh-machine-catalog"),
@@ -1694,7 +1668,6 @@ it.effect("a missing thread worktree gets its project's skills in the cwd snapsh
     const skillPath = path.join(workspaceRoot, ".claude", "skills", "finalize", "SKILL.md");
     yield* fileSystem.makeDirectory(path.dirname(skillPath), { recursive: true });
     yield* fileSystem.writeFileString(skillPath, "---\nname: finalize\n---\n");
-    // Removed with `git worktree remove`; only the next turn start recreates it.
     const worktreePath = path.join(serverConfig.worktreesDir, "proj", "supaterm-6f94fb95");
     const thread = {
       id: ThreadId.make("thread:worktree"),
@@ -1725,7 +1698,6 @@ it.effect("a missing thread worktree gets its project's skills in the cwd snapsh
       slashCommands: [],
       skills: [],
     };
-    // Like Claude's probe: project skills come from the scanned cwd, and a missing cwd is final.
     const scan = (cwd: string) =>
       fileSystem.exists(path.join(cwd, ".claude", "skills", "finalize", "SKILL.md")).pipe(
         Effect.orDie,
@@ -2002,8 +1974,6 @@ it.effect("a publish whose push fails still refreshes the new remote", () =>
   ),
 );
 
-// A cursor the server cannot replay resyncs from a snapshot, or, for a shell client that loads it
-// over HTTP, is told to without the server building one.
 it.effect.each([false, true])(
   "shell resume from a cursor ahead of the database head (HTTP fallback: %s)",
   (httpSnapshotFallback) =>
@@ -2039,10 +2009,6 @@ it.effect.each([false, true])(
     }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
 );
 
-// Compaction keeps the oldest and newest event per message, so a cursor older
-// than the deleted rows still replays each message where the client would
-// first have seen it (reducers append on first sight) and reaches the same
-// final state. No snapshot fallback is needed.
 it.effect("thread resume across compacted history keeps message order and final state", () =>
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
@@ -2077,7 +2043,6 @@ it.effect("thread resume across compacted history keeps message order and final 
     const [second] = yield* insertMessage(1, "message:b", "b created");
     yield* insertMessage(2, "message:a", "a superseded");
     const [head] = yield* insertMessage(3, "message:a", "a final");
-    // thread.deleted is never superseded: clients switch on the event type.
     for (const version of [0, 1]) {
       yield* sql`
         INSERT INTO orchestration_events (
@@ -2130,13 +2095,9 @@ it.effect("thread resume across compacted history keeps message order and final 
   ),
 );
 
-// A shell cursor at the high-water missed nothing; resuming must not resend a snapshot. A client
-// that just loaded the HTTP snapshot gets the marker, and the project identities only when it
-// does not name them.
 it.effect.each([
   { knowsIdentities: false, isRepository: true, kinds: ["snapshot", "synchronized"] },
   { knowsIdentities: true, isRepository: true, kinds: ["synchronized"] },
-  // The client keeps a cached identity over an absent one, so "resolved to none" still goes out.
   { knowsIdentities: true, isRepository: false, kinds: ["snapshot", "synchronized"] },
 ] as const)(
   "shell resume at its own high-water skips the snapshot (knows identities: $knowsIdentities, repository: $isRepository)",
@@ -2218,7 +2179,6 @@ it.effect.each([
         } as unknown as ProjectEnrichment.ProjectEnrichmentService["Service"]),
         Effect.exit,
       );
-      // A snapshot load dies with "snapshot", so success means the resume replayed nothing.
       assert.deepEqual(
         Exit.isFailure(exit) ? Cause.squash(exit.cause) : Array.from(exit.value),
         kinds,
@@ -2431,7 +2391,6 @@ it.effect("ACP session RPCs list a thread missing its history and repair it on i
               ),
             ),
       }),
-      // Repairing an existing thread must not launch another one.
       Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
       Layer.mock(AgentSessionImporter.AgentSessionImporter)({
         importNativeHistory: ({ threadId }) =>

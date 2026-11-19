@@ -49,9 +49,6 @@ const color = (family: TailwindColorFamily, shade?: TailwindColorShade, opacity 
   return `color-mix(in srgb, ${value} ${percentage}%, transparent)`;
 };
 
-// A registered palette theme is neither literally `light` nor `dark`, so
-// appearance-sensitive values must also be represented as semantic variables for
-// custom themes.
 const ADAPTIVE_COLORS: Readonly<Record<string, readonly [light: string, dark: string]>> = {
   "--color-adaptive-amber-50-950-a40": [color("amber", 50), color("amber", 950, 0.4)],
   "--color-adaptive-amber-200-900-a60": [color("amber", 200), color("amber", 900, 0.6)],
@@ -251,8 +248,6 @@ if (import.meta.main) {
       }
       continue;
     }
-    // Metro watches the generated CSS. Replacing a complete temporary file keeps
-    // Tailwind from compiling a partially rewritten theme file.
     writeFileAtomically(filename, contents);
   }
 }

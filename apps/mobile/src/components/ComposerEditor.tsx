@@ -185,7 +185,6 @@ export function ComposerEditor({
   );
   return (
     <>
-      {/* Reset revision history with the recreated iOS view without aborting context imports. */}
       <NativeComposerEditor
         key={hidden ? "hidden" : "visible"}
         {...props}

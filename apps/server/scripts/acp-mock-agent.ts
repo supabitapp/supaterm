@@ -18,12 +18,10 @@ import { beginAcpMockPrompt } from "./acpMockCancellationState.ts";
 
 const requestLogPath = process.env.SUPATERM_ACP_REQUEST_LOG_PATH;
 const antigravityProfile = process.env.SUPATERM_ACP_ANTIGRAVITY === "1";
-// GitHub Copilot CLI advertises URL-shaped session mode ids.
 const copilotModesProfile = process.env.SUPATERM_ACP_COPILOT_MODES === "1";
 const copilotModeId = (name: string) =>
   `https://agentclientprotocol.com/protocol/session-modes#${name}`;
 const modeOptionCategory = process.env.SUPATERM_ACP_MODE_OPTION_CATEGORY ?? "mode";
-// Comma-separated command names the mock advertises, so `/compact` support is testable.
 const advertisedCommandNames = (process.env.SUPATERM_ACP_AVAILABLE_COMMANDS ?? "")
   .split(",")
   .map((name) => name.trim())
@@ -74,8 +72,6 @@ const loadReplyDelayMs = Number(process.env.SUPATERM_ACP_LOAD_REPLY_DELAY_MS ?? 
 const loadNeverReplies = process.env.SUPATERM_ACP_LOAD_NEVER_REPLIES === "1";
 const rejectPromptUntilLoaded = process.env.SUPATERM_ACP_REJECT_PROMPT_UNTIL_LOADED === "1";
 const failPrompt = process.env.SUPATERM_ACP_FAIL_PROMPT === "1";
-// JSON for the `data` of an "Internal error" response to `session/new`, as
-// Antigravity sends when its runtime cannot reach its local harness.
 const newSessionErrorData =
   process.env.SUPATERM_ACP_NEW_SESSION_ERROR_DATA === undefined
     ? undefined
@@ -86,7 +82,6 @@ const failPromptOrdinal = Number(process.env.SUPATERM_ACP_FAIL_PROMPT_ORDINAL);
 const compactionPromptOrdinals = new Set(
   (process.env.SUPATERM_ACP_COMPACTION_PROMPT_ORDINALS ?? "").split(",").map(Number),
 );
-// These prompts end while their compaction is still in progress.
 const openCompactionPromptOrdinals = new Set(
   (process.env.SUPATERM_ACP_OPEN_COMPACTION_PROMPT_ORDINALS ?? "").split(",").map(Number),
 );
@@ -287,7 +282,6 @@ function configOptions(): ReadonlyArray<AcpSchema.SessionConfigOption> {
   }
 
   return [
-    // Mirrors GitHub Copilot, whose default agent is the empty-valued choice.
     ...(emitEmptyDefaultAgentOption
       ? [
           {
@@ -402,7 +396,6 @@ function modeState(): AcpCompat.SessionModeState {
   };
 }
 
-// Grok ACP advertises versioned model ids, never the CLI product name.
 const grokAcpModels: ReadonlyArray<AcpCompat.ModelInfo> = [
   {
     modelId: "grok-4.6",
@@ -581,7 +574,6 @@ const program = Effect.gen(function* () {
     }),
   );
 
-  // Antigravity requires GEMINI_API_KEY for API key authentication.
   yield* agent.handleAuthenticate((request) =>
     Effect.gen(function* () {
       if (antigravityProfile) {
@@ -894,7 +886,6 @@ const program = Effect.gen(function* () {
       promptCount += 1;
       const idleError = process.env.SUPATERM_ACP_IDLE_ERROR;
       if (idleError === "grok-background" && promptCount === 1) {
-        // The structured completion lands before the prompt settles, so it is buffered.
         const taskId = "call-idle-error-background";
         writeJsonRpcNotification("session/update", {
           sessionId: requestedSessionId,
@@ -992,7 +983,6 @@ const program = Effect.gen(function* () {
               : {}),
           },
         });
-        // The agent outlives the failed prompt, so its subagent finishes afterwards.
         yield* Effect.sleep("50 millis").pipe(
           Effect.andThen(
             Effect.sync(() =>
@@ -1102,7 +1092,6 @@ const program = Effect.gen(function* () {
           sessionId: requestedSessionId,
           update: { sessionUpdate: "terminal_update", terminalId, command: "print long output" },
         });
-        // 4 KiB chunks of 64-char numbered lines, like a long build log.
         for (let line = 0; line * 64 < terminalOutputBytes; line += 64) {
           let chunk = "";
           for (let i = line + 1; i <= line + 64; i++) {
@@ -1127,7 +1116,6 @@ const program = Effect.gen(function* () {
       }
 
       if (emitNotice) {
-        // A notice in fx 0.0.14's shape for a skipped skill, between two chunks of one message.
         const chunk = (text: string) =>
           writeJsonRpcNotification("session/update", {
             sessionId: requestedSessionId,
@@ -1273,7 +1261,6 @@ const program = Effect.gen(function* () {
             status: "completed",
             rawInput: { query: "TODO", path: "apps/web" },
           },
-          // Grok backend searches: the query only arrives in the completed rawOutput.
           {
             sessionUpdate: "tool_call_update",
             toolCallId: "grok-x-search",
@@ -1448,7 +1435,6 @@ const program = Effect.gen(function* () {
           promptIdFromRequestMeta(request),
           grokKillTaskShape,
         );
-        // Keep the prompt RPC and peer alive after the kill result.
         return yield* Effect.never;
       }
 
@@ -1536,7 +1522,6 @@ const program = Effect.gen(function* () {
             stop_reason: "end_turn",
           },
         });
-        // Neither the prompt RPC nor the process ends, matching the Grok incident.
         return yield* Effect.never;
       }
 

@@ -35,19 +35,16 @@ export interface AssistantSelectionToolbarHandle {
   reportRenderSelection: (messageId: MessageId, report: HtmlRenderSelectionReport) => void;
 }
 
-/** Where the shown selection lives. The host cannot read or clear one inside a render's page. */
 type SelectionSource =
   | { readonly _tag: "document"; readonly anchor: AssistantCitationSourceAnchor }
   | {
       readonly _tag: "render";
       readonly frame: HTMLIFrameElement;
-      /** Closes the expanded view. Absent for the inline render. */
       readonly collapse: (() => void) | undefined;
     };
 
 type ClipRect = Pick<DOMRect, "left" | "right" | "top" | "bottom">;
 
-/** The padding boxes of the ancestors from `from` up to `until` that clip their content. */
 function ancestorClips(from: Element | null, until: Element | null): ClipRect[] {
   const clips: ClipRect[] = [];
   for (let element = from; element && element !== until; element = element.parentElement) {
@@ -121,7 +118,6 @@ export function AssistantSelectionToolbar({
             toolbar.focus({ preventScroll: true });
           return;
         }
-        // Focus moving to the action blurs the page, which clears its report. The quote stands.
         if (document.activeElement === toolbar) return;
         renderReportRef.current = null;
         setSelection(null);
@@ -147,13 +143,10 @@ export function AssistantSelectionToolbar({
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar || !selection) return;
-    // Layout size, not the rect, which the entrance scale shrinks.
     toolbar.style.left = `${Math.max(8, Math.min(selection.position.x, window.innerWidth - toolbar.offsetWidth - 8))}px`;
     toolbar.style.top = `${Math.max(8, Math.min(selection.position.y, window.innerHeight - toolbar.offsetHeight - 8))}px`;
   }, [selection]);
 
-  // The glass button animates itself: fading a parent would drop its backdrop
-  // blur. Timing matches POPUP_MOTION_CLASS.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- runs the toolbar's Web Animations entrance or exit before paint and cancels it on cleanup
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
@@ -172,8 +165,6 @@ export function AssistantSelectionToolbar({
   useEffect(() => {
     if (!viewport) return;
     const clear = () => setSelection(null);
-    // A render's page reports its own selection. The focused document owns the selection, so
-    // the report stands only while its frame has focus.
     const updateFromRender = () => {
       const reported = renderReportRef.current;
       if (!reported) return false;
@@ -183,7 +174,6 @@ export function AssistantSelectionToolbar({
         return false;
       }
       const frameRect = frame.getBoundingClientRect();
-      // The expanded view zooms its frame, so page pixels are not host pixels.
       const scaleX = frame.offsetWidth > 0 ? frameRect.width / frame.offsetWidth : 1;
       const scaleY = frame.offsetHeight > 0 ? frameRect.height / frame.offsetHeight : 1;
       const within = (value: number, max: number) => Math.min(Math.max(value, 0), max);
@@ -193,8 +183,6 @@ export function AssistantSelectionToolbar({
         right: frameRect.left + within(box.right * scaleX, frameRect.width),
         bottom: frameRect.top + within(box.bottom * scaleY, frameRect.height),
       });
-      // The expanded view sits in a dialog over the timeline, which does not clip it. The walk
-      // stops at body, whose overflow applies to the window and not to its own box.
       const inline = collapse === undefined;
       const viewportRect = viewport.getBoundingClientRect();
       const { text } = reported.selection;
@@ -237,7 +225,6 @@ export function AssistantSelectionToolbar({
         clear();
         return;
       }
-      // A selection can cross blocks with different clipping ancestors.
       const common = captured.range.commonAncestorContainer;
       const walker = document.createTreeWalker(common, NodeFilter.SHOW_TEXT);
       let node = common.nodeType === Node.TEXT_NODE ? common : walker.nextNode();
@@ -301,7 +288,6 @@ export function AssistantSelectionToolbar({
       onDismiss: clear,
     });
     actionsRef.current = actions;
-    // The expanded view scrolls inside a dialog, outside the viewport the observer listens to.
     const onOuterScroll = (event: Event) => {
       const frame = renderReportRef.current?.frame;
       const scrolled = event.target;
@@ -379,7 +365,6 @@ export function AssistantSelectionToolbar({
       inert={presence.exiting}
       aria-label={tooLong ? "Selection is too long to annotate" : "Add annotation in composer"}
       data-selection-action=""
-      // The expanded view of a render is a media dialog, which sits above the timeline's layer.
       className={cn("fixed max-w-[calc(100vw-1rem)] origin-top-left", expanded ? "z-[70]" : "z-50")}
       style={{ left: shownSelection.position.x, top: shownSelection.position.y }}
       onPointerDown={(event) => event.preventDefault()}

@@ -29,7 +29,6 @@ export function RunShellCommandDialog({
 
   return (
     <AlertDialog open onOpenChange={(open) => !open && onClose()}>
-      {/* Running focuses the thread terminal; returning focus to the trigger would steal it back. */}
       <AlertDialogPopup initialFocus={runButtonRef} finalFocus={() => !ranRef.current}>
         <AlertDialogHeader>
           <AlertDialogTitle>Run {lineCount} lines in terminal?</AlertDialogTitle>

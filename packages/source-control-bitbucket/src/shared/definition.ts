@@ -84,7 +84,6 @@ export const definition = defineSourceControl({
   publicHost: "bitbucket.org",
   publishDescription: "bitbucket.org",
   publishHost: () => "bitbucket.org",
-  // The signed-in account does not identify a workspace.
   newRepositoryOwner: () => null,
   defaultCloneTransport: "ssh",
   changeRequestUrl: ({ host, repository, number, webUrl }) =>
@@ -99,10 +98,7 @@ export const definition = defineSourceControl({
   repositoryUrlFromPage: (url) =>
     isBitbucketHost(url.hostname) ? repositoryUrlFromPagePath(url, REPOSITORY_PAGE_PATH) : null,
   changeRequestUrlFromReferenceAutolink: () => null,
-  // No endpoint reopens a declined pull request, and nothing documented moves one in or out of
-  // draft, so neither is offered rather than failing when pressed.
   changeRequestActions: new Set(["merge", "close"] as const),
-  // Bitbucket has no checkout CLI.
   checkoutCommand: ({ number, headBranch, headRepositoryNameWithOwner }) =>
     headRepositoryNameWithOwner &&
     repositoryName.test(headRepositoryNameWithOwner) &&
@@ -121,7 +117,6 @@ export const definition = defineSourceControl({
     );
   },
   checkoutChangeRequestHost: () => null,
-  // Cloud also clones from `ssh.bitbucket.org` and `altssh.bitbucket.org`.
   recognizeRemote: ({ host, hostname }) =>
     hostname === "bitbucket.org" || hostname.endsWith(".bitbucket.org")
       ? { kind: KIND, name: "Bitbucket", baseUrl: "https://bitbucket.org" }

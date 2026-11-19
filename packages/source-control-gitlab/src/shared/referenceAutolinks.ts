@@ -1,9 +1,5 @@
 import type { ReferenceAutolink } from "@supaterm/source-control-core/shared/definition";
 
-// GitLab's autolinked references: `#12` issues and `!12` merge requests, qualified by
-// `project` (same namespace) or a full `group/sub/project` path; `GL-12` and `[issue:12]`
-// (or `[issue:project/12]`) issues; a SHA of 7 to 40 characters,
-// optionally qualified the same way with `@`; `@user` and `@group/subgroup`.
 const PROJECT = String.raw`[\w.-]+(?:\/[\w.-]+)*`;
 const REFERENCE = new RegExp(
   String.raw`(?<![\w./\\-])(?:(${PROJECT})?([#!])([1-9]\d*)|(?:(${PROJECT})@)?([a-f\d]{7,40})(?![\w])|@([\w](?:[\w.-]*[\w])?(?:\/[\w](?:[\w.-]*[\w])?)*)|GL-([1-9]\d*)|\[issue:(?:(${PROJECT})\/)?([1-9]\d*)\])(?![\w])`,
@@ -60,7 +56,6 @@ export function gitLabReferenceAutolinks(
         kind: "reference",
       });
     } else if (sha) {
-      // A run of digits is a number far more often than a SHA.
       if (!/[a-f]/iu.test(sha)) continue;
       links.push({
         index: match.index,

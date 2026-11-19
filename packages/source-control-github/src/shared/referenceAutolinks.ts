@@ -1,7 +1,5 @@
 import type { ReferenceAutolink } from "@supaterm/source-control-core/shared/definition";
 
-// GitHub's autolinked references: `#12`, `repo#12` and `owner/repo#12`; a SHA of 7 to 40
-// characters, optionally `repo@` or `owner/repo@` qualified; `@user` and `@org/team`.
 const REFERENCE =
   /(?<![\w./\\-])(?:([\w.-]+\/[\w.-]+|[\w-]+)?#([1-9]\d*)|(?:([\w.-]+\/[\w.-]+|[\w-]+)@)?([a-f\d]{7,40})(?![\w])|@([a-z\d](?:[a-z\d-]*[a-z\d])?(?:\/[a-z\d][a-z\d-]*)?))(?![\w])/giu;
 const CANDIDATE = /[#@]|\b[a-f\d]{7,40}\b/iu;
@@ -34,7 +32,6 @@ export function gitHubReferenceAutolinks(
         kind: "reference",
       });
     } else if (sha) {
-      // A run of digits is a number far more often than a SHA.
       if (!/[a-f]/iu.test(sha)) continue;
       links.push({
         index: match.index,

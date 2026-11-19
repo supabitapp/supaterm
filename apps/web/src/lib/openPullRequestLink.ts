@@ -48,9 +48,6 @@ export function pullRequestLinkPanelTarget(input: {
   readonly primaryEnvironmentId: EnvironmentId | null;
   readonly lendHostProject: boolean;
 }) {
-  // Read at click time: every provider status push replaces the config map, and
-  // subscribing would hand every rendered link a new handler. Projects likewise, so a
-  // link can resolve against a snapshot that arrived after this handler was built.
   const serverConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
   return resolveChangeRequestLinkTarget({
     url: input.url,
@@ -116,7 +113,6 @@ export function useOpenChangeRequestLink(
       };
       if (resolvedPanelRef) {
         useRightPanelStore.getState().openPullRequest(resolvedPanelRef, {
-          // The standalone PR panel has a synthetic ref; each tab keeps its real environment.
           ...(resolvedPanelRef.environmentId === project.environmentId
             ? {}
             : { environmentId: project.environmentId }),
@@ -162,9 +158,7 @@ export function useOpenChangeRequestLink(
         : null;
     const identity = commitProject?.repositoryIdentity;
     const parsedCommit = sourceControlClients.parseCommitUrl(targetUrl, identity?.provider);
-    // Shift and Alt keep their browser meaning (new window, download) on commit links.
     if (parsedCommit !== null && (event.shiftKey || event.altKey)) return false;
-    // A plain commit link stays a workspace commit; one naming a file or line opens the PR's diff.
     const anchor = parsePullRequestAnchor(targetUrl);
     if (anchor !== null && anchor.kind !== "code" && openPullRequest()) {
       event.preventDefault();
@@ -221,7 +215,6 @@ export function useOpenChangeRequestLink(
           }
           if (openPullRequest()) return;
           if (onCommitUnavailable) return onCommitUnavailable();
-          // A popup opened after the lookup has lost the click's activation, so browsers block it.
           if (
             window.desktopBridge === undefined &&
             (browserLinkTarget !== "app" || !canOpenLinksInApp(resolvedThreadRef))

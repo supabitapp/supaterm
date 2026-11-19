@@ -6,7 +6,6 @@ interface Props extends HTMLAttributes<"div"> {
   command: string;
 }
 
-// The rest props carry the parent's scope attribute, so its styles still reach this element.
 const { command, class: className, ...rest } = Astro.props;
 ---
 
@@ -38,7 +37,6 @@ const { command, class: className, ...rest } = Astro.props;
       try {
         await navigator.clipboard.writeText(button.dataset.command ?? "");
       } catch {
-        // Without clipboard access, select the command so ⌘C / Ctrl+C still works.
         const text = line?.querySelector(".command-text");
         if (text) selectText(text);
         return;

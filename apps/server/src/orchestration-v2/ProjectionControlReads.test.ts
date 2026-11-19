@@ -301,7 +301,6 @@ it.effect.each(storageCases)(
               }),
           } as never),
       });
-      // Each pull is announced, so a second pull proves Stop judged the first event.
       const pulls = yield* Queue.unbounded<void>();
       const committed = yield* Queue.unbounded<OrchestrationV2StoredEvent>();
       const layerEvents = Layer.mock(EventSink.EventSinkV2)({
@@ -320,7 +319,6 @@ it.effect.each(storageCases)(
           providerTurnId,
           providerSessionId,
         });
-        // The provider never reports the turn settled, so Stop returns at the bound.
         const unconfirmed = yield* Effect.forkChild(interrupt);
         yield* Queue.take(pulls);
         yield* TestClock.adjust("2 seconds");
@@ -371,7 +369,6 @@ it.effect.each(storageCases)(
           occurredAt: now,
           payload: { ...context.providerTurn!, status: "completed", completedAt: now },
         });
-        // A settled provider turn is not enough; Stop waits for its attempt to finalize.
         yield* Queue.take(pulls);
         assert.isUndefined(confirmed.pollUnsafe());
         yield* ingest(2, {

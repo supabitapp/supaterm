@@ -14,8 +14,6 @@ import { MarkdownMermaidCodeBlock } from "./MarkdownMermaidCodeBlock";
 import { peekMermaidDiagram, renderMermaidDiagram } from "../../diagrams/mermaidRenderer";
 import { observeResize } from "../../lib/observeResize";
 
-// Visibility is reported by hand so each case decides when the fence scrolls into view. A target
-// inside a hidden subtree never intersects, as in a real layout.
 class TestIntersectionObserver {
   static instances: TestIntersectionObserver[] = [];
   private target: Element | undefined;

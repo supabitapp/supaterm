@@ -57,7 +57,7 @@ describe("FilePreviewSplit", () => {
   it("fills the row with the explorer until a file opens, then keeps the explorer state", async () => {
     using _storage = freshStoredWidth();
     await page.viewport(1280, 800);
-    await using screen = await render(<Harness />, { router: false /* no routes involved */ });
+    await using screen = await render(<Harness />, { router: false });
 
     await vi.waitFor(() => expect(explorerWidth()).toBeCloseTo(1000, 0));
     await userEvent.click(screen.getByRole("button", { name: "Explorer clicks 0" }));
@@ -73,7 +73,7 @@ describe("FilePreviewSplit", () => {
   it("resizes from the keyboard and remembers the width", async () => {
     using _storage = freshStoredWidth();
     await page.viewport(1280, 800);
-    await using screen = await render(<Harness />, { router: false /* no routes involved */ });
+    await using screen = await render(<Harness />, { router: false });
     await userEvent.click(screen.getByRole("button", { name: "Toggle file" }));
     await vi.waitFor(() => expect(explorerWidth()).toBeCloseTo(256, 0));
 
@@ -102,7 +102,7 @@ describe("FilePreviewSplit", () => {
           explorer={<p>Files</p>}
         />
       </div>,
-      { router: false /* no routes involved */ },
+      { router: false },
     );
     await vi.waitFor(() => expect(explorerWidth()).toBeCloseTo(sizing.defaultWidth, 0));
 

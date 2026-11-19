@@ -358,7 +358,6 @@ describe("Antigravity tool results", () => {
         `--- ${path}\n+++ ${path}\n@@ -10,1 +10,1 @@\n-const target = 10;\n+const target = 100;\n`,
       );
     }
-    // Full-access edits arrive path-only; no hunk is offered instead of the tool's status text.
     let pathOnly = normalizeAntigravityToolCall(
       parseToolUpdate({
         sessionId: "session-1",
@@ -376,7 +375,6 @@ describe("Antigravity tool results", () => {
     pathOnly = normalizeAntigravityToolCall(mergeToolCallState(pathOnly, completed));
     expect(pathOnly.data.content).toEqual([{ type: "diff", patch: { format: "omitted" } }]);
     expect(acpToolCallDiffPatch(pathOnly.data.content)).toBeUndefined();
-    // A captured patch that a later update's shared text budget cut or dropped is omitted.
     for (const patch of [{ text: "[Earlier output truncated]\n\n@@ -80,1 +80,1 @@" }, {}]) {
       const kept = normalizeAntigravityToolCall({
         toolCallId: "edit-cut",
@@ -386,7 +384,6 @@ describe("Antigravity tool results", () => {
       });
       expect(kept.data.content).toEqual([{ type: "diff", path, patch: { format: "omitted" } }]);
     }
-    // A whole-file write whose old text was cut to its tail must not show the cut as deletions.
     const overwrite = normalizeAntigravityToolCall({
       toolCallId: "edit-overwrite",
       kind: "edit",
@@ -404,7 +401,6 @@ describe("Antigravity tool results", () => {
       },
     });
     expect(acpToolCallDiffPatch(overwrite.data.content)).toBeUndefined();
-    // A patch too long to keep, or input cut to its tail, must not fall back to line-1 snippets.
     for (const width of [60, 120]) {
       const block = (value: string) =>
         Array.from({ length: 120 }, (_, i) => `${value} ${i} `.padEnd(width, "x")).join("\n");

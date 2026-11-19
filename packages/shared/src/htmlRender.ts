@@ -11,8 +11,6 @@ import { EVENT_CODE_SHORTCUT_KEYS } from "./keybindings.ts";
 export const HTML_RENDER_TOOL_NAME = "html_render";
 export const HTML_RENDER_MIN_HEIGHT = 80;
 export const HTML_RENDER_MAX_HEIGHT = 2000;
-// A client fits the frame to the live page up to this height. It only stops a
-// page that grows with its frame, since vh units are rejected at publish.
 export const HTML_RENDER_MAX_FIT_HEIGHT = 20_000;
 export const HTML_RENDER_MAX_TITLE_LENGTH = 200;
 
@@ -84,7 +82,6 @@ export function htmlRenderReferencesEqual(left: HtmlRenderReference, right: Html
   );
 }
 
-// Use the taller neighboring measurement because breakpoints can select either height.
 function measuredHeight(heights: NonNullable<HtmlRenderReference["heights"]>, width: number) {
   const above = heights.findIndex(([measuredWidth]) => measuredWidth >= width);
   const high = above === -1 ? heights.length - 1 : above;
@@ -141,7 +138,6 @@ export interface HtmlRenderFonts {
 
 export const HTML_RENDER_DEFAULT_FONTS: HtmlRenderFonts = {
   sans: '-apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif',
-  // Concrete names only: some engines alias `ui-monospace` to the proportional UI font.
   mono: '"SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
 };
 
@@ -156,9 +152,6 @@ export interface HtmlRenderTheme {
   readonly variables: Readonly<Record<string, string>>;
 }
 
-// Fixed, not themed: an accent can be gray or match another series. The order keeps
-// neighbors apart under protanopia and deuteranopia (OKLab ΔE×100 ≥ 8, ≥ 15 with full
-// color vision), the first three apart pairwise, and every series at 3:1 on the canvas.
 const FIXED_COLORS = {
   light: {
     success: "#10b981",
@@ -247,7 +240,6 @@ export const HTML_RENDER_LAYOUT_GUIDE = [
 const HOST_CONTEXT_CHANGED_METHOD = "ui/notifications/host-context-changed";
 const OPEN_LINK_METHOD = "ui/open-link";
 const SIZE_CHANGED_METHOD = "ui/notifications/size-changed";
-// Custom bridge forwards app shortcuts because focused frames otherwise capture them.
 const SHORTCUTS_METHOD = "supaterm/notifications/shortcuts";
 const KEY_DOWN_METHOD = "supaterm/notifications/keydown";
 const OPEN_IMAGE_METHOD = "supaterm/notifications/open-image";
@@ -255,7 +247,6 @@ const SELECTION_CHANGED_METHOD = "supaterm/notifications/selection-changed";
 const FOCUS_SELECTION_ACTION_METHOD = "supaterm/notifications/focus-selection-action";
 const CLEAR_SELECTION_METHOD = "supaterm/notifications/clear-selection";
 const SELECTION_ACTION_METHOD = "supaterm/notifications/selection-action";
-// One past the limit, so the host can tell an oversized selection from one that fits.
 const MAX_REPORTED_SELECTION_LENGTH = ASSISTANT_CITATION_MAX_TEXT_LENGTH + 1;
 
 export function readHtmlRenderContentHeight(data: unknown): number | undefined {
@@ -296,7 +287,6 @@ interface HtmlRenderImage {
 function readHtmlRenderImage(src: unknown, name: unknown): HtmlRenderImage | undefined {
   if (typeof src !== "string" || !/^(?:https?:\/\/|data:image\/)/i.test(src)) return undefined;
   const trimmed = typeof name === "string" ? name.trim() : "";
-  // The page sends any alt text; never end the label on half an emoji.
   const last = trimmed.charCodeAt(HTML_RENDER_MAX_TITLE_LENGTH - 1);
   const end = HTML_RENDER_MAX_TITLE_LENGTH - (last >= 0xd800 && last <= 0xdbff ? 1 : 0);
   const label = trimmed.slice(0, end);
@@ -371,7 +361,6 @@ function readHtmlRenderBox(value: unknown): HtmlRenderBox | undefined {
 export type HtmlRenderSelectionEvent =
   | { readonly _tag: "selected"; readonly selection: HtmlRenderSelection }
   | { readonly _tag: "cleared" }
-  /** Tab was pressed while the host offers an action for the selection. */
   | { readonly _tag: "focus-action" };
 
 /**
@@ -476,7 +465,6 @@ export function htmlRenderThemeMessage(theme: HtmlRenderTheme) {
 const BASE_CSS =
   "html{box-sizing:border-box;padding:8px;background:var(--background);color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;scrollbar-width:none}" +
   "html::-webkit-scrollbar{display:none}body{margin:0}code,kbd,pre,samp{font-family:var(--font-mono)}" +
-  // Focus outlines paint inside the element, so the frame edge never clips them.
   ":where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}" +
   ":where(img:not(a[href] img,button img)){cursor:zoom-in}";
 
@@ -487,10 +475,6 @@ function rootRule(theme: HtmlRenderTheme): string {
   return `:root{color-scheme:${theme.appearance};${declarations}}`;
 }
 
-// Reports a selection once it settles, never while it is being dragged, so the host hears of it
-// once. Clears go out at once: on collapse, on blur, and when a scroll moves the selection.
-// The text is trimmed before it is capped, so a capped length always means an oversized selection.
-// Tab goes to the host only while it offers an action for the reported selection.
 const SELECTION_BRIDGE_SCRIPT = `(function () {
   var dragging = false;
   var reported = false;
@@ -603,8 +587,6 @@ const SELECTION_BRIDGE_SCRIPT = `(function () {
   });
 })();`;
 
-// Apply overridable theme CSS before paint and strip the fragment before routing; framed navigation uses the client.
-// Forward shortcuts after page handlers; text fields retain their keys.
 const BOOTSTRAP_SCRIPT = `(function(){var s=document.getElementById("supaterm-theme"),n=0;if(!s)return;var b=${JSON.stringify(BASE_CSS)};function a(t){if(!t||typeof t!=="object"||!t.variables||typeof t.variables!=="object")return;var c=":root{color-scheme:"+(t.appearance==="light"?"light":"dark")+";";for(var k in t.variables){if(/^--[a-z0-9-]+$/.test(k))c+=k+":"+String(t.variables[k]).replace(/[;{}<>]/g,"")+";";}s.textContent=c+"}"+b;}try{var m=/[#&]${THEME_FRAGMENT_KEY}=([^&]*)/.exec(location.hash);if(m){a(JSON.parse(decodeURIComponent(m[1])));history.replaceState(history.state,"",location.pathname+location.search);}}catch(e){}window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;if(d&&d.jsonrpc==="2.0"&&d.method===${JSON.stringify(HOST_CONTEXT_CHANGED_METHOD)}&&p&&p.styles)a({appearance:p.theme,variables:p.styles.variables});});document.addEventListener("click",function(e){var l=e.isTrusted?e.composedPath().find(function(t){return t&&t.matches&&t.matches("a[href]");}):null,u;if(!l)return;try{u=new URL(l.getAttribute("href"),document.baseURI);}catch(x){return;}if(!/^https?:$/.test(u.protocol)||u.href.split("#")[0]===location.href.split("#")[0])return;if(window.parent!==window){e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",id:"supaterm-link-"+(++n),method:${JSON.stringify(OPEN_LINK_METHOD)},params:{url:u.href,metaKey:e.metaKey,ctrlKey:e.ctrlKey}},"*");}else{l.setAttribute("target","_blank");l.setAttribute("rel","noopener");}},true);document.addEventListener("click",function(e){var t=e.composedPath()[0],l=t&&t.closest?t.closest("label,a[href],button,input,select,textarea"):null,c=l&&l.tagName==="LABEL"?l.control:null;if(e.isTrusted&&c&&document.activeElement!==c)c.focus({preventScroll:true});},true);if(window.parent!==window){var h,o,z=function(){var r=document.documentElement,v=Math.ceil(r.scrollHeight>r.clientHeight?r.scrollHeight:r.getBoundingClientRect().height);if(v===h)return;h=v;window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(SIZE_CHANGED_METHOD)},params:{height:v}},"*");};if(window.ResizeObserver){o=new ResizeObserver(z);o.observe(document.documentElement);}document.addEventListener("DOMContentLoaded",function(){if(o&&document.body)o.observe(document.body);z();});window.addEventListener("load",z);window.addEventListener("click",function(e){var t=e.composedPath()[0],u;if(!e.isTrusted||e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||!t||t.tagName!=="IMG"||t.closest("a[href],button"))return;u=t.currentSrc||t.src;if(u)setTimeout(function(){var g=[],i=-1;if(e.defaultPrevented)return;Array.prototype.forEach.call(document.images,function(m){var v=m.currentSrc||m.src;if(!v||m.closest("a[href],button"))return;if(m===t)i=g.length;g.push({src:v,name:m.alt||m.title||""});});window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(OPEN_IMAGE_METHOD)},params:{src:u,name:t.alt||t.title||"",images:g,index:i}},"*");});});var K=[],B=[],C=${JSON.stringify(EVENT_CODE_SHORTCUT_KEYS)};window.addEventListener("message",function(e){var d=e.data,p=d&&d.params;if(e.source===window.parent&&d&&d.jsonrpc==="2.0"&&d.method===${JSON.stringify(SHORTCUTS_METHOD)}&&p&&Array.isArray(p.shortcuts)&&Array.isArray(p.blocked)){K=p.shortcuts;B=p.blocked;}});window.addEventListener("keydown",function(e){var t=e.composedPath()[0],c=e.code||"",l=e.key.toLowerCase(),x=/^[a-z]$/.test(l)?[l]:[l,/^Key[A-Z]$/.test(c)?c.slice(3).toLowerCase():"",l==="+"&&!e.shiftKey&&!e.altKey&&!/^Digit/.test(c)?"":C.hasOwnProperty(c)?C[c]:""],f,m=function(s){return s&&s.metaKey===e.metaKey&&s.ctrlKey===e.ctrlKey&&s.shiftKey===e.shiftKey&&s.altKey===e.altKey&&x.indexOf(s.key)>-1;};if(!e.isTrusted||e.isComposing||e.getModifierState("AltGraph")&&!/^[a-z0-9]$/i.test(e.key)||t&&(t.isContentEditable||/^(?:INPUT|TEXTAREA|SELECT)$/.test(t.tagName))||!K.some(m)||B.some(m))return;f=function(v){window.removeEventListener("keydown",f);if(v!==e||e.defaultPrevented)return;e.preventDefault();window.parent.postMessage({jsonrpc:"2.0",method:${JSON.stringify(KEY_DOWN_METHOD)},params:{key:e.key,code:e.code,metaKey:e.metaKey,ctrlKey:e.ctrlKey,shiftKey:e.shiftKey,altKey:e.altKey,repeat:e.repeat}},"*");};window.addEventListener("keydown",f);setTimeout(function(){window.removeEventListener("keydown",f);});},true);${SELECTION_BRIDGE_SCRIPT}}})();`;
 
 function bootstrapMarkup(markup: string): string {
@@ -621,7 +603,6 @@ function bootstrapMarkup(markup: string): string {
   ].join("");
 }
 
-// Blank inert content without shifting offsets so it cannot receive the bootstrap.
 const blankNonMarkup = (html: string) => {
   const scan = html.replace(
     /<!--[\s\S]*?(?:-->|$)|<(script|style|textarea|title|xmp|iframe|noembed|noframes|noscript)\b[\s\S]*?(?:<\/\1\s*>|$)|<plaintext\b[\s\S]*$/gi,

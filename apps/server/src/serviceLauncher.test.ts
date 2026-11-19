@@ -460,7 +460,6 @@ setInterval(() => {}, 1_000);
           renderBootServiceUnit({ ...unitPlan(root, version), unitPath });
         yield* fs.makeDirectory(managerUnitDir, { recursive: true });
         yield* fs.writeFileString(unitPath, render("1.0.0"));
-        // Fake manager: busctl reports the unit search path, systemctl reloads.
         const bin = path.join(root, "bin");
         yield* fs.makeDirectory(bin, { recursive: true });
         const unitPathJson = JSON.stringify({
@@ -497,7 +496,6 @@ setInterval(() => {}, 1_000);
         );
         vi.stubEnv("PATH", bin);
         vi.stubEnv("HOME", home);
-        // environment.d changes what services inherit, not where the manager reads units.
         vi.stubEnv("XDG_CONFIG_HOME", path.join(home, "service-config"));
         vi.stubEnv("SUPATERM_BOOT_SERVICE_UNIT", "supaterm.service");
 
@@ -795,7 +793,6 @@ process.exit(0);
           }),
         );
         const staleLauncher = yield* createLauncher;
-        // A local install can replace the selection or service owner without stopping this launcher.
         const selectedRoot =
           replacement === "another Supaterm home" ? path.join(root, "other-home") : root;
         yield* writeFakeRuntime(
@@ -890,7 +887,6 @@ process.exit(0);
         });
         yield* Effect.promise(() => refused.promise);
         assert.isFalse(completed);
-        // An idle launcher must not make an SSH launch wait for a server it is not starting.
         assert.isFalse(yield* Effect.promise(() => serviceLauncherIsServing(root)));
         otherOwner.close();
         yield* Effect.promise(() => owned.promise);
@@ -1078,7 +1074,6 @@ process.exit(0);
       assert.isTrue(yield* Effect.promise(() => stateDirOwned(root)));
       yield* fs.writeFileString(recordPath, JSON.stringify({ ...record, ownerId: "lock-aware" }));
       assert.isFalse(yield* Effect.promise(() => stateDirOwned(root)));
-      // This process started after 1970, so its PID was reused since that record.
       yield* fs.writeFileString(
         recordPath,
         JSON.stringify({ ...record, startedAt: "1970-01-01T00:00:00Z" }),
@@ -1145,7 +1140,6 @@ if (context.update?.status === "pending") {
           childSource,
         );
       }
-      // The old CLI installs the new runtime but writes state with its own protocol.
       yield* fs.writeFileString(
         statePath,
         `${JSON.stringify(
@@ -1422,7 +1416,6 @@ if (context.update?.status === "pending") {
         const databasePath = path.join(root, "userdata", "state.sqlite");
         const observationsPath = path.join(root, "observations.json");
         yield* fs.makeDirectory(path.dirname(databasePath), { recursive: true });
-        // SQLite keeps -wal beside the symlink's target, so the backup must restore it there.
         yield* fs.symlink("actual.sqlite", databasePath);
         const seed = new NodeSqlite.DatabaseSync(databasePath);
         seed.exec(`
@@ -1501,10 +1494,8 @@ if (context.update?.status === "pending") {
         const state = yield* Effect.promise(() => readServiceState(statePath));
         assert.equal(state.update?.status, "rolled-back");
         const observed = JSON.parse(yield* fs.readFileString(observationsPath));
-        // A WAL database's main file is copied before the server is asked to stop; others fall back offline.
         assert.deepEqual(observed.backupsAtStop, journalMode === "wal" ? [["database"]] : []);
         assert.isAbove(observed.rows, 501);
-        // Only the online copy holds no -shm: the offline fallback copies the one the server left.
         assert.deepEqual(
           JSON.parse(yield* fs.readFileString(`${observationsPath}.trial`)),
           journalMode === "wal" ? ["database", "database-wal"] : ["database"],
@@ -1662,12 +1653,10 @@ if (context.update?.status === "pending") {
       const childCount = spawnedChildren.length;
       const launcher = new Launcher(root, pending);
 
-      // Recovery is already queued, so this stop lands while the backup runs.
       const running = launcher.run();
       yield* Effect.promise(() => launcher.stop("SIGTERM"));
       yield* Effect.promise(() => running);
 
-      // A trial started here arms its 30-minute prepared timer, which keeps the stopped launcher alive.
       assert.deepEqual(
         spawnedChildren.slice(childCount).map((child) => child.spawnargs.join(" ")),
         [],
@@ -1756,7 +1745,6 @@ setInterval(() => {}, 1_000);
       yield* fs.makeDirectory(completed);
       yield* fs.writeFileString(path.join(completed, "database"), "complete copy");
 
-      // The orphan is what keeps this disk too full for a full copy.
       const blocker = yield* Effect.promise(() =>
         databaseBackupBlocker(root, databasePath, {
           readFreeBytes: () => Promise.resolve((NodeFS.existsSync(orphan) ? 8 : 11) * 1024 ** 3),

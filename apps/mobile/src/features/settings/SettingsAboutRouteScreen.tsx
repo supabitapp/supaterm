@@ -52,7 +52,6 @@ export function SettingsAboutRouteScreen() {
 function AppSettingsSection() {
   const [checkState, setCheckState] = useState<{
     readonly state: AppUpdateCheckState;
-    // "Up to date" is a confirmation that fades back to idle.
     readonly settledUntil: number | null;
   }>({ state: "idle", settledUntil: null });
   const confirmationExpired = useDeadlinePassed(checkState.settledUntil);
@@ -62,10 +61,8 @@ function AppSettingsSection() {
   const hiddenUpdateTapCount = useRef(0);
 
   const version = Constants.expoConfig?.version ?? "0.0.0";
-  // Match app.config.ts's production fallback to avoid mislabeling builds as development.
   const variant = (Constants.expoConfig?.extra?.appVariant as string | undefined) ?? "production";
   const variantLabel = variant === "production" ? "" : capitalize(variant);
-  // EAS assigns build numbers remotely; only the installed binary knows its own.
   const build = Application.nativeBuildVersion;
   const versionWithBuild = build ? `${version} (${build})` : version;
   const versionLabel = variantLabel ? `${versionWithBuild} · ${variantLabel}` : versionWithBuild;
@@ -74,7 +71,6 @@ function AppSettingsSection() {
     updateState === "checking" || updateState === "downloading" || updateState === "restarting";
 
   async function checkForUpdate() {
-    // disabled updates next render; the ref blocks same-frame double taps.
     if (updateInFlight.current) return;
     updateInFlight.current = true;
 
@@ -160,7 +156,6 @@ function AppSettingsSection() {
   );
 }
 
-// Keyed by the JSON list of candidate environments, so each list keeps one atom across renders.
 const triagePermittedEnvironmentsAtom = Atom.family((environmentIdsJson: string) =>
   Atom.make((get) => {
     const environmentIds: ReadonlyArray<EnvironmentId> = JSON.parse(environmentIdsJson);

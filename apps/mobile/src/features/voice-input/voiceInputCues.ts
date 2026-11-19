@@ -9,7 +9,6 @@ import {
   type AudioSessionToken,
 } from "../../lib/audioSession";
 
-/** Renders of the web cues: apps/web/scripts/render-voice-input-cues.ts. */
 const CUE_SOURCES: Record<VoiceInputCue, number> = {
   start: require("../../../assets/sounds/voice-input-start.wav"),
   stop: require("../../../assets/sounds/voice-input-stop.wav"),
@@ -17,7 +16,6 @@ const CUE_SOURCES: Record<VoiceInputCue, number> = {
   error: require("../../../assets/sounds/voice-input-error.wav"),
 };
 
-// A cue loads and plays in under half a second; this bounds a player that never reports its end.
 const CUE_LIMIT_MS = 1_000;
 
 let recordingCue: AudioPlayer | null = null;

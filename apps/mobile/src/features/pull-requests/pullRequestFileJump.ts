@@ -1,9 +1,6 @@
 import type { PullRequestDiffParams } from "./usePullRequestDiff";
 import { pullRequestReviewKey } from "./pullRequestReviewDrafts";
 
-// The changed-files sheet hands its pick to the diff screen beneath it. Picking the file the
-// screen already shows still jumps back to it, which a route param that did not change could not
-// say. A screen that is not mounted yet opens at its `path` param instead.
 type Listener = (path: string) => void;
 const listeners = new Map<string, Set<Listener>>();
 

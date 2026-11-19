@@ -72,10 +72,8 @@ export function isJsonToolText(text: string): boolean {
   return documents.length > 1 && documents.every((document) => parseJson(document) !== undefined);
 }
 
-// Strings match whole so numbers inside them are skipped. Scan only parsed JSON: every string closes.
 const JSON_STRING_OR_NUMBER = /"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
 
-/** JSON.parse rounds integers beyond 2^53 and overflows to Infinity, so reformatting would change the value. */
 function hasLossyJsonNumber(json: string): boolean {
   for (const [token] of json.matchAll(JSON_STRING_OR_NUMBER)) {
     if (token.startsWith('"')) continue;
@@ -144,7 +142,6 @@ export function toolCallLines(input: {
     const entries = Object.entries(args).flatMap(
       ([key, value]): Array<readonly [string, string]> => {
         if (value === undefined) return [];
-        // An empty string or null can be the point of a call (a clear or reset), so show it.
         return [
           [
             key,
@@ -190,7 +187,6 @@ export function turnItemNeedsDetailFetch(item: OrchestrationV2TurnItem): boolean
   }
 }
 
-// App calls store the provider result beside the app reference; its images get no preview.
 function dynamicToolOutputText(
   item: Extract<OrchestrationV2TurnItem, { readonly type: "dynamic_tool" }>,
 ): string | null {

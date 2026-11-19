@@ -8,7 +8,6 @@ export interface CdpRelayTarget {
     method: string,
     params: Record<string, unknown>,
     sessionId: string | undefined,
-    /** The extra session that sent it, such as a viewer's; the main connection has none. */
     owner?: string,
   ) => Promise<unknown>;
   readonly sessionDetached?: (owner: string) => void;
@@ -46,9 +45,6 @@ const isCommand = (value: unknown): value is CdpCommand =>
   typeof (value as { id?: unknown }).id === "number" &&
   typeof (value as { method?: unknown }).method === "string";
 
-// CDP values are plain JSON data, so their serialized size can be bounded before
-// JSON.stringify allocates it. A string counts at its length unless it holds a
-// character JSON may escape, which can take six code units.
 const MAX_CDP_PAYLOAD_SIZE = 64 * 1024 * 1024;
 const MAY_ESCAPE = /[^\x20\x21\x23-\x5b\x5d-\ud7ff\ue000-\uffff]/;
 const serializedSize = (text: string) =>
@@ -92,8 +88,6 @@ export function createCdpRelayConnection(
       write(JSON.stringify(message));
       return;
     }
-    // An error reply fails only that command. A dropped event would leave
-    // Playwright out of step with the page, so the relay closes instead.
     if (typeof message["id"] === "number") {
       write(
         JSON.stringify({
@@ -109,17 +103,9 @@ export function createCdpRelayConnection(
   };
   let attached = false;
   let downloadEventsEnabled = false;
-  /**
-   * Sessions this relay invented. Extra page sessions (Playwright's
-   * `newCDPSession`) all reach the one real debugger session, so each gets the
-   * page's events; other ids are the page's own child sessions, such as iframes.
-   */
   const sessions = new Map<string, "browser" | "page">([[PAGE_SESSION_ID, "page"]]);
-  // Each page session holds one unacknowledged frame and keeps the newest one skipped meanwhile.
   const unackedFrames = new Map<string, number>();
   const skippedFrames = new Map<string, Record<string, unknown>>();
-  // Chromium keeps a few frames in flight and reuses one frame id per run, so pacing it means
-  // leaving frames every session is busy for unacknowledged and releasing one per consumer ack.
   const heldNativeFrames: Array<number> = [];
   const releaseHeldFramesWithoutHolders = () => {
     if (skippedFrames.size === 0)
@@ -151,7 +137,6 @@ export function createCdpRelayConnection(
       case "Browser.setDownloadBehavior": {
         const directory = command.params?.["downloadPath"];
         const allowed = command.params?.["behavior"] !== "deny" && typeof directory === "string";
-        // Browser-scoped behavior targets Electron's app session; preview paths belong to will-download.
         const result = await target.send(
           "Page.setDownloadBehavior",
           { behavior: command.params?.["behavior"] === "deny" ? "deny" : "default" },
@@ -228,10 +213,8 @@ export function createCdpRelayConnection(
     if (command.method === "Runtime.runIfWaitingForDebugger" && child === undefined) {
       return Promise.resolve({});
     }
-    // Playwright asks for this on every page; the host emulates focus only while it is in use.
     if (command.method === "Emulation.setFocusEmulationEnabled") return Promise.resolve({});
     if (command.method === "Page.screencastFrameAck" && child === undefined) {
-      // A restart keeps the slot too, or restarting would let frames past an unacknowledged one.
       const sessionId = command.sessionId!;
       if (unackedFrames.get(sessionId) === command.params?.["sessionId"]) {
         unackedFrames.delete(sessionId);
@@ -251,8 +234,6 @@ export function createCdpRelayConnection(
       skippedFrames.delete(command.sessionId!);
       releaseHeldFramesWithoutHolders();
     }
-    // The shared debugger keeps Runtime enabled after an earlier connection, and a repeated
-    // enable reports no existing contexts; Playwright waits for them, so reset once per connection.
     if (command.method === "Runtime.enable" && child === undefined) {
       runtimeReset ??= target.send("Runtime.disable", {}, undefined, owner).catch(() => undefined);
       return runtimeReset.then(() =>
@@ -277,8 +258,6 @@ export function createCdpRelayConnection(
           ? browserCommand(command)
           : pageCommand(command);
       const route = command.sessionId === undefined ? {} : { sessionId: command.sessionId };
-      // Replies leave as commands finish, as Chromium's do, so a slow command
-      // such as a screenshot never holds up the ones behind it.
       void result.then(
         (value) => {
           const announce =
@@ -302,12 +281,10 @@ export function createCdpRelayConnection(
     event: (method, params, sessionId) => {
       if (!attached) return;
       if (method.startsWith("Page.download")) method = method.replace("Page.", "Browser.");
-      // Download events are the browser's; Playwright listens on its root session.
       if (method.startsWith("Browser.download")) {
         if (downloadEventsEnabled) send({ method, params });
         return;
       }
-      // Electron reports the page's own events with an empty session id.
       if (sessionId) {
         send({ method, params, sessionId });
         return;

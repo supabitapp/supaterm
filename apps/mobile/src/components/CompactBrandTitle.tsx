@@ -8,11 +8,6 @@ import { IPAD_HOME_TITLE_OFFSET } from "../lib/layoutMetrics";
 import { resolveMobileStageLabel } from "../lib/mobileBranding";
 import { useAndroidControlSizing } from "./ui/useAndroidControlSizing";
 
-/**
- * Horizontal correction applied to content rendered in the brand title slot,
- * shared with the connection subtitle so both align identically.
- */
-// The brand may grow with Dynamic Type, but not enough to crowd the header bar.
 const BRAND_MAX_FONT_SCALE = 1.4;
 
 export function brandTitleOffset(): number {
@@ -35,12 +30,10 @@ export function CompactBrandTitle(
   const titleOffset = brandTitleOffset();
   const { scale } = useAndroidControlSizing();
   const [availableWidth, setAvailableWidth] = useState<number | null>(null);
-  // Measured only while the badge shows, so hiding it does not make it look like it fits.
   const [fullWidth, setFullWidth] = useState<number | null>(null);
   const showStage =
     stageLabel !== null &&
     (!props.fit || availableWidth === null || fullWidth === null || fullWidth <= availableWidth);
-  // Truncating while the badge shows would clamp the measured width and keep the badge forever.
   const truncate = props.fit && !showStage;
 
   const title = (

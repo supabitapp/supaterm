@@ -25,7 +25,6 @@ class BrowserViewportCommitTimeoutError extends Error {
 
 const commitTails = new Map<string, Promise<void>>();
 
-/** Serializes UI and automation mutations per tab so rollback cannot overtake a newer resize. */
 const queueBrowserViewportMutation = <A>(
   tabId: string,
   start: () => Promise<A>,

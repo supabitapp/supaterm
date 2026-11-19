@@ -87,8 +87,6 @@ const resolveProjectForPullRequestDiscovery = Effect.fn(
   repositoryIdentities: RepositoryIdentityResolver.RepositoryIdentityResolver["Service"],
   options?: { readonly refresh?: boolean },
 ) {
-  // Identities stay cached for 15 minutes. A finished turn may have added the
-  // remote its pull request lives on, so post-turn discovery refreshes.
   const repositoryIdentity = yield* repositoryIdentities.resolve(project.workspaceRoot, {
     refresh: options?.refresh ?? false,
   });
@@ -140,12 +138,6 @@ export const make = Effect.gen(function* () {
     }
   };
 
-  /**
-   * A sweep for one thread reads only that thread, not every thread.
-   * Finished runs and checkpoints queue one of these each. A sweep over all
-   * threads reads only active, open ones, since discovery skips the rest;
-   * backfill looks up done threads, so its passes read every active thread.
-   */
   const readThreadSnapshot = ({ threadId, backfill }: RefreshRequest) =>
     orchestrator.getPullRequestSnapshot(
       threadId === null ? { openOnly: !(backfill || pendingBackfill.size > 0) } : { threadId },
@@ -158,8 +150,6 @@ export const make = Effect.gen(function* () {
       readThreadSnapshot(request),
       projectStore.listShells(),
     ]);
-    // Subagents refresh after their own runs, and side chats share their parent's links;
-    // sweeping either costs a lookup each per minute.
     const snapshotThreads =
       request.threadId === null
         ? threadSnapshot.threads.filter((thread) => isListedThreadLineage(thread.lineage))
@@ -195,7 +185,6 @@ export const make = Effect.gen(function* () {
       JSON.stringify([thread.projectId, thread.worktreePath, thread.branch]),
     );
 
-    // A thread's own events and a backfill read at once; only scheduled sweeps wait.
     const scheduled = new Map(
       request.threadId !== null
         ? []
@@ -228,8 +217,6 @@ export const make = Effect.gen(function* () {
               refresh: request.refresh,
             });
           if (first.branch !== null && repository === null) return finishBackfill(group);
-          // A worktree folder can outlive its .git, and git there fails with not_a_repository.
-          // An unreadable .git keeps the worktree rather than failing the whole group.
           const cwd =
             first.worktreePath !== null &&
             (yield* fileSystem
@@ -237,7 +224,6 @@ export const make = Effect.gen(function* () {
               .pipe(Effect.orElseSucceed(() => true)))
               ? first.worktreePath
               : project.workspaceRoot;
-          // A detected PR is confirmed against fresh git state before it is saved.
           const detected =
             first.branch === null
               ? null
@@ -259,8 +245,6 @@ export const make = Effect.gen(function* () {
                 }
               : null;
 
-          // Only a new association is refused: a thread keeps a PR it already saved, and a PR the
-          // user checked out stays with the threads made for it, however long ago it closed.
           const isHistoricalFor = (thread: (typeof group)[number]) =>
             detected !== null &&
             pullRequestPredatesThread(detected, thread.createdAt) &&
@@ -359,9 +343,6 @@ export const make = Effect.gen(function* () {
             updates,
             ({ thread, branchPullRequest, replacement }) =>
               Effect.gen(function* () {
-                // Discovery can perform network I/O. Re-read the project at
-                // the transaction boundary so a deleted project or changed
-                // workspace root cannot apply a result from the old checkout.
                 const currentProject = yield* projectStore.getShell(project.id);
                 if (!projectWorkspaceMatchesSnapshot(currentProject, project.workspaceRoot)) {
                   return failBackfill([thread]);
@@ -407,14 +388,11 @@ export const make = Effect.gen(function* () {
           ),
         ),
 
-      // GraphQL document, instead of one `gh pr list` per branch.
       { concurrency: 32, discard: true },
     );
     if (request.threadId === null) noPullRequestRechecks.retain(groups);
   });
 
-  // At most one queued request per thread, so a turn end's events share one lookup.
-  // A request after that lookup starts queues another, so later host changes are still read.
   const queuedThreadRequests = new Map<ThreadId, { threadId: ThreadId; refresh: boolean }>();
 
   const worker = yield* makeDrainableWorker((request: RefreshRequest) =>
@@ -446,8 +424,6 @@ export const make = Effect.gen(function* () {
     });
 
   const linkedThreadsChange = makeLinkedThreadsChangeDetector();
-  // A running linked thread can reorder its answers on every event, so reorders refresh readers at
-  // most once per 10s, the cadence clients used to poll at.
   const linkedThreadReorders = yield* Queue.dropping<void>(1);
 
   const notifyLinkedThreads = (event: OrchestrationV2DomainEvent) => {
@@ -503,8 +479,6 @@ export const make = Effect.gen(function* () {
         yield* worker.enqueue({ threadId: null, refresh: false, backfill: true });
         yield* worker.drain;
         yield* Effect.gen(function* () {
-          // The sweep only catches pull requests opened outside a turn, which
-          // nobody sees without a client. Thread events still refresh headless work.
           if (!(yield* backgroundPolicy.shouldRunOpportunisticWork)) return;
           yield* worker.enqueue({ threadId: null, refresh: false });
           yield* worker.drain;

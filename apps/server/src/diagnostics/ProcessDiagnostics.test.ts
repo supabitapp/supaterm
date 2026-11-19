@@ -15,8 +15,6 @@ import * as ResourceAttribution from "../resourceTelemetry/ResourceAttribution.t
 import * as ResourceTelemetry from "../resourceTelemetry/ResourceTelemetry.ts";
 import * as ProcessDiagnostics from "./ProcessDiagnostics.ts";
 
-// ProcessDiagnostics treats process.pid as the server, so the fixture PID is an
-// offset from it. A fixed PID collides whenever the test worker is assigned it.
 const SERVER_PID = process.pid;
 const CHILD_PID = SERVER_PID + 1;
 

@@ -45,7 +45,6 @@ const notice = (index: number, threadId = v2ThreadId) => ({
   message: `Notice ${index}`,
 });
 
-// Inherited rows come first, as in a fork, then local rows whose items alias turnItems.
 function projectionWith(count: number): OrchestrationV2ThreadProjection {
   const inherited = Array.from({ length: 5 }, (_, index) => notice(index, otherThreadId));
   const turnItems = Array.from({ length: count }, (_, index) => notice(index));

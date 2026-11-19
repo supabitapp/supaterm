@@ -2,8 +2,6 @@ import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { act, render as renderUi, type Screen } from "../../test/render";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-// The desktop cases; openPullRequestLink.web.browser.test.tsx covers a plain browser, where
-// isElectron is already false. A mocked module's exports are fixed once it loads.
 const state = vi.hoisted(() => ({
   withThread: false,
   navigate: vi.fn(),

@@ -41,8 +41,6 @@ import {
 } from "./messageSearchIndex.ts";
 import { loadOlderDoneThreadsPage } from "./ShellStream.ts";
 
-// When the user last wrote in the thread aliased `threads`, as the clients
-// rank recency; agent notices in the user role do not count.
 const latestUserMessageAt = (sql: SqlClient.SqlClient) => sql`(
   SELECT messages.updated_at
   FROM orchestration_v2_projection_messages AS messages
@@ -65,19 +63,14 @@ export class ThreadSearchError extends Schema.TaggedError<ThreadSearchError>()(
   }
 }
 
-// Token lists bind as JSON arrays, so any number of them is one parameter.
 const TokenList = Schema.fromJsonString(Schema.Array(Schema.String));
 const SearchRequest = Schema.Struct({
-  /** The FTS5 query, or null to scan messages instead. */
   match: Schema.NullOr(Schema.String),
-  /** Tokens every hit must contain, as typed or as their GLOB folding case and Latin accents. */
   substrings: Schema.fromJsonString(
     Schema.Array(Schema.Struct({ token: Schema.String, accentInsensitive: Schema.String })),
   ),
-  /** For each short word outside ASCII, the spellings a hit must contain one of. */
   shortSpellings: Schema.fromJsonString(Schema.Array(Schema.Array(Schema.String))),
   projectId: Schema.NullOr(ProjectId),
-  /** Threads the caller already lists, left out before the hit limit. */
   excludedThreadIds: TokenList,
 });
 const SearchRow = Schema.Struct({
@@ -100,17 +93,11 @@ const decodeThreadOpens = Schema.decodeUnknownOption(
 );
 
 const SNIPPET_LENGTH = 240;
-// The newest hits read per query. A common word stops here instead of reading
-// every message, so time stays flat as history grows.
 const MESSAGE_HIT_LIMIT = 2000;
-// How many of the newest index hits the filters may pass over to fill that
-// limit: a rare short word or hidden threads would otherwise read every hit.
 const MESSAGE_CANDIDATE_LIMIT = 10_000;
-// Without the index, how many of the newest messages a search scans.
 const MESSAGE_SCAN_LIMIT = 20_000;
 const NON_ASCII = /[\u0080-\uffff]/;
 
-/** SQLite's lower() folds ASCII only, so a short word is checked as each spelling it can match. */
 function shortTokenSpellings(token: string): ReadonlyArray<string> {
   const forms = (char: string) => {
     const plain = char.normalize("NFD").replace(/\p{M}/gu, "");
@@ -123,8 +110,6 @@ function shortTokenSpellings(token: string): ReadonlyArray<string> {
   return [...new Set(spellings)];
 }
 
-// Latin-1 Supplement and Extended-A/B/Additional letters that fold to ASCII,
-// including Romanian and Vietnamese letters SQLite's lower() leaves alone.
 const accentedForms = Map.groupBy(
   [
     ...Array.from({ length: 0x250 - 0xc0 }, (_, offset) => String.fromCharCode(0xc0 + offset)),
@@ -132,8 +117,6 @@ const accentedForms = Map.groupBy(
   ].filter((char) => /^[a-z]$/.test(foldSearchQuery(char))),
   (char) => foldSearchQuery(char),
 );
-// Only text that may hold one of those letters (by UTF-8 lead byte) needs the GLOB:
-// lower() already folds ASCII case.
 const MESSAGE_HOLDS_ACCENTED_LATIN = [
   ...new Set(
     [...accentedForms.values()].flat().map((char) => Buffer.from(char).toString("hex", 0, 1)),
@@ -142,7 +125,6 @@ const MESSAGE_HOLDS_ACCENTED_LATIN = [
   .map((lead) => `instr(CAST(message.text AS BLOB), x'${lead}') > 0`)
   .join(" OR ");
 
-/** A GLOB pattern for `token` anywhere, in any case and with or without Latin accents. */
 function accentInsensitiveGlob(token: string): string {
   const pattern = Array.from(token, (char) => {
     const letter = foldSearchQuery(char);
@@ -154,19 +136,12 @@ function accentInsensitiveGlob(token: string): string {
   return `*${pattern.join("")}*`;
 }
 
-/**
- * The SQL inputs for a message search, or null when the query has no token
- * long enough to search. Tokens of three or more characters go to the
- * trigram index as quoted phrases; shorter ones, and every token when the
- * index cannot serve the query, are checked as substrings of the hits.
- */
 function buildMessageSearch(
   query: string,
   hasIndex: boolean,
 ): Omit<typeof SearchRequest.Type, "projectId" | "excludedThreadIds"> | null {
   const { long, short } = messageSearchTokens(query);
   if (long.length === 0) return null;
-  // Two-character CJK words are too short for trigrams.
   const indexed = hasIndex && long.every((token) => Array.from(token).length >= 3);
   const narrowing = short.filter((token) => !NON_ASCII.test(token));
   return {
@@ -179,11 +154,8 @@ function buildMessageSearch(
   };
 }
 
-// A thread shows a link as its text, so in-thread find cannot reach a match
-// in the address; messages are matched as they read.
 const MARKDOWN_LINK = /!?\[([^\]\n]*)\]\([^)\s]*\)/g;
 
-// Result rows show one line, so the match must sit near the start to be seen.
 const SNIPPET_LEAD = 24;
 
 const isLowSurrogate = (code: number) => code >= 0xdc00 && code <= 0xdfff;
@@ -197,11 +169,8 @@ export function buildSearchSnippet(text: string, matchStart: number): string {
   let start = Math.max(0, matchStart - SNIPPET_LEAD);
   const wordStart = text.slice(start, matchStart).search(/\s/);
   if (start > 0 && wordStart !== -1) start += wordStart + 1;
-  // Cut between characters, not inside an emoji's surrogate pair.
   if (isLowSurrogate(text.charCodeAt(start))) start++;
-  // Collapsing whitespace shortens the text, so read more of it.
   const rawEnd = Math.min(text.length, start + SNIPPET_LENGTH * 2);
-  // Emphasis and code marks do not show in a thread either.
   const shown = text
     .slice(start, rawEnd)
     .replace(/\*\*|`+/g, "")
@@ -213,10 +182,6 @@ export function buildSearchSnippet(text: string, matchStart: number): string {
   return `${start > 0 ? "…" : ""}${shown.slice(0, end)}${cut ? "…" : ""}`;
 }
 
-// Filter hidden subagents and side chats before the hit limit; JS checks word starts and ranking.
-// Both paths narrow ASCII tokens with Latin-1 and Extended-A/B/Additional accent variants.
-// Without FTS5 trigrams, or for two-character CJK words, scan the same eligible messages;
-// accented queries and non-Latin case can still miss: "fermée"/"fermee", "ОШИБКА"/"ошибка".
 export const messageHitsQuery = (
   sql: SqlClient.SqlClient,
   { match, substrings, shortSpellings, projectId, excludedThreadIds }: typeof SearchRequest.Encoded,
@@ -366,11 +331,9 @@ export class ThreadSearch extends Context.Service<
   }
 >()("supaterm/orchestration-v2/ThreadSearch") {}
 
-// Rows a client gets per search: enough for the shown results without sending every match.
 const OLDER_DONE_TITLE_ROWS = 15;
 const OLDER_DONE_MESSAGE_ROWS = 5;
 
-// Only the fields the palette scorer reads, so an interactive search does not decode payloads.
 const OlderDoneTitleRow = Schema.Struct({
   id: ThreadId,
   title: Schema.String,
@@ -495,24 +458,15 @@ export const make = Effect.gen(function* () {
       ),
     );
 
-  // A project scope applies before ranking, so other projects' stronger hits
-  // cannot use up the limit.
   const searchMessages = Effect.fn("ThreadSearch.search")(function* (
     input: OrchestrationSearchThreadsInput & {
       readonly projectId: ProjectId | null;
-      /** Threads the caller already lists, which must not use up the limit. */
       readonly excludedThreadIds?: ReadonlySet<ThreadId>;
-      /** Off for an agent's search, which has no use for the user's picks. */
       readonly picks?: boolean;
     },
   ) {
-    // One message per thread: the best word match, then what the user wrote,
-    // since that is what they remember asking, then the newest by when it was
-    // written. Row order is not age: imported histories arrive in one batch.
-    // Text relevance (bm25) would cost a pass over every hit in history.
     type Hit = {
       readonly row: typeof SearchRow.Type;
-      /** The message as it reads, links as their text. */
       readonly text: string;
       readonly quality: number;
       readonly offset: number;
@@ -539,9 +493,6 @@ export const make = Effect.gen(function* () {
       }),
     );
     const best = new Map<ThreadId, Hit>();
-    // Matching messages per thread at its best quality: a thread that keeps
-    // using the word ranks above a passing mention, and weaker hits ("Trust"
-    // for "rust") never add to a whole word's count.
     const hitCounts = new Map<ThreadId, number>();
     const hitCount = (threadId: ThreadId) => hitCounts.get(threadId) ?? 1;
     const matchMessage = messageMatcher(input.query);
@@ -558,9 +509,6 @@ export const make = Effect.gen(function* () {
       }
       if (current === undefined || compareHits(hit, current) < 0) best.set(row.threadId, hit);
     }
-    // Ranked as clients rank them, with picks and use, before the limit cuts:
-    // a thread picked for this query must come back even when it only
-    // matches in a few old messages.
     const opens = best.size === 0 ? [] : yield* read(threadOpens({ threadIds: [...best.keys()] }));
     const subjectById = new Map(
       opens.map((row) => [
@@ -607,8 +555,6 @@ export const make = Effect.gen(function* () {
     const limit = input.limit ?? 50;
     const normalizedQuery = foldSearchQuery(input.query);
     const now = DateTime.toEpochMillis(yield* DateTime.now);
-    // Agents call this rarely, and a project has hundreds of threads, not
-    // millions, so ranking every active thread in memory stays cheap.
     const candidates = yield* read(titleCandidates({ projectId: input.projectId ?? null }));
     const subjectById = new Map(
       candidates.map((row): [ThreadId, ThreadSearchSubject] => [
@@ -619,7 +565,6 @@ export const make = Effect.gen(function* () {
           branch: row.thread.branch,
           projectTitle: row.projectTitle,
           pullRequests: threadSearchPullRequests(row.thread),
-          // Like the clients: what the user last wrote, else when the thread began.
           activityAt: Date.parse(
             row.latestUserMessageAt ?? DateTime.formatIso(row.thread.createdAt),
           ),
@@ -628,7 +573,6 @@ export const make = Effect.gen(function* () {
       ]),
     );
     const titleHits: ThreadSearchHit[] = rankSearchItems(candidates, (row, options) =>
-      // An agent's search has no use for the user's palette picks.
       scoreThreadSearch(normalizedQuery, subjectById.get(row.thread.id)!, now, {
         ...options,
         picks: false,
@@ -655,8 +599,6 @@ export const make = Effect.gen(function* () {
         ...match,
         title: subjectById.get(match.threadId)!.title,
       }));
-    // Titles come first, but a fifth of the slots stay for message matches,
-    // as the palette keeps its "In messages" section.
     const messageSlots = Math.min(messageHits.length, Math.floor(limit / 5));
     return {
       matches: [...titleHits.slice(0, limit - messageSlots), ...messageHits].slice(0, limit),
@@ -681,11 +623,9 @@ export const make = Effect.gen(function* () {
         pullRequests: row.pullRequests ?? undefined,
         branchPullRequest: row.branchPullRequest,
       }),
-      // Like the clients: what the user last wrote, else when the thread began.
       activityAt: Date.parse(row.latestUserMessageAt ?? row.createdAt),
       opens: Option.getOrNull(decodeThreadOpens(row.opens)),
     });
-    // Picks on, as in the command palette: a thread picked for this query must make the cut.
     const titleIds = rankSearchItems(candidates, (row, options) =>
       scoreThreadSearch(normalizedQuery, subjectOf(row), now, { ...options, picks: true }),
     )
@@ -740,7 +680,6 @@ export const searchThreadsWithOlderDoneRows = Effect.fn(
   const messages: OrchestrationV2SearchThreadsResult =
     titlesOnly === true ? { matches: [] } : yield* input.search(request);
   if (olderDoneBefore === undefined) return messages;
-  // Ranked before the rows' transaction, so scoring never holds the shared reader.
   const threadIds = yield* input.searchOlderDone({
     query: request.query,
     before: olderDoneBefore,

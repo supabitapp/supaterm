@@ -47,13 +47,10 @@ import * as Transcription from "./Transcription.ts";
 export const TRANSCRIPTION_UPLOAD_ROUTE_PREFIX = "/api/transcription/uploads";
 export const TRANSCRIPTION_STREAM_ROUTE_PREFIX = "/api/transcription/streams";
 
-// A URL can start work for this long after preparation. An entry outlives every URL issued for
-// it, so a replayed or re-prepared URL finds the work or cancellation instead of starting again.
 const OUTCOME_TTL_MS = ATTACHMENT_UPLOAD_URL_TTL_MS;
 const MAX_ENTRIES = 64;
 const PRUNE_INTERVAL = "1 minute";
 const MAX_STREAM_BYTES = TRANSCRIPTION_MAX_SECONDS * PCM_BYTES_PER_SECOND;
-// How long a stream that lost its client keeps the vendor session for it to come back.
 const DETACHED_GRACE = "30 seconds";
 
 const UploadClaims = Schema.Struct({
@@ -62,7 +59,6 @@ const UploadClaims = Schema.Struct({
   bootId: Schema.String,
   uploadId: Schema.String,
   expiresAt: Schema.Number,
-  /** Resolved when prepared, so a settings change can't move a replay to another account. */
   providerInstanceId: ProviderInstanceId,
   request: TranscriptionPrepareUploadInput,
 });
@@ -78,7 +74,6 @@ const StreamClaims = Schema.Struct({
   uploadId: Schema.String,
   expiresAt: Schema.Number,
   providerInstanceId: ProviderInstanceId,
-  /** The session that may send audio; the stream ends once it is revoked. */
   sessionId: Schema.String,
   request: TranscriptionPrepareStreamInput,
 });
@@ -92,7 +87,6 @@ const decodeFinish = Schema.decodeUnknownOption(Schema.fromJsonString(Transcript
 
 type Result = Deferred.Deferred<TranscriptionUploadResult, TranscriptionError>;
 
-/** The result identifies the work: an entry replaced by a cancel no longer holds it. */
 interface Work {
   readonly result: Result;
   readonly fiber: Fiber.Fiber<void>;
@@ -100,26 +94,15 @@ interface Work {
 
 type Outcome = Exit.Exit<TranscriptionUploadResult, TranscriptionError>;
 
-/**
- * Audio of a dictation still being recorded, fed to the vendor as it arrives. Only one
- * connection at a time sends it; `lock` orders that sender against an upload of the rest.
- */
 interface Live {
   readonly audio: Queue.Queue<Uint8Array, Cause.Done>;
   readonly lock: Semaphore.Semaphore;
   receivedBytes: number;
   finished: boolean;
-  /** Ends every connection once audio stops counting; `true` asks the client to upload instead. */
   readonly closed: Deferred.Deferred<boolean>;
-  /** Completing it fences the connection that holds it. */
   attachment: Deferred.Deferred<void>;
 }
 
-/**
- * `request` is the encoded preparation; a streamed dictation has none, and any upload naming
- * its id joins it. A cancelled upload answers every request alike. `retainUntil` covers the
- * latest URL issued for the upload; running work is never dropped.
- */
 type Entry =
   | {
       readonly _tag: "Transcribing" | "Submitting";
@@ -128,7 +111,6 @@ type Entry =
       readonly work: Work;
       readonly retainUntil: number;
       readonly live?: Live;
-      /** Where a streamed dictation goes once transcribed, when a voice message names it. */
       readonly submit?: TranscriptionUploadSubmit;
     }
   | {
@@ -256,15 +238,11 @@ const make = Effect.gen(function* () {
   const entriesRef = yield* Ref.make<ReadonlyMap<string, Entry>>(new Map());
   const storeLock = yield* Semaphore.make(1);
   const randomId = random.uuidV4();
-  // Outcomes don't survive a restart, so URLs issued before it must not start work again.
   const bootId = yield* randomId;
-  // Kept apart from pending attachments, so the attachment and transcription APIs can't
-  // transcribe, discard, or sweep audio this service is working on.
   const directory = path.join(config.stateDir, "transcription-uploads");
   yield* fileSystem.remove(directory, { recursive: true, force: true }).pipe(Effect.ignore);
   const removeFile = (file: string) => fileSystem.remove(file, { force: true }).pipe(Effect.ignore);
 
-  // Callers hold the store lock.
   const pruneExpired = Effect.fnUntraced(function* (now: number) {
     const entries = yield* Ref.get(entriesRef);
     const live = new Map(
@@ -275,7 +253,6 @@ const make = Effect.gen(function* () {
   });
   const liveEntries = Effect.flatMap(Clock.currentTimeMillis, pruneExpired);
 
-  // Only the entry's own work settles it; a cancel that replaced it has already answered.
   const settle = Effect.fnUntraced(function* (uploadId: string, result: Result, exit: Outcome) {
     const outcome = Exit.isSuccess(exit)
       ? exit
@@ -333,7 +310,6 @@ const make = Effect.gen(function* () {
     if (text.trim().length === 0) {
       return { text, submission: { status: "noSpeech" } } satisfies TranscriptionUploadResult;
     }
-    // Cancelling takes the same lock, so it either stops the work first or finds it sending.
     const sending = yield* storeLock.withPermits(1)(
       Ref.modify(entriesRef, (entries) => {
         const entry = entries.get(uploadId);
@@ -350,7 +326,6 @@ const make = Effect.gen(function* () {
   const closeLive = (live: Live, upload: boolean) =>
     Effect.andThen(Deferred.succeed(live.closed, upload), Queue.shutdown(live.audio));
 
-  // Callers hold the live lock.
   const offerAudio = (live: Live, chunk: Uint8Array) => {
     const room = MAX_STREAM_BYTES - live.receivedBytes;
     if (live.finished || room <= 0 || chunk.byteLength === 0) return Effect.void;
@@ -360,7 +335,6 @@ const make = Effect.gen(function* () {
   };
   const appendLive = (live: Live, chunk: Uint8Array) =>
     live.lock.withPermits(1)(Effect.suspend(() => offerAudio(live, chunk)));
-  /** Ends the audio. `recording` is the whole clip from its start; only what was missed is sent. */
   const completeLive = (live: Live, recording?: Uint8Array) =>
     live.lock.withPermits(1)(
       Effect.suspend(() => {
@@ -377,8 +351,6 @@ const make = Effect.gen(function* () {
       }),
     );
 
-  // A refusal before any audio reached the vendor spent nothing: forget the dictation, so the
-  // client's upload of the recording runs as a fresh transcription.
   const abandonLive = Effect.fnUntraced(function* (uploadId: string, result: Result, live: Live) {
     const owned = yield* storeLock.withPermits(1)(
       Ref.modify(entriesRef, (entries) => {
@@ -396,8 +368,6 @@ const make = Effect.gen(function* () {
     yield* closeLive(live, true);
   });
 
-  // Decided under the lock that also records a voice message's target, so a Send that
-  // arrives as the transcript lands is either sent here or by the upload that carried it.
   const finishTranscript = Effect.fnUntraced(function* (
     uploadId: string,
     result: Result,
@@ -468,8 +438,6 @@ const make = Effect.gen(function* () {
         }),
       );
 
-  // A stream that lost its client without finishing can't be completed honestly: the vendor
-  // already heard part of it, so it fails and only a deliberate retry spends again.
   const expireDetached = Effect.fnUntraced(function* (
     uploadId: string,
     live: Live,
@@ -502,7 +470,6 @@ const make = Effect.gen(function* () {
     yield* closeLive(live, false);
   });
 
-  // Callers hold the store lock. A second connection takes the stream over from the first.
   const attach = Effect.fnUntraced(function* (claims: typeof StreamClaims.Type) {
     const entries = yield* liveEntries;
     const existing = entries.get(claims.uploadId);
@@ -566,7 +533,6 @@ const make = Effect.gen(function* () {
     const attachment = live.attachment;
     const receivedBytes = yield* live.lock.withPermits(1)(Effect.sync(() => live.receivedBytes));
 
-    // Frames arrive every 100 ms for as long as someone talks; a span per frame adds nothing.
     const pump = Effect.fnUntraced(function* () {
       const reader = yield* socket.reader;
       yield* writer.write(encodeServerMessage({ type: "ready", receivedBytes }));
@@ -626,8 +592,6 @@ const make = Effect.gen(function* () {
       );
   };
 
-  // Runs under the store lock and uninterruptibly: once the audio is in place the work
-  // is registered and running, so a disconnect after this can't strand the upload.
   const accept = Effect.fnUntraced(function* (
     uploadId: string,
     claims: typeof UploadClaims.Type,
@@ -637,7 +601,6 @@ const make = Effect.gen(function* () {
     const live = yield* liveEntries;
     const existing = live.get(uploadId);
     if (existing !== undefined) return joinEntry(existing, request);
-    // Cancellations hold no work or outcome, so they don't use up capacity.
     const held = [...live.values()].filter((entry) => entry._tag !== "Cancelled").length;
     if (held >= MAX_ENTRIES) {
       return Effect.fail(new TranscriptionError({ reason: "rateLimited" }));
@@ -684,8 +647,6 @@ const make = Effect.gen(function* () {
     yield* completeLive(live, audio.pcm);
   });
 
-  // Callers hold the store lock. A voice message made of a streamed dictation is sent once its
-  // transcript exists, whether that is still to come or already here.
   const sendStreamed = Effect.fnUntraced(function* (
     uploadId: string,
     target: TranscriptionUploadSubmit,
@@ -740,12 +701,9 @@ const make = Effect.gen(function* () {
     if (known !== undefined) {
       const live = known._tag === "Transcribing" ? known.live : undefined;
       if (live !== undefined && !live.finished) {
-        // The stream stopped short; the recording fills in what it missed.
         if (body === undefined) return yield* new TranscriptionError({ reason: "uploadExpired" });
         yield* completeFromUpload(live, body, claims.request.sizeBytes);
       } else if (body !== undefined) {
-        // A client sending the audio again can't read the answer until its body is taken, so
-        // waiting on the work with the body unread would stall that upload.
         yield* Stream.runDrain(body).pipe(Effect.ignore);
       }
       const target = claims.request.submit;
@@ -792,7 +750,6 @@ const make = Effect.gen(function* () {
         ).pipe(Effect.as(entry));
       }),
     );
-    // Recovering an upload's recorded outcome needs no usable provider; new work does.
     const providerInstanceId =
       known !== undefined && "providerInstanceId" in known
         ? known.providerInstanceId
@@ -839,7 +796,6 @@ const make = Effect.gen(function* () {
     };
   });
 
-  // Uninterruptible, so a caller that disconnects mid-cancel can't leave it half done.
   const cancel: TranscriptionUploads["Service"]["cancel"] = Effect.fn(
     "TranscriptionUploads.cancel",
   )(function* ({ uploadId }) {
@@ -851,7 +807,6 @@ const make = Effect.gen(function* () {
         if (entry?._tag === "Submitting" || entry?._tag === "Settled") {
           return { outcome: "tooLate" } as const;
         }
-        // Recorded even when nothing is known yet, so an upload still on its way can't start.
         const retainUntil = Math.max(entry?.retainUntil ?? 0, now + OUTCOME_TTL_MS);
         yield* Ref.set(entriesRef, new Map(live).set(uploadId, { _tag: "Cancelled", retainUntil }));
         return {

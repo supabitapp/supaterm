@@ -35,28 +35,28 @@ export function makeStoredShellSnapshotEncoder(
       hasWorked = true;
       return Effect.void;
     });
-    const encodeMisses =
-      /* Cache encoding runs for shell update batches; avoid tracing each batch. */
-      Effect.fnUntraced(function* (misses: ReadonlyArray<OrchestrationV2ThreadShellJson>) {
-        yield* yieldBetweenChunks;
-        const chunk = yield* encodeThreadChunk(misses);
-        chunk.forEach((row, index) => encodedRows.set(misses[index]!, row));
-      });
-    const encodeRows =
-      /* Cache encoding runs for shell update batches; avoid tracing each batch. */
-      Effect.fnUntraced(function* (rows: ReadonlyArray<OrchestrationV2ThreadShellJson>) {
-        let misses: Array<OrchestrationV2ThreadShellJson> = [];
-        for (const row of rows) {
-          if (encodedRows.has(row)) continue;
-          misses.push(row);
-          if (misses.length === ROWS_PER_CHUNK) {
-            yield* encodeMisses(misses);
-            misses = [];
-          }
+    const encodeMisses = Effect.fnUntraced(function* (
+      misses: ReadonlyArray<OrchestrationV2ThreadShellJson>,
+    ) {
+      yield* yieldBetweenChunks;
+      const chunk = yield* encodeThreadChunk(misses);
+      chunk.forEach((row, index) => encodedRows.set(misses[index]!, row));
+    });
+    const encodeRows = Effect.fnUntraced(function* (
+      rows: ReadonlyArray<OrchestrationV2ThreadShellJson>,
+    ) {
+      let misses: Array<OrchestrationV2ThreadShellJson> = [];
+      for (const row of rows) {
+        if (encodedRows.has(row)) continue;
+        misses.push(row);
+        if (misses.length === ROWS_PER_CHUNK) {
+          yield* encodeMisses(misses);
+          misses = [];
         }
-        if (misses.length > 0) yield* encodeMisses(misses);
-        return rows.map((row) => encodedRows.get(row));
-      });
+      }
+      if (misses.length > 0) yield* encodeMisses(misses);
+      return rows.map((row) => encodedRows.get(row));
+    });
 
     const { snapshot } = stored;
     const threads = yield* encodeRows(snapshot.threads);

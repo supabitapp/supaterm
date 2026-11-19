@@ -10,7 +10,6 @@ export default Effect.gen(function* () {
   `;
   if (index.length === 0) return;
 
-  // Legacy placeholders stay indexed until rebuild; FTS deletes can overflow last_insert_rowid at commit.
   yield* sql`DROP TRIGGER orchestration_v2_message_search_insert`;
   yield* sql`DROP TRIGGER orchestration_v2_message_search_update`;
   yield* sql`DROP TRIGGER orchestration_v2_message_search_delete`;

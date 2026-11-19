@@ -358,7 +358,6 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
       runtime.value.pid !== process.pid &&
       isProcessAlive(runtime.value.pid)
     ) {
-      // Bare `supaterm pair` prefers a linked worktree's `.supaterm`, so always name this home.
       const { command: pairCommand } = yield* resolveHostCliCommand("pair", [
         "--base-dir",
         baseDir,
@@ -539,7 +538,6 @@ export const resolveCliWorktreeHome = Effect.fn("config.resolveCliWorktreeHome")
   if (worktreeHome === undefined || entry === undefined) return undefined;
   const path = yield* Path.Path;
   const fileSystem = yield* FileSystem.FileSystem;
-  // A launcher symlink keeps its own path in argv, so both sides compare as real paths.
   const realPath = (value: string) =>
     fileSystem.realPath(value).pipe(Effect.orElseSucceed(() => value));
   const runsFromWorktree = isWithinRoot(
@@ -597,8 +595,6 @@ export const resolveCliAuthConfig = (
     },
     cliLogLevel,
   );
-  // Logs go to stdout, where --json and --token-only print, and resolving can
-  // log, for example when it sweeps abandoned attachment uploads.
   return options?.quietLogs === true
     ? resolved.pipe(Effect.provideService(References.MinimumLogLevel, "Error"))
     : resolved;

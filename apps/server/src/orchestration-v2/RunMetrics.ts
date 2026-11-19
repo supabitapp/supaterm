@@ -18,9 +18,6 @@ import {
 } from "../observability/Metrics.ts";
 
 const REMEMBERED_RUNS = 4096;
-// A rollback rewrites runs that already finished, stamping the rollback time as their completion,
-// so it is not counted as an outcome. Declared here because ThreadManagementService imports
-// EventSink.
 const OUTCOMES: ReadonlySet<OrchestrationV2Run["status"]> = new Set([
   "completed",
   "failed",
@@ -45,13 +42,8 @@ export const makeRunOutcomeRecorder = <E>(
   isSubagentThread: (threadId: ThreadId) => Effect.Effect<boolean, E>,
 ) => {
   const counted = new Set<string>();
-  // Untraced: both run for every committed batch inside the EventSink operation's span.
-  // Never reads or writes `counted`, so a transaction that rolls back reserves nothing.
   const prepare = Effect.fnUntraced(function* (events: ReadonlyArray<OrchestrationV2StoredEvent>) {
     const outcomes: Array<RunOutcome> = [];
-    // Every finished run is prepared, in order, even one already counted: an earlier outcome in
-    // this batch may evict it before `record` reaches it, so only `record` decides what counts.
-    // Only the lineage read is shared.
     const delegatedThreads = new Map<ThreadId, boolean>();
     for (const { event } of events) {
       if (event.type !== "run.updated") continue;
@@ -80,10 +72,8 @@ export const makeRunOutcomeRecorder = <E>(
     }
     return outcomes;
   });
-  // Uninterruptible so a run is never marked counted with only part of its measurements.
   const record = Effect.fnUntraced(function* (outcomes: ReadonlyArray<RunOutcome>) {
     for (const outcome of outcomes) {
-      // Concurrent writers can prepare the same run; the first to publish counts it.
       if (counted.has(outcome.runId)) continue;
       counted.add(outcome.runId);
       if (counted.size > REMEMBERED_RUNS) counted.delete(counted.values().next().value!);

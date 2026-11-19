@@ -196,10 +196,6 @@ function nullableIso(value: DateTime.Utc | null): string | null {
   return value === null ? null : iso(value);
 }
 
-// Only work the agent waits on holds it: commands and monitors it left running
-// unmarked, such as a dev server, present the run's own status. The
-// server suppresses the roster while an interruptible activity run exists, so a
-// remaining roster is stronger than checkpoint-oriented waiting.
 function shellRuntime(thread: OrchestrationV2ThreadShell): ThreadRuntimeSummary | null {
   const parkAtIdle =
     backgroundWorkHoldsCompletion(thread.pendingBackgroundTasks ?? []) &&
@@ -289,7 +285,6 @@ export function presentThreadShell(
       thread.pendingRuntimeRequest !== null &&
       thread.pendingRuntimeRequest.kind !== "user_input" &&
       thread.pendingRuntimeRequest.kind !== "auth_refresh",
-    // Async questions count too, so a thread with any open question leaves Working.
     hasPendingUserInput: thread.pendingRuntimeRequest?.kind === "user_input",
     pendingUserInputAt:
       thread.pendingRuntimeRequest?.kind === "user_input"

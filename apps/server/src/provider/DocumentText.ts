@@ -49,12 +49,9 @@ const make = Effect.gen(function* () {
   const isExecutable = yield* HostProcess.IsExecutable;
   const environment = yield* HostProcess.Environment;
   const clock = yield* Clock.Clock;
-  // A large DOCX worker peaks near 270 MiB RSS, so two slots bound parser memory near 540 MiB.
   const lock = yield* Semaphore.make(2);
   const failed = new Map<string, number>();
-  // A cancelled extraction can still be publishing while its retry runs in the other slot.
   let attempt = 0;
-  // In a bundle import.meta.url is bin.mjs; development and tests use this source module.
   const entry = NodeURL.fileURLToPath(
     new URL(import.meta.url.endsWith(".ts") ? "../bin.ts" : "./bin.mjs", import.meta.url),
   );

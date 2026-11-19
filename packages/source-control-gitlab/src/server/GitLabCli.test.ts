@@ -104,7 +104,6 @@ layer("GitLabCli.layer", (it) => {
     }),
   );
 
-  // A strictly confined glab (Snap) has a private /tmp, so it cannot open the server's body file.
   it.effect("sends the merge request description to glab on stdin, not as a file path", () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
@@ -231,7 +230,6 @@ layer("GitLabCli.layer", (it) => {
         const entries = Array.from({ length: 4 }, (_, index) => ({
           iid: index + 1,
           title: "MR " + index,
-          // The first alone escapes past the default 1 MB cap; together they pass the list cap.
           description: index === 0 ? '"'.repeat(600_000) : "x".repeat(3_000_000),
           web_url: "https://gitlab.com/acme/web/-/merge_requests/" + (index + 1),
           target_branch: "main",

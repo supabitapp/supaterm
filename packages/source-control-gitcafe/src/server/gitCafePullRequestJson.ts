@@ -88,8 +88,6 @@ export const GitCafePullDetail = Schema.Struct({
   mergeRoute: Schema.optional(Schema.Literals(["native", "provider", "unsupported"])),
   lockedAt: Schema.optional(Schema.NullOr(IsoDateTime)),
   viewerActorId: Schema.optional(Schema.NullOr(Schema.String)),
-  // Set once GitHub has merged a pull request GitCafe routed there, which can be before the
-  // sync brings the merged state back.
   providerMerge: Schema.optional(Schema.NullOr(Schema.Struct({ mergedAt: IsoDateTime }))),
   capabilities: Schema.Struct({
     comment: Schema.Boolean,
@@ -118,7 +116,6 @@ const GitCafeComment = Schema.Struct({
   body: Schema.NullOr(Schema.String),
   createdAt: IsoDateTime,
   path: Schema.NullOr(Schema.String),
-  // Only positive lines anchor review threads; the API allows any integer.
   line: Schema.NullOr(Schema.Int),
   side: Schema.NullOr(Schema.Literals(["left", "right"])),
   commitOid: Schema.NullOr(Schema.String),
@@ -235,7 +232,6 @@ const GitCafeDiffFile = Schema.Struct({
   isSubmodule: Schema.optional(Schema.Boolean),
   oldOid: Schema.optional(Schema.String),
   newOid: Schema.optional(Schema.String),
-  // `/changes` and `/compare` omit hunks; batched reads fill them.
   hunks: Schema.optional(
     Schema.Array(
       Schema.Struct({
@@ -305,12 +301,10 @@ function toActor(actor: Actor, host: string): PullRequestActor | null {
   return {
     login: actor.kind === "local" ? actor.handle : actor.login,
     name: actor.kind === "local" ? actor.displayName : null,
-    // A mirrored GitHub account says it is a bot by its account type, not its login.
     ...((actor.kind === "local" && actor.bot === true) ||
     (actor.kind === "github" && actor.accountType === "bot")
       ? { isBot: true }
       : {}),
-    // GitCafe serves its own avatars by path, so a relative one is read against the host.
     avatarUrl: actor.avatarUrl === null ? null : new URL(actor.avatarUrl, `https://${host}`).href,
   };
 }
@@ -399,7 +393,6 @@ export function toViewerPermissions(detail: GitCafePullDetail): PullRequestViewe
     stackRebase: merge,
     comment: open,
     resolve: open,
-    // GitCafe refuses an author's approval and request for changes, as GitHub does.
     verdicts: !review
       ? []
       : isViewerAuthor(detail)
@@ -408,7 +401,6 @@ export function toViewerPermissions(detail: GitCafePullDetail): PullRequestViewe
     requestReviewers: edit && detail.state === "open",
     labels: edit && detail.state === "open",
     editChangeRequest: edit,
-    // GitCafe's only branch update moves a whole stack.
     updateMethods: [],
   };
 }
@@ -593,7 +585,6 @@ export function toDiff(diff: typeof GitCafeDiff.Type): ProviderDiffSlice {
         file.binary ||
         file.tooLarge ||
         file.hunksOmitted;
-      // GitCafe has no similarity score; Pierre needs this header to retain rename metadata.
       lines.push(
         `similarity index ${hasChanges ? 0 : 100}%`,
         `${action} from ${quoteGitPatchPath(oldPath)}`,
@@ -666,7 +657,6 @@ function checkStatus(check: (typeof GitCafeChecks.Type.items)[number]): PullRequ
 
 type GitCafeCheck = (typeof GitCafeChecks.Type.items)[number];
 
-/** A check run's id, which grows with each run. Commit statuses (`status:…`) carry no such order. */
 function runOrder(check: GitCafeCheck): bigint | null {
   return check.id != null && /^\d+$/u.test(check.id) ? BigInt(check.id) : null;
 }

@@ -40,7 +40,6 @@ function pair(onStream: (stream: TunnelStream) => void = () => {}, failSend = fa
     send: (data) => toClient.push(data),
     onStream,
   });
-  // Pumps frames between the two in-memory sessions until neither has output left.
   async function drain() {
     // oxlint-disable-next-line supaterm/no-polling-loop-in-tests -- each round delivers the queued frames; it is the transport, not a wait.
     for (let round = 0; round < 1000; round++) {
@@ -384,7 +383,6 @@ class FakeSocket implements WebSocketLike {
   }
 }
 
-// Plays the host behind every dialed URL, so each candidate verifies against the same identity.
 function tunnelHost(directUrls?: () => ReadonlyArray<string>, handshakeTimeoutMs?: number) {
   const secret = NodeCrypto.randomBytes(32);
   const sockets: FakeSocket[] = [];

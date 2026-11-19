@@ -91,7 +91,6 @@ export function createImportedPhoneScene(
     },
     screenPoint: projection,
     dispose() {
-      // The model slot owns imported resources. This scene owns only its replacement screen material.
       display.material = originalMaterial;
       screenMaterial.map = null;
       screenMaterial.dispose();

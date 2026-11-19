@@ -85,7 +85,6 @@ function WorkspaceRootContent() {
   const keyboardHeight = useKeyboardState((keyboard) => keyboard.height);
   const workspace = useWorkspaceTabs()!;
   const { state } = workspace;
-  // Settings is a workspace tab too; its list takes the place of the selected tab's.
   const settingsOpen = workspace.settingsOpen;
   const headerOnly = use(NativeWorkspaceTabActivityContext)?.headerOnly === true;
   const renderHeaderTitle = () => (
@@ -99,8 +98,7 @@ function WorkspaceRootContent() {
     layout.variant === "medium" && state.selectedTab === "usage"
       ? workspaceDockBottomClearance({ bottomInset: insets.bottom, keyboardHeight })
       : isDuoDevice(deviceType)
-        ? // The column's safe area holds the Duo's search toolbar, but not the sidebar's own tab bar.
-          Math.max(insets.bottom + (sidebarPicker ? 64 : 0), keyboardHeight) + 16
+        ? Math.max(insets.bottom + (sidebarPicker ? 64 : 0), keyboardHeight) + 16
         : deviceType === "pad"
           ? workspaceDockBottomClearance({ bottomInset: insets.bottom, keyboardHeight })
           : Math.max(insets.bottom, keyboardHeight) +
@@ -138,15 +136,12 @@ function WorkspaceRootContent() {
               ? { headerSearchBarOptions: undefined, unstable_headerRightItems: () => [] }
               : {}),
             unstable_headerLeftItems: () => [],
-            // Beside a detail column the tab bar names the tab and the detail header the page,
-            // so the sidebar keeps the brand.
             headerTitle:
               sidebarNavigation || (!settingsOpen && state.selectedTab !== "usage")
                 ? renderHeaderTitle
                 : undefined,
           }}
         />
-        {/* Usage draws its own header, and skips its body itself. */}
         {headerOnly && (settingsOpen || state.selectedTab !== "usage") ? null : settingsOpen ? (
           <WorkspaceSettingsList />
         ) : enabled.length === 0 ? (

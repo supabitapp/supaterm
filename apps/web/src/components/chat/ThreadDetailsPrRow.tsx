@@ -6,12 +6,6 @@ import {
 import { PullRequestChangeBreakdownRows } from "../pullRequest/PullRequestChangeBreakdownStat";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
-/**
- * The trailing slot shows the one action that unblocks the merge next. While checks run it offers
- * "Auto-merge", since a merge offered mid-run would race the runs that gate it. "Fix" and "Resolve"
- * fill this thread's composer because this thread already holds the pull request's context. Until
- * the detail arrives, or without pull request support, the row renders from the linked snapshot.
- */
 import { selectEnvironmentQueryData } from "@supaterm/client-runtime/state/runtime";
 import type { EnvironmentProject } from "@supaterm/client-runtime/state/shell";
 import type {
@@ -97,7 +91,6 @@ import {
   THREAD_DETAILS_PANEL_SPLIT_SEPARATOR_CLASS,
 } from "./threadDetailsPanelStyles";
 
-// A null checks response is settled; polling cannot find checks.
 const isSettledWithoutChecks = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
   result._tag === "Success" && result.value === null;
 
@@ -148,7 +141,6 @@ export function ThreadDetailsPrRow({
           environmentId,
           input: { ...reference, allowStale: false },
         });
-  // Select query parts because polling rebuilds unchanged results.
   const detailData = useEnvironmentQuerySelector(detailAtom, selectEnvironmentQueryData);
   const detailQuery = useEnvironmentQueryRefresh(detailAtom);
   const supportsChecks = serverConfigs.has(environmentId);
@@ -218,8 +210,6 @@ export function ThreadDetailsPrRow({
   });
   const conflicting = isPullRequestConflicting(detail);
   const checksState = detail === null ? "none" : classifyPullRequestChecks(detail.checks);
-  // Checks stop refreshing once the pull request is no longer open, so jobs that start on merge or
-  // close would otherwise show as pending forever.
   const checksRollup = detail?.state === "open" ? pullRequestChecksState(detail.checks) : null;
   const allowedMergeMethods = allowedPullRequestMergeMethods(detail);
   const selectedMergeMethod = resolvePullRequestMergeMethod(
@@ -304,9 +294,6 @@ export function ThreadDetailsPrRow({
     <PullRequestGlyph.pullRequest className={THREAD_DETAILS_PANEL_ICON_CLASS} />
   );
 
-  // Everything the host reported, at a glance. The row stays one line; the tooltip is where the
-  // rest of the answer lives — styled like the sidebar's thread tooltip, title above icon-led
-  // detail rows, so the two read as one family.
   const rowTooltip =
     detail === null || statePresentation === null ? (
       <TooltipPopup side="top">
@@ -484,8 +471,6 @@ export function ThreadDetailsPrRow({
     </>
   );
 
-  // The server ends a watch when the pull request closes, so only an open one shows the eye.
-  // It takes the row's rounded end unless the detail's actions menu follows it.
   const watchSegment =
     onStopWatching && (detail?.state ?? pr?.state ?? "open") === "open" ? (
       <>

@@ -78,7 +78,6 @@ const REFRESH_FAILED =
   "Could not refresh Antigravity models. The previous model list is unchanged.";
 const PYTHON_SOCKS_REQUIRED = "python-socks is required to use a SOCKS proxy";
 
-// Keep upstream diagnostics in cause; only recognized, fixed text reaches clients.
 function refreshFailureDetail(cause: unknown) {
   return isAcpRequestError(cause) &&
     cause.operation === "receive-response" &&
@@ -234,9 +233,6 @@ export const AntigravityDriver: ProviderDriver<
             : cause,
         ),
       );
-      // Use one directory per process; shared cleanup could delete files another session still reads.
-      // Remove after the child dies, best-effort on Windows where handles may outlive the kill;
-      // the next driver start sweeps leftovers.
       const runtimeTempDirectory = yield* Effect.acquireRelease(
         fileSystem.makeTempDirectory({ directory: profile.tempDirectory, prefix: "run-" }).pipe(
           Effect.mapError(
@@ -353,7 +349,6 @@ export const AntigravityDriver: ProviderDriver<
           ? provider.onAvailableCommands(event.availableCommands)
           : Effect.void;
       }).pipe(Effect.forkScoped);
-      // Thinking levels differ per model and are reported only for the selected one.
       const configOptions = started.sessionSetupResult.configOptions ?? [];
       const current = configOptions.find((option) => option.id === "model")?.currentValue;
       if (antigravityThinkingConfig(configOptions) !== undefined && typeof current === "string") {
@@ -367,7 +362,6 @@ export const AntigravityDriver: ProviderDriver<
     const authFlow: AntigravityAuth = yield* makeAntigravityAuth({
       instanceId,
       makeRuntime: makeDisposableRuntime,
-      // A new sign-in may be another account; drop any in-flight quota read first.
       onAuthenticated: (started, runtime) =>
         Effect.suspend(() => provider.onSignedIn).pipe(
           Effect.andThen(publishCatalog(started, runtime)),
@@ -376,9 +370,6 @@ export const AntigravityDriver: ProviderDriver<
       usesBrowser: antigravityAuthUsesBrowser(auth.authMethod),
     });
 
-    // The probe must not spawn. The agent is a PyInstaller one-file bundle
-    // that unpacks about 1 GB per launch, and the health check runs every
-    // minute.
     const probe = Effect.gen(function* () {
       yield* modelCatalog.refreshInBackground;
       if (authConfigIssue !== null) {

@@ -105,7 +105,6 @@ export function UsageChartCard(props: {
       {header}
 
       {props.fill && !showCalendar ? (
-        // Absolute so the measured slot can shrink again when the neighbour gets shorter.
         <View
           className="flex-1"
           style={{ minHeight: props.height }}

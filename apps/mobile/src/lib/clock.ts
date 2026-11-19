@@ -15,9 +15,6 @@ export function useNowAfter(deadlineMs: number | null): number {
   const passed = useDeadlinePassed(deadlineMs);
   const readNow = () => ({ deadlineMs, passed, nowMs: Date.now() });
   const [snapshot, setSnapshot] = useState(readNow);
-  // The clock is read inside the updater: the compiler caches a bare
-  // `Date.now()` in render once per instance, so a later adjustment would reuse
-  // the first reading. React discards this render and re-runs with the update.
   if (snapshot.deadlineMs !== deadlineMs || snapshot.passed !== passed) setSnapshot(readNow);
   return snapshot.nowMs;
 }

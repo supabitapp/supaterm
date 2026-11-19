@@ -194,8 +194,6 @@ describe("resolveProviderProbeTimeoutMs", () => {
 });
 
 describe("spawnAndCollect", () => {
-  // regression: #35262 - without forceKillAfter a timed-out probe whose CLI ignores
-  // SIGTERM waits for it to exit, so the caller's timeout never returns.
   it.live.skipIf(HostProcess.Platform.defaultValue() === "win32")(
     "lets a timed-out probe return when the CLI ignores SIGTERM",
     () =>

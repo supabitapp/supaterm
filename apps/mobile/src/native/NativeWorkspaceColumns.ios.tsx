@@ -28,7 +28,6 @@ export function useNativeWorkspaceColumnsReady() {
     !(Platform.OS === "ios" && Platform.isPad) &&
     !!nativeControls?.ViewPrototypes?.SupatermNativeControls_LayoutMetrics &&
     metrics === null;
-  // Without metrics by the deadline, use the compact navigator rather than staying blank.
   const timedOut = useDeadlinePassed(waiting ? metricsDeadline : null);
   return !waiting || timedOut;
 }

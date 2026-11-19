@@ -44,9 +44,7 @@ export const make = Effect.fn("ProviderLatestVersions.make")(function* (
   )(function* (key, lookup, options) {
     const now = DateTime.toEpochMillis(yield* DateTime.now);
     const inFlight = yield* Deferred.make<Option.Option<string | null>>();
-    // Replacing or invalidating this entry retires any lookup still in flight.
     const pending: Entry = { version: null, expiresAt: 0, inFlight };
-    // Claim and cleanup registration must be atomic with respect to interruption.
     return yield* Effect.acquireUseRelease(
       Ref.modify(entries, (current) => {
         const entry = current.get(key);

@@ -156,7 +156,6 @@ function readConfigString(config: unknown, key: string): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
 }
 
-/** Preserve explicit empty arrays/objects; clearing a custom list differs from selecting driver defaults. */
 function nextConfigBlobWithValue(
   config: unknown,
   key: string,
@@ -331,7 +330,6 @@ export function ProviderEnvironmentSection(props: {
     toEnvironmentDraftRows,
   );
   if (draft.rows !== storedDraft.rows) {
-    // Keep rows the server never acknowledged, even across an external reseed.
     const acknowledged = new Set(storedDraft.seen.map((variable) => variable.name));
     const unpublished = storedDraft.rows.filter(
       (row) =>
@@ -631,10 +629,6 @@ interface ProviderInstanceCardProps {
 const EMPTY_ACP_PROJECTS: NonNullable<ProviderInstanceCardProps["acpProjects"]> = [];
 const NO_CUSTOM_MODELS: ReadonlyArray<CustomModelDefinition> = [];
 
-/**
- * Every custom model save writes the whole list, so the next edit starts from the last list sent
- * until the config stream echoes it, which can land before or after the save's reply.
- */
 function useCustomModelSaves(
   stored: ReadonlyArray<CustomModelDefinition>,
   save: (next: ReadonlyArray<CustomModelDefinition>) => Promise<boolean>,
@@ -644,7 +638,6 @@ function useCustomModelSaves(
   const [previousStoredKey, setPreviousStoredKey] = useState(storedKey);
   if (previousStoredKey !== storedKey) {
     setPreviousStoredKey(storedKey);
-    // Unchanged contents can match a queued restore, so only a stream change can be an echo.
     setSaves((list) => pendingCustomModelSaves(list, storedKey));
   }
   const current = saves.at(-1)?.models ?? stored;
@@ -1126,7 +1119,6 @@ export function ProviderInstanceCard({
       <span
         inert={readOnly}
         aria-disabled={readOnly || undefined}
-        // Empty, it would still add a flex gap and pull the version off the column edge.
         className={cn("inline-flex items-center gap-1 empty:hidden", readOnly && "opacity-50")}
       >
         {titleTailNode}
@@ -1147,7 +1139,6 @@ export function ProviderInstanceCard({
     </div>
   );
 
-  // Provider status gets its own row instead of hanging under the name field.
   const statusContent = (
     <>
       <ProviderStatusDiagnostic detail={statusDiagnostic}>

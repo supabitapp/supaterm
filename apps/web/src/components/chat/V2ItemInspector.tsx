@@ -188,7 +188,6 @@ function ToolCallBody(
     readonly args?: unknown;
     readonly toolName?: string | null;
     readonly exitCode?: number | undefined;
-    /** Replaces fetched output. */
     readonly outputSlot?: ReactNode;
   },
 ) {
@@ -225,7 +224,6 @@ function ToolCallBody(
 }
 
 export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspectorProps) {
-  // Command rows stream their output, including the final output, from the server.
   const streamsOutput = useCommandOutputStreaming(props.environmentId, props.projectedItem);
   const fetched = useFetchedTurnItem(props.projectedItem, props.environmentId, streamsOutput);
   const item = fetched.item;

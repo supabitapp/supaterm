@@ -46,9 +46,6 @@ vi.mock("node:worker_threads", async (importOriginal) => {
   return { ...actual, Worker: RecordedWorker };
 });
 
-// Linux names an open, already-deleted file "<path> (deleted)" in /proc/self/fd.
-// SQLite names its temp files "etilqs_*" and, without TMPDIR, puts them in
-// /var/tmp while os.tmpdir() is /tmp, so match the name, not the directory.
 const openDeletedTempFiles = () =>
   NodeFS.readdirSync("/proc/self/fd").flatMap((fd) => {
     try {
@@ -76,8 +73,6 @@ it.effect.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
       const before = new Set(openDeletedTempFiles());
       const opened = yield* sql.withTransaction(
         Effect.gen(function* () {
-          // A multi-row update can fail halfway, so SQLite journals every page
-          // it changes, here well past the 64 KiB it holds in memory by default.
           yield* sql`UPDATE journal_probe SET payload = payload || 'y'`;
           return openDeletedTempFiles().filter((target) => !before.has(target));
         }),
@@ -110,7 +105,6 @@ it.effect("drops planner statistics a database already has", () => {
         SELECT COUNT(*) AS count FROM sqlite_stat1
       `;
       assert.equal(stats[0]?.count, 0);
-      // A connection still using the old stats scans the table at each step.
       const plan = yield* sql<{ readonly detail: string }>`
         EXPLAIN QUERY PLAN
         WITH RECURSIVE retained(node_id) AS (
@@ -207,7 +201,6 @@ it.effect("names a database file that is not SQLite", () => {
 
 const ownSupatermHome = Effect.fn(function* () {
   const { serverRuntimeStatePath } = yield* ServerConfig.ServerConfig;
-  // An empty home, so no boot service installed on this machine is read.
   const home = yield* (yield* FileSystem.FileSystem).makeTempDirectoryScoped();
   yield* ServerOwnership.acquireServerOwnership(serverRuntimeStatePath).pipe(
     Effect.provide(ProcessRunner.layer),
@@ -222,7 +215,6 @@ const migrateTo = (toMigrationInclusive?: number) =>
     yield* Effect.gen(function* () {
       yield* runMigrations();
       if (toMigrationInclusive === undefined) return;
-      // The ledger alone decides what is pending, so forgetting later ids leaves them to run.
       const sql = yield* SqlClient.SqlClient;
       yield* sql`DELETE FROM effect_sql_migrations WHERE migration_id > ${toMigrationInclusive}`;
     }).pipe(Effect.provide(NodeSqliteClient.layer({ filename: dbPath })));

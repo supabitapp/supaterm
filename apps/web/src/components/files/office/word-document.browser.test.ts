@@ -10,7 +10,6 @@ function relationship(id: string, type: string, target: string) {
   return `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/${type}" Target="${target}"/>`;
 }
 
-/** A document with a numbered Calibri paragraph and an Arial paragraph of Thai, which no bundled face covers. */
 function document_() {
   const run = (font: string, text: string) =>
     `<w:r><w:rPr><w:rFonts w:ascii="${font}" w:hAnsi="${font}" w:cs="${font}"/></w:rPr><w:t>${text}</w:t></w:r>`;

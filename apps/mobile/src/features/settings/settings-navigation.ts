@@ -9,7 +9,6 @@ import {
 
 type RootParams = ReactNavigation.RootParamList;
 
-/** Settings routes that open as modals over whatever is on screen, not as Settings pages. */
 const SETTINGS_MODAL_ROUTES = new Set(["SettingsLegal"]);
 
 /** Root routes that make up the Settings tab: its list and the pages it opens. */

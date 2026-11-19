@@ -41,7 +41,6 @@ function enrichedStyle(
   dark: boolean,
   fontScale: number,
 ): MarkdownStyle {
-  // Keep the radius modest: iOS clips square table-cell borders without stroking the corner arcs.
   const block = {
     marginTop: 4,
     marginBottom: 12,
@@ -142,7 +141,6 @@ function enrichedStyle(
       ...body,
       bulletColor: style.mutedColor,
       markerColor: style.mutedColor,
-      // The bullet is centred on the gap's edge and scales with the system text size; the gap must too.
       gapWidth: 12 * fontScale,
     },
     thematicBreak: { color: style.dividerColor, height: 1, marginTop: 8, marginBottom: 8 },
@@ -213,8 +211,6 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     );
   };
   const skillRegex = useMemo(() => enrichedSkillLinkRegex(props.skills), [props.skills]);
-  // Skill links come from linkRecognition, which runs as the text is drawn, so
-  // onLinksChange never reports them. Joined so a streaming tick keeps the value.
   const skillLinkKey = useMemo(
     () =>
       skillRegex
@@ -338,7 +334,6 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
   const renderers =
     renderImage || mermaidSources.size > 0 ? { image: renderImageBlock } : undefined;
   const retryingImageSource = useRetryingImageSource(resolveImageSource);
-  // A Mermaid placeholder image is replaced by its diagram, so it never asks for a source.
   const resolveNativeImageSource = useMemo(
     () =>
       retryingImageSource &&

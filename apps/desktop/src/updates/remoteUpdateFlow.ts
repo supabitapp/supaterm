@@ -41,7 +41,6 @@ export function nextRemoteDesktopUpdateStep(
       reason: disabledReason ?? "Automatic updates are disabled on this machine.",
     };
   }
-  // Reinstalling a failed version disrupts threads without updating; retries require the local user.
   if (
     state.notAppliedVersion !== undefined &&
     (state.downloadedVersion ?? state.availableVersion) === state.notAppliedVersion
@@ -52,7 +51,6 @@ export function nextRemoteDesktopUpdateStep(
       reason: `Update ${state.notAppliedVersion} did not apply on this machine. Retry it from the desktop app there.`,
     };
   }
-  // Match install admission, including retained downloads after unrelated background or earlier install errors.
   if (isInstallableDesktopUpdateState(state)) {
     return { action: "install" };
   }
@@ -69,7 +67,6 @@ export function nextRemoteDesktopUpdateStep(
     }
     return { action: "download" };
   }
-  // Background up-to-date/error states are stale until this request has issued its own check.
   if (state.status === "up-to-date") {
     if (attempts.checks === 0) {
       return { action: "check" };

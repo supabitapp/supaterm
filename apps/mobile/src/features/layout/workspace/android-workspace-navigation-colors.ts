@@ -6,8 +6,6 @@ import {
   type MobileThemeVariables,
 } from "../../../lib/mobileTheme";
 
-// A dark page swallows the native shadow, so the fill alone has to lift the pill off the page
-// and off the cards it floats over.
 function floatingContainerColor(colors: MobileThemeVariables) {
   const screen = colors["--color-screen"];
   const fill = flattenThemeColor(colors["--color-secondary"], screen);
@@ -31,7 +29,6 @@ export function androidWorkspaceNavigationColors(
     : floating
       ? floatingContainerColor(colors)
       : flattenThemeColor(themeColorWithAlpha(colors["--color-header-foreground"], 0.05), header);
-  // The lifted dark pill already took the secondary fill's place, so its indicator lifts further.
   const indicatorColor = themeColorWithContrast(
     floating && isDarkThemeColor(screen)
       ? containerColor

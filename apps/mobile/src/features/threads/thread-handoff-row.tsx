@@ -45,7 +45,6 @@ function handoffEndpointsAtom(
     if (item.type !== "handoff") return null;
     const projection = get(environmentThreadDetails.threadAtom(ref))?.projection;
     const next = resolveHandoffEndpoints(item, projection?.runs ?? []);
-    // Run activity changes frequently; only endpoint changes affect this row.
     if (JSON.stringify(next) !== JSON.stringify(previous)) previous = next;
     return previous;
   });

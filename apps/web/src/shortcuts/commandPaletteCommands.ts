@@ -36,8 +36,6 @@ export function installCommandPaletteCommands(
     return target?.kind === "server" ? target.threadRef : null;
   };
 
-  // A child search (files, contents) goes back to the palette on Escape before
-  // its own widgets or the dialog can treat the key as a close.
   const disposeEscape = registerCommands(
     {},
     {

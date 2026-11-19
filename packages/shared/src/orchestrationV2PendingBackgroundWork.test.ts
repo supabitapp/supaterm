@@ -450,7 +450,6 @@ describe("derivePendingBackgroundWork kinds", () => {
         },
       ]);
       expect(backgroundWorkHoldsCompletion(tasks)).toBe(false);
-      // Unlike a monitor that wakes per line, it lets a comment wake's run complete too.
       expect(
         monitorHoldsWakeCompletion({
           latestRunBackgroundWake: true,

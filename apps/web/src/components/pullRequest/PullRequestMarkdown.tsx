@@ -163,7 +163,6 @@ function PullRequestBodySegmentView({
     );
   }
   return (
-    // Desktop converts blocked _blank navigation to openExternal.
     <a
       href={segment.url}
       rel="noreferrer noopener"

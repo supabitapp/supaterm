@@ -11,7 +11,6 @@ function invokeFilterAction(menu: WorkspaceFilterMenu, id: string | undefined) {
 export function WorkspaceHeaderActions(props: { readonly filterMenu?: WorkspaceFilterMenu }) {
   const deviceType = useDeviceType();
   const filterMenu = props.filterMenu;
-  // iPad and the Duo take these from WorkspaceToolbar's trailing items and the lists' filters.
   if (deviceType !== "phone") return null;
   const filterIcon = filterMenu?.customized
     ? "line.3.horizontal.decrease.circle.fill"

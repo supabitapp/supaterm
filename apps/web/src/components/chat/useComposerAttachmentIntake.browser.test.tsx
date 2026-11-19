@@ -40,11 +40,8 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-// A clipboard image arrives as a new File named image.png on every paste.
 const pastedImage = (fill = 0) =>
   new File([new Uint8Array(100).fill(fill)], "image.png", { type: "image/png" });
-// Compression shrinks an image, so the draft's copy no longer matches the pasted bytes; images
-// with different pixels compress to different sizes.
 const compress = async (source: File) => {
   const [firstByte = 0] = new Uint8Array(await source.arrayBuffer());
   return {
@@ -124,15 +121,12 @@ it("prepares a repeated paste without a tile, and still keeps a different image"
   await act(() => afterCompression);
   expect(composerImagesRef.current).toHaveLength(1);
 
-  // Same name, type and size, different pixels: it compresses differently and is kept.
   const different = intake.addComposerAttachments([pastedImage(7)]);
   expect(visiblePreparing(target)).toHaveLength(0);
   await act(() => different);
   expect(composerImagesRef.current).toHaveLength(2);
 });
 
-// The thread row's discard runs after the composer left that thread; a draft session's discard
-// unmounts its composer afterwards.
 it.each(["thread", "session"] as const)(
   "a %s draft discarded while an image compresses stays discarded and can be restored",
   async (kind) => {

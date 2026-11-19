@@ -141,13 +141,9 @@ const ManualSchemas: Record<string, Schema.Json> = {
   },
 };
 
-// Supaterm only uses the plan for labels, so an unknown slug must not fail the whole
-// `account/read` decode and take the provider down with it.
 const DefinitionOverrides: Record<string, Schema.Json> = {
   PlanType: { type: "string" },
-  // Newer Codex releases add hook events (e.g. `preModelRequest`); a closed enum drops their notifications.
   HookEventName: { type: "string" },
-  // Newer custom Codex binaries emit partial answers before additional tools or text.
   MessagePhase: {
     description:
       'Classifies an assistant message as interim commentary or final answer text.\n\nProviders do not emit this consistently, so callers must treat `None` as "phase unknown" and keep compatibility behavior for legacy models.',
@@ -172,8 +168,6 @@ const DefinitionOverrides: Record<string, Schema.Json> = {
   },
 };
 
-// Codex sends error codes this ref does not list yet (e.g. `modelNotFound`). A closed enum
-// fails the whole notification decode, which drops a failed `turn/completed` and leaves the turn running.
 const OpenStringEnumDefinitions = new Set(["CodexErrorInfo"]);
 
 function openStringEnum(schema: Schema.Json): Schema.Json {
@@ -188,8 +182,6 @@ function openStringEnum(schema: Schema.Json): Schema.Json {
   };
 }
 
-// Newer Codex identifies a generated image by `fileId` and omits the inline `result`.
-// Requiring `result` fails the whole notification decode and drops the finished image.
 function acceptImageFileIds(schema: Schema.Json): Schema.Json {
   if (!isJsonSchemaNode(schema) || !Array.isArray(schema.oneOf)) return schema;
   return {
@@ -360,9 +352,6 @@ function isJsonSchemaNode(value: Schema.Json | undefined): value is JsonSchemaNo
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-// Visit only schema positions so fields literally named properties stay untouched.
-// Close Codex structs that omit additionalProperties; Effect otherwise imports open records.
-// Fold shared fields into each object alternative because Effect cannot intersect them.
 function adaptSchemaForEffect(value: Schema.Json): Schema.Json {
   if (!isJsonSchemaNode(value)) {
     return value;

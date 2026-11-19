@@ -23,7 +23,6 @@ export class ServerOwnsDatabaseError extends Schema.TaggedError<ServerOwnsDataba
   }
 }
 
-// SQLITE_CORRUPT and SQLITE_NOTADB; node:sqlite reports extended codes whose low byte is the primary code.
 const DAMAGED_SQLITE_CODES = new Set([11, 26]);
 
 const isDamagedDatabase = (error: SqlError.SqlError): boolean => {
@@ -39,7 +38,6 @@ const isDamagedDatabase = (error: SqlError.SqlError): boolean => {
   return false;
 };
 
-// Keeps the SqlError type so callers' error channels do not change; the original stays as the cause.
 const damagedDatabaseError = (dbPath: string, cause: SqlError.SqlError) =>
   new SqlError.SqlError({
     reason: new SqlError.UnknownError({
@@ -49,10 +47,7 @@ const damagedDatabaseError = (dbPath: string, cause: SqlError.SqlError) =>
     }),
   });
 
-// CLI commands open the server's database from another process; migrating behind its owner changes the schema it runs on.
 const runMigrationsAsOwner = Effect.fn("SqlitePersistence.runMigrationsAsOwner")(function* () {
-  // With nothing pending, runMigrations validates the recorded history and adds only the
-  // unrecorded indexes a running server already created.
   if (!(yield* hasPendingMigrations())) return yield* runMigrations();
   const { serverRuntimeStatePath } = yield* ServerConfig.ServerConfig;
   yield* ServerOwnership.holdServerOwnershipLock(serverRuntimeStatePath).pipe(
@@ -68,28 +63,18 @@ const makeLayerSetup = <E, R>(migrate: Effect.Effect<unknown, E, R>) =>
   Layer.effectDiscard(
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      // CLI and server write from separate processes; wait rather than fail with SQLITE_BUSY.
       yield* sql`PRAGMA busy_timeout = 5000;`;
       yield* sql`PRAGMA foreign_keys = ON;`;
-      // Existing databases need doctor's offline VACUUM to add pointer maps for this mode.
       const tables = yield* sql<{
         readonly count: number;
       }>`SELECT COUNT(*) AS count FROM sqlite_schema WHERE type = 'table'`;
       if (tables[0]?.count === 0) yield* sql`PRAGMA auto_vacuum = INCREMENTAL;`;
       yield* sql`PRAGMA journal_mode = WAL;`;
-      // FULL fsyncs every event commit; NORMAL syncs only at WAL checkpoints.
-      // App crashes lose nothing; OS crashes or power loss can roll back post-checkpoint commits without corruption.
       yield* sql`PRAGMA synchronous = NORMAL;`;
-      // macOS fsync misses drive caches; F_FULLFSYNC flushes them at checkpoints and is ignored elsewhere.
       yield* sql`PRAGMA checkpoint_fullfsync = ON;`;
-      // Keep statement journals and sort spills off the disk.
-      // Large statements and open savepoints can increase peak memory use.
       yield* sql`PRAGMA temp_store = MEMORY;`;
-      // PASSIVE checkpoints retain peak WAL size until the last connection closes.
       yield* sql.unsafe(`PRAGMA journal_size_limit = ${WAL_SIZE_LIMIT_BYTES};`);
       yield* migrate;
-      // Collecting stats scans every page, and stale small-table stats cause scans after growth; use indexes by default.
-      // Connections cache stats; reload after deleting them.
       const statTables = yield* sql`SELECT 1 FROM sqlite_schema WHERE name = 'sqlite_stat1'`;
       if (statTables.length > 0) {
         yield* sql`DELETE FROM sqlite_stat1;`;
@@ -111,7 +96,6 @@ const makeLayerFromPath = <E, R>(setup: Layer.Layer<never, E, R>) =>
       NodeSqliteClient.layer({
         filename: dbPath,
         readerWorker: true,
-        // A slow disk then delays writes instead of freezing every client.
         writerWorker: true,
         spanAttributes: {
           "db.name": path.basename(dbPath),

@@ -37,7 +37,6 @@ function shellBinding(thread: EnvironmentThreadShell): CodexMicroSlotBinding {
   return { type: "thread", ref: threadRef(thread), thread };
 }
 
-// Matches the sidebar: a reopened thread keeps its doneAt, so the override decides.
 function isOpenWork(thread: EnvironmentThreadShell, now: string): boolean {
   return (
     thread.archivedAt === null &&
@@ -91,7 +90,6 @@ export function selectCodexMicroSlotBindings(input: {
         ),
       );
     case "attention":
-      // toSorted is stable, so equally urgent threads keep their recent order.
       return bindThreads(
         sortInboxThreadsByReturn(threads.filter((thread) => isOpenWork(thread, now))).toSorted(
           (left, right) => attentionRank(left) - attentionRank(right),

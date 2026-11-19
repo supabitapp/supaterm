@@ -60,7 +60,6 @@ export function useTerminalExitNavigation(target: {
       }
       pendingRef.current = true;
     },
-    /** A shell that runs again before the screen regains focus keeps the screen. */
     restarted: () => {
       pendingRef.current = false;
     },

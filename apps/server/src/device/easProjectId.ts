@@ -13,58 +13,31 @@ const CONFIG_FILES = [
 ];
 const JSON_CONFIG_FILES = ["app.config.json", "app.json"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Only accept a quoted UUID as the whole value, followed by a separator or EOF.
-// Consume comments whole so separators inside them cannot end the entry;
-// an operator can follow a line break or comment.
 const QUOTED_PROJECT_ID =
   /\bprojectId["']?\s*:\s*["'`]([^"'`\n]*)["'`](?=(?:\s|\/\/[^\n\r\u2028\u2029]*(?:[\n\r\u2028\u2029]|$)|\/\*(?:[^*]|\*(?!\/))*\*\/)*(?:[,;})\]]|$))/gi;
 const PROJECT_ID_MENTION = /\bprojectId\b/gi;
-// Reading a config is linear in its size per entry; one this large is not an
-// app config but a file made to keep the server busy.
 const MAX_CONFIG_LENGTH = 256 * 1024;
-// Each entry is read against the rest of the file, so a file with many is
-// quadratic; an app config mentions its project a few times at most.
 const MAX_MENTIONS = 32;
 
-// A later spread at any depth can replace an entry through an enclosing object.
-// Assignments can replace the config from anywhere; Object.assign names its call
-// before either argument.
 const SPREAD_LATER = /\.\.\./;
-// Space, a comment, or an opening parenthesis: what may sit between `...`
-// and the thing spread. Sticky, so the scan moves through the file once.
 const SPREAD_FILLER = /(?:\s+|\/\/[^\n\r\u2028\u2029]*|\/\*(?:[^*]|\*(?!\/))*\*\/|\()/y;
-// `config`'s `extra` and `extra.eas` entries, the holders of the Expo project id
-// (dotted, optional-chained or in brackets).
 const EXTRA_OF_CONFIG = String.raw`config(?:\s*\??\.\s*extra|\s*(?:\?\.)?\s*\[\s*["'\x60]extra["'\x60]\s*\])`;
 const EAS_OF_CONFIG =
   EXTRA_OF_CONFIG + String.raw`(?:\s*\??\.\s*eas|\s*(?:\?\.)?\s*\[\s*["'\x60]eas["'\x60]\s*\])`;
-// The holder, and nothing more of it: no further property, call or operator
-// (`?? {}` keeps it, so it may follow).
 const HOLDER_END = String.raw`(?![\p{ID_Continue}$\u200c\u200d\\]|\s*(?:[.\[(]|\?(?!\?)))`;
 const HOLDER_AT = {
   extra: new RegExp(EXTRA_OF_CONFIG + HOLDER_END, "uy"),
   eas: new RegExp(EAS_OF_CONFIG + HOLDER_END, "uy"),
 };
-// `config` and no more of it: not an identifier continuing (`$`, Unicode
-// letters and a `\u` escape do, where `\b` would not), nor a property.
 const CONFIG_AT = new RegExp("config" + HOLDER_END, "uy");
-// A part of `config` other than `extra`, such as `config.ios`; the last name is
-// captured. Spread at the top it could bring its own `extra` (`...config.preview`).
 const CONFIG_PART_AT = new RegExp(
   String.raw`config(?:\s*\??\.\s*(?!extra(?![\p{ID_Continue}$]))([\p{ID_Start}$_][\p{ID_Continue}$\u200c\u200d]*))+` +
     HOLDER_END,
   "uy",
 );
-// So a part keeps the id only as the first item of the object or array entry it
-// names (`ios: { ...config.ios`, `plugins: [...config.plugins`); the key is captured.
 const PART_OPENER =
   /(?<=[{,]\s*["']?([\p{ID_Start}$_][\p{ID_Continue}$\u200c\u200d]*)["']?\s*:\s*[[{]\s*)/uy;
 
-/**
- * Only Expo's `config`, its own `extra`/`extra.eas`, and parts kept in their own entry can
- * preserve app.json's id. Other spreads may replace it; no spreads leaves inheritance unclear.
- * Skip comments whole after spreads to keep scanning linear.
- */
 const staticConfigUse = (source: string): "spreads" | "replaces" | "unclear" => {
   let spreads = 0;
   let at = 0;
@@ -87,7 +60,6 @@ const staticConfigUse = (source: string): "spreads" | "replaces" | "unclear" => 
     const part = CONFIG_PART_AT.exec(source);
     PART_OPENER.lastIndex = next;
     const opener = part && PART_OPENER.exec(source);
-    // Expo reads a returned `expo` entry as the whole config.
     if (opener && opener[1] === part[1] && opener[1] !== "expo") continue;
     HOLDER_AT.extra.lastIndex = at;
     HOLDER_AT.eas.lastIndex = at;
@@ -95,15 +67,8 @@ const staticConfigUse = (source: string): "spreads" | "replaces" | "unclear" => 
   }
 };
 const ASSIGNS_OVER = /\bObject\s*\.\s*assign\b|\bassign\s*\(/;
-// A config may replace its entry or itself from where this scan cannot read:
-// assigning `.extra` or `.eas` (dotted or bracketed), a `delete`, or a file it
-// requires or imports. Typing it as `import('expo/config').ConfigContext`, in a
-// comment or not, loads only Expo's own module.
 const REPLACES_HOLDER =
   /(?:\.\s*(?:extra|eas)|\[\s*["'`](?:extra|eas)["'`]\s*\])\s*=(?!=)|\bdelete\b|\brequire\s*\(|\bimport\s*\((?!\s*(["'])expo\/config\1\s*\)\s*\.\s*[A-Z])/;
-// An `extra`/`eas` object must start by spreading the matching `config` entry to keep app.json's id.
-// Spreading the whole config there puts the id elsewhere; shorthand entries replace it too.
-// Stop reading once entries exceed MAX_MENTIONS.
 const EXTRA_OR_EAS = /(?:\b(extra|eas)|["'`](extra|eas)["'`]\s*\]?)\s*:\s*/g;
 const SHORTHAND_EXTRA_OR_EAS = /(?<![.\p{ID_Continue}$])(?:extra|eas)\s*(?=[,}])/u;
 const keepsStaticExtra = (source: string): boolean => {
@@ -140,19 +105,12 @@ const Extra = Schema.optional(
     eas: Schema.optional(Schema.Struct({ projectId: Schema.optional(Schema.String) })),
   }),
 );
-// Expo reads a static config wrapped in `expo` or not, and as JSON5; one
-// this cannot decode (comments, say) still names a project, unknown here.
 const decodeAppJson = Schema.decodeUnknownOption(
   Schema.fromJsonString(
     Schema.Struct({ expo: Schema.optional(Schema.Struct({ extra: Extra })), extra: Extra }),
   ),
 );
 
-/**
- * Never execute dynamic configs. Keep ids in comments so stale ids make the answer ambiguous.
- * Include JSON configs because dynamic configs may replace them only for some builds.
- * Return null for unreadable configs or ids set or changed without a literal.
- */
 const projectIdsOf = Effect.fn("easProjectId.projectIdsOf")(function* (dir: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -164,16 +122,11 @@ const projectIdsOf = Effect.fn("easProjectId.projectIdsOf")(function* (dir: stri
     const source = yield* fs
       .readFileString(path.join(dir, configFile.value))
       .pipe(Effect.orElseSucceed(() => "projectId"));
-    // Every mention of `projectId` must be a quoted entry: one set from a
-    // variable, or assigned later, could be any project, and makes the
-    // answer unknown.
     if (source.length > MAX_CONFIG_LENGTH) return null;
     const mentions = source.match(PROJECT_ID_MENTION)?.length ?? 0;
     if (mentions > MAX_MENTIONS) return null;
     const entries = [...source.matchAll(QUOTED_PROJECT_ID)];
     const quoted = entries.map((match) => match[1]!);
-    // A template that interpolates could be any project too, and so could
-    // one a spread after the entry, or an assignment anywhere, replaces;
     if (
       quoted.length !== mentions ||
       quoted.some((id) => id.includes("${")) ||
@@ -183,8 +136,6 @@ const projectIdsOf = Effect.fn("easProjectId.projectIdsOf")(function* (dir: stri
     ) {
       return null;
     }
-    // Only a config shown to spread `config` and nothing else carries app.json's
-    // entry through unchanged; any other shape could use or replace it.
     if (
       !quoted.some((id) => UUID.test(id)) &&
       (staticConfigUse(source) !== "spreads" || !keepsStaticExtra(source))
@@ -206,14 +157,12 @@ const projectIdsOf = Effect.fn("easProjectId.projectIdsOf")(function* (dir: stri
         Effect.succeed(error.reason._tag === "NotFound" ? Option.none<string>() : null),
       ),
     );
-    // A config that is there but cannot be read could name any project.
     if (json === null) return null;
     if (Option.isNone(json)) continue;
     const decoded = decodeAppJson(json.value);
     if (Option.isNone(decoded)) return null;
     const id = (decoded.value.expo ?? decoded.value).extra?.eas?.projectId;
     if (id !== undefined && UUID.test(id)) ids.push(id.toLowerCase());
-    // Expo reads only the first static config it finds.
     break;
   }
   return ids;
@@ -235,7 +184,6 @@ export const findEasProjectId = Effect.fn("easProjectId.findEasProjectId")(funct
       Effect.map((info) => info.type === "Directory"),
       Effect.orElseSucceed(() => false),
     );
-  // Only a directory can be an app; a README or .DS_Store beside them is not one.
   const children = (parent: string) =>
     fs.readDirectory(path.join(workspaceRoot, parent)).pipe(
       Effect.map((names) => names.map((name) => path.join(workspaceRoot, parent, name))),
@@ -253,7 +201,6 @@ export const findEasProjectId = Effect.fn("easProjectId.findEasProjectId")(funct
     ...(yield* children("packages")),
   ];
   const ids = yield* Effect.forEach(directories, projectIdsOf, { concurrency: 4 });
-  // An app whose project is unknown could be the one the thread works on.
   if (ids.some((found) => found === null)) return Option.none<string>();
   const distinct = new Set(ids.flatMap((found) => found ?? []));
   return distinct.size === 1 ? Option.some([...distinct][0]!) : Option.none<string>();

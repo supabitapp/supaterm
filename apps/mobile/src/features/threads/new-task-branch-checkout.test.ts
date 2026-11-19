@@ -48,8 +48,6 @@ describe("new task branch checkouts", () => {
     const { checkouts, runs } = setup();
     const key = branchCheckoutRequestKey(request("flow-a", "feature"));
 
-    // A render read with no subscriber, then the node is dropped before the
-    // subscription commits, then the subscription builds a fresh node.
     const tasks: Array<() => void> = [];
     const registry = AtomRegistry.make({
       scheduleTask: (task) => {
@@ -110,7 +108,6 @@ describe("new task branch checkouts", () => {
     checkouts.prune(new Set(["flow-a"]));
     runs[1]!.settle(failure);
     checkouts.release(keyB);
-    // The hold settles only after the failure continuation has run.
     await holds[1];
     expect(onFailure).toHaveBeenCalledTimes(1);
     unmountA();

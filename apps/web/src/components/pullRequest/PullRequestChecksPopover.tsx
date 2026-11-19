@@ -27,7 +27,6 @@ import {
   summarizePullRequestChecks,
 } from "./pullRequestPresentation";
 
-// Fetch only on open to avoid per-row requests.
 function LazyChecksBody({
   environmentId,
   reference,
@@ -69,8 +68,6 @@ function ChecksBody({
   return (
     <ScrollArea className="max-h-60">
       <ul className="flex flex-col">
-        {/* Keyed by name and occurrence: the host is the one that decides how many runs
-          share a name, and a repeated key is a rendering fault rather than a wrong list. */}
         {withOccurrenceKeys(orderedChecks, (check) => check.name).map(({ item: check, key }) => {
           const rowClassName = cn(
             "flex min-h-5 w-full min-w-0 items-center gap-2 rounded-sm py-0.5 text-left text-xs leading-4 pointer-coarse:min-h-11",

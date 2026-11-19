@@ -42,7 +42,6 @@ export function useThreadListSearchMatches(
       { picks: false },
     ).map(threadSearchMatchKey);
   }, [now, search.matches, search.query, threads]);
-  // A list shows every match, so nothing is cut; late ones go below.
   const order = nextShownOrder(shownOrder, search.query, rankedKeys, Number.POSITIVE_INFINITY);
   if (order !== shownOrder) setShownOrder(order);
   return useMemo(() => {

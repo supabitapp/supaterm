@@ -346,7 +346,6 @@ describe("new-task branch checkout", () => {
         readRefs: async (request) => {
           const result = await readRefs(request);
           if (!nested && result._tag === "Success") {
-            // Older servers cannot prove whether this project is at the repository root.
             const { isAtRepositoryRoot: _isAtRepositoryRoot, ...value } = result.value;
             return { ...result, value };
           }

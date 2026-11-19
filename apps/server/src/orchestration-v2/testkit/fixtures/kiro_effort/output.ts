@@ -77,7 +77,6 @@ export function assertKiroEffortOutput(
   assert.isAbove(effortWrite, modelWrite);
   assert.isBelow(effortWrite, prompt);
 
-  // Kiro advertised the option for the written model before Supaterm wrote to it.
   const advertised = frames
     .slice(modelWrite, effortWrite)
     .some(
@@ -86,7 +85,6 @@ export function assertKiroEffortOutput(
         effortOf(frame.result?.configOptions ?? frame.params?.update?.configOptions) !== undefined,
     );
   assert.isTrue(advertised, "effortLevel must be written only after Kiro advertises it");
-  // And reported the chosen level back before the prompt.
   const reported = frames
     .slice(effortWrite, prompt)
     .flatMap(({ direction, frame }) =>

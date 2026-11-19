@@ -40,7 +40,6 @@ interface Interpreter {
   readonly positionalScript?: number;
   readonly repeatable?: boolean;
   readonly subcommand?: string;
-  /** PowerShell matches parameters case-insensitively; the lists above are lowercase. */
   readonly ignoreCase?: boolean;
 }
 
@@ -103,7 +102,6 @@ const INTERPRETERS: Record<string, Interpreter> = {
   deno: {
     language: "typescript",
     inline: () => false,
-    // `--env-file` takes its optional path only as `--env-file=path`.
     valueOptions: new Set(["-c", "--config", "--import-map", "--ext"]),
     stdin: "never",
     subcommand: "eval",
@@ -241,7 +239,6 @@ function forEachCommand(
       return;
     }
   }
-  // Word parts are lazy getters, which Object.values skips.
   if ("parts" in node) forEachCommand(node.parts, visit, seen);
   for (const value of Object.values(node)) {
     if (typeof value === "object") forEachCommand(value, visit, seen);
@@ -249,7 +246,6 @@ function forEachCommand(
 }
 
 function programName(word: Word): string {
-  // Bash reads `C:\Python312\python.exe` unquoted as escapes; Windows meant a path.
   const path = /\\/u.test(word.text) ? word.text.replace(/^["']|["']$/gu, "") : word.value;
   return (path.split(/[\\/]/u).at(-1) ?? "").toLowerCase().replace(/\.exe$/u, "");
 }
@@ -271,7 +267,6 @@ function programIndex(words: ReadonlyArray<Word>): number {
       const value = words[index]!.value;
       const isOption = !optionsEnded && value.startsWith("-");
       if (isOption && value === "--") optionsEnded = true;
-      // `env -- FOO=1 cmd` still takes assignments after the options end.
       if (isOption || /^[A-Za-z_]\w*=/u.test(value)) {
         index += isOption && valueOptions.has(value) ? 2 : 1;
       } else {
@@ -357,7 +352,6 @@ function interpreterArgs(
       const [name = flag, value] = flag.startsWith("--") ? flag.split(/=(.*)/su) : [flag];
       if (interpreter.scriptFileOptions?.has(name)) {
         if (!interpreter.repeatable) return { scripts, scriptFromFile: true };
-        // SQL shells run `-f` files and `-c` statements alike, in order.
         scriptFromFile = true;
         if (value === undefined) index += 1;
         continue;
@@ -384,7 +378,6 @@ function interpreterArgs(
   if (interpreter.positionalScript !== undefined) {
     scripts.push(...positionals.slice(interpreter.positionalScript).map(whole));
   }
-  // SQL shells take databases as positional arguments, not script files.
   if (interpreter.stdin === "always") return { scripts, scriptFromFile };
   const first = positionals[0];
   return { scripts, scriptFromFile: first !== undefined && first.value !== "-" };
@@ -438,7 +431,6 @@ function hereDocText(hereDoc: HereDoc, source: string): MappedText {
   };
 }
 
-// Preserve literal expansions; return undefined for unmappable spellings.
 function wordText(word: Word, source: string): MappedText | undefined {
   const builder = new MappedTextBuilder();
   const parts: ReadonlyArray<WordPart> = word.parts ?? [
@@ -459,7 +451,6 @@ function wordText(word: Word, source: string): MappedText | undefined {
         }
         break;
       case "AnsiCQuoted":
-        // $'…' escapes such as \x41 do not map character for character.
         if (part.value !== part.text.slice(2, -1)) return undefined;
         builder.addRaw(part.value, part.pos + 2);
         break;
@@ -495,7 +486,6 @@ class MappedTextBuilder {
         next !== undefined &&
         (!doubleQuoted || '$`"\\\n'.includes(next))
       ) {
-        // A backslash-newline joins lines and spells nothing.
         if (next !== "\n") this.push(next, pos + index, 2);
         index += 1;
       } else {

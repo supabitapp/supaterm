@@ -122,13 +122,10 @@ const buildExeCmd = Command.make(
 
       yield* Effect.log("[cli] Building single-executable...");
       const target = Option.getOrUndefined(config.target);
-      // TEMPORARY one-time Node fix. Remove when fixed: https://github.com/nodejs/node/issues/67048
       const linuxArm64 =
         !target &&
         (yield* HostProcess.Platform) === "linux" &&
         (yield* HostProcess.Architecture) === "arm64";
-      // `vp env exec --node` selects the runtime in managed and system-first
-      // modes alike. The pack runs on it, and a native build embeds it.
       const spawnCommand = yield* resolveSpawnCommand("vp", [
         "env",
         "exec",
@@ -159,7 +156,6 @@ const buildExeCmd = Command.make(
       const cliMainPath = path.join(cliAssetDir, "binMain.mjs");
       yield* pack(linuxArm64 ? "bootstrap" : "1");
 
-      // Executables reject non-builtin imports even when bundling succeeds; inspect the emitted graph.
       const bootstrapPath = path.join(serverDir, "dist-exe/bin.mjs");
       for (const bundlePath of [bootstrapPath, cliMainPath]) {
         const specifiers = findEsmImportsOfExternalPackages(yield* fs.readFileString(bundlePath));
@@ -167,7 +163,6 @@ const buildExeCmd = Command.make(
           return yield* new ServerCliExecutableImportError({ bundlePath, specifiers });
         }
       }
-      // The service launcher's memory win depends on the CLI staying out of the bootstrap.
       const bootstrapBytes = (yield* fs.stat(bootstrapPath)).size;
       if (bootstrapBytes > 1024 * 1024) {
         return yield* new ServerCliBootstrapTooLargeError({
@@ -175,7 +170,6 @@ const buildExeCmd = Command.make(
           bytes: Number(bootstrapBytes),
         });
       }
-      // TEMPORARY one-time Node fix. Remove when fixed: https://github.com/nodejs/node/issues/67048
       if (linuxArm64) {
         const seaNode = yield* resolveSpawnCommand("vp", [
           "env",
@@ -209,7 +203,6 @@ const buildExeCmd = Command.make(
   ),
 );
 
-/** Publish after the GitHub release exists; the launcher downloads from it. */
 const publishCmd = Command.make(
   "publish",
   {

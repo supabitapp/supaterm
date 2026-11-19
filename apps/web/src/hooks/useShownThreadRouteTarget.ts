@@ -17,7 +17,6 @@ function threadRouteTargetKey(target: ThreadRouteTarget | null) {
 /** Settings and Usage render over the thread that opened them; that thread stays the shown one. */
 export function useShownThreadRouteTarget() {
   const routeTarget = useThreadRouteTarget();
-  // Read matches, not location, so this agrees with the params useThreadRouteTarget reads.
   const modalOpen = useMatches({
     select: (matches) => matches.some((match) => isAppModalPage(match.pathname)),
   });

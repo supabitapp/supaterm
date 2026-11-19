@@ -1,4 +1,3 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import type {
   PositionedTextRun,
   PresentationHandle,
@@ -8,12 +7,10 @@ import type {
 import { loadFace, presentationFace, scriptFace } from "./fonts";
 import type { DeckText, FallbackScript, FontStyle } from "./slide-text";
 
-/** A face the deck asks for: a family it names, or the fallback for a script the Latin faces lack. */
 type Want =
   | { readonly family: string; readonly script?: undefined }
   | { readonly script: FallbackScript; readonly family?: undefined };
 
-/** A face registered with both the engine and the browser. */
 type Face = { readonly want: Want; readonly style: FontStyle; readonly css: string };
 
 /**
@@ -29,7 +26,6 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
   const loads = new Map<string, Promise<void>>();
   const settled = new Set<string>();
 
-  /** Loads a face's bytes and browser face; the returned function registers both, so callers choose the order. */
   const prepare = async (want: Want, requested: FontStyle) => {
     const source = want.script
       ? scriptFace(want.script, requested.bold, requested.italic)
@@ -37,14 +33,10 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
 
     if (!source) return;
 
-    // A family without the requested style gets the face it has, which the browser then slants or emboldens. The engine
-    // draws a bold run with a family's regular face but never the reverse, so a heavier stand-in, such as Arial Black's
-    // bold one, registers at the requested style.
     const style = {
       bold: requested.bold && source.weight === 700,
       italic: requested.italic && source.style === "italic",
     };
-    // The worker holds this deck's faces alone, so the names only need to differ from each other.
     const css = names.get(wantKey(want)) ?? `slide-${names.size}`;
     const key = faceKey(want, style);
 
@@ -85,7 +77,6 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
     };
   };
 
-  /** Loads and registers one face once; later requests share the first. */
   const request = (want: Want, style: FontStyle) => {
     const key = faceKey(want, style);
     const existing = loads.get(key);
@@ -102,7 +93,6 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
     return load;
   };
 
-  /** The faces a frame drew in a substitute style whose own face has not loaded or failed yet. */
   const missing = (primitives: readonly SlidePrimitive[]) =>
     textRuns(primitives).flatMap((run) => {
       const face = faces.get(run.fontId);
@@ -123,8 +113,6 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
           runs: line.runs.map((run) => ({
             ...run,
             fontFamily: faces.get(run.fontId)?.css ?? run.fontFamily,
-            // The engine places glyphs no bundled face has, such as Thai ones or emoji, a missing glyph's width apart,
-            // but the browser draws them from its own fonts. Without positions a run is drawn whole.
             glyphs: run.glyphs.some((glyph) => glyph.glyphId === 0) ? [] : run.glyphs,
           })),
         })),
@@ -137,13 +125,8 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
   };
 
   return {
-    /**
-     * Registers the faces the deck's text names, in the order `text` ranks them: the engine draws every family it
-     * cannot find with the first. Resolves once each face has loaded or failed.
-     */
     load: async (text: DeckText) => {
       const regular = { bold: false, italic: false };
-      // The engine lays no text out without a face, so a deck that names none gets PowerPoint's own default.
       const families =
         text.families.length > 0 ? text.families : [{ name: "Calibri", styles: [regular] }];
 
@@ -165,10 +148,6 @@ export function slideFonts(deck: PresentationHandle, fonts: FontFaceSet) {
       });
     },
 
-    /**
-     * Lays a slide out. When its text asks for a style a registered face lacks, such as a bold the title style
-     * inherits, that face loads and the slide lays out again. The frame names the browser's faces, ready to paint.
-     */
     layout: async (index: number) => {
       const settle = async (rounds: number): Promise<SlideDisplayList> => {
         const frame = deck.layoutSlide(index);

@@ -75,7 +75,6 @@ function HighlightedCodeText({
       ...line.map((token) => {
         const start = offset;
         offset += token.content.length;
-        // Plain RN Text inherits the mono font; AppText would reset it to sans.
         return (
           <RNText key={start} style={token.color ? { color: token.color } : undefined}>
             {token.content}
@@ -101,7 +100,6 @@ export function ThreadWorkLogDetail(props: {
   readonly themeAppearance: "light" | "dark";
 }) {
   const { row } = props;
-  // Command rows stream their output, including the final output, from the server.
   const streamsOutput = useCommandOutputStreaming(props.environmentId, row.projectedItem);
   const fetchedDetail = useTurnItemDetail(
     row.fetchesDetail && !streamsOutput
@@ -110,9 +108,7 @@ export function ThreadWorkLogDetail(props: {
   );
   const reasoning = row.projectedItem.item.type === "reasoning" ? row.projectedItem.item : null;
   const fetchedItem = fetchedDetail.data?.item ?? null;
-  // Reads keep their path list; the fetched file contents show as output.
   const isRead = toolGroupAction(row.workEntry) === "read";
-  // Tool calls show the call in the foreground and the result muted below it.
   const shownItem = fetchedItem ?? row.projectedItem.item;
   const call =
     !isRead && shownItem.type === "command_execution"

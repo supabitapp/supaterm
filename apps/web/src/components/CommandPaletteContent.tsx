@@ -4,11 +4,6 @@ import { type ComponentProps, type ReactNode, type RefObject } from "react";
 import { Command, CommandFooter, CommandInput, CommandPanel } from "./ui/command";
 import { Kbd, KbdGroup } from "./ui/kbd";
 
-/**
- * A view replacing another inside an open dialog mounts with focus on the body,
- * left there by the removed input. Claim it so typing cannot reach the composer
- * behind the modal. On first open the dialog's own initial focus handles it.
- */
 function claimFocusInOpenDialog(input: HTMLInputElement) {
   const active = input.ownerDocument.activeElement;
   if (

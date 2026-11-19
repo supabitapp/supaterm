@@ -33,11 +33,9 @@ describe("azureCliInstall", () => {
   it("leaves anything that is not the Azure CLI alone", () => {
     expect(azureCliInstall(`${zipRoot}\\bin\\az.exe`, () => true)).toBeUndefined();
     expect(azureCliInstall(`${zipRoot}\\azure-cli\\az.cmd`, () => true)).toBeUndefined();
-    // Another tool's `bin\az.cmd` beside a `python.exe`, without the CLI's own packages.
     expect(
       azureCliInstall(`${zipRoot}\\bin\\az.cmd`, paths(`${zipRoot}\\python.exe`)),
     ).toBeUndefined();
-    // The CLI's packages without the interpreter its launcher runs.
     expect(azureCliInstall(`${msiRoot}\\wbin\\az.cmd`, paths(cliPackage(msiRoot)))).toBeUndefined();
   });
 });

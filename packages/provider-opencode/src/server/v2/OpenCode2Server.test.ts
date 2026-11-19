@@ -63,7 +63,6 @@ describe("OpenCode2Server.verifyServer", () => {
     }),
   );
 
-  // 1.x rejects a wrong password with an empty 401, which the client cannot decode.
   it.effect("reports an empty-body 401 as a rejected password", () =>
     Effect.gen(function* () {
       const error = yield* verify(layerServerReplying({ status: 401, body: "" })).pipe(Effect.flip);

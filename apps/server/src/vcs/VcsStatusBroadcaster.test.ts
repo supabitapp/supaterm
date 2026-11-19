@@ -243,7 +243,6 @@ describe("VcsStatusBroadcaster", () => {
         .refreshLocalStatus("/repo")
         .pipe(Effect.forkScoped({ startImmediately: true }));
       yield* Deferred.await(started);
-      // Requested while the first read runs, so that read may predate their change.
       state.currentLocalStatus = { ...baseLocalStatus, hasWorkingTreeChanges: true };
       const queued = yield* Effect.all(
         [broadcaster.refreshLocalStatus("/repo"), broadcaster.refreshLocalStatus("/repo")],
@@ -1206,7 +1205,6 @@ describe("VcsStatusBroadcaster", () => {
       if (paletteUpdate._tag === "localUpdated") {
         assert.deepStrictEqual(paletteUpdate.local.branchChanges, branchChanges);
       }
-      // The header's first remote poll also rereads local status.
       while ((yield* Queue.take(headerEvents))._tag !== "remoteUpdated") {}
       const turnEnd = yield* broadcaster.refreshLocalStatus("/repo");
       assert.deepStrictEqual(turnEnd.branchChanges, branchChanges);
@@ -1259,7 +1257,6 @@ describe("VcsStatusBroadcaster", () => {
       );
       const turnEnd = yield* broadcaster.refreshLocalStatus("/repo").pipe(Effect.forkScoped);
       yield* Deferred.await(readStarted);
-      // Starting immediately registers the header's demand before it waits behind the read.
       const secondEvents = yield* subscribeHeader(yield* Scope.make());
       yield* Deferred.succeed(finishRead, undefined);
       const snapshot = yield* Queue.take(secondEvents);
@@ -1313,7 +1310,6 @@ describe("VcsStatusBroadcaster", () => {
         const broadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
         const refresh = yield* broadcaster.refreshStatus("/repo").pipe(Effect.forkScoped);
         yield* Deferred.await(fetchStarted);
-        // Another reader can refill the local cache while fetch is still running.
         yield* readLocalStatus();
         local = {
           ...baseLocalStatus,
@@ -1369,7 +1365,6 @@ describe("VcsStatusBroadcaster", () => {
       assert.deepStrictEqual(moved.branchChanges, totals(0).branchChanges);
       assert.deepStrictEqual(
         [...(yield* Fiber.join(events))].map((event) => event._tag),
-        // The first refresh adds the totals this palette-style subscription skipped.
         ["localUpdated", "remoteUpdated", "remoteUpdated", "localUpdated"],
       );
 
@@ -1556,7 +1551,6 @@ describe("VcsStatusBroadcaster", () => {
               ) {
                 return;
               }
-              // Yield this reader after its write until the local refresh finishes.
               remoteWritten = true;
               Deferred.doneUnsafe(writeCompleted, Effect.void);
             };
@@ -1656,7 +1650,6 @@ describe("VcsStatusBroadcaster", () => {
             const next = applyGitStatusStreamEvent(clientStates.at(-1) ?? null, event);
             clientStates.push(next);
             yield* Deferred.succeed(subscribed, undefined);
-            // The refresh ends with the new branch's remote, after its local update.
             if (event._tag === "remoteUpdated" && event.remote && next.refName === "repro") {
               yield* Deferred.succeed(checkedOut, undefined);
             }
@@ -1664,7 +1657,6 @@ describe("VcsStatusBroadcaster", () => {
         ).pipe(Effect.forkScoped);
         yield* Deferred.await(subscribed);
 
-        // What `git switch -c repro` does to HEAD, with the test clock never advanced.
         state.currentLocalStatus = { ...baseLocalStatus, isDefaultRef: false, refName: "repro" };
         state.currentRemoteStatus = { ...baseRemoteStatus, hasUpstream: false };
         const lockPath = path.join(gitDir, "HEAD.lock");
@@ -1676,7 +1668,6 @@ describe("VcsStatusBroadcaster", () => {
           clientStates.flatMap((status) => (status.refName === "repro" ? [status.pr] : [])),
           [null, null],
         );
-        // A checkout must not trigger a network fetch.
         assert.deepStrictEqual(state.remoteStatusRefreshUpstreamValues.slice(1), [false]);
       }).pipe(Effect.provide(layerTestFor(state)), Effect.scoped);
     }).pipe(Effect.provide(NodeServices.layer)),
@@ -1797,18 +1788,15 @@ describe("VcsStatusBroadcaster", () => {
         ).pipe(Effect.forkScoped);
         yield* Deferred.await(subscribed);
 
-        // A terminal commit holds index.lock across the checkout, so the HEAD event's read fails.
         state.failLocalStatus = true;
         state.currentLocalStatus = { ...baseLocalStatus, isDefaultRef: false, refName: "repro" };
         yield* Queue.offer(events, { _tag: "Update", path: "HEAD" });
         yield* Deferred.await(failed);
         const failedCalls = state.localStatusCalls;
 
-        // Removing index.lock moves no HEAD, and no remote poll runs for this subscriber.
         state.failLocalStatus = false;
         yield* TestClock.adjust(Duration.seconds(30));
         yield* Deferred.await(checkedOut);
-        // macOS can report the rename as two HEAD events, so a second read may follow the retry.
         assert.isAbove(state.localStatusCalls, failedCalls);
         assert.strictEqual(state.remoteStatusCalls, 0);
       }).pipe(Effect.provide(layerTestFor(state)), Effect.scoped);
@@ -1907,7 +1895,6 @@ describe("VcsStatusBroadcaster", () => {
             yield* fs.rename(lockPath, headPath);
           });
 
-        // The repository has no HEAD yet, so the first watch ends at once.
         const first = yield* subscribe;
         state.headPath = headPath;
         const second = yield* subscribe;
@@ -1917,7 +1904,6 @@ describe("VcsStatusBroadcaster", () => {
         yield* Deferred.await(first.sawRef("one"));
         yield* Deferred.await(second.sawRef("one"));
 
-        // The replacement belongs to both subscribers, so the second leaving keeps it.
         yield* Fiber.interrupt(second.fiber);
         yield* checkout("two");
         yield* Deferred.await(first.sawRef("two"));
@@ -1955,13 +1941,11 @@ describe("VcsStatusBroadcaster", () => {
         const branches = yield* Stream.toPull(broadcaster.streamBranchStatus({ cwd: "/repo" }));
         assert.deepEqual(yield* branches, [{ refName: "main", isRepo: true }]);
 
-        // Every checkout removes HEAD.lock, which leaves the watch running.
         state.currentLocalStatus = { ...baseLocalStatus, refName: "other" };
         yield* Queue.offer(events, { _tag: "Remove", path: "HEAD.lock" });
         yield* Queue.offer(events, { _tag: "Update", path: "HEAD" });
         assert.deepEqual(yield* branches, [{ refName: "other", isRepo: true }]);
 
-        // `git worktree remove` deletes the watched directory; Windows keeps reporting it.
         gitDirExists = false;
         yield* Queue.offer(events, { _tag: "Remove", path: gitDir });
         yield* Deferred.await(closed);
@@ -2085,8 +2069,6 @@ describe("VcsStatusBroadcaster", () => {
       );
       const first = yield* broadcaster.refreshStatus("/repo").pipe(Effect.forkScoped);
       yield* Deferred.await(fetchStarted);
-      // Every read after the first sees a PR, so a caller that reused the
-      // first refresh would get a status from before its own request.
       state.beforeRemoteStatus = Effect.sync(() => {
         state.currentRemoteStatus = remoteStatusWithPr;
       });

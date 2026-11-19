@@ -24,9 +24,6 @@ export interface ToastProps {
 
 export function Toast(props: ToastProps) {
   const { fontScale } = useWindowDimensions();
-  // A one-line message keeps its action on the same row. Descriptions and
-  // accessibility text sizes need the full width, so the action moves below.
-  // Explicit single-line notices reserve the action's width and truncate the text.
   const inlineAction = props.singleLine || (!props.description && fontScale < 1.5);
   const message =
     props.singleLine && props.description
@@ -35,8 +32,6 @@ export function Toast(props: ToastProps) {
   const action = props.action ? (
     <Button label={props.action.label} onPress={props.action.onPress} />
   ) : null;
-  // A capsule hugs its content and keeps the action's pill concentric with its
-  // edge. When the action moves below, it falls back to the card.
   const capsule = props.variant === "capsule" && inlineAction;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- announces the toast message to VoiceOver through AccessibilityInfo
   useEffect(() => {

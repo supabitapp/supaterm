@@ -225,7 +225,6 @@ export function createThreadOutboxEditor(routeKey: string) {
 }
 
 export function useThreadOutboxEditor(routeKey: string) {
-  // The editor holds the edit session, so it is replaced only when the route changes.
   const [current, setCurrent] = useState(() => ({
     routeKey,
     editor: createThreadOutboxEditor(routeKey),
@@ -268,7 +267,6 @@ function threadOutboxAttachmentPreviews(entry: PendingThreadTurn | undefined) {
 }
 
 export function useThreadOutboxAttachments(entry: PendingThreadTurn | undefined) {
-  // The effect revokes each preview set's object URLs, so a set is rebuilt only for a new entry.
   const [current, setCurrent] = useState(() => ({
     entry,
     previews: threadOutboxAttachmentPreviews(entry),

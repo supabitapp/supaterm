@@ -19,7 +19,6 @@ const ConfiguredDeviceHostId = DeviceHostId.check(
 );
 
 export const SshDeviceHostConfig = Schema.Struct({
-  // Hosts saved before Expo hosts existed carry no kind.
   kind: Schema.Literal("ssh").pipe(Schema.withDecodingDefaultKey(Effect.succeed("ssh" as const))),
   id: ConfiguredDeviceHostId,
   label: TrimmedNonEmptyString,
@@ -59,7 +58,6 @@ export const EasDeviceHostConfig = Schema.Struct({
     Schema.withDecodingDefaultKey(Effect.succeed(2)),
   ),
 }).check(
-  // Expo requires the idle limit to be smaller than the session limit.
   Schema.makeFilter(
     (host: { readonly idleMinutes: number; readonly maxSessionMinutes: number }) =>
       host.idleMinutes < host.maxSessionMinutes ||
@@ -102,7 +100,6 @@ export type DeviceEasAccount = typeof DeviceEasAccount.Type;
 /** Checking an Expo credential failed; no device host is involved yet. */
 export class DeviceEasAccountError extends Schema.TaggedError<DeviceEasAccountError>()(
   "DeviceEasAccountError",
-  // No cause: this error reaches the browser, and the reason already says what Expo answered.
   { reason: Schema.String },
 ) {
   override get message(): string {
@@ -197,7 +194,6 @@ const deviceServiceStateFields = {
   supportsHostRetry: Schema.optional(Schema.Boolean),
   supportsToolUpdate: Schema.optional(Schema.Boolean),
   supportsToolInspection: Schema.optional(Schema.Boolean),
-  /** Servers from before Expo hosts ignore `easDeviceHosts`, so clients offer them only when set. */
   supportsEasHosts: Schema.optional(Schema.Boolean),
   hostStatus: DeviceHostStatus,
   hostStatusDetail: Schema.optional(Schema.String),
@@ -213,11 +209,6 @@ const deviceServiceStateFields = {
   revision: Schema.Int,
 };
 
-/**
- * Expo host summaries travel as `easHosts`: clients from before Expo hosts
- * decode `hosts` with a `local | ssh` kind and would reject the whole state.
- * Decoded, every host is in `hosts`.
- */
 const DeviceServiceStateWire = Schema.Struct({
   ...deviceServiceStateFields,
   hosts: Schema.Array(MachineDeviceHostSummary),

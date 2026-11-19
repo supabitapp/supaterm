@@ -25,7 +25,6 @@ function firstScreen(text: string, delimiter: "," | "\t" | null, complete: boole
         .split(/\r\n|\n|\r/)
         .slice(0, PREVIEW_PAGE_ROWS * 2 + 1)
         .map((line) => [line]);
-  // A byte range can end inside a quoted record or a UTF-8 character.
   if (!complete) rows.pop();
   return rows.slice(0, PREVIEW_PAGE_ROWS * 2);
 }
@@ -148,8 +147,6 @@ export default function LargeTextViewer(props: {
       if (prefetched) requestAnimationFrame(() => requestAnimationFrame(startWorker));
       else startWorker();
     };
-    // Only this bounded prefix is parsed on the main thread. Indexing the full
-    // file and fetching later pages remain in the worker.
     if (props.sizeBytes === 0) {
       startWorker();
     } else if (props.text !== undefined) {
@@ -176,9 +173,7 @@ export default function LargeTextViewer(props: {
           const total = Number(response.headers.get("content-range")?.split("/")[1]);
           paintFirstScreen(await response.text(), total <= FIRST_SCREEN_BYTES);
         })
-        .catch(() => {
-          // The worker reports authorization, network and format failures.
-        })
+        .catch(() => {})
         .finally(scheduleWorker);
     } else startWorker();
     return () => {

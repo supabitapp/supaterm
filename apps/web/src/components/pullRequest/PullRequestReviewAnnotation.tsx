@@ -125,7 +125,6 @@ export function InlineReviewThreads({
   renderThread: (thread: PullRequestReviewThread, hidden: boolean) => ReactNode;
 }) {
   const [shown, setShown] = useState<ReadonlySet<string>>(() => new Set());
-  // A conversation seen open stays shown once resolved, so it does not vanish under the reader.
   const open = threads.filter((thread) => !thread.isResolved);
   if (open.some((thread) => !shown.has(thread.id))) {
     setShown(new Set([...shown, ...open.map((thread) => thread.id)]));
@@ -150,7 +149,6 @@ export function InlineReviewThreads({
                 data-resolved-threads
                 aria-label={label}
                 aria-expanded={expanded}
-                // Sits on the commented line, which is the row above this annotation.
                 className="absolute right-3 bottom-full flex h-[var(--diffs-line-height,20px)] cursor-pointer items-center -space-x-1 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                 contentEditable={false}
                 onPointerDown={(event) => event.stopPropagation()}
@@ -266,7 +264,6 @@ export function ReviewThreadCard({
     sendingRef.current = false;
     if (result._tag === "Failure") throw squashAtomCommandFailure(result);
     if (!result.value) return;
-    // Replies return no comment; retain loaded data and reopen pagination for a later read.
     setLoadedPage((previous) =>
       previous?.threadId === thread.id
         ? {

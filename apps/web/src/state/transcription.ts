@@ -27,7 +27,6 @@ import { readPreparedConnection } from "./session";
 
 const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
 
-// A recording upload stays open until the environment has transcribed, and sent, it.
 const UPLOAD_TIMEOUT_MS = 7 * 60_000;
 
 async function command<A, E, Input>(operation: AtomCommand<Input, A, E>, input: Input) {

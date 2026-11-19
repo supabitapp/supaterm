@@ -63,7 +63,6 @@ export function PullRequestLinkPreview({
         })
       : null,
   );
-  // A link to a comment or commit shows that, read from the activity the panel shares.
   const namesSubject =
     parsePullRequestAnchor(originalUrl)?.kind === "timeline" ||
     pullRequestLinkCommit(originalUrl) !== null;

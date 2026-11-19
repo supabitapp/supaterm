@@ -139,7 +139,6 @@ export function forgejoChangeRequest(pr: typeof ForgejoPullRequest.Type) {
     headRepositoryNameWithOwner: pr.head.repo?.full_name ?? null,
     state: pr.merged ? "merged" : pr.state === "closed" ? "closed" : "open",
     isDraft: pr.draft ?? /^(?:\[WIP\]|WIP:)/i.test(pr.title),
-    // A false value also covers drafts and unfinished or failed conflict checks.
     mergeability: pr.mergeable === true ? "mergeable" : "unknown",
     additions: pr.additions ?? 0,
     deletions: pr.deletions ?? 0,
@@ -221,9 +220,6 @@ export function forgejoCommit(commit: typeof ForgejoCommit.Type): PullRequestCom
   };
 }
 
-// Forgejo Actions reports a job that did not run as `skipped` and a cancelled one as `failure`,
-// and `warning` is finished without being a pass. Only `pending` and states we do not know may
-// hold a watch open.
 function forgejoCheckStatus(state: string): PullRequestCheckStatus {
   switch (state) {
     case "success":

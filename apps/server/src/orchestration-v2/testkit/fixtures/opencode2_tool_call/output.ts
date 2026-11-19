@@ -21,7 +21,6 @@ export function assertOpenCode2ToolCallOutput(
   const projection = projectionFor(result, transcript.scenario);
   assertSemanticProjectionIntegrity(projection);
   assertVisibleTurnItemsMirrorLocalTurnItems(projection);
-  // Buffered delivery keeps streaming text out of the read model until
 
   assertTurnItemTypeSequence(projection, [
     "user_message",

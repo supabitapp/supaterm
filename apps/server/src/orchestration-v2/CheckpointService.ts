@@ -25,8 +25,6 @@ import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 
 const CHECKPOINT_REFS_PREFIX = "refs/supaterm/orchestration-v2/checkpoints";
 const ROOT_CHECKPOINT_SCOPE_NAME = "root";
-// The provider turn waits on the baseline, so a workspace too slow for this starts without one.
-// It bounds only the snapshot: waiting on the lock lets an in-flight capture finish the same ref.
 const BASELINE_CAPTURE_BUDGET = "5 seconds";
 
 export class CheckpointRootScopePrepareError extends Schema.TaggedError<CheckpointRootScopePrepareError>()(
@@ -250,7 +248,6 @@ export const layer: Layer.Layer<
     const withWorkspaceLock = <A, E, R>(cwd: string, effect: Effect.Effect<A, E, R>) =>
       workspaceLocks.withLock(cwd, effect);
 
-    // A failed probe is an operational error, not proof that the workspace has no repository.
     const probeRepository = (scope: OrchestrationV2CheckpointScope) =>
       checkpointStore.isGitRepository(scope.cwd).pipe(
         Effect.map((isRepository) =>
@@ -461,7 +458,6 @@ export const layer: Layer.Layer<
             fromCheckpointRef: previousCheckpointRef,
             toCheckpointRef: checkpointRef,
           };
-          // A pull or rebase can change thousands of files the turn did not write.
           const files = previousExists
             ? yield* Effect.all([
                 checkpointStore.diffCheckpoints({

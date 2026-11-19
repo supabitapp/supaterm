@@ -41,7 +41,6 @@ export function PullRequestRowGlyph({
     <span className={cn("flex w-4 shrink-0 flex-col items-center gap-0.5", className)}>
       <span className="relative inline-flex">
         <PullRequestStateGlyph state={state} isDraft={isDraft} />
-        {/* Offset the wrapper to keep the badge-sized tooltip trigger anchored. */}
         <span className="absolute -right-1 -bottom-1 inline-flex">
           <PullRequestConflictGlyph
             state={state}

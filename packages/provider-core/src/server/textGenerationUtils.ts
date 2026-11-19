@@ -19,7 +19,6 @@ export function toJsonSchemaObject(schema: Schema.Top): unknown {
 
 export function limitSection(value: string, maxChars: number): string {
   if (value.length <= maxChars) return value;
-  // Half an emoji serializes to a lone surrogate escape, which provider JSON parsers reject.
   const last = value.charCodeAt(maxChars - 1);
   const truncated = value.slice(0, last >= 0xd800 && last <= 0xdbff ? maxChars - 1 : maxChars);
   return `${truncated}\n\n[truncated]`;
@@ -57,7 +56,6 @@ export function sanitizePrTitle(raw: string): string {
 const MAX_THREAD_TITLE_CHARS = 120;
 
 export function sanitizeThreadTitle(raw: string): string {
-  // Unwrap a JSON-formatted title before truncation can cut off the closing brace.
   const decoded = decodeJsonThreadTitle(raw);
   const title = Option.isSome(decoded) ? decoded.value.title : raw;
   const normalized = title
@@ -99,7 +97,6 @@ const ONE_WORD_NEXT_PROMPTS: ReadonlySet<string> = new Set([
   "okay",
 ]);
 
-// Each names a kind of text that is not a message the user would type next.
 const NOT_A_NEXT_PROMPT: Record<string, (text: string, words: ReadonlyArray<string>) => boolean> = {
   declined: (text) =>
     /^(done|nothing found|nothing to suggest|no suggestion)\W*$/i.test(text) ||

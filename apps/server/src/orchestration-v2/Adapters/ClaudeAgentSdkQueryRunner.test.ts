@@ -498,7 +498,6 @@ it.effect("retries a fresh session once after MCP registration times out", () =>
     if (result._tag === "Success") yield* result.success.close;
     assert.equal(querySpy.mock.calls.length, 2);
     assert.equal(disposed.mock.calls.length, 1);
-    // A fresh ID may already have a transcript, so the retry must not open it as fresh again.
     const retry = querySpy.mock.calls[1]![0].options;
     assert.isFalse(retry?.sessionId === resume && retry?.resume === undefined);
   }).pipe(Effect.provide(realQueryRunner)),
@@ -586,7 +585,6 @@ it.effect.each([
           waiting.resolve();
           return booted.promise;
         },
-        // The CLI answers control requests only after it has booted.
         setMcpServers: async () => {
           waiting.resolve();
           await booted.promise;
@@ -648,10 +646,6 @@ const openFakeCli = (cli: string) =>
   });
 
 describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI process", () => {
-  // The CLI stops the MCP servers it started, but not their children: a
-  // plugin's `bun server.ts` outlives its `bun run` wrapper. The fake
-  // CLI leaves a child running the same way. The child holds a FIFO open, so
-  // its death reads as end-of-file here, with no polling.
   it.effect("stops what the CLI left running when the session closes", () =>
     Effect.gen(function* () {
       const cli = fakeClaudeCli(
@@ -684,7 +678,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
     }).pipe(Effect.provide(realQueryRunner)),
   );
 
-  // The default AgentScope is what macOS gets: no systemd scope to catch a job outside the CLI's group.
   it.effect("stops a job the CLI started in its own process group when the session closes", () =>
     Effect.gen(function* () {
       const cli = fakeClaudeCli(
@@ -717,7 +710,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
     }),
   );
 
-  // Live clock: the job is found by polling while the CLI runs, and the CLI exits on its own.
   it.live("stops a job the CLI started in its own process group when the CLI exits", () =>
     Effect.gen(function* () {
       const cli = fakeClaudeCli(
@@ -764,8 +756,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
         : "";
     });
 
-  // Startup stderr can carry paths, tokens, or settings, so only the known
-  // refusal reaches the failure the client shows.
   it.effect("keeps other startup stderr out of the turn failure", () =>
     Effect.gen(function* () {
       const surrounded = yield* startupFailureMessage(
@@ -786,7 +776,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
     }).pipe(Effect.provide(realQueryRunner)),
   );
 
-  // What Claude Code writes when the session store behind --resume is gone.
   it.effect("names a resumed conversation Claude Code cannot find", () =>
     Effect.gen(function* () {
       const missing = "No conversation found with session ID: native-session-fake-cli";
@@ -823,8 +812,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
     }).pipe(Effect.provide(realQueryRunner)),
   );
 
-  // The CLI keeps running its turn after its pipes close, so a server that
-  // crashed would leave it working next to the session it resumes.
   it.effect("stops the CLI when the server that started it goes away", () =>
     Effect.gen(function* () {
       const cli = fakeClaudeCli(['dir=$(dirname "$0")', 'sleep 600 > "$dir/alive"'].join("\n"));
@@ -852,13 +839,11 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
       alive.resume();
       yield* Effect.promise(() => turnStarted);
 
-      // A dying server's descriptors close; the kernel would do this for it.
       for (const pipe of child.stdio) pipe?.destroy();
       yield* Effect.promise(() => turnStopped);
     }),
   );
 
-  // A native cwd makes libuv wait for chdir, which a hung mount stalls with the whole server.
   it.effect("enters the cwd in the child, so a missing one fails the CLI and not the spawn", () =>
     Effect.gen(function* () {
       const cli = fakeClaudeCli('pwd -P > "$(dirname "$0")/cwd"');
@@ -890,7 +875,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("Claude CLI pro
     }),
   );
 
-  // A restarted server reaps recorded CLIs, so a CLI must never run before its record exists.
   it.effect("records the CLI before it runs and forgets it once it exits", () =>
     Effect.gen(function* () {
       const cli = fakeClaudeCli(

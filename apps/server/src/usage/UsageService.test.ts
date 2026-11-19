@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - the suite seeds and grows real
-// transcript trees on disk, outside the service's Effect FileSystem.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
@@ -91,7 +90,6 @@ function claudeLine(
   })}\n`;
 }
 
-/** One content-block line of message `msg_1`; Claude Code writes several per message. */
 function claudeCopy(usage: Readonly<Record<string, number>>): string {
   return `${JSON.stringify({
     type: "assistant",
@@ -102,7 +100,6 @@ function claudeCopy(usage: Readonly<Record<string, number>>): string {
   })}\n`;
 }
 
-// A subagent message: its stream-start copy, then its final copy.
 const PARTIAL_USAGE = {
   input_tokens: 2,
   cache_creation_input_tokens: 1097,
@@ -254,7 +251,6 @@ const NARROW_WINDOW: UsageSummaryInput = {
   untilDay: UsageDay.make("2026-09-02"),
 };
 
-// Each waiting gate holds a libuv thread; allow at most three.
 const makeGate = (path: string, lastWriteSeconds?: number) =>
   Effect.promise(async () => {
     NodeChildProcess.execFileSync("mkfifo", [path]);
@@ -383,7 +379,6 @@ const seedCodexHistory = (input: {
       ...selection,
       options: [{ id: "serviceTier", value: "ultrafast" }],
     };
-    // These selections disagree so reading the current projection or the wrong event is visible.
     yield* sql`INSERT INTO orchestration_v2_projection_runs ${sql.insert({
       run_id: run.id,
       thread_id: `thread-${id}`,
@@ -630,7 +625,6 @@ describe("UsageService", () => {
         );
         assert.deepStrictEqual((yield* service.readSummary(WINDOW)).buckets, first.buckets);
         yield* service.awaitPersisted;
-        // The same rollout may remain in a plain file while compression finishes.
         yield* Effect.promise(() =>
           NodeFSP.writeFile(NodePath.join(sessions, "copy.jsonl"), compressed),
         );
@@ -755,7 +749,6 @@ describe("UsageService", () => {
                       return yield* fileSystem.readFileString(path, encoding);
                     }
                     firstRead = false;
-                    // Both instances observe the missing file before either can create it.
                     const result = yield* Effect.exit(fileSystem.readFileString(path, encoding));
                     reads += 1;
                     if (reads === 2) yield* Deferred.succeed(bothRead, undefined);
@@ -856,7 +849,6 @@ describe("UsageService", () => {
           const retry = yield* UsageService.make;
           verify(yield* retry.readSummary(WINDOW), 7, 7);
           yield* sql`ALTER TABLE unavailable_events RENAME TO orchestration_events`;
-          // History repair must touch both the committed record and tentative tail.
           verify(yield* retry.readSummary(WINDOW), 7, 30);
           yield* retry.awaitPersisted;
           yield* sql`ALTER TABLE orchestration_events RENAME TO resolved_events`;
@@ -865,8 +857,6 @@ describe("UsageService", () => {
           verify(yield* resolved.readSummary(WINDOW), 7, 30);
           yield* sql`ALTER TABLE resolved_events RENAME TO orchestration_events`;
 
-          // Completing the tail reparses it; neither an absent turn ID nor a new
-          // turn with no retained attempt may inherit the inferred Fast speed.
           yield* Effect.promise(() =>
             NodeFSP.appendFile(
               fastPath,
@@ -979,7 +969,6 @@ describe("UsageService", () => {
               { type: "session_meta", payload: { id: "tier-session", model_provider: "openai" } },
               context("ultra-turn"),
               usage(1, 1),
-              // An equal request at the same time, from a turn priced at the standard tier.
               context("standard-turn"),
               usage(1, 2),
             ]),
@@ -997,7 +986,6 @@ describe("UsageService", () => {
           verify(yield* first.readSummary(WINDOW), 2, 7);
           yield* first.awaitPersisted;
 
-          // Downgrade the saved cache to v14, whose clean Codex entries cannot resume.
           yield* Effect.promise(async () => {
             const cachePath = NodePath.join(stateDir, SCAN_CACHE_FILE_NAME);
             const document = JSON.parse(await NodeFSP.readFile(cachePath, "utf8"));
@@ -1605,7 +1593,6 @@ describe("UsageService", () => {
             prefix: "usage-physical-source-created",
             home,
             settings,
-            // The native Windows server reads identity from realpath alone.
             platform: "win32",
             environment: { [DESKTOP_HOST_SCOPE_ENV]: scope },
           }),
@@ -2188,7 +2175,6 @@ describe("UsageService", () => {
           [1],
         );
 
-        // The revoked key keeps its stale cache, which must not replace the working key's history.
         revoked = true;
         cursor.state.events.push({ timestampMs: CURSOR_NOW + 60 * 1000, outputTokens: 5 });
         yield* TestClock.adjust(Duration.minutes(2));
@@ -2837,13 +2823,11 @@ describe("UsageService", () => {
         const claude = (summary: UsageSummary) =>
           summary.sources.find((source) => source.fingerprint.provider === "claude");
         yield* Effect.gen(function* () {
-          // With nothing persisted, the first answer is a full scan.
           const service = yield* UsageService.make;
           const loop = NodePath.join(NodePath.dirname(transcript), "loop.jsonl");
           yield* Effect.promise(() => NodeFSP.symlink(loop, loop, "junction"));
           assert.strictEqual(claude(yield* service.readSummary(provisional))?.status, "partial");
           yield* Effect.promise(() => NodeFSP.rm(loop));
-          // A scan that missed a path covers nothing, so this is a full scan too.
           assert.isUndefined(claude(yield* service.readSummary(provisional))?.refreshing);
           yield* service.awaitPersisted;
 
@@ -2852,7 +2836,6 @@ describe("UsageService", () => {
           const saved = yield* restarted.readSummary(provisional);
           assert.strictEqual(totalOutputTokens(saved), 5);
           assert.isTrue(claude(saved)?.refreshing);
-          // A window that starts before the saved scan could only show part of its usage.
           const wider = yield* restarted.readSummary({
             ...provisional,
             sinceDay: UsageDay.make("2026-07-01"),
@@ -2862,7 +2845,6 @@ describe("UsageService", () => {
           const refreshed = yield* restarted.readSummary({ ...WINDOW, awaitRefresh: true });
           assert.strictEqual(totalOutputTokens(refreshed), 12);
           assert.isUndefined(claude(refreshed)?.refreshing);
-          // Saved usage with nothing to show marks nothing refreshing, so it must not be the answer.
           yield* Effect.promise(() =>
             NodeFSP.appendFile(transcript, claudeLine(3, 11, "claude-other")),
           );
@@ -2873,7 +2855,6 @@ describe("UsageService", () => {
           assert.strictEqual(totalOutputTokens(unseen), 11);
           yield* restarted.awaitPersisted;
 
-          // A saved scan with an entry this server cannot read covers nothing.
           const { stateDir } = yield* ServerConfig.ServerConfig;
           const cachePath = NodePath.join(stateDir, SCAN_CACHE_FILE_NAME);
           yield* Effect.promise(async () => {
@@ -2913,7 +2894,6 @@ describe("UsageService", () => {
         "orbit-2": { input_cost_per_token: 0.000002, output_cost_per_token: 0.00002 },
       };
       const include = {
-        // The codex selector must not match the Claude drift-9 records.
         include: [
           { provider: "claude", model: "orbit-1" },
           { model: "orbit-2" },
@@ -2938,7 +2918,6 @@ describe("UsageService", () => {
 
       yield* Effect.gen(function* () {
         const service = yield* UsageService.make;
-        // Same service, concurrent reads: the in-flight key must keep these scans apart.
         const [unfiltered, noOp, keepNothing, included, reordered, excluded, hourly] =
           yield* Effect.all(
             [
@@ -2956,7 +2935,6 @@ describe("UsageService", () => {
             { concurrency: "unbounded" },
           );
 
-        // Unfiltered keeps today's behavior: the alias folds drift-9 into orbit-1.
         assert.deepStrictEqual(cells(unfiltered), [
           { model: "orbit-1", outputTokens: 21, costUsd: 240, records: 3, sessions: 2 },
           { model: "orbit-2", outputTokens: 5, costUsd: 120, records: 1, sessions: 1 },
@@ -2978,7 +2956,6 @@ describe("UsageService", () => {
         for (const summary of [included, excluded, hourly]) {
           assert.strictEqual(summary.sources[0]?.distinctSessions, 1);
         }
-        // Equal filters share one scan and echo one canonical form.
         assert.strictEqual(reordered, included);
         assert.deepStrictEqual(included.modelFilter, {
           include: [
@@ -3075,7 +3052,6 @@ describe("UsageService", () => {
             payload: { type: "thread_settings_applied", thread_settings: { service_tier } },
           });
         const bad = counted(10, 2, 130, 28);
-        // Cross the reader's projection threshold so cumulative fields must survive selection.
         const stale = counted(20, 5, 100, 20).replace(
           '"payload":',
           '"padding":' + encodeUnknownJsonString("x".repeat(9 * 1024 * 1024)) + ',"payload":',
@@ -3196,7 +3172,6 @@ describe("UsageService", () => {
           const restarted = yield* UsageService.make;
           assert.deepStrictEqual((yield* restarted.readSummary(WINDOW)).buckets, tail.buckets);
 
-          // Grow the file without changing its settled prefix: the old tail must be discarded.
           yield* Effect.promise(() =>
             NodeFSP.writeFile(transcript, partial + claudeLine(2, 7) + claudeLine(3, 5)),
           );
@@ -3452,7 +3427,6 @@ describe("UsageService", () => {
             { type: "turn_context", payload: { turn_id: "turn-1", model: "gpt-6-astra" } },
             request(1, usage(100, 20)),
             tokenCount(1, usage(100, 20), usage(100, 20)),
-            // Interrupted after this request finished: no token_count reports it.
             request(2, usage(150, 10)),
           ]),
         );
@@ -3471,7 +3445,6 @@ describe("UsageService", () => {
           const document = decodeUnknownJsonString(await NodeFSP.readFile(cachePath, "utf8")) as {
             files: Record<string, { cs: Record<string, unknown> }>;
           };
-          // The v10 parser ignored `token_usage_record`, so its clean state held nothing pending.
           for (const file of Object.values(document.files)) {
             file.cs = Object.fromEntries(
               Object.entries(file.cs).filter(([key]) => !key.startsWith("unreported")),
@@ -3785,7 +3758,6 @@ describe("UsageService", () => {
       });
       yield* Effect.gen(function* () {
         const service = yield* UsageService.make;
-        // The narrow window saves the second copy before the wide one reads the first.
         yield* service.readSummary(NARROW_WINDOW);
         const exact = yield* service.readSummary(WINDOW);
         yield* service.awaitPersisted;
@@ -3797,7 +3769,6 @@ describe("UsageService", () => {
         Effect.provide(layerService({ prefix: "usage-service-saved-order-test", home, settings })),
       );
 
-      // A narrow scan that first saves the earlier copy still puts it before a later file it skipped.
       yield* Effect.promise(async () => {
         await NodeFSP.writeFile(first, forked(claudeLine(1, 5)) + forked(claudeLine(2, 7)));
         await NodeFSP.utimes(
@@ -3905,7 +3876,6 @@ describe("UsageService", () => {
     Effect.gen(function* () {
       yield* TestClock.setTime(Date.parse("2026-08-12T00:00:00Z"));
       const { transcript, settings, home } = yield* setup;
-      // Saved usage is kept for 92 days from now, so read it as of a day near the fixture.
       yield* TestClock.setTime(Date.parse("2026-08-15T00:00:00Z"));
       yield* Effect.promise(async () => {
         await NodeFSP.writeFile(transcript, claudeLine(1, 5));
@@ -3995,7 +3965,6 @@ describe("UsageService", () => {
 
         const original = yield* Fiber.join(first);
         const updated = yield* Fiber.join(second);
-        // Fetched rates price the first read, so scans must start while the fetch is pending.
         assert.isAbove(original.buckets[0]?.costUsd ?? 0, 0);
         assert.closeTo(updated.buckets[0]?.costUsd ?? -1, 0.00006, 1e-12);
       }).pipe(
@@ -4087,14 +4056,12 @@ describe("UsageService", () => {
       const newModelCost = (summary: UsageSummary) =>
         summary.buckets.find((bucket) => bucket.model === "claude-new-model")?.costUsd;
 
-      // Rates fetched for this scan are fresh: no second request for the models they lack.
       const first = yield* (yield* UsageService.make.pipe(
         Effect.provide(serviceLayer),
       )).readSummary(WINDOW);
       assert.strictEqual(newModelCost(first), 0);
       assert.strictEqual(requests.length, 1);
 
-      // An hour later LiteLLM lists the new model; a restarted server starts from the cached table.
       ratesDocument = {
         ...ratesDocument,
         "claude-new-model": { input_cost_per_token: 2e-5, output_cost_per_token: 1e-4 },
@@ -4106,7 +4073,6 @@ describe("UsageService", () => {
       assert.closeTo(newModelCost(refreshed) ?? -1, 10 * 2e-5 + 5 * 1e-4, 1e-12);
       assert.strictEqual(requests.length, 2);
 
-      // A model the fresh table still lacks does not refetch again before the TTL.
       yield* TestClock.adjust(Duration.hours(1));
       yield* service.readSummary(WINDOW);
       assert.strictEqual(requests.length, 2);

@@ -135,7 +135,6 @@ const layerDeviceServiceMock = Layer.mock(DeviceService.DeviceService)({
   screenshot: () => Effect.succeed({ device, png }),
   close: () => Effect.void,
   testHost: () => Effect.die("not used"),
-  // As for an Expo device, agent-device knows the device by a different id than Supaterm.
   agentTarget: () =>
     Effect.succeed({
       agentDeviceId: "SIM-UDID",
@@ -175,7 +174,6 @@ it.effect("registers the device tools and returns the screenshot as image conten
         agentDevice: { command: string; targetArgs: ReadonlyArray<string>; session: string };
         quickStart: string;
       };
-      // Callers that pass the target flags, like test-supaterm-mobile's pair-client.sh, keep working.
       expect(openedContent.agentDevice).toMatchObject({
         targetArgs: [
           "--platform",
@@ -192,7 +190,6 @@ it.effect("registers the device tools and returns the screenshot as image conten
       expect(openedContent.quickStart).toContain(
         `${openedContent.agentDevice.command} snapshot -i`,
       );
-      // The launcher selects the device by agent-device's id for it, not Supaterm's.
       expect(openedContent.agentDevice.command).toBe(
         "/state/device/targets/thread-device/--platform_ios_--udid_SIM-UDID_--config_/host.json_--session_thread-device/agent-device",
       );
@@ -232,8 +229,6 @@ it.effect("registers the device tools and returns the screenshot as image conten
         .callTool({ name: "device_list", arguments: {} })
         .pipe(callWith(["preview"]), Effect.provideService(McpSchema.McpServerClient, client));
       expect(denied.isError).toBe(true);
-      // The agent can't see Settings, and a running session keeps the capabilities it started with,
-      // so the error says where the user turns access on and when it applies.
       expect(denied.content).toEqual([
         {
           type: "text",
@@ -380,7 +375,6 @@ describe("device targeting across hosts", () => {
   });
   const thisMachine = { id: "local", label: "This machine" };
   const macMini = { id: macHost.id, label: macHost.label };
-  // DeviceService's lookup errors; DeviceService.test.ts covers when each arises.
   const onTwoHosts = new DeviceService.DeviceHostAmbiguousError({
     deviceId: DeviceId.make("Pixel_10"),
     hosts: [thisMachine, macMini],

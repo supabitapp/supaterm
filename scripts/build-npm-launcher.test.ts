@@ -47,7 +47,6 @@ const run = Effect.fn("test.run")(function* (
   return { stdout, stderr, exitCode };
 }, Effect.scoped);
 
-/** A release archive for this host with a stub `supaterm` that echoes its args and launcher. */
 const serveFakeRelease = Effect.fn("test.serveFakeRelease")(function* (root: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -128,12 +127,10 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
         assert.equal(manifest.name, "supaterm");
         assert.equal(manifest.version, VERSION);
         assert.deepStrictEqual(manifest.bin, { supaterm: "./bin/supaterm.mjs" });
-        // Nothing for npm to resolve, so nothing that can lag behind the launcher.
         assert.isUndefined(manifest.dependencies);
         assert.isUndefined(manifest.optionalDependencies);
         assert.isAbove(npmReleaseDatabaseMigration(manifest) ?? 0, 0);
 
-        // Run what npm would install: the published tarball, unpacked.
         const installed = path.join(root, "installed");
         yield* fs.makeDirectory(installed);
         const unpack = yield* run("tar", ["-xzf", output.tarball, "-C", installed], {
@@ -144,7 +141,6 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
         const packageDir = path.join(installed, "package");
 
         const release = yield* serveFakeRelease(root);
-        // regression: #32897
         release.failNextRequests(504, 524);
         const home = path.join(root, "home");
         const env = {
@@ -159,7 +155,6 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
         });
         assert.equal(first.stdout.trim(), `stub serve a b launcher=${launcher}`, first.stderr);
         assert.equal(first.exitCode, 7);
-        // The same layout the install scripts and `supaterm update` use.
         const versionDir = path.join(home, "runtime/versions", VERSION);
         assert.equal(
           (yield* fs.readFileString(path.join(versionDir, ".install-complete"))).trim(),
@@ -171,14 +166,11 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
           [VERSION],
         );
 
-        // A second run reuses the download.
         const requestsAfterFirst = release.requests.length;
         const second = yield* run(process.execPath, [launcher, "--version"], { cwd: root, env });
         assert.equal(second.exitCode, 0);
         assert.equal(release.requests.length, requestsAfterFirst);
 
-        // A parent that talks to the server over IPC keeps that channel, and
-        // its SIGTERM reaches the executable.
         const ipcServer = path.join(home, "runtime/versions", VERSION, "supaterm");
         yield* fs.writeFileString(
           ipcServer,
@@ -200,7 +192,6 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
           assert.deepStrictEqual(await exit, [23, null]);
         });
 
-        // Two first runs at once both start, and neither removes the other's install.
         const raceHome = path.join(root, "race-home");
         const launch = run(process.execPath, [launcher, "--version"], {
           cwd: root,
@@ -213,8 +204,6 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
           VERSION,
         ]);
 
-        // A peer's executable and sidecar stay available after every later rename or removal,
-        // even when it publishes after our missing-marker read.
         const staleHome = path.join(root, "stale-home");
         const staleDir = path.join(staleHome, "runtime/versions", VERSION);
         const peerDir = path.join(root, "peer-runtime");
@@ -229,7 +218,6 @@ it.layer(NodeServices.layer)("build-npm-launcher", (it) => {
         yield* fs.writeFileString(path.join(peerDir, ".install-complete"), `${VERSION}\n`);
         yield* fs.writeFileString(path.join(peerDir, "sidecar"), "peer sidecar");
         const peerChecks = path.join(root, "peer-checks.txt");
-        // The peer publishes after the launcher's rename fails and it reads the marker.
         const peerHook = path.join(root, "peer-publishes.mjs");
         yield* fs.writeFileString(
           peerHook,
@@ -296,8 +284,6 @@ fs.readFileSync = (file, ...rest) => {
           VERSION,
         ]);
 
-        // While another launch holds the lock, a stale folder is left alone and the error says
-        // how to clear a lock left by a crash.
         const staleOnlyHome = path.join(root, "stale-only-home");
         const staleOnlyDir = path.join(staleOnlyHome, "runtime/versions", VERSION);
         yield* fs.makeDirectory(staleOnlyDir, { recursive: true });
@@ -311,7 +297,6 @@ fs.readFileSync = (file, ...rest) => {
         assert.include(locked.stderr, `delete ${staleOnlyDir}.lock`);
         assert.equal(yield* fs.readFileString(path.join(staleOnlyDir, "supaterm")), "incomplete");
 
-        // Without a peer, the stale folder is replaced by our own download.
         yield* fs.remove(`${staleOnlyDir}.lock`, { recursive: true });
         const replaced = yield* run(process.execPath, [launcher, "--version"], {
           cwd: root,
@@ -324,7 +309,6 @@ fs.readFileSync = (file, ...rest) => {
           [VERSION],
         );
 
-        // A download that does not match the release checksums is never installed.
         release.corruptChecksum();
         const corrupt = yield* run(process.execPath, [launcher, "--version"], {
           cwd: root,
@@ -363,9 +347,6 @@ fs.readFileSync = (file, ...rest) => {
         const versionDir = path.join(home, "runtime/versions", VERSION);
         yield* fs.makeDirectory(versionDir, { recursive: true });
         yield* fs.writeFileString(path.join(versionDir, ".install-complete"), `${VERSION}\n`);
-        // Stands in for a runtime whose exit is stuck behind blocked filesystem calls, with a
-        // provider it never gets to stop. Both give up on their own well inside the project
-        // timeout so an unescalated stop fails descriptively.
         const stuck = "runtime ignored SIGTERM and was still running 30s later";
         const orphaned = "provider outlived the runtime by 30s";
         const provider = `process.on("SIGTERM", () => {}); setTimeout(() => { console.log(${JSON.stringify(orphaned)}); process.exit(0); }, 30_000);`;
@@ -402,7 +383,6 @@ console.log(process.pid, provider.pid);
           stdout += chunk;
           if (stdout.includes("\n")) started.resolve();
         });
-        // The runtime and provider inherit this pipe, so it closes only once all three are gone.
         const closed = NodeEvents.EventEmitter.once(launcher.stdout, "close");
         yield* Effect.promise(() => started.promise);
         pids = stdout.trim().split(" ").map(Number);

@@ -23,7 +23,6 @@ export interface RetainedLiveItem<A> {
   readonly serializedBytes: number;
 }
 
-// Immutable events are shared across subscribers; cache sizes without retaining events or serialized copies.
 const serializedSizes = new WeakMap<object, number>();
 
 function serializedSize(value: object): number {
@@ -153,7 +152,6 @@ export const makeLiveStreamBudget = Effect.fn("makeLiveStreamBudget")(function* 
           Effect.catchTags({
             LiveStreamBufferError: (error) =>
               Effect.sync(() => {
-                // Release retained source chunks without waiting for an RPC ACK.
                 source.pull = Effect.interrupt;
               }).pipe(
                 Effect.andThen(Scope.close(sourceScope, Exit.fail(error))),
@@ -173,7 +171,6 @@ export const makeLiveStreamBudget = Effect.fn("makeLiveStreamBudget")(function* 
           Effect.forkScoped,
         );
         return Effect.gen(function* () {
-          // RpcServer requests the next batch after ACK; dequeueing does not end delivery.
           release(inFlight);
           inFlight = [];
           yield* check;
@@ -281,8 +278,6 @@ export const bufferLatestLiveStream = <A extends { readonly sequence: number }, 
               const wasEmpty = pending.size === 0;
               const [item] = yield* budget.replace(previous ? [previous] : [], [value]);
               pending.set(identity, item!);
-              // Only the empty-to-nonempty transition needs a wakeup; replacements
-              // must not leave another token after this batch has drained.
               if (wasEmpty) yield* Queue.offer(ready, undefined);
             }).pipe(Effect.uninterruptible),
           ),
@@ -305,7 +300,6 @@ export const bufferLatestLiveStream = <A extends { readonly sequence: number }, 
                       (left, right) => left.value.sequence - right.value.sequence,
                     );
                     pending.clear();
-                    // Moving to delivery preserves the budget charge until ACK.
                     return items as Arr.NonEmptyArray<RetainedLiveItem<A>>;
                   }),
                 ),
@@ -346,7 +340,6 @@ export const replayAndBufferProjectedLiveEvents = <
       const subscription = yield* input.subscribe.pipe(Scope.provide(subscriptionScope));
       let throughSequence = input.afterSequence ?? 0;
       const live = yield* retainLiveStream(
-        // Take one event at a time so no uncharged PubSub batch is retained.
         Stream.fromEffectRepeat(PubSub.take(subscription)).pipe(
           Stream.filter(
             (event) => event.sequence > throughSequence && (input.filter?.(event) ?? true),
@@ -361,9 +354,6 @@ export const replayAndBufferProjectedLiveEvents = <
           Effect.map((highWater) => {
             throughSequence = Math.max(highWater, input.afterSequence ?? 0);
             return input.replay(highWater).pipe(
-              // The finite database page is independent of the live tail.
-              // Charge only the item being delivered so a fast reader can
-              // consume a page larger than the budget without overflowing.
               Stream.filter((event) => input.filter?.(event) ?? true),
               Stream.rechunk(1),
               Stream.mapEffect((event) => budget.retain(input.project(event))),

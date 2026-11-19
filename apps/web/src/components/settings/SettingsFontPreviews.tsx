@@ -66,7 +66,6 @@ const DIFF_PREVIEW_PATCH = [
   "",
 ].join("\n");
 
-// FileDiff remounts can retain unhighlighted frames after a race; use static highlighted HTML in shadow DOM.
 function loadDiffPreviewHtml(theme: DiffThemeName): Promise<readonly string[]> {
   return preloadPatchFile({
     patch: DIFF_PREVIEW_PATCH,
@@ -74,7 +73,6 @@ function loadDiffPreviewHtml(theme: DiffThemeName): Promise<readonly string[]> {
   }).then((results) => results.map((result) => result.prerenderedHTML));
 }
 
-// Unlayered shadow-root rules override Pierre surfaces with app code tokens to match the diff panel.
 const DIFF_PREVIEW_THEME_BRIDGE = `
   :host {
     color: var(--code-foreground);
@@ -90,8 +88,6 @@ const DIFF_PREVIEW_THEME_BRIDGE = `
   }
 `;
 
-// Each host is keyed by its html, so the ref callback runs once per document.
-// React detaches a cleanup-less ref callback with null when an appearance switch drops the host.
 function StaticDiffHtml({ html }: { html: string }) {
   const attachHtml = (host: HTMLDivElement | null) => {
     if (host === null) return;
@@ -117,7 +113,6 @@ export function CodeFontPreview() {
     useAtomValue(diffPreviewHtmlAtom(resolveDiffThemeName(resolvedTheme))),
     () => null,
   );
-  // An appearance switch keeps the previous theme's preview up while the new one renders.
   const [htmlByFile, setHtmlByFile] = useState(loadedHtml);
   if (loadedHtml !== null && loadedHtml !== htmlByFile) setHtmlByFile(loadedHtml);
   if (htmlByFile === null) return null;
@@ -164,14 +159,12 @@ export function TerminalFontPreview({ family, size }: { family: string; size: nu
     void surface.setFont(previewTerminalFont(family, size)).then(() => {
       const mount = mountRef.current;
       if (!mount) return;
-      // The border sits inside the box's height and is not part of the terminal's grid.
       const border = mount.offsetHeight - mount.clientHeight;
       mount.style.height = `${surface.heightForRows(TERMINAL_PREVIEW_ROWS) + border}px`;
       surface.fit();
     });
   }, [surface, family, size]);
 
-  // Palette changes may preserve light/dark mode; re-read terminal tokens for every theme change.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes theme tokens read from the DOM's computed styles into the Ghostty preview surface
   useEffect(() => {
     const mount = mountRef.current;

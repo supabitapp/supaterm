@@ -30,9 +30,6 @@ function logPathHydrationWarning(message: string, error?: unknown): void {
   );
 }
 
-// __MISE_DIFF is mise's record of the PATH entries it added. It must travel
-// with the shell's PATH, or `mise x` can rebuild PATH behind a same-named
-// wrapper (`exec mise x claude -- claude`) that then re-runs itself forever.
 const LOGIN_SHELL_ENV_NAMES = ["PATH", "__MISE_DIFF", "JAVA_HOME"] as const;
 const LOGIN_SHELL_TIMEOUT = Duration.seconds(5);
 const SLOW_LOGIN_SHELL_TIMEOUT_MS = 20_000;
@@ -60,8 +57,6 @@ function applyLoginShellEnvironment(
   if (shellPath && shellEnvironment.__MISE_DIFF) {
     env.__MISE_DIFF = shellEnvironment.__MISE_DIFF;
   }
-  // Android SDK tools are Java programs. A keg-only JDK (Homebrew's openjdk)
-  // is only reachable through the JAVA_HOME the shell profile sets.
   if (!env.JAVA_HOME && shellEnvironment.JAVA_HOME) {
     env.JAVA_HOME = shellEnvironment.JAVA_HOME;
   }
@@ -75,9 +70,6 @@ function hydratePosixPath(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): vo
       shellEnvironment = readEnvironmentFromLoginShell(shell, LOGIN_SHELL_ENV_NAMES);
     } catch (error) {
       logPathHydrationWarning(`Failed to read PATH from login shell ${shell}.`, error);
-      // A profile can be slow only while the machine boots. Wait for it once,
-      // here: providers copy this env when they are built, so a later read
-      // would never reach them.
       if (!waitedForSlowShell && (error as NodeJS.ErrnoException | null)?.code === "ETIMEDOUT") {
         waitedForSlowShell = true;
         try {
@@ -118,7 +110,6 @@ export const fixPath = Effect.fn("fixPath")(function* (options?: {
   const env = yield* HostProcess.Environment;
 
   if (platform === "win32") {
-    // Desktop already populated the child env; repeating PowerShell probes costs seconds.
     if (options?.shellEnvironmentPrepared === true) return;
     const repairedEnvironment = yield* resolveWindowsEnvironment(env).pipe(
       Effect.catchDefect((defect) =>
@@ -169,8 +160,6 @@ const readLoginShellOutput = Effect.fn("readLoginShellOutput")(
           stdin: "ignore",
           stdout: "pipe",
           stderr: "ignore",
-          // A profile that traps SIGTERM would otherwise hold the scope open
-          // past the timeout while cleanup waits for the exit.
           forceKillAfter: "1 second",
         },
       ),
@@ -189,9 +178,6 @@ const readLoginShellOutput = Effect.fn("readLoginShellOutput")(
   Effect.timeoutOption(LOGIN_SHELL_TIMEOUT),
 );
 
-// Runs even when the desktop prepared the environment: that capture was taken
-// once at launch. Only the user's own shell counts; a fallback shell's PATH is
-// not their environment. Failure leaves PATH alone.
 export const refreshPathFromLoginShell = Effect.fn("refreshPathFromLoginShell")(function* () {
   const platform = yield* HostProcess.Platform;
   if (platform !== "darwin" && platform !== "linux") return;
@@ -220,8 +206,6 @@ export const refreshPathFromLoginShell = Effect.fn("refreshPathFromLoginShell")(
   }
 });
 
-// Installers write PATH to the registry, which the server's launch-time PATH never sees again.
-// Returns whether PATH gained a directory.
 export const refreshWindowsPath = Effect.fn("refreshWindowsPath")(function* () {
   if ((yield* HostProcess.Platform) !== "win32") return false;
   const env = yield* HostProcess.Environment;

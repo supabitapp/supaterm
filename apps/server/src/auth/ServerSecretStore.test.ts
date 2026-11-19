@@ -118,8 +118,6 @@ const layerConcurrentCreateSecretStore = () =>
     Layer.provideMerge(layerConcurrentReadMissFileSystem),
   );
 
-// Both callers read the empty secret before either repairs it, and the second removal of the
-// secret file waits until the first caller has returned its key.
 const layerConcurrentEmptyRepairFileSystem = (firstReturned: Deferred.Deferred<void>) =>
   Layer.effect(
     FileSystem.FileSystem,

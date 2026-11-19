@@ -629,7 +629,6 @@ export type PullRequestReferenceCandidate = typeof PullRequestReferenceCandidate
 export const PullRequestFilterOptions = Schema.Struct({
   labels: Schema.Array(PullRequestLabel),
   authors: Schema.Array(PullRequestActor),
-  // Servers from before reference completion send no key.
   references: Schema.Array(PullRequestReferenceCandidate).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
@@ -723,7 +722,6 @@ export const PullRequestActivity = Schema.Struct({
   commentsTruncated: Schema.Boolean,
   reviewThreadsTruncated: Schema.optional(Schema.Boolean),
   reviewThreads: Schema.Array(PullRequestReviewThread),
-  // Apart from reviewThreads so clients that require a thread path still decode the activity.
   overviewThreads: Schema.optional(Schema.Array(PullRequestOverviewThread)),
   commits: Schema.Array(PullRequestCommit),
   reactions: Schema.optional(Schema.Array(PullRequestReaction)),
@@ -789,7 +787,6 @@ export const PullRequestDiffFileContentsResult = Schema.Struct({
 export type PullRequestDiffFileContentsResult = typeof PullRequestDiffFileContentsResult.Type;
 
 const MAX_FILE_PATH_LENGTH = 4096;
-// Preserve filename whitespace so viewed marks match host paths.
 const FilePath = Schema.String.check(Schema.isNonEmpty(), Schema.isMaxLength(MAX_FILE_PATH_LENGTH));
 
 export const PullRequestFileViewedState = Schema.Literals(["unviewed", "viewed", "dismissed"]);
@@ -824,7 +821,6 @@ export const PullRequestChangeBreakdown = Schema.NullOr(
     tests: PullRequestLineCount,
     mocks: PullRequestLineCount,
     generated: PullRequestLineCount,
-    // Servers from before the docs split send no key; their docs lines sit in `code`.
     docs: PullRequestLineCount.pipe(
       Schema.withDecodingDefault(Effect.succeed({ additions: 0, deletions: 0 })),
     ),
@@ -866,7 +862,6 @@ export const PullRequestActionInput = Schema.Struct({
 });
 export type PullRequestActionInput = typeof PullRequestActionInput.Type;
 
-// Preserve whitespace because it affects Markdown formatting.
 const CommentBody = Schema.String.check(Schema.isNonEmpty()).check(Schema.isMaxLength(65_536));
 
 export const PullRequestCommentInput = Schema.Struct({
@@ -942,7 +937,6 @@ export type PullRequestThreadCommentsInput = typeof PullRequestThreadCommentsInp
 export const PullRequestThreadCommentsResult = Schema.Struct({
   comments: Schema.Array(PullRequestThreadComment),
   nextCursor: Schema.NullOr(TrimmedNonEmptyString),
-  // Comments the host hid that this page left out; the thread's `commentCount` still counts them.
   hiddenCount: Schema.optional(NonNegativeInt),
 });
 export type PullRequestThreadCommentsResult = typeof PullRequestThreadCommentsResult.Type;

@@ -463,7 +463,6 @@ describe("scoped settings writes", () => {
     });
   });
 
-  // regression: #35093 client settings saved in project scope overwrote the global default
   it("refuses client-only keys at project scope", () => {
     for (const scope of [project, checkout]) {
       expect(
@@ -580,14 +579,12 @@ describe("scoped settings writes", () => {
       return { persistServer, stored: () => stored };
     };
 
-    // regression: #18426 rapid project saves rebuilt overrides from a copy that trailed them
     it("keeps every edit and reset while the client's copy trails its saves", async () => {
       let copy: ServerSettings = {
         ...DEFAULT_SERVER_SETTINGS,
         projectSettingsOverrides: { [projectId]: { enableAgentBrowserAccess: false } },
       };
       const host = saving(copy);
-      // No config push arrives, so the client's copy stays as it was before the first save.
       const write = createScopedSettingsWriter(() => copy);
       const save = (plan: Parameters<typeof write>[1]) =>
         write([environment("Server", { settings: copy })], plan, host.persistServer, vi.fn());
@@ -602,7 +599,6 @@ describe("scoped settings writes", () => {
         defaultAutoPull: true,
         removeAgentCreditsOnMerge: true,
       });
-      // The first save's push arrives late, after the newer saves have finished.
       copy = (await host.persistServer.mock.results[0]!.value).value;
       await save((current) =>
         planScopedSettingsPatch(checkout, current, { defaultThreadEnvMode: "worktree" }),
@@ -678,7 +674,6 @@ describe("scoped settings writes", () => {
         { message: "Disconnected" },
       ]);
       expect((await edit({ defaultAutoPull: true })).savedEnvironmentCount).toBe(1);
-      // Another client replaces the override, and its push reaches this client.
       await host.persistServer({
         input: {
           patch: { projectSettingsOverrides: { [projectId]: { enableAgentBrowserAccess: false } } },
@@ -732,7 +727,6 @@ describe("scoped settings mixed values", () => {
     };
     expect(mixed()).toBe(false);
 
-    // Laptop already pushed its result; Server answers before its push arrives.
     settle(saved.environmentId, saved.serverConfig!.settings);
     settle(waiting.environmentId, applyServerSettingsPatch(waiting.serverConfig!.settings, patch));
     expect(writes.map(({ environmentId }) => environmentId)).toEqual([waiting.environmentId]);

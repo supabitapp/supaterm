@@ -71,7 +71,6 @@ export class SourceControlProviderRegistry extends Context.Service<
 function unsupportedProvider(
   kind: SourceControlProviderKind,
 ): SourceControlProvider.SourceControlProvider["Service"] {
-  // Binding context does not create a second provider-operation span.
   return SourceControlProvider.SourceControlProvider.of({
     kind,
     listChangeRequests: (input) =>
@@ -159,10 +158,6 @@ function selectProviderContext(
   );
 }
 
-/**
- * `cwd` is left out because it only matters when a probe fails there, and a failed probe
- * is not kept. Equality ignores `lookup`, so this is not a `Data.Class`.
- */
 class UnknownRemoteLookup {
   readonly key: string;
   readonly lookup: Effect.Effect<UnknownRemoteVerdict>;

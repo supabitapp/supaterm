@@ -68,7 +68,6 @@ export function IconButton(props: IconButtonProps) {
           </Component>
         </NativeThemeHost>
       </View>
-      {/* Keep RN SVG measurement outside Compose; the native button owns touch and ripple. */}
       <View pointerEvents="none" className="absolute inset-0 items-center justify-center">
         <SymbolView
           name={props.icon === "ellipsis" ? { ios: "ellipsis", android: "more_vert" } : props.icon}

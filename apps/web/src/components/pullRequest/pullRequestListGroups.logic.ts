@@ -74,14 +74,10 @@ export function pullRequestGroups({
     if (text.length === 0) {
       return narrowedEntries.toSorted(comparePullRequestsByRecency);
     }
-    // Host text searches cover fields absent from rows, so do not narrow their matches locally.
-    // Filter text locally while results are pending or when the host has no text search.
     const matched = narrowedEntries.filter(
       (entry) =>
         (answeredLocally && searchingHosts.has(entry.host)) || matchesPullRequestQuery(entry, text),
     );
-    // Host search matches whole words, so it can miss loaded rows a partial word matches here.
-    // Those follow the host's ranked answer rather than reshuffling it.
     const listed = new Set(matched.map(pullRequestEntryKey));
     const missed = narrowRows(baseline ?? []).filter(
       (entry) => !listed.has(pullRequestEntryKey(entry)) && matchesPullRequestQuery(entry, text),

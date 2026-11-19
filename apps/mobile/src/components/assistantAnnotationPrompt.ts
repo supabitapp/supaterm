@@ -30,7 +30,6 @@ export function promptAssistantAnnotation(
             }
           : onSave(withAssistantCitationComment(citation, next));
       if (rejection === null) return;
-      // The prompt has already closed, so a retry reopens it holding what was typed.
       Dialog.alert(rejection.title, rejection.message, [
         {
           text: "OK",

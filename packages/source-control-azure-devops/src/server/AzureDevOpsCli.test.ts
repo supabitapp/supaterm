@@ -25,10 +25,8 @@ const processOutput = (stdout: string): SourceControlHost.SourceControlProcessOu
 
 const mockRun = vi.fn<SourceControlHost.SourceControlHost["Service"]["process"]["run"]>();
 
-// The CLI layer is exercised on a host that spawns `az` itself, so the launcher upgrade stays out of these assertions.
 const layerSupport = Layer.mergeAll(
   TestSourceControlHost.layer({
-    // No remotes: these cases leave `--detect true` to az.
     process: {
       run: (input) =>
         input.command === "git" ? Effect.succeed(processOutput("")) : mockRun(input),
@@ -72,7 +70,6 @@ describe("AzureDevOpsCli.layer", () => {
       const result = yield* az.getPullRequest({
         cwd: "/repo",
         reference: "#42",
-        // The selected remote numbers the pull request, whatever the checkout's primary remote.
         remoteUrl: "git@ssh.dev.azure.com:v3/acme/project/repo",
       });
 
@@ -300,7 +297,6 @@ describe("AzureDevOpsCli.layer", () => {
           bodyFile: "/tmp/body.md",
         });
 
-        // az replaces an argument that starts with `@`, or whose text after the first `=` does, with that file's contents.
         const fileReads = (mockRun.mock.calls.at(-1)?.[0].args ?? []).flatMap((arg) => {
           const value = arg.startsWith("@") ? arg : arg.slice(arg.indexOf("=") + 1);
           return (arg.startsWith("@") || arg.includes("=")) && value.startsWith("@")
@@ -311,7 +307,6 @@ describe("AzureDevOpsCli.layer", () => {
         expect(mockRun.mock.calls.at(-1)?.[0].stdin).toBe(
           title.startsWith("@") ? title : undefined,
         );
-        // az expands a separate `@file` value a second time, so a body of `@notes.txt` read notes.txt.
         expect(mockRun.mock.calls.at(-1)?.[0].args).toContain("--description=@/tmp/body.md");
       }
     }).pipe(Effect.provide(layer)),
@@ -531,7 +526,6 @@ describe("scopeAzureCliArgs", () => {
     [show, "https://dev.azure.com/acme/%XX/_git/Repo"],
     [show, "git@ssh.dev.azure.com:v4/acme/Project/Repo"],
     [show, "git@vs-ssh.visualstudio.com:v3/acme.invalid/Project/Repo"],
-    // az would replace the value with the contents of a local file.
     [show, "https://dev.azure.com/acme/Project/_git/%40.env"],
   ])("leaves %j to az when %s gives no scope", (args, url) => {
     expect(scopeAzureCliArgs(args, url)).toEqual(args);
@@ -544,13 +538,11 @@ describe("primaryRemoteUrl", () => {
   const azure = (name: string) => [name, `https://dev.azure.com/${name}/P/_git/R`] as const;
 
   it.each([
-    // Where Supaterm publishes the branch and creates its pull requests.
     [remotes(azure("upstream"), azure("origin")), azure("origin")[1]],
     [
       remotes(["github", "https://github.com/acme/repo"], azure("zebra"), azure("alpha")),
       azure("zebra")[1],
     ],
-    // A non-Azure origin leaves detection to az rather than scoping another repository.
     [
       remotes(azure("upstream"), ["origin", "https://github.com/acme/repo"]),
       "https://github.com/acme/repo",

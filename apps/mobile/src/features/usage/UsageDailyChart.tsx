@@ -114,7 +114,6 @@ export function UsageDailyChart({
         onAccessibilityAction={(event) => adjust(event.nativeEvent.actionName)}
       >
         <View className="flex-1 flex-row items-end gap-px">
-          {/* Use column-reverse: provider values are bottom-first and Hermes lacks toReversed. */}
           {chartDays.map((day, index) => (
             <View
               key={day.day}

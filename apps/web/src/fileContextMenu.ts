@@ -21,7 +21,6 @@ import { useAtomValue } from "@effect/atom-react";
 export type FileContextMenuAction =
   | "reveal-in-folder"
   | "open"
-  /** Submenu parent; never the activated id. */
   | "open-with"
   | `editor:${EditorId}`;
 
@@ -92,7 +91,6 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
 
   const availableEditors = serverConfig?.availableEditors ?? [];
   const capabilities: FileContextMenuCapabilities = {
-    // WSL can reveal in Windows Explorer despite reporting Linux; use server wording.
     revealLabel:
       environmentId !== null &&
       serverConfig?.shellRevealInFileManager === true &&

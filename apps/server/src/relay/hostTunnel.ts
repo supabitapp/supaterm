@@ -10,8 +10,6 @@ import {
 
 const MAX_HELLO_BYTES = 4096;
 
-// The accept side of a tunnel, whether the relay's data socket or a direct
-// upgrade: one small text hello, then encrypted binary records only.
 export function serveHostTunnel(
   ws: WebSocket,
   input: {

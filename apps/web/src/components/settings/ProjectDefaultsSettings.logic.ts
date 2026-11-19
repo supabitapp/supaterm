@@ -37,7 +37,6 @@ export function resolveDefaultModelSettingsPresentation(input: {
 
   const savedEntry = input.entries.find((entry) => entry.instanceId === saved.instanceId);
   const resolved = resolveDefaultProviderModelSelection(input.providers, saved);
-  // Settings can turn a provider off before the server snapshot catches up, so check both.
   if (
     !savedEntry?.enabled ||
     !savedEntry.isAvailable ||

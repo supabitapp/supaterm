@@ -157,7 +157,6 @@ const message = (
   },
 });
 
-// The prefix and suffix are hidden selection context, not text the reader sees.
 const quote = serializeAssistantCitation({
   version: 1,
   environmentId: EnvironmentId.make("environment:local"),
@@ -246,7 +245,6 @@ it.effect("ThreadSearch excludes legacy placeholders still in the index", () =>
     const project = ProjectId.make("project:legacy-attachments");
     const threadId = ThreadId.make("thread:legacy-attachments");
     yield* createProject(project);
-    // Simulate the pre-upgrade trigger, which indexed attachment placeholders.
     yield* sql`DROP TRIGGER orchestration_v2_message_search_insert`;
     yield* sql`
       CREATE TRIGGER orchestration_v2_message_search_insert
@@ -414,7 +412,6 @@ it.layer(layerTest)("ThreadSearch", (it) => {
       const search = yield* ThreadSearch.ThreadSearch;
       const project = ProjectId.make("project:search-citation-index");
       const threadId = ThreadId.make("thread:citation-index");
-      // The stored link percent-encodes these words; the index must hold them as they read.
       const encodedQuote = serializeAssistantCitation({
         version: 1,
         environmentId: EnvironmentId.make("environment:local"),
@@ -450,7 +447,6 @@ it.layer(layerTest)("ThreadSearch", (it) => {
       ]) {
         assert.deepEqual(yield* threadIds(query), [threadId], query);
       }
-      // `supaterm doctor` rebuilds the index after VACUUM; quotes must still read.
       yield* rebuildMessageSearch(sql);
       assert.deepEqual(yield* threadIds("résumé"), [threadId]);
 
@@ -512,7 +508,6 @@ it.layer(layerTest)("ThreadSearch", (it) => {
         result.matches.map((match) => [match.threadId, match.snippet]),
         [[parent, "Rename ThreadSearchService before shipping"]],
       );
-      // "ab" alone cannot use the index; with a longer token it narrows the hits.
       assert.deepEqual((yield* search.search({ query: "ab" })).matches, []);
       assert.lengthOf((yield* search.search({ query: "renam be" })).matches, 1);
       assert.lengthOf((yield* search.search({ query: "renam ab" })).matches, 0);
@@ -546,7 +541,6 @@ it.layer(layerTest)("ThreadSearch", (it) => {
       `.pipe(Effect.map((rows) => rows.map((row) => row.threadId)));
       assert.deepEqual(yield* indexedThreads, [parent]);
 
-      // total_changes counts trigger writes, so 1 means the index was untouched.
       const changes = sql<{ readonly n: number }>`SELECT total_changes() AS n`.pipe(
         Effect.map(([row]) => row?.n ?? 0),
       );
@@ -571,7 +565,6 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
       yield* createProject(project);
       const recent = ThreadId.make("thread:written-recent");
       const imported = ThreadId.make("thread:written-imported");
-      // An imported history lands after newer messages in row order.
       yield* Effect.forEach(
         [
           thread(recent, project),
@@ -678,7 +671,6 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
             message(older, `older-${index}`, "assistant", "pnpm 11 pnpm"),
           ),
           message(parent, "parent-needle", "user", "a needle in a long haystack of other words"),
-          // Agent-written notices in user messages are not indexed, so they never read as "You".
           message(older, "older-notice", "user", "needle update from a watched pull request", {
             createdBy: "agent",
           }),
@@ -720,7 +712,6 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
           .search({ query: "plover", limit: 1 })
           .pipe(Effect.map(({ matches }) => matches.map((m) => m.threadId)));
       assert.deepEqual(yield* threadIds(), [busy]);
-      // A pick at time 0 would read as no pick.
       yield* TestClock.adjust("1 day");
       const at = DateTime.toEpochMillis(yield* DateTime.now);
       yield* sql`
@@ -822,12 +813,10 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
           message(queued, "queued-prompt", "user", "then mount the albatross drive", {
             runId: RunId.make(`run:${queued}`),
           }),
-          // A queued prompt usually has no item; an edited one has a queued item.
           message(queued, "requeued-prompt", "user", "then eject the albatross drive", {
             runId: RunId.make(`run:${queued}`),
           }),
           shown(queued, "requeued-prompt", "queued_turn"),
-          // A stopped turn keeps its prompt and whatever the agent already said.
           thread(stopped, project),
           run(stopped, "cancelled"),
           message(stopped, "stopped-prompt", "user", "format the albatross drive", {
@@ -960,7 +949,6 @@ it.effect.each([true, false])(
         yield* sql`DROP TRIGGER orchestration_v2_message_search_delete`;
         yield* sql`DROP TABLE orchestration_v2_message_search`;
       }
-      // More newer hits for the long word than one read holds, none with the short one.
       yield* sql`
         WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2000)
         INSERT INTO orchestration_v2_projection_messages
@@ -976,7 +964,6 @@ it.effect.each([true, false])(
     }).pipe(Effect.provide(layerTest)),
 );
 
-// A two-character CJK word is too short for the index, so it scans even with the index.
 it.effect.each([true, false])(
   "ThreadSearch finds a curly apostrophe for a straight one and back (indexed: %s)",
   (indexed) =>
@@ -1048,7 +1035,6 @@ it.layer(layerTest)("ThreadSearch short words outside ASCII", (it) => {
         assert.deepEqual(yield* threadIds("école me"), [french]);
         assert.deepEqual(yield* threadIds("închisă sc"), [french]);
         assert.deepEqual(yield* threadIds("chí ho"), [french]);
-        // They still narrow: a word the message lacks rules it out.
         assert.deepEqual(yield* threadIds("ошибка я"), []);
         assert.deepEqual(yield* threadIds("fermée ce"), []);
       });
@@ -1094,13 +1080,10 @@ it.layer(layerTest)("ThreadSearch across scripts and without the index", (it) =>
             .search({ query })
             .pipe(Effect.map(({ matches }) => matches.map((m) => m.threadId)));
 
-        // Short words must start a word, which camelCase and accented words do.
         for (const query of ["검색 기능", "がんばって", "部署", "fts", "enable"]) {
           assert.deepEqual(yield* threadIds(query), [threadId], query);
         }
-        // "res" inside "addresses" does not hide the accented word after it.
         assert.sameMembers(yield* threadIds("res"), [threadId, addresses]);
-        // A word beats the same letters inside a longer word, even in an older message.
         const trust = ThreadId.make("thread:trust");
         const rust = ThreadId.make("thread:rust");
         yield* Effect.forEach(
@@ -1121,7 +1104,6 @@ it.layer(layerTest)("ThreadSearch across scripts and without the index", (it) =>
             [trust, true],
           ],
         );
-        // Without the index (an SQLite build without FTS5 trigrams) search scans instead.
         yield* sql`DROP TABLE orchestration_v2_message_search`;
         assert.deepEqual(yield* threadIds("検索"), [threadId]);
         assert.deepEqual(yield* threadIds("fts"), [threadId]);
@@ -1169,7 +1151,6 @@ it.layer(layerTest)("ThreadSearch.searchOlderDone", (it) => {
         [...(yield* search.searchOlderDone({ query: "kestrel", before, messageThreadIds }))],
         [id("old"), id("elsewhere"), id("note")],
       );
-      // The scope applies to titles and message hits; message hits follow the titles in order.
       assert.deepEqual(
         yield* search.searchOlderDone({
           query: "kestrel",
@@ -1179,7 +1160,6 @@ it.layer(layerTest)("ThreadSearch.searchOlderDone", (it) => {
         }),
         [id("old"), id("note")],
       );
-      // A palette also matches the environment's name.
       assert.include(
         yield* search.searchOlderDone({
           query: "laptop unrelated",
@@ -1269,7 +1249,6 @@ it.layer(layerTest)("ThreadSearch.searchThreadsWithOlderDoneRows", (it) => {
         titles.threads?.map((row) => row.id),
         [old],
       );
-      // Without the cut it is the plain message search.
       assert.isUndefined(
         (yield* ThreadSearch.searchThreadsWithOlderDoneRows({
           request: { query: "plover" },
@@ -1296,7 +1275,6 @@ it.layer(layerTest)("ThreadSearch.searchThreads", (it) => {
       yield* Effect.forEach(
         [
           thread(messageOnly, project),
-          // The oldest message, so a cut taken before titles drop would lose it.
           message(messageOnly, "petrel-old", "user", "a petrel note", { minute: 1 }),
           ...Array.from({ length: 50 }, (_, index) => {
             const id = ThreadId.make(`thread:petrel-${index}`);
@@ -1335,7 +1313,6 @@ it.layer(layerTest)("ThreadSearch.searchThreads", (it) => {
         projections.apply,
         { discard: true },
       );
-      // Newer hits than one read holds, all in the titled thread.
       yield* sql`
         WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 2000)
         INSERT INTO orchestration_v2_projection_messages
@@ -1376,7 +1353,6 @@ it.layer(layerTest)("ThreadSearch.searchThreads", (it) => {
         { discard: true },
       );
 
-      // Stronger message hits in another project must not use up this project's limit.
       yield* Effect.forEach(
         Array.from({ length: 55 }, (_, index) => {
           const busy = ThreadId.make(`thread:elsewhere-${index}`);
@@ -1397,14 +1373,12 @@ it.layer(layerTest)("ThreadSearch.searchThreads", (it) => {
           [messageOnly, "user"],
         ],
       );
-      // With one slot, an exact title keeps it.
       assert.deepEqual(
         (yield* search.searchThreads({ query: "auth", projectId: project, limit: 1 })).matches.map(
           (match) => match.threadId,
         ),
         [wordStart],
       );
-      // Exact matching finds nothing, so one typo is forgiven.
       assert.deepEqual(
         (yield* search.searchThreads({ query: "tokesn", projectId: project })).matches.map(
           (match) => match.title,
@@ -1424,20 +1398,16 @@ it.effect("starts snippets a few words before the match so one line shows it", (
     assert.isAtMost(cut.length, 240);
     assert.match(cut, /^…(lead ){2,4}the NEEDLE sits here/);
     assert.isTrue(cut.endsWith("…"));
-    // Whitespace collapses only in the shown part, so the offset still lands.
     assert.match(snippet(`${"word\n\n  ".repeat(60)}un café`, "café"), /un café$/);
-    // A cut never splits an emoji's surrogate pair.
     assert.notMatch(
       snippet(`x${"🚀".repeat(200)}needle`, "needle"),
       /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/,
     );
-    // Emphasis and code marks go, as the thread shows the text.
     assert.equal(
       ThreadSearch.buildSearchSnippet("Use **bold** and `code` here", 0),
       "Use bold and code here",
     );
     assert.equal(ThreadSearch.buildSearchSnippet("Call __init__ first", 0), "Call __init__ first");
-    // Short text still moves a late match into view.
     assert.equal(snippet(`${"word ".repeat(20)}needle`, "needle"), "…word word word word needle");
   }),
 );

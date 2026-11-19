@@ -18,7 +18,6 @@ it("skips fast uploads and delays each attempt without delaying later progress o
     progress,
   });
   const ready = { status: "ready" as const, environmentId, attachmentId: "attachment" };
-  // The first render reads the clock to schedule the badge.
   using _timers = fakeTimers({ now: 0 });
   await using screen = await render(<Probe upload={uploading(0)} />);
   await expect.element(screen.getByText("hidden")).toBeInTheDocument();

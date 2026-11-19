@@ -40,8 +40,6 @@ import { environmentSession } from "./session";
 
 const transcriptionEnvironment = createTranscriptionEnvironmentAtoms(connectionAtomRuntime);
 
-// Long enough for five minutes of audio to upload and transcribe on a slow link. Running out
-// only drops this wait: the server keeps working, and posting again joins it.
 const UPLOAD_TIMEOUT_MS = 120_000;
 
 function disconnected(cause: unknown): VoiceUploadError {
@@ -100,7 +98,6 @@ function cancelUpload(environmentId: EnvironmentId, uploadId: string) {
   );
 }
 
-/** An empty body joins the dictation streamed under the upload's id instead of sending it again. */
 async function postRecording(
   environmentId: EnvironmentId,
   uri: string,

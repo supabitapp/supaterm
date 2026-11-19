@@ -30,7 +30,6 @@ function RevealList(props: {
   );
 }
 
-// Reads the sidebar context like the real thread list, so opening the sheet re-renders it.
 function SheetRevealList(props: Parameters<typeof RevealList>[0]) {
   useSidebar();
   return <RevealList {...props} />;
@@ -45,7 +44,6 @@ describe("useActiveRowReveal", () => {
     const keys = rowKeys(50);
     await using screen = await render(
       <RevealList reveal={reveal} rowKeys={keys} activeKey="thread-0" />,
-      // No router: the route arrives as the activeKey prop.
       { router: false },
     );
     const target = screen.getByText("thread-40", { exact: true });
@@ -61,11 +59,9 @@ describe("useActiveRowReveal", () => {
     const keys = rowKeys(50);
     await using screen = await render(
       <RevealList reveal={reveal} rowKeys={keys} activeKey="thread-0" />,
-      // No router: the route arrives as the activeKey prop.
       { router: false },
     );
     await userEvent.hover(screen.getByText("thread-2", { exact: true }));
-    // Even a no-op scroll forces a layout of the thread being opened.
     using scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView");
 
     await screen.rerender(<RevealList reveal={reveal} rowKeys={keys} activeKey="thread-2" />);
@@ -78,10 +74,8 @@ describe("useActiveRowReveal", () => {
     const reveal = newReveal();
     await using screen = await render(
       <RevealList reveal={reveal} rowKeys={rowKeys(40)} activeKey="thread-0" />,
-      // No router: the route arrives as the activeKey prop.
       { router: false },
     );
-    // A new draft names no thread until it is sent.
     await screen.rerender(<RevealList reveal={reveal} rowKeys={rowKeys(40)} activeKey={null} />);
 
     await screen.rerender(
@@ -97,7 +91,6 @@ describe("useActiveRowReveal", () => {
     const keys = rowKeys(50);
     await using screen = await render(
       <RevealList reveal={reveal} rowKeys={keys} activeKey="thread-0" />,
-      // No router: the route arrives as the activeKey prop.
       { router: false },
     );
     const target = screen.getByText("thread-40", { exact: true });
@@ -111,11 +104,8 @@ describe("useActiveRowReveal", () => {
 
   it("reveals the active row when it mounts after the shells arrive", async () => {
     const reveal = newReveal();
-    // The route already names the thread, but its environment's shells have not
-    // listed it yet.
     await using screen = await render(
       <RevealList reveal={reveal} rowKeys={rowKeys(5)} activeKey="thread-40" />,
-      // No router: the route arrives as the activeKey prop.
       { router: false },
     );
     await expect.element(screen.getByText("thread-4", { exact: true })).toBeInTheDocument();
@@ -132,7 +122,6 @@ describe("useActiveRowReveal", () => {
     const keys = rowKeys(50);
     await using screen = await render(
       <RevealList reveal={reveal} rowKeys={keys} activeKey="thread-40" />,
-      // No router: the route arrives as the activeKey prop.
       { router: false },
     );
     const target = screen.getByText("thread-40", { exact: true });
@@ -140,7 +129,6 @@ describe("useActiveRowReveal", () => {
     screen.getByRole("list", { name: "Threads" }).element().scrollTop = 0;
     await expect.element(target).not.toBeInViewport();
 
-    // The route moves to a thread the list does not hold yet, then back.
     await screen.rerender(<RevealList reveal={reveal} rowKeys={keys} activeKey="thread-99" />);
     await screen.rerender(<RevealList reveal={reveal} rowKeys={keys} activeKey="thread-40" />);
 
@@ -153,16 +141,13 @@ describe("useActiveRowReveal", () => {
     {
       await using screen = await render(
         <RevealList reveal={reveal} rowKeys={keys} activeKey="thread-40" />,
-        // No router: the route arrives as the activeKey prop.
         { router: false },
       );
       await expect.element(screen.getByText("thread-40", { exact: true })).toBeInViewport();
     }
 
-    // A remount starts the list at the top; the record outlives it with no reveal pending.
     await using screen = await render(
       <RevealList reveal={reveal} rowKeys={keys} activeKey="thread-40" />,
-      // No router: the route arrives as the activeKey prop.
       { router: false },
     );
     await expect.element(screen.getByText("thread-40", { exact: true })).toBeInViewport();
@@ -177,13 +162,11 @@ describe("useActiveRowReveal", () => {
       <div hidden>
         <RevealList reveal={reveal} rowKeys={rowKeys(50)} activeKey="thread-40" />
       </div>,
-      // No router: the route arrives as the activeKey prop.
       { router: false },
     );
     const row = screen.getByText("thread-40", { exact: true }).element();
     expect(observe).toHaveBeenCalledWith(row);
 
-    // A widening viewport unmounts the closed sheet before it ever opens.
     await screen.rerender(<div hidden />);
 
     expect(
@@ -201,7 +184,6 @@ describe("useActiveRowReveal", () => {
         </Sidebar>
         <SidebarTrigger />
       </SidebarProvider>,
-      // No router: the route arrives as the activeKey prop.
       { router: false },
     );
 

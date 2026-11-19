@@ -4,7 +4,6 @@ import * as Effect from "effect/Effect";
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
 import type { OpenCode2Model } from "./status.ts";
 
-// Cold catalogs take seconds; model reads already retry empty catalogs.
 const PROVIDER_NAME_TIMEOUT = "3 seconds";
 
 const locationOf = (directory: string | undefined) =>
@@ -23,7 +22,6 @@ const readCatalog = <E>(
 ): Effect.Effect<ReadonlyArray<OpenCode2Model>, OpenCodeRuntime.OpenCodeRuntimeError> =>
   Effect.all(
     {
-      // Callers bound the read: a busy host can hold it past OpenCode's own activation wait.
       models: client.model.list(locationOf(directory)).pipe(Effect.map((list) => list.data)),
       providers,
     },

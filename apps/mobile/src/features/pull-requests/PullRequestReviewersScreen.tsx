@@ -103,7 +103,6 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
     (a, b) => Number(b.isRequested) - Number(a.isRequested) || a.login.localeCompare(b.login),
   );
   const queryError = result.error ?? view.searchError;
-  // A new search shows its best matches from the top.
   const search = (next: string) => {
     setQuery(next);
     listRef.current?.scrollToOffset({
@@ -111,7 +110,6 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
       animated: false,
     });
   };
-  // Hosts that cannot list candidates take one typed id at a time.
   const update = async (
     candidate: Pick<PullRequestReviewerCandidate, "id" | "kind" | "isRequested">,
   ) => {
@@ -142,7 +140,6 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
     detail.refresh();
   };
   const listCandidates = pr?.capabilities.reviewers.listCandidates === true;
-  // Loaded rows first: they carry the request state mutations update.
   const latest = [...(result.data?.candidates ?? []), ...(searchResult.data?.candidates ?? [])];
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- picks are sent when the sheet leaves the navigation stack, however it is dismissed
   useEffect(
@@ -183,10 +180,8 @@ export function PullRequestReviewersScreen({ route }: StaticScreenProps<PullRequ
         ) => {
           for (const batch of changeBatches(people)) await sendBatch(batch, requested);
         };
-        // A search result is keyed by what was typed, so the writes do not reach it on their own.
         const refreshSearch =
           hostQuery !== null && add.length + remove.length > 0 ? searchResult.refresh : null;
-        // Removing first lets a host that keeps one reviewer take the new one.
         void send(remove, false)
           .then(() => send(add, true))
           .then(() => refreshSearch?.());

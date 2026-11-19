@@ -102,7 +102,6 @@ function makeWireTee() {
         }),
     };
   };
-  // Grok can report idle before its wake turns; wait for prompt queues, tasks and subagents to finish.
   const grokHasPendingWork = () => {
     const queues = new Map<unknown, Record<string, unknown>>();
     const tasks = new Map<unknown, ReadonlyArray<unknown>>();
@@ -183,7 +182,6 @@ function wireToEntries(wire: ReadonlyArray<WireMessage>): {
     const pending = direction === "outgoing" ? agentRequests : supatermRequests;
     const method = pending.get(String(message.id));
     if (method === undefined) {
-      // Grok answers internal requests on this stream; Supaterm drops them before replay.
       droppedFrames += 1;
       continue;
     }
@@ -390,7 +388,6 @@ const recordScenario = Effect.fn("recordGrokScenario")(function* (fixtureName: s
   const scenario = {
     name: `${fixtureName}/grok-record`,
     commands: materialized.commands,
-    // Live Grok needs no replay gates or clock receipts; record dispatches and wait for idle.
     steps: materialized.steps.some(
       (step) =>
         step.type === "release_replay_gate" || step.type === "release_replay_gate_after_waiting",
@@ -428,7 +425,6 @@ const recordScenario = Effect.fn("recordGrokScenario")(function* (fixtureName: s
             runtimeMode: grokLaunchRuntimeMode(runtimePolicy),
           }),
       });
-      // Order dispatches on TestClock as in replay, but run Grok's adapter timers on wall time.
       const onWallClock = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
         Effect.provideService(effect, Clock.Clock, wallClock);
       return [
@@ -462,7 +458,6 @@ const recordScenario = Effect.fn("recordGrokScenario")(function* (fixtureName: s
     ),
   );
 
-  // Wake turns arrive after their triggering frames; require a few quiet seconds too.
   let quietPolls = 0;
   let seenFrames = -1;
   const waitForGrokIdle = Effect.sleep("1 second").pipe(

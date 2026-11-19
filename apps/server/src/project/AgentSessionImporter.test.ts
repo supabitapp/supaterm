@@ -101,7 +101,6 @@ function candidate(
 
 const PI_MODEL_SELECTION = { instanceId: ProviderInstanceId.make("pi"), model: "default" };
 
-// Pi threads are owned by their session file path, not the session UUID.
 const nativeId = ({ source }: ReturnType<typeof candidate>) =>
   source.provider === "pi" ? source.filePath : source.providerSessionId;
 
@@ -507,7 +506,6 @@ it.effect("counts only new threads when re-importing cached and recovered transc
     const initial = yield* makeImporter([cached, recovered]);
     expect(yield* initial.run).toEqual({ importedCount: 2, skippedCount: 0 });
     const before = yield* events.read({ threadId: importId(recovered) }).pipe(Stream.runCollect);
-    // The file changed on disk but still holds the imported messages.
     recovered.source.size += 100;
     recovered.source.mtimeMs += 1;
     const duplicate = { ...recovered.source, filePath: "/tmp/duplicate.jsonl" };
@@ -556,7 +554,6 @@ it.effect("does not certify new native history after a partial import retry", ()
       { role: "user", text: "Continue outside Supaterm", createdAt: timestamp },
       { role: "assistant", text: "Native continuation", createdAt: timestamp },
     );
-    // The thread holds only the original messages, so the continued transcript stays unrecorded.
     expect(yield* (yield* makeImporter([continued])).run).toEqual({
       importedCount: 0,
       skippedCount: 1,
@@ -701,7 +698,6 @@ it.effect(
         initialNativeThreadId: source.source.providerSessionId,
         runtimePolicy: { cwd: "/workspace/project" },
       });
-      // Forks keep run-less history only for this origin.
       expect((yield* projections.getThreadRecords(threadId, [])).thread.historyOrigin).toBe(
         "v1_import",
       );
@@ -729,7 +725,6 @@ it.effect("releases the ACP import lock when a native session never answers", ()
     const threadId = yield* seedOwner(candidate(CODEX_MODEL_SELECTION, "native-history-hang"));
     const opened = yield* Deferred.make<void>();
     let closed = false;
-    // An agent that only resumes sessions and never answers its first session/resume.
     const adapter = {
       openSession: () =>
         Effect.suspend(() => {
@@ -776,7 +771,6 @@ it.effect("releases the ACP import lock when a native session never answers", ()
 
     const importing = yield* importHistory.pipe(Effect.flip, Effect.forkChild);
     yield* Deferred.await(opened);
-    // Any other ACP import or delete waits for the same lock.
     const next = yield* coordinator
       .withSessionMutation(Effect.succeed("next"))
       .pipe(Effect.forkChild);
@@ -798,10 +792,6 @@ it.effect("releases the ACP import lock when a native session never answers", ()
   ),
 );
 
-/**
- * Runs a thread command that read the thread before the history load ended and
- * writes once the importer is about to commit, as an unserialized write would.
- */
 const importDuringCommand = Effect.fn(function* (
   name: string,
   command: (thread: OrchestrationV2AppThread) => ReadonlyArray<OrchestrationV2DomainEvent>,
@@ -947,7 +937,6 @@ it.effect("repeated imports reach linked-worktree sessions behind the scan budge
     yield* fs.makeDirectory(sessions, { recursive: true });
     const nowMs = DateTime.toEpochMillis(now);
     yield* TestClock.setTime(nowMs);
-    // One more session than the 100-transcript scan budget, all run in the linked worktree.
     for (let index = 0; index < 101; index++) {
       const file = path.join(sessions, `rollout-${String(index).padStart(3, "0")}.jsonl`);
       const records = [
@@ -985,7 +974,6 @@ it.effect("repeated imports reach linked-worktree sessions behind the scan budge
                   driver: ProviderDriverKind.make("codex"),
                   config: { homePath: codexHome },
                 },
-                // Keeps the default Pi instance off the developer's real ~/.pi.
                 [ProviderInstanceId.make("pi")]: {
                   driver: ProviderDriverKind.make("pi"),
                   enabled: false,

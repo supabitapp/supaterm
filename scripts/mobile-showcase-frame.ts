@@ -10,8 +10,6 @@ import { chromium, type Browser } from "playwright-core";
 
 const FONT_DIRECTORY = NodePath.resolve(import.meta.dirname, "../apps/marketing/src/assets/fonts");
 
-// Geometry is relative to the screen's shorter side. Bleeding devices run their
-// bottom bezel off a portrait canvas; the others float whole.
 const SHOWCASE_FRAMES = {
   iphone: { radius: 0.125, bezel: 0.026, cutout: "island", bleed: true },
   "iphone-duo": { radius: 0.075, bezel: 0.03, cutout: "none", bleed: false },
@@ -26,7 +24,6 @@ export type ShowcaseFrame = keyof typeof SHOWCASE_FRAMES;
 
 export interface ShowcaseSlide {
   readonly eyebrow: string;
-  // Two short lines; wrap the one accented word in *asterisks*.
   readonly title: readonly [string, string];
 }
 

@@ -576,7 +576,6 @@ describe("V2 thread find", () => {
           .mocked(searchableMessageSegments)
           .mock.calls.filter(([message]) => message.text.startsWith("idle needle")).length;
       const search = (query: string) => projection.searchThread({ threadId, query });
-      // One idle minute passes inside this search. The later counts fail if it let the caches go.
       yield* projection.searchThreadStream({ threadId, query: "needle" }).pipe(
         Stream.tap((frame) =>
           frame.complete === false ? TestClock.adjust("1 minute") : Effect.void,
@@ -587,7 +586,6 @@ describe("V2 thread find", () => {
       yield* TestClock.adjust("40 seconds");
       yield* search("idle");
       yield* TestClock.adjust("40 seconds");
-      // A repeated query is answered from the completed scan and still counts as use.
       const repeated = yield* projection
         .searchThreadStream({ threadId, query: "needle" })
         .pipe(Stream.runCollect);
@@ -958,7 +956,6 @@ describe("V2 history materialization", () => {
             snapshotSequence: snapshot.snapshotSequence,
           }),
         });
-        // A turn larger than the byte budget is split, but only a lone oversized item may exceed it.
         assert.isTrue(
           page.items.length === 1 ||
             Buffer.byteLength(JSON.stringify(page.items), "utf8") <=

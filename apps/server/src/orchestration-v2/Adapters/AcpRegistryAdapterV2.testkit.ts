@@ -85,7 +85,6 @@ function layerAcpRegistryProviderAdapterRegistryReplay(
         }),
       ),
     ),
-    // Held inbound lines must not outlive the scenario and wedge teardown.
     Layer.merge(
       Layer.effectDiscard(
         Effect.addFinalizer(() => Effect.sync(() => options.replayGate?.releaseAll())),

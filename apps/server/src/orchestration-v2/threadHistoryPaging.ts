@@ -302,7 +302,6 @@ export function selectDeferredWorkPage<Row extends HistoryRow>(input: {
   });
 }
 
-/** Notifications can start wake turns when they are the run's first input; match ProjectionStore run_starts. */
 function threadHistoryTurnStarts(
   items: ReadonlyArray<HistoryRow["item"]>,
   earlierRuns?: ReadonlySet<string>,
@@ -322,9 +321,6 @@ export function isThreadHistoryUserTurn(item: HistoryRow["item"]): boolean {
   );
 }
 
-/**
- * Always admit at least one row so oversized items cannot deadlock paging.
- */
 function selectOlderTimelinePage<Row extends HistoryRow>(input: {
   readonly items: ReadonlyArray<Row>;
   readonly exclusiveEndIndex: number;
@@ -373,9 +369,6 @@ function selectOlderTimelinePage<Row extends HistoryRow>(input: {
     if (isThreadHistoryUserTurn(row.item)) userTurns += 1;
     if (turnStarts[index]) rawTurns += 1;
   }
-  // Inside a turn longer than the window, no selected row starts a user turn.
-  // Later pages and the snapshot query see only such rows and use `maxItems`,
-  // so this page uses it too.
   const oldestScanned = selected.at(-1);
   if (userTurns === 0) selected.splice(policy.maxItems);
   selected.reverse();
@@ -431,7 +424,6 @@ export function findCursorEndIndex(
   if (byIdentity !== -1) {
     return byIdentity + (cursor.inclusive ? 1 : 0);
   }
-  // Inclusive deferred cursors carry source ordinals; ordinary cursors carry visible positions.
   const byPosition = items.findIndex((row) =>
     cursor.inclusive
       ? String(row.sourceThreadId) === cursor.st && (row.item.ordinal ?? row.position) > cursor.p
@@ -535,11 +527,6 @@ function isLocalProjectedRow(
   return row.visibility === "local" || String(row.sourceThreadId) === String(projection.thread.id);
 }
 
-/**
- * Rows a window can cut off but clients still need: interrupt requests, which later result pages
- * need for attempt/run reducers; background work still running after its turn, which clients
- * list and stop; and open questions and approvals, whose rows clients build answer panels from.
- */
 function windowDependencyTurnItems(
   projection: OrchestrationV2ThreadProjection,
 ): OrchestrationV2TurnItem[] {
@@ -608,7 +595,6 @@ function messagesForBoundedProjection(
       retainedMessageIds.has(String(message.id)) ||
       (message.runId !== null && retainedRunIds.has(String(message.runId))) ||
       message.delegatedCompletion !== undefined ||
-      // Keep the workflow script outside the history window; clients use it to open the coordinator thread.
       message.workflowScript === true,
   );
 }

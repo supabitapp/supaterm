@@ -25,8 +25,6 @@ function normalizedRelativePathSegments(
     return null;
   }
 
-  // On POSIX a backslash is part of a file name; Windows treats it as a separator
-  // (tool-call patches can name files with either), so reject ".." either way.
   const parts = filePath.split(/[\\/]/);
   if (parts.includes("..")) return null;
   const segments = (windowsRoot ? parts : filePath.split("/")).filter(
@@ -63,7 +61,6 @@ export function resolveDiffPathForWorkspace(input: {
   const windowsRoot = [input.workspaceRoot, input.repositoryRoot].some(
     (root) => root !== undefined && isWindowsAbsolutePath(root),
   );
-  // Claude and ACP tool-call diffs name files by absolute path.
   if (isAbsolutePath(input.filePath)) {
     const relativePath = workspaceRelativeFilePath(input.filePath, input.workspaceRoot);
     const segments =

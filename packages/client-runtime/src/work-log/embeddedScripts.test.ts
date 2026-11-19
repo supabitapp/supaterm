@@ -107,7 +107,6 @@ describe("embeddedScripts", () => {
   });
 
   it("trusts nothing in a command whose quoting does not parse", () => {
-    // Secret redaction removed an escaped quote's backslash, breaking the -lc argument.
     const command = `/bin/zsh -lc "python3 -c 'token=[REDACTED_SECRET]"apiToken\\"]; print(token)'"`;
     expect(scriptsOf(command)).toEqual([]);
   });

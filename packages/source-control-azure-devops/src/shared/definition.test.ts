@@ -182,7 +182,6 @@ describe("Azure DevOps repository keys", () => {
         url,
       ).toBe(true);
     }
-    // Links stored before keys had one spelling still resolve to their project.
     expect(
       registry.canonicalRepositoryKey(
         "dev.azure.com/example/sample%20%28beta%29/_git/sample%20%28beta%29",
@@ -229,8 +228,6 @@ describe("Azure DevOps repository selector", () => {
   const registry = makeSourceControlDefinitionRegistry([definition]);
 
   it("names a repository by its own name, not its project path", () => {
-    // `az repos pr list --repository` takes a name and detects the organisation and project from
-    // the checkout; the recorded `org/project/_git/repo` path is refused.
     expect(
       registry.repositorySelector({
         provider: SourceControlProviderKind.make("azure-devops"),

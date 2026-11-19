@@ -97,7 +97,6 @@ import { WorkflowOpeningBlock } from "./WorkflowOpeningBlock";
 import { useTallEnoughToFold } from "./useTallEnoughToFold";
 import { isPinnableProjectedItem, MessagePinButton, useMessagePinned } from "./PinnedMessages";
 
-// Drawn inside the media so dark screenshots keep an edge on the dark background.
 const MEDIA_EDGE_CLASS_NAME =
   "relative after:pointer-events-none after:absolute after:inset-0 after:z-10 after:rounded-[inherit] after:ring-1 after:ring-inset after:ring-black/9 dark:after:ring-white/12";
 
@@ -190,8 +189,6 @@ function UserVideoAttachment({
   readonly cornerClassName?: string | undefined;
 }) {
   const ctx = use(TimelineRowCtx);
-  // Row updates rebuild attachment objects, so the asset follows only the
-  // fields it reads.
   const { downloadable, id, mimeType, name } = file;
   const environmentId = ctx.activeThreadEnvironmentId;
   const asset =
@@ -282,7 +279,6 @@ function UserMessageContent({ row }: { row: Extract<TimelineRow, { kind: "messag
   );
 }
 
-/** Automation prompts are long, repeated runbooks; a folded bubble keeps them out of the way. */
 function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
   const [expanded, toggleExpanded, setExpanded] = useTimelineDisclosure();
@@ -295,7 +291,6 @@ function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mess
 
   const revertTurnCount = row.revertTurnCount;
   const promptLink = promptLinkFor(text);
-  // Find reads the DOM, so a folded prompt stays mounted but hidden while find is open.
   const bodyMounted = expanded || ctx.findActive;
 
   return (
@@ -316,7 +311,6 @@ function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mess
           onToggle={toggleExpanded}
         />
         {bodyMounted ? (
-          // `beforematch` does not bubble, so the reveal listener sits on the hidden fold itself.
           <div
             ref={revealRef}
             hidden={!expanded}
@@ -449,7 +443,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
     (attachment) => !isImageAttachment(attachment) && !isFileAttachment(attachment),
   );
   const userMessage = resolveUserMessagePresentation(row.message);
-  // Messages from other agents fold to one line so the user's own messages stay easy to find.
   const folded = userMessage.attribution === "agent";
   const [expanded, toggleExpanded, setExpanded] = useTimelineDisclosure();
   const revealFoldRef = findRevealRef(() => setExpanded(true));
@@ -482,7 +475,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
   );
   const regularImages = userImages.filter((image) => !image.name.startsWith("preview-annotation-"));
   const unchippedFiles = otherUserFiles.filter((file) => !chippedAttachmentIds.has(file.id));
-  // Images or videos sent without words show as media, not as a bubble around them.
   const mediaOnly =
     !folded &&
     resolvedContext.text.trim() === "" &&
@@ -490,23 +482,18 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
     unchippedFiles.length === 0 &&
     unknownAttachments.length === 0 &&
     regularImages.length + userVideos.length > 0;
-  // Media sent with words sits above the bubble as its own shape, like a chat app.
   const mediaAboveText = !folded && !mediaOnly && regularImages.length + userVideos.length > 0;
   const standaloneMedia = mediaOnly || mediaAboveText;
-  // A lone image keeps its own shape; a 4:3 crop hides most of a wide screenshot.
   const loneImage = standaloneMedia && userVideos.length === 0 && regularImages.length === 1;
-  // Several images share one rounded shape, split by hairlines.
   const collage =
     standaloneMedia &&
     userVideos.length === 0 &&
     regularImages.length > 1 &&
     regularImages.every((image) => image.source?.kind !== "snap-shot");
-  // Corners that touch the bubble or a neighbouring message tighten, like the bubble's.
   const mediaCornerClassName = cn(
     row.groupedWithPrevious && "rounded-tr-md",
     (mediaAboveText || row.groupedWithNext) && "rounded-br-md",
   );
-  // Files sent without words show as cards, not as a bubble around a name chip.
   const fileCardsOnly =
     !folded &&
     otherUserFiles.length > 0 &&
@@ -599,7 +586,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
     for (let index = 0; index < selection.rangeCount; index += 1) {
       const container = document.createElement("div");
       container.appendChild(selection.getRangeAt(index).cloneContents());
-      // Diagram source is copied text, not authority to export context records.
       for (const element of container.querySelectorAll(
         "[data-markdown-copy]:not([data-markdown-mermaid])",
       )) {
@@ -614,8 +600,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       messageId: row.message.id,
     });
     if (!fragment) return;
-    // Claim the copy: without preventDefault the browser default overwrites the
-    // custom MIME type. The default content must then be written back explicitly.
     const payload = chatMarkdownClipboardPayload(selection);
     event.preventDefault();
     event.clipboardData.setData("text/plain", payload?.text ?? selection.toString());
@@ -736,7 +720,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                   ctx.onImageExpand(preview);
                 }}
               >
-                {/* Isolate the thumbnail raster from nearby activity repaints in Chromium. */}
                 <AttachmentImage
                   name={image.name}
                   mimeType={image.mimeType}
@@ -786,8 +769,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       </div>
     ) : null;
 
-  // Touch shows actions all the time, and narrow lanes have no room beside the
-  // bubble, so both keep the actions on their own line.
   const floatActions = row.groupedWithNext === true && !coarsePointer;
   const actionsRevealClassName = cn(
     "items-center text-xs tabular-nums transition-opacity duration-150",
@@ -861,7 +842,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       ) : null}
       {mediaAboveText ? (
         <div className="flex max-w-[80%] justify-end">
-          {/* The heading leads the media so screen readers reach it before the images. */}
           <MessageAuthorHeading>You</MessageAuthorHeading>
           {mediaBlock}
         </div>
@@ -877,7 +857,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
           folded && expanded && "w-full",
         )}
       >
-        {/* Outside the fold so a collapsed message still has a heading to navigate to. */}
         {mediaAboveText ? null : (
           <MessageAuthorHeading>{folded ? senderLabel : "You"}</MessageAuthorHeading>
         )}
@@ -890,7 +869,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
             onToggle={toggleExpanded}
           />
         ) : null}
-        {/* Find reads the DOM, so a folded message stays mounted but hidden while find is open. */}
         {!folded || expanded || ctx.findActive ? (
           <div
             ref={folded ? revealFoldRef : undefined}

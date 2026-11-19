@@ -23,7 +23,6 @@ export const publish = Effect.fn("DesktopUpdateMarker.publish")(function* (marke
     startedAt,
     expiresAt: startedAt + DESKTOP_UPDATE_IN_PROGRESS_TTL_MS,
   });
-  // Renamed into place: a launch must never read a half-written marker.
   const temporary = `${markerFile}.tmp`;
   yield* fileSystem.writeFileString(temporary, contents);
   yield* fileSystem.rename(temporary, markerFile);
@@ -49,7 +48,6 @@ const make = Effect.gen(function* () {
     const marker = yield* fileSystem
       .readFileString(markerFile)
       .pipe(Effect.flatMap(Schema.decodeUnknownEffect(UpdateMarker)), Effect.option);
-    // Sampled after the read so a marker published mid-read is not seen as future-dated.
     const now = yield* Clock.currentTimeMillis;
     if (Option.isSome(marker)) {
       const { startedAt, expiresAt } = marker.value;

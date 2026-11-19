@@ -36,7 +36,6 @@ function text(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-/** All of `entries` as options, or undefined when any entry cannot be one. */
 function choiceOptions(
   entries: unknown,
   toOption: (entry: unknown) => Option | undefined,
@@ -60,7 +59,6 @@ function enumOptions(entries: unknown): Option[] | undefined {
     const label = plain !== "" && counts.get(plain) === 1 ? plain : JSON.stringify(value);
     return { label, description: label, value };
   });
-  // A quoted fallback can collide with a literal label; quote every value in that case.
   return new Set(options.map((option) => option.label)).size === options.length
     ? options
     : options.map((option) => {
@@ -69,7 +67,6 @@ function enumOptions(entries: unknown): Option[] | undefined {
       });
 }
 
-/** Titled entries (`oneOf` on strings, `anyOf` on array items) carry a title for their `const`. */
 function titledOption(entry: unknown): Option | undefined {
   const option = unknownRecord(entry);
   const label = text(option?.title) ?? text(option?.const);
@@ -83,7 +80,6 @@ function parseField(
 ): { readonly field: Field; readonly options: Option[] } | undefined {
   switch (property.type) {
     case "string": {
-      // ACP treats a null `enum` or `oneOf` like an omitted one.
       if ((property.enum ?? property.oneOf ?? undefined) === undefined) {
         return { field: { kind: "text" }, options: [] };
       }
@@ -98,7 +94,6 @@ function parseField(
           };
     }
     case "array": {
-      // String items list plain values in `enum`; titled items list `{ const, title }` in `anyOf`.
       const items = unknownRecord(property.items);
       const options =
         items?.type === "string"
@@ -107,11 +102,9 @@ function parseField(
             ? choiceOptions(items.anyOf, titledOption)
             : undefined;
       if (options === undefined) return undefined;
-      // The schema decode already limits counts to non-negative integers.
       const values = new Set(options.map(optionValue));
       const minItems = typeof property.minItems === "number" ? property.minItems : 0;
       const maxItems = typeof property.maxItems === "number" ? property.maxItems : Infinity;
-      // Clients require a selection, so empty-only questions cannot be answered.
       if (maxItems === 0 || minItems > maxItems || minItems > values.size) return undefined;
       return { field: { kind: "multiChoice", values, minItems, maxItems }, options };
     }
@@ -166,8 +159,6 @@ function typedAnswer(
           ),
         ),
       ];
-      // `[]` is an explicit empty selection, but a selection of only unknown
-      // options is not one.
       if (selected.length === 0 && answer.length > 0) return undefined;
       return selected.length >= field.minItems && selected.length <= field.maxItems
         ? selected
@@ -176,7 +167,6 @@ function typedAnswer(
   }
 }
 
-// Decline unaskable forms; validate types and selection counts, leaving other constraints to the agent.
 export function parseElicitationForm(
   requestedSchema: unknown,
   message: string,
@@ -196,14 +186,10 @@ export function parseElicitationForm(
   for (const [id, value] of Object.entries(unknownRecord(schema?.properties) ?? {})) {
     const property = unknownRecord(value);
     const parsed = property === undefined ? undefined : parseField(property);
-    // Question ids must survive the contract's trim to round-trip answers.
     if (property === undefined || parsed === undefined || text(id) !== id) return undefined;
     fields.set(id, parsed.field);
     parsedFields.push({ id, property, options: parsed.options });
   }
-  // An optional `<id>__other` text field (OMP's ask dialog) is the free-text answer to
-  // optional single choice `<id>`: ask them as one question and send custom text to the
-  // companion. Multi-select keeps both fields, since it can answer with options and text.
   const companions = new Map<string, string>();
   for (const [id, field] of fields) {
     const companionId = `${id}__other`;
@@ -247,8 +233,6 @@ export function parseElicitationForm(
           entries.push([companionId, answer]);
         } else if (required.has(id)) return undefined;
       }
-      // Own properties for every field, `__proto__` included; assigning to
-      // `{}` would hit its inherited setter instead.
       return Object.fromEntries(entries);
     },
   };

@@ -28,7 +28,6 @@ import { useNavigationTabOrder, useHiddenNavigationTabs } from "./navigation-tab
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { FLOATING_TABS, floatingTabsMetrics } from "./floating-workspace-tabs";
 
-// Matches RAIL_WIDTH in the native rail.
 export const ANDROID_WORKSPACE_RAIL_WIDTH = 72;
 
 interface NativeNavigationProps extends ViewProps {
@@ -97,11 +96,9 @@ export function AndroidWorkspaceNavigation(props: {
     hidden,
     rail ? 5 : 4,
   );
-  // FloatingWorkspaceTabs starts the bar at the left inset, so a cutout narrows the room.
   const barWidth =
     (props.paneWidth ?? window.width) -
     (Math.max(insets.left, FLOATING_TABS.edge) - FLOATING_TABS.edge);
-  // Compose sits in the Threads list on phones and in the split sidebar alike.
   const composeBesideBar = selectedTab === "threads";
   const metrics = floatingTabsMetrics(
     tabs.length,
@@ -116,8 +113,6 @@ export function AndroidWorkspaceNavigation(props: {
   return (
     <View
       style={
-        // The rail draws its own surface and pads the system bars; while open it spans the
-        // workspace, so the rest of it must stay transparent.
         rail
           ? { flex: 1 }
           : floating
@@ -146,9 +141,6 @@ export function AndroidWorkspaceNavigation(props: {
           Keyboard.dismiss();
           const tab = event.nativeEvent.tab;
           if (tab !== "settings") workspace.dispatch({ type: "select", tab });
-          // Reset the root stack even when a nested settings navigator has focus.
-          // The provider renders inside the root stack's layout, so the container's root state is
-          // that stack's current state.
           const rootState = rootNavigationRef.getRootState();
           if (root && rootState) {
             navigation.dispatch({

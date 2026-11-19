@@ -70,7 +70,6 @@ export function resolveTerminalOpenLocation(input: {
 } {
   const sessionLocation = input.terminalLocation ?? input.activeSessionLocation;
 
-  // Keep cwd paired with its identity; null identifies the project checkout.
   if (sessionLocation !== null) {
     return { cwd: sessionLocation.cwd, worktreePath: sessionLocation.worktreePath };
   }
@@ -102,7 +101,6 @@ export function useInitialTerminalLaunchLocation(input: {
         worktreePath: input.pendingLaunch.worktreePath,
       };
     } else if (!input.canRead || input.hasLoadedSessions) {
-      // Metadata must establish whether this target has a location before we retain a fallback.
       candidate = resolveTerminalOpenLocation(input.location);
     }
   }

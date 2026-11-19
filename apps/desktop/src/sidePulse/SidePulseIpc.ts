@@ -30,7 +30,6 @@ const getState = DesktopIpc.makeIpcMethod({
 
 const makeSetLedState = Effect.gen(function* () {
   const sidePulse = yield* SidePulse.SidePulse;
-  // Without a window reporting thread state, a lit LED would go stale.
   const admit = yield* MainWindowOwner.make(sidePulse.setLedState(null));
 
   return DesktopIpc.makeIpcMethod({

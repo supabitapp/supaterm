@@ -159,7 +159,6 @@ it.effect.each(deliveries)(
                 Effect.sync(() => {
                   offers.push(message);
                   nativeQueue.push(message);
-                  // Claude Code 2.1.289 aborts on now-priority commands even while Bash blocks reads.
                   if (nativeQueue.some((command) => command.priority === "now")) {
                     batchAbort.abort({ kind: "interrupt" });
                   }
@@ -831,7 +830,6 @@ it.effect("offers a continuation for a later wake after a queued continuation is
             allocateSessionId: Effect.succeed(sessionId),
             open: () =>
               Effect.succeed({
-                // Resolve each frame's Deferred once the adapter pulls the next one.
                 messages: Stream.fromQueue(sdkMessages).pipe(
                   Stream.flatMap((message) =>
                     Stream.make(message).pipe(
@@ -889,7 +887,6 @@ it.effect("offers a continuation for a later wake after a queued continuation is
             event.payload.userMessageId === messageId &&
             event.payload.status === status,
         );
-      // A user turn that leaves a background task running when it ends.
       const userTurnWithBackgroundTask = Effect.fnUntraced(function* (id: string, taskId: string) {
         const running = yield* runUpdated(id, "running");
         yield* orchestrator.dispatch({
@@ -925,7 +922,6 @@ it.effect("offers a continuation for a later wake after a queued continuation is
         creationSource: "web",
       });
 
-      // The first run is still finalizing when its background task wakes Claude.
       yield* userTurnWithBackgroundTask("first", "build-1");
       const queued = yield* watch(
         (event) => event.type === "run.created" && event.payload.status === "queued",
@@ -954,7 +950,6 @@ it.effect("offers a continuation for a later wake after a queued continuation is
 
       yield* userTurnWithBackgroundTask("second", "build-2");
       yield* worker.drain();
-      // The second user run has completed, so this continuation starts without queueing.
       const isContinuationRun = (event: OrchestrationV2DomainEvent, type: string, status: string) =>
         (event.type === "run.created" || event.type === "run.updated") &&
         event.type === type &&

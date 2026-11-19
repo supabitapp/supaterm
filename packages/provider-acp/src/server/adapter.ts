@@ -139,16 +139,9 @@ import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter
 
 export const ACP_PROTOCOL = "acp.ndjson-jsonrpc" as const;
 
-/**
- * Grok commonly sends its final summary just over two seconds after the
- * hydrated tool frame; two seconds split that tail into a second synthetic
- * wake.
- */
 const ACP_DEFERRED_FINALIZE_DEBOUNCE: Duration.Input = "3000 millis";
 const ACP_BUSY_PROMPT_RETRY_INTERVAL: Duration.Input = "1 second";
 
-// pi-agent-core agents (oh-my-pi) end a turn while background work runs and reject
-// prompts until it finishes; the prompt is resent rather than failing the turn.
 function isAgentBusyPromptError(error: EffectAcpErrors.AcpError): boolean {
   return (
     error._tag === "AcpRequestError" && error.errorMessage.startsWith("Agent is already processing")
@@ -159,7 +152,6 @@ function sendPromptWhenIdle<A>(
   turn: { readonly interrupted: boolean; readonly finalized: boolean },
   prompt: () => Effect.Effect<A, EffectAcpErrors.AcpError>,
 ): Effect.Effect<A, EffectAcpErrors.AcpError> {
-  // A Stop can land during the wait, so the flags are rechecked before each resend.
   const stopped = () => turn.interrupted || turn.finalized;
   return prompt().pipe(
     Effect.catchIf(
@@ -176,17 +168,9 @@ function sendPromptWhenIdle<A>(
   );
 }
 
-/**
- * A segment's first chunk and close emit at once; later chunks inside this window
- * share one full-text snapshot instead of each emitting the whole reply, which grew
- * with the square of its length. The flush is scheduled, not a hard deadline.
- */
 const ACP_TEXT_FLUSH_INTERVAL: Duration.Input = "50 millis";
-// Subagent messages are stored as finished, so they skip the server's paragraph
-// throttle and every snapshot is persisted. Match that throttle's 400 ms cadence.
 const ACP_SUBAGENT_TEXT_FLUSH_INTERVAL: Duration.Input = "400 millis";
 
-// Output of the running prompt. Session metadata and unknown updates do not reset its timeout.
 const ACP_PROMPT_ACTIVITY_UPDATES: ReadonlySet<string> = new Set([
   "agent_message",
   "agent_message_chunk",
@@ -280,12 +264,6 @@ export interface AcpAdapterV2ExtensionContext {
   readonly lastProposedPlanMarkdown: Effect.Effect<string | undefined>;
 }
 
-/**
- * Raised when an agent does not accept the session's model selection: the
- * session's model option does not offer it, or the agent answers the write
- * with invalid params. `makeProviderFailure` shows its message to the user;
- * the agent's reply stays on `cause`.
- */
 class AcpModelSelectionError extends Schema.TaggedError<AcpModelSelectionError>()(
   "AcpModelSelectionError",
   {
@@ -318,10 +296,6 @@ export function acpPerTurnPromptUsage(
   const outputTokens = geminiUsage
     ? usage.outputTokens + (usage.thoughtTokens ?? 0)
     : usage.outputTokens;
-  // TurnTokenUsage contract: input includes cache read + write and reasoning
-  // is a subset of output, so clamp counters that exceed their parent and
-  // drop the ones the agent left unset. Cache writes are capped at whatever
-  // cache reads leave of input, so the pair cannot exceed it.
   const clampSubset = (value: number | null | undefined, parent: number) =>
     value == null ? undefined : Math.min(value, parent);
   const cachedInputTokens = clampSubset(usage.cachedReadTokens, inputTokens);
@@ -807,8 +781,6 @@ export const AcpProviderCapabilitiesV2 = {
   checkpointing: {
     appCanCheckpointFilesystem: true,
     supportsNestedCheckpointScopes: true,
-    // ACP defines no conversation truncation, so rollback starts a fresh agent
-    // session and turn start replays the kept history.
     providerCanRollbackConversation: false,
     providerRollbackReturnsSnapshot: true,
     providerCanReadConversationSnapshot: false,
@@ -826,10 +798,6 @@ export const AcpProviderCapabilitiesV2 = {
 
 const STEER_DELIVERY_BOUND = "2 seconds";
 
-/**
- * `session/fork` `_meta` for a fork from `providerTurnId`: none for the session head,
- * the flavor's meta for a turn the agent named, or `null` when the agent can't fork there.
- */
 function forkFromTurnMetaFor(input: {
   readonly driver: ProviderDriverKind;
   readonly flavor: Pick<AcpAdapterV2Flavor, "forkFromTurn">;
@@ -862,7 +830,6 @@ function isCompactionMessage(message: ProviderAdapter.ProviderAdapterV2TurnMessa
   return message.text.trim() === "/compact" && message.attachments.length === 0;
 }
 
-/** `/compact`, optionally followed by preservation instructions that some agents accept. */
 function isCompactCommand(message: ProviderAdapter.ProviderAdapterV2TurnMessage): boolean {
   return /^\/compact(?:\s|$)/.test(message.text.trim()) && message.attachments.length === 0;
 }
@@ -923,10 +890,6 @@ function acpMcpContext(
   if (session === undefined) {
     return { servers: [], acpServers: [], httpServers: [] };
   }
-  // Agents that advertise optional http support still routinely fail to wire
-  // injected http servers through to their backend (codex-acp 1.2.0 and pi-acp
-  // both drop them), so HTTP is opt-in per flavor and the rest get the stdio
-  // `supaterm acp-mcp-bridge`, which forwards to Supaterm's authenticated MCP endpoint.
   return {
     servers: [
       {
@@ -960,10 +923,6 @@ function acpMcpContext(
     endpoint: session.endpoint,
     authorization: session.authorizationHeader,
     processEnvironment: {
-      // The thread id every process the agent starts inherits, so a tool run
-      // from its shell can find its Supaterm thread. Claude and Codex sessions set
-      // the same variable (PortScanner.AGENT_THREAD_ENV; a string literal here
-      // because this package cannot reach apps/server).
       SUPATERM_THREAD_ID: session.threadId,
       SUPATERM_ACP_MCP_ENDPOINT: session.endpoint,
       SUPATERM_ACP_MCP_AUTHORIZATION: session.authorizationHeader,
@@ -1169,10 +1128,6 @@ function commandExitCode(value: unknown): number | undefined {
   return undefined;
 }
 
-/**
- * Mid-stream Grok Bash re-reports carry exit_code 0 while still in progress;
- * interrupted tools must not retain that stale success code.
- */
 function acpProjectedCommandExitCode(
   status: "pending" | "running" | "waiting" | "completed" | "failed" | "interrupted",
   rawOutput: unknown,
@@ -1210,9 +1165,6 @@ function structuredFileChanges(toolCall: AcpToolCallState) {
   });
 }
 
-// Past this edit distance an edit keeps no patch text, so projecting a large
-// rewrite cannot stall the event loop in the diff search. A created or emptied
-// file has one empty side and needs no search, so it is never capped.
 const ACP_V1_DIFF_MAX_EDITS = 1_000;
 
 /**
@@ -1232,10 +1184,6 @@ export function acpToolCallSnippetEdit(content: unknown) {
     : undefined;
 }
 
-/**
- * No preview when a flavor marked a diff `omitted` (too large) or `snippet` (line unknown);
- * the checkpoint diff shows it.
- */
 function acpToolCallDiffUnpreviewable(content: unknown): boolean {
   return (
     Array.isArray(content) &&
@@ -1296,7 +1244,6 @@ export function acpToolCallDiffPatch(content: unknown): string | undefined {
       ? []
       : [{ text: formatPatch(structured, FILE_HEADERS_ONLY), path: diff.path }];
   });
-  // Diff parsers split at Git headers once one exists, so every section then needs its own.
   const hasGitHeader = patches.some(({ text }) => /^diff --git /m.test(text));
   return patches.length === 0
     ? undefined
@@ -1399,11 +1346,6 @@ function toolStatus(
 
 type ProjectedToolStatus = ReturnType<typeof toolStatus> | "interrupted";
 
-/**
- * Some agents answer Stop's `session/cancel` by failing the tools and subagents
- * that were running (Kiro: "Tool execution was cancelled by the user."). After
- * Stop, a failure is shown as the interruption it was.
- */
 function stoppedToolStatus(
   turn: Pick<ActiveAcpTurn, "interrupted">,
   tool: AcpToolCallState,
@@ -1419,7 +1361,6 @@ function completedAtForStatus(status: ProjectedToolStatus, now: DateTime.Utc): D
   return status === "completed" || status === "failed" || status === "interrupted" ? now : null;
 }
 
-// Copilot advertises URL ids such as `https://agentclientprotocol.com/protocol/session-modes#plan`.
 function isAcpPlanModeId(id: string): boolean {
   const name = id.slice(id.lastIndexOf("#") + 1);
   return name === "plan" || name === "architect";
@@ -1432,17 +1373,11 @@ function selectPermissionOptionId(
   const optionIdOfKind = (kind: EffectAcpSchema.PermissionOption["kind"]) =>
     request.options.find((option) => option.kind === kind)?.optionId;
   if (decision === "acceptForSession") {
-    // Agents may offer only allow_once, and answering "cancelled" would stop the turn the user approved.
     return optionIdOfKind("allow_always") ?? optionIdOfKind("allow_once");
   }
   return optionIdOfKind(decision === "accept" ? "allow_once" : "reject_once");
 }
 
-/**
- * The runtime policy approves one request, so answer with the agent's
- * allow-once option. Its allow-always option can outlive the session (Grok
- * saves it for the whole project); use it only when no allow-once exists.
- */
 function selectAutoApprovedPermissionOption(
   request: EffectAcpSchema.RequestPermissionRequest,
 ): string | undefined {
@@ -1457,9 +1392,7 @@ interface ActiveTextSegment {
   readonly startedAt: DateTime.Utc;
   sourceMessageId: string | null;
   text: string;
-  // The running node and first text have been emitted.
   emitted: boolean;
-  // Text changed since the last emission; a delayed flush is scheduled.
   dirty: boolean;
 }
 
@@ -1505,30 +1438,19 @@ interface ActiveAcpTurn {
   readonly subagentsBySessionId: Map<string, ActiveAcpSubagent>;
   readonly pendingSubagentNotifications: Map<string, Array<EffectAcpSchema.SessionNotification>>;
   readonly toolCallIdsByBackgroundTaskId: Map<string, string>;
-  /** Command ACKs register null; terminal results wait here for prompt settlement. */
   readonly backgroundCommands: Map<
     string,
     { readonly status: "completed" | "failed"; readonly output?: string } | null
   >;
   readonly persistentBackgroundTaskIds: Set<string>;
-  /**
-   * Monitor end events often only say "use get_command…"; keep the turn open
-   * until TaskOutput hydration arrives (or the safety timeout elapses).
-   */
   readonly awaitingBackgroundHydration: Set<string>;
   readonly pendingInjectedReport: Set<string>;
-  /**
-   * An injected assistant report can race ahead of its monitor end notice.
-   * Remember that unmatched report so the later notice consumes, rather than
-   * re-arming, the task's pre-settle completion marker.
-   */
   earlyInjectedReportObserved: boolean;
   readonly plans: Map<
     string,
     {
       readonly id: OrchestrationV2PlanArtifact["id"];
       readonly startedAt: DateTime.Utc;
-      /** The turn that first reported the plan; later turns update its rows. */
       readonly origin: {
         readonly runId: ActiveAcpTurn["input"]["runId"];
         readonly rootNodeId: ActiveAcpTurn["input"]["rootNodeId"];
@@ -1547,19 +1469,13 @@ interface ActiveAcpTurn {
   promptSettledStatus: "completed" | "interrupted" | "failed" | "cancelled" | null;
   workAccepted: boolean;
   readonly promptWireSettled: Deferred.Deferred<void, never>;
-  /** Completed once `session/prompt` is the runtime's active prompt. */
   readonly promptDispatched: Deferred.Deferred<void, never>;
-  /** Frees the runtime for the next prompt while the agent still holds this one's response. */
   readonly foregroundIdle: Deferred.Deferred<void>;
-  /** Clock millis just before `session/prompt` was handed to the runtime. */
   promptSentAt: number | null;
-  /** Completed when an update after dispatch matches `cancelAfterPromptStarts.isStart`. */
   readonly promptStarted: Deferred.Deferred<void, never>;
   promptUsage: EffectAcpSchema.Usage | undefined;
   backgroundFinalizeGeneration: number;
-  /** The agent's own id for this turn's prompt, from `forkFromTurn.nativeTurnId`. */
   nativePromptId: string | undefined;
-  /** Clock millis of the prompt's last progress, for `promptInactivityTimeout`. */
   lastProgressAt: number;
   inactivityWatchdog: Fiber.Fiber<void> | undefined;
 }
@@ -1600,7 +1516,6 @@ function acpRootSessionUpdateIngestsOutput(
   }
 }
 
-/** Monitor wakes arrive as their own chunk led by a tagged `<monitor-event task_id=…>`; bare mentions are content. */
 const acpIsMonitorChatter = (text: string) =>
   /^\s*(?:<monitor-event\s|Monitor\s+["']?[0-9a-f-]{8,}["']?\s+ended)/i.test(text);
 
@@ -1642,8 +1557,6 @@ export function acpPostSettleContinuationOfferEvidence(
   if (update.sessionUpdate === "tool_call" || update.sessionUpdate === "tool_call_update") {
     return parseSessionUpdateEvent(notification).events.some((event) => {
       if (event._tag !== "ToolCallUpdated") return false;
-      // Normalize first: a Grok monitor start ACK arrives with raw status
-      // "completed" but is a still-running background task, not completion.
       const toolCall = flavor.normalizeToolCall?.(event.toolCall) ?? event.toolCall;
       return toolCall.status === "completed" || toolCall.status === "failed";
     });
@@ -1662,12 +1575,6 @@ function acpPostSettleWakeShouldBuffer(
   );
 }
 
-/**
- * An app-owned wake (a delegated child finishing) is injected by the
- * orchestrator, not typed by the user. It reports on a sibling child and says
- * nothing about this session's own pending wake frames, so it must not discard
- * them the way a real user turn does.
- */
 function acpIsAppOwnedWakeTurn(message: {
   readonly createdBy: string;
   readonly creationSource: string;
@@ -1714,7 +1621,6 @@ export function acpCompletedTurnShouldTerminalizeTool(
 ): boolean {
   const status = toolStatus(tool.status);
   if (status !== "pending" && status !== "running") return false;
-  // Progress output replaces the start ACK, so the registered task id outlives it.
   if (tool.backgroundCommandTaskId !== undefined) return false;
   if (flavor.extractBackgroundTaskId?.(tool) !== undefined) return false;
   return flavor.extractSubagentUpdate?.(tool) === undefined;
@@ -1731,13 +1637,11 @@ interface ActiveAcpSubagent {
   childSessionId: string | null;
   assistantText: string;
   readonly assistantMessages: Map<string, string>;
-  // Messages whose latest text waits for a delayed flush.
   readonly pendingAssistantMessages: Set<string>;
   readonly childItemOrdinals: Map<string, number>;
   nextChildOrdinal: number;
   terminalStatusProjected: boolean;
   readonly toolState: Pick<ActiveAcpTurn, "tools" | "toolUpdatesSkipped" | "toolStartedAt">;
-  // ACP has no interrupted tool status; keep forced interruption across late updates.
   readonly interruptedToolIds: Set<string>;
   readonly toolSessionIds: Map<string, string>;
 }
@@ -1775,7 +1679,6 @@ function acpSubagentHasPendingBackgroundWork(subagent: ActiveAcpSubagent): boole
 
 type AcpCarryoverSubagents = {
   readonly sessionId: string;
-  /** The root's subscriber keeps ingesting, so late child terminals can still project. */
   readonly projectsLateTerminals: boolean;
   readonly subagents: ReadonlyArray<ActiveAcpSubagent>;
 };
@@ -1799,11 +1702,9 @@ type PendingRuntimeRequest = {
     }
 );
 
-/** Writers update `order` and `messages` in place; readers copy them out. */
 interface SnapshotMessageState {
   readonly order: Array<string>;
   readonly messages: Map<string, OrchestrationV2ConversationMessage>;
-  /** Messages loaded from thought chunks; `messages` stores them as assistant text. */
   readonly reasoningIds: ReadonlySet<OrchestrationV2ConversationMessage["id"]>;
   loadingRole: "user" | "assistant" | "thought" | null;
   loadingMessageId: string | null;
@@ -1819,11 +1720,9 @@ const emptySnapshotState = (): SnapshotMessageState => ({
   loadingIndex: 0,
 });
 
-/** How long a Stop waits for the agent to confirm before the user is offered Force stop. */
 const ACP_STOP_CONFIRM_TIMEOUT_MS = 10_000;
 const TOOL_UPDATE_PERSIST_EVERY = 10;
 
-// CommandOutputHub reads the last 256 KiB; retain more so its display cut stays unchanged.
 const MAX_AGENT_TERMINAL_OUTPUT_CHARS = 320 * 1024;
 
 function shouldPersistToolUpdate(
@@ -2060,15 +1959,11 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               agentTerminalsById.get(sessionScopedId(sessionId, terminalId))?.command;
             return command === undefined ? [] : [command];
           });
-        // Client terminals (Devin) run with the Supaterm server's privileges, so they
-        // are policy-checked against the active turn policy; a command the user
-        // already approved satisfies an "ask" disposition.
         const clientPolicyGrants = makeAcpClientPolicyGrants();
         let latestRuntimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy =
           input.runtimePolicy;
         const events = yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event>();
         const activeTurn = yield* Ref.make<ActiveAcpTurn | null>(null);
-        // Keyed by the agent's steer id; an injection can arrive before its send returns.
         const steerInjections = new Map<string, Deferred.Deferred<void>>();
         const steerInjection = (steerId: string) => {
           const existing = steerInjections.get(steerId);
@@ -2083,7 +1978,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           EffectAcpSchema.SessionUpdate,
           { sessionUpdate: "state_update" }
         > | null = null;
-        // The root's last reportForegroundWork state; undefined until the agent reports one.
         let rootForegroundWork: "running" | "idle" | undefined;
         const agentRequests = new Set<object>();
         const nativeChildren = new Map<string, AcpNativeChildSession>();
@@ -2093,7 +1987,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             : flavor.extractSubagentUpdate?.(tool);
         let turnAttached = yield* Deferred.make<boolean>();
         const activeSessionId = yield* Ref.make<string | null>(null);
-        // session/load replays history before activeSessionId names the loaded session.
         const loadingSessionId = yield* Ref.make<string | null>(null);
         const contextUsageBySessionId = yield* Ref.make(
           new Map<string, ThreadTokenUsageSnapshot>(),
@@ -2134,12 +2027,8 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           new Map<string, SupatermAcpInstructionState>(),
         );
         const promptRuntimeInstructions = yield* Ref.make(new Map<string, string>());
-        // Unique markers keep delayed prompt completions from clearing later compactions.
         const compactionMarkers = yield* Ref.make(new Map<string, symbol>());
-        // ACP may patch a completed compaction again; each compaction id marks its session once.
         const completedCompactionIds = yield* Ref.make(new Set<string>());
-        // The next prompt in a compacted session resends Supaterm's instructions and runtime notes.
-        // Only root sessions get prompts, so a marker on a child session is never read.
         const markSessionCompacted = Effect.fn("AcpAdapterV2.markSessionCompacted")(function* (
           sessionId: string,
           compactionId?: string,
@@ -2214,33 +2103,31 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               return Option.some(yield* effect);
             }),
           );
-        const registerNativeResponseAcknowledgement =
-          /* Provider events include streaming deltas; avoid a span for each update. */
-          Effect.fnUntraced(function* (
-            generation: number,
-            transportRequestId: string,
-            acknowledgement: Deferred.Deferred<void, EffectAcpErrors.AcpError>,
-          ) {
-            yield* Ref.update(nativeResponseAcknowledgements, (current) => {
-              const updated = new Map(current);
-              updated.set(transportRequestId, { acknowledgement, generation });
-              return updated;
-            });
-            yield* emitNativeResponseLifecycle({
-              type: "registered",
-              generation,
-              requestId: transportRequestId,
-            });
-            if (!(yield* Deferred.isDone(acknowledgement))) return;
-            yield* Ref.update(nativeResponseAcknowledgements, (current) => {
-              if (current.get(transportRequestId)?.acknowledgement !== acknowledgement) {
-                return current;
-              }
-              const updated = new Map(current);
-              updated.delete(transportRequestId);
-              return updated;
-            });
+        const registerNativeResponseAcknowledgement = Effect.fnUntraced(function* (
+          generation: number,
+          transportRequestId: string,
+          acknowledgement: Deferred.Deferred<void, EffectAcpErrors.AcpError>,
+        ) {
+          yield* Ref.update(nativeResponseAcknowledgements, (current) => {
+            const updated = new Map(current);
+            updated.set(transportRequestId, { acknowledgement, generation });
+            return updated;
           });
+          yield* emitNativeResponseLifecycle({
+            type: "registered",
+            generation,
+            requestId: transportRequestId,
+          });
+          if (!(yield* Deferred.isDone(acknowledgement))) return;
+          yield* Ref.update(nativeResponseAcknowledgements, (current) => {
+            if (current.get(transportRequestId)?.acknowledgement !== acknowledgement) {
+              return current;
+            }
+            const updated = new Map(current);
+            updated.delete(transportRequestId);
+            return updated;
+          });
+        });
         const acknowledgeNativeResponse = (generation: number, transportRequestId: string) =>
           runRuntimeCallbackAtGeneration(generation, Effect.void).pipe(
             Effect.flatMap((registered) =>
@@ -2425,31 +2312,20 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
         const continuationGeneration = yield* Ref.make(0);
         const continuationPermit = yield* Semaphore.make(1);
         const continuationClosed = yield* Ref.make(false);
-        // Direct Stop (requestRuntimeRestart) quarantines residual events from the
-        // stopped run so they cannot wake or attach to a later prompt/run.
         const stoppedRunQuarantine = yield* Ref.make(false);
-        // An interrupt can finalize a turn while its subagents still run natively. Carry the
-        // live lineages into the next turn so their terminal signals still settle the
-        // original turn items instead of leaving them running forever.
         const carryoverSubagents = yield* Ref.make<AcpCarryoverSubagents | null>(null);
         const handledBackgroundTaskIdsInActiveTurn = yield* Ref.make<ReadonlySet<string>>(
           new Set(),
         );
         const midTurnUnreportedCompletedTaskIds = yield* Ref.make<ReadonlySet<string>>(new Set());
-        // Grok starts an internal prompt for a monitor-event that lands after its task and
-        // turn completed. Suppress that output until a genuine terminal mutation or the next
-        // app turn so it cannot create a redundant continuation.
         const suppressPostSettleMonitorPrompt = yield* Ref.make(false);
         const runningBackgroundTaskIds = yield* Ref.make<ReadonlySet<string>>(new Set());
-        // Background command task id → the completed turn that owns its row. Ended commands stay,
-        // bounded, so a later authoritative terminal still corrects the row on its run.
         const detachedBackgroundCommands = yield* Ref.make<ReadonlyMap<string, ActiveAcpTurn>>(
           new Map(),
         );
         const endedDetachedBackgroundCommandLimit = 16;
         const detachedBackgroundCommandTurn = (taskId: string) =>
           Ref.get(detachedBackgroundCommands).pipe(Effect.map((turns) => turns.get(taskId)));
-        /** The turn a background task's terminal belongs to: its detached turn, else the live one. */
         const backgroundCommandTurn = Effect.fnUntraced(function* (taskId: string) {
           const detached = yield* detachedBackgroundCommandTurn(taskId);
           if (detached !== undefined) return detached;
@@ -2471,29 +2347,27 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             }
             return next;
           });
-        // Normalized statuses lie: Grok Bash re-reports carry exit_code 0 mid-stream, and a
-        // straggler monitor-event can land after the real end. Without the tombstone it would
-        // resurrect the running set and pin offers and idle-release forever.
         const endedBackgroundTaskIds = yield* Ref.make<ReadonlySet<string>>(new Set());
         const endedBackgroundTaskIdLimit = 128;
 
-        const setBackgroundTaskRunning =
-          /* Provider events include streaming deltas; avoid a span for each update. */
-          Effect.fnUntraced(function* (taskId: string, running: boolean) {
-            if (running && (yield* Ref.get(endedBackgroundTaskIds)).has(taskId)) {
-              return;
+        const setBackgroundTaskRunning = Effect.fnUntraced(function* (
+          taskId: string,
+          running: boolean,
+        ) {
+          if (running && (yield* Ref.get(endedBackgroundTaskIds)).has(taskId)) {
+            return;
+          }
+          yield* Ref.update(runningBackgroundTaskIds, (current) => {
+            if (current.has(taskId) === running) return current;
+            const next = new Set(current);
+            if (running) {
+              next.add(taskId);
+            } else {
+              next.delete(taskId);
             }
-            yield* Ref.update(runningBackgroundTaskIds, (current) => {
-              if (current.has(taskId) === running) return current;
-              const next = new Set(current);
-              if (running) {
-                next.add(taskId);
-              } else {
-                next.delete(taskId);
-              }
-              return next;
-            });
+            return next;
           });
+        });
 
         const markBackgroundTaskEnded = (taskId: string) =>
           Ref.update(endedBackgroundTaskIds, (current) => {
@@ -2514,21 +2388,19 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             ? setBackgroundTaskRunning(mutation.taskId, true)
             : markBackgroundTaskEnded(mutation.taskId);
 
-        const trackRunningBackgroundTools =
-          /* Provider events include streaming deltas; avoid a span for each update. */
-          Effect.fnUntraced(function* (
-            notification: EffectAcpSchema.SessionNotification,
-          ): Effect.fn.Return<void> {
-            if (flavor.extractBackgroundTaskId === undefined) return;
-            for (const event of parseSessionUpdateEvent(notification).events) {
-              if (event._tag !== "ToolCallUpdated") continue;
-              const toolCall = flavor.normalizeToolCall?.(event.toolCall) ?? event.toolCall;
-              const taskId = flavor.extractBackgroundTaskId(toolCall);
-              if (taskId === undefined) continue;
-              const status = toolStatus(toolCall.status);
-              yield* setBackgroundTaskRunning(taskId, status === "pending" || status === "running");
-            }
-          });
+        const trackRunningBackgroundTools = Effect.fnUntraced(function* (
+          notification: EffectAcpSchema.SessionNotification,
+        ): Effect.fn.Return<void> {
+          if (flavor.extractBackgroundTaskId === undefined) return;
+          for (const event of parseSessionUpdateEvent(notification).events) {
+            if (event._tag !== "ToolCallUpdated") continue;
+            const toolCall = flavor.normalizeToolCall?.(event.toolCall) ?? event.toolCall;
+            const taskId = flavor.extractBackgroundTaskId(toolCall);
+            if (taskId === undefined) continue;
+            const status = toolStatus(toolCall.status);
+            yield* setBackgroundTaskRunning(taskId, status === "pending" || status === "running");
+          }
+        });
 
         const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>
           Queue.offer(events, event).pipe(Effect.asVoid);
@@ -2540,30 +2412,28 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           flavor.promptInactivityTimeout === undefined
             ? undefined
             : Duration.toMillis(flavor.promptInactivityTimeout);
-        // Each runtime owns its unanswered agent requests, so a dead process's leftovers
-        // and late callbacks never reach its replacement.
         let openAgentRequests = new Set<string>();
-        const notePromptProgress =
-          /* Provider events include streaming deltas; avoid a span for each update. */
-          Effect.fnUntraced(function* (notification?: EffectAcpSchema.SessionNotification) {
-            if (promptInactivityTimeoutMillis === undefined) return;
-            if (
-              notification !== undefined &&
-              !ACP_PROMPT_ACTIVITY_UPDATES.has(notification.update.sessionUpdate)
-            ) {
-              return;
-            }
-            const context = yield* Ref.get(activeTurn);
-            if (
-              context === null ||
-              (notification !== undefined &&
-                notification.sessionId !== context.nativeThreadId &&
-                !context.subagentsBySessionId.has(notification.sessionId))
-            ) {
-              return;
-            }
-            context.lastProgressAt = yield* Clock.currentTimeMillis;
-          });
+        const notePromptProgress = Effect.fnUntraced(function* (
+          notification?: EffectAcpSchema.SessionNotification,
+        ) {
+          if (promptInactivityTimeoutMillis === undefined) return;
+          if (
+            notification !== undefined &&
+            !ACP_PROMPT_ACTIVITY_UPDATES.has(notification.update.sessionUpdate)
+          ) {
+            return;
+          }
+          const context = yield* Ref.get(activeTurn);
+          if (
+            context === null ||
+            (notification !== undefined &&
+              notification.sessionId !== context.nativeThreadId &&
+              !context.subagentsBySessionId.has(notification.sessionId))
+          ) {
+            return;
+          }
+          context.lastProgressAt = yield* Clock.currentTimeMillis;
+        });
         const closeAgentRequest = (agentRequests: Set<string>, requestId: string) =>
           Effect.suspend(() =>
             agentRequests.delete(requestId) && agentRequests === openAgentRequests
@@ -2921,12 +2791,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               : context.reasoning;
 
         const textEmissionPermit = yield* Semaphore.make(1);
-        /**
-         * Emits the stream's current segment. A `flushOf` call is a delayed
-         * flush: it emits only while that segment is still current and has
-         * unsent text. The permit keeps a flush from landing after the
-         * segment's completed snapshot.
-         */
         const emitTextSegment = Effect.fnUntraced(function* (
           context: ActiveAcpTurn,
           kind: "user" | "assistant" | "reasoning",
@@ -2937,14 +2801,9 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           const segment = stream.current;
           if (segment === null) return;
           if (flushOf !== undefined && (segment !== flushOf || !segment.dirty)) return;
-          // The node carries no text, so it changes only when the segment
-          // opens and when it completes.
           const emitsNode = completed || !segment.emitted;
           segment.emitted = true;
           segment.dirty = false;
-          // Read the text in the same step that clears `dirty`. Chunks keep
-          // appending while this emission yields; each one marks the segment
-          // dirty again and reaches the next flush or the close.
           const text = segment.text;
           const now = yield* DateTime.now;
           const ordinal = yield* resolveItemOrdinal(context, segment.nativeItemId);
@@ -3078,12 +2937,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           });
         }, textEmissionPermit.withPermit);
 
-        /**
-         * Publishes a text change. A segment's first text emits at once so
-         * live output starts immediately; later changes coalesce into one
-         * snapshot per ACP_TEXT_FLUSH_INTERVAL. Closing the segment emits its
-         * final text and makes a pending flush a no-op.
-         */
         const publishTextSegment = Effect.fnUntraced(function* (
           context: ActiveAcpTurn,
           kind: "user" | "assistant" | "reasoning",
@@ -3127,7 +2980,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           const stream = textStreamFor(context, kind);
           const closed =
             sourceMessageId === null ? undefined : stream.closedNamedSegments.get(sourceMessageId);
-          // A new object, so a flush scheduled before the close stays a no-op.
           const segment: ActiveTextSegment =
             closed === undefined
               ? {
@@ -3171,8 +3023,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           if (segment === null) {
             segment = yield* openTextSegment(context, kind, sourceMessageId);
           } else if (segment.sourceMessageId === null && sourceMessageId !== null) {
-            // Some agents omit messageId on the first chunk. Keep the already
-            // projected identity and use the first later id as its boundary.
             segment.sourceMessageId = sourceMessageId;
           }
           segment.text += text;
@@ -3222,7 +3072,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           yield* writeSubagentAssistant(subagent, nativeItemId, false);
         });
 
-        // Reads the pending set under the permit, so it also waits for a write in progress.
         const flushPendingSubagentAssistant = (subagent: ActiveAcpSubagent) =>
           Effect.suspend(() =>
             Effect.forEach(
@@ -3416,13 +3265,10 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           context: ActiveAcpTurn,
           reported: AcpAdapterV2SubagentUpdate,
         ) {
-          // See stoppedToolStatus: after Stop, a failed subagent was interrupted.
           const update: AcpAdapterV2SubagentUpdate =
             context.interrupted && reported.status === "failed"
               ? { ...reported, status: "interrupted" }
               : reported;
-          // Hydration tools (get_command_or_subagent_output) use a new toolCallId
-          // but reference the child via subagent_id / task id.
           const existing =
             context.subagents.get(update.nativeTaskId) ??
             (update.childSessionId !== null
@@ -3444,10 +3290,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           ) {
             return;
           }
-          // Only hydrate when we already have a matching subagent lineage. Spawn
-          // ACKs (non-empty prompt) may create a new lineage; empty-prompt
-          // hydration with suppressNormalTool must not invent a phantom
-          // subagent.
           if (existing === undefined) {
             const isHydrationOnly = update.prompt === "" && update.title === null;
             if (isHydrationOnly || update.suppressNormalTool === false) {
@@ -3614,7 +3456,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           }
 
           yield* flushSubagentAssistant(subagent);
-          // A failed child's result explains the failure; it is not the child's reply.
           if (
             taskStatus !== "running" &&
             reported.status !== "failed" &&
@@ -3733,7 +3574,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
         ) {
           if (child.status !== "running" && status === "running" && child.subagent !== undefined) {
             yield* flushSubagentAssistant(child.subagent);
-            // A new execution replaces its result; live ownership transfers keep their progress.
             child.subagent.task = { ...child.subagent.task, result: null };
             child.subagent.assistantText = "";
             child.subagent.assistantMessages.clear();
@@ -3824,7 +3664,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 (child.owner?.finalizedStatus !== "completed" || newDelegation) &&
                 (hasNativeWork || child.pending.length > 0))
             ) {
-              // The ownership event precedes child tools so the old run can detach first.
               child.owner = context;
               subagent.task = {
                 ...subagent.task,
@@ -4059,7 +3898,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           if (context.pendingInjectedReport.size > 0) return true;
           for (const [taskId, toolCallId] of context.toolCallIdsByBackgroundTaskId) {
             if (context.persistentBackgroundTaskIds.has(taskId)) continue;
-            // Commands are as often a dev server as a wait; only their wake follows up.
             if (context.backgroundCommands.has(taskId)) continue;
             const tool = context.tools.get(toolCallId);
             if (tool === undefined) continue;
@@ -4084,56 +3922,55 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             acpSubagentStatusBlocksTurnSettlement(subagent.task.status),
           );
 
-        const rearmDeferredFinalize =
-          /* Provider events include streaming deltas; avoid a span for each update. */
-          Effect.fnUntraced(function* (context: ActiveAcpTurn) {
-            if (!flavor.deferFinalizeForBackgroundWork) return;
-            if (!context.promptSettled || context.finalized) return;
-            if (hasDeferredBackgroundWork(context)) return;
-            yield* scheduleDeferredFinalize(context);
-          });
+        const rearmDeferredFinalize = Effect.fnUntraced(function* (context: ActiveAcpTurn) {
+          if (!flavor.deferFinalizeForBackgroundWork) return;
+          if (!context.promptSettled || context.finalized) return;
+          if (hasDeferredBackgroundWork(context)) return;
+          yield* scheduleDeferredFinalize(context);
+        });
 
-        // `let` breaks circular inference from monitor hydration re-entry.
         let emitTool: (
           context: ActiveAcpTurn,
           incoming: AcpToolCallState,
           projectedStatus?: ProjectedToolStatus,
         ) => Effect.Effect<void> = () => Effect.void;
 
-        const markAwaitingBackgroundHydration =
-          /* Provider events include streaming deltas; avoid a span for each update. */
-          Effect.fnUntraced(function* (context: ActiveAcpTurn, taskId: string) {
-            if (context.awaitingBackgroundHydration.has(taskId)) return;
-            context.awaitingBackgroundHydration.add(taskId);
-            yield* Effect.gen(function* () {
-              yield* Effect.sleep("60000 millis");
-              if (context.finalized || !context.awaitingBackgroundHydration.has(taskId)) return;
-              context.awaitingBackgroundHydration.delete(taskId);
-              const toolCallId = context.toolCallIdsByBackgroundTaskId.get(taskId);
-              const tool = toolCallId !== undefined ? context.tools.get(toolCallId) : undefined;
-              if (tool !== undefined) {
-                const status = toolStatus(tool.status);
-                if (status === "pending" || status === "running") {
-                  yield* emitTool(context, { ...tool, status: "completed" });
-                }
+        const markAwaitingBackgroundHydration = Effect.fnUntraced(function* (
+          context: ActiveAcpTurn,
+          taskId: string,
+        ) {
+          if (context.awaitingBackgroundHydration.has(taskId)) return;
+          context.awaitingBackgroundHydration.add(taskId);
+          yield* Effect.gen(function* () {
+            yield* Effect.sleep("60000 millis");
+            if (context.finalized || !context.awaitingBackgroundHydration.has(taskId)) return;
+            context.awaitingBackgroundHydration.delete(taskId);
+            const toolCallId = context.toolCallIdsByBackgroundTaskId.get(taskId);
+            const tool = toolCallId !== undefined ? context.tools.get(toolCallId) : undefined;
+            if (tool !== undefined) {
+              const status = toolStatus(tool.status);
+              if (status === "pending" || status === "running") {
+                yield* emitTool(context, { ...tool, status: "completed" });
               }
-              yield* rearmDeferredFinalize(context);
-            }).pipe(Effect.forkIn(sessionScope), Effect.asVoid);
-          });
+            }
+            yield* rearmDeferredFinalize(context);
+          }).pipe(Effect.forkIn(sessionScope), Effect.asVoid);
+        });
 
-        const markPendingInjectedReport =
-          /* Provider events include streaming deltas; avoid a span for each update. */
-          Effect.fnUntraced(function* (context: ActiveAcpTurn, taskId: string) {
-            if (!context.promptSettled) return;
-            if (context.pendingInjectedReport.has(taskId)) return;
-            context.pendingInjectedReport.add(taskId);
-            yield* Effect.gen(function* () {
-              yield* Effect.sleep("25000 millis");
-              if (context.finalized || !context.pendingInjectedReport.has(taskId)) return;
-              context.pendingInjectedReport.delete(taskId);
-              yield* rearmDeferredFinalize(context);
-            }).pipe(Effect.forkIn(sessionScope), Effect.asVoid);
-          });
+        const markPendingInjectedReport = Effect.fnUntraced(function* (
+          context: ActiveAcpTurn,
+          taskId: string,
+        ) {
+          if (!context.promptSettled) return;
+          if (context.pendingInjectedReport.has(taskId)) return;
+          context.pendingInjectedReport.add(taskId);
+          yield* Effect.gen(function* () {
+            yield* Effect.sleep("25000 millis");
+            if (context.finalized || !context.pendingInjectedReport.has(taskId)) return;
+            context.pendingInjectedReport.delete(taskId);
+            yield* rearmDeferredFinalize(context);
+          }).pipe(Effect.forkIn(sessionScope), Effect.asVoid);
+        });
 
         const clearMidTurnUnreportedTaskIds = (taskIds: ReadonlyArray<string>) =>
           Ref.update(midTurnUnreportedCompletedTaskIds, (current) => {
@@ -4174,7 +4011,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             context.promptSettled && backgroundCommandTaskId !== undefined
               ? (context.backgroundCommands.get(backgroundCommandTaskId) ?? undefined)
               : undefined;
-          // Preserve hydrated output; only a replayed start ACK needs its output restored.
           const toolCall =
             completion === undefined
               ? normalized
@@ -4277,8 +4113,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                         backgroundCompletion.appendOutput,
                       )
                   : { ...target, status: nextStatus };
-              // BackgroundTaskStarted normalization can reopen this row, so keep the
-              // completion for settlement when no task_completed recorded one.
               if (
                 backgroundCompletion.status !== "running" &&
                 owner.backgroundCommands.get(backgroundCompletion.taskId) === null
@@ -4292,8 +4126,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             }
           }
 
-          // Monitor TaskOutput shares the get_command tool shape with subagent
-          // hydration; do not spawn a phantom subagent for a registered monitor.
           const subagentUpdate = hydratedRegisteredMonitor
             ? undefined
             : extractSubagentUpdate(toolCall);
@@ -4423,7 +4255,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 updated.delete(context.nativeThreadId);
                 return updated;
               });
-              // A completion projected at turn end must not swallow the agent's later real one.
               yield* markSessionCompacted(
                 context.nativeThreadId,
                 projectedStatus === undefined
@@ -4446,7 +4277,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               previous?.status !== "failed" &&
               previous?.status !== "completed"
             ) {
-              // A failed call may have published before the provider lost its result.
               yield* mcpSessions.takeHtmlRender(
                 context.input.threadId,
                 input,
@@ -4455,7 +4285,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             }
             if (status === "completed" && isHtmlRender && !isError) {
               const reportedPage = htmlRenderFromToolItem({ toolName, output });
-              // Antigravity replaces MCP results with summaries, including on repeated completions.
               const previousPage = htmlRenderFromToolItem({
                 toolName,
                 output: acpMcpToolCallOutput(previous?.data.rawOutput ?? previous?.data.content),
@@ -4590,8 +4419,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 break;
               }
               case "fetch": {
-                // Grok nests the page under rawOutput.Content, which textFromUnknown
-                // cannot read; the (bounded) content blocks carry the same text.
                 const snippet =
                   textFromUnknown(toolCall.data.content) ?? textFromUnknown(rawOutput);
                 turnItem = {
@@ -4643,10 +4470,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           yield* rearmDeferredFinalize(context);
         });
 
-        /**
-         * Notices have no id; each is its own item, numbered by the turn's item count.
-         * A notice is not conversation content, so an open message keeps streaming across it.
-         */
         const emitNotice = Effect.fnUntraced(function* (
           context: ActiveAcpTurn,
           notice: { readonly title: string; readonly description?: string },
@@ -4735,8 +4558,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             if (planState.latest === null) return;
             plan = { ...planState.latest, status: "superseded" };
           } else if (update.kind === "items") {
-            // A cancelled entry is not outstanding work, and plan steps have no
-            // cancelled status, so drop it rather than show it as pending.
             const steps: ReadonlyArray<OrchestrationV2PlanStep> = update.plan.flatMap(
               (step, index) =>
                 step.status === "cancelled"
@@ -4838,66 +4659,64 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           });
         });
 
-        const appendLoadedHistory =
-          /* Provider events include streaming deltas; avoid a span for each update. */
-          Effect.fnUntraced(function* (
-            notification: EffectAcpSchema.SessionNotification,
-            role: "user" | "assistant" | "thought",
-            text: string,
-            replace = false,
-          ) {
-            if (text.length === 0 && !replace) return;
-            const now = yield* DateTime.now;
-            yield* Ref.update(snapshot, (current) => {
-              const update = notification.update;
-              const sourceMessageId =
-                (update.sessionUpdate === "user_message_chunk" ||
-                  update.sessionUpdate === "agent_message_chunk" ||
-                  update.sessionUpdate === "agent_thought_chunk" ||
-                  update.sessionUpdate === "user_message" ||
-                  update.sessionUpdate === "agent_message" ||
-                  update.sessionUpdate === "agent_thought") &&
-                update.messageId
-                  ? update.messageId
-                  : null;
-              const startsNew =
-                current.loadingRole !== role ||
-                (sourceMessageId !== null && current.loadingMessageId !== sourceMessageId);
-              const loadingIndex = startsNew ? current.loadingIndex + 1 : current.loadingIndex;
-              const nativeItemId =
-                sourceMessageId === null
-                  ? `${notification.sessionId}:history:${role}:${loadingIndex}`
-                  : `${notification.sessionId}:history:${role}:message:${sourceMessageId}`;
-              const messageId = providerMessageId(nativeItemId);
-              const key = String(messageId);
-              const previous = current.messages.get(key);
-              if (previous === undefined) current.order.push(key);
-              current.messages.set(key, {
-                createdBy: previous?.createdBy ?? (role === "user" ? "user" : "agent"),
-                creationSource: previous?.creationSource ?? "provider",
-                id: messageId,
-                threadId: input.threadId,
-                runId: null,
-                nodeId: null,
-                role: role === "user" ? "user" : "assistant",
-                text: replace ? text : `${previous?.text ?? ""}${text}`,
-                attachments: [],
-                streaming: false,
-                createdAt: previous?.createdAt ?? now,
-                updatedAt: now,
-              });
-              return {
-                ...current,
-                reasoningIds:
-                  role === "thought" && !current.reasoningIds.has(messageId)
-                    ? new Set(current.reasoningIds).add(messageId)
-                    : current.reasoningIds,
-                loadingRole: role,
-                loadingMessageId: sourceMessageId ?? (startsNew ? null : current.loadingMessageId),
-                loadingIndex,
-              };
+        const appendLoadedHistory = Effect.fnUntraced(function* (
+          notification: EffectAcpSchema.SessionNotification,
+          role: "user" | "assistant" | "thought",
+          text: string,
+          replace = false,
+        ) {
+          if (text.length === 0 && !replace) return;
+          const now = yield* DateTime.now;
+          yield* Ref.update(snapshot, (current) => {
+            const update = notification.update;
+            const sourceMessageId =
+              (update.sessionUpdate === "user_message_chunk" ||
+                update.sessionUpdate === "agent_message_chunk" ||
+                update.sessionUpdate === "agent_thought_chunk" ||
+                update.sessionUpdate === "user_message" ||
+                update.sessionUpdate === "agent_message" ||
+                update.sessionUpdate === "agent_thought") &&
+              update.messageId
+                ? update.messageId
+                : null;
+            const startsNew =
+              current.loadingRole !== role ||
+              (sourceMessageId !== null && current.loadingMessageId !== sourceMessageId);
+            const loadingIndex = startsNew ? current.loadingIndex + 1 : current.loadingIndex;
+            const nativeItemId =
+              sourceMessageId === null
+                ? `${notification.sessionId}:history:${role}:${loadingIndex}`
+                : `${notification.sessionId}:history:${role}:message:${sourceMessageId}`;
+            const messageId = providerMessageId(nativeItemId);
+            const key = String(messageId);
+            const previous = current.messages.get(key);
+            if (previous === undefined) current.order.push(key);
+            current.messages.set(key, {
+              createdBy: previous?.createdBy ?? (role === "user" ? "user" : "agent"),
+              creationSource: previous?.creationSource ?? "provider",
+              id: messageId,
+              threadId: input.threadId,
+              runId: null,
+              nodeId: null,
+              role: role === "user" ? "user" : "assistant",
+              text: replace ? text : `${previous?.text ?? ""}${text}`,
+              attachments: [],
+              streaming: false,
+              createdAt: previous?.createdAt ?? now,
+              updatedAt: now,
             });
+            return {
+              ...current,
+              reasoningIds:
+                role === "thought" && !current.reasoningIds.has(messageId)
+                  ? new Set(current.reasoningIds).add(messageId)
+                  : current.reasoningIds,
+              loadingRole: role,
+              loadingMessageId: sourceMessageId ?? (startsNew ? null : current.loadingMessageId),
+              loadingIndex,
+            };
           });
+        });
 
         const offerContinuationRun = Effect.fnUntraced(function* (_sessionId: string) {
           if (continuationRequests === undefined) {
@@ -4961,10 +4780,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                     return Option.none();
                   }
                   if (!(yield* Ref.get(continuationRequested))) return Option.none();
-                  // A successful durable dispatch owns the sticky flag until its
-                  // continuation turn starts. Clearing here opens a dispatch-to-
-                  // start race where every late ACP frame can enqueue another
-                  // synthetic continuation.
                   const exit = yield* Effect.exit(effect);
                   if (Exit.isFailure(exit)) {
                     yield* clearIfOwner;
@@ -4992,9 +4807,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             }
             return;
           }
-          // First genuine terminal: allow subsequent agent output. Re-delivery
-          // of an already-ended terminal must not un-suppress residual ack
-          // chatter from the injected monitor-event turn.
           if (!taskAlreadyEnded) {
             yield* Ref.set(suppressPostSettleMonitorPrompt, false);
           }
@@ -5024,8 +4836,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           }
         });
 
-        // Structured task ends are authoritative, but emitting before prompt
-        // settlement marks the result handled and suppresses its continuation.
         const finishRegisteredBackgroundTool = Effect.fnUntraced(function* (mutation: {
           readonly taskId: string;
           readonly status: "completed" | "failed";
@@ -5054,7 +4864,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           yield* rearmDeferredFinalize(context);
         });
 
-        // Output and replays for a detached command land on its row, not in the wake buffer.
         const projectDetachedBackgroundCommand = Effect.fnUntraced(function* (
           notification: EffectAcpSchema.SessionNotification,
           active: ActiveAcpTurn | null,
@@ -5111,10 +4920,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           let alreadyHandledToolUpdate = false;
           if (update.sessionUpdate === "tool_call" || update.sessionUpdate === "tool_call_update") {
             yield* trackRunningBackgroundTools(notification);
-            // When the agent consumes the monitor output itself via
-            // get_command_or_subagent_output (long timeout), the TaskOutput
-            // completion is the ONLY end signal: no "Monitor ended" reminder
-            // follows.
             for (const event of parseSessionUpdateEvent(notification).events) {
               if (event._tag !== "ToolCallUpdated") continue;
               const toolCall = flavor.normalizeToolCall?.(event.toolCall) ?? event.toolCall;
@@ -5141,15 +4946,11 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           }
           const backgroundWorkRunning = (yield* Ref.get(runningBackgroundTaskIds)).size > 0;
           const handledInTurnCount = (yield* Ref.get(handledBackgroundTaskIdsInActiveTurn)).size;
-          // Chunks carry no task id: while an unpolled completion awaits its report, keep them.
           const isInTurnHandledAgentChatter =
             handledInTurnCount > 0 &&
             (yield* Ref.get(midTurnUnreportedCompletedTaskIds)).size === 0 &&
             (update.sessionUpdate === "agent_message_chunk" ||
               update.sessionUpdate === "agent_thought_chunk");
-          // Grok prompts itself for every monitor event after the root turn
-          // settles. Retaining them would replay the entire burst into the
-          // single continuation once the monitor finishes.
           let buffered = false;
           if (
             !alreadyHandledToolUpdate &&
@@ -5183,8 +4984,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               stopProcessing: true,
             };
           }
-          // Do not clear wakeBuffer here: frames for other still-tracked tasks
-          // must remain drainable when a real (tool) completion later offers.
           if (isInTurnHandledAgentChatter) {
             return {
               buffered,
@@ -5248,7 +5047,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               setToolOutputText(
                 {
                   ...seeded,
-                  // An agent-reported tool owns its status; terminal state only drives the synthetic one.
                   status: (linked ? existing?.status : undefined) ?? status,
                   ...(next.command === undefined ? {} : { command: next.command }),
                 },
@@ -5296,7 +5094,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           )
             return;
           const work = agentWork;
-          // Native close sends cancelled idle before acknowledging the user's Stop.
           if (work.stopReason === "cancelled" && pendingStopCloseTurn === context) {
             context.interrupted = true;
           }
@@ -5509,9 +5306,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               return;
             }
             const bufferOutcome = yield* bufferPostSettleWake(notification);
-            // A completed root keeps its subscriber open while background items remain, so its
-            // terminals project even when the wake is buffered. Other roots stay memory-only:
-            // durable ingest needs a subscriber owning the original runId.
             const carryover = yield* Ref.get(carryoverSubagents);
             const rootTerminalCanStillProject =
               carryover !== null &&
@@ -5722,8 +5516,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             context.pendingSubagentNotifications.set(notification.sessionId, buffered);
             return;
           }
-          // Re-check after the activeSessionId yield: idle/prompt settle can
-          // finalize the same context object while we waited.
           if (context.finalized) return;
           if (
             context.promptSettled &&
@@ -5755,7 +5547,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             (update.sessionUpdate === "user_message" ||
               update.sessionUpdate === "user_message_chunk")
           ) {
-            // ACP v2 prompt acknowledgments lack a messageId; correlate one full echo by content.
             if (
               context.consumedPromptMessageId === undefined &&
               update.sessionUpdate === "user_message" &&
@@ -5803,10 +5594,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   context.promptSettled &&
                   (yield* Ref.get(midTurnUnreportedCompletedTaskIds)).size > 0
                 ) {
-                  // Some ACP implementations deliver the injected assistant
-                  // report before the synthetic monitor end notice. Correlation
-                  // arrives with that notice, so remember the unmatched report
-                  // and consume its task id when the notice follows.
                   context.earlyInjectedReportObserved = true;
                 }
                 yield* appendText(context, "assistant", text, update.messageId);
@@ -5857,7 +5644,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   status: "inProgress" as const,
                   data: { toolCallId: update.toolCallId },
                 };
-                // Text chunks extend the content list so a later content replacement still shows.
                 yield* emitTool(
                   context,
                   update.content.type === "content" && previous.data.rawOutput === undefined
@@ -5945,9 +5731,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   subagent !== undefined &&
                   (subagent.task.status === "running" || subagent.task.status === "pending")
                 ) {
-                  // The agent is free to answer with text only and never call
-                  // get_command_or_subagent_output; without this, the subagent
-                  // row stays running and holds deferred finalize open forever.
                   yield* emitSubagent(context, {
                     nativeTaskId: subagent.task.nativeTaskRef?.nativeId ?? notice.childSessionId,
                     prompt: subagent.task.prompt,
@@ -6314,7 +6097,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           const waiting = turnAttached;
           turnAttached = yield* Deferred.make<boolean>();
           yield* Deferred.succeed(waiting, false);
-          // session/cancel does not end the agent's MCP calls; Supaterm runs them, so it stops them.
           if (options.stopMcpCalls && runtimeMcpBridge !== undefined) {
             yield* runtimeMcpBridge.stopCalls;
           }
@@ -6698,9 +6480,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           }
         });
 
-        // Only the flavor's own start marker counts: agents also send late
-        // updates for the previous prompt (Kiro's context usage) and echoes
-        // that arrive before they would honor a cancel.
         const markPromptStarted = Effect.fnUntraced(function* (
           notification: EffectAcpSchema.SessionNotification,
         ) {
@@ -6712,81 +6491,78 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           if (!promptStarts(notification.update)) return;
           yield* Deferred.succeed(context.promptStarted, undefined);
         });
-        const projectAcpRuntimeSessionUpdateEffect =
-          /* Provider events include streaming deltas; avoid a span for each update. */
-          Effect.fnUntraced(
-            function* (rawNotification: EffectAcpSchema.SessionNotification) {
-              if (flavor.ignoreSessionUpdate?.(rawNotification) === true) return;
-              yield* notePromptProgress(rawNotification);
-              const nativePromptId = flavor.forkFromTurn?.nativeTurnId(rawNotification);
-              if (nativePromptId !== undefined) {
-                const context = yield* Ref.get(activeTurn);
-                if (context !== null && context.nativeThreadId === rawNotification.sessionId) {
-                  context.nativePromptId ??= nativePromptId;
-                }
+        const projectAcpRuntimeSessionUpdateEffect = Effect.fnUntraced(
+          function* (rawNotification: EffectAcpSchema.SessionNotification) {
+            if (flavor.ignoreSessionUpdate?.(rawNotification) === true) return;
+            yield* notePromptProgress(rawNotification);
+            const nativePromptId = flavor.forkFromTurn?.nativeTurnId(rawNotification);
+            if (nativePromptId !== undefined) {
+              const context = yield* Ref.get(activeTurn);
+              if (context !== null && context.nativeThreadId === rawNotification.sessionId) {
+                context.nativePromptId ??= nativePromptId;
               }
-              const injectedSteerId = flavor.steering?.injectedSteerId?.(rawNotification);
-              if (injectedSteerId !== undefined) {
-                yield* Deferred.succeed(steerInjection(injectedSteerId), undefined);
-              }
-              yield* markPromptStarted(rawNotification);
-              const embedded = embeddedTerminalIdsFromSessionUpdate(rawNotification);
-              if (embedded !== undefined) {
-                rememberEmbeddedTerminals({
-                  ...embedded,
-                  sessionId: rawNotification.sessionId,
-                });
-              }
-              const notification =
-                clientTerminals === undefined
-                  ? rawNotification
-                  : resolveEmbeddedTerminalContent(
-                      rawNotification,
-                      clientTerminals.readOutputSnapshot,
-                    );
-              if (notification.update.sessionUpdate === "available_commands_update") {
-                const sessionId = rawNotification.sessionId;
-                const advertisedCommands = notification.update.availableCommands;
-                yield* Ref.update(advertisedCommandNames, (current) => {
-                  const updated = new Map(current);
-                  updated.set(
-                    sessionId,
-                    new Set(advertisedCommands.map((command) => command.name.trim().toLowerCase())),
+            }
+            const injectedSteerId = flavor.steering?.injectedSteerId?.(rawNotification);
+            if (injectedSteerId !== undefined) {
+              yield* Deferred.succeed(steerInjection(injectedSteerId), undefined);
+            }
+            yield* markPromptStarted(rawNotification);
+            const embedded = embeddedTerminalIdsFromSessionUpdate(rawNotification);
+            if (embedded !== undefined) {
+              rememberEmbeddedTerminals({
+                ...embedded,
+                sessionId: rawNotification.sessionId,
+              });
+            }
+            const notification =
+              clientTerminals === undefined
+                ? rawNotification
+                : resolveEmbeddedTerminalContent(
+                    rawNotification,
+                    clientTerminals.readOutputSnapshot,
                   );
-                  return updated;
-                });
-                yield* flavor.onAvailableCommandsUpdate?.(advertisedCommands) ?? Effect.void;
-              }
-              if (
-                notification.update.sessionUpdate === "config_option_update" ||
-                notification.update.sessionUpdate === "current_mode_update"
-              ) {
-                yield* (
-                  flavor.onSessionConfigurationUpdate?.(
-                    yield* runtime.getConfigOptions,
-                    yield* runtime.getModeState,
-                    (yield* Ref.get(activeSessionSetup))?.sessionSetupResult.models,
-                  ) ?? Effect.void
+            if (notification.update.sessionUpdate === "available_commands_update") {
+              const sessionId = rawNotification.sessionId;
+              const advertisedCommands = notification.update.availableCommands;
+              yield* Ref.update(advertisedCommandNames, (current) => {
+                const updated = new Map(current);
+                updated.set(
+                  sessionId,
+                  new Set(advertisedCommands.map((command) => command.name.trim().toLowerCase())),
                 );
-              }
-              const normalized = flavor.normalizeSessionUpdate?.(notification) ?? notification;
-              // Turn projection misses compactions that finish while idle or after settlement.
-              if (
-                normalized.update.sessionUpdate === "compaction_update" &&
-                normalized.update.status === "completed"
-              ) {
-                yield* markSessionCompacted(normalized.sessionId, normalized.update.compactionId);
-              }
-              yield* handleSessionUpdate(normalized);
-            },
-            Effect.mapError(
-              (cause) =>
-                new EffectAcpErrors.AcpTransportError({
-                  detail: "Failed to project an ACP session update",
-                  cause,
-                }),
-            ),
-          );
+                return updated;
+              });
+              yield* flavor.onAvailableCommandsUpdate?.(advertisedCommands) ?? Effect.void;
+            }
+            if (
+              notification.update.sessionUpdate === "config_option_update" ||
+              notification.update.sessionUpdate === "current_mode_update"
+            ) {
+              yield* (
+                flavor.onSessionConfigurationUpdate?.(
+                  yield* runtime.getConfigOptions,
+                  yield* runtime.getModeState,
+                  (yield* Ref.get(activeSessionSetup))?.sessionSetupResult.models,
+                ) ?? Effect.void
+              );
+            }
+            const normalized = flavor.normalizeSessionUpdate?.(notification) ?? notification;
+            if (
+              normalized.update.sessionUpdate === "compaction_update" &&
+              normalized.update.status === "completed"
+            ) {
+              yield* markSessionCompacted(normalized.sessionId, normalized.update.compactionId);
+            }
+            yield* handleSessionUpdate(normalized);
+          },
+          Effect.mapError(
+            (cause) =>
+              new EffectAcpErrors.AcpTransportError({
+                detail: "Failed to project an ACP session update",
+                cause,
+              }),
+          ),
+        );
         const projectAcpRuntimeSessionUpdate = (
           handlerGeneration: number,
           rawNotification: EffectAcpSchema.SessionNotification,
@@ -6796,8 +6572,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             projectAcpRuntimeSessionUpdateEffect(rawNotification),
           ).pipe(Effect.asVoid);
 
-        // Falls back to the latest turn policy when no turn is active so
-        // post-settle background work stays under the policy it started with.
         const clientPolicyContext = Effect.map(Ref.get(activeTurn), (context) => ({
           policy: context?.input.runtimePolicy ?? latestRuntimePolicy,
           turnKey: context === null ? null : String(context.providerTurnId),
@@ -6979,10 +6753,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   const context = followsAgentWorkState
                     ? yield* Ref.get(activeTurn)
                     : yield* activeContext;
-                  // Kiro sends the tool's kind on its `tool_call` and leaves it
-                  // off the permission request for that call; take it from the
-                  // tool already seen under the same id so policy can tell a
-                  // read from a write.
                   const knownKind = context?.tools.get(params.toolCall.toolCallId)?.kind;
                   const disposition = dispositionFor(
                     context?.input.runtimePolicy ?? latestRuntimePolicy,
@@ -7062,9 +6832,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   ).pipe(Effect.asVoid),
                 ),
               );
-              // A card that never offered "this session" (Kiro's, whose
-              // allow_always saves a workspace rule) cannot be answered with
-              // it by a stale client or a hand-made respond call.
               const offeredOptions = flavor.approvalOptions?.(params);
               const decision =
                 answered === "acceptForSession" &&
@@ -7299,7 +7066,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                         incoming.output ??
                         previous?.output ??
                         (tool === undefined ? undefined : toolOutputText(tool));
-                      // Missing exit codes decode as success; they cannot undo a known failure.
                       const completion = {
                         status: previous?.status === "failed" ? "failed" : incoming.status,
                         ...(output === undefined ? {} : { output }),
@@ -7402,9 +7168,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           const previousGeneration = yield* Ref.get(runtimeCallbackGeneration);
           yield* runtimeCallbackPermit.withPermit(awaitAdmittedNativeResponses);
 
-          // Keep the original generation active until the candidate has
-          // completed session startup. A failed candidate therefore cannot
-          // suppress termination or background callbacks from the live session.
           const replacementGeneration = yield* allocateRuntimeCallbackGeneration;
           const replacementScope = yield* Scope.make();
           const replacementAgentRequests = new Set<string>();
@@ -7603,7 +7366,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           },
         );
 
-        // Read before the session exists: its own config updates replace what the client showed.
         const unsetOptionDefaults = yield* flavor.unsetOptionDefaults ?? Effect.succeed([]);
         const initialStart = yield* Effect.result(
           startAcpRuntime(input.threadId, input.initialNativeThreadId),
@@ -7713,10 +7475,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           yield* Ref.set(activeSelection, null);
           yield* validateModelSelection(modelSelection);
           const requestedModel = flavor.resolveModelId?.(modelSelection) ?? modelSelection.model;
-          // Invalid params is the agent refusing the value, and the runtime
-          // raises the same code when the session's model option does not offer
-          // it. Other failures, such as sign-in or a lost connection, keep their
-          // own error.
           const rejectedModel = (error: EffectAcpErrors.AcpError) =>
             error._tag === "AcpRequestError" && error.code === -32602
               ? new AcpModelSelectionError({ model: modelSelection.model, cause: error })
@@ -7731,8 +7489,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               })
               .pipe(Effect.mapError(rejectedModel));
           } else if (requestedModel.length > 0) {
-            // Stored catalog choices can expire; explicitly configured custom IDs
-            // are validated by the agent instead.
             const isCustomModel = flavor.customModels?.includes(requestedModel) === true;
             const modelOption = findModelConfigOption(yield* runtime.getConfigOptions);
             const modelState = startResult.sessionSetupResult.models;
@@ -7805,9 +7561,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           const configSelections = hasNativeConfigWithSyntheticModeId
             ? optionSelections
             : optionSelections.filter((selection) => selection.id !== ACP_SESSION_MODE_OPTION_ID);
-          // Probe-time descriptors are a per-model union, so a stored selection can name an
-          // option the live session lacks (Kilo's "effort"). Failing the open wedges the run in
-          // a retry loop; skip it like the out-of-range values below.
           const unsupportedConfigIds = configSelections
             .map((selection) => selection.id)
             .filter((id) => !availableConfigIds.has(id));
@@ -7823,10 +7576,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           }
           for (const selection of configSelections) {
             if (!availableConfigIds.has(selection.id)) continue;
-            // Tuning knobs degrade instead of failing the session open: agents
-            // advertise the union of values across models but can reject a
-            // per-model invalid one at set time (codex-acp advertises "ultra"
-            // reasoning effort and then rejects it for most models).
             const option = configOptions.find((candidate) => candidate.id === selection.id);
             if (
               option !== undefined &&
@@ -8002,8 +7751,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           ...(status === "running" || status === "pending"
             ? {}
             : {
-                // The prompt tap only captures usage for flavors that declared
-                // per-turn counters, so undeclared agents stay unavailable here.
                 turnTokenUsage: acpPerTurnPromptUsage(
                   context.promptUsage,
                   context.subagents.size > 0,
@@ -8055,11 +7802,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           }
         });
 
-        /**
-         * `cancelAfterPromptStarts`: waits until the agent started the prompt or the
-         * bound passed since `session/prompt` (since Stop, if none was sent). False
-         * when the prompt done first, so there is nothing to cancel.
-         */
         const promptStillRunsAfterHold = Effect.fnUntraced(function* (context: ActiveAcpTurn) {
           const hold = flavor.cancelAfterPromptStarts;
           if (hold === undefined) return true;
@@ -8134,7 +7876,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             });
           }
           yield* closeTextStreams(context);
-          // Ingestion may stop at turn.terminal, before a delayed flush would run.
           yield* textEmissionPermit.withPermit(
             Effect.forEach(context.subagents.values(), flushPendingSubagentAssistant, {
               discard: true,
@@ -8337,10 +8078,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           return false;
         });
 
-        /**
-         * Holds the transition permit from the deadline check through process teardown,
-         * so Stop and the next turn see either a running prompt or a replaced runtime.
-         */
         const retireInactivePrompt = Effect.fn("AcpAdapterV2.retireInactivePrompt")(function* (
           context: ActiveAcpTurn,
           generation: number,
@@ -8518,8 +8255,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               );
             attachmentBlocks.push(...blocks);
           }
-          // Read delivery state after the awaits above, so a compaction that lands
-          // while the prompt is prepared still resends the notes in this prompt.
           const previousInstructionState = (yield* Ref.get(promptInstructionStates)).get(sessionId);
           const compactionMarker = (yield* Ref.get(compactionMarkers)).get(sessionId);
           const text = supatermAcpPromptWithInstructions({
@@ -8537,7 +8272,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               sessionSetup === null ||
               flavor.sessionCarriesPullRequestLinking?.(sessionSetup.initializeResult) !== true,
           });
-          // The agent keeps its own history, so resend only after compaction or when the text changes.
           const sendRuntimeInstructions =
             !isNativeSlashCommand &&
             (compactionMarker !== undefined ||
@@ -8574,7 +8308,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           yield* Ref.set(activeSessionSetup, null);
           yield* Ref.set(activeSelection, null);
           yield* Ref.set(activeInteractionMode, null);
-          // A failed prompt may have been dropped, so the fresh runtime sends Supaterm's notes again.
           yield* Ref.set(promptInstructionStates, new Map());
           yield* Ref.set(promptRuntimeInstructions, new Map());
           yield* Ref.set(compactionMarkers, new Map());
@@ -8595,9 +8328,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               });
             }
             useProviderThreadIdentity(turnInput.providerThread);
-            // Session activation can itself invoke client fs/terminal methods.
-            // Install the incoming thread policy before load/resume so those
-            // requests can never inherit the previously active thread's policy.
             latestRuntimePolicy = turnInput.runtimePolicy;
             const requestedSessionId = yield* nativeThreadId(driver, turnInput.providerThread);
             const restartAfterInterrupt = yield* restartRuntimeAfterTeardownIfRequired(
@@ -8638,7 +8368,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 yield* Ref.set(activeInteractionMode, turnInput.runtimePolicy.interactionMode);
               }
             }
-            // Checked after activation: a loaded session advertises its own commands.
             const compactionSetup = yield* Ref.get(activeSessionSetup);
             if (
               isCompactionMessage(turnInput.message) &&
@@ -8661,8 +8390,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             });
             yield* Ref.set(suppressPostSettleMonitorPrompt, false);
             yield* Ref.set(handledBackgroundTaskIdsInActiveTurn, new Set());
-            // Continuation turns attach to wake traffic the agent already produced
-            // after the prior root turn settled; do not re-prompt the ACP session.
             const isContinuationTurn =
               (postSettleContinuationEnabled || followsAgentWorkState) &&
               acpIsProviderContinuationMessage(turnInput.message);
@@ -8832,12 +8559,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
             const attached = turnAttached;
             turnAttached = yield* Deferred.make<boolean>();
             yield* Deferred.succeed(attached, true);
-            // Every attach ends the deferred-terminal contract, but only the
-            // queued provider continuation owns wake traffic. A user turn may
-            // start before that continuation and must leave its buffer intact.
             yield* projectDeferredCarryoverTerminals(rehydratedCarryoverSubagents);
-            // Keep projected terminals addressable through the wake drain so
-            // emitSubagent's monotonic guard can reject replayed spawn frames.
             if (isContinuationTurn) {
               yield* Ref.set(continuationRequested, false);
               yield* Ref.update(wakeReports, ({ reports, offered }) => ({
@@ -8874,7 +8596,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 ),
                 Effect.map((drained) => drained.length),
               );
-              // A root woken after foreground idle ends on its next idle report.
               if (drainedWakeCount > 0 && rootForegroundWork !== undefined) {
                 yield* runtimeCallbackPermit.withPermit(
                   Effect.suspend(() => {
@@ -8938,9 +8659,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                     Effect.as({ stopReason: "end_turn" } satisfies EffectAcpSchema.PromptResponse),
                   )
             ).pipe(
-              // Settle the wire before the completion callback's permit so a settled-soft
-              // Stop sees the native return. Capture usage only before finalize: a late
-              // response must not flip a settled turn.
               Effect.tap((result) =>
                 Effect.sync(() => {
                   if (flavor.reportsPerTurnPromptUsage === true && !context.finalized) {
@@ -8957,9 +8675,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                 runRuntimeCallbackAtGeneration(
                   promptGeneration,
                   Effect.gen(function* () {
-                    // Record delivery only for this runtime: a replacement can reuse the session id.
-                    // Grok cancels locally, refusals discard the prompt, and errors need a retry.
-                    // Native compaction sends no prompt, and the compacted session needs the notes.
                     if (compactSession !== undefined) {
                       yield* markSessionCompacted(requestedSessionId);
                     } else if (
@@ -8993,7 +8708,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                       });
                     }
                     if (context.finalized || followsAgentWorkState) return;
-                    // ACP v2 reports a failed prompt through its idle stop reason, not an RPC error.
                     const hiddenFailure =
                       checkPromptOutcome === undefined ||
                       context.interrupted ||
@@ -9027,8 +8741,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                     }
                     if (failure !== undefined) {
                       yield* terminalizeOpenForegroundTools(context, "failed");
-                      // Unlike an RPC failure, the agent survives an idle error, so its
-                      // background tools and subagents keep reporting to this run.
                       yield* finalizeTurn(context, "failed", failure, {
                         childTurnsContinue: hasSurvivingBackgroundWork(context),
                       });
@@ -9058,7 +8770,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   Effect.gen(function* () {
                     if (context.finalized) return;
                     const error = Cause.findError(cause);
-                    // Native close rejects prompts cancelled before insertion with -32800.
                     const interrupted =
                       context.interrupted ||
                       (pendingStopCloseTurn === context &&
@@ -9069,8 +8780,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                     if (!interrupted && flavor.restartRuntimeAfterPromptError?.(failure) === true) {
                       yield* Ref.set(runtimeRestartRequired, true);
                     }
-                    // An agent that answered with an error may still finish tools it started,
-                    // never pending ones; any other failure means its process or pipe is gone.
                     const agentAnswered =
                       Result.isSuccess(error) && error.success._tag === "AcpRequestError";
                     if (!interrupted) {
@@ -9163,8 +8872,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                     !restartRequired &&
                     !transportHadOutstandingResponses
                   ) {
-                    // Finalizers can't be interrupted, so an agent that never
-                    // answers would keep its process and this scope open.
                     yield* runtime
                       .closeSession()
                       .pipe(Effect.timeoutOption("10 seconds"), Effect.ignore);
@@ -9378,7 +9085,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
           steerTurn: Effect.fn("AcpAdapterV2.steerTurn")(
             function* (turnInput) {
               const steering = flavor.steering;
-              // A text-only steer leaves attachments to the orchestrator's restart.
               if (
                 steering === undefined ||
                 (turnInput.message.attachments.length > 0 &&
@@ -9400,7 +9106,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   detail: `Provider turn ${turnInput.providerTurnId} is not active and cannot be steered.`,
                 });
               }
-              // An agent that drops an early cancel drops an early steer too.
               const startHold = flavor.cancelAfterPromptStarts;
               if (startHold !== undefined) {
                 yield* Deferred.await(context.promptStarted).pipe(
@@ -9421,9 +9126,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               );
               if (steerId === undefined) return;
               const injected = steerInjection(steerId);
-              // The agent reads a steer at its next step. One that lands after the last
-              // step is dropped, and the turn settles right after; the orchestrator then
-              // sends it as a follow-up. The bound keeps Stop from queueing behind a tool.
               const outcome = yield* Effect.raceFirst(
                 Deferred.await(injected).pipe(Effect.as("injected" as const)),
                 Deferred.await(context.promptWireSettled).pipe(Effect.as("done" as const)),
@@ -9455,8 +9157,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               return yield* Effect.uninterruptibleMask((restore) =>
                 Effect.gen(function* () {
                   yield* restore(runtimeTransitionPermit.take(1));
-                  // Stop's caller times out on this call. The transition runs in its own fiber so
-                  // a stalled hard teardown keeps its state and permit without holding the caller.
                   const transitionFiber = yield* Effect.gen(function* () {
                     const transition = yield* Effect.gen(function* () {
                       const interruptContext = yield* Ref.get(activeTurn);
@@ -9466,9 +9166,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                         (interruptContext === null ||
                           interruptContext.providerTurnId === turnInput.providerTurnId)
                       ) {
-                        // ACP cancel leaves native children alive; close confirms session-wide Stop.
                         pendingStopCloseTurn = interruptContext;
-                        // Interruptible, or neither this timeout nor the caller's could end a hung close.
                         const closed = yield* restore(
                           runtime
                             .closeSession()
@@ -9494,7 +9192,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                         }
                         yield* runtimeCallbackPermit.withPermit(
                           Effect.gen(function* () {
-                            // Callbacks can settle the turn while close is awaiting confirmation.
                             const context = yield* Ref.get(activeTurn);
                             const carryover = yield* Ref.get(carryoverSubagents);
                             yield* Ref.set(stoppedRunQuarantine, true);
@@ -9517,10 +9214,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                         flavor.preserveRuntimeOnSettledInterrupt === true &&
                         turnInput.requestRuntimeRestart !== true &&
                         interruptContext?.providerTurnId === turnInput.providerTurnId;
-                      // Read under the callback permit after draining admitted responses: the
-                      // prompt can have returned on the wire before its callback ran, and a
-                      // cancel in that window is what settled-soft mode avoids. A done wire
-                      // signal also counts; never await it under the permit.
                       let settledSoftInterrupt = false;
                       if (softSteerCandidate && interruptContext !== null) {
                         const promptSettledUnderPermit = yield* runtimeCallbackPermit.withPermit(
@@ -9560,9 +9253,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                       }
                       const context = interruptContext;
                       if (context?.providerTurnId !== turnInput.providerTurnId) {
-                        // A queued user Stop must still contain an orphan runtime. With another
-                        // turn live this stays a no-op: quarantine and teardown are
-                        // session-global and would maim the replacement turn.
                         const containOrphanRuntime =
                           context === null &&
                           hardRestart &&
@@ -9688,11 +9378,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                       if (hardRestart || turnInput.requestRuntimeRestart === true) {
                         yield* quarantineStoppedRun();
                       }
-                      // A settled soft interrupt keeps background subagents, and with them their MCP calls.
                       yield* cancelPendingRuntimeRequests({ stopMcpCalls: !settledSoftInterrupt });
-                      // Finalize before process-group kill so projection/UI cannot
-                      // lag a dead transport, and concurrent interrupt effects see
-                      // activeTurn cleared (idempotent success) rather than racing.
                       if (
                         (hardRestart || context.promptSettled || settledSoftInterrupt) &&
                         !context.finalized
@@ -9718,10 +9404,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                         yield* Ref.set(runtimeTeardownState, { _tag: "Idle" });
                         yield* Deferred.succeed(teardownBarrier!, undefined).pipe(Effect.ignore);
                       } else {
-                        // Settled soft interrupt: the native prompt already
-                        // returned, so session/cancel has nothing to
-                        // acknowledge and would only threaten still-running
-                        // background subagents.
                         if (!settledSoftInterrupt && (yield* promptStillRunsAfterHold(context))) {
                           yield* runtime.cancel;
                         }
@@ -9732,8 +9414,6 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                       const stopped = yield* Deferred.await(context.completed).pipe(
                         Effect.timeoutOption(ACP_STOP_CONFIRM_TIMEOUT_MS),
                       );
-                      // The turn stays open: the agent may still be working, and the user
-                      // decides whether to Force stop it.
                       if (Option.isNone(stopped)) {
                         return yield* new ProviderAdapter.ProviderAdapterInterruptTimeoutError({
                           driver,

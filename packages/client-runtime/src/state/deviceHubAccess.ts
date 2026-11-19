@@ -1,9 +1,3 @@
-/**
- * `<img>`, `EventSource`, and `WebSocket` cannot set bearer headers, so bearer
- * connections pass a media `wsTicket` to `/api/device-hub/*`. A ticket lasts five
- * minutes and covers everything a panel opens but not the RPC socket; fetch a
- * fresh one on each (re)connect. Cookie sessions send the cookie.
- */
 import type { AuthWebSocketTicketUse } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";

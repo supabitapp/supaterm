@@ -198,7 +198,6 @@ export function workspaceHasShellSnapshot(phase: WorkspacePhase): boolean {
   }
 }
 
-// The atom starts at EMPTY_SHELL_STATE itself; any state after the cache read is a new object.
 export function isEnvironmentShellPending(state: EnvironmentShellState): boolean {
   return state === EMPTY_SHELL_STATE || state.status === "synchronizing";
 }

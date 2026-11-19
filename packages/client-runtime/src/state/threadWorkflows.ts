@@ -51,12 +51,10 @@ export function resolveThreadForkSource(projection: {
   readonly thread: Pick<Projection["thread"], "id" | "forkedFrom" | "lineage">;
   readonly runs: ReadonlyArray<Pick<Run, "id" | "ordinal" | "status">>;
 }) {
-  // A fork of a side chat would keep its parent's history only on providers that fork natively.
   if (projection.thread.lineage.sideChat === true) return null;
   const run = latestForkableRun(projection.runs);
   if (run !== null) return { sourceThreadId: projection.thread.id, runId: run.id };
 
-  // A fresh fork can still fork its inherited history before finishing a local turn.
   const inheritedSource = projection.thread.forkedFrom;
   return inheritedSource?.type === "run"
     ? { sourceThreadId: inheritedSource.threadId, runId: inheritedSource.runId }
@@ -92,7 +90,6 @@ export function sideChatBringBackBlockedReason(input: {
   readonly mergeRun: Run | null;
 }) {
   if (!input.canOperate) return "This connection cannot change threads.";
-  // A pending merge-back would fail the main thread's queued message, so the server refuses it.
   if (threadRuntimeIsUnsettled(input.parentRuntime))
     return "Available when the main thread is idle.";
   return input.mergeRun === null ? "Available after a finished reply." : null;
@@ -139,9 +136,6 @@ export function threadSupportsProviderHandoff(projection: Projection | null | un
   if (resolveActiveThreadRun(projection) !== null) return false;
   if (projection.thread.historyOrigin === "v1_import" || projection.runs.length === 0) return true;
 
-  // Detaching a stopped session removes it from the projection. The server still
-  // hands off from saved app history, which needs the source provider thread but
-  // not its native ref.
   return projection.providerThreads.some(
     (thread) =>
       thread.id === projection.thread.activeProviderThreadId &&
@@ -235,9 +229,6 @@ export function canForkProjectedAssistantItem(input: {
     return false;
   }
   if (input.capabilities === undefined) {
-    // Historical and inherited rows may outlive their provider-session record.
-    // Keep the portable server-side fallback available when capability evidence
-    // is absent; a known incapable provider is rejected below.
     return true;
   }
   const capabilities = input.capabilities;

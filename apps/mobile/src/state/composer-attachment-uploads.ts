@@ -105,8 +105,6 @@ export function composerAttachmentUploadRequests(input: {
         draft.attachments,
       ),
     ),
-    // Sending mid-upload hands the attachment to the outbox; requesting it here keeps that
-    // upload running instead of aborting it for the outbox to start over.
     ...queued.flatMap((message) =>
       input.editingQueuedMessageIds[message.messageId]
         ? []
@@ -142,8 +140,6 @@ const recordQueuedAttachmentUpload = Effect.fn("ComposerAttachments.recordQueued
   );
 });
 
-// Each connected environment's session is read here so a granted or revoked
-// operate scope re-syncs the queue.
 const composerAttachmentUploadRequestsAtom = Atom.make((get) => {
   const environments = get(workspaceConnections.environmentsAtom);
   const connected = environments.filter(
@@ -171,7 +167,6 @@ const composerAttachmentUploadRequestsAtom = Atom.make((get) => {
   });
 }).pipe(Atom.withLabel("mobile:composer-attachment-upload-requests"));
 
-/** Saves a finished upload's id on every draft and queued message holding the attachment. */
 const recordComposerAttachmentUpload = Effect.fn("ComposerAttachments.recordUpload")(function* (
   request: ComposerAttachmentUploadRequest,
   uploadedId: string,
@@ -199,7 +194,6 @@ const recordComposerAttachmentUpload = Effect.fn("ComposerAttachments.recordUplo
   }
   yield* recordQueuedAttachmentUpload(environmentId, uploaded);
   if (!draftsChanged) return;
-  // A failed draft save only costs a re-upload after restart; the outbox saves its own references.
   yield* Effect.tryPromise({ try: () => flushComposerDrafts(), catch: attachmentUploadError }).pipe(
     Effect.catchIf(
       (error) => error.cause instanceof ComposerDraftPersistenceError,
@@ -218,7 +212,6 @@ const createComposerUploadRegistry = () =>
     environmentId: (request) => request.environmentId,
     concurrencyPerEnvironment: 3,
     onChange: (states) => appAtomRegistry.set(composerAttachmentUploadsAtom, states),
-    // The file stays on disk while its upload reads it, even if its draft lets go meanwhile.
     upload: ({ environmentId, attachment }, reportProgress) =>
       Effect.acquireUseRelease(
         Effect.sync(() =>
@@ -243,7 +236,6 @@ export const uploadComposerAttachmentShared = Effect.fn("ComposerAttachments.upl
     const uploads = composerAttachmentUploads();
     const request = { environmentId, attachment };
     const key = composerAttachmentUploadKey(environmentId, attachment.id);
-    // An upload that finished earlier can outlive the server's pending-upload sweep.
     const finishedEarlier = uploads.status(key)?.status === "ready";
     const uploadedId = yield* uploads.upload(request);
     if (!finishedEarlier) return uploadedId;
@@ -255,7 +247,6 @@ export const uploadComposerAttachmentShared = Effect.fn("ComposerAttachments.upl
     });
     if (verification.status === "verified") return uploadedId;
     if (verification.status === "failed") return yield* attachmentUploadError(verification.error);
-    // Starting over verifies the saved id again and uploads the bytes when it is gone.
     uploads.restart(key);
     return yield* uploads.upload(request);
   },

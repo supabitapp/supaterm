@@ -51,16 +51,13 @@ export const useAttachmentUploadStore = create<AttachmentUploadStore>(() => ({
 interface UploadJob {
   readonly image: ComposerImageAttachment | ComposerFileAttachment;
   readonly environmentId: EnvironmentId;
-  /** Original owner; completion resolves the current owner because uploads can outlive draft moves. */
   readonly draftTarget?: ComposerThreadTarget;
   readonly previous?: ReadyAttachmentUpload;
-  /** Draft-owned; delete only through releasePersistedAttachmentUpload, never queue cancel/retry. */
   readonly persistedAttachmentId?: string;
 }
 
 type DraftFileOwner = Pick<UploadJob, "image" | "environmentId" | "draftTarget">;
 
-/** The upload each image holds; a failed one stays held for its retry. */
 interface HeldUpload {
   readonly job: UploadJob;
   readonly release: () => void;
@@ -118,7 +115,6 @@ function resolveCurrentFileDraftTarget(job: DraftFileOwner): ComposerThreadTarge
   return undefined;
 }
 
-/** Persist background completions even when no composer is mounted. */
 function stampDraftFileUpload(job: DraftFileOwner, attachmentId: string): void {
   const draftTarget = resolveCurrentFileDraftTarget(job);
   if (draftTarget === undefined) {
@@ -174,7 +170,6 @@ function uploadBytes(input: {
 const canOperate = (environmentId: EnvironmentId) =>
   readEnvironmentScope(environmentId, AuthOrchestrationOperateScope);
 
-/** Records the failure the composer shows, then fails the upload with it. */
 const failUpload = (job: UploadJob, reason: string, attachmentId?: string) =>
   Effect.sync(() =>
     setUploadState(job.image.id, {
@@ -186,7 +181,6 @@ const failUpload = (job: UploadJob, reason: string, attachmentId?: string) =>
     }),
   ).pipe(Effect.andThen(Effect.fail(attachmentUploadError(new Error(reason)))));
 
-/** Uploads one composer attachment, writing the state its composer shows as it goes. */
 const uploadJob = Effect.fn("WebAttachmentUploads.upload")(function* (job: UploadJob) {
   if (!canOperate(job.environmentId)) {
     return yield* failUpload(job, "This connection cannot upload attachments.");
@@ -220,13 +214,11 @@ const uploadJob = Effect.fn("WebAttachmentUploads.upload")(function* (job: Uploa
             job.persistedAttachmentId,
           )
       ) {
-        // The draft now shows the file as missing, so the composer has no upload to show.
         clearUploadState(job.image.id);
         return yield* attachmentUploadError(new Error("Uploaded file expired."));
       }
     }
     if (verification.status === "failed" || !job.image.file) {
-      // Failed-state ids get deleted on retry/release; exclude persisted ids after transient verification failure.
       return yield* failUpload(
         job,
         verification.status === "missing"
@@ -330,7 +322,6 @@ const uploads = createAttachmentUploadRegistry<UploadJob>({
     ),
 });
 
-/** Waits for an image's held upload to finish, without keeping it running. */
 function awaitHeldUpload(imageId: string): Effect.Effect<void> {
   const held = heldUploads.get(imageId);
   const fiber = held === undefined ? undefined : uploads.current(jobKey(held.job));
@@ -355,8 +346,6 @@ export function startAttachmentUpload(input: {
     existing?.status === "ready" &&
     existing.environmentId === input.environmentId
   ) {
-    // A file restored into a draft after its upload finished (stash, failed send) missed the
-    // completion stamp; stamping here keeps it from re-uploading after a reload.
     stampDraftFileUpload(input, existing.attachmentId);
     return;
   }
@@ -373,7 +362,6 @@ export function startAttachmentUpload(input: {
       deletePendingUpload(existing.environmentId, existing.attachmentId);
     }
     setUploadState(input.image.id, existing.previous);
-    // Retargeting a scratch draft cleared the file's upload stamp; restore it for reloads.
     stampDraftFileUpload(input, existing.previous.attachmentId);
     return;
   }
@@ -414,7 +402,6 @@ export function startAttachmentUpload(input: {
     const reconnected = connected && !wasConnected;
     wasConnected = connected;
     if (!reconnected) return;
-    // HTTP failures can follow reconnection; await the attempt and retry only if this job still owns the file.
     Effect.runFork(
       awaitHeldUpload(input.image.id).pipe(
         Effect.andThen(
@@ -436,7 +423,6 @@ export function startAttachmentUpload(input: {
     release: uploads.hold(job),
     stopWatchingConnection,
   });
-  // A finished upload lets go of its image; a failed one stays held for its retry.
   uploads.current(jobKey(job))?.addObserver((exit) => {
     if (exit._tag !== "Success" || !ownsImage()) return;
     const held = heldUploads.get(input.image.id)!;
@@ -453,7 +439,6 @@ function cancelAttachmentUpload(imageId: string): void {
   }
   heldUploads.delete(imageId);
   held.stopWatchingConnection();
-  // Releasing interrupts a running upload, which aborts its transfer and deletes its mint.
   held.release();
 }
 
@@ -506,7 +491,6 @@ export function retryAttachmentUpload(input: {
   const previous = readAttachmentUpload(input.image.id);
   const held = heldUploads.get(input.image.id);
   cancelAttachmentUpload(input.image.id);
-  // The failed upload stays cached until dropped, and the retry must start a fresh one.
   if (held) uploads.invalidate(jobKey(held.job));
   if (previous?.status === "failed" && previous.attachmentId) {
     deletePendingUpload(previous.environmentId, previous.attachmentId);
@@ -574,7 +558,6 @@ export async function refreshExpiredAttachmentUploads(input: {
         environmentId: input.environmentId,
         attachmentId: upload.attachmentId,
       }).catch((error: unknown): PersistedAttachmentVerification => ({ status: "failed", error }));
-      // The user may have removed or replaced the attachment while verification was in flight.
       if (readAttachmentUpload(image.id) !== upload) return;
       if (verification.status === "verified") return;
       if (verification.status === "missing" && image.file) {

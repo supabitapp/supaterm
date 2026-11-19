@@ -292,7 +292,6 @@ it("on a touch tablet, picking a model leaves the editor unfocused", async () =>
   await expect.element(option).toBeVisible();
   await userEvent.click(option);
   await expect.element(option).not.toBeInTheDocument();
-  // Focusing the editor after a tap opens the on-screen keyboard on Android tablets.
   expect(handle.focusAtEnd).not.toHaveBeenCalled();
 });
 

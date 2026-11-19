@@ -98,7 +98,6 @@ export const make = Effect.fn("ProviderCommitBatch.make")(function* (
     for (const job of pending) yield* job.cancel;
   });
   yield* Effect.addFinalizer(() => shutdown);
-  // These helpers run once per raw event; the shared transaction owns the tracing span.
   const enqueue = Effect.fnUntraced(function* <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     token: { active: boolean },
@@ -255,7 +254,6 @@ export const make = Effect.fn("ProviderCommitBatch.make")(function* (
           yield* resume;
           const processed = yield* Deferred.make<void>();
           const event = signal._tag === "Event" ? signal.event : undefined;
-          // EOF only acknowledges prior work; it can share a commit with other consumers.
           const snapshot =
             signal._tag === "End" ||
             (event !== undefined && isSnapshot(event) && (yield* canBatch));

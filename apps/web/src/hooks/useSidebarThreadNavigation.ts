@@ -25,7 +25,6 @@ export function useSidebarThreadNavigation() {
       params: buildThreadRouteParams(threadRef),
     });
   });
-  // The navigation tracks the pending request, so one instance lives as long as the sidebar.
   const [navigation] = useState(() =>
     createThreadNavigation({
       getLocation: () => router.state.location,

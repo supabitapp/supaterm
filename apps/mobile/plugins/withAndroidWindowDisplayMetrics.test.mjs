@@ -35,8 +35,6 @@ async function prebuildMainActivity(contents) {
   const { exp } = getConfig(NodePath.resolve(import.meta.dirname, ".."), {
     isModdedConfig: true,
   });
-  // Keep the app's registration order: Expo executes same-type mods in reverse.
-  // Unrelated native-file mods need the rest of a complete prebuild project.
   const mainActivity = exp.mods?.android?.mainActivity;
   await compileModsAsync(
     { ...exp, mods: { android: mainActivity ? { mainActivity } : {} } },

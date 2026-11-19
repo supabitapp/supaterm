@@ -51,13 +51,11 @@ const fixture = vi.hoisted(() => ({
   >(),
 }));
 
-// Every other surface method is a no-op; `then` stays undefined so awaiting the surface resolves to it.
 const fakeSurface: object = new Proxy(
   {
     input: document.createElement("textarea"),
     subscribeOutput: () => () => undefined,
     write: (data: string) => fixture.messages.push(data),
-    // The real surface re-reports its measured grid.
     resendSize: () => {
       const size = fixture.reportedSize;
       if (size) fixture.surfaceOptions.at(-1)!.onResize(size.cols, size.rows);
@@ -83,7 +81,6 @@ vi.mock("~/terminal/ghostty/surface", () => ({
 }));
 vi.mock("../state/terminalSessions", async () => {
   const Atom = await import("effect/reactivity/Atom");
-  // A strong map, not Atom.family: a family holds weakly, so a GC could hand setSession a new atom.
   const summary = (threadId: ThreadId, pid: number) => ({
     threadId,
     terminalId: "term-1",
@@ -170,7 +167,6 @@ vi.mock("../state/use-atom-command", () => ({
       return { _tag: "Success" };
     },
 }));
-// The commands are replaced above; importing their runtime would connect a client.
 vi.mock("../state/server", async () => {
   const Atom = await import("effect/reactivity/Atom");
   const config = Atom.make(null);
@@ -308,7 +304,6 @@ it("closes an exited terminal on its own thread after navigating to one reusing 
     <Drawer threadRef={original} onCloseTerminal={onCloseTerminal} />,
   );
   using _timers = fakeTimers();
-  // The exit is seen once the surface loads, and its close waits for the next task.
   await act(async () => {
     fixture.pendingSurfaces.shift()?.();
   });
@@ -344,7 +339,6 @@ it("marks the pointer idle after it rests on the terminal, and active again when
   expect(drawer.dataset.pointer).toBeUndefined();
 });
 
-// Thread navigation defaults have no `!terminalFocus`, so they apply in a focused terminal.
 it("hands thread navigation shortcuts from a focused terminal back to the app", async () => {
   const { other: threadRef } = setup();
   using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
@@ -373,7 +367,6 @@ it("hands thread navigation shortcuts from a focused terminal back to the app", 
     false,
   ]);
   expect(terminalHandles("C", "KeyC")).toBe(true);
-  // Sidebar sees the open preview and the closed drawer and rejects these, so the shell keeps them.
   expect([terminalHandles("r", "KeyR", false), terminalHandles("g", "KeyG", false)]).toEqual([
     true,
     true,
@@ -569,7 +562,6 @@ it("resends a failed resize once in each writable session", async () => {
     fixture.reportedSize = { cols: 57, rows: 41 };
     fixture.surfaceOptions.at(-1)!.onResize(57, 41);
   });
-  // The first request fails while the attachment reconnects, so its retry is not sent.
   await act(async () => {
     fixture.setSession(threadRef, "running", 0, 1);
     failFirstResize();

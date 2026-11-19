@@ -164,8 +164,6 @@ export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(func
     { quietLogs },
   );
   const minimumLogLevel = quietLogs ? "Error" : config.logLevel;
-  // Checked before the auth layer opens the database, so a home with no server
-  // is left untouched.
   const runtimeState = yield* readLiveServerRuntimeState(config.serverRuntimeStatePath);
   if (Option.isNone(runtimeState)) {
     return yield* new CliServerNotRunningError({
@@ -180,8 +178,6 @@ export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(func
     const issued = yield* Effect.acquireRelease(
       environmentAuth.issueMcpClientSession({
         label: client.label,
-        // The CLI runs as the machine's owner. A server from this build starts
-        // new threads at the project's default mode, never at this ceiling.
         access: "full-access",
         client: { deviceType: "bot" },
       }),
@@ -230,7 +226,6 @@ const listAllProjects = Effect.fn("cli.serverTools.listAllProjects")(function* (
   return projects;
 });
 
-/** The checkouts of the git repository at `directory`, or none outside a repository. */
 const listGitCheckouts = Effect.fn("cli.serverTools.listGitCheckouts")(function* (
   directory: string,
 ) {
@@ -244,7 +239,6 @@ const listGitCheckouts = Effect.fn("cli.serverTools.listGitCheckouts")(function*
           Option.isSome(result) && result.value.code === 0 ? result.value.stdout : undefined,
         ),
       );
-  // Pre-2.36 Git rejects worktree list -z; normalize its line output to NUL records.
   const stdout = (yield* list(["-z"])) ?? (yield* list([]))?.replaceAll("\n", "\0") ?? "";
   return stdout.split("\0\0").flatMap((record) => {
     const [first = "", ...attributes] = record.split("\0");
@@ -269,8 +263,6 @@ export const resolveProject = Effect.fn("cli.serverTools.resolveProject")(functi
 
   const path = yield* Path.Path;
   const fileSystem = yield* FileSystem.FileSystem;
-  // Stored roots keep the path the project was added with, which may pass
-  // through a symlink (macOS /tmp), so both sides compare as real paths.
   const realPath = (value: string) =>
     fileSystem.realPath(value).pipe(Effect.orElseSucceed(() => value));
   const target = yield* realPath(

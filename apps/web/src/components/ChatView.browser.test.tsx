@@ -11,8 +11,6 @@ import { expect, it, vi } from "vite-plus/test";
 import { cdp, page, userEvent } from "vite-plus/test/browser";
 
 import { AppRoot } from "~/AppRoot";
-// The route loads ChatView lazily, and its first transform (React Compiler over ~4k lines)
-// takes 6-11s; importing it here keeps that out of the test's timeout.
 import "~/components/ChatView";
 import { DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { selectThreadDiffPanelSelection, useDiffPanelStore } from "~/diffPanelStore";
@@ -33,7 +31,6 @@ import {
 } from "../../test/fakeEnvironment";
 import { act, fakeTimers, render } from "../../test/render";
 
-// The socket is the only fake layer; see test/appScenarios.renders.tsx.
 vi.mock("../../../../packages/client-runtime/src/connection/driver.ts", async (importOriginal) => {
   const [actual, { fakeDriver }, Layer] = await Promise.all([
     importOriginal<{ readonly ConnectionDriver: Context.Key<unknown, FakeDriver> }>(),
@@ -64,17 +61,14 @@ it("a new draft does not load its reserved thread before the server lists it", a
   const router = getRouter(createMemoryHistory({ initialEntries: [`/draft/${draftId}`] }));
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
   await expect.element(page.getByTestId("composer-editor")).toBeVisible();
-  // The shell snapshot has arrived once the sidebar lists the project, so the connection is up.
   await expect.element(page.getByText("render", { exact: true }).first()).toBeVisible();
 
   const threadRequests = fetchSpy.mock.calls
     .map(([input]) => String(input instanceof Request ? input.url : input))
     .filter((url) => url.includes(`/api/orchestration/threads/${threadId}/`));
-  // A 404 here marks the thread deleted, and the view never loads it once the send creates it.
   expect(threadRequests).toEqual([]);
 });
 
@@ -91,13 +85,11 @@ it("opens the thread actions menu for an older Done thread the shell leaves out"
   );
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
   await expect.element(page.getByText("older-done: question 0")).toBeVisible();
 
   await page.getByRole("button", { name: `Thread actions for ${thread.title}` }).click();
-  // Without a bound the poll runs to the test deadline and reports a bare timeout.
   await expect
     .element(page.getByRole("menuitem", { name: "Rename thread" }), { timeout: 5_000 })
     .toBeVisible();
@@ -119,7 +111,6 @@ it("retains each thread's diff selection when returning from another thread or S
   const router = getRouter(createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${a.id}`] }));
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
   await expect.element(page.getByText(`Answer 0 for ${a.id}.`)).toBeVisible();
@@ -187,7 +178,6 @@ it("a shortcut conditioned on rightPanelOpen sees the thread's open right panel"
   );
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
   const composer = page.getByTestId("composer-editor");
@@ -216,12 +206,10 @@ it("a stashed prompt ending in a file chip restores with the chip", async () => 
   const router = getRouter(createMemoryHistory({ initialEntries: [`/draft/${draftId}`] }));
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
   const chip = page.getByRole("button", { name: "Preview package.json" });
   await expect.element(chip).toBeVisible();
-  // The stash shortcut is a no-op until the shell snapshot lists the project.
   await expect.element(page.getByText("render", { exact: true }).first()).toBeVisible();
 
   const editor = page.getByTestId("composer-editor");
@@ -249,7 +237,6 @@ it("Enter on an empty prompt resumes an interrupted thread", async () => {
   );
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
   await expect.element(page.getByRole("button", { name: "Resume thread" })).toBeVisible();
@@ -272,7 +259,6 @@ it("opening a thread or returning to the window on a touch tablet does not focus
   const first = threadWithHistory("thread-29469-a", 1);
   const second = threadWithHistory("thread-29469-b", 1);
   using _environment = installFakeEnvironment([first, second]);
-  // iPad Pro 11 in landscape: the desktop layout, above max-sm.
   await page.viewport(1194, 834);
   __setClientSettingsForTests({
     ...DEFAULT_CLIENT_SETTINGS,
@@ -283,13 +269,11 @@ it("opening a thread or returning to the window on a touch tablet does not focus
   );
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
   const composer = page.getByTestId("composer-editor");
   await expect.element(page.getByText(`Answer 0 for ${first.id}.`)).toBeVisible();
 
-  // Fake frames hold the next thread entry's focus frame until the test advances it.
   using _timers = fakeTimers();
   await act(() =>
     router.navigate({
@@ -299,10 +283,8 @@ it("opening a thread or returning to the window on a touch tablet does not focus
   );
   await expect.element(page.getByText(`Answer 0 for ${second.id}.`)).toBeVisible();
   vi.advanceTimersToNextFrame();
-  // Focusing the editor raises the on-screen keyboard, which shrinks the page on iPadOS.
   expect(document.activeElement).not.toBe(composer.element());
 
-  // ChatView waits two frames after window focus before refocusing the composer.
   window.dispatchEvent(new FocusEvent("focus"));
   vi.advanceTimersToNextFrame();
   vi.advanceTimersToNextFrame();
@@ -310,7 +292,6 @@ it("opening a thread or returning to the window on a touch tablet does not focus
 });
 
 it("a mounted thread view lets go of the thread structures it has replaced", async () => {
-  // Items are shared with the fixture, so a reopen's snapshot also carries the earlier updates.
   const history = threadWithHistory("updated", 3);
   const items = [...history.items];
   const updated = { ...history, items };
@@ -336,7 +317,6 @@ it("a mounted thread view lets go of the thread structures it has replaced", asy
     scopeThreadRef(ENVIRONMENT_ID, updated.id),
   );
 
-  // Each round, a new answer arrives while the thread is shown, then the user switches away.
   const shown: Array<WeakRef<object>> = [];
   await open(other.id, "Answer 2 for other.");
   for (let round = 0; round < 6; round++) {
@@ -356,7 +336,6 @@ it("a mounted thread view lets go of the thread structures it has replaced", asy
   }
   await cdp().send("HeapProfiler.collectGarbage");
 
-  // The thread keeps its latest structure, and the timeline may remember the one before it.
   const kept = shown.slice(0, -2).flatMap((structure, round) => (structure.deref() ? [round] : []));
   expect(kept).toEqual([]);
 });

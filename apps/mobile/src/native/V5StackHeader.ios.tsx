@@ -23,7 +23,6 @@ import {
   type HeaderBarButtonSearchBarPlacementItem,
 } from "react-native-screens";
 
-// UIKit's bar margins, and the width of a glass bar button.
 const BAR_MARGINS = 32;
 const BAR_BUTTON_WIDTH = 44;
 
@@ -179,7 +178,6 @@ export function V5StackHeader(props: {
     (item): item is HeaderBarButtonMailSearchToolbarItem => item.type === "mailSearchToolbar",
   );
   const bottomSearch = Boolean(mailSearch) && deviceType !== "pad";
-  // A vertical bar keeps fixed spaces at full length and separates items itself.
   const spacesSearch = bottomSearch && (nativeMetrics?.verticalBarEdge ?? "none") === "none";
   const bottom = toolbar.flatMap<HeaderItem>((item, index) => {
     if (item.type === "mailSearchToolbar") return [];
@@ -226,9 +224,6 @@ export function V5StackHeader(props: {
         onPress: mailSearch.onComposePress,
       });
   }
-  // UIKit doesn't stack a column's toolbar against the workspace tab bar, which owns the
-  // bottom of the vertical bar and draws over it. Those columns keep the group in their
-  // navigation items. Integrated search stays in the column's horizontal bottom toolbar.
   if (
     props.column &&
     nativeMetrics &&
@@ -254,9 +249,6 @@ export function V5StackHeader(props: {
       trailing.push({ type: "spacer", id: "compose-group", sizing: "fixed", width: 8 });
     trailing.push(compose);
   }
-  // The vertical bar has no keyboard accessory row, so it carries its own dismiss. A regular-width
-  // primary column draws a horizontal bar beside the detail column's vertical one. The first
-  // trailing item sits at the bar's far end; the flexible space keeps it next to the keyboard.
   if (
     keyboardVisible &&
     nativeMetrics &&
@@ -270,7 +262,6 @@ export function V5StackHeader(props: {
         title: "Dismiss keyboard",
         icon: { type: "sfSymbol", name: "keyboard.chevron.compact.down" },
         onPress: () => void KeyboardController.dismiss(),
-        // The folded bar is short; keep this out of the overflow menu.
         visibilityPriority: "high",
       },
       { type: "spacer", id: "dismiss-keyboard-space", sizing: "flexible" },
@@ -289,8 +280,6 @@ export function V5StackHeader(props: {
       : undefined;
   const searchOptions = options.headerSearchBarOptions;
   const autofocusRef = searchOptions?.ref ?? searchRef;
-  // iOS ignores the native autoFocus prop, and SearchBar's imperative handle changes every
-  // commit, so a ref callback would refocus on each render; focus once after the header mounts.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- schedules a frame to focus the native SearchBar once after the header mounts, since iOS ignores autoFocus
   useEffect(() => {
     if (!searchOptions?.autoFocus) return;
@@ -309,8 +298,7 @@ export function V5StackHeader(props: {
           ? item.sizing === "fixed"
             ? item.width
             : 0
-          : // The keyboard dismiss rides the vertical bar, not beside the title.
-            item.id === "dismiss-keyboard"
+          : item.id === "dismiss-keyboard"
             ? 0
             : BAR_BUTTON_WIDTH),
       0,
@@ -318,7 +306,6 @@ export function V5StackHeader(props: {
   const titleStyle = StyleSheet.flatten(options.headerTitleStyle);
   const headerStyle = StyleSheet.flatten(options.headerStyle);
   const appearance = {
-    // Clear colors remove UIKit material; let translucent bars supply their own blur background.
     backgroundColor: options.headerTransparent
       ? undefined
       : (headerStyle?.backgroundColor ?? theme.colors.card),
@@ -340,8 +327,6 @@ export function V5StackHeader(props: {
         backButtonHidden={options.headerBackVisible === false}
         ios={{
           navigationItemStyle: options.unstable_navigationItemStyle,
-          // Opt-ins apply only where the Duo is short: folded, or held landscape. The Duo
-          // resolves `automatic` to minimize on scroll, so the tall unfolded display opts out.
           minimizationBehavior: !isDuoDevice(deviceType)
             ? undefined
             : deviceType === "duo-unfolded" &&

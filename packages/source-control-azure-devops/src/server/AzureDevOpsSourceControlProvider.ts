@@ -49,17 +49,12 @@ export const discovery = {
   executable: "az",
   versionArgs: ["--version"],
   authArgs: ["account", "show", "--query", "user.name", "-o", "tsv"],
-  // `az --version` starts Python and takes ~6s on Windows, exceeding the default probe timeout.
   probeTimeoutMs: 20_000,
   parseAuth: parseAzureAuth,
   installHint:
     "Install the Azure command-line tools (`az`), then enable Azure DevOps support with `az extension add --name azure-devops`.",
 } satisfies SourceControlCliDiscoverySpec;
 
-/**
- * The repository name a remote ends in; `az` takes it decoded and finds org and project itself.
- * Azure clone URLs carry no `.git` suffix, so a trailing `.git` is part of the name.
- */
 function repositoryNameFromRemote(remoteUrl: string): string | null {
   const path = URL.parse(remoteUrl.trim())?.pathname ?? remoteUrl.trim();
   const encoded = path.replace(/\/+$/u, "").split(/[/:]/u).at(-1);
@@ -68,11 +63,9 @@ function repositoryNameFromRemote(remoteUrl: string): string | null {
   try {
     name = decodeURIComponent(encoded);
   } catch {}
-  // `az` replaces any argument value starting with `@` by the contents of that local file.
   return name.startsWith("@") ? null : name;
 }
 
-/** The remote Supaterm selected, which scopes `az` instead of the checkout's primary remote. */
 const remoteOf = (input: { readonly context?: { readonly remoteUrl: string } | undefined }) =>
   input.context === undefined ? {} : { remoteUrl: input.context.remoteUrl };
 
@@ -100,7 +93,6 @@ export const make = Effect.gen(function* () {
 
   return SourceControlProvider.SourceControlProvider.of({
     kind: SourceControlProviderKind.make("azure-devops"),
-    // Azure lists fork pull requests by source branch with no owner filter, so read a full page.
     headBranchProbe: ({ headSelectors }) => ({
       headSelectors: headSelectors.filter((selector) => !selector.includes(":")),
       limit: 100,
@@ -109,7 +101,6 @@ export const make = Effect.gen(function* () {
       "AzureDevOpsSourceControlProvider.readChangeRequestTemplate",
     )(
       function* ({ cwd }) {
-        // Azure uses the repository default branch even when the PR targets another branch.
         const remoteName = yield* git.resolvePrimaryRemoteName(cwd);
         const defaultRef = yield* git.execute({
           operation: "AzureDevOpsSourceControlProvider.resolveDefaultBranch",
@@ -276,8 +267,6 @@ export const make = Effect.gen(function* () {
         );
       },
     ),
-    // `az repos pr checkout` ignores git failures: in a single-branch clone its checkout fails
-    // and its pull then merges the pull request into the current branch.
     checkoutChangeRequest: Effect.fn("AzureDevOpsSourceControlProvider.checkoutChangeRequest")(
       function* (input) {
         const pullRequest = yield* azure.getPullRequest({
@@ -299,7 +288,6 @@ export const make = Effect.gen(function* () {
           remoteName: input.context?.remoteName ?? "origin",
           remoteBranch: branch,
         };
-        // An existing branch is only switched to; the caller advances it without losing commits.
         if ((yield* git.listLocalBranchNames(input.cwd)).includes(branch))
           yield* git.fetchRemoteTrackingBranch(remoteBranch);
         else yield* git.fetchRemoteBranch({ ...remoteBranch, localBranch: branch });

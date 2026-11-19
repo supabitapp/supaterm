@@ -76,11 +76,6 @@ const cliScope: McpInvocationContext.McpInvocationScope = {
   issuedAt: 0,
 };
 
-/**
- * The running server as the CLI meets it: real HTTP, the real MCP transport,
- * attachment and transcription tools, the signed upload route, and the real
- * Transcription service. Only the provider's vendor call is faked.
- */
 const withServer = <A, E, R>(
   transcribe: ProviderTranscription["transcribe"],
   run: (input: {
@@ -208,8 +203,6 @@ it.effect("a refused recording reports why and leaves no upload", () =>
   ),
 );
 
-// The server's run outlives the request, so stopping the command must stop it
-// too or the account keeps paying for a transcript nobody reads.
 it.effect("stopping the command stops the vendor call and deletes the upload", () =>
   Effect.gen(function* () {
     const started = yield* Deferred.make<void>();
@@ -262,8 +255,6 @@ it.effect("after cancelling, the caller hears the recording is gone", () =>
   ),
 );
 
-// Cancelling drops the recorded outcome, so a lost response must not cancel a
-// run the account already paid for.
 it.effect("a lost response picks up the same run instead of cancelling it", () =>
   Effect.gen(function* () {
     let attempts = 0;

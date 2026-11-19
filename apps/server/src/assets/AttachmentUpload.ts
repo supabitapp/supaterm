@@ -226,7 +226,6 @@ export const storeAttachmentUpload = Effect.fn("AttachmentUpload.store")(functio
         detail: `Body was ${receivedBytes} bytes, expected ${claims.sizeBytes}.`,
       } satisfies StoreAttachmentUploadResult;
     }
-    // Publishing without replacement keeps an upload and its cached text immutable.
     const published = yield* fileSystem.link(partPath, finalPath).pipe(
       Effect.map(() => true),
       Effect.catch((error) => {

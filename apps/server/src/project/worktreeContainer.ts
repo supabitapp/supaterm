@@ -43,7 +43,6 @@ export const makeIsWorktreeContainer = Effect.gen(function* () {
   };
 
   return Effect.fn("ProjectService.isWorktreeContainer")(function* (workspaceRoot: string) {
-    // A `.git` directory is an ordinary checkout, so only a gitfile costs any Git process.
     const gitfileTarget = yield* fileSystem.readFileString(path.join(workspaceRoot, ".git")).pipe(
       Effect.map(parseGitfileTarget),
       Effect.orElseSucceed(() => undefined),
@@ -67,7 +66,6 @@ export const makeIsWorktreeContainer = Effect.gen(function* () {
           Effect.orElseSucceed(() => null),
         );
 
-    // Initializing Git in a bare container clears core.bare, so it is refused while still bare.
     const isBare = yield* git(["rev-parse", "--is-bare-repository"]);
     if (isBare === null) return false;
     if (isBare.trim() !== "true") {
@@ -81,7 +79,6 @@ export const makeIsWorktreeContainer = Effect.gen(function* () {
 
     const worktrees = yield* git(["worktree", "list", "--porcelain", "-z"]);
     if (worktrees === null) return false;
-    // The first entry is the main worktree, which Git reports as the metadata directory here.
     const linkedWorktreePaths = splitNul(worktrees)
       .filter((field) => field.startsWith("worktree "))
       .slice(1)

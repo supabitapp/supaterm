@@ -55,7 +55,6 @@ interface ComposerMentionDragHandlers {
 export function makeComposerMentionDragHandlers(
   host: ComposerMentionDropHost,
 ): ComposerMentionDragHandlers {
-  // Stop native propagation so the editor cannot process claimed drags.
   const claim = (event: ComposerMentionDragEvent): boolean => {
     if (!dataTransferHasComposerMention(event.dataTransfer.types)) {
       return false;
@@ -75,7 +74,6 @@ export function makeComposerMentionDragHandlers(
       if (!claim(event)) {
         return;
       }
-      // Tree drags allow only "move"; other drop effects cancel delivery.
       event.dataTransfer.dropEffect = "move";
       host.setDragActive(true);
     },

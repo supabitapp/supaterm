@@ -29,7 +29,6 @@ import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import { makeComponentLogger } from "../app/DesktopObservability.ts";
 
 const SCAN_INTERVAL = Duration.seconds(2);
-// The MacBook SD card reader powers SidePulse Pro off after three minutes without file activity.
 const KEEPALIVE_INTERVAL_MS = 60_000;
 const LED_FILE = "LEDS.LED";
 const KEEPALIVE_FILE = "keepalive";
@@ -45,7 +44,6 @@ function sidePulseMountRoots(platform: NodeJS.Platform, user: string): ReadonlyA
   return [];
 }
 
-// SidePulse Pro ships with the FAT12 volume label "SidePulse"; a trailing number is a duplicate mount.
 const SIDE_PULSE_PRO_VOLUME = /^sidepulse(?:pro)?\d*$/;
 
 function isSidePulseVolume(name: string): boolean {
@@ -57,7 +55,6 @@ function errorCode(error: PlatformError.PlatformError): unknown {
   return Predicate.hasProperty(cause, "code") ? cause.code : undefined;
 }
 
-// macOS answers EPERM for a removable volume the user has not allowed Supaterm to open.
 function isPermissionDenied(error: PlatformError.PlatformError): boolean {
   return error.reason._tag === "PermissionDenied" || PERMISSION_CODES.has(errorCode(error));
 }
@@ -120,12 +117,9 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
     return Effect.forEach(stateListeners, (listener) => listener(next), { discard: true });
   });
 
-  // Opening the volume is what asks macOS for removable-volume access, so it only runs
-  // for volumes named like a SidePulse and only while SidePulse is on.
   const probeVolume = (volume: Omit<MountedVolume, "denied">) =>
     fs.access(path.join(volume.path, LED_FILE)).pipe(
       Effect.as<ReadonlyArray<MountedVolume>>([{ ...volume, denied: false }]),
-      // A volume that was not ejected cleanly can leave an empty mount point behind.
       Effect.catch((error) =>
         Effect.succeed(isPermissionDenied(error) ? [{ ...volume, denied: true }] : []),
       ),
@@ -150,7 +144,6 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
       Effect.gen(function* () {
         const file = yield* fs.open(path.join(volume, LED_FILE), { flag: "w" });
         yield* file.writeAll(encoder.encode(program));
-        // Removable volumes buffer writes; the firmware only sees what reaches the device.
         yield* file.sync.pipe(Effect.ignore);
       }),
     ).pipe(
@@ -202,7 +195,6 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
   });
 
   const turnOff = Effect.gen(function* () {
-    // A failed write can follow one that lit the device, so only volumes never opened are skipped.
     for (const { device } of devices.values()) {
       if (device.error !== "access-denied")
         yield* writeLedFile(device.path, SIDE_PULSE_OFF_PROGRAM);
@@ -238,7 +230,6 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
 
   yield* Effect.addFinalizer(() => lock.withPermit(turnOff));
 
-  // Compare under the lock: a queued update must not hide a later one that undoes it.
   const configure = Effect.fn("desktop.sidePulse.configure")(function* (next: SidePulseSettings) {
     yield* lock.withPermit(
       Effect.suspend(() => {
@@ -256,7 +247,6 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
   ) {
     yield* lock.withPermit(
       Effect.suspend(() => {
-        // A preview ends with the window that asked for it, so the LEDs go dark with that window.
         const endingPreview = next === null && preview !== null;
         if (next === ledState && !endingPreview) return Effect.void;
         ledState = next;
@@ -265,7 +255,6 @@ export const make = Effect.fn("SidePulse.make")(function* (mountRoots: ReadonlyA
     );
   });
 
-  // A newer preview restarts the timer, so the last pick plays for its full length.
   const previewLight = Effect.fn("desktop.sidePulse.preview")(function* (light: SidePulseLedState) {
     yield* lock.withPermit(
       Effect.gen(function* () {

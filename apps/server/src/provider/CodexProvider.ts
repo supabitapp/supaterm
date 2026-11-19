@@ -106,7 +106,6 @@ function routesToNativeOpenai(config: unknown): boolean {
   if (providerId !== "openai" && !provider) return false;
   const baseUrl =
     providerId === "openai" ? routing.openai_base_url || undefined : provider?.base_url;
-  // A provider without an override uses Codex's auth-dependent OpenAI default.
   if (baseUrl == null) return true;
   if (!URL.canParse(baseUrl)) return false;
   const url = new URL(baseUrl);
@@ -116,7 +115,6 @@ function routesToNativeOpenai(config: unknown): boolean {
   );
 }
 
-// A stored login does not mean this provider's traffic spends that login's quota.
 export const codexRoutesSpendNativeQuota = (
   account: CodexSchema.V2GetAccountResponse,
   config: unknown,
@@ -128,14 +126,8 @@ const CODEX_CATALOG_REFRESH_TIMEOUT_MS = 3_000;
 const CODEX_CONFIG_PROBE_TIMEOUT_MS = 3_000;
 const CODEX_CATALOG_REFRESH_POLL = "100 millis" as const;
 const CODEX_CLIENT_NAME = "supaterm";
-// Codex's probe does a full handshake plus account, models, and skills requests, which can
-// legitimately run past the shared 10s AUTH_PROBE_TIMEOUT_MS on a loaded or slow machine
-// (most often reported on Windows). Give Codex its own longer budget instead of raising the
-// timeout for every provider.
 const CODEX_AUTH_PROBE_TIMEOUT_MS = 20_000;
 const CODEX_DISCOVERY_MARGIN_MS = 250;
-// `codex-cli 0.159.0`, `codex-cli 0.160.0-alpha.1` or the npm CLI's bare `0.1.4161006`.
-// Keep a prerelease suffix so compatibility stays unknown for it, as it does for `initialize`.
 const CODEX_CLI_VERSION_PATTERN = /(?:^|\s)v?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)(?=\s|$)/u;
 
 const CODEX_PRESENTATION = {
@@ -192,7 +184,6 @@ function codexAccountAuthLabel(
   if (account.type === "apiKey") return "OpenAI API Key";
   if (account.type === "amazonBedrock") return "Amazon Bedrock";
   if (account.type !== "chatgpt") return undefined;
-  // account/read takes the plan from the cached login token; the usage read asks the backend.
   const usageLabel = usagePlanType === "unknown" ? undefined : codexPlanLabel(usagePlanType);
   return usageLabel ?? codexPlanLabel(account.planType);
 }
@@ -316,7 +307,6 @@ export function mapCodexModelCapabilities(
       id: "cyberAccessProgram",
       label: "Cyber Access",
       type: "select",
-      // Standard stays selectable as an opt-out; Codex rejects it visibly when the login cannot use it.
       options: (hasStandard ? cyberAccessPrograms : ["standard", ...cyberAccessPrograms]).map(
         (program) => ({
           id: program,
@@ -422,7 +412,6 @@ function applyConfiguredCodexServiceTier(
   );
 }
 
-/** Mirrors Codex: `daybreak = true` prefers a Daybreak program, Blue before Red. */
 function applyConfiguredCodexCyberAccess(
   models: ReadonlyArray<ServerProviderModel>,
   snapshot: Pick<
@@ -430,7 +419,6 @@ function applyConfiguredCodexCyberAccess(
     "daybreakEnabled" | "cyberAccessProgramsUnavailable"
   >,
 ): ReadonlyArray<ServerProviderModel> {
-  // Without a descriptor no turn sends a program; without a default only an explicit choice goes.
   const offered = mapCodexOptionDescriptors(models, (descriptors, model) =>
     descriptors.flatMap((descriptor): ReadonlyArray<ProviderOptionDescriptor> => {
       if (descriptor.id !== "cyberAccessProgram" || descriptor.type !== "select") {
@@ -455,11 +443,6 @@ function applyConfiguredCodexCyberAccess(
   );
 }
 
-/**
- * Codex has no static default capability set, so a bare custom slug borrows
- * the first built-in's descriptors; an entry with its own capabilities keeps
- * them.
- */
 function appendCustomCodexModels(
   models: ReadonlyArray<ServerProviderModel>,
   customModels: ReadonlyArray<CustomModelSetting>,
@@ -553,12 +536,6 @@ const withCodexDiscoveryDeadline = Effect.fnUntraced(function* <A, E, R>(
   );
 });
 
-/**
- * Every Codex client on the machine shares that file, and the backend tailors
- * the catalog to each client's originator: the plain CLI does not get Sol
- * Ultrafast. App-server refreshes the catalog online at startup, so wait until
- * a write newer than this process's spawn lands, then list again.
- */
 const requestCodexChatGptModels = Effect.fn("requestCodexChatGptModels")(function* (input: {
   readonly client: CodexClient.CodexAppServerClient["Service"];
   readonly codexHome: string;
@@ -622,7 +599,6 @@ const codexProcessEnvironment = Effect.fn("codexProcessEnvironment")(function* (
   readonly homePath?: string | undefined;
   readonly environment?: NodeJS.ProcessEnv | undefined;
 }) {
-  // Expand CODEX_HOME explicitly: spawn passes a literal ~ that Codex rejects.
   const resolvedHomePath = input.homePath
     ? expandHomePath(input.homePath, yield* HostProcess.HomeDirectory)
     : undefined;
@@ -674,8 +650,6 @@ export const withCodexAppServerClient = Effect.fn("withCodexAppServerClient")(fu
   return { client, initialize, pid: child.pid };
 });
 
-// Codex runs git (ssh for ssh URLs) for plugin marketplaces at launch and exits without waiting
-// for it, so stopping a short probe mid-fetch strands ssh in an SSH-agent request.
 const CODEX_STARTUP_WORK_GRACE = Duration.minutes(1);
 
 const codexProcessGroupIsBusy = Effect.fn("codexProcessGroupIsBusy")(
@@ -696,8 +670,6 @@ const stopCodexAfterStartupWork = (pid: number, processScope: Scope.Closeable) =
     Effect.ensuring(Scope.close(processScope, Exit.void)),
   );
 
-// Usage is an enrichment: a failure or a slow answer degrades to "no usage this
-// probe" rather than costing the account and models.
 const readCodexRateLimits = (
   client: CodexClient.CodexAppServerClient["Service"],
   deadlineMs: number,
@@ -733,7 +705,6 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const processScope = yield* Scope.make();
   let pid: number | undefined;
-  // Returning the snapshot must not wait for Codex's own startup work.
   yield* Effect.addFinalizer(() =>
     pid === undefined
       ? Scope.close(processScope, Exit.void)
@@ -760,7 +731,6 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
     } satisfies CodexAppServerProviderSnapshot;
   }
 
-  // Optional discovery must finish before the outer timeout can discard the account result.
   const deadlineMs = spawnedAtMs + input.probeTimeoutMs - CODEX_DISCOVERY_MARGIN_MS;
   const [skillsResponse, models, { config, nativeUsage, rateLimits }] = yield* Effect.all(
     [
@@ -773,7 +743,6 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
             deadlineMs,
           })
         : withCodexDiscoveryDeadline(requestAllCodexModels(client), deadlineMs),
-      // The shared catalog must exclude config from the server's launch project.
       withCodexDiscoveryDeadline(
         client.request("config/read", { includeLayers: false }),
         deadlineMs,
@@ -781,7 +750,6 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
       ).pipe(
         Effect.catch(() => Effect.logDebug("Codex config read failed.").pipe(Effect.as(undefined))),
         Effect.flatMap((config) => {
-          // Only a confirmed native route may probe or publish the login's quota.
           const nativeUsage =
             !input.skipNativeUsage &&
             config !== undefined &&
@@ -811,7 +779,6 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
     models,
     serviceTier: config?.service_tier ?? undefined,
     daybreakEnabled: config === undefined ? undefined : cyberAccess?.daybreak === true,
-    // An unread config cannot rule out an API key with the programs turned off.
     cyberAccessProgramsUnavailable:
       accountResponse.account?.type === "apiKey" &&
       (config === undefined || cyberAccess?.features?.api_key_cyber_access_programs === false),
@@ -819,7 +786,6 @@ const probeCodexAppServerProvider = Effect.fn("probeCodexAppServerProvider")(fun
   } satisfies CodexAppServerProviderSnapshot;
 });
 
-// Old CLIs can exit before initialize reports the version needed for compatibility advice.
 const probeCodexCliVersion = Effect.fn("probeCodexCliVersion")(
   function* (input: {
     readonly binaryPath: string;
@@ -872,8 +838,6 @@ export const probeCodexSkillsForCwd = Effect.fn("probeCodexSkillsForCwd")(functi
   return parseCodexSkillsListResponse(skillsResponse, input.cwd);
 });
 
-// Long enough for a burst of workspace switches; short because the helper holds the user's
-// binary open, and Windows refuses to overwrite or delete a running executable.
 const CODEX_SKILLS_HELPER_IDLE_TTL = "30 seconds";
 
 /** Reuses one app-server per launch identity; each read passes its cwd and rescans from disk. */
@@ -902,7 +866,6 @@ export const makeCodexSkillsProbe = Effect.fn("makeCodexSkillsProbe")(function* 
       ...rest,
       environment: providerProbeEnvironment(rest.environment ?? process.env),
     };
-    // Retire helpers for a previous binary, home, credentials, or launch options.
     const stale = Array.from(yield* RcMap.keys(helpers)).filter(
       (key) => !Equal.equals(key, launch),
     );
@@ -910,7 +873,6 @@ export const makeCodexSkillsProbe = Effect.fn("makeCodexSkillsProbe")(function* 
     const skillsResponse = yield* RcMap.get(helpers, launch).pipe(
       Effect.flatMap((client) => client.request("skills/list", { cwds: [cwd], forceReload: true })),
       Effect.scoped,
-      // RcMap keeps a failed spawn, and a dead helper keeps failing; drop it so the retry respawns.
       Effect.onError(() => RcMap.invalidate(helpers, launch)),
       Effect.retry({ times: 1 }),
     );
@@ -1058,12 +1020,7 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
     cwd: process.cwd(),
     environment: resolvedEnvironment,
     ...(managedAuth ? { skipNativeUsage: true } : {}),
-  }).pipe(
-    // Process teardown can outlast the work budget without discarding a completed snapshot.
-    Effect.timeoutOption(Duration.millis(probeTimeoutMs)),
-    Effect.scoped,
-    Effect.result,
-  );
+  }).pipe(Effect.timeoutOption(Duration.millis(probeTimeoutMs)), Effect.scoped, Effect.result);
 
   if (Result.isFailure(probeResult)) {
     const error = probeResult.failure;
@@ -1123,7 +1080,6 @@ export const checkCodexProviderStatus = Effect.fn("checkCodexProviderStatus")(fu
           ? expandHomePath(codexSettings.homePath, yield* HostProcess.HomeDirectory)
           : undefined,
       );
-  // Sign-in guidance still applies when Codex itself says it needs an OpenAI login.
   const usageLimits =
     !snapshot.nativeUsage && !accountStatus.message
       ? makeUnavailableUsageLimits({ checkedAt, reason: "unsupported" })

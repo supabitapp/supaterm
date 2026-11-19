@@ -13,8 +13,6 @@ export const AgentSessionImportSource = Schema.Struct({
   size: NonNegativeInt,
   mtimeMs: Schema.NullOr(Schema.Number),
   device: Schema.Number,
-  // A decimal string keeps file IDs above 2^53 (common on NTFS) exact. Older
-  // records stored a number.
   inode: Schema.NullOr(Schema.Union([Schema.String, Schema.Number])),
   birthtimeMs: Schema.NullOr(Schema.Number),
 });

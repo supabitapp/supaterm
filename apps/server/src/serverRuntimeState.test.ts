@@ -138,7 +138,6 @@ const startBesideBootService = Effect.fn("test.startBesideBootService")(function
 });
 
 describe("server ownership", () => {
-  // An empty home, so no boot service unit installed on this machine is read.
   const layerOwnership = Layer.mergeAll(
     ProcessRunner.layer,
     Layer.effect(
@@ -205,7 +204,6 @@ describe("server ownership", () => {
       "replace",
       "during acquisition",
       "first acquisition",
-      // Root bypasses directory permissions, so chmod cannot force EACCES.
       ...(process.getuid?.() === 0 ? [] : (["stat error"] as const)),
     ] as const)("monitors ownership after %s", (operation) => {
       const messages: unknown[] = [];
@@ -290,7 +288,6 @@ describe("server ownership", () => {
       const state = yield* makeState;
       yield* ServerRuntimeState.persistServerRuntimeState({
         path: statePath,
-        // Any record time after this process started proves the PID was not reused.
         state: { ...state, pid: process.ppid, startedAt: "2100-01-01T00:00:00.000Z" },
       });
       const refused = yield* Effect.scoped(ServerOwnership.acquireServerOwnership(statePath)).pipe(
@@ -376,7 +373,6 @@ describe("server ownership", () => {
           {
             platform: "linux",
             outputs: {
-              // Restart= keeps an otherwise disabled service alive during its restart delay.
               "systemctl is-active": { code: 3, stdout: "activating\n" },
               "systemctl is-enabled": { code: 1, stdout: "disabled\n" },
             },

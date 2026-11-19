@@ -20,7 +20,6 @@ const harness = vi.hoisted(() => ({
   pair: vi.fn(),
   goBack: vi.fn(),
   dispatch: vi.fn(),
-  // The root stack the form sits on when pairing succeeds.
   rootState: {
     key: "root",
     index: 2,
@@ -30,7 +29,6 @@ const harness = vi.hoisted(() => ({
       { key: "new", name: "SettingsEnvironmentNew" },
     ],
   },
-  // Navigation that is not ready yet holds callbacks here until the test flushes them.
   deferred: null as Array<() => void> | null,
 }));
 
@@ -204,7 +202,6 @@ it("a pairing link fills the pairing form already on screen instead of stacking 
     routeParamList: {},
     routeGetIdList: {},
   };
-  // Settings > Environments > Add environment, as the user opened it.
   const open = router.getRehydratedState(
     {
       index: 2,

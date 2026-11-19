@@ -14,7 +14,6 @@ function createBootstrapEvaluation(bundle: string, lastNativeScroll: number) {
   );
   const finishWithoutScroll = vi.fn();
   const dispatchInitialScroll = vi.fn();
-  // A session re-armed by a data change after landing keeps its stale mount seed.
   const bootstrap = {
     scroll: 4692,
     seedContentOffset: 12,

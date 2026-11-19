@@ -29,7 +29,6 @@ describe("Self invocation", () => {
 
   it.effect("passes subcommands straight to the standalone executable", () =>
     Effect.gen(function* () {
-      // Node repeats the binary at argv[1] for a single-executable; it is not a script.
       const invocation = yield* resolveSelfInvocation().pipe(
         Effect.provideService(HostProcess.ExecutablePath, "/packaged/supaterm"),
         Effect.provideService(HostProcess.IsExecutable, true),

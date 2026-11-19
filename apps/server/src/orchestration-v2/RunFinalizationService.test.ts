@@ -30,7 +30,6 @@ import * as CheckpointCapture from "./CheckpointCaptureService.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as RunFinalization from "./RunFinalizationService.ts";
 
-// Without a project the observer never touches enrichment, so its methods stay unimplemented.
 const layerNoProject = Layer.mergeAll(
   Layer.mock(ProjectService.ProjectService)({ getById: () => Effect.succeedNone }),
   Layer.mock(ProjectEnrichment.ProjectEnrichmentService)({}),
@@ -171,7 +170,6 @@ it.effect.each(
             }),
           refreshStatus: () =>
             Effect.die("turn completion must preserve known PRs and lookup backoff"),
-          // Requested synchronously by refresh; the lookup itself runs in the background.
           refreshPullRequestStatus: (cwd) => {
             refreshed.push(cwd);
             return Deferred.succeed(lookedUp, undefined).pipe(Effect.as(null));
@@ -361,7 +359,6 @@ it.effect("resolves the identity of a project whose remote was added during the 
     yield* Effect.gen(function* () {
       const enrichment = yield* ProjectEnrichment.ProjectEnrichmentService;
       const changes = yield* enrichment.subscribeChanges;
-      // A shell read before the turn caches the folder as having no repository.
       yield* enrichment.request(workspaceRoot);
       assert.isNull((yield* PubSub.take(changes)).enrichment.repositoryIdentity);
 

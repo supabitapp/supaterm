@@ -320,7 +320,6 @@ describe("rightPanelStore", () => {
       choose();
       const chosen = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
 
-      // Re-entry captures a fresh revision; the existing tab must still preserve the choice.
       expect(store.openProactive(refA, surface, store.getUserActionRevision(refA))).toBe(false);
       expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual(
         chosen,
@@ -878,13 +877,11 @@ describe("rightPanelStore", () => {
     store.openPullRequest(refA, { ...pr, url });
     expect(surface()).not.toHaveProperty("revealUrl");
     store.openPullRequest(refA, { ...pr, url: comment(2), revealUrl: comment(2) });
-    // A host read started for an earlier link settles only that link.
     store.settlePullRequestReveal(refA, id, comment(1));
     expect(surface()).toMatchObject({ revealUrl: comment(2) });
     store.settlePullRequestReveal(refA, id, comment(2));
     expect(surface()).toMatchObject({ url: comment(2) });
     expect(surface()).not.toHaveProperty("revealUrl");
-    // Reopening a closed tab hands back its surface, whose url still names the comment.
     store.openPullRequest(refA, { ...pr, url: comment(2) });
     expect(surface()).not.toHaveProperty("revealUrl");
     store.openPullRequest(refA, { ...pr, url: comment(3), revealUrl: comment(3) });

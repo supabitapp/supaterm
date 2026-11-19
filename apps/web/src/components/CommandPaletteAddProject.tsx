@@ -88,8 +88,6 @@ export function NewProjectPublishHostPicker(props: {
       className="flex"
       onClick={(event) => {
         event.stopPropagation();
-        // React bubbles the popup's clicks here through its portal; only the
-        // trigger opens the picker.
         if (!event.currentTarget.contains(event.target as Node)) return;
         if (!props.disabled) setOpen(true);
       }}

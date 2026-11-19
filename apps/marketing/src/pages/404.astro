@@ -36,7 +36,6 @@ import "../styles/boltComputer.css";
 
   const crt = document.querySelector<HTMLElement>(".not-found-crt");
   if (crt) {
-    // Two shakes, then it rests so an open tab stops repainting; a click wakes it for a hop.
     void import("../lib/boltComputer/mount").then(({ DEFAULT_SETTINGS, mountBoltComputer }) =>
       mountBoltComputer(crt, { ...DEFAULT_SETTINGS, state: "error" }, 3),
     );

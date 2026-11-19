@@ -38,15 +38,8 @@ interface TerminalFocusTarget {
 
 const focusTargets = new Set<TerminalFocusTarget>();
 const lastThreadFocus = new Map<string, "composer" | { terminalId: string }>();
-// One request at a time: the newest terminal the user asked for wins, so an
-// older request never fires later and steals focus.
 let pendingFocus: { readonly threadKey: string; readonly terminalId: string } | null = null;
-// The thread ChatView currently shows, and the thread a navigating handler
-// asked to focus a terminal in. The mark outlives `pendingFocus`: the new
-// thread's viewports mount and consume the handler's request in the commit's
-// layout phase, before ChatView's thread-enter effect runs.
 let enteredThreadKey: string | null = null;
-// Drawer visibility reruns reuse the root; a remounted chat must not inherit parked requests.
 const lastEnteredThreadByRoot = new WeakMap<HTMLElement, string>();
 let navigationRequestThreadKey: string | null = null;
 
@@ -192,7 +185,6 @@ export function restoreFocusOnThreadEnter(
   if (restoresFocus && requestedByHandler) remember();
   return () => {
     content.root.ownerDocument.removeEventListener("focusin", remember);
-    // A handler navigating elsewhere marks its target before this cleanup runs.
     if (restoresFocus && enteredThreadKey === threadKey) enteredThreadKey = null;
   };
 }
@@ -233,9 +225,6 @@ export function focusTerminalViewport(input: {
   readonly canOperate: boolean;
   readonly visible: boolean;
 }): boolean {
-  // A hidden drawer is clipped, not display:none: the mount would take focus
-  // while the surface refuses it, and the request would be spent on a wrapper
-  // that ignores typing.
   if (!input.canOperate || !input.visible) return false;
   input.mount.focus({ preventScroll: true });
   input.surface?.focus();

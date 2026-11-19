@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import "~/index.css";
 
-// Prepare the real worker before tests; Vite's worker transform adds a large inline source map.
 const { refresh, assetUrlState, pdfOpens, pdfWorkerUrl } = await vi.hoisted(async () => {
   const { default: source } = await import("pdfjs-dist/build/pdf.worker.min.mjs?raw");
   return {
@@ -25,7 +24,6 @@ vi.mock(import("~/assets/assetUrls"), async (original) => ({
   useAssetUrlRefresh: () => refresh,
   useAssetUrlState: assetUrlState,
 }));
-// Hands each document pdf.js opens to the PDF test, which awaits its load instead of a poll window.
 vi.mock(import("./pdfDocument"), async (original) => {
   const actual = await original();
   return {
@@ -37,17 +35,12 @@ vi.mock(import("./pdfDocument"), async (original) => {
     },
   };
 });
-// The real source view highlights through a worker pool; the text it receives is what matters here.
-// Never load the original: its highlighter graph can outlast waitFor on a cold CI browser.
 vi.mock(import("./ReadOnlySourcePreview"), () => ({
   default: ({ text, wordWrap }: { text: string; wordWrap?: boolean }) => (
     <pre data-word-wrap={String(wordWrap)}>{text}</pre>
   ),
 }));
 
-// The Word engine compiles about 30 MB of WebAssembly in a fresh worker per document, which took
-// 10-17 s per test on loaded CI runners. These tests cover fetching, preparation and remounts, so
-// the stand-in shows the prepared body's text instead of laying it out.
 vi.mock(import("./office/WordDocument"), async () => {
   const { use } = await import("react");
   const { default: Zip } = await import("jszip");
@@ -85,8 +78,6 @@ describe("standalone Mermaid previews", () => {
       .spyOn(HTMLImageElement.prototype, "src", "set")
       .mockImplementation(() => {});
     await using screen = await render(<MermaidFilePreview text={`flowchart LR\n${node}`} />);
-    // Pele lays these out in a worker, so the diagram has to be on screen before its absence of
-    // resource references means anything.
     await vi.waitFor(
       () => expect(screen.container.querySelector("[data-markdown-mermaid] svg")).not.toBeNull(),
       { timeout: 10_000 },
@@ -206,8 +197,6 @@ describe("attachment HTML preview recovery", () => {
     await act(async () => button!.click());
   };
   const alert = (screen: Screen) => screen.container.querySelector('[role="alert"]');
-  // The app's connection runtime keeps polling environment discovery through the same global
-  // fetch while these tests run, so only the attachment's own requests are counted.
   const attachmentFetches = () =>
     vi
       .mocked(fetch)
@@ -383,7 +372,6 @@ it("refreshes authorization and retries a failed streamed attachment", async () 
         asset={{ environmentId: EnvironmentId.make("test"), attachmentId: "retry" }}
       />,
     );
-    // A cold large-text worker can take longer than waitFor's default to boot on CI.
     await vi.waitFor(
       () => expect(screen.container.textContent).toContain("This file contains binary data."),
       { timeout: 10_000 },
@@ -441,7 +429,6 @@ it("copies every indexed line rather than the mounted preview rows", async () =>
     <LargeTextViewer name="whole.txt" text={text} delimiter={null} copyContents={copyContents} />,
   );
   await vi.waitFor(() => expect(screen.container.textContent).toContain("line-0"));
-  // Copy rejects until the worker finishes indexing, which a cold worker can delay past waitFor's default on CI.
   await vi.waitFor(async () => expect(await copyContents.current!()).toBe(text), {
     timeout: 10_000,
   });
@@ -519,7 +506,6 @@ it("loads a font attachment through the lazy preview", async () => {
       file={file}
     />,
   );
-  // Two cold lazy chunks plus decoding a 600 KB font can take longer than waitFor's default on CI.
   await vi.waitFor(
     () => {
       const frame = screen.container.querySelector("iframe");
@@ -590,7 +576,6 @@ it("keeps a workspace PDF open across URL renewals and reloads it when the file 
     const opened = screen.container.querySelector("iframe");
     expect(opened?.src.startsWith(original)).toBe(true);
 
-    // An agent command renews the signed URL but leaves the file alone.
     assetUrlState.mockReturnValue({
       _tag: "Success",
       url: `${original}#renewed`,
@@ -612,7 +597,6 @@ it("keeps a workspace PDF open across URL renewals and reloads it when the file 
     expect(reloaded).not.toBe(opened);
     expect(reloaded?.src.startsWith(edited)).toBe(true);
 
-    // Servers without revisions hold the preview back until a fresh grant arrives.
     assetUrlState.mockReturnValue({
       _tag: "Success",
       url: `${edited}#stale`,
@@ -662,7 +646,6 @@ function planningPdf(
   return new Blob([source], { type: "application/pdf" });
 }
 
-// Resolves once pdf.js has parsed the next document and every page size the viewer reads.
 function nextPdfLoad() {
   return new Promise<import("pdfjs-dist").PDFDocumentLoadingTask>((resolve) =>
     pdfOpens.push(resolve),
@@ -680,7 +663,6 @@ it("keeps a workspace PDF's page, offset and zoom when a new revision reloads it
   const { WorkspaceBrowserPreview } = await import("./FilePreviewPanel");
   using _native = vi.spyOn(navigator, "pdfViewerEnabled", "get").mockReturnValue(false);
   const original = URL.createObjectURL(planningPdf());
-  // A taller first page moves page 2, so only a page-relative restore lands on the same spot.
   const updated = URL.createObjectURL(
     planningPdf(["Quarterly outlook", "Delivery milestones", "Updated budget"], 500),
   );
@@ -794,7 +776,6 @@ it("mounts a bounded set of saved notebook outputs as the reader scrolls", async
       />
     </div>,
   );
-  // The first outputs wait on the lazy notebook viewer and the conversion worker, not on a frame.
   await vi.waitFor(
     () => expect(screen.container.querySelectorAll("iframe").length).toBeGreaterThan(0),
     { timeout: 10_000 },
@@ -963,7 +944,6 @@ it.each(["rtf", "epub", "ods"] as const)(
           const frame = screen.container.querySelector("iframe");
           expect(frame?.srcdoc).toContain(kind === "rtf" ? "10–20" : "first<br>second<br>third");
         }
-        // The viewer runs its own conversion worker behind lazy chunks.
       },
       { timeout: 10_000 },
     );

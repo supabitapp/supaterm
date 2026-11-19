@@ -37,7 +37,6 @@ export function usePullRequestAgentActions(
   const menuAction = (task: PullRequestAgentTask) => {
     const action = actions.find((action) => action.task === task);
     const items = threadActions(task);
-    // Android supports only one submenu level beneath each helper action.
     const subactions =
       Platform.OS === "android"
         ? items.flatMap(

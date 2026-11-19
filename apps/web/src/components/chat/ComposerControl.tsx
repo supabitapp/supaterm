@@ -9,10 +9,6 @@ import { Separator } from "../ui/separator";
 
 export type ComposerControlSize = "sm" | "xs";
 
-/**
- * The composer toolbar's control look. `sm` is the expanded toolbar; `xs` is the dimmer resting
- * strip. This is an app control, not a restyled Button, so it owns its classes.
- */
 function composerControlClassName(
   size: ComposerControlSize,
   className?: string,

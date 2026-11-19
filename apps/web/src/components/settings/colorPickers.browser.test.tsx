@@ -12,7 +12,6 @@ const PLANE = "Accent color saturation and brightness";
 
 async function renderPicker(ui: ReactNode) {
   await using stack = new AsyncDisposableStack();
-  // Synthetic pointer ids are not active pointers, so the browser would reject capture.
   stack.use(vi.spyOn(HTMLElement.prototype, "setPointerCapture").mockImplementation(() => {}));
   const screen = stack.use(await render(ui));
   const environment = stack.move();

@@ -18,7 +18,6 @@ async function materializeDataUrlPreview(id: string, dataUrl: string): Promise<s
   directory.create({ idempotent: true, intermediates: true });
   const file = new File(directory, `${id}.${extension}`);
   if (file.exists) return file.uri;
-  // Write beside the cache entry and move it in, so a failed or interrupted write is never reused.
   const partial = new File(directory, `${id}.${extension}.partial`);
   if (partial.exists) partial.delete();
   partial.create();
@@ -34,8 +33,6 @@ async function materializeDataUrlPreview(id: string, dataUrl: string): Promise<s
 
 const inFlightPreviews = new Map<string, Promise<string | null>>();
 
-// A render reads the atom before its effect subscribes, so the registry can drop and rebuild it
-// mid-write; a second writer would delete the first one's partial file and fail its own move.
 function materializePreviewOnce(id: string, dataUrl: string): Promise<string | null> {
   const pending = inFlightPreviews.get(id);
   if (pending) return pending;

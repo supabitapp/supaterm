@@ -62,7 +62,6 @@ const WINDOW_OPTIONS = [
 
 const CHART_HEIGHT = 180;
 const WIDE_CHART_HEIGHT = 260;
-// Below this the page keeps the phone's single column.
 const WIDE_WIDTH = 600;
 const MAX_CONTENT_WIDTH = 1080;
 const providerLabel = (provider: UsageProviderKind) => PROVIDER_LABEL[provider];
@@ -91,7 +90,6 @@ function UsageScreen(props: {
   const { view } = selection;
   const setView = (view: UsageView) => setSelection({ params: props.tabParam, view });
   const [measuredWidth, setWidth] = useState(0);
-  // A workspace pane knows its width in the render that resizes it; measuring lags a frame.
   const width = useWorkspaceSettledContentWidth() ?? measuredWidth;
   const wide = width >= WIDE_WIDTH;
   const [windowSelection, setWindowSelection] = useState(() => ({
@@ -377,7 +375,6 @@ function UsageUpdating({
   readonly children: ReactNode;
 }) {
   const reduceMotion = useReducedMotionPreference();
-  // The delay keeps a quick refresh from flashing the content.
   const dimStyle = {
     opacity: dimmed ? 0.5 : 1,
     transitionProperty: "opacity",
@@ -410,14 +407,12 @@ function UsageUpdating({
 function ProviderSection(props: {
   readonly merged: MergedUsage;
   readonly metric: UsageChartMetric;
-  /** Drops the share bar so the list fits beside the chart. */
   readonly compact: boolean;
 }) {
   const { merged, metric } = props;
   const colors = useProviderColors();
   if (merged.providers.length === 0) return null;
 
-  // Hermes lacks toSorted.
   const ordered = [...merged.providers].sort((a, b) =>
     metric === "cost" ? b.costUsd - a.costUsd : b.totalTokens - a.totalTokens,
   );
@@ -550,8 +545,6 @@ function CostSection(props: { readonly merged: MergedUsage; readonly wide: boole
     { label: "Cache read", value: categoryCost.cacheRead, color: colors.cacheRead },
     { label: "Cache write", value: categoryCost.cacheWrite, color: colors.cacheWrite },
     { label: "Output", value: categoryCost.output, color: colors.output },
-    // Reported cost with no rates to split it, or from older servers. Below a
-    // cent it is rounding, not usage.
     {
       label: "Other",
       value: categoryCost.unsplit >= 0.005 ? categoryCost.unsplit : 0,
@@ -655,7 +648,6 @@ function ModelsSection(props: {
   const colors = useProviderColors();
   if (merged.models.length === 0) return null;
 
-  // Hermes lacks toSorted.
   const ordered = [...merged.models].sort((a, b) =>
     metric === "cost"
       ? b.costUsd - a.costUsd || b.totalTokens - a.totalTokens

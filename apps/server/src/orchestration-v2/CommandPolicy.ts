@@ -98,13 +98,11 @@ export function resolveMessageDispatchIntent(
 ): MessageDispatchMode {
   const mode = resolveDeliveryIntent(projection, requestedMode, deliveryIntent);
   if (mode.type !== "steer_active") return mode;
-  // Compaction and sign-out cannot accept steers; queue follow-ups.
   const target = projection.runs.find((run) => run.id === mode.targetRunId);
   const targetMessage = projection.messages.find((message) => message.id === target?.userMessageId);
   if (targetMessage !== undefined && isNativeMaintenanceCommand(targetMessage)) {
     return { type: "queue_after_active" };
   }
-  // A provider that can neither steer nor restart its turn takes the message after the turn.
   const turns =
     target === undefined || !isRunInProgress(target)
       ? undefined
@@ -309,7 +307,6 @@ const ensureNativeFork: CommandPolicyV2Shape["ensureNativeFork"] = (input) => {
 };
 
 const ensureRollback: CommandPolicyV2Shape["ensureRollback"] = (input) => {
-  // Without native truncation, the next turn replays the kept conversation as a handoff.
   if (
     !input.capabilities.threads.canRollbackThread ||
     (!input.capabilities.checkpointing.providerCanRollbackConversation &&
@@ -370,7 +367,6 @@ const ensureContextHandoff: CommandPolicyV2Shape["ensureContextHandoff"] = (inpu
 };
 
 const decideForkExecution: CommandPolicyV2Shape["decideForkExecution"] = (input) => {
-  // Unsuccessful runs may lack native cursors; fork bounded transcripts to exclude later turns.
   const canForkNatively =
     (input.sourceRunStatus === "completed" || input.sourceRunStatus === "waiting") &&
     input.sameProvider &&

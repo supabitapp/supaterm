@@ -56,7 +56,6 @@ describe("useShownThreadRouteTarget", () => {
   it("keeps the thread that opened Settings or Usage shown until the user leaves for another page", async () => {
     const router = createAppRouter("/env-1/thread-a");
     await router.load();
-    // The hook reads thread params and modal paths from real routes, which the default router lacks.
     await using screen = await render(<RouterProvider router={router} />, { router: false });
     const shown = screen.getByRole("status");
     await expect.element(shown).toHaveTextContent("thread-a");
@@ -83,7 +82,6 @@ describe("useShownThreadRouteTarget", () => {
     using _tracking = { [Symbol.dispose]: startMainAppLocationTracking(router) };
     await router.navigate({ to: "/settings/general" });
 
-    // The hook reads thread params and modal paths from real routes, which the default router lacks.
     await using screen = await render(<RouterProvider router={router} />, { router: false });
 
     await expect.element(screen.getByRole("status")).toHaveTextContent("thread-a");

@@ -108,7 +108,6 @@ export interface MergedUsage {
   readonly contractMismatches: readonly UsageContractMismatch[];
 }
 
-// volumeId distinguishes machines sharing a hostname and home path.
 function fingerprintKey(fingerprint: UsageSourceFingerprint): string {
   return [
     fingerprint.hostId,
@@ -118,9 +117,6 @@ function fingerprintKey(fingerprint: UsageSourceFingerprint): string {
   ].join(" ");
 }
 
-// Sources are one directory when either their legacy key or their physicalSourceId matches.
-// physicalSourceId joins a directory read natively by Windows and through a WSL mount (path
-// and dev:ino both differ); the legacy key still joins installs whose host scopes differ.
 function sourceIdentity(
   environments: readonly EnvironmentUsage[],
 ): (fingerprint: UsageSourceFingerprint) => string {
@@ -198,13 +194,11 @@ function claimSources(
     }
   }
 
-  // Keep cells unique to newer partial scans; aggregates cannot reconcile overlapping records without double-counting.
   for (const environment of ordered) {
     for (const source of environment.summary.sources) {
       if (source.status !== "partial") continue;
       const key = sourceKey(source.fingerprint);
       const owner = ownerScanByFingerprint.get(key);
-      // A scan under another model filter counts different records, so its cells are not missing ones.
       if (
         owner?.source.status !== "ok" ||
         Date.parse(environment.summary.readAt) <= Date.parse(owner.environment.summary.readAt) ||
@@ -261,13 +255,10 @@ function ownedContribution(
   for (const source of environment.summary.sources) {
     if (source.status === "missing") continue;
     const key = sourceKey(source.fingerprint);
-    // By source, not environment: one server can reach a directory through two
-    // mounts, and only the winning reading may count.
     if (ownerScanByFingerprint.get(key)?.source === source) {
       const provider = source.fingerprint.provider;
       ownedProviders.add(provider);
       ownedSources.add(`${provider}\u0000${source.fingerprint.resolvedHomePath}`);
-      // Count distinct sessions per directory; bucket sums overcount sessions spanning days/models.
       sessionsByProvider.set(
         provider,
         (sessionsByProvider.get(provider) ?? 0) +
@@ -288,7 +279,6 @@ function ownedContribution(
 }
 
 function bucketTokens(bucket: UsageBucket): number {
-  // reasoningTokens is a subset of outputTokens and must not be added again.
   return (
     bucket.totals.uncachedInputTokens +
     bucket.totals.cachedInputTokens +

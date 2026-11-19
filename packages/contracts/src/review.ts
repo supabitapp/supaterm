@@ -58,7 +58,6 @@ export type ReviewDiffChangeType = typeof ReviewDiffChangeType.Type;
 export const ReviewDiffFileStat = Schema.Struct({
   path: Schema.String,
   previousPath: Schema.NullOr(Schema.String),
-  // Older servers omit it.
   changeType: Schema.optionalKey(ReviewDiffChangeType),
   additions: Schema.Number,
   deletions: Schema.Number,

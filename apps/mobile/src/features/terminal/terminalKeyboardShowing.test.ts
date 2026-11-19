@@ -20,10 +20,7 @@ function emit(name: string) {
   for (const listener of listeners.get(name) ?? []) listener();
 }
 
-// Android's syncKeyboardPosition repairs a nonanimated IME inset change with
-// keyboardDidHide then keyboardDidShow, and no will-events.
 it("keeps the accessory through Android's did-only repair and starts a new show after it", () => {
-  // Two mounted terminal screens, each reading the snapshot when notified.
   const seen = [0, 0];
   const unsubscribes = seen.map((_, index) => {
     seen[index] = getKeyboardShowEpoch();

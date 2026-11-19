@@ -168,8 +168,6 @@ export function applyTerminalAttachStreamEvent(
       if (current.version === 0) {
         return terminalBufferStateFromSnapshot(event.snapshot, maxBufferBytes, current);
       }
-      // A later snapshot is a new server attachment, as after a socket reconnect. It starts a
-      // new generation because viewers replay their measured grid once per generation.
       const reattached = {
         ...current,
         output: { ...current.output, generation: ++terminalAttachGeneration },

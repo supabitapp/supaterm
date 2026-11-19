@@ -1,5 +1,3 @@
-// SVG pictures, which only an image element decodes. Workers have none, so the window rasterizes them for the worker.
-
 /** The longest side a decoded picture keeps: enough for a full-width page or slide on a high-density screen. */
 export const maxImageSide = 2560;
 

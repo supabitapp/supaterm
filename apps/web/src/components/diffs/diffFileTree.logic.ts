@@ -41,12 +41,8 @@ export function diffFileTreeEntries(
   return [...statusByPath].map(([path, status]) => ({ path, status }));
 }
 
-// Pierre cannot store a file and a directory at the same path. Give only those
-// files an invisible suffix, keeping real paths at the diff/viewer boundary.
 export function diffFileTreeModel(paths: ReadonlyArray<string>) {
   const directories = new Set(collectDirectoryPaths(paths));
-  // Icon overrides match basenames case-insensitively, so aliases must also avoid
-  // real names in other directories, including names that already contain the suffix.
   const occupiedNames = new Set(paths.flatMap((path) => path.toLowerCase().split("/")));
   const selectionByModelPath = new Map<string, string>();
   const modelBySelectionPath = new Map<string, string>();
@@ -101,8 +97,6 @@ export function diffFileTreePositions(paths: ReadonlyArray<string>): ReadonlyMap
   return positions;
 }
 
-// A flat list in tree order: each directory stays contiguous, siblings ranked as
-// compareDiffFileTreeEntries ranks them, so the list never disagrees with the tree.
 export function orderDiffFilesLikeTree(
   files: ReadonlyArray<FileDiffMetadata>,
 ): ReadonlyArray<FileDiffMetadata> {

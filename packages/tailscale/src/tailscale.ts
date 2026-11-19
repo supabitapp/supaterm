@@ -13,12 +13,6 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 export const DEFAULT_TAILSCALE_SERVE_PORT = 443;
 
 const TAILSCALE_STATUS_TIMEOUT = Duration.millis(3_500);
-/**
- * How long a probe killed on timeout gets to exit after SIGTERM before its
- * process group is SIGKILLed. Without it the spawner never escalates, so a group
- * member that ignores SIGTERM outlives the call. Short because the timeout error
- * only surfaces once cleanup finishes, and a healthy `tailscale` exits at once.
- */
 const TAILSCALE_KILL_GRACE = Duration.millis(500);
 const TAILSCALE_SERVE_TIMEOUT = Duration.seconds(10);
 const TAILSCALE_PROBE_TIMEOUT = Duration.millis(2_500);
@@ -52,7 +46,6 @@ const STDERR_DIAGNOSTIC_PATTERNS: ReadonlyArray<
   [/handler does not exist/i, "no-existing-handler"],
   [/not logged in|logged out|needs? login/i, "not-logged-in"],
   [/permission denied|access denied|must be root|operation not permitted/i, "permission-denied"],
-  // The macOS apps, and tailscaled without SO_MARK, proxy only to localhost, 127.0.0.1 and ::1.
   [/doesn't support connecting to remote destinations/i, "unsupported-target"],
 ];
 
@@ -247,9 +240,6 @@ const readTailscaleOutput = Effect.fn("tailscale.readTailscaleOutput")(function*
   return yield* Effect.gen(function* () {
     const child = yield* spawner.spawn(command).pipe(
       Effect.mapError((cause) => new TailscaleCommandSpawnError({ ...commandContext, cause })),
-      // Spawning can also fail as a defect rather than a typed error - a
-      // non-directory entry on PATH makes node throw ENOTDIR synchronously.
-      // `mapError` never sees that, so it would escape as an uncaught error.
       Effect.catchDefect((cause) =>
         Effect.fail(new TailscaleCommandSpawnError({ ...commandContext, cause })),
       ),
@@ -354,7 +344,6 @@ const runTailscaleCommand = Effect.fn("tailscale.runTailscaleCommand")(function*
           Effect.fail(new TailscaleCommandSpawnError({ ...commandContext, cause })),
         ),
       );
-    // An unread stdout pipe fills on a long success summary and blocks the child before it exits.
     const [, stderr, exitCode] = yield* Effect.all(
       [
         Stream.runDrain(child.stdout),
@@ -409,8 +398,6 @@ export const ensureTailscaleServe = Effect.fn("tailscale.ensureTailscaleServe")(
   TailscaleCommandError | TailscaleServeHttpsDisabledError,
   ChildProcessSpawner.ChildProcessSpawner
 > {
-  // Without the capability `tailscale serve` prints an enablement notice and exits 0, or blocks on
-  // it, having configured nothing either way.
   const status = yield* Effect.option(readTailscaleStatus);
   if (Option.isSome(status) && status.value.httpsServeEnabled === false) {
     return yield* new TailscaleServeHttpsDisabledError();
@@ -462,27 +449,18 @@ const TailscaleServeConfigJson = Schema.Struct({
 });
 const TailscaleServeStatusJson = Schema.Struct({
   ...TailscaleServeConfigJson.fields,
-  // A Tailscale Service's routes, and those of each `tailscale serve` still running in the foreground.
   Services: Schema.optional(Schema.Record(Schema.String, TailscaleServeConfigJson)),
   Foreground: Schema.optional(Schema.Record(Schema.String, TailscaleServeConfigJson)),
 });
-// A node without any Serve configuration prints `null`.
 const decodeTailscaleServeStatusJson = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.NullOr(TailscaleServeStatusJson)),
 );
 
-/**
- * Whether a proxy to `hostname` dials `bindHost`. `0.0.0.0` reaches 127.0.0.1. `[::]` may reach
- * either loopback, since Go dials `::` and then 0.0.0.0 (golang/go#18806), and a name such as
- * `localhost` may resolve to whatever the server binds.
- */
 const reaches = (hostname: string, bindHost: string): "exact" | "either" | undefined => {
   let address = normalizeHostname(hostname);
-  // Compare IPv6 by value: 0:0:0:0:0:ffff:7f00:1 is ::ffff:7f00:1.
   if (address.includes(":") && URL.canParse(`http://[${address}]`)) {
     address = normalizeHostname(new URL(`http://[${address}]`).hostname);
   }
-  // An IPv4-mapped address can be written as hex, such as ::ffff:7f00:1 for 127.0.0.1.
   const mapped = /^::ffff:([\da-f]{1,4}):([\da-f]{1,4})$/u.exec(address);
   if (mapped !== null) {
     const high = Number.parseInt(mapped[1]!, 16);
@@ -491,7 +469,6 @@ const reaches = (hostname: string, bindHost: string): "exact" | "either" | undef
   } else if (address.startsWith("::ffff:")) {
     address = address.slice("::ffff:".length);
   }
-  // Strict, as Go's ParseIP is; anything else, such as `127.1` or `box.1`, goes to the resolver.
   const literal =
     address.includes(":") ||
     /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?:\.(?!$)|$)){4}$/u.test(address);
@@ -501,7 +478,6 @@ const reaches = (hostname: string, bindHost: string): "exact" | "either" | undef
   return (address === "0.0.0.0" ? "127.0.0.1" : address) === bindHost ? "exact" : undefined;
 };
 
-/** The URL Tailscale's proxy dials for a handler's `Proxy`, expanded as its `expandProxyArg` does. */
 const expandProxy = (proxy: string) =>
   /^\d+$/u.test(proxy)
     ? `http://127.0.0.1:${proxy}`
@@ -511,10 +487,6 @@ const expandProxy = (proxy: string) =>
         ? proxy
         : `http://${proxy}`;
 
-/**
- * The host and port a proxy target dials, read as Go's url.Parse reads it rather than as a WHATWG
- * URL, which rejects `box.1` and rewrites `127.1`; none for a Unix socket.
- */
 const dialedHostPort = (url: string) => {
   const match = /^(https?|tcp):\/\/(?:[^@/?#]*@)?(\[[^\]]*\]|[^/?#:]*)(?::(\d*))?/iu.exec(url);
   if (match === null) return undefined;
@@ -524,7 +496,6 @@ const dialedHostPort = (url: string) => {
 
 const reachesTarget = (url: string, target: { readonly host: string; readonly port: number }) => {
   const dialed = dialedHostPort(url);
-  // Go reads the port as a decimal number, so 03773 is 3773.
   if (dialed === undefined || Number(dialed.port) !== target.port) return undefined;
   const reach = reaches(dialed.host, target.host);
   return reach === undefined ? undefined : { reach, hostname: dialed.host };
@@ -681,7 +652,6 @@ export const probeTailscaleHttpsEndpoint = Effect.fn("tailscale.probeTailscaleHt
       const response = yield* client
         .execute(HttpClientRequest.get(url.toString()))
         .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk));
-      // Another app or another Supaterm server can hold the Serve port; only our own descriptor counts.
       return yield* HttpClientResponse.schemaBodyJson(ExecutionEnvironmentDescriptor)(response);
     }).pipe(Effect.timeoutOption(input.timeout ?? TAILSCALE_PROBE_TIMEOUT));
 

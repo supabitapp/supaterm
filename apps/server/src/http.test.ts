@@ -207,7 +207,6 @@ describe("untraced requests", () => {
       );
       const client = Context.get(services, HttpClient.HttpClient);
 
-      // Each URL is a bearer credential: url.full and url.path would carry it.
       for (const request of [
         HttpClientRequest.get(`${ASSET_ROUTE_PREFIX}/payload.signature/image.png`),
         HttpClientRequest.get(`${ASSET_ROUTE_PREFIX}/payload.signature/image.png?v=1`),
@@ -242,7 +241,6 @@ const makeStaticRequest = Effect.fn("HttpTest.makeStaticRequest")(function* (sta
     ServerHttp.layerStaticAndDevRoute,
     ServerHttp.layerHttpCompression,
   ).pipe(Layer.provideMerge(NodeHttpPlatform.layer));
-  // HttpRouter.serve prefers outer services; inject the test FileSystem between it and NodeHttpServer.layerTest.
   const services = yield* Layer.build(
     HttpRouter.serve(layerApp, { disableListenLog: true }).pipe(
       Layer.provideMerge(ServerConfig.layer({ ...config, staticDir })),
@@ -312,7 +310,6 @@ it.layer(
       const body = "packaged asset";
       yield* fs.writeFileString(filePath, body);
       let reads = 0;
-      // Electron asar files can be statted and read even when opening a handle fails.
       const fileSystem = FileSystem.FileSystem.of({
         ...fs,
         open: (candidate, options) =>

@@ -6,8 +6,6 @@ import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import { AppRoot } from "~/AppRoot";
-// The route loads ChatView lazily, and its first transform (React Compiler over ~4k lines)
-// takes 6-11s; importing it here keeps that out of the test's timeout.
 import "~/components/ChatView";
 import { __setClientSettingsForTests } from "~/hooks/useSettings";
 import { getRouter } from "~/router";
@@ -20,7 +18,6 @@ import {
 } from "../../test/fakeEnvironment";
 import { render } from "../../test/render";
 
-// The socket is the only fake layer; see test/appScenarios.renders.tsx.
 vi.mock("../../../../packages/client-runtime/src/connection/driver.ts", async (importOriginal) => {
   const [actual, { fakeDriver }, Layer] = await Promise.all([
     importOriginal<{ readonly ConnectionDriver: Context.Key<unknown, FakeDriver> }>(),
@@ -35,7 +32,6 @@ vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
   trackRpcRequestSent: () => {},
 }));
 
-// Its own file: the app's shell subscription outlives a test, and it must list this thread.
 it("a model picked for an existing thread reaches the server before any message is sent", async () => {
   const stored = {
     instanceId: ProviderInstanceId.make("codex"),
@@ -57,7 +53,6 @@ it("a model picked for an existing thread reaches the server before any message 
   );
   await router.load();
   await using _app = await render(<AppRoot router={router} />, {
-    // AppRoot brings its own router.
     router: false,
   });
   await expect.element(page.getByText("Answer 0 for thread-model-pick.")).toBeVisible();
@@ -76,7 +71,6 @@ it("a model picked for an existing thread reaches the server before any message 
     ]),
   );
 
-  // A thread stored under an alias keeps its options when its canonical model is picked.
   await userEvent.keyboard("{Escape}");
   await router.navigate({ href: `/${ENVIRONMENT_ID}/${aliasThread.id}` });
   await expect.element(page.getByText("Answer 0 for thread-model-alias.")).toBeVisible();

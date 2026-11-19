@@ -18,7 +18,6 @@ import {
   type SupportedLauncherProtocol,
 } from "./serviceProtocol.ts";
 
-// A staged runtime's cold start can take over a minute on a loaded, swapping host.
 const PREFLIGHT_TIMEOUT = Duration.minutes(3);
 const decodePreflightJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 
@@ -47,8 +46,6 @@ export function runServicePreflight(input: {
     return {
       status: "blocked",
       version,
-      // A stale `supaterm` earlier on PATH (an old npm/nvm global) makes `supaterm service install`
-      // reinstall itself and report success, so name the exact install and the path check.
       reason: [
         `The installed service launcher speaks protocol ${launcherProtocol}, but supaterm@${version} requires protocol ${SERVICE_LAUNCHER_PROTOCOL}.`,
         `On the server machine, install this exact CLI: \`curl -fsSL https://supaterm.com/install.sh | SUPATERM_VERSION=${version} sh\`.`,

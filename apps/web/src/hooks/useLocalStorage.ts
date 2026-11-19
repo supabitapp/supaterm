@@ -161,7 +161,6 @@ export function writeLocalStorageValue<T, E>(
   try {
     let valueToStore: T;
     if (typeof value === "function") {
-      // Fall back to the initial value so corrupt storage cannot block later writes.
       let currentValue = initialValue;
       try {
         currentValue = getLocalStorageItem(key, schema) ?? initialValue;

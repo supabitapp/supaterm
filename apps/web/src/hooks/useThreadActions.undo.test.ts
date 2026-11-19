@@ -70,7 +70,6 @@ const threadShell = vi.hoisted(() => ({
   environmentId: "undo-env",
   session: null,
 }));
-// Archived rows have no loaded shell, so deleting one takes the unresolved path.
 const shellLoaded = vi.hoisted(() => ({ current: true }));
 vi.mock("../state/entities", async (original) => ({
   ...(await original<typeof import("../state/entities")>()),

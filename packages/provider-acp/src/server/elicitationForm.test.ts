@@ -46,7 +46,6 @@ describe("parseElicitationForm", () => {
   }
 
   it("asks each question once when a choice has a free-text companion field", () => {
-    // OMP's ask dialog follows each choice `q<n>` with a free-text `q<n>__other` field.
     const ask = (question: string, header: string) => ({
       type: "string",
       title: question,
@@ -80,7 +79,6 @@ describe("parseElicitationForm", () => {
       q1__other: "Only on Fridays",
     });
 
-    // A multi-select answer can carry options and free text together, so both fields stay.
     const multi = parseElicitationForm(
       {
         type: "object",

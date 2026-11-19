@@ -31,7 +31,6 @@ vi.mock("react-native", () => {
   };
 });
 vi.mock("react-native-gesture-handler", () => {
-  // Records each gesture's callbacks so a test can drive the worklets with native-shaped events.
   const builder = (kind: string) => () => {
     const handlers: GestureHandlers = {};
     harness.gestures[kind] = handlers;
@@ -56,7 +55,6 @@ vi.mock("react-native-reanimated", async () => {
   return {
     default: { View: ({ children }: { children?: ReactNode }) => <div>{children}</div> },
     runOnJS: (callback: () => void) => callback,
-    // Reads the UI-thread style on demand, as Reanimated would after a gesture frame.
     useAnimatedStyle: (updater: () => { transform?: Transform }) => {
       harness.contentStyle = updater;
       return {};
@@ -125,8 +123,6 @@ it("keeps the frame size when the same image reports a different decoded width",
         </MarkdownImageAvailableWidthContext>,
       ),
     );
-    // Android reports the bitmap downsampled for the current frame, so the same file
-    // alternates between widths (969 and 970 of 1000) as the frame changes size.
     await act(async () => harness.loadImage({ source: { width: 970, height: 567 } }));
     const first = frameSize();
     expect(first).toBeDefined();
@@ -167,7 +163,6 @@ it("retries a failed image once its URI comes back through null", async () => {
 
 it("fetches a failed SVG again on the next mount but keeps a parsed one", async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-  // Microtask scheduling lets act() flush an unmounted atom's removal before the next render.
   const registry = AtomRegistry.make({
     scheduleTask: (task) => {
       queueMicrotask(task);
@@ -258,7 +253,6 @@ it("does not parse an obsolete SVG response after its last reader unmounts", asy
 
 const zoom = () => {
   const [{ translateX }, { translateY }, { scale }] = harness.contentStyle().transform!;
-  // Clamping at fit can yield -0, which is the same position.
   return { scale, x: translateX + 0, y: translateY + 0 };
 };
 const pinch = (phase: "onStart" | "onUpdate", focalX: number, focalY: number, scale: number) =>
@@ -307,7 +301,6 @@ it("does not open the preview when a touch on the inline image pinches or pans i
     await release();
     expect(onPressPreview).toHaveBeenCalledOnce();
 
-    // VoiceOver activation has no touch, so an earlier pinch must not swallow it.
     await touch(2);
     await act(async () => harness.pressable.onPress?.({ nativeEvent: {} }));
     expect(onPressPreview).toHaveBeenCalledTimes(2);
@@ -326,7 +319,6 @@ it("zooms the inline image around the pinch and keeps it until the source or fra
   };
   try {
     await act(async () => root.render(markdownImage("a")));
-    // The frame center is (172.5, 101); the pinch is off center.
     await layout(345, 202);
     await pinch("onStart", 300, 150, 1);
     await pinch("onUpdate", 300, 150, 2);

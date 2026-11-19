@@ -40,7 +40,6 @@ const extension: OpenVsxThemeExtension = {
 };
 
 describe("ThemeImportDialog", () => {
-  // StrictMode replays ref attach/detach on mount, which must not end the session.
   it("searches Open VSX under StrictMode", async () => {
     searchOpenVsxThemes.mockReset();
     searchOpenVsxThemes.mockResolvedValue([extension]);
@@ -55,7 +54,6 @@ describe("ThemeImportDialog", () => {
       </StrictMode>,
     );
 
-    // One input event: keystrokes more than the search debounce apart would search a prefix first.
     await userEvent.fill(page.getByLabelText("Search Open VSX themes"), "night");
 
     await expect.element(page.getByRole("heading", { name: "Nightfall" })).toBeVisible();

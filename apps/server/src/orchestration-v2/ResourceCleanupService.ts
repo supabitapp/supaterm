@@ -90,7 +90,6 @@ export const layer = Layer.effect(
       cleanupDevices: Effect.fn("ResourceCleanupService.cleanupDevices")(function* (
         threadId: ThreadId,
       ) {
-        // One close per session, so a reconnecting host does not keep the other hosts' claims.
         const sessions = yield* devices.sessionsForThread(threadId);
         const [, failures] = yield* Effect.partition(
           sessions,

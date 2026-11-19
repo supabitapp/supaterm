@@ -78,7 +78,6 @@ function settingsWithProviderInstances(): UnifiedSettings {
 }
 
 describe("scoped default model selections", () => {
-  // regression: #27997 equal automatic defaults can resolve to different providers
   it("compares automatic defaults using each environment's models", () => {
     const codex = {
       projectId: null,
@@ -934,7 +933,6 @@ describe("instance-scoped model selection", () => {
     expect(
       optionsFor({ [claude]: claudePick, [codex]: createModelSelection(codex, "gpt-5.5") }),
     ).toEqual({ [claude]: claudePick.options, [codex]: stored.options });
-    // Claude turned off after an unsent pick: the composer is back on the thread's instance.
     expect(optionsFor({ [claude]: claudePick })?.[codex]).toEqual(stored.options);
     const fastOff = createModelSelection(codex, "gpt-5.5", [
       { id: "reasoningEffort", value: "high" },
@@ -943,7 +941,6 @@ describe("instance-scoped model selection", () => {
     expect(optionsFor({ [claude]: claudePick, [codex]: fastOff })?.[codex]).toEqual(
       fastOff.options,
     );
-    // A stored alias of the shown model still counts as that model.
     const storedAlias = createModelSelection(codex, "gpt-5-codex", stored.options);
     expect(optionsFor({ [claude]: claudePick }, storedAlias)?.[codex]).toEqual(stored.options);
     const storedOtherModel = createModelSelection(codex, "gpt-5.4", stored.options);
@@ -1188,7 +1185,6 @@ describe("default model settings and new-thread composer parity", () => {
           [instanceId]: { hiddenModels: visibility === "hidden" ? [model] : [], modelOrder: [] },
         },
       };
-      // ChatView builds the local draft with the project default as its thread selection.
       const composer = deriveEffectiveComposerModelState({
         threadStarted: false,
         draft: null,

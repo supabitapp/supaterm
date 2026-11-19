@@ -24,11 +24,6 @@ interface NavigatorUserAgentData {
   readonly brands: ReadonlyArray<{ readonly brand: string; readonly version: string }>;
 }
 
-/**
- * The `browser.*` and `user_agent.original` attributes the OpenTelemetry browser
- * resource detector reports. `userAgentData` exists only in Chromium, which
- * includes the desktop app.
- */
 const browserResourceAttributes = (): Record<string, unknown> => {
   if (typeof navigator === "undefined") return {};
   const userAgentData = (navigator as Navigator & { userAgentData?: NavigatorUserAgentData })
@@ -44,7 +39,6 @@ const browserResourceAttributes = (): Record<string, unknown> => {
   };
 };
 
-// PR previews can't mark themselves in APP_VERSION without breaking the version-skew check against the server.
 const RELEASE_CHANNEL =
   import.meta.env.DEV || import.meta.env.VITE_RELEASE_CHANNEL === "dev"
     ? "dev"

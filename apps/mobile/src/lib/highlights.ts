@@ -20,12 +20,8 @@ export interface HighlightedToken {
 export type HighlightedLines = ReadonlyArray<ReadonlyArray<HighlightedToken>>;
 
 const LINE_END = 0xffffffff;
-// Longer lines stay one plain token so a minified line does not become
-// thousands of native text runs.
 const MAX_HIGHLIGHTED_LINE_LENGTH = 1_000;
 
-// @pierre/highlights compiled to native code (modules/supaterm-highlights). Missing
-// from binaries built before it shipped, where code renders as plain text.
 const nativeHighlights = NitroModules.hasHybridObject("SupatermHighlights")
   ? NitroModules.createHybridObject<SupatermHighlights>("SupatermHighlights")
   : undefined;
@@ -94,7 +90,6 @@ export function highlightCommand(
   scheme: HighlightScheme,
 ): HighlightedLines {
   const tokenize = (text: string, lang: string) => {
-    // A missing grammar keeps the shell colors, as on web.
     if (highlightLanguageId(lang) === 0) throw new Error(`No grammar for ${lang}`);
     return withOffsets(text, highlightCode(text, lang, scheme));
   };

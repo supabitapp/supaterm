@@ -40,7 +40,6 @@ export function toolItemForDisplay(item: OrchestrationV2TurnItem): Orchestration
     }
     case "file_change": {
       const { diffStr, oldStr: _oldStr, newStr: _newStr, ...displayItem } = item;
-      // A failed edit's diffStr holds the provider's error, not a diff.
       return item.status === "failed" && diffStr?.trim()
         ? { ...displayItem, diffStr }
         : displayItem;
@@ -268,9 +267,6 @@ function workEntryIndicatesToolFailureFromOutput(
   ) {
     return true;
   }
-  // Reasoning detail is the model's own prose (often tens of KB), not tool
-  // output: scanning it is slow on long threads and misreads phrases like
-  // "that exit code 2 is expected" as a failed tool.
   if (!workLogEntryIsToolLike(entry) || entry.itemType === "reasoning") return false;
   if (
     resolveSupatermMcpToolDefinition(workEntryToolName(entry)) &&
@@ -280,7 +276,6 @@ function workEntryIndicatesToolFailureFromOutput(
   }
   const item = entry.structuredPayload;
   if (item?.type === "command_execution") {
-    // The exit code outranks text in the output or the command itself.
     if (item.exitCode !== undefined) return item.exitCode !== 0;
     if (item.outputIndicatesFailure) return true;
     if (item.output && toolOutputIndicatesFailure(item.output.slice(0, 32_768))) {
@@ -293,8 +288,6 @@ function workEntryIndicatesToolFailureFromOutput(
   return output.length > 0 && toolOutputIndicatesFailure(output);
 }
 
-// Rows are re-derived on every timeline update but entries are reused while
-// their item is unchanged, so these per-entry checks are computed once.
 const entryChecks = new WeakMap<
   WorkLogPresentationEntry,
   { failure?: boolean; displayFailure?: boolean; action?: ToolGroupAction }

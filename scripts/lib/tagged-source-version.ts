@@ -18,14 +18,11 @@ export function resolveTaggedSourceVersion(repoRoot: string, manifestVersion: st
     NodeChildProcess.execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", stdio: "pipe" });
 
   try {
-    // Release jobs and the desktop packager write the version they build into the manifests.
     git("diff", "--quiet", "HEAD", "--", ...releasePackageFiles);
     const stableTags = git("tag", "--points-at", "HEAD")
       .split("\n")
       .filter((tag) => /^v\d+\.\d+\.\d+$/.test(tag));
     if (stableTags.length === 1) return stableTags[0]!.slice(1);
-  } catch {
-    // No Git, a source archive, or edited manifests: the manifest is the version.
-  }
+  } catch {}
   return manifestVersion;
 }

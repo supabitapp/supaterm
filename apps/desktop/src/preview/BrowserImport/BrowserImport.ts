@@ -41,7 +41,6 @@ export class BrowserImportFailedError extends Schema.TaggedError<BrowserImportFa
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
-  // IPC preserves only the message; the renderer needs its reason token for user-facing copy.
   override get message(): string {
     return `Importing cookies from ${this.sourceId} failed: ${this.reason}.`;
   }
@@ -84,7 +83,6 @@ const unavailableReason = Effect.fn("BrowserImport.unavailableReason")(function*
   if (!definition.platforms.includes(context.platform)) return "unsupportedPlatform";
   if (!(yield* isSourceInstalled(definition, context))) return "notInstalled";
   if (yield* isSourceRunning(definition, context)) return "browserRunning";
-  // TCC permits stat without Full Disk Access, so a listed Safari jar may still be unreadable.
   if (definition.engine === "safari") {
     const jar = yield* resolveCookieDatabase(definition, context, ".");
     if (jar !== undefined && (yield* safariAccessDenied(jar))) return "needsFullDiskAccess";
@@ -114,7 +112,6 @@ export const writeCookies = Effect.fn("BrowserImport.writeCookies")(function* (
           url: cookie.url,
           name: cookie.name,
           value: cookie.value,
-          // Electron widens any supplied domain; omit it for host-only cookies.
           ...(cookie.domain === undefined ? {} : { domain: cookie.domain }),
           path: cookie.path,
           secure: cookie.secure,
@@ -135,7 +132,6 @@ export const writeCookies = Effect.fn("BrowserImport.writeCookies")(function* (
       skippedDomains.add(cookieHost(cookie.url));
     }
   }
-  // Cookie writes settle in memory; flush to disk before reporting a durable import.
   if (imported > 0) {
     yield* Effect.tryPromise(() => session.cookies.flushStore()).pipe(
       Effect.tapError((error) =>
@@ -195,14 +191,12 @@ export const make = Effect.gen(function* BrowserImportMake() {
     }
 
     if (platform === "darwin" && definition.engine === "chromium") {
-      // macOS attributes Keychain prompts and ACL grants to the executable, which differs in dev and packaged builds.
       yield* Effect.logInfo("Reading browser cookie key from the keychain", {
         sourceId: definition.id,
         executablePath,
       });
     }
 
-    // IPC profile paths must match the source's listing to prevent traversal outside browser user-data.
     const sourceProfiles = yield* listSourceProfiles(definition, pathContext).pipe(
       Effect.provide(platformServices),
     );
@@ -216,7 +210,6 @@ export const make = Effect.gen(function* BrowserImportMake() {
       });
     }
 
-    // Re-resolve listed paths because Chromium jars may be under Network/.
     const databasePath = yield* resolveCookieDatabase(
       definition,
       pathContext,
@@ -285,7 +278,6 @@ export const make = Effect.gen(function* BrowserImportMake() {
         ),
       );
 
-    // Chromium serializes writes; a rejected cookie should not prevent the others.
     return yield* writeCookies(session, result);
   });
 

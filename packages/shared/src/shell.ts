@@ -19,7 +19,6 @@ const WINDOWS_PATH_DELIMITER = ";";
 const POSIX_PATH_DELIMITER = ":";
 const WINDOWS_SHELL_CANDIDATES = ["pwsh.exe", "powershell.exe"] as const;
 const WINDOWS_SHELL_PROBE_TIMEOUT_MS = 5000;
-// A shell stuck in the kernel survives the kill and holds stdout, so execFile's callback never fires.
 const WINDOWS_SHELL_PROBE_DEADLINE = Duration.millis(WINDOWS_SHELL_PROBE_TIMEOUT_MS + 1000);
 
 type ExecFileSyncLike = (
@@ -55,14 +54,8 @@ export type CommandAvailabilityChecker = (
 
 const WINDOWS_SHELL_META_CHARS = /([()\][%!^"`<>&|;, *?])/g;
 
-/**
- * Node hands the command string to `cmd.exe /d /s /c "<command>"` without any
- * quoting, so every dynamic argument must be escaped to survive both cmd.exe
- * parsing and the target program's `CommandLineToArgvW` parsing.
- */
 function escapeWindowsShellArg(arg: string): string {
   let escaped = arg.replace(/(\\*)"/g, '$1$1\\"');
-  // Double up trailing backslashes so the closing quote is not escaped away.
   escaped = escaped.replace(/(\\*)$/, "$1$1");
   escaped = `"${escaped}"`;
   return escaped.replace(WINDOWS_SHELL_META_CHARS, "^$1");
@@ -217,7 +210,6 @@ const POSIX_CAPTURE_SYNTAX = { assignment: "__SUPATERM_PRINTENV=$(", orElse: " |
 const PRINTENV_CAPTURE_SYNTAX = new Map(
   [...DEBUG_TRAP_SHELLS, "dash", "ash"].map((shell) => [shell, POSIX_CAPTURE_SYNTAX] as const),
 ).set("fish", { assignment: "set -l __SUPATERM_PRINTENV (", orElse: "; or " });
-// Network PATH entries must be probed inside the shell's deadline, away from the desktop thread.
 const PRINTENV_LOOKUP_COMMAND = `/bin/sh -c 'command -v printenv || { [ -n "$1" ] && PATH="$1" command -v printenv; } || printf %s /usr/bin/printenv' supaterm`;
 
 export function buildEnvironmentCaptureCommand(
@@ -244,7 +236,6 @@ export function buildEnvironmentCaptureCommand(
       }
 
       if (isNushell) {
-        // Without a configured conversion, Nu expands home paths only in a list PATH.
         const defaultValue =
           name === "PATH"
             ? "if ($env.PATH? | describe | str starts-with 'list') { " +
@@ -274,15 +265,12 @@ export function buildEnvironmentCaptureCommand(
     })
     .join("; ");
 
-  // A DEBUG trap that echoes each command (e.g. into the terminal title) would print the markers.
-  // OpenBSD ksh (also its /bin/sh) exits on `trap - DEBUG`, so try it in a subshell first.
   const command = supportsFallback ? resolvePrintenv + capture : capture;
   return DEBUG_TRAP_SHELLS.has(executableName)
     ? `(trap - DEBUG) 2>/dev/null && trap - DEBUG; ${command}`
     : command;
 }
 
-// Process first so profile prepends win; User and Machine add dirs missing from the launch snapshot.
 export function windowsEnvironmentValueCommand(name: string): string {
   if (name === "PATH") {
     return (
@@ -558,10 +546,6 @@ function resolveCommandCandidates(
   return Array.from(new Set(candidates));
 }
 
-// Explicit-path resolution is never cached - callers probe paths they have
-// just written (e.g. managed binary installs). A "not-found" outcome is also
-// cached for the TTL, so a just-installed binary can stay invisible for up to
-// 30s unless resolved by explicit path.
 const COMMAND_RESOLUTION_CACHE_TTL_NANOS = 30_000_000_000n;
 const COMMAND_RESOLUTION_CACHE_MAX_ENTRIES = 512;
 const COMMAND_RESOLUTION_CACHE_KEY_SEPARATOR = String.fromCharCode(0);
@@ -591,8 +575,6 @@ const directoryMtime = (directory: string) =>
     Effect.catch((error) => Effect.succeed(error.reason._tag === "NotFound" ? null : undefined)),
   );
 
-// Dated before it is read, so an entry added in between changes the mtime seen
-// on the next check. Without names, lookups probe candidates directly.
 const listPathDirectory = Effect.fnUntraced(function* (
   directory: string,
 ): Effect.fn.Return<PathDirectoryListing, never, FileSystem.FileSystem> {
@@ -608,19 +590,17 @@ const PathDirectoryListings = Context.Reference<
   Cache.Cache<string, PathDirectoryListing, never, FileSystem.FileSystem> | undefined
 >("@supaterm/shared/shell/PathDirectoryListings", { defaultValue: () => undefined });
 
-export const withPathDirectoryListings =
-  /* Directory reads are cached inside one shell operation; a span for each lookup adds noise. */
-  Effect.fnUntraced(function* <A, E, R>(effect: Effect.Effect<A, E, R>) {
-    const listings = yield* Cache.make({
-      capacity: 1024,
-      lookup: listPathDirectory,
-      requireServicesAt: "lookup",
-    });
-    return yield* effect.pipe(Effect.provideService(PathDirectoryListings, listings));
+export const withPathDirectoryListings = Effect.fnUntraced(function* <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+) {
+  const listings = yield* Cache.make({
+    capacity: 1024,
+    lookup: listPathDirectory,
+    requireServicesAt: "lookup",
   });
+  return yield* effect.pipe(Effect.provideService(PathDirectoryListings, listings));
+});
 
-// An injected resolver or locator may answer differently for the same search, so its
-// entries are kept apart from every other resolver's.
 let spawnResolverCacheIdCount = 0;
 const spawnResolverCacheIds = new WeakMap<SpawnExecutableResolver | XcodeGitLocator, number>();
 function spawnResolverCacheId(resolver: SpawnExecutableResolver | XcodeGitLocator): number {
@@ -668,7 +648,6 @@ const isExecutableFile = Effect.fnUntraced(function* (
   return canExecuteFile(filePath);
 });
 
-// Called within the traced command resolvers.
 const findOnPath = Effect.fnUntraced(function* (
   pathValue: string,
   commandCandidates: ReadonlyArray<string>,
@@ -677,7 +656,6 @@ const findOnPath = Effect.fnUntraced(function* (
   isLast: (match: string) => boolean,
 ): Effect.fn.Return<ReadonlyArray<string>, never, FileSystem.FileSystem | Path.Path> {
   const path = yield* Path.Path;
-  // Keep case variants: Windows can make PATH directories case-sensitive.
   const pathEntries: string[] = [];
   const seenPathEntries = new Set<string>();
   for (const entry of pathValue.split(pathDelimiterForPlatform(platform))) {
@@ -769,7 +747,6 @@ export const resolveCommandPath = Effect.fn("shell.resolveCommandPath")(function
   });
 });
 
-// Matches for a bare command in PATH order, up to the first one `until` accepts; not cached.
 export const resolveCommandPaths = Effect.fn("shell.resolveCommandPaths")(function* (
   command: string,
   options: CommandAvailabilityOptions & { readonly until: (match: string) => boolean },
@@ -787,8 +764,6 @@ export const resolveCommandPaths = Effect.fn("shell.resolveCommandPaths")(functi
   );
 });
 
-// Git for Windows 2.56 moved x64 builds from mingw64 to ucrt64; ARM64 builds
-// live in clangarm64 and 32-bit ones in mingw32.
 const GIT_FOR_WINDOWS_BUILDS = ["ucrt64", "clangarm64", "mingw64", "mingw32"] as const;
 
 function isFileSync(filePath: string): boolean {
@@ -866,7 +841,6 @@ export function npmShimExecutable(
 
 export type XcodeGitLocator = (env: NodeJS.ProcessEnv) => string | undefined;
 
-// xcrun honors DEVELOPER_DIR and the `xcode-select` choice, as the shim does.
 function locateXcodeGitWithXcrun(env: NodeJS.ProcessEnv): string | undefined {
   try {
     const located = NodeChildProcess.execFileSync("/usr/bin/xcrun", ["--find", "git"], {
@@ -888,11 +862,6 @@ export const XcodeGitLocation = Context.Reference<XcodeGitLocator>(
 
 const MACOS_GIT_SHIM = "/usr/bin/git";
 
-/**
- * /usr/bin/git is an xcrun shim costing about 8 ms per spawn against under 3 ms
- * for the git behind it. Only the shim is replaced, so a git first on PATH still
- * wins; any lookup failure keeps plain `git`.
- */
 const resolveMacosGit = Effect.fnUntraced(function* (
   env: NodeJS.ProcessEnv,
   resolveExecutable: SpawnExecutableResolver,
@@ -908,7 +877,6 @@ const resolveMacosGit = Effect.fnUntraced(function* (
   ].join(COMMAND_RESOLUTION_CACHE_KEY_SEPARATOR);
   const nowNanos = yield* Clock.currentTimeNanos;
   const cached = cache.get(cacheKey);
-  // An Xcode update or removal deletes the binary; look again instead of failing the spawn.
   if (
     cached !== undefined &&
     cached.expiresAtNanos > nowNanos &&
@@ -931,8 +899,6 @@ export interface SpawnCommandOptions extends CommandAvailabilityOptions {
   readonly bypassNpmShim?: boolean;
 }
 
-// `*` is one argument that is not an option. These forms read refs or config
-// only, so git starts no hook, helper, pager, editor or lazy fetch for them.
 const CONSOLE_FREE_GIT_READS = [
   "rev-parse --git-path index",
   "rev-parse --git-common-dir",
@@ -997,10 +963,6 @@ export const resolveSpawnCommand = Effect.fnUntraced(function* (
       shell: false,
     };
   }
-  // The scan is synchronous and runs before every child process, so it shares
-  // the PATH scan cache above. Explicit paths stay uncached for the same reason,
-  // and so do misses: a failed spawn is how providers report "not installed",
-  // and that has to clear the moment the binary appears.
   const explicitPath = command.includes("/") || command.includes("\\");
   const cache = yield* CommandResolutionCache;
   const cacheKey = [
@@ -1034,9 +996,6 @@ export const resolveSpawnCommand = Effect.fnUntraced(function* (
     return { command: shimExecutable, args: [...args], shell: false };
   }
 
-  // Node runs a shell spawn as `cmd.exe /d /s /c "<command> <args...>"`, but
-  // passing args with `shell: true` prints DEP0190. Build the same escaped line
-  // here and pass no args.
   return {
     command: [resolvedCommand, ...args].map(escapeWindowsShellArg).join(" "),
     args: [],
@@ -1156,27 +1115,22 @@ interface PathSetupInput {
 export function pathSetup(
   input: PathSetupInput,
 ): { readonly file: string; readonly line: string } | undefined {
-  // A relative folder on PATH would follow the working directory into any checkout.
   if (input.platform === "win32" || !input.directory.startsWith("/")) return undefined;
   const underHome = input.directory.startsWith(`${input.home}/`);
   const rest = underHome ? input.directory.slice(input.home.length) : input.directory;
   if (!/^[\w./-]+$/.test(rest)) return undefined;
   const directory = underHome ? `$HOME${rest}` : rest;
   const shell = input.shell?.split("/").pop();
-  // A set folder the shell reads from replaces the default; one unsafe to write means no setup,
-  // since the default file would never be read.
   const readFrom = (value: string | undefined, fallback: string) =>
     !value ? fallback : value.startsWith("/") && /^[\w./-]+$/.test(value) ? value : undefined;
   if (shell === "fish") {
     const configHome = readFrom(input.configHome, "~/.config");
     if (configHome === undefined) return undefined;
-    // --path changes $PATH itself; fish_user_paths would go ahead of the system folders.
     return {
       file: `${configHome}/fish/config.fish`,
       line: `fish_add_path --append --path ${directory}`,
     };
   }
-  // macOS bash reads only the first of .bash_profile, .bash_login, and .profile; no file is safe.
   const zdotdir = readFrom(input.zdotdir, "~");
   const file =
     shell === "zsh"
@@ -1191,9 +1145,7 @@ export function pathSetup(
 export function pathSetupCommand(input: PathSetupInput): string | undefined {
   const setup = pathSetup(input);
   if (!setup) return undefined;
-  // The leading newline keeps the line out of a final comment with no newline after it.
   const append = `printf '\\n%s\\n' '${setup.line}' >> ${setup.file}`;
-  // fish's config folder may not exist yet; `&&` works in fish 3 too.
   return setup.file.endsWith(".fish")
     ? `mkdir -p ${setup.file.slice(0, setup.file.lastIndexOf("/"))} && ${append}`
     : append;

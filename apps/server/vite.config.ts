@@ -9,7 +9,6 @@ import { resolveTaggedSourceVersion } from "../../scripts/lib/tagged-source-vers
 import packageJson from "./package.json" with { type: "json" };
 import { WeightedShardSequencer } from "./src/testUtils/weightedShardSequencer.ts";
 
-// NSIS install time tracks file count, not bytes.
 import {
   isExternalCliDependency,
   shouldBundleCliDependency,
@@ -18,7 +17,6 @@ import {
 export { shouldBundleCliDependency };
 
 const serverManifestPath = NodePath.join(import.meta.dirname, "package.json");
-// The desktop packager passes APP_VERSION; it can equal the manifest at a commit tagged otherwise.
 const buildVersion =
   process.env.APP_VERSION?.trim() ||
   resolveTaggedSourceVersion(NodePath.join(import.meta.dirname, "../.."), packageJson.version);
@@ -30,17 +28,11 @@ if (!TELEMETRY_CHANNELS.includes(telemetryChannel)) {
   );
 }
 
-// tsdown's exe step refuses multi-chunk output (sourcemaps count), so build:exe packs separately.
-// "bundle" emits the embedded CLI. "1" builds dist-exe/supaterm from the bootstrap.
-// TEMPORARY one-time Node fix. Remove when fixed: https://github.com/nodejs/node/issues/67048
-// "bootstrap" stops at bin.mjs for scripts/cli.ts to inject (linux-arm64).
 const packMode = process.env.SUPATERM_PACK_EXE;
 const packBootstrap = packMode === "1" || packMode === "bootstrap";
 const packExecutable = packBootstrap || packMode === "bundle";
 const cliAssetDir = process.env.SUPATERM_CLI_ASSET_DIR ?? "";
 if (packExecutable && !cliAssetDir) throw new Error("Build the executable with build:exe.");
-// TEMPORARY one-time Node fix. Remove when fixed: https://github.com/nodejs/node/issues/67048
-// No linux-arm64: --build-sea output cannot load on 16/64 KiB page kernels, so it builds natively.
 const SEA_TARGETS = {
   "darwin-arm64": { platform: "darwin", arch: "arm64" },
   "darwin-x64": { platform: "darwin", arch: "x64" },
@@ -68,8 +60,6 @@ const packExecutableTargets = packExecutableTarget
     ]
   : undefined;
 
-// The root config's `projects` route repo-root runs to package configs,
-// including this one. Inheriting them would make this config a container.
 const { projects: _rootTestProjects, ...baseTestConfig } = baseConfig.test ?? {};
 
 export default mergeConfig(
@@ -87,7 +77,6 @@ export default mergeConfig(
     pack: {
       plugins: [
         {
-          // Every server module reads its version from this manifest import.
           name: "supaterm:build-version",
           load(id) {
             if (NodePath.resolve(id) !== serverManifestPath) return;
@@ -98,8 +87,6 @@ export default mergeConfig(
           },
         },
       ],
-      // The executable embeds the bootstrap and the CLI as an asset; the history worker becomes
-      // a hidden subcommand there instead of a sibling script.
       entry: packBootstrap
         ? ["src/bin.ts"]
         : packExecutable
@@ -108,7 +95,6 @@ export default mergeConfig(
       outDir: packBootstrap ? "dist-exe" : packExecutable ? cliAssetDir : "dist",
       sourcemap: !packExecutable,
       clean: true,
-      // SEA can only resolve built-ins; keep dynamic imports inside each emitted module.
       ...(packExecutable ? { outputOptions: { codeSplitting: false } } : {}),
       ...(packMode === "1"
         ? {
@@ -116,24 +102,16 @@ export default mergeConfig(
               fileName: "supaterm",
               outDir: "dist-exe",
               ...(packExecutableTargets ? { targets: packExecutableTargets } : {}),
-              // Node's SEA docs: `import()` does not work when useCodeCache is
-              // true, and the server reaches several modules that way.
               seaConfig: {
                 useCodeCache: false,
-                // The bootstrap loads the embedded CLI with require(esm).
                 execArgv: ["--require-module"],
                 assets: { "binMain.mjs": NodePath.join(cliAssetDir, "binMain.mjs") },
               },
             },
           }
         : {}),
-      // jsonc-parser's UMD main requires its own files at runtime, which the bundle cannot follow.
       alias: { "jsonc-parser": "jsonc-parser/lib/esm/main.js" },
       deps: {
-        // `neverBundle` forces the native packages out: returning false from
-        // `alwaysBundle` only means "no opinion", so a transitive dependency
-        // would still be bundled — which silently inlined native loaders such
-        // as node-gyp-build, losing native acceleration.
         alwaysBundle: shouldBundleCliDependency,
         neverBundle: (id: string) =>
           (packBootstrap && id === "./binMain.ts") || isExternalCliDependency(id),
@@ -147,11 +125,8 @@ export default mergeConfig(
       },
     },
     test: {
-      // The server suite exercises sqlite, git, temp worktrees, and orchestration
-      // runtimes heavily. Running files in parallel introduces load-sensitive flakes.
       fileParallelism: false,
       sequence: { sequencer: WeightedShardSequencer },
-      // Appended to the root setup, which mergeConfig concatenates.
       setupFiles: [
         "./src/testUtils/gitConfig.setup.ts",
         "./src/testUtils/managedServiceEnv.setup.ts",

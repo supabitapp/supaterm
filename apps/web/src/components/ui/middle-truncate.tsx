@@ -23,7 +23,6 @@ export function MiddleTruncate({
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fits the head span's DOM text and refits it through a ResizeObserver
   useLayoutEffect(() => {
     const element = headRef.current;
-    // A new head can keep the same box size, so refit here, not only on resize.
     if (!element || head === undefined) return;
     scheduleFit(element);
     return observeResize(element, () => scheduleFit(element));
@@ -34,7 +33,6 @@ export function MiddleTruncate({
       className={cn(
         "inline-flex min-w-0 max-w-full overflow-hidden whitespace-nowrap",
         variant === "cap-aligned" &&
-          // Padding keeps descenders inside the box, so the cut does not clip them.
           "overflow-x-clip overflow-y-visible [&>span]:[text-box:trim-both_cap_alphabetic] [&>span]:-mb-1 [&>span]:pb-1 [&>span]:overflow-x-clip [&>span]:overflow-y-visible",
         className,
       )}
@@ -42,7 +40,6 @@ export function MiddleTruncate({
     >
       {split ? (
         <>
-          {/* The tail carries the ellipsis so it sits flush; a CSS ellipsis leaves a ragged gap. */}
           <span ref={headRef} className="peer min-w-0 overflow-hidden whitespace-pre">
             {split.head}
           </span>
@@ -51,7 +48,6 @@ export function MiddleTruncate({
           </span>
         </>
       ) : (
-        // Keyed so React does not reuse the head node and its imperative clip.
         <span key="whole" className="min-w-0 truncate">
           {value}
         </span>
@@ -60,9 +56,6 @@ export function MiddleTruncate({
   );
 }
 
-// Fitting heads one by one forces a layout per row, since each read follows the previous
-// head's write. Heads queued in one commit or resize delivery fit together in a microtask,
-// still before paint: all reads, then all writes.
 const pendingFits = new Set<HTMLElement>();
 
 function scheduleFit(head: HTMLElement) {
@@ -70,9 +63,6 @@ function scheduleFit(head: HTMLElement) {
   pendingFits.add(head);
 }
 
-// An overflowing head is cut after its last whole grapheme: clip the partial glyph
-// and slide the tail left over the slack. Neither changes layout, so the observed
-// size stays the true available width.
 function fitPendingHeads() {
   const heads = [...pendingFits].filter((head) => head.isConnected);
   pendingFits.clear();
@@ -94,7 +84,6 @@ function measureSlack(head: HTMLElement) {
   const range = document.createRange();
   const left = head.getBoundingClientRect().left;
   const width = head.clientWidth;
-  // Range offsets count UTF-16 units; only grapheme boundaries are valid cuts.
   const boundaries = [0];
   for (const part of graphemeSegmenter.segment(text.data)) {
     boundaries.push(part.index + part.segment.length);
@@ -114,9 +103,6 @@ function measureSlack(head: HTMLElement) {
   return Math.max(0, width - widthTo(fits));
 }
 
-// The segments render pre so the space at the cut survives, so collapse here what CSS
-// would have (not \s: em and no-break spaces are kept). Split first, so the tail length
-// still counts the raw value.
 function collapseSegments(split: { head: string; tail: string }) {
   const collapse = (text: string) => text.replace(/[ \t\n\r\f]+/g, " ");
   const head = collapse(split.head).replace(/^ /, "");
@@ -134,8 +120,6 @@ export function splitForMiddleTruncate(
   value: string,
   tail?: number,
 ): { head: string; tail: string } | null {
-  // Graphemes, not code points: head and tail render as separate flex items, so a cut
-  // inside a combining sequence or a joined emoji would render its pieces as broken glyphs.
   const chars = Array.from(graphemeSegmenter.segment(value), (part) => part.segment);
   let keep = tail ?? DEFAULT_TAIL;
   if (tail === undefined) {
@@ -147,8 +131,6 @@ export function splitForMiddleTruncate(
   }
   if (keep <= 0 || chars.length <= keep + 4) return null;
   let cut = chars.length - keep;
-  // Start an automatic tail on a word ("machine", not "er-machine"). A shorter tail is
-  // preferred so the head stays readable; a longer one is the fallback.
   if (tail === undefined && !WORD_BREAK.test(chars[cut - 1]!)) {
     const startsWord = (index: number) => WORD_BREAK.test(chars[index - 1]!);
     let snapped = -1;

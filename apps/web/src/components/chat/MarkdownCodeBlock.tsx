@@ -154,8 +154,6 @@ export function MarkdownCodeBlock({
   const [wrapOverride, setWrapOverride] = useState<boolean | null>(null);
   const wrapped = wrapOverride ?? defaultWrapped;
   const [confirmingCommand, setConfirmingCommand] = useState<string | null>(null);
-  // The shared clipboard helper falls back to execCommand where navigator.clipboard is missing,
-  // such as remote clients served over plain HTTP.
   const { copyToClipboard, isCopied: copied } = useCopyToClipboard({
     timeout: 1200,
     target: "code block",
@@ -183,9 +181,6 @@ export function MarkdownCodeBlock({
     command.length > 0 &&
     !command.endsWith("\\") &&
     !/^[$>] /m.test(command) &&
-    // Control and invisible format characters (bidi overrides, zero-width) can
-    // make the rendered command differ from what the terminal would receive.
-    // Multi-line scripts are pasted, so their tabs stay literal instead of completing.
     !/[\p{Cc}\p{Cf}]/u.test(code.slice(0, -1).replace(lineCount > 1 ? /[\n\t]/g : /\n/g, ""));
 
   const Icon = copied ? CheckIcon : CopyIcon;
@@ -309,8 +304,6 @@ export function SuspenseShikiCodeBlock({
   if (isStreaming && !hasStreamed) setHasStreamed(true);
   const language = extractFenceLanguage(className);
   const cacheKey = createHighlightCacheKey(code, language, themeName);
-  // Once lines are mounted individually, keep that renderer when streaming
-  // finishes so switching to cached HTML cannot clear an existing selection.
   const cachedHighlightedHtml =
     !isStreaming && !hasStreamed ? highlightedCodeCache.get(cacheKey) : null;
 
@@ -375,7 +368,6 @@ function UncachedShikiCodeBlock({
           : highlighter.codeToHtml(code, { lang: "text", theme: themeName });
       }
     })();
-    // A finished block is cached for the next mount; a streaming one is still changing.
     if (!isStreaming) {
       const highlightedHtml = typeof result === "string" ? result : toHtml(result);
       highlightedCodeCache.set(

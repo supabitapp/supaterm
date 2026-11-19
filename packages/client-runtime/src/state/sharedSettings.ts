@@ -1,8 +1,3 @@
-/**
- * Some user preferences live in each server's `settings.json` only because the
- * server acts on them with no client attached. Clients write these keys to every
- * sync target and warn when one still differs, so they never vary per machine.
- */
 import type { ServerSettings, ServerSettingsPatch } from "@supaterm/contracts";
 import { isModelSelectionProviderEnabled } from "@supaterm/shared/serverSettings";
 import * as Struct from "effect/Struct";

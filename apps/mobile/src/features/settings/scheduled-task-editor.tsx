@@ -28,7 +28,6 @@ export function useScheduledTaskThread(
   const ref =
     environmentId === null || threadId === null ? null : scopeThreadRef(environmentId, threadId);
   const shell = useThreadShell(ref);
-  // The shell can omit older done threads; their family read still carries the row.
   const family = useEnvironmentQuery(
     ref !== null && shell === null
       ? threadFamilies.familyAtom(ref.environmentId, ref.threadId)
@@ -79,7 +78,6 @@ export function useScheduledTaskEditor() {
     },
     [configs, projects, selectedGroup],
   );
-  // Direct links can open the new-task form before environments have connected.
   const defaultEditor = useMemo(
     () =>
       defaultTarget

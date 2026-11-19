@@ -40,7 +40,6 @@ export function UpdateTrackSwitchDialog({
   readonly channel: DesktopUpdateChannel;
   readonly onClose: () => void;
 }) {
-  // npm dist-tags match the desktop channel names.
   const release = useAtomValue(npmReleaseAtom(channel));
   if (AsyncResult.isSuccess(release) && release.value !== null) {
     return <SwitchPlan release={{ channel, ...release.value }} onClose={onClose} />;
@@ -77,9 +76,7 @@ function SwitchPlan({
   const updateState = useDesktopUpdateState();
   const { environments } = useEnvironments();
   const crossesLocal = desktopUpdateChannelOf(APP_VERSION) !== release.channel;
-  // With its updater off (a .deb install, or no feed) this app stays put and only remotes move.
   const updatesOff = updateState?.enabled === false;
-  // After a partial switch this app may already be on the track; then only remotes move.
   const switchesLocal = crossesLocal && !updatesOff;
   const [checking, setChecking] = useState(false);
   const everything = useUpdateEverything(switchesLocal ? release.version : null, release);
@@ -93,7 +90,6 @@ function SwitchPlan({
     rows: everything.rows,
     hasTargets: everything.hasUpdates,
   });
-  // This app's reinstall restarts every server it hosts, so each of their databases must allow it.
   const localBlocked = localSwitchBlockReason(
     APP_VERSION,
     release,
@@ -108,7 +104,6 @@ function SwitchPlan({
   const run = async () => {
     const bridge = window.desktopBridge;
     if (!bridge) return;
-    // Stay open while the feed is checked; the run's own progress takes over after.
     setChecking(true);
     const fail = (description: string) =>
       toastManager.add(
@@ -136,7 +131,6 @@ function SwitchPlan({
                       downloadLocalUpdate(bridge, { notifyDownloaded: false, reportError }),
                   }
                 : {}),
-              // Install only a build the database check covers, pinned so nothing replaces it.
               installLocal: async (reportError) => {
                 const { downloadedVersion } = await bridge.getUpdateState();
                 if (

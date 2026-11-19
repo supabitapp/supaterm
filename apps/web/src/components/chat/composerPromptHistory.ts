@@ -121,7 +121,6 @@ export function recallableComposerPrompt(
     break;
   }
 
-  // Chips without a record the draft can hold would render as unavailable.
   for (const reference of collectComposerContextReferences(prompt).toReversed()) {
     if (keptContextIds.has(reference.contextId)) continue;
     let { start, end } = reference;
@@ -149,7 +148,6 @@ export function recallComposerMessage(
     message.text,
     new Set(referenceRecords.map((record) => record.contextId)),
   );
-  // A record whose chip is gone from the text would put the chip back when written to the draft.
   const referenced = new Set<string>(
     collectComposerContextReferences(prompt).map((reference) => reference.contextId),
   );

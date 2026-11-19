@@ -21,14 +21,12 @@ const runServerCommand = Effect.fn("server.runServerCommand")(function* (
     readonly rejectRunningServer?: boolean;
   },
 ) {
-  // Before config resolution, which claims a port and creates directories.
   const { runServer } = yield* Effect.promise(() => import("../server.ts"));
   const logLevel = yield* GlobalFlag.LogLevel;
   const selectAutomaticPort = yield* AutomaticPort.make.pipe(Effect.provide(ProcessRunner.layer));
   const config = yield* resolveServerConfig(flags, logLevel, { ...options, selectAutomaticPort });
   const run = runServer.pipe(
     Effect.provideService(ServerConfig.ServerConfig, config),
-    // Settings' Reclaim stops the server; repair once the database is closed, before the restart.
     Effect.ensuring(
       DatabaseMaintenance.runRequestedReclaim(config.dbPath).pipe(
         Effect.provide(DatabaseMaintenance.layer),
@@ -36,13 +34,7 @@ const runServerCommand = Effect.fn("server.runServerCommand")(function* (
     ),
   );
   if (config.mode !== "desktop" || config.desktopBootstrapToken === undefined) return yield* run;
-  return yield* Effect.raceFirst(
-    run,
-    awaitLauncherLoss().pipe(
-      // End like SIGTERM does (interrupt-only exit, so the runtime forces process exit).
-      Effect.andThen(Effect.interrupt),
-    ),
-  );
+  return yield* Effect.raceFirst(run, awaitLauncherLoss().pipe(Effect.andThen(Effect.interrupt)));
 });
 
 const encodeCommand = Schema.encodeEffect(Schema.fromJsonString(Schema.String));
@@ -75,7 +67,6 @@ export const startCommand = Command.make("start", { ...sharedServerCommandFlags 
   Command.withHandler((flags) => runServerCommand(flags, { rejectRunningServer: true })),
 );
 
-// Serve never bootstraps a project, so it does not offer the flag that asks for one.
 const { autoBootstrapProjectFromCwd: _, ...serveCommandFlags } = sharedServerCommandFlags;
 
 export const serveCommand = Command.make("serve", serveCommandFlags).pipe(

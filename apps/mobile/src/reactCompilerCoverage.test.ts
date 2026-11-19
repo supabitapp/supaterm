@@ -34,8 +34,6 @@ function walkAst(
   for (const child of Object.values(value)) walkAst(child, visit, childAncestors);
 }
 
-// For each call to `callee`, whether it runs only on the cache-miss branch of
-// an `if ($[n] !== dep)` block rather than on every render.
 function compilerCachedCalls(file: string, callee: string): boolean[] {
   const result = compileLikeMetro(file, [], { ast: true });
   const cached: boolean[] = [];
@@ -85,23 +83,18 @@ describe("React Compiler coverage", () => {
     expect(transformed("false")).not.toContain("react/compiler-runtime");
   });
 
-  // The compiler once silently dropped this cache, so every
-  // ThreadFeed render rebuilt the feed and handed LegendList a new data array.
   it("caches the thread feed derivation", () => {
     expect(
       compilerCachedCalls("src/features/threads/ThreadFeed.tsx", "deriveThreadFeedPresentation"),
     ).toEqual([true]);
   });
 
-  // The compiler once silently dropped these caches, so the new-task context
-  // value changed on every provider render and re-rendered every consumer.
   it("caches the new-task model options and host environments", () => {
     const file = "src/features/threads/new-task-flow-provider.tsx";
     expect(compilerCachedCalls(file, "buildModelOptions")).toEqual([true]);
     expect(compilerCachedCalls(file, "repositoryGroupingKeyOf")).toEqual([true, true]);
   });
 
-  // Uncached facets get a new identity every render, and the render-phase facet merge then loops.
   it("caches the pull request list facets", () => {
     expect(
       compilerCachedCalls(
@@ -111,7 +104,6 @@ describe("React Compiler coverage", () => {
     ).toEqual([true]);
   });
 
-  // An uncached registration would re-register the workspace inspector on every render.
   it("registers the workspace inspector only when its renderer changes", () => {
     expect(
       compilerCachedCalls(

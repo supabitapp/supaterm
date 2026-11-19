@@ -83,11 +83,6 @@ const mcpResourceMetadataUrl = (request: HttpServerRequest.HttpServerRequest) =>
     Option.map((url) => `${url.origin}/.well-known/oauth-protected-resource/mcp`),
   );
 
-/**
- * Agents Supaterm launched carry a registry token and must never be sent into an
- * OAuth flow when it dies: they cannot open a browser, and a sign-in would mint
- * a credential that outlives their session.
- */
 const unauthorized = (input: {
   readonly request: HttpServerRequest.HttpServerRequest;
   readonly presentedToken: boolean;
@@ -155,7 +150,6 @@ const normalizeMcpHttpResponse = (
     : response;
 };
 
-// Session tokens are `<payload>.<signature>`; registry tokens are a bare base64url secret.
 const looksLikeProviderToken = (token: string) => token.length > 0 && !token.includes(".");
 
 const makeMcpAuthMiddleware = Effect.gen(function* () {
@@ -191,10 +185,8 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
     const origin = Option.getOrUndefined(Option.map(requestUrl(request), (url) => url.origin));
     return { ...invocation, origin };
   });
-  // Untraced: a span here would wrap the tool call; the HTTP server span already covers it.
   return Effect.fnUntraced(function* (httpEffect) {
     const request = yield* HttpServerRequest.HttpServerRequest;
-    // The transport allows no browser Origin; refuse it before credentials, as the MCP spec requires.
     if (request.headers.origin !== undefined) return HttpServerResponse.empty({ status: 403 });
     const admitted = yield* authenticateRequest(request);
     if (HttpServerResponse.isHttpServerResponse(admitted)) return admitted;
@@ -216,7 +208,6 @@ const layerMcpAuthMiddleware = HttpRouter.middleware<{
  */
 export const MAX_SNAPSHOT_TEXT_BYTES = 20_000;
 const MAX_SNAPSHOT_VISIBLE_TEXT_CHARS = 8_000;
-// Page text and the ARIA tree both shrink to this before either drops below it.
 const SNAPSHOT_TEXT_FLOOR_CHARS = 2_000;
 const MAX_SNAPSHOT_ELEMENT_NAME_CHARS = 200;
 const MAX_SNAPSHOT_LOG_ENTRIES = 40;
@@ -227,7 +218,6 @@ const encodeJsonText = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 const utf8Length = (text: string) => Buffer.byteLength(text, "utf8");
 const cutText = (text: string, max: number) => {
   if (text.length <= max) return text;
-  // Half an emoji serializes to a lone surrogate escape, which provider JSON parsers reject.
   const last = text.charCodeAt(max - 1);
   return `${text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max)}…`;
 };
@@ -309,8 +299,6 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
     actionTimeline: tail(metadata.actionTimeline, "action timeline entries"),
   };
 
-  // Per-field caps do not sum below the ceiling: three log arrays of 40 capped
-  // entries alone can pass 60 KB, and the caps count characters, not bytes.
   const shedOrder = [
     "actionTimeline",
     "networkEntries",
@@ -339,7 +327,6 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
   });
   let text = encodeJsonText(value());
   while (utf8Length(text) > MAX_SNAPSHOT_TEXT_BYTES) {
-    // Logs shed first, oldest first. Below the floors, locator-bearing elements and tree go last.
     const key =
       shedOrder.find(
         (candidate) => candidate !== "interactiveElements" && lists[candidate].length > 0,
@@ -363,7 +350,6 @@ const boundSnapshotMetadata = (metadata: SnapshotMetadata) => {
     } else {
       const keep = Math.floor(lists[key].length / 2);
       dropped[key] += lists[key].length - keep;
-      // slice(-0) keeps everything, so spell out the empty case.
       lists[key] =
         keep === 0
           ? []
@@ -436,10 +422,6 @@ const saveScreenshot = Effect.fn("McpHttpServer.saveScreenshot")(function* (
 const MAX_NAMED_ARGUMENTS = 5;
 const MAX_ARGUMENT_NAME_CHARS = 64;
 
-/**
- * Rejects top-level arguments the advertised schema does not list, naming them. Nested objects stay lenient:
- * the advertised schema merges tagged unions, so strict decoding would reject keys agents were shown.
- */
 const advertisedArgumentsOnly = (tool: Tool.Any) => {
   const { properties } = advertisedJsonSchema(tool);
   const accepted = new Set(Predicate.isObject(properties) ? Object.keys(properties) : []);
@@ -458,7 +440,6 @@ const advertisedArgumentsOnly = (tool: Tool.Any) => {
   );
 };
 
-/** Decode with the advertised JSON codec, which permits null for optional fields that the raw schema rejects. */
 const decodeAsAdvertised = <Tools extends Record<string, Tool.Any>>(
   toolkit: Toolkit.Toolkit<Tools>,
 ): Toolkit.Toolkit<Tools> =>
@@ -495,8 +476,6 @@ const previewSnapshotFailure = Effect.fn("previewSnapshotFailure")(function <E>(
     typeof firstFailure._tag === "string"
       ? firstFailure._tag
       : "PreviewSnapshotError";
-  // Preview errors build their message on the server, never from page output,
-  // and it tells the agent what to do next, such as falling back to a shell browser.
   const message =
     isPreviewAutomationError(firstFailure) ||
     isPreviewScreenshotSaveError(firstFailure) ||
@@ -513,7 +492,6 @@ const previewSnapshotFailure = Effect.fn("previewSnapshotFailure")(function <E>(
         ...(message === undefined ? {} : { message }),
       },
     },
-    // Some clients show only the text content and others only structuredContent, so both carry it.
     content: [{ type: "text", text: `Preview snapshot failed: ${message ?? `${errorTag}.`}` }],
   });
   return Effect.logWarning("preview snapshot failed", {
@@ -596,7 +574,6 @@ const registerPreviewSnapshot = Effect.fn("McpHttpServer.registerPreviewSnapshot
                         : png,
                     )
                   : undefined;
-              // Providers replay images on later requests, and some reject them; include images only when requested.
               if (screenshotPath !== undefined && !includeImage) {
                 const saved = {
                   url: cutText(snapshot.url, MAX_SNAPSHOT_IDENTIFIER_CHARS),
@@ -667,11 +644,6 @@ interface ImageToolResult {
   readonly [key: string]: unknown;
 }
 
-/**
- * Failures surface only their tag unless the tool describes them: the remote
- * message may carry renderer or device output the agent should not see, and the
- * tag is what it can act on.
- */
 const imageToolFailure =
   <E>(toolName: string, operation: string, failureText: string | ((error: E) => string)) =>
   (cause: Cause.Cause<E>) => {
@@ -701,7 +673,6 @@ const imageToolFailure =
           ...(message === undefined ? {} : { message }),
         },
       },
-      // Some clients show only the text content and others only structuredContent, so both carry it.
       content: [
         {
           type: "text",
@@ -716,10 +687,6 @@ const imageToolFailure =
     }).pipe(Effect.as(result));
   };
 
-/**
- * `McpServer.toolkit` serializes every result as JSON text, which is the wrong
- * shape for a screenshot: the model needs image content.
- */
 const registerImageTool = Effect.fn("McpHttpServer.registerImageTool")(function* <
   T extends Tool.Any,
   E,
@@ -852,7 +819,6 @@ const registerHtmlPreview = Effect.fn("McpHttpServer.registerHtmlPreview")(funct
   );
 });
 
-/** Each tool call gets a span named for its tool; arguments stay out, as they carry prompts and IDs. */
 const withToolSpans = Effect.fn("McpHttpServer.withToolSpans")(function* <A, E, R>(
   registration: Effect.Effect<A, E, R>,
 ) {
@@ -863,7 +829,6 @@ const withToolSpans = Effect.fn("McpHttpServer.withToolSpans")(function* <A, E, 
       const name = options.tool.name;
       return server.addTool({
         ...options,
-        // Never the current span: Toolkit.handle annotates that one with the raw arguments.
         handle: (payload) =>
           Effect.useSpan(
             `mcp.tool.${name}`,
@@ -882,7 +847,6 @@ const withToolSpans = Effect.fn("McpHttpServer.withToolSpans")(function* <A, E, 
   return yield* registration.pipe(Effect.provideService(McpServer.McpServer, tracingServer));
 });
 
-/** `McpServer.registerToolkit` advertises the full codec schema; agents get the compact one. */
 const withAdvertisedSchemas = Effect.fn("McpHttpServer.withAdvertisedSchemas")(function* <
   Tools extends Record<string, Tool.Any>,
   A,
@@ -911,7 +875,6 @@ const withAdvertisedSchemas = Effect.fn("McpHttpServer.withAdvertisedSchemas")(f
   return yield* registration.pipe(Effect.provideService(McpServer.McpServer, advertisingServer));
 });
 
-/** Hands each call the services its registration was built with; the request's own still win. */
 const provideRegistrationServices = <Services>() =>
   McpServer.middleware<{ provides: Services }>()(
     Effect.map(
@@ -1054,7 +1017,6 @@ export const layerMcpTransport = <RA, RE, RR>(registrations: Layer.Layer<RA, RE,
     name: "supaterm",
     version: packageJson.version,
     path: MCP_HTTP_PATH,
-    // The first protocol is the fallback for clients that offer an unknown version.
     protocols: [McpProtocol.v2025_06_18, McpProtocol.v2026_07_28],
     allowSessionTermination: true,
     registrations,
@@ -1075,11 +1037,7 @@ export const layerTools = Layer.mergeAll(
   layerDeviceToolkit,
   layerHtmlToolkit,
   layerMessageToolkit,
-).pipe(
-  // One instance, so an upload prepared through the attachment tools is the
-  // same caller's upload the transcription tools check.
-  Layer.provide(McpPendingUploads.layer),
-);
+).pipe(Layer.provide(McpPendingUploads.layer));
 
 const layerToolExposure = Layer.effect(
   McpToolExposure.McpToolExposure,
@@ -1093,15 +1051,9 @@ const layerToolExposure = Layer.effect(
   }),
 );
 
-/**
- * A provider session that sends `MCP_TOOL_EXPOSURE_HEADER: deferred` lists only
- * the direct tools and what its `tool_search` calls loaded. Calls are never
- * gated, and every other client lists everything but `tool_search`.
- */
 const layerDeferredListing = McpServer.visibility(
   Effect.gen(function* () {
     const exposure = yield* McpToolExposure.McpToolExposure;
-    // Untraced: it runs once per tool on every list request.
     return Effect.fnUntraced(function* ({ method, target, headers }: McpServer.MiddlewareOptions) {
       if (method !== "tools/list") return true;
       const scope = yield* Effect.serviceOption(McpInvocationContext.McpInvocationContext);

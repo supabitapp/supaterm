@@ -242,7 +242,6 @@ describe("usage pricing", () => {
       },
     });
 
-    // The Claude prompt is input + cache read + cache write: 120K, above the 100K tier.
     expect
       .soft(
         priceUsage(
@@ -295,9 +294,7 @@ describe("usage pricing", () => {
       }).costUsd;
 
     expect(cost(272_000)).toBeCloseTo(72_000 * 2e-6 + 200_000 * 2e-7 + 1_000 * 1e-5, 12);
-    // Output keeps the base rate; cache reads keep the base discount relative to input.
     expect(cost(272_001)).toBeCloseTo(72_001 * 4e-6 + 200_000 * 4e-7 + 1_000 * 1e-5, 12);
-    // Without a priority long-context rate, priority requests keep the priority rate.
     expect(cost(272_001, "fast")).toBeCloseTo(72_001 * 4e-6 + 200_000 * 4e-7 + 1_000 * 2e-5, 12);
   });
 

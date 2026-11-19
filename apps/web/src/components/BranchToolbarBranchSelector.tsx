@@ -275,10 +275,6 @@ export function BranchToolbarBranchSelector({
   const branchRefState = usePaginatedBranches({
     environmentId,
     cwd: branchCwd,
-    // The server filters refs by substring, so it has to be given the sanitized
-    // name as well: querying the raw "new branch" drops an existing new-branch
-    // from the response entirely, which would defeat the collision check below.
-    // Ref names cannot contain an ASCII space, so sanitizing loses no matches.
     query: sanitizeNewRefName(trimmedBranchQuery),
   });
   const refs = branchRefState.refs;
@@ -441,9 +437,6 @@ export function BranchToolbarBranchSelector({
     });
   };
 
-  // The picker's list, and the server's coalesced ref listing, can predate a checkout an agent
-  // ran itself. Only the claimed worktree's live HEAD confirms the claim; an unconfirmed one
-  // falls back to a real checkout, which Git refuses if the branch is checked out elsewhere.
   const latestSelectionIdRef = useRef(0);
   const readSelectedRef = async (worktreePath: string, listedRef: VcsRef): Promise<VcsRef> => {
     const result = await readRefs({
@@ -472,7 +465,6 @@ export function BranchToolbarBranchSelector({
     const refName = listedRef.worktreePath
       ? await readSelectedRef(listedRef.worktreePath, listedRef)
       : listedRef;
-    // A later pick made while this one was confirming its worktree wins.
     if (selectionId !== latestSelectionIdRef.current) return;
     latest = readLatestThreadState();
     const selectionTarget = resolveBranchSelectionTarget({
@@ -522,7 +514,6 @@ export function BranchToolbarBranchSelector({
         const applied = setThreadBranch(
           nextBranchName,
           selectionTarget.nextWorktreePath,
-          // A failed move leaves the thread in its old checkout, which never had the new branch.
           movesCheckout
             ? () => setBranchHold((current) => (current === hold ? null : current))
             : undefined,
@@ -531,7 +522,6 @@ export function BranchToolbarBranchSelector({
           hold = {
             branch: nextBranchName,
             environmentId,
-            // The thread keeps its old checkout until the metadata update moves it to the new one.
             checkouts: [
               { cwd: branchCwd, replaces: canonicalActiveBranch },
               ...(movesCheckout
@@ -620,7 +610,6 @@ export function BranchToolbarBranchSelector({
   useEffect(() => {
     if (projectCloneDone) refreshStaleRefs();
   }, [projectCloneDone]);
-  // A checkout made outside Supaterm, such as a clone finishing, leaves refs listed before it.
   const statusBranch = branchStatusQuery.data?.refName ?? null;
   const refreshRefsMissingStatusBranch = useEffectEvent((branch: string | null) => {
     if (isInitialBranchesLoadPending || branch === null) return;
@@ -852,7 +841,6 @@ export function BranchToolbarBranchSelector({
                   panel={displayMode === "panel"}
                   className="min-w-0 max-w-full active:scale-100"
                   disabled={isInitialBranchesLoadPending || isBranchActionPending}
-                  // NVDA browse mode re-reads a combobox when its attributes change, not when its text does.
                   aria-label={`Branch: ${triggerLabel}`}
                 />
               }

@@ -1,6 +1,5 @@
 import { pruneLocalDeviceTools } from "./deviceToolMaintenance.ts";
 import { deviceToolInstallMessage } from "@supaterm/contracts";
-// The hub runs at origin root; Supaterm strips its prefix and the Device panel derives stream URLs from it.
 import {
   type DeviceHostSummary,
   type DevicePlatform,
@@ -58,7 +57,6 @@ const DAEMON_POLL_MS = 100;
 const HUB_RESTART_STABLE_UPTIME_MS = 60_000;
 const HUB_RESTART_MAX_DELAY_MS = 30_000;
 
-// Persist hub state so restarts without finalizers can clean up orphaned loopback listeners.
 const HubStateFile = Schema.Struct({
   pid: Schema.Int,
   port: Schema.Int,
@@ -165,7 +163,6 @@ const androidSdk = Effect.gen(function* () {
     const sdk = yield* inspect(root);
     if (sdk) return sdk;
   }
-  // PATH entries can be slow to stat (network shares), so only consult them after the standard locations miss.
   if (!explicit) {
     const searchPath = environment.PATH ?? environment.Path ?? "";
     for (const directory of searchPath.split(windows ? ";" : ":")) {
@@ -224,7 +221,6 @@ const hubEnvironment = Effect.fn("LocalDeviceHost.hubEnvironment")(function* (
         .pipe(
           Effect.map((result) => {
             const help = `${result.stdout}\n${result.stderr}`;
-            // The hub wires imagefile cameras unconditionally; older SDK emulators reject that mode.
             return result.code === 0 && /\bemulated\b/.test(help) && !/\bimagefile\b/.test(help)
               ? `-camera-${facing} emulated`
               : "";
@@ -240,7 +236,6 @@ const hubEnvironment = Effect.fn("LocalDeviceHost.hubEnvironment")(function* (
     }
   }
   if (platform === "linux" && env.XDG_RUNTIME_DIR === undefined && uid !== undefined) {
-    // SSH sessions may omit the directory where the emulator publishes its gRPC token.
     const runtimeDir = `/run/user/${uid}`;
     const fs = yield* FileSystem.FileSystem;
     const stat = yield* fs.stat(runtimeDir).pipe(Effect.option);
@@ -269,7 +264,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
   const environment = yield* HostProcess.Environment;
   const workingDirectory = yield* HostProcess.WorkingDirectory;
   const hostPlatform = yield* HostProcess.Platform;
-  // Resolved per use: the desktop shell snapshot can select another SDK after the host exists.
   const currentSdk = androidSdk.pipe(
     Effect.provideService(FileSystem.FileSystem, fs),
     Effect.provideService(Path.Path, path),
@@ -354,7 +348,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
       }
     });
 
-  // Check PID and entry path before reaping; the PID may have been recycled.
   const reapStaleHub = Effect.gen(function* () {
     const previous = yield* fs
       .readFileString(hubStatePath())
@@ -422,7 +415,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
     );
     const origin = `http://127.0.0.1:${port}`;
     const scope = yield* Scope.make("sequential");
-    // The hub is not recorded yet; stop it on failure or interruption from spawn onward.
     return yield* Effect.gen(function* () {
       const child = yield* spawner
         .spawn(
@@ -549,7 +541,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
       ...(yield* currentHostEnvironment),
       AGENT_DEVICE_STATE_DIR: stateDir,
       AGENT_DEVICE_DAEMON_SERVER_MODE: "http",
-      // Disable the five-minute idle timeout; the server owns shutdown.
       AGENT_DEVICE_DAEMON_IDLE_TIMEOUT_MS: "0",
       AGENT_DEVICE_NO_UPDATE_NOTIFIER: "1",
       FORCE_COLOR: "0",
@@ -576,7 +567,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
       if (alive) return toEndpoint(existing.value);
       yield* fs.remove(daemonFilePath(), { force: true }).pipe(Effect.ignore);
     }
-    // No `daemon start` exists; `devices` is the cheapest command that starts and awaits it.
     const runResult = yield* runner
       .run({
         command: nodePath,
@@ -586,7 +576,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
         timeoutBehavior: "timedOutResult",
       })
       .pipe(Effect.result);
-    // Discovery may fail after startup; accept a published endpoint or preserve the CLI failure.
     const started = yield* readDaemonFile().pipe(Effect.option);
     if (started._tag === "Some") return toEndpoint(started.value);
     if (runResult._tag === "Failure") {
@@ -636,8 +625,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
     }
   });
 
-  // The daemon may predate this process (an earlier server was killed, possibly on an
-  // older pin), so stop it with the CLI of its recorded version when that is installed.
   const stopAgentDeviceDaemon = Effect.gen(function* () {
     if (!(yield* fs.exists(daemonFilePath()))) return;
     const recorded = yield* readDaemonFile().pipe(Effect.option);
@@ -680,8 +667,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
     onPhase: (phase: "installing" | "starting", detail?: string) => Effect.Effect<void>,
   ): Effect.fn.Return<RunningHost, DeviceHost.DeviceHostError | NodeRuntimeUnavailableError> {
     const running = yield* Ref.get(runningRef);
-    // A dead hub's record stays until a replacement is published: the agent
-    // daemon outlives the hub, and close needs its endpoint if the restart fails.
     if (running) {
       const alive = yield* running.hub.child.isRunning.pipe(Effect.orElseSucceed(() => false));
       if (alive) return running;
@@ -884,7 +869,6 @@ export const make = Effect.fn("LocalDeviceHost.make")(function* () {
   const stop: DeviceHost.DeviceHost["Service"]["stop"] = startLock.withPermits(1)(
     Effect.gen(function* () {
       const running = yield* Ref.getAndSet(runningRef, null);
-      // Hub cleanup waits for its exit unbounded; it must not strand the detached agent daemon.
       yield* Effect.all(
         [
           stopHub(running?.hub).pipe(

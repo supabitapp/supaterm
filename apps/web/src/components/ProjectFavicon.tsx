@@ -14,7 +14,6 @@ import { projectIconColorClassName } from "../projectIconColors";
 import { ProjectMonogram } from "./ProjectMonogram";
 import { cn } from "~/lib/utils";
 
-// The project icon set loads as one chunk, only once a project picks an icon.
 const ProjectSymbolIcon = lazy(() =>
   import("@supaterm/icons/project").then(({ resolveProjectIcon }) => ({
     default: function ProjectSymbolIcon(props: {

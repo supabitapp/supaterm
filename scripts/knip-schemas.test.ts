@@ -11,7 +11,6 @@ const cli = NodePath.join(NodePath.dirname(require.resolve("knip")), "cli.js");
 const preprocessor = NodePath.join(import.meta.dirname, "knip-schemas.ts");
 
 it("allows types and schemas through the real Knip CLI without hiding runtime or file findings", () => {
-  // Keeping the disposable project here gives it the same Effect installation as the scripts.
   const cwd = NodeFS.mkdtempSync(NodePath.join(import.meta.dirname, ".knip-test-"));
   const write = (file: string, content: string) =>
     NodeFS.writeFileSync(NodePath.join(cwd, file), content);

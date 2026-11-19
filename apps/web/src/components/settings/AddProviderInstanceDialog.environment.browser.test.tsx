@@ -300,7 +300,6 @@ describe("AddProviderInstanceDialog environment routing", () => {
     await using screen = await prepareCodexInstance();
     const save = button("Add instance");
     actions.canManageProviders = false;
-    // Click before React renders the revoked grant.
     await act(async () => save.click());
 
     expect(settingsHooks.mutate).not.toHaveBeenCalled();

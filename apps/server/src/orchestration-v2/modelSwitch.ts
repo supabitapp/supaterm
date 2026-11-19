@@ -18,8 +18,6 @@ export function modelSwitchSince(
   to: ModelSelection,
   baseline?: ModelSelection,
 ): Pick<Extract<OrchestrationV2TurnItem, { type: "user_message" }>, "modelSwitch"> {
-  // Clients hide pending queued messages, fold async answers into their question, and replace
-  // `/compact` with a compaction row.
   const shown = new Set(
     projection.turnItems.flatMap((item) =>
       item.type === "user_message" &&
@@ -33,7 +31,6 @@ export function modelSwitchSince(
   let previous: OrchestrationV2ThreadProjection["runs"][number] | undefined;
   for (const run of projection.runs) {
     if (run.status === "rolled_back" || run.status === "queued") continue;
-    // A wake shows as a notification, but its context handoff row still shows the swap.
     if (!shown.has(run.userMessageId) && run.contextHandoffId === null) continue;
     if (previous === undefined || runRanAfter(run, previous)) previous = run;
   }

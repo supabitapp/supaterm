@@ -45,17 +45,10 @@ import { MARKDOWN_SOURCE_MARK } from "~/composer-rich-text";
 import { buildTiptapContent, LIST_NODE_NAMES, parseListPrefix } from "~/composer-rich-text-doc";
 import { serializeEditorDoc } from "~/composer-rich-text-map";
 
-/**
- * Tiptap's code mark excludes every other mark, which rejects the `bold+code`
- * spans markdown like `**\`x\`**` parses into and drops the whole insert.
- * Code nests inside emphasis here, so it only excludes itself like the rest.
- */
 type CodePair = { from: number; to: number };
 
 const codePairKey = new PluginKey<CodePair[]>("typedBacktickPairs");
 
-// Input rules only see text before the caret, so filling an already typed
-// pair needs a separate exit handler. Only typed pairs opt into that handler.
 function codePairCaretPlugin(type: MarkType) {
   return new Plugin<CodePair[]>({
     key: codePairKey,
@@ -84,8 +77,6 @@ function codePairCaretPlugin(type: MarkType) {
         }
         if (before.endsWith("`")) return false;
 
-        // The opening tick can be typed after the closing one. Input rules
-        // cannot recognize that pair because they only read before the caret.
         const after = $from.parent.textBetween(
           $from.parentOffset,
           $from.parent.content.size,
@@ -139,10 +130,6 @@ function codePairCaretPlugin(type: MarkType) {
   });
 }
 
-/**
- * Whether a backtick typed at `$pos` would complete an empty `` pair. The
- * backtick before `$pos` only opens one when earlier backticks are all paired.
- */
 function closesBacktickPair($pos: ResolvedPos): boolean {
   return (
     $pos.parent.isTextblock &&
@@ -152,11 +139,6 @@ function closesBacktickPair($pos: ResolvedPos): boolean {
   );
 }
 
-/**
- * Layouts where backtick is a dead key type it through composition, and the
- * pair handler above skips composing input. Read the pair
- * from the composed insert instead; dispatching mid-composition would break it.
- */
 function composedCodePair(tr: Transaction): CodePair | undefined {
   if (tr.getMeta("composition") === undefined || tr.steps.length !== 1) {
     return undefined;
@@ -180,20 +162,13 @@ function composedCodePair(tr: Transaction): CodePair | undefined {
 
 export const ComposerCodeExtension = Code.extend({
   excludes: "code",
-  // The forward arrow leaves code through the caret stops at styled edges, so
-  // the stock exit (inserting a space at the end of a line) is not needed.
   exitable: false,
-  // Code reads left to right inside an Arabic or Hebrew line, and the isolate
-  // keeps its punctuation from trading places with the text around it.
   addOptions() {
     return { ...this.parent!(), HTMLAttributes: { dir: "ltr" } };
   },
   addProseMirrorPlugins() {
     return [...(this.parent?.() ?? []), codePairCaretPlugin(this.type)];
   },
-  // Tiptap's rule reads back from the caret, so after a literal `enabled` the
-  // next typed backtick would reuse its closing backtick and wrap ` and ` in
-  // code. Backticks pair left to right, so skip an opener that closes a pair.
   addInputRules() {
     return (this.parent?.() ?? []).map(
       (rule) =>
@@ -215,7 +190,6 @@ export const ComposerCodeExtension = Code.extend({
   },
 });
 
-/** Counts backticks typed as plain text before `$pos` in its textblock; code text never pairs. */
 function literalBackticksBefore($pos: ResolvedPos): number {
   let count = 0;
   $pos.parent.forEach((node, offset) => {
@@ -232,10 +206,6 @@ function literalBackticksBefore($pos: ResolvedPos): number {
   return count;
 }
 
-/**
- * Whether `from`-`to`, or the caret at `from`, is in shown Markdown source.
- * Typed delimiters there stay text until the caret leaves and the source is parsed.
- */
 function touchesMarkdownSource(state: EditorState, from: number, to: number): boolean {
   const type = state.schema.marks[MARKDOWN_SOURCE_MARK];
   if (!type) return false;
@@ -244,7 +214,6 @@ function touchesMarkdownSource(state: EditorState, from: number, to: number): bo
   return [$pos.nodeBefore, $pos.nodeAfter].some((node) => node && type.isInSet(node.marks));
 }
 
-// Code permits nested emphasis, so Tiptap's exclusion check cannot protect literal delimiters.
 function markInputRuleOutsideCode(find: RegExp, type: MarkType) {
   const rule = markInputRule({ find, type });
   return new InputRule({
@@ -282,7 +251,6 @@ export function surroundSelectionWithMark(
   if (!$from.sameParent(state.doc.resolve(to)) || !$from.parent.type.allowsMarkType(markType)) {
     return null;
   }
-  // Inline markdown cannot span lines, so keep literal wrapping across hard breaks.
   let crossesLine = false;
   state.doc.nodesBetween(from, to, (node) => {
     if (node.type.name === "hardBreak") crossesLine = true;
@@ -290,8 +258,6 @@ export function surroundSelectionWithMark(
   });
   if (crossesLine) return null;
   const tr = state.tr.addMark(from, to, markType.create());
-  // Nearby delimiters can change how the saved span parses. Atoms are opaque
-  // to inline markdown, so use a placeholder instead of parsing their sources.
   const children: ProseMirrorNode[] = [];
   tr.doc.resolve(from).parent.forEach((node) => {
     children.push(
@@ -414,7 +380,6 @@ const ComposerListItemExtension = ListItem.extend({
     return {
       ...withoutBlockChords(this.parent?.(), LIST_NESTING_KEYS),
 
-      // Replacing Tiptap's Backspace drops its undoInputRule, which keeps a just-typed "+ " literal.
       Backspace: () => this.editor.commands.undoInputRule() || backspaceAcrossList(this.editor),
       Delete: () => deleteAcrossList(this.editor),
     };
@@ -453,7 +418,6 @@ export const ComposerListExtensions = [
   ComposerListItemExtension,
 ];
 
-/** Only changed top-level paragraphs can acquire a literal list prefix outside an input rule. */
 function listNormalizationPlugin(isComposing: () => boolean) {
   let pending = new Set<number>();
   const key = new PluginKey("composerListNormalization");
@@ -461,7 +425,6 @@ function listNormalizationPlugin(isComposing: () => boolean) {
     key,
     props: {
       handleDOMEvents: {
-        // ProseMirror tags the DOM flush after compositionend as composition, so nothing else would normalize.
         compositionend(view) {
           setTimeout(() => {
             if (!view.isDestroyed && !view.composing && pending.size > 0) {
@@ -473,7 +436,6 @@ function listNormalizationPlugin(isComposing: () => boolean) {
       },
     },
     appendTransaction(transactions, oldState, state) {
-      // Tiptap's undoInputRule (Backspace right after a rule) restores the typed text on purpose.
       const undoesInputRule = oldState.plugins.some(
         (plugin) => plugin.spec.isInputRules && plugin.getState(oldState),
       );
@@ -493,12 +455,10 @@ function listNormalizationPlugin(isComposing: () => boolean) {
         state.doc.nodesBetween(newRange.from, newRange.to, (node, pos) => {
           if (node.type.name !== "paragraph") return false;
           const parsed = parseListPrefix(paragraphText(node));
-          // Typing after a marker left literal keeps it literal; only an edit reaching the marker converts.
           if (parsed && newRange.from <= pos + 1 + parsed.markerLength) pending.add(pos);
           return false;
         });
       }
-      // The next non-composition transaction can normalize after the browser finishes its DOM edits.
       if (isComposing() || transactions.some((tr) => tr.getMeta("composition") != null))
         return null;
 
@@ -510,7 +470,6 @@ function listNormalizationPlugin(isComposing: () => boolean) {
         if (node?.type.name !== "paragraph") continue;
         const text = paragraphText(node);
         const parsed = parseListPrefix(text);
-        // Input rules only introduce unindented top-level lists; keep the same boundary here.
         if (!parsed || parsed.prefix.indent) continue;
         const { prefix, markerLength } = parsed;
         if (
@@ -519,7 +478,6 @@ function listNormalizationPlugin(isComposing: () => boolean) {
           continue;
         const active = state.selection.$from.depth === 1 && state.selection.$from.before(1) === pos;
         const content = text.slice(markerLength);
-        // Keep `- ` and unfinished task markers literal while the user is entering the gesture.
         if (
           active &&
           (prefix.kind === "task"
@@ -574,7 +532,6 @@ function paragraphText(node: ProseMirrorNode): string {
   return node.textBetween(0, node.content.size, undefined, "\ufffc");
 }
 
-/** Rebuilding from Markdown merges adjacent lists of one type whose markers share a delimiter. */
 function joinCompatibleLists(tr: Transaction, pos: number): void {
   const $pos = tr.doc.resolve(pos);
   const before = $pos.nodeBefore;
@@ -753,8 +710,6 @@ function backspaceAcrossList(editor: Editor): boolean {
       if (moved) alignListItemWithSiblings(tr, itemType);
       return moved;
     };
-    // A task with no parent list to lift into joins the line above; joinBackward would
-    // re-nest it or select the parent line.
     return editor.chain().command(lift).run() || joinTextblockBackward(state, editor.view.dispatch);
   }
   const before = $from.depth === 1 ? $from.node(0).maybeChild($from.index(0) - 1) : null;

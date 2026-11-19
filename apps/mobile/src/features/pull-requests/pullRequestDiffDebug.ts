@@ -10,7 +10,6 @@ export function pullRequestDiffInitialPosition(
   targetFileId: string | undefined,
   focusIndex: number,
 ): Pick<NativeReviewDiffViewProps, "initialRowIndex" | "initialFileId"> {
-  // Explicit empty values also clear a previous destination on a reused native view.
   return {
     initialRowIndex: focusIndex >= 0 ? Math.max(0, focusIndex - 3) : -1,
     initialFileId: focusIndex >= 0 ? "" : (targetFileId ?? ""),
@@ -34,13 +33,10 @@ export function handlePullRequestDiffDebugEvent(
   },
 ) {
   const drawn = isNativeReviewDiffDrawEvent(event.nativeEvent);
-  // Delivery outcomes and content mounts must reach the bridge even before rows decode.
   if (!drawn) input.onDebug(event);
   const decoded =
     event.nativeEvent.message === "rows-decoded" && event.nativeEvent.rows === input.rowCount;
   if (!drawn && !decoded) return;
-  // Filtering replaces the native row payload asynchronously. Old draw events
-  // must not consume the file jump or highlight the new payload's row indices.
   if (
     typeof event.nativeEvent.totalRows === "number" &&
     event.nativeEvent.totalRows !== input.rowCount

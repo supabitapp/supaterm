@@ -26,7 +26,6 @@ function handleActivityEvent() {
 
 /** Whether the user is looking at this window: the tab is visible and the window has focus. */
 export function getDocumentActivity(): DocumentActivity {
-  // Without listeners the cached snapshot is not kept current.
   if (listeners.size === 0) snapshot = readActivity();
   return snapshot;
 }

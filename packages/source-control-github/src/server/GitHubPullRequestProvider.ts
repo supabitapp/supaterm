@@ -56,8 +56,6 @@ const CAPABILITIES: PullRequestCapabilities = {
   stacks: true,
   stackActions: true,
   labels: true,
-  // Statuses and check runs land on the head commit itself and are read whole, so an empty list
-  // after a push is CI that never started rather than a read that saw nothing.
   checksAlwaysReport: true,
   withheldFileDiff: true,
 };
@@ -81,7 +79,6 @@ export function gitHubViewerPermissions(
     ...(access.canWrite ? { stackRebase: true } : {}),
     ...(access.canDeleteBranch === true ? { deleteBranch: true } : {}),
     actions: [
-      // Keep disabling available if the repository has since turned auto-merge off.
       ...(access.canWrite
         ? ([
             "merge",
@@ -98,7 +95,6 @@ export function gitHubViewerPermissions(
     ],
     comment: true,
     resolve: access.canWrite || access.didAuthor,
-    // Authors may comment on their own PRs, but GitHub rejects their approvals and change requests.
     verdicts: access.didAuthor ? (["comment"] as const) : CAPABILITIES.review.verdicts,
     requestReviewers: access.canWrite,
     ...(access.canUpdateBranch === true ? { updateMethods: CAPABILITIES.updateMethods } : {}),
@@ -204,7 +200,6 @@ function withWorkflowApprovals(
   ];
 }
 
-// GitHub adds a run's check runs only as its jobs start, so a queued run can have none yet.
 function withUnfinishedWorkflowRuns(
   checks: ReadonlyArray<PullRequestCheck>,
   runs: ReadonlyArray<GitHubWorkflowRunApproval>,
@@ -237,16 +232,11 @@ export function loginAvatarUrl(login: string, host: string): string | null {
   return /^[a-z0-9][a-z0-9-]{0,38}$/iu.test(login) ? `https://${host}/${login}.png?size=80` : null;
 }
 
-// Whether search covers a repository changes only when the repository is renamed or moved.
 const SEARCH_COVERAGE_TTL = Duration.hours(1);
 const SEARCH_COVERAGE_CAPACITY = 4096;
 const SEARCH_COVERAGE_CONCURRENCY = 4;
 const VIEWER_PERMISSION_TTL = Duration.hours(1);
 
-/**
- * One answer about a repository, such as whether search covers it. `cwd` only says where to ask,
- * so equality ignores it and `lookup`, and every checkout of a repository shares one answer.
- */
 class RepositoryLookup {
   readonly key: string;
   readonly lookup: Effect.Effect<boolean, GitHubPullRequestApi.GitHubPullRequestApiError>;
@@ -271,14 +261,8 @@ type ListAcrossInput = Parameters<
   NonNullable<PullRequestProviderApi["listChangeRequestsAcross"]>
 >[0];
 
-// `involves:` leaves out review requests, so a repository the viewer only reads is searched for both.
 const READ_ONLY_SEARCHES = ["involved", "reviewing"] as const;
 
-/**
- * Newest `limit` rows of several searches. A search cut short stops at its oldest row, so rows
- * older than the latest such stop wait for the next page rather than let the cursor skip past
- * that search's unread rows.
- */
 function mergeSearches(
   batches: ReadonlyArray<GitHubPullRequestApi.GitHubPullRequestSearchBatch>,
   limit: number,
@@ -311,10 +295,6 @@ const rendersEmpty = (body: string): boolean =>
 export const make = Effect.gen(function* () {
   const cli = yield* GitHubPullRequestApi.GitHubPullRequestApi;
 
-  // GitHub does not index every repository for search: a renamed one answers for its old name
-  // with silence rather than with an error. Where search has any pull request for a repository it
-  // covers it, so its silence on a page is a real empty answer; any other the caller reads on its
-  // own. A failed check is not kept.
   const searchCoverage = yield* Cache.makeWith((request: RepositoryLookup) => request.lookup, {
     capacity: SEARCH_COVERAGE_CAPACITY,
     timeToLive: (exit) => (Exit.isSuccess(exit) ? SEARCH_COVERAGE_TTL : Duration.zero),
@@ -338,7 +318,6 @@ export const make = Effect.gen(function* () {
     input: ListAcrossInput,
     batch: GitHubPullRequestApi.GitHubPullRequestSearchBatch,
   ) {
-    // A repository a page has rows for is covered without asking.
     yield* Effect.forEach(
       batch.items,
       (item) => Cache.set(searchCoverage, coverageOf(input, item.repository), true),
@@ -348,9 +327,6 @@ export const make = Effect.gen(function* () {
     const silent = input.repositories.filter(
       (repository) => !answered.has(repository.trim().toLowerCase()),
     );
-    // A truncated first slice can be silent about a covered repository whose rows are just
-    // older than the cut, so it vouches for none. Past the first slice silence from a covered
-    // repository means its rows are older rather than absent.
     if (input.cursor === undefined && batch.truncated) return silent;
     return yield* Effect.filter(
       silent,
@@ -384,10 +360,7 @@ export const make = Effect.gen(function* () {
               cli.getViewerPermission({ cwd: input.cwd, host: input.host, repository }),
             ).pipe(Effect.map((permission) => permission === "READ")),
           ),
-        ).pipe(
-          // Without an answer the repository is listed whole, as it was before the check.
-          Effect.orElseSucceed(() => false),
-        );
+        ).pipe(Effect.orElseSucceed(() => false));
 
   const fail = (operation: string) => (error: GitHubPullRequestApi.GitHubPullRequestApiError) =>
     new PullRequestProviderError({
@@ -521,9 +494,6 @@ export const make = Effect.gen(function* () {
             ),
             ({ involvement }) => involvement,
           );
-          // Each search answers for its own repositories: one cut short by a busy repository
-          // says nothing about the quiet ones in the other. Search covers a repository whatever
-          // the qualifier, so the review requests paired with `involves:` leave coverage to it.
           return Effect.forEach(
             searches,
             ([involvement, members]) => {
@@ -711,7 +681,6 @@ export const make = Effect.gen(function* () {
             comments: [...pullRequest.comments, ...reviewThreads.comments]
               .map((comment) => ({
                 ...comment,
-                // Dismissal reasons live on timeline events; HTML-only bot reviews need that fallback too.
                 body:
                   comment.kind === "review" &&
                   comment.reviewState?.toUpperCase() === "DISMISSED" &&

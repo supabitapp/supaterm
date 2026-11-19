@@ -18,8 +18,6 @@ export function installSidebarTree(root: HTMLElement) {
 
   const isVisibleRow = (row: HTMLElement) => {
     const hidden = row.closest('[hidden], [inert], [aria-hidden="true"]');
-    // A dialog can temporarily make the whole workspace inert. Keep rows navigable
-    // for its return while still excluding exiting row clones.
     return (!hidden || !root.contains(hidden)) && !row.matches(":disabled");
   };
   const visibleRows = () =>
@@ -35,12 +33,10 @@ export function installSidebarTree(root: HTMLElement) {
   };
 
   const focusRow = (row: HTMLElement) => {
-    // Revealing before focusing also materializes content-visibility:auto descendants.
     row.scrollIntoView({ block: "nearest" });
     row.focus({ preventScroll: true });
   };
 
-  // A row that moves shelves remounts and drops focus to the body; follow it.
   const restoreFocus = () => {
     if (!ownsFocus || focusedId === undefined) return;
     const active = document.activeElement;
@@ -56,12 +52,9 @@ export function installSidebarTree(root: HTMLElement) {
       rows.find((row) => row.dataset.sidebarRow === focusedId) ??
       rows.find((row) => row.dataset.sidebarRow === focusedParent) ??
       rows[Math.min(Math.max(focusedIndex, 0), rows.length - 1)];
-    // A done row moves to the bottom shelf; scrolling after it fights the route reveal.
     target?.focus({ preventScroll: true });
   };
 
-  // Clicking non-focusable content, including empty list space, drops focus to the body
-  // without a focusin event. A click on the focused row fires no focusin either.
   const onPointerDown = (event: PointerEvent) => {
     const focusable =
       event.target instanceof Element
@@ -136,7 +129,6 @@ export function installSidebarTree(root: HTMLElement) {
             (candidate) => candidate.dataset.sidebarRow === row.dataset.sidebarParent,
           );
         break;
-      // Row handlers own Enter, Space, F2 rename, and the context menu.
       default:
         return;
     }
@@ -152,11 +144,7 @@ export function installSidebarTree(root: HTMLElement) {
     event.stopPropagation();
     if (document.activeElement !== row || !row.isConnected) return;
     const rect = row.getBoundingClientRect();
-    // Like VS Code's list, suppress keydown and open on release. Reuse the row's
-    // selection-aware handler, including its Electron native menu route.
     row.dispatchEvent(
-      // A PointerEvent, as Chromium sends, keeps button -1 (a MouseEvent clamps it to 0),
-      // which contextMenuSourceOf reads as a keyboard-opened menu.
       new PointerEvent("contextmenu", {
         bubbles: true,
         cancelable: true,

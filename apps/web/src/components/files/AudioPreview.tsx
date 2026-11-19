@@ -38,7 +38,6 @@ function StandardAudioPreview(props: AudioPreviewProps) {
   const [loadedSource, setLoadedSource] = useState<{ src: string; revision: string } | null>(null);
   const [playing, setPlaying] = useState(false);
   const revision = props.revision ?? null;
-  // Changed files load once playback pauses.
   if (loadedSource !== null && loadedSource.revision !== revision && !playing) {
     setLoadedSource(revision === null ? null : { src: props.src, revision });
   }
@@ -101,7 +100,6 @@ function AudioChip(props: AudioPreviewProps) {
       : playing
         ? "Pause"
         : "Play";
-  // The icon set has no pause glyph, so the playing state shows stop.
   const Icon = props.failed
     ? TriangleAlertIcon
     : loading

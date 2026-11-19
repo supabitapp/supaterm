@@ -48,7 +48,6 @@ export function SourceControlTokenSettings({
     setSaving(true);
     const result = await updateSettings({
       environmentId,
-      // Send the whole map; other tokens' redaction markers preserve their values.
       input: {
         patch: {
           sourceControlHosts: { [definition.kind]: { tokens: { ...tokens, [target]: token } } },
@@ -70,7 +69,6 @@ export function SourceControlTokenSettings({
         if (normalizedHost && draft.trim()) void save(normalizedHost, draft.trim());
       }}
     >
-      {/* Locked while saving: a successful save clears the draft, which would drop edits made mid-request. */}
       <fieldset disabled={saving || !canWriteSettings} className="contents">
         {!canWriteSettings ? (
           <p className="text-xs text-muted-foreground">

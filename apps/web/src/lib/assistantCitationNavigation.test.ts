@@ -156,7 +156,6 @@ function resetPanes() {
   });
 }
 
-/** What the routed pane's ChatView does once the side chat shell is known. */
 function revealAtRoute(
   router: ReturnType<typeof createCitationRouter>,
   sideChatThreadId = sideChatCitation.threadId,

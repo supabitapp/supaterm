@@ -330,7 +330,6 @@ describe("acpRegistrySnapshotReadiness", () => {
       },
     ]);
 
-    // Session configOptions describe the current model only.
     const sharedMode = {
       id: "mode",
       label: "Mode",
@@ -359,7 +358,6 @@ describe("acpRegistrySnapshotReadiness", () => {
     expect(
       twoModels.find((model) => model.slug === "opus")?.capabilities?.optionDescriptors ?? [],
     ).toEqual([sharedMode]);
-    // A later session on another model keeps the options learned for this one.
     const afterOpus = applyAcpRegistryLiveConfiguration(
       afterGlm,
       {
@@ -377,7 +375,6 @@ describe("acpRegistrySnapshotReadiness", () => {
       capabilities: { optionDescriptors: [{ id: "thinking" }, { id: "mode" }] },
     });
 
-    // Other models take the levels they advertise in `_meta`.
     const effort = {
       id: "effort",
       name: "Effort",

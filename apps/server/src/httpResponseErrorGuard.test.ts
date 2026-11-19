@@ -1,4 +1,3 @@
-// Exercise the raw Node HTTP boundary before Effect attaches serving handlers.
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
@@ -87,7 +86,6 @@ describe("guardHttpResponseWriteErrors", () => {
     });
 
     server.on("upgrade", (_request, socket) => {
-      // Node's HTTP server no longer listens for errors on an upgraded socket.
       socket.destroy(Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
     });
 
@@ -131,7 +129,6 @@ describe("keepIdleConnections", () => {
     const body = "x".repeat(1_000_000);
     const closed = Promise.withResolvers<void>();
     server.on("request", (_request, response) => {
-      // The server shuts down while this request is in flight.
       server.close(() => closed.resolve());
       response.end(body);
     });
@@ -152,7 +149,6 @@ describe("keepIdleConnections", () => {
     });
 
     expect(received).toBe(body.length);
-    // Left alone, the kept-alive connection holds the server open for the keep-alive time.
     await closed.promise;
     agent.destroy();
   });
@@ -160,7 +156,6 @@ describe("keepIdleConnections", () => {
   it("keeps a connection until every response on it has finished", async () => {
     const server = HttpResponseErrorGuard.keepIdleConnections(NodeHttp.createServer());
     const closed = Promise.withResolvers<void>();
-    // Larger than a socket buffer, so it still has output to send after `end`.
     const thirdBody = "x".repeat(8_000_000);
     const held: NodeHttp.ServerResponse[] = [];
     server.on("request", (request, response) => {
@@ -169,8 +164,6 @@ describe("keepIdleConnections", () => {
         return;
       }
       const [first, second] = held;
-      // All three pipelined requests are in flight when the server shuts down. The third
-      // response is ended before the first two, and the second ends after the first.
       response.end(thirdBody);
       server.close(() => closed.resolve());
       first?.once("finish", () => setImmediate(() => second?.end("second-body")));

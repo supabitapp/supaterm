@@ -35,8 +35,6 @@ export function notifyThemeSaveFailure(): void {
   );
 }
 
-// Reads its own source hooks so the compiler caches the cards on them. Taking the
-// sources as arguments would leave it hook-free, and the compiler would cache nothing.
 function useThemeCards() {
   const customThemes = useCustomThemes();
   const environmentThemes = useEnvironmentThemeDefinitions();

@@ -120,11 +120,8 @@ export const WorkGroupSection = memo(function WorkGroupSection({
 
 const compactWorkEntryHeight = 24;
 
-// Outlasts the collapsible panel's 150ms close.
 const closingWorkEntryRoomMs = 300;
 
-// The thumbnail strip below the group is its own virtualized row, so the gallery an expanded
-// entry opens is built from the same entries rather than from the strip's mounted images.
 function useWorkGroupViewedImages(
   groupedEntries: ReadonlyArray<TimelineWorkEntry>,
 ): ReadonlyArray<WorkGroupViewedImage> {
@@ -192,8 +189,6 @@ function ExpandedWorkGroupEntries({
   const [expandedContentHeight, setExpandedContentHeight] = useState(0);
   const [fades, setFades] = useState({ top: false, bottom: false, viewportHeight: 0 });
   const [appendState, setAppendState] = useState({ entries, follow: false });
-  // Capture the pre-change edge once per incoming array, before new layout
-  // metrics arrive. Edge/viewport changes never turn a status update into a follow.
   if (appendState.entries !== entries) {
     setAppendState({
       entries,
@@ -203,8 +198,6 @@ function ExpandedWorkGroupEntries({
     });
   }
 
-  // A closed row keeps its room while its panel animates shut, and no longer:
-  // a recycled row's last size stays cached after it scrolls out mid-close.
   const closingEntryTimersRef = useRef(new Map<string, number>());
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- clears the closing rows' pending timers on unmount
   useEffect(() => {
@@ -279,8 +272,6 @@ function ExpandedWorkGroupEntries({
     const list = listRef.current;
     const element = list?.getScrollableNode();
     if (initialScrollIndex && list && element) {
-      // Bootstrap can report the restored target before the DOM has applied it.
-      // Reconcile once at load, before releasing the measured anchor row.
       const offset = Math.max(
         0,
         Math.min(list.getState().scroll, element.scrollHeight - element.clientHeight),
@@ -325,8 +316,6 @@ function ExpandedWorkGroupEntries({
             appendState.follow ? { animated: false, on: { dataChange: true } } : false
           }
           maintainScrollAtEndThreshold={1 / Math.max(1, fades.viewportHeight)}
-          // Measure the restored row even when an intra-row offset puts its
-          // estimated bounds outside the list's small bootstrap render window.
           {...(restoringPosition && initialScrollIndex
             ? { alwaysRender: { indices: [initialScrollIndex.index] } }
             : {})}
@@ -611,7 +600,6 @@ export function LiveWorkEntryTimelineRow({
       onClick={() => ctx.onToggleWorkGroup(row.groupId, row.id)}
     >
       {thoughtLine ? (
-        // Stays mounted while the group is open, so it slides against the group's entries.
         <div
           inert={row.expanded}
           aria-hidden={row.expanded}

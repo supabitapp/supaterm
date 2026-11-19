@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - the guarded file read needs open
-// flags (O_NOFOLLOW, O_NONBLOCK) the FileSystem service does not expose.
 import * as NodeFS from "node:fs";
 
 import {
@@ -87,7 +86,6 @@ export const readThemeFileGuarded = (filePath: string, maxBytes: number): string
       if (read <= 0) break;
       offset += read;
     }
-    // Unlike Buffer#toString, TextDecoder drops a UTF-8 BOM, which JSON.parse rejects.
     return new TextDecoder().decode(contents.subarray(0, offset));
   } catch {
     return null;
@@ -108,8 +106,6 @@ export const readPublishedThemes = Effect.fn(function* (themesDir: string) {
   for (const entry of entries.toSorted()) {
     if (!entry.endsWith(THEME_FILE_SUFFIX)) continue;
     const id = entry.slice(0, -THEME_FILE_SUFFIX.length);
-    // A reserved id is either shadowed by a built-in on the client or captures
-    // clients that never chose it, so it is not publishable.
     if (!isEnvironmentThemeId(id)) continue;
     if (UNPUBLISHABLE_THEME_IDS.has(id)) {
       yield* Effect.logWarning("ignoring environment theme with a reserved id", {
@@ -118,9 +114,6 @@ export const readPublishedThemes = Effect.fn(function* (themesDir: string) {
       continue;
     }
 
-    // Counts files examined, not themes accepted: capping the output would
-    // let a directory of malformed files be opened, read, and decoded in full
-    // on every refresh and every client connect.
     examined += 1;
     if (examined > MAX_THEME_FILES) {
       yield* Effect.logWarning("ignoring environment theme files past the limit", {
@@ -172,19 +165,8 @@ export const readPublishedThemes = Effect.fn(function* (themesDir: string) {
 const make = Effect.gen(function* () {
   const { environmentThemesDir } = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
-  /**
-   * Every observed set carries a sequence number, so a subscriber can drop
-   * queued events that predate the snapshot it started from. Without it a
-   * publish landing between subscribing and reading replays after the newer
-   * value and walks clients backwards onto stale colors.
-   */
   const changes = yield* PubSub.sliding<PublishedThemes>(1);
   const published = yield* Ref.make<PublishedThemes>({ seq: 0, themes: [] });
-  /**
-   * Guards the whole read/compare/publish: concurrent async directory reads can finish out of
-   * order, and a slower read of an older set would publish under a higher sequence that the
-   * subscriber filter could not drop.
-   */
   const refreshSemaphore = yield* Semaphore.make(1);
   const watcherScope = yield* Scope.make("sequential");
   yield* Effect.addFinalizer(() => Scope.close(watcherScope, Exit.void));
@@ -194,8 +176,6 @@ const make = Effect.gen(function* () {
       const themes = yield* readPublishedThemes(environmentThemesDir).pipe(
         Effect.provideService(FileSystem.FileSystem, fs),
       );
-      // Structural equality over the whole decoded value: a hand-rolled field
-      // list here silently drops republishes for any field it forgets.
       const [changed, next] = yield* Ref.modify(
         published,
         (previous): readonly [readonly [boolean, PublishedThemes], PublishedThemes] => {
@@ -209,15 +189,10 @@ const make = Effect.gen(function* () {
     }),
   );
 
-  // The directory is created up front so the watcher has something to attach
-  // to before the first publisher writes into it.
   yield* fs
     .makeDirectory(environmentThemesDir, { recursive: true })
     .pipe(Effect.ignoreCause({ log: true }));
 
-  // Debounced for the same reason settings watching is: a theme script emits
-  // several events per save and `fs.watch` can fire before the content is
-  // flushed.
   const watchEvents = fs.watch(environmentThemesDir).pipe(Stream.debounce(Duration.millis(100)));
 
   yield* refresh;

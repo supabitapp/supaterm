@@ -15,7 +15,6 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
   const [loadingDirectories, setLoadingDirectories] = useState<ReadonlySet<string>>(
     () => new Set([""]),
   );
-  // Source of truth for `directories`, so a listing can purge folders it no longer holds.
   const listings = useRef(new Map<string, readonly ProjectEntry[]>());
   const requests = useRef(new Map<string, Promise<void>>());
   const detachedRequests = useRef(new Map<string, Promise<void>>());
@@ -32,7 +31,6 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
     const atom = projectEnvironment.listEntries({ environmentId, input: { cwd, directoryPath } });
     const detached = detachedRequests.current.get(directoryPath);
     const request = (async () => {
-      // A shared query still waiting would join the removed folder's read.
       if (detached) await detached;
       if (running.current >= 4) await new Promise<void>((resolve) => waiting.current.push(resolve));
       else running.current++;
@@ -49,7 +47,6 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
       return result;
     })()
       .then((result) => {
-        // A request is dropped from `requests` when its folder disappears, so its read is stale.
         if (!active.current || !result || requests.current.get(directoryPath) !== request) return;
         if (result._tag === "Success") {
           const children = result.value.entries.filter(
@@ -148,10 +145,7 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
     };
   }, [startRequest]);
 
-  // A folder read fails at once while its environment is unreachable; read it again once a new
-  // session is up rather than leaving the error until someone retries by hand.
   const sessionGeneration = environmentCatalog.sessionGenerationAtom(environmentId);
-  // A listener alone does not compute the atom, so nothing would follow the connection.
   useAtomMount(sessionGeneration);
   useAtomSubscribe(sessionGeneration, () => {
     for (const path of errors.keys()) void load(path);

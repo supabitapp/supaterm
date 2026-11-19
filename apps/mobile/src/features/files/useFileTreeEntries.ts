@@ -56,7 +56,6 @@ function boundDirectories(current: ReturnType<typeof createDirectories>, preserv
   if (inactive.length <= 64)
     return discoveries.size === current.discoveries.size ? current : { ...current, discoveries };
   const evicted = new Set(inactive.slice(0, -64));
-  // Evict listing data, not the user's expansion and selection. A missing parent reloads on return.
   return {
     ...current,
     discoveries,
@@ -132,7 +131,6 @@ export function useFileTreeEntries(input: {
     workspaces: new Map([[workspaceKey, createDirectories()]]),
   }));
   const savedDirectories = cache.workspaces.get(workspaceKey) ?? createDirectories();
-  // Requests belong to a visit, so returning cannot revive an old completion.
   const directories =
     cache.key === workspaceKey
       ? savedDirectories
@@ -178,7 +176,6 @@ export function useFileTreeEntries(input: {
     });
   const { target } = directories;
   const requestsByTarget = useRef(new WeakMap<object, ReturnType<typeof createRequests>>());
-  // Cancel the old target before consumers' passive effects start new directory loads.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- loads the root and aborts the old target's directory requests before consumers start new loads
   useLayoutEffect(() => {
     const requests = getRequests(requestsByTarget.current, target);
@@ -293,13 +290,10 @@ export function useFileTreeEntries(input: {
     setDirectories(() => createDirectories());
   }
   const { refresh: refreshSearch, data: searchData, successResult: searchResult } = search;
-  // A folder read fails at once while its environment is unreachable; read it again once a new
-  // session is up rather than leaving the error until someone refreshes.
   const sessionGeneration =
     environmentId === null
       ? noSessionGeneration
       : environmentCatalog.sessionGenerationAtom(environmentId);
-  // A listener alone does not compute the atom, so nothing would follow the connection.
   useAtomMount(sessionGeneration);
   useAtomSubscribe(sessionGeneration, () => {
     for (const path of directories.errors.keys()) void loadDirectory(path, true);
@@ -321,7 +315,6 @@ export function useFileTreeEntries(input: {
     };
     if (!missingRoot) {
       const discoveries = new Map(directories.discoveries);
-      // Search can return only leaves; their inferred parents still own loaded children.
       for (const entry of directories.discoveries.values()) {
         const parts = entry.path.split("/");
         for (let index = 1; index < parts.length; index++) {
@@ -357,8 +350,6 @@ export function useFileTreeEntries(input: {
             index === 0 && directories.rootListing !== rootListing
               ? rootListing?.timestamp
               : directories.listingCompletedAt.get(parent);
-          // Cached queries keep their completion time across query switches.
-          // Equal-millisecond responses cannot prove a path postdates the listing.
           const retained =
             !(index === 0 && directories.rootListing !== rootListing) &&
             [...directories.discoveries.keys()].some(

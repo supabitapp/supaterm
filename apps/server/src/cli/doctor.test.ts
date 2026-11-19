@@ -16,7 +16,6 @@ import * as ProcessRunner from "../processRunner.ts";
 import { acquireServerOwnership } from "../serverOwnership.ts";
 import { makePersistedServerRuntimeState } from "../serverRuntimeState.ts";
 
-// An empty home, so no boot service unit installed on this machine is read.
 const layerHost = Layer.mergeAll(
   ProcessRunner.layer,
   Layer.effect(
@@ -39,7 +38,6 @@ it.effect(
       const calls: string[] = [];
       const services =
         yield* Effect.context<Effect.Services<ReturnType<typeof acquireServerOwnership>>>();
-      // Stands in for a server launched for the same home, for example over SSH.
       const startServer = Effect.scoped(acquireServerOwnership(serverRuntimeStatePath)).pipe(
         Effect.result,
         Effect.map((result) =>
@@ -62,7 +60,6 @@ it.effect(
                   ),
               }),
               Layer.succeed(DatabaseMaintenance, {
-                // An unconverted database: reclaiming space is recommended.
                 inspect: () =>
                   Effect.succeed({
                     databaseBytes: 2000,

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vite-plus/test";
 import { deriveDeviceType, isDuoDevice } from "./device-type";
 import type { NativeLayoutMetrics } from "./reserved-regions";
 
-// Poses reported by the iOS 27.1 iPhone Duo simulator.
 const duoOuter: NativeLayoutMetrics = {
   width: 466,
   height: 678,

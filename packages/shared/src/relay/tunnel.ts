@@ -444,8 +444,6 @@ export interface TunnelClientOptions {
   readonly signal?: AbortSignal;
 }
 
-// An unreachable LAN address must not hold back the relay's answer that the
-// host is offline, so direct candidates give up well before the relay does.
 const DIRECT_HANDSHAKE_TIMEOUT_MS = 5_000;
 
 interface EstablishedTunnel {
@@ -512,7 +510,6 @@ function dialCandidate(
         const cipher = handshake.finish(event.data);
         cancelTimeout();
         signal.removeEventListener("abort", abort);
-        // A verified loser no longer hears the race's abort, so it must drop its own keys.
         if (!claim()) {
           cipher.destroy();
           fail(new Error("Relay connection superseded"));

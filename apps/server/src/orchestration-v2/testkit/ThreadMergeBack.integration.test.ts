@@ -106,7 +106,6 @@ interface ProviderVariant {
 const PROVIDERS: ReadonlyArray<ProviderVariant> = [
   {
     driver: ProviderDriverKind.make("codex"),
-    // Recorded on gpt-6-sol: gpt-6-luna tends to recall an acknowledgement instead of the markers.
     modelSelection: { ...CODEX_MODEL_SELECTION, model: "gpt-6-sol" },
   },
   {

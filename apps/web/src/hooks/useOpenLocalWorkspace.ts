@@ -83,7 +83,6 @@ export function useOpenLocalWorkspace() {
             candidate.environmentId === projectRef.environmentId &&
             candidate.id === projectRef.projectId,
         );
-        // Opening an archived project's folder again brings the project back.
         if (project?.archivedAt != null) {
           void updateProject({
             environmentId: projectRef.environmentId,

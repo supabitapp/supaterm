@@ -219,15 +219,12 @@ it.layer(NodeServices.layer)("effect-codex-app-server client", (it) => {
           Effect.service(CodexClient.CodexAppServerClient).pipe(Effect.provide(context)),
         ),
       );
-      // A Codex error type must still surface as a transport failure, not as Codex's answer.
       const handlerFailure = CodexError.CodexAppServerRequestError.internalError("Injected");
       yield* client.handleServerNotification("error", () =>
         Effect.fail(handlerFailure).pipe(Effect.orDie),
       );
       const termination = yield* client.awaitTermination.pipe(Effect.flip, Effect.forkScoped);
 
-      // The peer answers right after this notification and stays alive, so only the reader's
-      // own termination can settle the request.
       const failure = yield* client.raw
         .request("mock/notifyThenRespond", {
           notification: {
@@ -264,7 +261,6 @@ it.layer(NodeServices.layer)("effect-codex-app-server client", (it) => {
         ),
         failure,
       );
-      // Retiring the transport closes the app-server's stdin, so it does not live on unread.
       assert.equal(yield* handle.exitCode, 0);
     }),
   );

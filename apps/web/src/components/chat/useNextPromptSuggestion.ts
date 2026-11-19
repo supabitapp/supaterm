@@ -27,7 +27,6 @@ export function useNextPromptSuggestion(input: {
   readonly runs: ReadonlyArray<OrchestrationV2Run>;
 }) {
   const { environmentId, threadId, enabled, latestRun, runs } = input;
-  // A request made before the environment connects fails, and nothing would retry it.
   const connected = useEnvironment(environmentId)?.connection.phase === "connected";
   const canSuggest = useAtomValue(
     orchestrationEnvironment.suggestNextPrompt.permissionAtom(environmentId),

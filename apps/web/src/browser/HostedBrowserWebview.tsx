@@ -166,7 +166,6 @@ export function HostedBrowserWebview(props: {
       if (!lease) return;
       void (async () => {
         try {
-          // Tab creation and webview attachment use separate effects; wait to avoid PreviewTabNotFoundError.
           await lease.ready;
           if (disposed || webviewRef.current !== webview) return;
           const webContentsId = webview.getWebContentsId();
@@ -187,8 +186,6 @@ export function HostedBrowserWebview(props: {
         if (!disposed) remountCrashedWebview(webviewGeneration + 1);
       }, recovery.delayMs);
     };
-    // Guest clicks never reach this document, so replay a pointerdown to dismiss host popups.
-    // The guest preload reports each press, since the guest does not always take focus.
     const dismissHostPopups = () => {
       webview.dispatchEvent(
         new PointerEvent("pointerdown", { bubbles: true, pointerType: "mouse" }),
@@ -196,7 +193,6 @@ export function HostedBrowserWebview(props: {
       claimChatPane();
     };
     const guestPointerDown = (event: Event) => {
-      // Mirrors POINTER_DOWN_HOST_CHANNEL in apps/desktop/src/preview/GuestProtocol.ts.
       if ((event as Event & { channel?: string }).channel === "preview:pointer-down") {
         dismissHostPopups();
       }
@@ -242,7 +238,6 @@ export function HostedBrowserWebview(props: {
       : content
         ? content.height / content.scale
         : (lastRect?.height ?? 800);
-  // Build from primitives on each side of the resize hook to keep both objects cached.
   const containerSize =
     active && lastRect ? lastRect : { width: hiddenWidth, height: hiddenHeight };
   const deviceToolbarVisible = active && viewport._tag !== "fill" && !presentation.fitSourceContent;
@@ -307,7 +302,6 @@ export function HostedBrowserWebview(props: {
     return () => withDesktopTab(runtimeTabId, () => bridge.setShown(runtimeTabId, false));
   }, [clientSettingsHydrated, runtimeTabId, serverDriven, shown]);
 
-  // Captures copy the guest's raster, which a scaled guest only keeps at full detail on request.
   const fullDetail = backgroundActivity || pictureInPicture || recordingActive;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- tells the desktop host once the guest is drawn at full detail, so its screenshot waits for that frame
   useEffect(() => {
@@ -326,7 +320,6 @@ export function HostedBrowserWebview(props: {
 
   if (!clientSettingsHydrated || !config) return null;
 
-  // This fixed wrapper sits outside the right panel shell, so it takes thumb presses itself.
   const navigateThumb = (direction: "back" | "forward") => {
     if (direction === "back") void previewBridge?.goBack(runtimeTabId);
     else void previewBridge?.goForward(runtimeTabId);
@@ -337,7 +330,6 @@ export function HostedBrowserWebview(props: {
   const wrapperStyle = resolveHostedBrowserWebviewWrapperStyle({
     active,
     renderingActive,
-    // Electron 43 can permanently blank a macOS webview after `visibility: hidden`.
     keepPaintableWhenInactive: isMacPlatform(navigator.platform),
     cornerRadius: presentation.cornerRadius,
     zIndex: presentation.zIndex,
@@ -379,7 +371,6 @@ export function HostedBrowserWebview(props: {
           <webview
             key={webviewGeneration}
             ref={setWebviewRef}
-            // Electron needs allowpopups at attachment. React drops boolean values for unknown attributes.
             {...({ allowpopups: "true" } as unknown as { readonly allowpopups?: boolean })}
             src={webviewGeneration === 0 ? initialSrc : recoverySrc}
             partition={config.partition}

@@ -68,8 +68,6 @@ export function HomeRouteScreen() {
     else if (workspace) workspace.dispatch({ type: "query", query, tab: "threads" });
     else setLocalSearchQuery(query);
   };
-  // Split layouts keep the query; only the stacked layout opens the thread over the list.
-  // Android's search field keeps its own open state, which a cleared query would leave open.
   const clearsSearchOnOpen = Platform.OS !== "android" && !layout.usesSplitView;
   const selectThreadRoute = (params: ReactNavigation.RootParamList["Thread"]) => {
     if (searchQuery !== "" && clearsSearchOnOpen && workspace)

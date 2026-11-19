@@ -22,10 +22,6 @@ interface AgentMessage {
   readonly error?: { readonly code?: number };
 }
 
-/**
- * Runs the agent over stdio and returns every message it sent until each request is answered.
- * Permission requests get `permissionResult`.
- */
 async function talkToAgent(
   requests: ReadonlyArray<(sessionId: string) => object>,
   permissionResult: object = { outcome: { outcome: "selected", optionId: "allow-once" } },
@@ -77,7 +73,6 @@ describe("dev replay agent", () => {
       ]);
     const [first, second] = await Promise.all([run(), run()]);
     expect(first.sessionId).not.toBe(second.sessionId);
-    // A server restart loads the same session in a new agent process.
     const reloaded = await talkToAgent([
       () => ({ method: "session/load", params: { sessionId: first.sessionId, cwd: "/tmp" } }),
       () => selectTodoList(first.sessionId),

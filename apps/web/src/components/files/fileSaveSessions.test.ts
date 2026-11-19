@@ -114,7 +114,6 @@ describe("file save sessions", () => {
     h.sessions.change(target, "draft");
     h.state.unsaved = "draft";
     release();
-    // A StrictMode ref replay reacquires while the flush is in flight.
     h.sessions.acquire(target, h.onPendingChange);
     finishWrite();
     await vi.runAllTimersAsync();

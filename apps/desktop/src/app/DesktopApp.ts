@@ -164,7 +164,6 @@ const stopAllPoolInstances = Effect.fn("desktop.app.stopAllPoolInstances")(
   },
 );
 
-// Spawns the local backend as soon as the protocol and IPC that every window needs exist.
 const startLocalBackend = Effect.gen(function* () {
   const state = yield* DesktopState.DesktopState;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -181,7 +180,6 @@ const startLocalBackend = Effect.gen(function* () {
       : { assetDirectory: environment.clientAssetsDir }),
   });
   yield* installDesktopIpcHandlers();
-  // Its preload bridge asks main synchronously, so this registers with the other IPC handlers.
   yield* CodexMicroDesktop.install;
   yield* SidePulseIpc.install;
   yield* logBootstrapInfo("bootstrap ipc handlers registered");
@@ -198,7 +196,6 @@ const startLocalBackend = Effect.gen(function* () {
     return yield* new DesktopDevelopmentBackendPortRequiredError();
   }
 
-  // A backend started while another server holds this home's lock can only exit with code 78.
   if (
     !(settings.wslOnly && settings.wslBackendEnabled) &&
     !(yield* DesktopHomeOwner.awaitHomeOwnershipRelease())
@@ -258,7 +255,6 @@ const startLocalBackend = Effect.gen(function* () {
   }
   yield* primaryBackend.start;
   yield* logBootstrapInfo("bootstrap backend start requested");
-  // The renderer asks for this token first; minting it at readiness saves a round trip.
   yield* Effect.forkScoped(
     (yield* DesktopLocalEnvironmentAuth.DesktopLocalEnvironmentAuth).getBearerToken.pipe(
       Effect.ignore,
@@ -282,7 +278,6 @@ const bootstrap = Effect.fn("desktop.bootstrap")(function* (backendStarted: bool
   yield* snapShot.initialize;
 
   if (!settings.localEnvironmentEnabled) {
-    // The backend config refreshes the launcher when the local environment runs; an update may move the app.
     yield* DesktopCliShim.install;
     if (!(yield* Ref.get(state.quitting))) {
       yield* desktopWindow.createMainIfBackendReady;
@@ -375,7 +370,6 @@ const startup = Effect.gen(function* () {
     });
   }
   yield* appIdentity.configure;
-  // Sets canInstallUpdates, which the backend bootstrap payload reads.
   yield* updates.configure;
   yield* DesktopRemoteUpdates.listen;
   yield* DesktopStartupRecovery.listen;
@@ -384,8 +378,6 @@ const startup = Effect.gen(function* () {
   );
   yield* (yield* PreviewPasskeys.PreviewPasskeys).configure;
   yield* applicationMenu.configure;
-  // Only the user's own login shell PATH shows every supaterm a new terminal runs; a fresh install has
-  // no cached one. Without it, the command is left to Settings.
   yield* Effect.forkScoped(
     shellEnvironment.awaitUserShellDiscovery.pipe(
       Effect.flatMap((found) =>
@@ -395,7 +387,6 @@ const startup = Effect.gen(function* () {
       ),
     ),
   );
-  // Portal identity is prepared pre-ready; MIME helpers must not gate the backend or window.
   yield* linuxUrlHandler.register.pipe(Effect.forkScoped);
   yield* bootstrap(backendStarted).pipe(
     Effect.catchCause((cause) => fatalStartupCause("bootstrap", cause)),
@@ -411,9 +402,6 @@ const scopedProgram = Effect.scoped(
     const shutdown = yield* DesktopShutdown.DesktopShutdown;
 
     yield* Effect.addFinalizer(() =>
-      // Stop every pool backend, not just the primary: electronApp.quit() can race ahead of
-      // the layer-scope cascade, so the WSL child would be hard-killed instead of getting
-      // SIGTERM and grace.
       stopAllPoolInstances().pipe(
         Effect.ensuring(shutdown.markComplete),
         Effect.withSpan("desktop.app.shutdown"),

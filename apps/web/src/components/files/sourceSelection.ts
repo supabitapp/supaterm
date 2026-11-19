@@ -8,7 +8,6 @@ interface Ends {
   readonly focus: number;
 }
 
-/** The rows the virtualizer has mounted, as offsets into the file's text. */
 interface Mounted {
   readonly rows: NodeListOf<HTMLElement>;
   readonly firstLine: number;
@@ -16,7 +15,6 @@ interface Mounted {
   readonly end: number;
 }
 
-/** Lines break where the renderer breaks them: at `\n`, `\r\n`, and a lone `\r`. */
 function lineStarts(text: string) {
   const starts = [0];
   for (const match of text.matchAll(/\r\n|\r|\n/g)) starts.push(match.index + match[0].length);
@@ -49,9 +47,7 @@ export class SourceSelection {
   #lineStarts: number[] | undefined;
   #ends: Ends | undefined;
   #pressed = false;
-  /** A press that places a caret, where a collapsed selection is the click's and never a kept one. */
   #clicking = false;
-  /** The browser's selection as a render left it during a press, when nothing was drawn over it. */
   #parked: { readonly range: StaticRange | undefined } | undefined;
 
   #use(text: string) {
@@ -94,7 +90,6 @@ export class SourceSelection {
     return { rows, firstLine, start, end: this.#lineEnd(Number(last.dataset.line) - 1) };
   }
 
-  /** `inRow` is false for a point between rows, which is where an unmounted row leaves one. */
   #offsetOf(point: Point, side: "start" | "end", mounted: Mounted) {
     const row = rowOf(point.node);
     const range = document.createRange();
@@ -141,18 +136,12 @@ export class SourceSelection {
     return { node: row, offset: row.childNodes.length };
   }
 
-  /**
-   * Reads the browser's selection into the offsets. An end resting on the edge of the
-   * mounted rows keeps its offset when that offset lies past the edge, and a render
-   * (`afterRender`) keeps every end its unmounted row left between rows.
-   */
   #read(root: ShadowRoot, afterRender: boolean) {
     const selection = document.getSelection();
     let range: StaticRange | undefined;
     try {
       range = selection?.getComposedRanges({ shadowRoots: [root] })[0];
     } catch {
-      // Engines without composed ranges keep their own selection and copy.
       this.#ends = undefined;
       return undefined;
     }
@@ -179,7 +168,6 @@ export class SourceSelection {
     );
     const backward = selection.direction === "backward";
     const previous = this.#ends;
-    // Select All spans the shadow tree, so it holds every mounted row from outside them.
     const holdsEveryRow =
       !start.inRow && !end.inRow && start.offset === mounted.start && end.offset === mounted.end;
     if (!afterRender && holdsEveryRow) {
@@ -196,7 +184,6 @@ export class SourceSelection {
     const focus = backward ? start : end;
     const keepsAnchor = keeps(anchor, previous?.anchor);
     const keepsFocus = keeps(focus, previous?.focus);
-    // A click collapses the selection, and it is a new one unless both ends were already there.
     const collapsed = start.offset === end.offset && start.inRow && end.inRow;
     if (collapsed && (this.#clicking || !(keepsAnchor && keepsFocus))) {
       this.#ends = { anchor: start.offset, focus: start.offset };
@@ -223,8 +210,6 @@ export class SourceSelection {
     const selection = document.getSelection();
     const range = selection?.getComposedRanges({ shadowRoots: [root] })[0];
     if (this.#pressed && anchor.node === focus.node && anchor.offset === focus.offset) {
-      // Chromium stops extending a drag once a script collapses its selection, so a drag whose
-      // ends are both unmounted keeps what the browser has left of it.
       this.#parked = { range };
       return;
     }

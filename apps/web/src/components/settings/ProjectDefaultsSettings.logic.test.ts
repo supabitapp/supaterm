@@ -72,7 +72,6 @@ describe("resolveDefaultModelSettingsPresentation", () => {
     const claudeUnavailable = claudeAndCodex.map((entry) =>
       entry.instanceId === claudeId ? { ...entry, availability: "unavailable" as const } : entry,
     );
-    // Settings turn Claude off before the server snapshot reflects it.
     expect(present(claudeAndCodex, claudeOff)).toEqual({
       selection: savedClaude,
       providerNote: "Claude is turned off.",

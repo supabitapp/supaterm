@@ -115,7 +115,6 @@ export function useComposerMenuItems({
   readonly showSkillsInSlashMenu: boolean;
   readonly workspaceSkillsScanning: boolean;
 }) {
-  // Thread mentions rank by recency as of when the composer mounted.
   const [now] = useState(() => Date.now());
   const composerTriggerKind = composerTrigger?.kind ?? null;
   const pathTriggerQuery = composerTrigger?.kind === "path" ? composerTrigger.query : "";
@@ -132,7 +131,6 @@ export function useComposerMenuItems({
     pullRequestTextQuery === debouncedPullRequestTextQuery ? pullRequestTextQuery : null;
   const isPathTrigger = composerTriggerKind === "path";
   const environmentThreadShells = useThreadShells(isPathTrigger);
-  // Mounts older done threads matching the mention, which shells may leave out.
   useThreadSearch(isPathTrigger ? [environmentId] : [], pathTriggerQuery, { titlesOnly: true });
   const workspaceEntries = useComposerPathSearch({
     environmentId,
@@ -290,7 +288,6 @@ export function useComposerMenuItems({
           skill.description ??
           (skill.scope ? `${skill.scope} skill` : ""),
       }));
-      // Supaterm's `/clear` replaces the provider's, which would clear a session Supaterm still treats as live.
       const visibleProviderSlashCommandItems = providerSlashCommandItems.filter(
         (item) =>
           (item.command.name !== "compact" || compactSlashCommandAvailable) &&
@@ -327,7 +324,6 @@ export function useComposerMenuItems({
           ? [
               {
                 ...exactPullRequestLookup.data,
-                // Only the host: the URL's full repository path would not match the project's selector.
                 host: legacyThreadPullRequestKey(exactPullRequestLookup.data).host,
               },
             ]

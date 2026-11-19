@@ -580,7 +580,6 @@ it.layer(layerTest)("CheckpointStore.layer", (it) => {
         yield* commitFile(upstream, "first.txt");
         yield* git(cwd, ["fetch", "origin"]);
         yield* commitFile(upstream, "second.txt");
-        // The primary worktree's HEAD reflog is the only record that this commit was made here.
         yield* git(primary, ["checkout", "--detach"]);
         yield* commitFile(primary, "own.txt");
         yield* git(primary, ["push", "origin", "HEAD:refs/heads/pushed"]);
@@ -589,7 +588,6 @@ it.layer(layerTest)("CheckpointStore.layer", (it) => {
         yield* git(cwd, ["fetch", "origin"]);
         yield* git(cwd, ["merge", "--ff-only", "origin/release"]);
         yield* commitFile(cwd, "local.txt");
-        // Pushing imported commits to another branch must not make them look local.
         yield* git(cwd, ["push", "origin", "HEAD:refs/heads/mirror"]);
         yield* checkpointStore.captureCheckpoint({ cwd, checkpointRef: refs.toCheckpointRef });
 
@@ -644,7 +642,6 @@ it.layer(layerTest)("CheckpointStore.layer", (it) => {
           expect(switched.patch).toContain("b/b.txt");
           expect(switched.authored).toBeNull();
 
-          // A reset also moves HEAD off a commit, and what it removed is the turn's doing.
           yield* git(tmp, ["add", "."]);
           yield* git(tmp, ["commit", "-m", "work on b"]);
           yield* checkpointStore.captureCheckpoint({

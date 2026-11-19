@@ -67,14 +67,11 @@ type PullRequestThreadLookup = {
   readonly number: number;
 };
 
-// A pull request's thread can be an older done thread no shell holds, so ask every
-// environment with the repository.
 const pullRequestThreadLookupAtom = Atom.family((key: string) => {
   const { targets, repository, number } = JSON.parse(key) as PullRequestThreadLookup;
   return Atom.make((get) =>
     pickPromptLinkPullRequestThread(
       targets
-        // A shell that is not live cannot answer, and its lookup would wait forever.
         .filter(([environmentId]) => get(environmentShell.statusAtom(environmentId)) === "live")
         .map(([environmentId, projectId]) => ({
           environmentId,
@@ -255,7 +252,6 @@ export function NewThreadLinkView({ link }: { readonly link: NewThreadLink }) {
     ready && link.kind === "pull-request"
       ? findPromptLinkPullRequestThread(threads, link.pullRequest)
       : undefined;
-  // Mounted only while deciding, so "Open it again" asks the server again.
   const lookupProjects =
     ready &&
     state.status === "opening" &&
@@ -374,10 +370,6 @@ export function NewThreadLinkView({ link }: { readonly link: NewThreadLink }) {
   }
 }
 
-/**
- * The checkout runs the project's setup script on code from the pull request, so a link alone
- * never starts it.
- */
 function PullRequestLinkCheckout({
   link,
   project,

@@ -36,7 +36,6 @@ export function assetImageCacheKey(
             resource.path,
             fileRevision,
           ])}`;
-    // A tool can replace the image at its index, and nothing cheap identifies its bytes.
     default:
       return undefined;
   }

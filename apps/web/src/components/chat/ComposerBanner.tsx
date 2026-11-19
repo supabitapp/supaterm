@@ -51,7 +51,6 @@ function Surface({
         surfaceColors,
         "relative isolate border-0 bg-transparent shadow-none [--chat-composer-attached-tint:transparent]",
         variantColors[variant],
-        // Bleed the mask 1px past the seam to cover Chromium's fractional-pixel backdrop loss.
         placement === "attached"
           ? "[--chat-composer-attachment-overlap:calc(1rem+1px)] before:rounded-t-2xl before:mask-t-from-transparent before:mask-t-from-4 before:mask-t-to-black before:mask-t-to-4"
           : "[--chat-composer-attachment-overlap:0px] before:rounded-2xl",
@@ -106,7 +105,6 @@ function Attachment({ className, ...props }: ComponentProps<"div">) {
       data-slot="composer-banner-attachment"
       className={cn(
         "mx-auto -mb-[calc(1rem+1px)] w-[calc(100%-2*var(--chat-composer-drawer-inset))]",
-        // Only the banner touching the composer gets the dark seam shade; stacked ones would band.
         "[&:has(+[data-slot=composer-banner-attachment])]:[--chat-composer-attached-seam:transparent]",
         "[&+[data-slot=composer-banner-attachment]_[data-composer-banner-surface=attached]]:before:rounded-none [&+[data-slot=composer-banner-attachment]_[data-composer-banner-surface=attached]]:before:border-t-0 [&+[data-slot=composer-banner-attachment]_[data-composer-banner-surface=attached]]:[--composer-banner-corner-top:var(--control-radius)]",
         className,
@@ -123,23 +121,14 @@ const LastOpenContent = memo(
   (_, next) => !next.open,
 );
 
-/**
- * An attachment that opens out of the composer and closes back into it. While
- * closing it keeps showing (inert) the content it last had open, so a drawer
- * whose subject disappears still animates away.
- */
 function Drawer({
   open,
   children,
   ...props
 }: Omit<ComponentProps<"div">, "children"> & { open: boolean; children: ReactNode }) {
   return (
-    // The panel is the attachment itself; the root adds no element that would
-    // break the column's attachment selectors.
     <Collapsible open={open} render={({ children: panel }) => <>{panel}</>}>
       <CollapsiblePanel
-        // Open from, and close into, the seam the composer already covers, so the
-        // dock's height (and the timeline inset that follows it) never dips.
         className="data-ending-style:h-[calc(1rem+1px)] data-starting-style:h-[calc(1rem+1px)]"
         inert={!open || undefined}
         render={<Attachment data-slot="composer-banner-attachment" {...props} />}
@@ -176,8 +165,6 @@ function Column({ className, ...props }: ComponentProps<"div">) {
   );
 }
 
-// For `data-enter` / `data-ending-style` set by a presence owner. The glass and the content
-// fade separately: opacity on the surface or an ancestor turns the glass's backdrop blur off.
 const presenceFade = cn(
   "data-enter:before:transition-opacity data-enter:before:duration-200 data-enter:before:ease-drawer data-enter:before:starting:opacity-0",
   "data-enter:*:transition-opacity data-enter:*:duration-200 data-enter:*:ease-drawer data-enter:*:starting:opacity-0",
@@ -206,9 +193,6 @@ function Root({
         density === "spacious" && "px-3 [--composer-banner-padding-block:--spacing(3)]",
         width === "content" ? "w-fit max-w-full flex-none" : "@container",
         presenceFade,
-        // A corner button nests inside the banner's radius only when the padding
-        // is tight; spacious padding already leaves the default radius concentric.
-        // Joined cards have a square top, and only detached cards round the bottom.
         density !== "spacious" && [
           "[&>[data-composer-banner-row]:first-child>[data-slot=composer-banner-actions]>[data-slot=button]:last-child]:rounded-se-(--composer-banner-corner-top)",
           "[&>[data-composer-banner-row]:first-child>[data-slot=composer-banner-actions]>:last-child>[data-slot=button]:last-of-type]:rounded-se-(--composer-banner-corner-top)",

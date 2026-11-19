@@ -145,10 +145,6 @@ const isDone = (result: AsyncResult.AsyncResult<unknown, unknown>) =>
 
 const KEEP_URL_MIN_LIFE_MS = 5 * 60_000;
 
-/**
- * A re-mint signs a new URL even when the file is unchanged, and a new URL reloads the image.
- * Keep the shown URL while the server reports the same file revision and it has time left.
- */
 function keepUnchangedFile(
   shown: AsyncResult.AsyncResult<AssetCreateUrlResult, unknown>,
   next: AsyncResult.AsyncResult<AssetCreateUrlResult, unknown>,
@@ -179,12 +175,7 @@ export function makeRevisionedAssetUrlFamily(
   ) => Atom.Atom<AsyncResult.AsyncResult<AssetCreateUrlResult, unknown>>,
   now: () => number = Date.now,
 ) {
-  // Outside the nodes: a node is dropped once unmounted, and the next read of
-  // its revision must still see the revisions minted since. Never pruned on
-  // purpose: pruning would forget the revision and re-mint on the next mount.
-  // It holds one short entry per file shown, and goes with the registry.
   const mintedUnder = new WeakMap<AtomRegistry.AtomRegistry, Map<string, string | null>>();
-  // Also per resource: a new revision builds a new node, which must keep the URL on screen.
   const shownUnder = new WeakMap<
     AtomRegistry.AtomRegistry,
     Map<string, AsyncResult.AsyncResult<AssetCreateUrlResult, unknown>>
@@ -230,8 +221,6 @@ export function makeRevisionedAssetUrlFamily(
         return show(get.once(query));
       },
       { initialValueTarget: query },
-      // No idle TTL: each mount rebuilds the node, so a revision read again after
-      // another one is compared against the record instead of a cached node.
     ).pipe(Atom.setIdleTTL(0));
   });
   return (target: AssetUrlTarget & { readonly revision: string | null }) =>
@@ -245,9 +234,6 @@ export function createAssetEnvironmentAtoms<R, E>(
     readonly httpBaseUrl: string;
   } | null>,
 ) {
-  // A thread with hundreds of images asks for hundreds of URLs at once. Over a slow remote
-  // they would all wait on one socket and read as stalled, so each environment gets a few
-  // at a time. A query that is interrupted, such as by a new session, gives its slot back.
   const mintLimits = new Map<EnvironmentId, Semaphore.Semaphore>();
   const mint = (environmentId: EnvironmentId, input: AssetCreateUrlInput) => {
     let limit = mintLimits.get(environmentId);
@@ -281,7 +267,6 @@ export function createAssetEnvironmentAtoms<R, E>(
     )
       return yield* error;
     const registry = yield* EnvironmentRegistry.EnvironmentRegistry;
-    // Map the full cause so retry defects and interruption survive.
     const asset = yield* registry
       .run(local.environmentId, mint(local.environmentId, input))
       .pipe(Effect.catchCause((cause) => Effect.failCause(Cause.map(cause, () => error))));
@@ -290,7 +275,6 @@ export function createAssetEnvironmentAtoms<R, E>(
   const createUrl = createEnvironmentQueryAtomFamily(runtime, {
     label: "environment-data:assets:create-url",
     execute,
-    // Each mint signs a new URL, so a remounted reader reuses its URL until renewal is due.
     staleTimeMs: ASSET_URL_REFRESH_INTERVAL_MS,
     idleTtlMs: ASSET_URL_IDLE_TTL_MS,
     refreshIntervalMs: ASSET_URL_REFRESH_INTERVAL_MS,
@@ -354,9 +338,6 @@ export function createProjectFaviconUrlAtomFamily(input: {
       environmentId,
       input: { resource: projectFaviconResource(cwd, path) },
     });
-    // A cloned project exists before its files do, and the server reports its
-    // icon missing until the clone lands. Ask again whenever the clone's phase
-    // changes: the first list a client sees may already say done.
     const request = projectClones
       ? query.pipe(
           Atom.makeRefreshOnSignal(

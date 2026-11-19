@@ -23,7 +23,6 @@ function at(seconds: number) {
   return `2026-01-01T00:00:${String(seconds).padStart(2, "0")}.000Z`;
 }
 
-// claimThreadOpen dedupes per thread in module state, so each test opens its own thread.
 function setup(threadName: string, initial: Omit<Shell, "environmentId" | "id"> | null) {
   vi.useFakeTimers({ now: Date.UTC(2026, 0, 1) });
   const threadId = ThreadId.make(threadName);
@@ -31,7 +30,6 @@ function setup(threadName: string, initial: Omit<Shell, "environmentId" | "id"> 
   const shellAtom = Atom.make<Shell | null>(
     initial === null ? null : { environmentId, id: threadId, ...initial },
   );
-  // Visits the server accepted; offline ones fail without reaching it.
   const visits: Array<VisitThreadInput> = [];
   const localVisits: Array<string> = [];
   let online = true;
@@ -146,7 +144,6 @@ it("keeps a mark-unread on a read thread reopened within the open dedupe window"
   vi.advanceTimersByTime(VISIT_DISPATCH_THROTTLE_MS);
   expect(t.visits).toEqual([]);
 
-  // An authoritative snapshot can briefly replace the row with an older one.
   t.update({ updatedAt: at(5), lastVisitedAt: at(5), latestRun: { completedAt: at(4) } });
   t.update({ updatedAt: at(10), lastVisitedAt: at(8), latestRun: { completedAt: at(9) } });
   vi.advanceTimersByTime(VISIT_DISPATCH_THROTTLE_MS);

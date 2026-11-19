@@ -19,7 +19,6 @@ const blank: GhosttyCell = {
   selected: false,
 };
 
-/** Counts device pixels that are not the terminal background. */
 function pixelsOffBackground(context: CanvasRenderingContext2D): number {
   const { data } = context.getImageData(0, 0, context.canvas.width, context.canvas.height);
   let count = 0;
@@ -29,14 +28,12 @@ function pixelsOffBackground(context: CanvasRenderingContext2D): number {
   return count;
 }
 
-/** Whether the device pixel under a CSS pixel position is closer to black than white. */
 function isDarkAt(context: CanvasRenderingContext2D, x: number, y: number): boolean {
   const { a, d } = context.getTransform();
   const { data } = context.getImageData(Math.floor(x * a), Math.floor(y * d), 1, 1);
   return data[0]! < 128 && data[1]! < 128 && data[2]! < 128;
 }
 
-/** A 40 by 60 CSS pixel canvas drawn at the given device pixel ratio. */
 function scaledContext(scale: number): CanvasRenderingContext2D {
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(40 * scale);
@@ -155,7 +152,6 @@ describe.each([1.25, 2.2])("renderGhosttySnapshot at a %sx device pixel ratio", 
     expect(isDarkAt(context, 15.7, 12.5)).toBe(true);
   });
 
-  // Cell 1 spans x 11.8 to 19.6 and row 0 spans y 4 to 21 in CSS pixels.
   it.each([
     ["right", "\ue0b4", { flat: 12.3, round: 19.1, neighbour: 0, outside: 11.3 }],
     ["left", "\ue0b6", { flat: 19.1, round: 12.3, neighbour: 2, outside: 20.1 }],

@@ -89,7 +89,6 @@ it.live("closes a tab's relay connection when the desktop detaches the tab", () 
         () => new Promise<void>((resolve) => socket.addEventListener("open", () => resolve())),
       );
 
-      // Playwright waits on this socket for CDP replies; it must learn the tab is gone.
       yield* send({ type: "detached", ...key });
       yield* Effect.promise(() => closed).pipe(Effect.timeout("2 seconds"));
     }).pipe(

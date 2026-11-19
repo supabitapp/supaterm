@@ -11,7 +11,6 @@ import { serverEnvironment } from "../state/server";
 import { environmentShell } from "../state/shell";
 import { createWidgetRefresher, WIDGET_REFRESH_INTERVAL } from "./subscriptionUsageSnapshot";
 
-// A shell that failed never goes live, and its environment still needs fresh quotas.
 const shellDoneAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.make((get) => {
     const shell = get(environmentShell.stateValueAtom(environmentId));
@@ -19,10 +18,6 @@ const shellDoneAtom = Atom.family((environmentId: EnvironmentId) =>
   }),
 );
 
-/**
- * Connected environments whose thread list has loaded. A refresh re-probes every provider on
- * the host, so on a cold start it waits until it cannot compete with the thread list.
- */
 const refreshableEnvironmentsAtom = Atom.make((get) =>
   [...get(environmentPresentations.presentationsAtom)].flatMap(([environmentId, presentation]) =>
     presentation.connection.phase === "connected" && get(shellDoneAtom(environmentId))

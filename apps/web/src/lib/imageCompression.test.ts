@@ -254,7 +254,6 @@ describe("composer image thumbnails", () => {
     stubCanvasPipeline(() => 3);
     const source = makeFile(3);
     const compressed = makeFile(2, "image/webp");
-    // Compression can finish before the placeholder's thumbnail does.
     const pendingThumbnail = createComposerImageThumbnail(source);
 
     await inheritComposerImageThumbnail(source, compressed);

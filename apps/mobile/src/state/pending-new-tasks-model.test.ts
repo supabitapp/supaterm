@@ -159,7 +159,6 @@ describe("resolvePendingDraftBranch", () => {
     expect(resolve({ draft: untouched, defaults: worktreeDefault, branches, projectCwd })).toBe(
       "origin/main",
     );
-    // Until supaterm.json settles, the environment default may still be replaced.
     expect(
       resolve({
         draft: untouched,
@@ -168,7 +167,6 @@ describe("resolvePendingDraftBranch", () => {
         projectCwd,
       }),
     ).toBeNull();
-    // A local default starts on the checkout without naming a branch, as on main.
     expect(pendingDraftBranchNeedsRefs(untouched, localDefault)).toBe(false);
     expect(resolve({ draft: untouched, branches, projectCwd })).toBeNull();
   });

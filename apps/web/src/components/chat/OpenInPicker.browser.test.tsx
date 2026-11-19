@@ -91,7 +91,6 @@ async function setup() {
   stack.use(_platform);
   const _storage = { [Symbol.dispose]: () => window.localStorage.clear() };
   stack.use(_storage);
-  // The app registers this command at startup (appInit).
   const _openFavorite = { [Symbol.dispose]: registerOpenFavoriteEditorCommand() };
   stack.use(_openFavorite);
   const screen = stack.use(await renderUi(null));
@@ -172,11 +171,9 @@ describe("host editor access", () => {
     const { renderPicker, byLabel, primaryButton, click, pressOpenFavorite } = fixture;
     state.allowed.add(selected);
     await renderPicker();
-    // Revoke without rerendering to exercise execution-time grant checks.
     state.allowed.delete(selected);
     state.allowed.add(primary);
     await click(primaryButton());
-    // The shortcut is consumed and opens nothing once the grant is gone.
     expect((await pressOpenFavorite()).defaultPrevented).toBe(true);
     expect(state.run).not.toHaveBeenCalled();
     expect(state.setPreferred).not.toHaveBeenCalled();
@@ -193,7 +190,6 @@ describe("remote editor links", () => {
     await using fixture = await setup();
     const { screen, pressOpenFavorite, FavoriteEditorFallback } = fixture;
     state.remote = { mode: "remote-links", host: { kind: "ssh-alias", host: "sol" } };
-    // A successful open would announce on a real timer that fires in the next test.
     state.openUrl.mockResolvedValueOnce(false);
     await act(async () => screen.rerender(<FavoriteEditorFallback />));
 

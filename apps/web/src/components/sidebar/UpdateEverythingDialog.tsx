@@ -71,7 +71,6 @@ export function UpdateEverythingDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      {/* Refocusing the trigger after a pointer close shows its focus ring and opens its tooltip. */}
       <AlertDialogPopup
         className="sm:max-w-xl"
         initialFocus={cancelRef}
@@ -153,7 +152,6 @@ function UpdateEverythingDialogContent({
               {note}
             </p>
           ))}
-          {/* Machine names truncate first. Provider lists wrap between names, never inside one. */}
           <div
             role="table"
             className="grid grid-cols-[minmax(4rem,max-content)_max-content_minmax(min-content,1fr)_max-content] gap-x-4 text-sm"

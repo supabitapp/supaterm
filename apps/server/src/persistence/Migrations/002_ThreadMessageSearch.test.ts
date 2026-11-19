@@ -17,7 +17,6 @@ layer("002_ThreadMessageSearch", (it) => {
   it.effect("backfills what users wrote and agents answered, then follows deletes", () =>
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
-      // A database from before this migration, holding messages to backfill.
       yield* Migrator.make({})({
         loader: Migrator.fromRecord({ "1_Baseline": Migration0001 }),
       });
@@ -41,7 +40,6 @@ layer("002_ThreadMessageSearch", (it) => {
       yield* insert("streaming", "assistant", 1, "needle still streaming");
       yield* insert("system", "system", 0, "needle in a system prompt");
       yield* insert("notice", "user", 0, "needle in a pull request update", "agent");
-      // Older rows carry no author; they were the user's.
       yield* insert("legacy", "user", 0, "needle from before authors", undefined);
 
       yield* runMigrations();
@@ -83,7 +81,6 @@ it.effect.each(["inserted", "updated", "backfilled", "rebuilt"])(
       const sql = yield* SqlClient.SqlClient;
       yield* migrateThrough(path === "backfilled" ? 1 : 3);
       if (path !== "backfilled") {
-        // Pre-upgrade triggers indexed user text even when it was an attachment placeholder.
         yield* sql`DROP TRIGGER orchestration_v2_message_search_insert`;
         yield* sql`DROP TRIGGER orchestration_v2_message_search_update`;
         yield* sql`

@@ -103,8 +103,6 @@ function chartScale(
     : { ...niceScale(peak, TICK_COUNT), labeled: true };
 }
 
-// Leave room above the top gridline so the constant-width stroke is not
-// clipped when a series reaches the peak.
 function valueToY(value: number, max: number) {
   return max === 0 ? VIEW_HEIGHT : VIEW_HEIGHT - (value / max) * (VIEW_HEIGHT - PLOT_TOP);
 }
@@ -462,7 +460,6 @@ export function UsageProviderChart({
         </span>
       </div>
 
-      {/* The plot and its axes are hover-only; this carries the same figures for screen readers. */}
       <table className="sr-only">
         <caption>{ariaLabel}</caption>
         <thead>

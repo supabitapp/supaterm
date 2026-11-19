@@ -93,7 +93,6 @@ it.effect("reads the default-branch template whatever branch the pull request ta
   ),
 );
 
-// Microsoft searches these locations in order, ignoring case; extension must not override folder.
 it.effect.each([
   [".AzureDevOps/PULL_REQUEST_TEMPLATE.txt", ".vsts/pull_request_template.md"],
   [".VSTS/pull_request_template.TXT", "docs/pull_request_template.md"],
@@ -127,7 +126,6 @@ it.effect("ignores missing, blank, symlinked, and nested templates", () =>
       yield* write("template.md", "Not a default template");
       yield* write("docs/nested/pull_request_template.md", "Nested template");
       yield* commit;
-      // An index mode commits a symlink even on hosts without symlink support.
       const blob = yield* git("rev-parse", "HEAD:template.md");
       yield* git(
         "update-index",

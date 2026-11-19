@@ -22,8 +22,6 @@ vi.mock(import("../../hooks/useTheme"), async (original) => ({
   useRenderedAppearance: (() => "dark") as never,
 }));
 
-// Wraps Pierre's real worker so the suite can count workers, read requests and hold startup.
-// Vite's `?worker` export is a factory that returns a plain Worker, so this patches the instance.
 vi.mock("@pierre/diffs/worker/worker.js?worker", async (original) => {
   const actual = await original<{ default: new () => Worker }>();
   return {
@@ -68,8 +66,6 @@ vi.mock("@pierre/diffs/worker/worker.js?worker", async (original) => {
   };
 });
 
-// Pierre's real viewer virtualizes into a shadow root; this stand-in renders each file through
-// the same worker pool and keeps the highlighted HTML readable.
 vi.mock(import("@pierre/diffs/react"), async (original) => ({
   ...(await original()),
   CodeView: ((props: CodeViewProps<undefined, undefined>) =>
@@ -126,12 +122,8 @@ function renderViews(count: number) {
   );
 }
 
-// Pierre rejects a pool whose workers take 10s to start. Real workers share the runner with the
-// rest of the suite, so outside the test of that limit the test's own timeout is the only deadline.
 const UNLIMITED_WORKER_STARTUP_MS = 120_000;
 
-// Queries stay inside the test's own container: a timed-out test keeps running and leaves its
-// views mounted while the next test starts.
 const codeFile = (container: HTMLElement, name: string) =>
   container.querySelector(`[data-code-file="${name}"]`)?.textContent ?? "";
 
@@ -147,13 +139,10 @@ describe("code-view worker lifecycle", () => {
     testState.heldResponses = [];
     testState.onInitializationHeld = undefined;
   }
-  // Worker startup runs on real time, so only the idle expiry checks use this clock.
-  // Faking startup too would let advancing the idle clock time out a worker startup.
   // oxlint-disable-next-line supaterm/no-frame-waits-in-browser-tests -- the worker pool must start on real time.
   const idleClock = () => fakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   async function workerEnvironment({ startupLimit = UNLIMITED_WORKER_STARTUP_MS } = {}) {
     await using stack = new AsyncDisposableStack();
-    // Pins the pool at two workers whatever machine runs the suite.
     stack.use(vi.spyOn(navigator, "hardwareConcurrency", "get").mockReturnValue(2));
     const initialize = WorkerPoolManager.prototype.initialize;
     stack.use(
@@ -161,7 +150,6 @@ describe("code-view worker lifecycle", () => {
         this: WorkerPoolManager,
         ...args
       ) {
-        // The provider builds the pool without this option, so it is set before startup reads it.
         const options: { workerInitializationTimeout?: number } = Reflect.get(this, "options");
         options.workerInitializationTimeout = startupLimit;
         const pending = initialize.apply(this, args);
@@ -169,7 +157,6 @@ describe("code-view worker lifecycle", () => {
         return pending;
       }),
     );
-    // Runs out the idle timer each view's unmount scheduled, releasing its pool.
     stack.defer(async () => {
       await vi.runOnlyPendingTimersAsync();
       vi.useRealTimers();
@@ -178,8 +165,6 @@ describe("code-view worker lifecycle", () => {
     return {
       async render(ui: ReactNode) {
         const view = environment.use(await render(ui, { router: false }));
-        // Disposed before the view, so its unmount schedules the idle timer on a fake clock
-        // that the run-out above then restores.
         environment.defer(() => {
           if (!vi.isFakeTimers()) idleClock();
         });

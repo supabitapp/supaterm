@@ -200,7 +200,6 @@ const makeWorkspaceRescanHarness = Effect.gen(function* () {
         streamChanges: Stream.empty,
         applyUsageLimits: () => Effect.void,
       },
-      // A pull-based stream pulls the next report only after the registry queued the last.
       workspaceRescans: Stream.fromQueue(rescans).pipe(
         Stream.tap((cwd) => Queue.offer(reports, cwd)),
       ),
@@ -258,9 +257,6 @@ const makeWorkspaceRescanHarness = Effect.gen(function* () {
     yield* complete("initial");
     yield* Fiber.join(pending);
   });
-  // A later requested cwd reaching the serial consumer proves the previous rescan settled,
-  // including when that rescan correctly publishes no change. Seed "/barrier" first; it rescans
-  // to the skills it was seeded with, so it never stamps workspaceRescannedAt.
   const drainRescans = Effect.gen(function* () {
     yield* Queue.offer(first.rescans, "/barrier");
     const complete = yield* nextScan("/barrier");
@@ -369,7 +365,6 @@ function layerMockSpawner(
   );
 }
 
-// A Codex CLI on disk whose `app-server` and `--version` behave as `script` says.
 const writeFakeCodexCli = Effect.fn("writeFakeCodexCli")(function* (script: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -380,7 +375,6 @@ const writeFakeCodexCli = Effect.fn("writeFakeCodexCli")(function* (script: stri
   return { directory, binaryPath };
 });
 
-// The npm `@openai/codex` 0.1 CLI treats `app-server` as a prompt and exits 1.
 const OBSOLETE_CODEX_APP_SERVER = `echo "Missing OpenAI API key." >&2; exit 1`;
 
 const codexModelCapabilities = createModelCapabilities({
@@ -508,7 +502,6 @@ const makeUpdateState = (status: ServerProviderUpdateState["status"]) =>
     output: null,
   }) satisfies ServerProviderUpdateState;
 
-// One Codex instance whose probe returns whatever `snapshot` currently holds.
 const buildRegistryOverSnapshot = Effect.fn("buildRegistryOverSnapshot")(function* (
   snapshot: Ref.Ref<ServerProvider>,
 ) {
@@ -571,7 +564,6 @@ const layerTestNodeServices = Layer.mergeAll(
   Layer.succeed(ServerEnvironment.ServerEnvironmentIdentity, {
     getEnvironmentId: Effect.succeed(EnvironmentId.make("00000000-0000-4000-8000-000000000001")),
   }),
-  // An empty home, so the developer's own Claude settings never reach provider probes.
   Layer.effect(
     HostProcess.HomeDirectory,
     Effect.gen(function* () {
@@ -801,7 +793,6 @@ it.layer(
           plain: null,
           "my-model": null,
         });
-        // An unread config keeps the choice but cannot know Codex's default.
         assert.deepStrictEqual(yield* defaultPrograms({}), {
           both: "no default",
           "daybreak-only": "no default",
@@ -827,7 +818,6 @@ it.layer(
         const { binaryPath } = yield* writeFakeCodexCli(
           [
             `if [ "$1" = "--version" ]; then`,
-            // The fallback runs with the provider's environment and CODEX_HOME.
             `  [ "$CODEX_HOME" = "${codexHome}" ] && [ "$FAKE_CODEX_ENV" = "kept" ] || exit 2`,
             `  echo 0.1.4161006; exit 0`,
             `fi`,
@@ -1067,7 +1057,6 @@ it.layer(
         unchanged.workspaceSnapshots?.map((snapshot) => snapshot.cwd),
         ["/project", "/plain"],
       );
-      // A machine health refresh must not read as a rescan, nor erase the last one.
       const rescanned = { ...withCatalog, workspaceRescannedAt: "2026-03-25T00:01:00.000Z" };
       assert.equal(
         ProviderRegistry.mergeProviderSnapshot(rescanned, provider).workspaceRescannedAt,
@@ -1093,7 +1082,6 @@ it.layer(
         })),
         [
           { cwd: "/project", models: [machineModel, projectModel], modelsPending: true },
-          // Its folder may define a model the machine catalog just dropped.
           { cwd: "/plain", models: undefined, modelsPending: true },
         ],
       );
@@ -1862,7 +1850,6 @@ it.layer(
                   auth,
                   version,
                 });
-                // Boot reads the probe state from the cache, not the pending snapshot, and never persists the pending one.
                 assert.deepStrictEqual(
                   probeFields((yield* registry.getProviders)[0]!),
                   probeFields(cachedProvider),
@@ -1949,7 +1936,6 @@ it.layer(
             },
           );
 
-          // First boot has no cache file; the second has a stale ready one.
           for (const hasCache of [false, true]) {
             if (hasCache) {
               yield* writeProviderStatusCache({
@@ -2298,7 +2284,6 @@ it.layer(
           yield* first.takeMaintenanceReads;
 
           yield* registry.invalidateModelCaches({ instanceId: first.instance.instanceId });
-          // The instance refresh that follows resolves installer metadata fresh itself.
           assert.deepStrictEqual(yield* first.takeMaintenanceReads, [false]);
           assert.strictEqual(yield* Ref.get(forceRefreshCalls), 1);
           assert.strictEqual(yield* Ref.get(first.invalidations), 1);
@@ -2312,14 +2297,12 @@ it.layer(
           assert.strictEqual(yield* readCachedVersion("codex_second-package"), "2.0.0");
           yield* first.takeMaintenanceReads;
 
-          // Only a cached workspace refresh leaves the fresh resolution to this call.
           const workspace = { instanceId: first.instance.instanceId, cwd: process.cwd() };
           yield* registry.invalidateModelCaches(workspace);
           assert.deepStrictEqual(yield* first.takeMaintenanceReads, [true]);
           yield* registry.invalidateModelCaches({ ...workspace, fresh: true });
           assert.deepStrictEqual(yield* first.takeMaintenanceReads, [false]);
 
-          // An opened model picker probes only when the manifest differs from what the last pass saw.
           const probesBefore = yield* Ref.get(second.probes);
           yield* registry.refreshModelCatalog;
           assert.strictEqual(yield* Ref.get(second.probes), probesBefore);
@@ -2331,7 +2314,6 @@ it.layer(
           yield* registry.refreshModelCatalog;
           yield* registry.refreshModelCatalog;
           assert.strictEqual(yield* Ref.get(second.probes), probesBefore + 1);
-          // A changed manifest also rechecks latest CLI versions.
           assert.strictEqual(yield* readCachedVersion("codex_second-package", "3.0.0"), "3.0.0");
 
           yield* first.takeMaintenanceReads;
@@ -2342,10 +2324,8 @@ it.layer(
             true,
           ]);
           assert.notInclude(yield* second.takeMaintenanceReads, "afterUpdate");
-          // Instances sharing the replaced service must not cache its old version.
           assert.strictEqual((yield* Ref.get(updateEvents))[0], "afterUpdate:codex_first");
 
-          // A failed hook leaves the probe to report what is running.
           yield* Ref.set(hookFails, true);
           const probesBeforeFailedHook = yield* Ref.get(first.probes);
           const refreshed = yield* registry.refreshAfterUpdate(
@@ -2568,7 +2548,6 @@ it.layer(
         yield* complete("hook");
         yield* h.drainRescans;
         assert.deepEqual(yield* h.skillsOf("/workspace"), ["hook"]);
-        // Clients that fetched the old skills are told to fetch again.
         const scannedAt = (yield* h.registry.getProviders)[0]?.workspaceSnapshots?.find(
           (snapshot) => snapshot.cwd === "/workspace",
         )?.checkedAt;
@@ -2586,7 +2565,6 @@ it.layer(
         const completeOrdinary = yield* h.nextScan("/workspace");
         yield* Queue.offer(h.first.rescans, "/workspace");
         yield* Queue.take(h.first.reports);
-        // Let the consumer reach its wait on the running scan.
         yield* TestClock.adjust(0);
         yield* completeOrdinary("hook");
         yield* Fiber.join(ordinary);
@@ -2616,7 +2594,6 @@ it.layer(
         const h = yield* makeWorkspaceRescanHarness;
         yield* h.seed("/barrier");
         yield* Queue.offer(h.first.rescans, "/unrequested");
-        // The next scan being the barrier's shows the report started none.
         yield* h.drainRescans;
         assert.deepEqual(yield* h.skillsOf("/unrequested"), undefined);
       }),
@@ -2630,11 +2607,8 @@ it.layer(
         const completeInitial = yield* h.nextScan("/workspace");
         yield* Queue.offer(h.first.rescans, "/workspace");
         yield* Queue.take(h.first.reports);
-        // Let the consumer reach its wait on the running scan.
         yield* TestClock.adjust(0);
         yield* completeInitial("initial");
-        // The requesting client's reply is its only copy of the scan, so the rescan must not
-        // supersede it.
         const reply = yield* Fiber.join(initial);
         assert.deepEqual(
           reply[0]?.workspaceSnapshots
@@ -2657,7 +2631,6 @@ it.layer(
         const completeInitial = yield* h.nextScan("/workspace");
         yield* Queue.offer(h.first.rescans, "/workspace");
         yield* Queue.take(h.first.reports);
-        // Let the consumer reach its wait on the running scan.
         yield* TestClock.adjust(0);
         const fresh = yield* h.refresh("/workspace", true).pipe(Effect.forkChild);
         const completeFresh = yield* h.nextScan("/workspace");
@@ -2671,7 +2644,6 @@ it.layer(
             ?.skills?.map((s) => s.name),
           ["fresh"],
         );
-        // The rescan joins the fresh scan, so the next scan started is the barrier's.
         yield* h.drainRescans;
         assert.deepEqual(yield* h.skillsOf("/workspace"), ["fresh"]);
       }),
@@ -2692,12 +2664,10 @@ it.layer(
         yield* Fiber.join(rebuilt);
         yield* h.seed("/workspace");
         yield* h.seed("/barrier");
-        // The forwarder pulls the second report only after queueing the first.
         yield* Queue.offerAll(h.first.rescans, ["/workspace", "/workspace"]);
         yield* Queue.take(h.first.reports);
         yield* Queue.take(h.first.reports);
         yield* Queue.offer(replacement.rescans, "/barrier");
-        // A scan started for the stale report would come before the barrier's.
         const completeBarrier = yield* h.nextScan("/barrier");
         yield* completeBarrier("barrier");
         assert.deepEqual(yield* h.skillsOf("/workspace"), ["initial"]);
@@ -3021,7 +2991,6 @@ it.layer(
           assert.deepStrictEqual(recovered?.models, workspaceModels);
           assert.strictEqual(recovered?.modelsPending, undefined);
 
-          // A fresh refresh whose machine models change still publishes the folder read it ran.
           const addedModel = { ...machineModel, slug: "opencode/new", name: "New" };
           const nextWorkspaceModels = [machineModel, addedModel, projectModel];
           yield* Ref.set(machineProvider, { ...provider, models: [machineModel, addedModel] });
@@ -3339,7 +3308,6 @@ it.layer(
         expect(manual.result).toEqual([expect.objectContaining(manual.provider)]);
         expect(manual.providers).toEqual([expect.objectContaining(manual.provider)]);
 
-        // Neither the retired probe's failure nor its cached row can stand in for the replacement.
         for (const probeFails of [true, false]) {
           const afterUpdate = yield* scenario(probeFails, (registry) =>
             registry.refreshAfterUpdate(driver, instanceId),
@@ -3401,8 +3369,6 @@ it.layer(
                 }),
               ),
             getSnapshot: Ref.get(snapshotRef),
-            // Like a managed provider: publish the probe, let enrichment publish its result,
-            // then return the probe after a slow tail such as ACP's refreshMethods.
             refresh: Effect.gen(function* () {
               yield* publishSnapshot(pendingProvider);
               yield* publishSnapshot(enrichedProvider);
@@ -3740,7 +3706,6 @@ it.layer(
             state: unchanged,
           });
           yield* Deferred.succeed(releaseWrite, undefined);
-          // The snapshot stream is consumed in order, so this lands after the slow write publishes.
           yield* PubSub.publish(changes, laterProvider);
 
           const updateStateOf = (providers: ReadonlyArray<ServerProvider> | undefined) =>
@@ -3986,7 +3951,6 @@ it.layer(
         { status: "failed", advisory: "current", retired: true },
         { status: "unchanged", advisory: "behind_latest", retired: false },
         { status: "failed", advisory: "behind_latest", retired: false },
-        // The probe publishes `unknown` until the latest-version check lands.
         { status: "unchanged", advisory: "unknown", retired: false },
         { status: "queued", advisory: "current", retired: false },
         { status: "running", advisory: "current", retired: false },
@@ -4306,7 +4270,6 @@ it.layer(
           const subscription = yield* PubSub.subscribe(changes);
           const done = yield* Deferred.make<void>();
           drained.push(done);
-          // The terminal marker acknowledges preceding reconciles, including no-op/failed reads.
           return Stream.fromEffectRepeat(
             Deferred.await(consume).pipe(Effect.andThen(PubSub.take(subscription))),
           ).pipe(
@@ -4483,7 +4446,6 @@ it.layer(
         });
         const installMarker = path.join(directory, "installed");
         const binaryPath = path.join(directory, "claude");
-        // A `lazy = true` mise shim downloads and installs the tool unless MISE_OFFLINE is set.
         yield* fs.writeFileString(
           binaryPath,
           [
@@ -4581,7 +4543,6 @@ it.layer(
               "Claude Code is not authenticated. Run `claude auth login` and try again.",
             );
           } else {
-            // A home path is resolved to a native path; an inherited value is kept literal.
             const expected = homePath ? (yield* Path.Path).resolve(configDir) : configDir;
             assert.include(
               status.message ?? "",

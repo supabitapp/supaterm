@@ -353,7 +353,6 @@ describe("parseCodexLine", () => {
     expect(
       parseCodexLine(counted(counters(100, 20), counters(200, 40)), state)?.totals.outputTokens,
     ).toBe(20);
-    // Records explained by an earlier snapshot cannot bridge a later gap.
     parseCodexLine(usageRecord(counters(10, 2)), state);
     expect(parseCodexLine(counted(counters(10, 2), counters(340, 65)), state)).toBeNull();
     expect(state.malformedRecords).toBe(1);
@@ -381,7 +380,6 @@ describe("parseCodexLine", () => {
       context("1T23:59:50", "turn-1", "gpt-6-sol"),
       request("1T23:59:51", counters(100, 20)),
       snapshot("1T23:59:52", counters(100, 20), counters(100, 20)),
-      // One interrupted turn whose requests straddle midnight.
       request("1T23:59:59", counters(150, 10)),
       request("2T00:00:01", counters(50, 5)),
       tier("2T00:00:02", "priority"),
@@ -461,12 +459,10 @@ describe("parseCodexLine", () => {
     parseCodexLine(sessionMeta, state);
     parseCodexLine(turnContext, state);
     parseCodexLine(counted(counters(100, 20), counters(1000, 200)), state);
-    // Resume restores older context counters, while the request ledger continues.
     expect(
       parseCodexLine(request("response-1", counters(80, 10)), state)?.totals.outputTokens,
     ).toBe(10);
     expect(parseCodexLine(counted(counters(80, 10), counters(580, 110)), state)).toBeNull();
-    // Rate-limit refreshes repeat the snapshot without another request.
     expect(parseCodexLine(counted(counters(80, 10), counters(580, 110)), state)).toBeNull();
     expect(
       parseCodexLine(request("compaction", counters(90, 15)), state)?.totals.outputTokens,
@@ -480,7 +476,6 @@ describe("parseCodexLine", () => {
     );
     expect(parseCodexLine(counted(counters(30, 5), counters(610, 115)), state)).toBeNull();
     expect(state.malformedRecords).toBe(0);
-    // A later turn from an older CLI can still report usage through snapshots alone.
     parseCodexLine(turnContext, state);
     expect(
       parseCodexLine(counted(counters(20, 2), counters(630, 117)), state)?.totals.outputTokens,
@@ -850,9 +845,6 @@ describe("parseCodexLine", () => {
     }
   });
 
-  // A forked/subagent rollout opens with the parent's history copied in and
-  // every line re-stamped to the fork instant, then the ancestors' session
-  // metas. Counting those again multiplied usage ~1.85x on real data.
   describe("forked rollouts", () => {
     const meta = (overrides: {
       id: string;

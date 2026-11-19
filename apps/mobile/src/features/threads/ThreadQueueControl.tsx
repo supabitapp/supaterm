@@ -230,7 +230,6 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
         const controls = resolveThreadQueueRowControls({
           canOperate,
           busy: busyRunId !== null,
-          // A fresh message starts its own turn: it may skip compaction, but not steer into a turn.
           canPromoteToSteer:
             (workflow?.canPromoteToSteer ?? false) &&
             (run.freshContext !== true || workflow?.promoteSkipsCompaction === true),
@@ -316,7 +315,6 @@ export function ThreadQueueSheet({ route }: StaticScreenProps<QueueTarget>) {
                 });
                 busyRef.current = false;
                 setResuming(false);
-                // A usage limit holds the queue until the composer's Resume thread continues the run.
                 if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
                   const error = squashAtomCommandFailure(result);
                   Dialog.alert(
@@ -353,8 +351,6 @@ function QueueRowSwipeable(props: {
       friction={2}
       rightThreshold={40}
       overshootRight={false}
-      // The sheet scrolls vertically; a swipe has to be clearly sideways before it
-      // takes the gesture.
       failOffsetY={[-12, 12]}
       containerStyle={{ backgroundColor: props.background, flex: 1 }}
       childrenContainerStyle={{ backgroundColor: props.background }}

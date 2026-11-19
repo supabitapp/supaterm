@@ -50,7 +50,6 @@ it("ticks the running stage while finished stages keep their duration", async ()
   using _timers = fakeTimers();
   vi.setSystemTime(NOW);
   await using screen = await render(card(snapshot({})));
-  // Assert synchronously: expect.element polls on timers these tests fake.
   const section = screen.getByRole("region", { name: "Worktree setup" });
 
   expect(section.element().textContent).toContain("Fetch base branch3s");

@@ -4,7 +4,6 @@ import { APP_DISPLAY_NAME } from "../../branding";
 
 export function StandalonePage({ children }: { readonly children: ReactNode }) {
   return (
-    // The page owns scrolling because root cannot scroll; safe centering keeps oversized cards top-aligned.
     <div className="flex h-full items-center-safe justify-center overflow-y-auto scrollbar-gutter-both bg-background px-4 py-10 text-foreground sm:px-6">
       <section className="dialog-glass w-full max-w-xl rounded-2xl border p-6">{children}</section>
     </div>

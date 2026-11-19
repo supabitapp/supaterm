@@ -14,7 +14,6 @@ import {
 
 let database: Database | null = null;
 let tables: string[] = [];
-// Entries over the preview limit keep only their size, so their payload is never copied.
 let files = new Map<string, Uint8Array<ArrayBuffer> | number>();
 const reply = (result: BinaryWorkerResult) => self.postMessage(result, { transfer: [] });
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
@@ -127,7 +126,6 @@ function tarEntries(bytes: Uint8Array<ArrayBuffer>) {
       type === "" ||
       type === "0" ||
       type === "5" ||
-      // A hard link shares an earlier member's bytes; one without that member is skipped.
       (type === "1" && linkpath && files.has(linkpath))
     ) {
       if (attributes.mtime && !/^[+-]?\d+(?:\.\d+)?$/.test(attributes.mtime))

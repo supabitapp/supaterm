@@ -38,7 +38,6 @@ interface PermissionParams {
   readonly _meta?: { readonly kiro?: { readonly type?: unknown } };
 }
 
-/** Kiro's permission requests in order: "tool" for a tool call, "turn" for its review of changes. */
 function permissionRequestKinds(transcript: ProviderReplayTranscript) {
   return frames(transcript).flatMap(({ type, frame }) => {
     if (

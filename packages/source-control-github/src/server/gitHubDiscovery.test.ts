@@ -18,7 +18,6 @@ const unknownContext = (baseUrl: string) => ({
   remoteUrl: "git@code.example.test:team/project.git",
 });
 
-// The default host dies on any command, so refinement never reaches `gh`.
 const makeDiscovery = (get: GitHubCredentials.GitHubCredentials["Service"]["get"]) =>
   GitHubProviderDiscovery.make.pipe(
     Effect.provide(

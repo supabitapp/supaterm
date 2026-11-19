@@ -58,7 +58,6 @@ import { makeReplayRecorderDeferredRegistry } from "./replayRecorderDeferredRegi
 const CODEX_REPLAY_PLAN_MODE_DEVELOPER_INSTRUCTIONS =
   process.env.SUPATERMX_REPLAY_PLAN_DEVELOPER_INSTRUCTIONS ??
   "You are in Plan mode. Prefer request_user_input for clarifying questions. When presenting a complete plan, wrap it in <proposed_plan> and </proposed_plan>.";
-// Match V2 adapter frames so recordings replay unchanged.
 const CODEX_CLIENT_CAPABILITIES = {
   experimentalApi: true,
   optOutNotificationMethods: ["turn/diff/updated"],
@@ -111,7 +110,6 @@ interface ReplayRun {
   readonly steps: ReadonlyArray<ReplayStep>;
   readonly turnDefaults?: Omit<TurnStartParams, "input" | "threadId">;
   readonly interactionMode?: "plan";
-  /** Recorder overrides; replay ignores keys listed in the header's `recorderThreadConfigKeys`. */
   readonly threadConfig?: Readonly<Record<string, boolean | number | string>>;
 }
 
@@ -358,7 +356,6 @@ function scenarios(): ReadonlyArray<ReplayScenario> {
       fileName: "tool_call_read_only_on_request.ndjson",
       description:
         "Write a small fixture file with read-only full filesystem visibility and on-request approvals.",
-      // gpt-6-luna declines to attempt the write under a read-only sandbox; gpt-6-sol tries it.
       model: "gpt-6-sol",
       runs: [
         {
@@ -398,7 +395,6 @@ function scenarios(): ReadonlyArray<ReplayScenario> {
       fileName: "tool_call_restricted_granular.ndjson",
       description:
         "Write a small fixture file with restricted read access and granular approval flags enabled.",
-      // gpt-5.6-terra uses apply_patch, which raises this approval; gpt-6 uses the shell.
       model: "gpt-5.6-terra",
       runs: [
         {
@@ -424,14 +420,12 @@ function scenarios(): ReadonlyArray<ReplayScenario> {
       name: "subagent",
       fileName: "subagent.ndjson",
       description: "One root turn that asks Codex to spawn two collab agents.",
-      // gpt-5.6-luna still runs multi-agent v1, the only live source of collabAgentToolCall.
       model: "gpt-5.6-luna",
       runs: [
         {
           name: "two-subagents",
           description: "Root turn asks for two subagents reading different files.",
           prompt: SUBAGENT_PROMPT,
-          // Without this, children read the recording user's own skills into the fixture.
           threadConfig: { "skills.include_instructions": false },
           turnDefaults: {
             approvalPolicy: "on-request",
@@ -529,7 +523,6 @@ function scenarios(): ReadonlyArray<ReplayScenario> {
       fileName: "subagent_continue.ndjson",
       description:
         "A root turn spawns one native Codex subagent, then a later root turn resumes and messages the same child thread.",
-      // gpt-5.6-luna still runs multi-agent v1, the only live source of collabAgentToolCall.
       model: "gpt-5.6-luna",
       runs: [
         {
@@ -893,7 +886,6 @@ function scenarios(): ReadonlyArray<ReplayScenario> {
       fileName: "thread_merge_back_siblings.ndjson",
       description:
         "Two sibling fork deltas are merged sequentially into one source provider thread and recalled together.",
-      // gpt-6-luna often recalls acknowledgements; gpt-6-sol recalls the markers.
       model: "gpt-6-sol",
       runs: [
         {
@@ -1080,7 +1072,6 @@ function layerCodex({ recorder }: { readonly recorder: Recorder }) {
   return Layer.effect(
     CodexClient.CodexAppServerClient,
     Effect.gen(function* () {
-      // Inheriting the vp shim's VP_TOOL_RECURSION makes Codex's shell `node` calls fail.
       const { VP_TOOL_RECURSION: _vpToolRecursion, ...environment } =
         yield* HostProcess.Environment;
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -1397,7 +1388,6 @@ const runReplaySession = Effect.fn("record-codex-app-server-replay-fixture.runRe
       yield* Effect.gen(function* () {
         const client = yield* initializeClient;
         const resumeParams = { threadId, excludeTurns: true, ...threadRuntimeParams };
-        // Fresh app-servers report notLoaded; resume before thread/revert and again on the next turn.
         yield* client.request("thread/read", { threadId, includeTurns: false });
         yield* client.request("thread/resume", resumeParams);
         yield* revertCodexThread(client, threadId, rollback.numTurns);

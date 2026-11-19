@@ -50,7 +50,6 @@ function screenAspect(platform: DevicePlatform, screen: DeviceScreenSize | null)
   return w / h;
 }
 
-// serve-sim sends raw portrait framebuffers even when iOS reports landscape; rotate the display.
 function screenRotation(platform: DevicePlatform, screen: DeviceScreenSize | null): number {
   if (platform !== "ios" || !screen || screen.width > screen.height) return 0;
   switch (screen.orientation) {
@@ -160,7 +159,6 @@ export function DeviceStreamView(props: {
     (!isDuo || screen?.supportsHingeAngle === true);
   const controlsInset = props.renderControls && !showPhone ? CONTROLS_RAIL_WIDTH : 0;
 
-  // Fit the frame in both dimensions; pinned CSS height plus a width clamp distorts aspect-ratio.
   const [host, setHost] = useState({ width: 0, height: 0 });
   const hostRef = (element: HTMLDivElement | null) => {
     if (!element) return;
@@ -316,7 +314,6 @@ export function DeviceStreamView(props: {
         ref={hostRef}
         className={cn(
           "relative flex min-h-0 min-w-0 flex-1 items-center justify-center overflow-hidden outline-none",
-          // Overlay so the ring paints above the stream canvas.
           "after:pointer-events-none after:absolute after:inset-0 after:z-10 focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-ring",
           controlsInset && "pr-14",
         )}
@@ -326,7 +323,6 @@ export function DeviceStreamView(props: {
         onKeyDown={(event) => {
           if (event.target !== event.currentTarget) return;
           if (event.metaKey && !["r", "R"].includes(event.key)) return;
-          // Let browser paste chords fire the paste event.
           if (
             (event.ctrlKey && (event.key === "v" || event.key === "V")) ||
             (event.shiftKey && event.key === "Insert")
@@ -466,7 +462,6 @@ export function DeviceStreamView(props: {
           </div>
         ) : null}
         {retainingFrame && showPhone ? (
-          // Shown only once the device has been silent for two seconds.
           <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-2 transition-opacity delay-2000 duration-0 starting:opacity-0">
             <span className="rounded-md bg-background/85 px-2 py-1 text-xs text-muted-foreground">
               Waiting for device video…
@@ -487,8 +482,6 @@ export function DeviceStreamView(props: {
                   size="sm"
                   variant="outline"
                   onClick={() => {
-                    // An expired ticket surfaces as unauthorized on restart and
-                    // refreshes access, which starts a new session.
                     session?.reconnect();
                   }}
                 >

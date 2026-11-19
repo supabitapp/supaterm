@@ -256,7 +256,6 @@ describe("DesktopBackendManager", () => {
             ),
           ),
         ),
-        // Before the server listens at 300 ms, each refused connect takes a second to fail.
         httpClientLayer: layerHttpClient((request) =>
           Clock.currentTimeMillis.pipe(
             Effect.flatMap((now) =>
@@ -702,8 +701,6 @@ describe("DesktopBackendManager", () => {
           ChildProcessSpawner.make(() =>
             Effect.succeed(
               makeProcess({
-                // "é" split across chunks must not decode as U+FFFD, and the 4,000-char cut
-                // lands inside the emoji's surrogate pair.
                 stderr: Stream.make(
                   new TextEncoder().encode(
                     `😀${"x".repeat(3_999 - message.length)}${message.slice(0, -1)}`,
@@ -774,7 +771,6 @@ describe("DesktopBackendManager", () => {
       yield* startInstance(
         migratingStatus,
         Deferred.succeed(migrated, undefined).pipe(Effect.asVoid),
-        // Enough progress lines that the start line scrolls out of the output tail.
         `INFO ${DATABASE_MIGRATIONS_STARTED_MESSAGE}\n` +
           Array.from(
             { length: 80 },
@@ -834,14 +830,12 @@ describe("DesktopBackendManager", () => {
       yield* instance.start;
       yield* Deferred.await(spawned);
 
-      // App quit and the updater stop every backend with this deadline.
       const quitDone = yield* Deferred.make<void>();
       const quitFiber = yield* instance
         .stop({ timeout: DesktopBackendManager.BACKEND_QUIT_STOP_TIMEOUT })
         .pipe(Effect.andThen(Deferred.succeed(quitDone, undefined)), Effect.forkChild);
 
       yield* Deferred.await(teardownStarted);
-      // Past the quit deadline, quit must still wait for the backend to exit.
       yield* TestClock.adjust(Duration.seconds(9));
       assert.isFalse(yield* Deferred.isDone(quitDone));
 

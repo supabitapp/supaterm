@@ -3,7 +3,6 @@ import type { SidePulseEffect, SidePulseLedState, SidePulseSettings } from "@sup
 export const SIDE_PULSE_LED_COUNT = 8;
 export const SIDE_PULSE_OFF_PROGRAM = "off 1s";
 
-// Each light's own color. Glow's brighter center is computed, except Idle's, which keeps SidePulse's cyan.
 const LIGHTS: Readonly<
   Record<SidePulseLedState, { readonly color: string; readonly bright?: string }>
 > = {
@@ -16,7 +15,6 @@ const LIGHTS: Readonly<
 const MULTICOLOR_EFFECTS: ReadonlySet<SidePulseEffect> = new Set(["rainbow", "spectrum"]);
 const PREVIEW_MIN_MS = 3000;
 
-// Eight OKLCH hues 45° apart from 20°, each at the most vivid color sRGB can show.
 const RAINBOW = [
   "#FF0044",
   "#FF9A00",
@@ -61,8 +59,6 @@ function pulses(color: string, durationMs: number, timeline: Timeline): string {
     .join("; ");
 }
 
-// LEDS.LED programs and how long one loop takes. A pulse returns to its line's start color, so
-// animations start from `off`.
 const EFFECTS: Readonly<
   Record<
     SidePulseEffect,
@@ -121,7 +117,6 @@ function oklabToLinearRgb(lightness: number, a: number, b: number): ReadonlyArra
   ];
 }
 
-// The same hue 0.06 lighter in OKLCH, with as much of the color's chroma as sRGB allows there.
 function brighterTone(hex: string): string {
   const [red, green, blue] = [1, 3, 5].map((offset) =>
     toLinear(Number.parseInt(hex.slice(offset, offset + 2), 16) / 255),

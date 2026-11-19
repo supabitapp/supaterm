@@ -4,8 +4,6 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Semaphore from "effect/Semaphore";
 
-// Executions share `room` and an update drains it. A Semaphore lets a smaller request overtake a
-// waiting larger one, so an update first holds `turnstile` and new executions queue behind it.
 interface InstanceGate {
   readonly turnstile: Semaphore.Semaphore;
   readonly room: Semaphore.Semaphore;
@@ -30,7 +28,6 @@ export class ProviderInstallationGate extends Context.Service<
 >()("supaterm/provider/ProviderInstallationGate") {}
 
 export const layer = Layer.sync(ProviderInstallationGate, () => {
-  // Instances are few and configured, so their gates are kept for the server's lifetime.
   const gates = new Map<ProviderInstanceId, InstanceGate>();
   const gateFor = (instanceId: ProviderInstanceId) =>
     Effect.sync(() => {
@@ -57,7 +54,6 @@ export const layer = Layer.sync(ProviderInstallationGate, () => {
     instanceIds: ReadonlyArray<ProviderInstanceId>,
     effect: Effect.Effect<A, E, R>,
   ) {
-    // A stable order keeps two updates that share instances from deadlocking.
     const instanceGates = yield* Effect.forEach(Array.from(new Set(instanceIds)).sort(), gateFor);
     const drained = instanceGates.reduceRight(
       (inner, gate) => gate.room.withPermits(ROOM_PERMITS)(inner),

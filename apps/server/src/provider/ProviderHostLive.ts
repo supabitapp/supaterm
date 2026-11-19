@@ -24,7 +24,6 @@ export const layer = Layer.effect(
     const secrets = yield* ServerSecretStore.ServerSecretStore;
     const digest = yield* Digest.Digest;
     const fileSystem = yield* FileSystem.FileSystem;
-    // Optional so standalone provider layers in tests probe at once.
     const lifecycleEvents = yield* Effect.serviceOption(
       ServerLifecycleEvents.ServerLifecycleEvents,
     );
@@ -49,7 +48,6 @@ export const layer = Layer.effect(
       }),
       resolveAttachmentPath: (attachment) =>
         resolveAttachmentPath({ attachmentsDir: config.attachmentsDir, attachment }),
-      // DocumentText owns the path-resolution span.
       resolveExtractedTextPath: Effect.fnUntraced(
         function* (path) {
           return yield* DocumentText.resolveExtractedTextPath(path);

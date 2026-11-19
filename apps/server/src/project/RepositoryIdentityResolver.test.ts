@@ -73,7 +73,6 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
 
       const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
       const identity = yield* resolver.resolve(cwd);
-      // Native realpath matches git's long paths when Windows temp dirs use 8.3 names.
       const resolvedIdentityRoot =
         identity?.rootPath === undefined ? "" : NodeFS.realpathSync.native(identity.rootPath);
       const resolvedCwd = NodeFS.realpathSync.native(cwd);
@@ -447,14 +446,12 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
         remoteUrl: "https://github.com/SupatermTools/supaterm.git",
       });
 
-      // No remote fetches the marked repository, and several marks leave gh's choice unknown.
       yield* git(cwd, ["config", "remote.fork.gh-resolved", "someone/else"]);
       expect((yield* resolveFresh())?.locator.remoteName).toBe("upstream");
       yield* git(cwd, ["config", "remote.fork.gh-resolved", "base"]);
       yield* git(cwd, ["config", "remote.main.gh-resolved", "base"]);
       expect((yield* resolveFresh())?.locator.remoteName).toBe("upstream");
 
-      // The same path on another HTTPS port is a different server.
       yield* git(cwd, ["config", "--unset", "remote.fork.gh-resolved"]);
       yield* git(cwd, ["config", "--unset", "remote.main.gh-resolved"]);
       yield* git(cwd, ["remote", "add", "backup", "https://ghe.example.com:9443/acme/web.git"]);

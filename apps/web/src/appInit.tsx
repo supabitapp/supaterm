@@ -51,7 +51,6 @@ import { registerOpenFavoriteEditorCommand } from "./components/chat/OpenInPicke
 import { environmentThreadShells, threadEnvironment } from "./state/threads";
 import { resolveActiveThreadRouteRef, resolveThreadRouteTarget } from "./threadRoutes";
 
-/** Writes appearance settings onto the document, touching only the groups that changed. */
 function startClientAppearance(): void {
   const root = document.documentElement;
   let applied: ClientSettings | null = null;
@@ -120,10 +119,6 @@ function readOpenThreadRef(router: AppRouter): ScopedThreadRef | null {
   return resolveActiveThreadRouteRef(target, draft);
 }
 
-/**
- * Names the open thread and its project in the window title, or the app when none is open.
- * Screen readers read it on Alt+Tab, so it can lead with the thread and what it's doing.
- */
 function startDocumentTitle(router: AppRouter): void {
   let openThreadRef = readOpenThreadRef(router);
   const write = () => {
@@ -150,7 +145,6 @@ function startDocumentTitle(router: AppRouter): void {
       }),
       desktop: isElectron,
     });
-    // Projects change whenever any project does; most changes leave the title alone.
     if (document.title !== title) document.title = title;
   };
   let unsubscribeOpenThread = () => {};
@@ -164,7 +158,6 @@ function startDocumentTitle(router: AppRouter): void {
             write,
           );
   };
-  // The draft store changes on every keystroke; only a new open thread matters here.
   const updateOpenThread = () => {
     const next = readOpenThreadRef(router);
     if ((next && scopedThreadKey(next)) === (openThreadRef && scopedThreadKey(openThreadRef))) {
@@ -182,11 +175,6 @@ function startDocumentTitle(router: AppRouter): void {
   useComposerDraftStore.subscribe(updateOpenThread);
 }
 
-/**
- * Each route paints its own surface, which the browser chrome samples once it is on screen.
- * onRendered only fires for a new href; onResolved also covers `router.invalidate()`, which
- * can swap the root between the bare outlet and the shell at the same address.
- */
 function startBrowserChromeThemeSync(router: AppRouter): void {
   const resync = () => window.requestAnimationFrame(syncBrowserChromeTheme);
   router.subscribe("onRendered", resync);
@@ -198,10 +186,8 @@ function startBrowserChromeThemeSync(router: AppRouter): void {
  * They run for the life of the page, so their disposers are dropped here.
  */
 export function startAppServices(): AppRouter {
-  // Ahead of the history: the provider auth code must leave the address before anything reads it.
   startProviderAuthDelivery();
 
-  // Electron loads the app from a file-backed shell, so hash history avoids path resolution issues.
   const router = getRouter(isElectron ? createHashHistory() : createBrowserHistory());
 
   if (isElectron) {
@@ -225,7 +211,6 @@ export function startAppServices(): AppRouter {
   installChatRouteCommands(router);
   registerOpenFavoriteEditorCommand();
   startThreadOverlayRetention(router);
-  // Drafts promote as their server threads arrive, wherever the user is.
   subscribeDraftThreadPromotion({
     registry: appAtomRegistry,
     threadShellAtom: environmentThreadShells.quietThreadShellAtom,

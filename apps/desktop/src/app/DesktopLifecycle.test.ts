@@ -323,7 +323,6 @@ describe("DesktopLifecycle", () => {
         Layer.provideMerge(layerElectronWindow()),
         Layer.provideMerge(layerDesktopWindow()),
         Layer.provideMerge(layerEnvironment),
-        // Nothing marks this shutdown complete, so it stays pending.
         Layer.provideMerge(DesktopShutdown.layer),
         Layer.provideMerge(DesktopState.layer),
       );
@@ -426,7 +425,6 @@ describe("DesktopLifecycle", () => {
           yield* lifecycle.register;
           const emit = (eventName: string) => powerListeners.get(eventName)?.();
 
-          // A wake from sleep reports resume, then unlock-screen.
           emit("lock-screen");
           emit("suspend");
           emit("resume");
@@ -434,7 +432,6 @@ describe("DesktopLifecycle", () => {
           yield* Effect.yieldNow;
           assert.deepEqual(sent, [SYSTEM_WAKE_CHANNEL]);
 
-          // A lock without sleep reports only unlock-screen.
           emit("lock-screen");
           emit("unlock-screen");
           yield* Effect.yieldNow;

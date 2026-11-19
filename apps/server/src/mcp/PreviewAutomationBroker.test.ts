@@ -1033,7 +1033,6 @@ it.effect(
         .invoke<string>({ scope: otherScope, operation: "waitFor", input: {}, timeoutMs: 40_000 })
         .pipe(Effect.result, Effect.forkScoped);
       const otherRequest = yield* Queue.take(delivered);
-      // The browser never answers this one, as when it waits behind the thread's own running action.
       const stalled = yield* broker
         .invoke<string>({ scope, operation: "evaluate", input: {} })
         .pipe(Effect.flip, Effect.forkScoped);

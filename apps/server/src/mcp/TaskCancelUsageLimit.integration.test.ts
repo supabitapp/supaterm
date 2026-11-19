@@ -48,8 +48,6 @@ const driver = ProviderDriverKind.make("claudeAgent");
 const instanceId = ProviderInstanceId.make("claudeAgent");
 const modelSelection = { instanceId, model: "claude-test" };
 
-// A delegated child that fails on a usage limit is armed to continue at the reset.
-// Once its parent cancels the task, nothing is waiting for that continuation.
 it.effect.each([
   { cancel: "after its limit", cancelStatus: "failed", resumed: false },
   { cancel: "as its limit lands", cancelStatus: "cancel_requested", resumed: false },
@@ -59,7 +57,6 @@ it.effect.each([
   ({ cancel, cancelStatus, resumed }) =>
     Effect.gen(function* () {
       const cwd = yield* checkpointWorkspace("task-cancel-usage-limit");
-      // Set while the provider's usage-limit result is already on its way.
       let limitInFlight: Effect.Effect<void> = Effect.void;
       const turns: Array<{
         readonly turn: ProviderAdapter.ProviderAdapterV2TurnInput;
@@ -331,7 +328,6 @@ it.effect.each([
         yield* Fiber.join(childFailed);
         yield* worker.drain();
 
-        // The sweep runs every few seconds, so it arms the child before a parent reacts.
         yield* sweep;
         if (cancel === "after its limit") cancelled = yield* cancelTask;
         assert.equal(cancelled, cancelStatus);

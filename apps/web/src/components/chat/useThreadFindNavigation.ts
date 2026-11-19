@@ -19,7 +19,6 @@ interface RevealInputs {
   readonly container: HTMLElement | null;
 }
 
-/** Positioning bookkeeping that outlives a render: pending jumps and the pinned match during paging. */
 interface RevealState {
   positioning: { key: string; rowIndex: number; entries: FindEntries } | null;
   settledMatch: string | null;
@@ -29,10 +28,6 @@ interface RevealState {
   positionedEntries: FindEntries | null;
 }
 
-/**
- * Brings the active match into view. Async continuations re-enter with the
- * inputs current by then, and stop once the match changes or the list unmounts.
- */
 function revealThreadFindMatch(
   range: Range | null,
   inputs: RevealInputs,
@@ -83,7 +78,6 @@ function revealThreadFindMatch(
     };
     pagingPosition.entries = entries;
     restore();
-    // The list measures newly inserted activity after the first layout pass.
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
         restore();
@@ -102,7 +96,6 @@ function revealThreadFindMatch(
       (previous?.key === matchKey && previous.rowIndex === rowIndex && previous.entries === entries)
     )
       return;
-    // Activity can insert rows during LegendList layout; retarget pending jumps.
     const request = { key: matchKey, rowIndex, entries };
     state.positioning = request;
 
@@ -143,7 +136,6 @@ function revealThreadFindMatch(
   const top = viewport.top + margin;
   const bottom = viewport.bottom - margin - contentInsetEndAdjustment;
   const delta = rect.top < top ? rect.top - top : rect.bottom > bottom ? rect.bottom - bottom : 0;
-  // DOM text can precede settled row sizes; wait before measuring offscreen matches.
   if (
     Math.abs(delta) >= 1 &&
     state.positionedEntries !== entries &&
@@ -223,10 +215,6 @@ export function useThreadFindNavigation({
     contentInsetEndAdjustment,
     container,
   }));
-  // H/Z: stays an effect. The listener compares against the entries rendered at
-  // scroll time; the viewport ref callback in MessagesTimeline cannot read
-  // them without a latest-ref mirror, and capturing them would re-attach the
-  // viewport (observers, citation dismissal) on every streamed entry.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- attaches a scroll listener to the timeline container to track the active match position
   useEffect(() => {
     if (!container) return;
@@ -282,9 +270,6 @@ export function useThreadFindNavigation({
     activeOccurrence: match?.occurrence ?? 0,
     onActiveRange: (range) => reveal(range, readInputs()),
   });
-  // Positioning also depends on the list: a loaded page or a shifted row must
-  // retry the jump for the same selection. Declared after the highlight
-  // effects so it reuses the range they just resolved.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the list to the active match after commit when rows or the loaded page change
   useEffect(() => {
     reveal(stateRef.current.activeRange, {

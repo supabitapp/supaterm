@@ -62,7 +62,6 @@ interface ThreadFindTimeline {
   readonly navigate: () => void;
 }
 
-// Split panes mount one timeline per pane, so each shown thread keeps its own.
 const attachedTimelines = new Map<string, ThreadFindTimeline>();
 
 function timelineFor(threadKey: string): ThreadFindTimeline | null {
@@ -83,12 +82,6 @@ function readThreadFindPosition(threadKey: string, query: string): ThreadFindSta
   return timelineFor(threadKey)?.readPosition(query);
 }
 
-/**
- * Navigates the timeline showing the thread when find newly opens there. A
- * timeline that starts showing the thread later (a search result opened find
- * before the route switched or the thread painted) releases follow itself as
- * it opens on the thread.
- */
 function announceOpening(threadKey: string): void {
   if (threadFind(threadKey) === undefined) timelineFor(threadKey)?.navigate();
 }
@@ -194,7 +187,6 @@ export function findForMessageMatch(
   query: string,
 ): PendingThreadFind {
   const start = match.messageId ? { start: { entryId: match.messageId, occurrence: 0 } } : {};
-  // Apostrophes are straight in the query; straightening keeps offsets.
   const together = messagePhrase(query)?.exec(match.snippet.replace(/[\u2018\u2019]/g, "'"));
   if (together) {
     return {
@@ -208,7 +200,6 @@ export function findForMessageMatch(
       "",
     ) || query;
   const ranges = findSearchTokenRanges(match.snippet, word);
-  // A whole word first, as search ranked it: "Café", not "Cafe" in "Cafeteria".
   const shown =
     ranges.find((range) => !/[\p{L}\p{N}]/u.test(match.snippet[range.end] ?? "")) ?? ranges[0];
   return { query: shown ? match.snippet.slice(shown.start, shown.end) : word, ...start };

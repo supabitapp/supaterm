@@ -36,21 +36,16 @@ import * as DesktopWslEnvironment from "../wsl/DesktopWslEnvironment.ts";
 const INITIAL_RESTART_DELAY = Duration.millis(500);
 const MAX_RESTART_DELAY = Duration.seconds(10);
 const MAX_PREFLIGHT_FAILURE_ATTEMPTS = 5;
-// Large state databases can take over a minute to become ready.
 const DEFAULT_BACKEND_READINESS_TIMEOUT = Duration.minutes(3);
 const DEFAULT_BACKEND_READINESS_INTERVAL = Duration.millis(100);
 const DEFAULT_BACKEND_READINESS_REQUEST_TIMEOUT = Duration.seconds(1);
-// Match the service launcher's grace period so backends can stop provider sessions.
 const DEFAULT_BACKEND_TERMINATE_GRACE = Duration.seconds(5);
-// Allow SIGKILL and the spawner exit wait after the SIGTERM grace so quit cannot
-// orphan a backend whose shutdown hangs.
 export const BACKEND_QUIT_STOP_TIMEOUT = Duration.sum(
   DEFAULT_BACKEND_TERMINATE_GRACE,
   Duration.seconds(2),
 );
 const DEFAULT_BACKEND_OUTPUT_DRAIN_TIMEOUT = Duration.seconds(5);
 const BACKEND_READINESS_PATH = "/.well-known/supaterm/environment";
-// Three restarts without readiness is about 2 s of backoff: past a blip, early enough to help.
 const STARTUP_FAILURE_RESTART_ATTEMPTS = 3;
 const STARTUP_FAILURE_OUTPUT_CHARS = 4_000;
 const { logWarning: logBackendProcessWarning } =
@@ -333,7 +328,6 @@ const closeRun = (
               })
             : Effect.void,
         ),
-        // Parent-scope interruption still finishes release; do not cancel sibling stops.
         Effect.andThen(Fiber.await(closeFiber)),
         Effect.asVoid,
       ),
@@ -342,8 +336,6 @@ const closeRun = (
 };
 
 const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "localhost", "[::1]"]);
-// Windows takes about a second to fail a refused connection to a non-loopback address such as a
-// WSL distro IP, so one sequential poller notices readiness up to a second late.
 const STAGGERED_READINESS_POLLERS = 4;
 const READINESS_POLLER_STAGGER = Duration.millis(250);
 
@@ -483,7 +475,6 @@ export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
     stderr: options.captureOutput ? "pipe" : "inherit",
     killSignal: "SIGTERM",
     forceKillAfter: DEFAULT_BACKEND_TERMINATE_GRACE,
-    // wsl.exe drops extra file descriptors; deliver its bootstrap via stdin.
     ...(options.bootstrapDelivery === "fd3" ? { additionalFds } : {}),
   });
 
@@ -587,8 +578,6 @@ export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
       ).pipe(Effect.forkScoped),
     );
   }
-  // Cold WSL boots across /mnt/c can exceed one probe budget; retry while the backend is alive.
-  // HTTP polling stays as the fallback for backends without the control fd, such as WSL.
   const probeReadiness = Effect.fn("desktop.backendProcess.probeReadiness")(() =>
     Effect.raceFirst(
       waitForHttpReady({
@@ -618,7 +607,6 @@ export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
       reason: `code=${exitCode}`,
     })),
     Effect.catch((cause) => {
-      // Effect's Node spawner exposes signal exits only through this cause message.
       const signal =
         cause.cause instanceof Error
           ? /^Process interrupted due to receipt of signal: '(SIG[A-Z0-9]+)'$/.exec(
@@ -682,7 +670,6 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
   const state = yield* SubscriptionRef.make(initialState);
   const mutex = yield* Semaphore.make(1);
   const outputTail = yield* Ref.make("");
-  // One streaming decoder per stream keeps UTF-8 characters split across chunks intact.
   const makeOutputDecoders = () => ({ stdout: new TextDecoder(), stderr: new TextDecoder() });
   let outputDecoders = makeOutputDecoders();
   const reportStartupFailure = (reason: string) =>
@@ -1009,7 +996,6 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
           ),
           onOutput: (streamName, chunk) =>
             Ref.update(outputTail, (tail) =>
-              // A cut through a surrogate pair would make encodeURIComponent throw when rendering.
               (tail + outputDecoders[streamName].decode(chunk, { stream: true }))
                 .slice(-STARTUP_FAILURE_OUTPUT_CHARS)
                 .toWellFormed(),
@@ -1134,7 +1120,6 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
     });
     yield* Option.match(active, {
       onNone: () => Effect.void,
-      // The enclosing operation owns the span for this inline handler.
       onSome: Effect.fnUntraced(function* (run) {
         yield* closeRun(run, parentScope, options);
         const cleanup = yield* mutex.withPermits(1)(

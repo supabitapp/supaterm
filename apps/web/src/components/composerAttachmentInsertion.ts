@@ -22,19 +22,15 @@ export function captureComposerAttachmentInsertion(editor: Editor) {
   let lost = false;
   const track = ({ transaction, appendedTransactions }: EditorEvents["transaction"]) => {
     for (const tr of [transaction, ...appendedTransactions]) {
-      // Stay before text typed at the paste point, but after an earlier capture's references.
       const insertion: { order: number; from: number; end: number } | undefined =
         tr.getMeta(INSERTION_ORDER_META);
       const followsEarlier = insertion !== undefined && insertion.order < order;
       const start = tr.mapping.mapResult(from, followsEarlier ? 1 : -1);
       const end = tr.mapping.mapResult(to, followsEarlier ? 1 : -1);
-      // Replacing the following space maps its start left regardless of association.
       if (followsEarlier && from === to && from === insertion.from) {
         from = to = insertion.end;
         continue;
       }
-      // A replacement spanning the paste point (such as a controlled setContent) leaves no
-      // position to keep, so the caller falls back to the current caret.
       lost ||= start.deletedAcross || end.deletedAcross;
       from = start.pos;
       to = start.deletedAfter || end.deletedBefore ? from : end.pos;

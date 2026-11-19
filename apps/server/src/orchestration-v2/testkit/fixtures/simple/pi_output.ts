@@ -76,7 +76,6 @@ export function assertPiSimpleOutput(
   assertPiSettledTokenUsage(result, transcript);
   const [turn] = projection.providerTurns;
 
-  // Pi streams cumulative usage, initially zeros until the provider reports.
   const streamedTotals = transcript.entries.flatMap((entry) =>
     entry.type === "emit_inbound" && field(entry.frame, "type") === "message_update"
       ? [field(field(entry.frame, "usage"), "totalTokens")]

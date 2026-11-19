@@ -66,8 +66,6 @@ export const previewStateAtom = Atom.family((threadKey: string) =>
   ),
 );
 
-// Only the Electron browser host needs a cross-thread view. Keep that index
-// separate so thread-local readers never subscribe to unrelated previews.
 interface ActivePreviewThreadIndex {
   readonly keys: ReadonlySet<string>;
 }
@@ -113,7 +111,6 @@ function updateThreadPreviewState(
   update: (current: ThreadPreviewState) => ThreadPreviewState,
 ): void {
   const threadKey = scopedThreadKey(ref);
-  // Indexed before the write so a new thread's subscribers see this change.
   appAtomRegistry.update(previewThreadRefsAtom, (refs) =>
     refs.has(threadKey) ? refs : new Map(refs).set(threadKey, ref),
   );
@@ -346,8 +343,6 @@ export function reconcilePreviewServerSessions(
       ),
     );
     const desktopOverlay = activeTabId ? (desktopByTabId[activeTabId] ?? null) : null;
-    // The list is refetched whenever a thread is opened. Keeping the state
-    // object when nothing moved spares every subscriber a re-render.
     if (
       sameServer &&
       current.listLoaded &&

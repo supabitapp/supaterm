@@ -1,6 +1,5 @@
 import { Quaternion, Vector3 } from "three";
 
-/** q and -q represent the same orientation. */
 function rotationVector(rotation: Quaternion) {
   const q = rotation.clone().normalize();
   if (q.w < 0) q.set(-q.x, -q.y, -q.z, -q.w);
@@ -108,8 +107,6 @@ export function createDeviceMotion(options: { choose: (rotation: Quaternion) => 
       return true;
     }
     if (drag) {
-      // Follow the target during the gesture. Retain the logarithm's winding so
-      // a long drag cannot reverse its spring force when crossing a half turn.
       const seconds = Math.min(0.05, Math.max(0, (now - drag.at) / 1000));
       drag.at = now;
       const steps = Math.ceil(seconds * 120);
@@ -147,8 +144,6 @@ export function createDeviceMotion(options: { choose: (rotation: Quaternion) => 
       speed.addScaledVector(acceleration, dt).clampLength(0, 9);
       q.premultiply(fromVector(speed.clone().multiplyScalar(dt))).normalize();
     };
-    // Fixed ticks make release independent of display refresh rate. The final
-    // partial tick interpolates the next tick without committing it.
     for (; spring.steps < steps; spring.steps++)
       integrate(spring.rotation, spring.velocity, stepSeconds);
     rotation.copy(spring.rotation);

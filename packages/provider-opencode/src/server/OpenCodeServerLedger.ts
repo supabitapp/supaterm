@@ -21,11 +21,6 @@ const OpenCodeServerEntry = Schema.Struct({
   pid: Schema.Int,
   startTime: Schema.String,
   command: Schema.String,
-  /**
-   * The server's argv after the binary. The agent wrapper execs into the server, so the pid
-   * recorded at spawn keeps its start time but may show the wrapper's command line; only its
-   * ending has to match. Entries written before this field compare the whole command line.
-   */
   args: Schema.optionalKey(Schema.Array(Schema.String)),
   port: Schema.Int,
   stateDir: Schema.String,
@@ -60,7 +55,6 @@ interface ObservedProcess {
   readonly zombie: boolean;
 }
 
-// ps lstart needs C locale and UTC for stable parsing.
 const DARWIN_PS_LINE =
   /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\w{3} \w{3} +\d{1,2} \d{2}:\d{2}:\d{2} \d{4})\s+(.*)$/;
 
@@ -79,8 +73,6 @@ const parseDarwinPs = (output: string): ReadonlyArray<ObservedProcess> =>
     ];
   });
 
-// A wrapper's forked child keeps the wrapper's command line until it execs; the
-// serve arguments survive the exec, so they identify the server either way.
 const runsServe = (observed: ObservedProcess, args: ReadonlyArray<string>) =>
   observed.command.endsWith(` ${args.join(" ")}`);
 
@@ -110,7 +102,6 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
   const directory = path.join(input.stateDir, ENTRY_DIRECTORY);
   const recordable = platform === "linux" || platform === "darwin";
 
-  // A process-group scan calls this for every /proc entry; avoid a span per process.
   const observeLinux = Effect.fnUntraced(function* (pid: number, group?: number) {
     const stat = yield* fs.readFileString(`/proc/${pid}/stat`);
     const fields = stat
@@ -199,7 +190,6 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
     function* (server) {
       if (!recordable) return Effect.void;
       const pgid = server.pid;
-      // Any live member identifies a leaderless group; pgid cannot be reused while members remain.
       const leader = yield* observe(pgid);
       const members =
         leader !== undefined && !leader.zombie && leader.pgid === pgid
@@ -249,9 +239,6 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
     ),
   );
 
-  // Signals only a group whose recorded member still has the same pid, start
-  // time, and group and still has the same command line or serve arguments, so
-  // a recycled pid is never touched.
   const stopOrphan = Effect.fn("OpenCodeServerLedger.stopOrphan")(function* (
     entry: OpenCodeServerEntry,
   ) {
@@ -274,7 +261,6 @@ export const make = Effect.fn("OpenCodeServerLedger.make")(function* (input: {
     for (let attempt = 0; attempt < STOP_POLL_ATTEMPTS && groupExists(entry.pgid); attempt++) {
       yield* Effect.sleep(STOP_POLL_INTERVAL);
     }
-    // The group never emptied, so its pgid cannot have been reused.
     if (groupExists(entry.pgid)) signalGroup(entry.pgid, "SIGKILL");
   });
 

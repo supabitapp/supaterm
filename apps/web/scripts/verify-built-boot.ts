@@ -1,6 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - plain Node script CI runs against the built client.
-// Boots the built web client in headless Chromium and fails if it reaches showBootError.
-// Source-level browser tests never run the production chunk graph, where boot breaks hide.
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
@@ -8,7 +6,6 @@ import { chromium } from "playwright";
 
 const distDir = NodeURL.fileURLToPath(new URL("../dist/", import.meta.url));
 const origin = "http://supaterm-boot.test";
-// With no server, the client retries its session for about 15s before it renders.
 const timeoutMs = 60_000;
 
 if (!NodeFS.existsSync(NodePath.join(distDir, "index.html"))) {
@@ -25,7 +22,6 @@ try {
     if (message.type() === "error") errors.push(message.text());
   });
 
-  // Serve dist with an SPA fallback; the client has no server here, so other requests fail fast.
   await page.route("**/*", (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== origin) return route.abort();
@@ -40,7 +36,6 @@ try {
   });
 
   await page.goto(`${origin}/`);
-  // React replaces the static #boot-shell splash when it mounts; showBootError fills it instead.
   const settled = await page.waitForSelector("#root > :not(#boot-shell), #boot-error-reload", {
     timeout: timeoutMs,
   });

@@ -190,7 +190,6 @@ it("reads the first diff page once the pointer rests on the Code tab", async () 
   await act(() => vi.advanceTimersByTime(149));
   expect(reads.diff).toEqual([]);
   await act(() => vi.advanceTimersByTime(1));
-  // The page the Code tab reads first, keyed as the tab keys it, so a click paints from it.
   expect(reads.diff).toContainEqual({
     environmentId,
     input: expect.objectContaining({

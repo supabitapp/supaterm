@@ -5,7 +5,6 @@ import { expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import { AppRoot } from "~/AppRoot";
-// The thread route loads ChatView lazily; its first transform would eat the test's timeout.
 import "~/components/ChatView";
 import { openCommandPalette } from "~/commandPaletteBus";
 import { useChatPaneStore } from "./store";
@@ -28,7 +27,6 @@ vi.mock("../../../../packages/client-runtime/src/connection/driver.ts", async (i
   return { ...actual, layer: Layer.succeed(actual.ConnectionDriver, fakeDriver) };
 });
 
-// The fake server advertises no side chats; the gate is not what this covers.
 vi.mock(import("~/components/chat/useSideChat"), async (original) => ({
   ...(await original()),
   useSideChatBlockedReason: () => null,
@@ -72,7 +70,6 @@ it.each(Object.keys(START_FROM) as Array<keyof typeof START_FROM>)(
       createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${parent.id}`] }),
     );
     await router.load();
-    // AppRoot brings its own router.
     await using _app = await render(<AppRoot router={router} />, { router: false });
     const editors = () => document.querySelectorAll<HTMLElement>('[data-testid="composer-editor"]');
     await expect.element(page.getByTestId("composer-editor")).toBeVisible();

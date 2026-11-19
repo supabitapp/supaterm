@@ -20,7 +20,6 @@ export interface Outline {
   readonly r: number;
 }
 
-// Head units: x right, y down, z toward the viewer. The app icon is this housing seen head-on.
 export const HOUSING: Outline = { cx: 0, cy: 0, bx: 0.23, by: 0.23, r: 0.19 };
 export const SCREEN_HOLE: Outline = { cx: 0, cy: -0.04, bx: 0.18, by: 0.145, r: 0.12 };
 export const DEPTH = 0.6;
@@ -96,10 +95,6 @@ const CORNER_ARCS = [
   [-1, 1, Math.PI / 2],
 ] as const;
 
-/**
- * The housing's sides and rolled edges as quads. The flat front and back are
- * drawn as plates, since an affine map is exact for them under an orthographic view.
- */
 function buildBody(): Mesh {
   const { bx, by, r } = HOUSING;
   const zf = DEPTH / 2;

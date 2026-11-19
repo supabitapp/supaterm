@@ -28,8 +28,6 @@ function imageDestination(path: string): string {
   return encodeURI(destination).replace(/[?#&]/g, encodeURIComponent);
 }
 
-// An unclosed fence or raw HTML block swallows the rest of the reply. Only a root-level block
-// can swallow appended embeds; nested ones end with their container.
 function unclosedBlockEnd(text: string, tree: Root): string | undefined {
   const last = tree.children.at(-1);
   const source = text.slice(last?.position?.start.offset, last?.position?.end.offset);

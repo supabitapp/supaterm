@@ -41,12 +41,10 @@ type GetPullRequestDiffFileContents<E> = (request: {
   readonly input: PullRequestDiffFileContentsInput;
 }) => Promise<AtomCommandResult<PullRequestDiffFileContentsResult, E>>;
 
-// Mirrors Pierre's splitFileContents so line counts match its hydration.
 function splitLines(contents: string): ReadonlyArray<string> {
   return contents === "" ? [] : contents.split(/(?<=\n)/);
 }
 
-// Whitespace-insensitive: `git diff -w` prints context lines from only one side.
 function sameLine(patchLine: string | undefined, fileLine: string | undefined): boolean {
   return (
     patchLine !== undefined &&
@@ -73,8 +71,6 @@ function hunkSideMatches(
   return true;
 }
 
-// Pierre hydrates a partial patch by trusting its hunk positions, so contents that
-// changed since the patch was computed make it render corrupt hunks or throw.
 function reproducesPatch(fileDiff: FileDiffMetadata, oldContents: string, newContents: string) {
   const lastHunk = fileDiff.hunks.at(-1);
   if (lastHunk === undefined) return true;

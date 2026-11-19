@@ -50,7 +50,6 @@ export function markdownMathRanges(source: string, tree?: Root) {
   return ranges;
 }
 
-/** Messages without these characters skip math parsing entirely. */
 function mayContainMath(text: string): boolean {
   return (
     mayContainDollarMath(text) ||
@@ -60,11 +59,6 @@ function mayContainMath(text: string): boolean {
   );
 }
 
-/**
- * A `$` formula needs a closing `$` (or the second `$` of `$$`) after another `$` on its line and
- * not right after a space (micromark reads a tab as virtual spaces, which still close). So `$skill`
- * chips and prices skip the parser.
- */
 function mayContainDollarMath(text: string): boolean {
   let opened = false;
   for (let index = 0; index < text.length; index += 1) {

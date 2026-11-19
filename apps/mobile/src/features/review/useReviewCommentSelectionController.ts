@@ -31,8 +31,6 @@ export function useReviewCommentSelectionController(input: {
   const { environmentId, nativeReviewDiffData, selectedSection, threadId } = input;
   const navigation = useNavigation();
   const [sheetId] = useState(nextReviewSheetId);
-  // Scoping the selection to this sheet, thread, section and diff drops it when the sheet
-  // reopens, either changes, or a section comes back with different lines.
   const scope = reviewCommentSelectionScope(
     sheetId,
     environmentId && threadId ? scopedThreadKey(environmentId, threadId) : null,

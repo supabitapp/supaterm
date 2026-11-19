@@ -63,10 +63,6 @@ export const makeReplacementSlot = Effect.fnUntraced(function* (
     return fiber;
   }, Effect.uninterruptible);
 
-  /**
-   * Moves the replacement into the caller's scope and waits for it, replaying
-   * its progress so the caller's state and setup budget match a fresh connect.
-   */
   const adopt = Effect.fnUntraced(function* (
     reportProgress: (progress: Progress) => Effect.Effect<void>,
   ) {

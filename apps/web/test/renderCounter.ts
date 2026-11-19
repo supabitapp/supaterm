@@ -1,7 +1,3 @@
-// Counts commits and component renders via the DevTools hook, so it loads before react-dom.
-// Same walk as apps/mobile/src/features/development/render-counter.ts: bailed-out subtrees
-// (child === alternate.child) keep stale PerformedWork flags and are skipped.
-
 interface Fiber {
   readonly tag: number;
   readonly type: unknown;
@@ -17,7 +13,6 @@ export interface RenderReport {
   readonly components: Readonly<Record<string, number>>;
 }
 
-// Function, class, forwardRef, memo and simple memo components.
 const COMPONENT_TAGS = new Set([0, 1, 11, 14, 15]);
 const PERFORMED_WORK = 1;
 
@@ -34,8 +29,6 @@ function nameOf(fiber: Fiber): string | null {
   return raw.replace(/^(Forget\(|Memo\()+|\)+$/g, "") || "Anonymous";
 }
 
-// The setup file and a test file can load this module as two instances. React reports to
-// whichever hook existed when react-dom initialized, so both share one hook and one state.
 const STATE = Symbol.for("supaterm.renderCounter");
 const state = ((globalThis as { [STATE]?: CounterState })[STATE] ??= {
   on: false,
@@ -51,7 +44,6 @@ interface CounterState {
   counts: Map<string, number>;
 }
 
-/** Adds the components that rendered under `fiber` and returns how many did. */
 function visit(fiber: Fiber | null): number {
   let rendered = 0;
   for (let node = fiber; node; node = node.sibling) {
@@ -68,7 +60,6 @@ function visit(fiber: Fiber | null): number {
   return rendered;
 }
 
-// React only reports commits to a hook that exists when react-dom initializes.
 if (!("__REACT_DEVTOOLS_GLOBAL_HOOK__" in globalThis))
   Object.assign(globalThis, {
     __REACT_DEVTOOLS_GLOBAL_HOOK__: {
@@ -80,7 +71,6 @@ if (!("__REACT_DEVTOOLS_GLOBAL_HOOK__" in globalThis))
       onPostCommitFiberRoot: () => {},
       onCommitFiberRoot: (_id: unknown, root: { current: Fiber }) => {
         state.everCommitted += 1;
-        // Commits that render no component (layout-only batches) vary with frame timing.
         if (state.on && visit(root.current.child) > 0) state.commits += 1;
       },
     },

@@ -57,10 +57,6 @@ const KIRO_BUILT_IN_MODELS: ReadonlyArray<ServerProviderModel> = [
 ];
 const KIRO_API_KEY_ENV = "KIRO_API_KEY";
 
-/**
- * The agent picker is not a model trait, but the composer reads options per
- * model, so every model, custom ones included, carries it.
- */
 const kiroModels = (
   settings: KiroSettings,
   listed: ReadonlyArray<ServerProviderModel> = KIRO_BUILT_IN_MODELS,
@@ -84,13 +80,11 @@ const snapshot = (
   agents?: ProviderOptionDescriptor,
 ) =>
   buildServerProvider({
-    // Gives the snapshot its version advisory; Kiro runs no enrichment pass.
     driver: KIRO_DRIVER_KIND,
     presentation: KIRO_PRESENTATION,
     enabled: settings.enabled,
     checkedAt,
     models: kiroModels(settings, listed, agents),
-    // `/compact` runs `_kiro/session/compact`; see kiroCompactSession.
     slashCommands: [COMPACT_SLASH_COMMAND],
     probe,
   });
@@ -166,11 +160,6 @@ const CLAUDE_4_6_EFFORT_LEVELS = ["low", "medium", "high", "max"];
 const GPT_5_6_EFFORT_LEVELS = ["none", ...CLAUDE_EFFORT_LEVELS];
 const KIMI_K3_EFFORT_LEVELS = ["low", "high", "max"];
 
-/**
- * Reasoning levels per Kiro model id and its default level, copied from what
- * Kiro 2.32.0 advertises, since `--list-models` names none. Unlisted models take
- * no effort; the adapter sends only a level the live session offers.
- */
 const KIRO_MODEL_EFFORT: Readonly<
   Record<string, { readonly levels: ReadonlyArray<string>; readonly defaultLevel: string }>
 > = {
@@ -228,12 +217,6 @@ const KiroModelList = Schema.fromJsonString(
 );
 const decodeKiroModelList = Schema.decodeUnknownOption(KiroModelList);
 
-/**
- * Reads `kiro-cli chat --list-models --format json`, the account's models. The
- * default entry keeps its name but takes the "default" slug, with Kiro's id as its
- * alias. Sessions advertise models only after they start; anything unparsable
- * keeps the built-in list.
- */
 function kiroModelsFromList(
   output: { readonly code: number; readonly stdout: string } | undefined,
 ): ReadonlyArray<ServerProviderModel> | undefined {
@@ -244,13 +227,10 @@ function kiroModelsFromList(
   const listedDefault = list.models.find((model) => model.model_id === defaultId);
   const defaultModel: ServerProviderModel = {
     slug: KIRO_DEFAULT_MODEL_SLUG,
-    // Named after the model it runs, so a named default isn't hidden behind "Kiro default".
     name: listedDefault ? (listedDefault.model_name ?? listedDefault.model_id) : "Kiro default",
     aliases: [defaultId],
     isCustom: false,
     isDefault: true,
-    // A new session on Kiro's default gets no model write, so Kiro never
-    // advertises its effort option and a level could not be applied.
     capabilities: EMPTY_CAPABILITIES,
   };
   const models = list.models.map((model) =>
@@ -263,7 +243,6 @@ function kiroModelsFromList(
           capabilities: kiroModelCapabilities(model.model_id),
         },
   );
-  // New threads select "default", so it is listed even when Kiro's list leaves its default out.
   return models.includes(defaultModel) ? models : [defaultModel, ...models];
 }
 
@@ -324,7 +303,6 @@ export function kiroAgentDescriptor(template: unknown): ProviderOptionDescriptor
           },
         ];
   });
-  // One agent is nothing to choose between.
   if (choices.length < 2) return undefined;
   return {
     id: KIRO_AGENT_CONFIG_ID,
@@ -337,11 +315,6 @@ export function kiroAgentDescriptor(template: unknown): ProviderOptionDescriptor
   };
 }
 
-/**
- * Asks Kiro for its agents with `initialize` and `_kiro/config/template` and
- * nothing more: no `session/new`, so no MCP server starts and no session is
- * stored. The process runs in the server's working directory.
- */
 const probeKiroAgents = Effect.fn("KiroProvider.probeKiroAgents")(function* (
   settings: KiroSettings,
   environment: NodeJS.ProcessEnv,
@@ -425,9 +398,6 @@ export const checkKiroProviderStatus = Effect.fn("checkKiroProviderStatus")(func
       message: "Kiro CLI is installed but not signed in. Run `kiro-cli login`.",
     });
   }
-  // Signed out, `--list-models` starts a browser login instead, and the agent
-  // probe fails to start, so both run only once `whoami` has confirmed the
-  // account. Without an agent list the composer shows no agent picker.
   const [listed, agents] =
     auth.status === "authenticated"
       ? yield* Effect.all(

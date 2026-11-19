@@ -43,7 +43,6 @@ describe("parseIgnoreFile", () => {
   });
 
   it("matches adversarial patterns in linear time", () => {
-    // A backtracking regex takes seconds to reject this pair; the vitest timeout catches that.
     const pattern = `${"a*".repeat(20)}b\n`;
     expect(decide(pattern, `${"a".repeat(200)}c`)).toBeUndefined();
     expect(decide(pattern.repeat(50), `${"a".repeat(1_000)}c`)).toBeUndefined();
@@ -51,7 +50,6 @@ describe("parseIgnoreFile", () => {
   });
 
   it("parses unclosed classes in linear time", () => {
-    // Rescanning the rest of the line for each `[` stalls for over a minute here; linear takes ms.
     expect(decide("[".repeat(30_000), "[".repeat(30_000))).toBe("ignored");
     expect(decide(`${"[".repeat(30_000)}]`, "x")).toBeUndefined();
     expect(decide("[a][", "a[")).toBe("ignored");

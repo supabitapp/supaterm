@@ -80,7 +80,6 @@ export default function DocumentPages(props: {
   const [colors, setColors] = useState(documentColors);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Read the host DOM's applied theme tokens so the sandboxed document receives the current palette.
   useEffect(() => {
-    // The iframe cannot inherit the host palette across its sandbox boundary.
     // oxlint-disable-next-line react/set-state-in-effect -- Read tokens after useTheme applies the selected palette.
     setColors(documentColors());
     // oxlint-disable-next-line react/exhaustive-effect-dependencies -- Theme values invalidate the palette read from the host DOM.
@@ -126,7 +125,6 @@ export default function DocumentPages(props: {
       <iframe
         title={props.name}
         srcDoc={srcDoc}
-        // Same-origin access lets the parent measure saved output; scripts remain blocked.
         sandbox={props.output ? "allow-same-origin" : ""}
         onLoad={(event) => {
           if (!props.output) return;

@@ -34,7 +34,6 @@ export function startBackgroundThreadAnnouncements(
     const now = new Date().toISOString();
     const snapshots: BackgroundThreadSnapshot[] = [];
     for (const thread of threads) {
-      // Subagents and side chats have no row of their own; their requests surface on the parent.
       if (thread.archivedAt !== null || !isListedThreadLineage(thread.lineage)) continue;
       if (!liveEnvironmentIds.has(thread.environmentId)) continue;
       snapshots.push({
@@ -52,7 +51,6 @@ export function startBackgroundThreadAnnouncements(
     if (next.announcement !== null) backgroundThreadLiveRegion.announce(next.announcement);
   };
 
-  // The draft and pane stores change often; only a new set of open threads matters here.
   const updateOpenThreads = () => {
     const next = readShownThreadKeys(router);
     if (next.size === openThreadKeys.size && [...next].every((key) => openThreadKeys.has(key)))
@@ -79,6 +77,5 @@ export function startBackgroundThreadAnnouncements(
  * the sidebar because a collapsed sidebar is inert, which silences its rows.
  */
 export function BackgroundThreadAnnouncer() {
-  // No role="status": Orca 50 maps it to a status bar in Chromium and drops its updates.
   return <div ref={attachBackgroundThreadRegion} aria-live="polite" className="sr-only" />;
 }

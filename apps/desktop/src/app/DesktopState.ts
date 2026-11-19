@@ -16,7 +16,6 @@ export class DesktopState extends Context.Service<
   DesktopState,
   {
     readonly quitting: Ref.Ref<boolean>;
-    // Set by DesktopUpdates.configure, which runs before the first backend start.
     readonly canInstallUpdates: Ref.Ref<boolean>;
     readonly primaryBackendStartup: SubscriptionRef.SubscriptionRef<PrimaryBackendStartup>;
   }

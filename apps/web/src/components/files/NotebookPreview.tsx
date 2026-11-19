@@ -9,7 +9,6 @@ import DocumentPages from "./DocumentPages";
 import { FileSurfaceNotice } from "./fileSurfaceChrome";
 import type { OfficeWorkerResult } from "./officePreviewProtocol";
 
-// Saved notebooks must not load URLs or turn authored links into app actions.
 function inertNotebookMarkdown() {
   function clean(nodes: RootContent[]): RootContent[] {
     return nodes.flatMap((node): RootContent[] => {
@@ -72,7 +71,6 @@ export default function NotebookPreview(props: {
             candidates.set(entry.target, (entry.target as HTMLElement).dataset.notebookOutput!);
           else candidates.delete(entry.target);
         }
-        // Bound browsing contexts even when a cell contains hundreds of tiny HTML outputs.
         const next = [...candidates.keys()].slice(0, 16);
         const measured = active
           .filter((node) => !next.includes(node))

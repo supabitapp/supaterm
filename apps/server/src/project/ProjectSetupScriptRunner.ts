@@ -130,10 +130,6 @@ export class ProjectSetupScriptRunner extends Context.Service<
 >()("supaterm/project/ProjectSetupScriptRunner") {}
 
 /** @public */
-/**
- * Each run gets its own random token so script output cannot spoof completion, and the sentinel
- * pattern is built per run from it.
- */
 const COMPLETION_SENTINEL_PREFIX = "__SUPATERM_SETUP_DONE__";
 const OUTPUT_LINE_MAX_LENGTH = 400;
 const PARTIAL_LINE_MAX_LENGTH = 4_096;
@@ -146,17 +142,14 @@ function completionSentinelPattern(token: string): RegExp {
   return new RegExp(`${COMPLETION_SENTINEL_PREFIX}_${token}:(-?\\d+)`);
 }
 
-// ECMA-48: CSI, OSC, then any other escape as intermediates (0x20-0x2F) and one final byte.
 function stripTerminalControl(text: string): string {
   return text
     .replace(/\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[ -/]*[0-~]/g, "")
     .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, "");
 }
 
-// Line editors (zsh, fish, nu, bash 5.1+) enable bracketed paste when they start reading a command.
 const BRACKETED_PASTE_ON = "\x1b[?2004h";
 const BRACKETED_PASTE_OFF = "\x1b[?2004l";
-// Longer than one subprocess poll plus its ps timeout, so a startup prompt is seen as busy first.
 const SHELL_QUIET_FALLBACK = "3 seconds";
 
 function lineEditorReading(text: string, previous: boolean): boolean {
@@ -177,7 +170,6 @@ function resolveCompletionShell(shell: string): CompletionShell | null {
 }
 
 const utf8 = new TextEncoder();
-// Canonical TTY input (before a line editor starts reading) caps a line below 1 KiB on Linux.
 const POSIX_MAX_LINE_BYTES = 1_023;
 const POSIX_APPEND = '__supaterm_command="$__supaterm_command"';
 
@@ -196,10 +188,8 @@ function encodePosixScript(text: string): string {
   return encoded;
 }
 
-// Line editors run each submitted line on its own, so every line must be a complete command.
 function wrapPosixCommand(command: string, sentinel: string): string {
   const normalized = command.replace(/\r\n/g, "\n");
-  // The `_` suffix keeps trailing newlines; the subshell contains exits and syntax errors.
   const evaluate = (payload: string) =>
     `( __supaterm_command=$(printf '%b_' ${payload}); eval "\${__supaterm_command%_}" ); printf '\\n${sentinel}%s\\n' "$?"`;
   const inline = evaluate(`'${encodePosixScript(normalized)}'`);
@@ -226,7 +216,6 @@ function wrapPosixCommand(command: string, sentinel: string): string {
     `${prefix}'${chunk}'`,
     `${evaluate('"$__supaterm_command"')}; unset __supaterm_command`,
   );
-  // The leading space gives every line the history suppression a short command gets.
   return lines.join("\r ");
 }
 
@@ -245,7 +234,6 @@ function wrapCommandForCompletion(
       const escaped = command.replace(/["\\\x00-\x1f]/g, (char) =>
         char === '"' || char === "\\" ? `\\${char}` : `\\u{${char.charCodeAt(0).toString(16)}}`,
       );
-      // Nu resolves imports before running cd; source a file rooted in the worktree.
       return [
         "$env.LAST_EXIT_CODE = 0",
         "let __supatermf = try { mktemp --tmpdir-path $env.SUPATERM_WORKTREE_PATH --suffix .nu .supaterm-setup-XXXXXXXX } catch {|e| print -e $e.msg; null }",
@@ -274,14 +262,11 @@ export const make = Effect.gen(function* () {
       readonly terminalId: string;
       readonly sentinel: string;
       readonly sentinelPattern: RegExp;
-      /** The shell echoes typed input; lines ending with these are the wrapper, not output. */
       readonly echoedWrapperLines: ReadonlyArray<string>;
       readonly onOutputLine: ((line: string) => Effect.Effect<void>) | undefined;
     }) {
       const startedAtMs = yield* Clock.currentTimeMillis;
       const done = yield* Deferred.make<ProjectSetupScriptCompletion>();
-      // The shell redraws its prompt just after the sentinel. Closing before
-      // that would read the redraw as new activity and keep an idle shell.
       const promptReturned = yield* Deferred.make<void>();
       let lineBuffer = "";
       let settled = false;
@@ -323,13 +308,8 @@ export const make = Effect.gen(function* () {
         }
         if (event.type === "output") {
           lineBuffer += event.data;
-          // A bare carriage return is how installers redraw a progress line in
-          // place; each redraw becomes a short line of its own instead of being
-          // glued into one long one.
           const lines = lineBuffer.split(/\r\n|\r|\n/);
           lineBuffer = lines.pop() ?? "";
-          // A script that never prints a newline must not grow this forever.
-          // The sentinel is always on its own line, so keeping the tail is safe.
           if (lineBuffer.length > PARTIAL_LINE_MAX_LENGTH) {
             lineBuffer = lineBuffer.slice(-PARTIAL_LINE_MAX_LENGTH);
           }
@@ -350,11 +330,9 @@ export const make = Effect.gen(function* () {
       });
 
       const completion = Deferred.await(done).pipe(
-        // A shell with an empty prompt never prints one; do not wait forever.
         Effect.tap(() => Deferred.await(promptReturned).pipe(Effect.timeoutOption("1 second"))),
         Effect.ensuring(Effect.sync(() => unsubscribe())),
       );
-      // A startup prompt waits for input on a line that has no newline yet.
       const flushPartialLine = Effect.suspend(() => {
         const partial = lineBuffer;
         lineBuffer = "";
@@ -367,8 +345,6 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  // Input typed during shell startup can be read by an rc-file prompt (fnm, nvm) instead of the
-  // shell, which loses the command. Subscribe before the terminal opens so no activity is missed.
   const watchShellReadiness = Effect.fn("ProjectSetupScriptRunner.watchShellReadiness")(
     function* (input: {
       readonly threadId: string;
@@ -385,7 +361,6 @@ export const make = Effect.gen(function* () {
           return Effect.void;
         }
         activity += 1;
-        // A new shell process starts idle; the manager resets its subprocess state without an event.
         if (event.type === "started" || event.type === "restarted") {
           busy = false;
           reading = false;
@@ -402,7 +377,6 @@ export const make = Effect.gen(function* () {
         }
         return reading ? Deferred.succeed(outcome, "ready").pipe(Effect.asVoid) : Effect.void;
       });
-      // A startup prompt runs as a child process, so a busy shell keeps waiting for the user.
       const quiet = Effect.gen(function* () {
         while (true) {
           const seen = activity;
@@ -412,7 +386,6 @@ export const make = Effect.gen(function* () {
           yield* input.onStartupPrompt;
         }
       });
-      // Restored history can hold a previous shell's line editor state, so only live output counts.
       const wait = Deferred.await(outcome).pipe(Effect.raceFirst(quiet));
       return { wait, unsubscribe };
     },
@@ -483,8 +456,6 @@ export const make = Effect.gen(function* () {
       } as const;
     }
 
-    // A thread can be marked done again after it is resumed, and an earlier script shell
-    // may still be busy; typing into it would feed its foreground program.
     const terminalId =
       trigger === "done"
         ? `done-${script.id}-${(yield* random.uuidV4()).slice(0, 8)}`
@@ -495,16 +466,12 @@ export const make = Effect.gen(function* () {
         project: { cwd: project.workspaceRoot },
         worktreePath: input.worktreePath,
       }),
-      // Setup can run before a client attaches. Truecolor probes in tools such
-      // as Vite+ wait for terminal replies that nobody can send at that point.
       COLORTERM: "",
-      // Project scripts keep the default shell; the preference is for interactive terminals only.
       SUPATERM_TERMINAL_SHELL: "",
     };
     const observe = input.observeCompletion;
     const completionToken = observe ? (yield* random.uuidV4()).replaceAll("-", "") : null;
     const echoedWrapperLines: string[] = [];
-    // Subscribe before opening so neither startup activity nor the sentinel can race the listeners.
     const observed =
       observe && completionToken
         ? yield* observeTerminalCompletion({
@@ -587,14 +554,11 @@ export const make = Effect.gen(function* () {
               }),
           ),
         );
-    // A command that never reaches the shell ends its completion and frees the unused shell.
     const abandonUnusedTerminal = (observed?.abandon ?? Effect.void).pipe(
       Effect.andThen(
         Effect.suspend(() => terminalManager.closeIdle({ threadId: input.threadId, terminalId })),
       ),
     );
-    // Return once the terminal exists so callers can show it while a startup prompt waits.
-    // PowerShell and cmd have no line-editor signal.
     yield* (
       completionShell === "powershell" || completionShell === null
         ? Effect.succeed("ready" as const)

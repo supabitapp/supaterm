@@ -1,7 +1,5 @@
 import type { FileTreeBatchOperation } from "@pierre/trees";
 
-// A batched operation reworks its folder's siblings, while a rebuild reworks every path. On flat
-// folders of 50,000 and 332,000 entries a rebuild won somewhere between 200 and 500 operations.
 const REBUILD_COST_IN_FOLDER_OPERATIONS = 300;
 
 function parentOf(path: string): string {
@@ -23,7 +21,6 @@ export function shouldRebuildFileTree(
   nextPaths: readonly string[],
   updates: readonly FileTreeBatchOperation[],
 ): boolean {
-  // Up to this many operations, the estimate below can't exceed the rebuild, so skip counting.
   if (updates.length <= REBUILD_COST_IN_FOLDER_OPERATIONS) return false;
   const previousCounts = countByParent(previousPaths);
   const nextCounts = countByParent(nextPaths);

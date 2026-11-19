@@ -104,7 +104,6 @@ const decodeApiError = Schema.decodeUnknownOption(ApiError);
 const decodeApiErrorEnvelope = Schema.decodeUnknownOption(ApiErrorEnvelope);
 const isCatalogError = Schema.is(CursorSdkCatalogError);
 
-// Catalog discovery uses public HTTP routes so signed-in startup does not initialize the agent runtime.
 const makeLiveProbes = Effect.gen(function* () {
   const client = yield* HttpClient.HttpClient;
   const baseUrl = (yield* Config.String("CURSOR_BACKEND_URL").pipe(
@@ -170,7 +169,6 @@ export const makeCursorSdkCatalog = Effect.fn("CursorSdkCatalog.make")(function*
     read: Effect.fn("CursorSdkCatalog.read")(function (apiKey) {
       return Effect.all(
         {
-          // Enterprise teams can block account labels while model discovery still works.
           user: Effect.catchIf(
             probes.readUser(apiKey),
             (error: CursorSdkCatalogError): boolean => error.accountBlocked,

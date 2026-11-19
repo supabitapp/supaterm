@@ -23,7 +23,6 @@ export function useThreadLinkedPullRequest(input: {
   readonly serverThreadRef: ScopedThreadRef | null;
   readonly environmentId: EnvironmentId | null;
   readonly persisted: ThreadLinkedPullRequest | null;
-  // The shell's links that resolve the persisted link's live status.
   readonly pullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined;
   readonly branchPullRequest: ThreadLinkedPullRequest | null | undefined;
   readonly projectId: ProjectId | null;

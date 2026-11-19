@@ -26,10 +26,6 @@ export class NodePtyModuleLoadError extends Schema.TaggedError<NodePtyModuleLoad
 
 type NodePtyModuleLoader = () => Promise<typeof import("node-pty")>;
 
-// node-pty stays external to the CLI bundle because it dlopens a native
-// addon. Inside a Node single-executable, `import()` cannot load files from
-// disk (only built-ins resolve), while `require` always reads the real
-// filesystem, so both the module and its spawn-helper resolve through it.
 const requireForNodePty = NodeModule.createRequire(import.meta.url);
 
 const loadNodePty: NodePtyModuleLoader = () =>
@@ -81,11 +77,6 @@ const ensureNodePtySpawnHelperExecutable = Effect.fn(function* () {
   yield* fs.chmod(helperPath, 0o755).pipe(Effect.orElseSucceed(() => undefined));
 });
 
-/**
- * node-pty defers creation to avoid blocking on named pipes
- * (https://github.com/microsoft/node-pty/pull/885) and has no public readiness event. The
- * private ready_datapipe handler sets pid before our listener runs.
- */
 const waitForWindowsPid = (
   process: import("node-pty").IPty,
   trackedProcess: NodePtyProcess,
@@ -138,10 +129,6 @@ const waitForWindowsPid = (
     return Effect.sync(cleanup);
   });
 
-/**
- * Cancels Windows startup without waiting for the first output, unlike public kill().
- * The private agent can cancel the pending connection before a child exists.
- */
 const killStartingWindowsPty = (process: import("node-pty").IPty) =>
   Effect.try(() => {
     if (
@@ -196,7 +183,6 @@ class NodePtyProcess implements PtyAdapter.PtyProcess {
   }
 
   kill(signal?: string): void {
-    // node-pty terminates the Windows process tree without a POSIX signal.
     this.process.kill(this.platform === "win32" ? undefined : signal);
   }
 
@@ -254,9 +240,6 @@ const make = Effect.fn("NodePtyAdapter.make")(function* () {
   return PtyAdapter.PtyAdapter.of({
     spawn: Effect.fn("NodePtyAdapter.spawn")(function* (input) {
       yield* ensureNodePtySpawnHelperExecutableCached;
-      // node-pty only writes `name` into the child's TERM on the Unix path;
-      // the ConPTY path leaves the environment untouched, so Windows children
-      // inherit a missing or 16-color TERM unless it is set here.
       const env =
         platform === "win32" && input.env["TERM"] === undefined
           ? { ...input.env, TERM: "xterm-256color" }

@@ -123,7 +123,6 @@ function scrollAndFocusSettingsTarget(target: HTMLElement, highlight = true): vo
         finishScroll();
       }
     };
-    // Base UI clears the starting style before the height transition finishes.
     if (panel.hasAttribute("data-starting-style")) {
       const observer = new MutationObserver(() => {
         if (!panel.hasAttribute("data-starting-style")) {

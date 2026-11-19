@@ -24,9 +24,6 @@ import { explicitBareRepositoryEnv, unsetInheritedRepositoryEnv } from "../vcs/V
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 const DEFAULT_REPOSITORY_IDENTITY_CACHE_CAPACITY = 512;
-// Background sweeps resolve every project each minute. A long TTL keeps them
-// from spawning git each time. Clone, publish, and PR discovery (after a turn
-// and before it saves links) resolve with `refresh: true`.
 const DEFAULT_POSITIVE_CACHE_TTL = Duration.minutes(15);
 const DEFAULT_NEGATIVE_CACHE_TTL = Duration.minutes(1);
 
@@ -76,7 +73,6 @@ function repositoryPathOf(canonicalKey: string, remoteUrl: string): string {
   const canonicalPath = canonicalKey.split("/").slice(1).join("/");
   const displayPath = repositoryPathFromRemoteUrl(remoteUrl);
   if (displayPath === null) return canonicalPath;
-  // A host that names repositories literally keeps the `.git` the display path drops.
   return (
     [displayPath, `${displayPath}.git`].find(
       (path) => canonicalRepositoryPath(path) === canonicalRepositoryPath(canonicalPath),
@@ -142,7 +138,6 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
     const path = yield* Path.Path;
     const env = gitEnv(yield* HostProcess.Platform);
 
-    // `git -C` cannot enter a missing folder or a file, so every probe below would fail.
     const isFolder = yield* fileSystem.stat(cwd).pipe(
       Effect.map((info) => info.type === "Directory"),
       Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(false)),
@@ -150,8 +145,6 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
     );
     if (!isFolder) return null;
 
-    // git is a real executable on every platform — no cmd.exe shell mode, which
-    // would split paths containing spaces during cmd's re-tokenization.
     const topLevelResult = yield* processRunner
       .run({
         command: "git",
@@ -164,20 +157,16 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
       return null;
     }
     if (topLevelResult.value.code === 0) {
-      // Paths may end in spaces, so strip only git's line terminator.
       const rootPath = topLevelResult.value.stdout.replace(/\r?\n$/, "");
       return rootPath.length > 0
         ? new RepositoryIdentityCacheKey({ rootPath, isBare: false })
         : null;
     }
 
-    // Explicit Git directories preserve safe.bareRepository=explicit for both layouts.
     for (const [gitDir, entry] of [
       [".", "HEAD"],
       [".git", ".git"],
     ] as const) {
-      // An explicit --git-dir fails unless the folder has this entry; a symlink counts even
-      // when its target is missing, as git reads a symlinked HEAD's target text.
       const target = path.join(cwd, entry);
       const hasEntry = yield* fileSystem.exists(target).pipe(
         Effect.flatMap((exists) =>
@@ -210,7 +199,6 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
       if (bareResult.value.code !== 0) continue;
 
       const [isBare, rootPath = ""] = bareResult.value.stdout.split(/\r?\n/);
-      // A checkout's .git directory contains remotes but is not a project root.
       return isBare === "true" && rootPath.length > 0
         ? new RepositoryIdentityCacheKey({ rootPath, isBare: true })
         : null;
@@ -219,11 +207,6 @@ const resolveRepositoryIdentityCacheKey = Effect.fn("RepositoryIdentityResolver.
   },
 );
 
-/**
- * The remote `gh repo set-default` chose, where this checkout's pull requests go. gh marks one
- * remote with `base`, or with OWNER/REPO when it picked a parent repository; the identity follows
- * that mark only to a remote that fetches it, since review checkouts fetch through the locator.
- */
 const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote")(function* (
   cacheKey: string,
   remotes: ReadonlyMap<string, string>,
@@ -247,7 +230,6 @@ const readGhBaseRemote = Effect.fn("RepositoryIdentityResolver.readGhBaseRemote"
   const markedUrl = remotes.get(mark.remoteName);
   if (markedUrl === undefined) return null;
   if (mark.resolution === "base") return { remoteName: mark.remoteName, remoteUrl: markedUrl };
-  // Compare hosts with HTTP ports kept: one hostname can serve separate forges on two ports.
   const host = parseGitRemoteHost(markedUrl)?.host;
   const markedPath = mark.resolution.toLowerCase();
   const [remoteName, remoteUrl] =

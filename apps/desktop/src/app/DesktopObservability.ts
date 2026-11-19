@@ -433,7 +433,6 @@ const backendLogFilePathForInstance = (
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
   id: string,
 ): string => {
-  // Keep the primary log path stable for ops scripts and packaged-build inspection.
   if (id === PRIMARY_BACKEND_LOG_INSTANCE_ID) {
     return environment.path.join(environment.logDir, "server-child.log");
   }
@@ -441,7 +440,6 @@ const backendLogFilePathForInstance = (
   return environment.path.join(environment.logDir, `server-child-${sanitized}.log`);
 };
 
-// IDs sharing a sanitized filename must share a writer to avoid currentSize races.
 const makeBackendOutputSinkForInstance = (
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
   id: string,
@@ -461,7 +459,6 @@ const makeBackendOutputLogShape = (
 ): Effect.Effect<DesktopBackendOutputLogShape> =>
   Option.match(sink, {
     onNone: () => Effect.succeed(DesktopBackendOutputLogNoop),
-    // The enclosing operation owns the span for this inline handler.
     onSome: Effect.fnUntraced(function* (logFile) {
       const sessionRef = yield* Ref.make(Option.none<BackendOutputSession>());
       const writeFailure = Effect.fn("desktop.observability.backendOutput.writeFailure")(function* (
@@ -603,7 +600,6 @@ const layerTelemetry = Layer.unwrap(
   Effect.gen(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     const endpoints = yield* resolveOtlpEndpoints;
-    // Unpackaged runs launch a script, so Electron reports its own version.
     const serviceVersion = environment.isPackaged
       ? environment.appVersion
       : desktopPackageJson.version;
@@ -624,7 +620,6 @@ const layerTelemetry = Layer.unwrap(
       },
     };
 
-    // Logger.layer replaces the logger set. tracerLogger would duplicate OTLP in-span messages.
     const layerLogger = Logger.layer(
       endpoints.logs === undefined
         ? [Logger.consolePretty(), Logger.tracerLogger]
@@ -656,7 +651,6 @@ const layerTelemetry = Layer.unwrap(
           maxFiles: DESKTOP_LOG_FILE_MAX_FILES,
           batchWindowMs: DESKTOP_TRACE_BATCH_WINDOW_MS,
         });
-        // Unscoped: Electron can exit without closing the app scope, e.g. when the display drops.
         process.once("exit", sink.flushSync);
         const delegate =
           endpoints.traces === undefined

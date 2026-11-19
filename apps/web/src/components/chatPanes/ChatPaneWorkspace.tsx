@@ -51,11 +51,6 @@ const draftThread: DraftThread = (draftId) => {
   return session ? (session.promotedTo ?? null) : drafts.getPromotedDraftRedirect(draftId);
 };
 
-/**
- * The chat area: one pane per open thread, tiled on a resizable grid. Even a
- * single thread renders as a one-cell grid, so splitting it, moving it, or
- * closing its neighbours never remounts the view the user is in.
- */
 /** `background` keeps the panes mounted, inert and in place under Settings or Usage. */
 export function ChatPaneWorkspace({
   target,
@@ -85,7 +80,6 @@ export function ChatPaneWorkspace({
   }, [routeKey]);
 
   const focusedKey = layout ? paneTargetKey(focusedPane(layout).target) : null;
-  // Focus changes move the URL; route changes flow the other way through the reconcile above.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- navigates the router to the focused pane's target when pane focus moves
   useEffect(() => {
     if (background || focusedKey === null || focusedKey === routeKeyRef.current) return;
@@ -154,14 +148,11 @@ function PaneGrid({
   size: { width: number; height: number };
 }) {
   const setTrackSizes = useChatPaneStore((state) => state.setTrackSizes);
-  // Too small for every pane: show the focused one and keep the arrangement for later.
   const collapsed = isSplit(layout) && !paneLayoutFits(layout, size);
   const split = isSplit(layout) && !collapsed;
   const cells = split ? layout.cells : [focusedPane(layout)];
   const columns = split ? gridTracks(layout, "column") : SINGLE_TRACK;
   const rows = split ? gridTracks(layout, "row") : SINGLE_TRACK;
-  // Sizes that change without a drag, like equalizing or reopening, reach the grid through its
-  // handle: once dragged, it keeps the sizes it was given over new default sizes.
   const gridRef = useGridRef();
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes track sizes that change without a drag into the resizable grid's imperative handle
   useLayoutEffect(() => {
@@ -232,11 +223,6 @@ function trackOffset(tracks: PaneLayout["columns"], index: number) {
   return tracks.slice(0, index).reduce((sum, track) => sum + track.size, 0);
 }
 
-/**
- * Title-bar placement for a pane: only panes along the window's top edge hold
- * native window controls or the floating sidebar toggle, so the rest drop
- * those insets.
- */
 function paneChromeStyle(cell: PaneCell, layout: PaneLayout, split: boolean): CSSProperties {
   if (!split) return {};
   const top = cell.row === 0;

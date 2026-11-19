@@ -269,7 +269,6 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
 });
 
 export function composerSuggestionOptionId(listId: string, itemId: string): string {
-  // JSON escapes lone UTF-16 surrogates before URI encoding without losing identity.
   return `${listId}-${encodeURIComponent(JSON.stringify(itemId))}`;
 }
 

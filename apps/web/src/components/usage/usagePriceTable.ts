@@ -122,7 +122,6 @@ export function usagePriceTableChanges(
     if (USAGE_PRICE_FIELDS.some((field) => original[field.key] !== next[field.key]))
       changes.push(parsed);
   }
-  // Check the final batch so clearing a mapping and reversing it in one save stays valid.
   const aliases = new Map(Object.entries(target.aliases ?? {}));
   for (const change of changes) {
     if (!("alias" in change)) continue;

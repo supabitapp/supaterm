@@ -1,6 +1,5 @@
 import type { MenuAction } from "@react-native-menu/menu";
 
-// MenuView's iOS bridge treats an omitted imageColor as transparent.
 export function withMenuActionIconColors(
   actions: readonly MenuAction[],
   colors: {

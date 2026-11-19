@@ -22,7 +22,6 @@ import { SpawnExecutableResolution } from "@supaterm/shared/shell";
 import * as ExternalLauncher from "./externalLauncher.ts";
 import { WindowsVerbatimSpawn } from "./windowsVerbatimSpawn.ts";
 
-// Windows drive letters break mocked POSIX PATH splitting; these tests also require /bin/sh stubs.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
 
 interface MockSpawnResult {
@@ -103,7 +102,6 @@ const layerTest = (input: {
   );
 };
 
-// macOS command lookup cannot search a Windows drive-letter PATH.
 it.effect.skipIf(windowsHost)("opens home-relative targets using the server home directory", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
@@ -194,7 +192,6 @@ it.effect.skipIf(windowsHost)(
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-// A project opened from Supaterm must not replace the editor's last active window.
 it.effect.skipIf(windowsHost)(
   "opens a project folder in a new VS Code window and a file in the existing one",
   () =>
@@ -274,7 +271,6 @@ it.effect.skipIf(windowsHost)(
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-// Windows drive letters cannot resolve the POSIX editor stub.
 it.effect.skipIf(windowsHost)(
   "a Linux editor launch without a display takes the desktop session's display from the systemd user manager",
   () =>
@@ -305,7 +301,6 @@ it.effect.skipIf(windowsHost)(
             ),
             Effect.provideService(HostProcess.Environment, { PATH: binDir }),
           );
-          // Only editors borrow the session display; a browser must not open on that screen.
           assert.deepEqual(spawned.find((command) => command.command === "xdg-open")?.options.env, {
             PATH: binDir,
           });
@@ -328,7 +323,6 @@ it.effect.skipIf(windowsHost)(
           PATH: binDir,
           DISPLAY: ":0",
           WAYLAND_DISPLAY: "wayland-1",
-          // Raw, not the $'...' quoting `systemctl show-environment` would print.
           XAUTHORITY: "/home/user/auth files/cookie",
         },
       );
@@ -347,7 +341,6 @@ it.effect.skipIf(windowsHost)(
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-// Windows drive letters cannot resolve the POSIX xdg stubs.
 it.effect.skipIf(windowsHost)(
   "a Linux server without a display offers and opens the file manager on the desktop session's display",
   () =>
@@ -401,7 +394,6 @@ it.effect.skipIf(windowsHost)(
         env: { PATH: binDir, DISPLAY: ":0" },
       });
 
-      // No one is logged in to a desktop, so there is no screen to open it on.
       const headless = yield* fileManager(["HOME=/home/user"]);
       assert.equal(headless.offered, false);
       assert.equal(headless.kind, undefined);
@@ -470,9 +462,7 @@ const wslpathSpawner = (out: string | undefined) =>
   );
 
 it.effect.each([
-  // wslpath is mount-aware: a drive remapped in /etc/wsl.conf keeps its real letter.
   { target: "/mnt/d/project", wslpath: "E:\\project", expected: "E:\\project" },
-  // wslpath missing or failing falls back to the hand-built UNC path.
   {
     target: "/home/user/repo",
     wslpath: undefined,
@@ -703,7 +693,6 @@ it.effect.each([
       ]);
     } else {
       assert.deepEqual(verbatim, []);
-      // The PowerShell launch is reached; this host has no powershell.exe to run it.
       assert.isTrue(Exit.isFailure(exit));
       if (Exit.isFailure(exit)) {
         const error = Cause.squash(exit.cause);
@@ -877,8 +866,6 @@ for (const { layout, pathNames, fallbackNames, expected } of [
   );
 }
 
-// Linux editor discovery also probes fixed system directories; tests point them at a temp
-// directory so an editor installed on the host cannot satisfy the lookup.
 const withSystemBin = (path: Path.Path, systemBin: string): Path.Path => ({
   ...path,
   join: (...parts) =>
@@ -932,7 +919,6 @@ it.effect.skipIf(windowsHost)("does not offer the OpenZFS zed daemon as Zed on L
     yield* fs.makeDirectory(binDir, { recursive: true });
     yield* fs.makeDirectory(systemBin, { recursive: true });
     const zfsZed = path.join(binDir, "zed");
-    // OpenZFS zed only takes short options: `--version` is rejected with usage on stderr.
     yield* fs.writeFileString(
       zfsZed,
       "#!/bin/sh\necho \"Invalid option '--'\" >&2\necho 'Usage: zed [OPTION]...' >&2\nexit 1\n",
@@ -1099,7 +1085,6 @@ it.effect("keeps the macOS VS Code Insiders bundle out of stable VS Code", () =>
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const home = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-editor-insiders-" });
-    // The real Insiders bundle ships both `code-insiders` and `code`.
     const bin = path.join(
       home,
       "Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin",
@@ -1175,7 +1160,6 @@ it.effect.each([
         PATHEXT: ".COM;.EXE;.BAT;.CMD",
       }).pipe(
         Effect.provideService(HostProcess.Platform, platform),
-        // Keep IDEs installed on the host out of system locations such as /Applications.
         Effect.provideService(FileSystem.FileSystem, {
           ...fs,
           stat: (file) =>
@@ -1313,15 +1297,11 @@ it.effect(
       initialScanDone = true;
       assert.isAbove(statCallsAfterFirstScan, 0);
 
-      // Past the shared command-resolution cache TTL (30s) but within the
-      // discovery cache window: the memoized set is reused without any scan.
       yield* TestClock.adjust("31 seconds");
       const second = yield* launcher.resolveAvailableEditors();
       assert.deepEqual([...second], [...first]);
       assert.equal(statCalls, statCallsAfterFirstScan);
 
-      // Past the discovery cache window the next call still answers from the
-      // memoized set and rescans in the background.
       yield* TestClock.adjust("30 seconds");
       const third = yield* launcher.resolveAvailableEditors();
       assert.deepEqual([...third], [...first]);
@@ -1354,7 +1334,6 @@ it.effect.each(["Zed Nightly", "Zed Preview"])(
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-zed-channels-" });
-      // A user folder naming Zed and a channel does not mark either install.
       const programs = path.join(root, "Users", "zedpreview", "Programs");
       const prereleaseBin = path.join(programs, channel, "bin");
       const stableBin = path.join(programs, "Zed", "bin");
@@ -1392,7 +1371,6 @@ it.effect.each(["Zed Nightly", "Zed Preview"])(
       assert.equal((yield* launchZed).command, "zed");
 
       env.PATH = `${prereleaseBin};${stableBin}`;
-      // With only the prerelease install left, it still opens by name.
       yield* fs.remove(path.join(stableBin, "zed.EXE"));
       assert.equal((yield* launchZed).command, "zed");
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),

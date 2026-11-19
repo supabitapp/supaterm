@@ -21,7 +21,6 @@ const NOT_ANSWERED = Atom.make(false);
 
 const sameLinks = Schema.toEquivalence(Schema.Array(ThreadPullRequestLink));
 
-// Shell pushes recreate link arrays; reuse equal lists so streaming does not re-render the stack.
 const environmentPullRequestLinksAtom = Atom.family((environmentId: EnvironmentId) => {
   let previous: ReadonlyArray<ThreadPullRequestLink> = [];
   return Atom.make((get) => {
@@ -49,7 +48,6 @@ export function usePullRequestStack(
       : pullRequestStackAtom.answered({ environmentId, input: reference }),
   );
   const view = pullRequestStackView(query, saved);
-  // A saved answer paints; merging waits for this session's own host answer.
   return { ...query, ...view, isFresh: view.isFresh && answered };
 }
 

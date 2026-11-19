@@ -63,7 +63,6 @@ const WHEN_LABELS: Record<"after" | SnoozePresetDay, string> = {
 };
 const WHEN_VALUES = ["after", ...SnoozePresetDay.literals] as const;
 
-// Offered in order when adding, skipping any already in the list.
 const ADD_CANDIDATES: ReadonlyArray<SnoozePresetSetting> = [
   ...DEFAULT_SNOOZE_PRESETS,
   { kind: "after", minutes: 30 },
@@ -90,7 +89,6 @@ function nextCandidate(presets: ReadonlyArray<SnoozePresetSetting>): SnoozePrese
   );
 }
 
-// Row order is only display order, so it does not make a list differ from the defaults.
 function sameSnoozePresets(
   left: ReadonlyArray<SnoozePresetSetting>,
   right: ReadonlyArray<SnoozePresetSetting>,
@@ -129,10 +127,6 @@ export function SnoozePresetsRow() {
   const saved = settings.snoozePresets;
   const nowMinute = useNowMinute();
   const now = new Date(`${nowMinute}Z`);
-  // Edits build on a local draft, so a second edit before the first save echoes back
-  // does not restore what the first one changed. Echoes of our own writes keep the draft.
-  // Row keys survive removals and sorts, so a row's in-progress field state stays with it.
-  // One state, so a sort queued in the same event as an edit applies on top of it.
   const [rows, setRows] = useState(() =>
     sortSnoozeRows(
       saved,
@@ -142,9 +136,7 @@ export function SnoozePresetsRow() {
   );
   const { presets, keys } = rows;
   const [nextKey, setNextKey] = useState(saved.length);
-  // Null forces the next render to adopt the saved value, as after a failed write.
   const [savedSource, setSavedSource] = useState<ReadonlyArray<SnoozePresetSetting> | null>(saved);
-  // Environments disagree, so equal-looking edits and Reset must still write to all of them.
   const mixed = useScopedSettingsMixed(["snoozePresets"]);
   const [written, setWritten] = useState<ReadonlyArray<ReadonlyArray<SnoozePresetSetting>>>([]);
   const freshKeys = (count: number) => {
@@ -267,9 +259,7 @@ function SnoozePresetList(props: {
         const list = event.currentTarget;
         const next = event.relatedTarget;
         if (list.contains(next)) return;
-        // Select popups portal out of the list, so focus moving into one is not leaving it.
         if (next instanceof Element && next.closest('[data-slot="select-popup"]')) return;
-        // Waits for the amount field's blur commit, and skips its Enter blur-and-refocus.
         queueMicrotask(() => {
           if (!list.contains(document.activeElement)) props.onMarkDone();
         });
@@ -335,8 +325,6 @@ function SnoozePresetFields(props: {
 }) {
   const { preset, onChange } = props;
   const when = preset.kind === "after" ? "after" : preset.day;
-  // Switching between a duration and a set time keeps the other kind's last value, so a
-  // misclick on "When" can be undone without retyping it.
   const [memory, setMemory] = useState<KindMemory>({ minutes: 60, time: "09:00" });
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -395,14 +383,11 @@ function SnoozePresetFields(props: {
 }
 
 function DurationFields(props: { minutes: number; onChange: (minutes: number) => void }) {
-  // The chosen unit stays put while stepping, so 59 → 60 minutes does not jump to hours.
   const [chosenUnit, setChosenUnit] = useState(() => splitMinutes(props.minutes).unit);
   const unit =
     props.minutes % UNIT_MINUTES[chosenUnit] === 0 ? chosenUnit : splitMinutes(props.minutes).unit;
   const amount = props.minutes / UNIT_MINUTES[unit];
   const maxAmount = Math.floor(MAX_SNOOZE_PRESET_MINUTES / UNIT_MINUTES[unit]);
-  // Typing stays local until the field commits (blur, Enter, or a step), so half-typed
-  // values never reach the server.
   const [draft, setDraft] = useState<number | null>(amount);
   const [draftSource, setDraftSource] = useState(`${props.minutes}:${unit}`);
   if (draftSource !== `${props.minutes}:${unit}`) {
@@ -433,7 +418,6 @@ function DurationFields(props: { minutes: number; onChange: (minutes: number) =>
           <NumberFieldDecrement aria-label="Decrease" />
           <NumberFieldInput
             aria-label="Amount"
-            // Base UI commits on blur but not on Enter; refocus so keyboard users stay put.
             onKeyDown={(event) => {
               if (event.key !== "Enter") return;
               const input = event.currentTarget;

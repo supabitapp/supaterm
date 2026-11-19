@@ -116,7 +116,6 @@ export function deriveProviderEntriesByEnvironment(
   return byEnvironment;
 }
 
-// The snapshot includes instances enabled by any project; machine settings alone do not.
 export function brandProviderInstanceEntries(
   entries: ReadonlyArray<ProviderInstanceEntry>,
   settings: Pick<ServerSettings, "providerInstances">,
@@ -266,7 +265,6 @@ export function resolveProjectDefaultProviderModelSelection(
   projectId: ProjectId | null,
 ): ModelSelection | null {
   const entries = providerInstanceEntriesFor(providers, settings, projectId);
-  // Matches resolveComposerProviderSelection: the first driver group wins before any other.
   const entry =
     resolveSelectableProviderInstanceEntry(
       entries.filter((candidate) => candidate.driverKind === entries[0]?.driverKind),

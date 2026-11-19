@@ -19,7 +19,6 @@ import { decodeJsonResult } from "@supaterm/shared/schemaJson";
 
 import { azureDevOpsPullRequestWebUrl } from "./azureDevOpsPullRequests.ts";
 
-// CLI fields vary by command; unknown enum values must not fail the payload.
 const RawIdentitySchema = Schema.Struct({
   displayName: Schema.optional(Schema.NullOr(Schema.String)),
   uniqueName: Schema.optional(Schema.NullOr(Schema.String)),
@@ -32,7 +31,6 @@ const RawPullRequestSchema = Schema.Struct({
   description: Schema.optional(Schema.NullOr(Schema.String)),
   status: Schema.optional(Schema.NullOr(Schema.String)),
   isDraft: Schema.optional(Schema.NullOr(Schema.Boolean)),
-  /** This identity's presence indicates auto-complete. */
   autoCompleteSetBy: Schema.optional(Schema.NullOr(RawIdentitySchema)),
   completionOptions: Schema.optional(
     Schema.NullOr(
@@ -163,7 +161,6 @@ export interface AzureDevOpsPullRequest {
   readonly autoMergeMethod?: PullRequestMergeMethod;
 }
 
-/** Logins must match the email from `az account show`. */
 function toActor(raw: Schema.Schema.Type<typeof RawIdentitySchema> | null | undefined) {
   const login = trimmed(raw?.uniqueName) ?? trimmed(raw?.displayName);
   return login === null
@@ -365,10 +362,8 @@ type RawPolicyEvaluation = Schema.Schema.Type<typeof RawPolicyEvaluationSchema>;
 
 const BUILD_POLICY_TYPE = "0609b952-1397-4640-95ec-e00a01b2c241";
 const STATUS_POLICY_TYPE = "cbdc66da-9728-4af8-aada-9a5a32e4a226";
-// Other policy types wait on people or restrict pushes, so they would read as checks that never end.
 const CHECK_POLICY_TYPES = new Set([BUILD_POLICY_TYPE, STATUS_POLICY_TYPE]);
 
-/** Azure reports `queued` for a build that will never start on its own, so name those apart. */
 function toPolicyCheckProgress(
   raw: RawPolicyEvaluation,
 ): Pick<PullRequestCheck, "status" | "description"> {
@@ -386,19 +381,16 @@ function toPolicyCheckProgress(
     case "queued":
       break;
     default:
-      // A watch counts anything settled as passed, so an unknown status cannot be.
       return settled("pending");
   }
   const expired = raw.context?.isExpired === true;
   if (!expired && raw.configuration.settings?.manualQueueOnly !== true) return settled("pending");
-  // Only a blocking build holds the pull request; an optional one nobody queues never runs.
   return {
     status: raw.configuration.isBlocking === true ? "action-required" : "skipped",
     description: expired ? "Expired. Queue it again on Azure DevOps." : "Queue it on Azure DevOps.",
   };
 }
 
-/** The evaluation's configuration URL opens at the project the policy belongs to. */
 function toPolicyCheckUrl(raw: RawPolicyEvaluation): string | null {
   const buildId = raw.context?.buildId;
   const [projectUrl, rest] = (raw.configuration.url ?? "").split("/_apis/", 2);
@@ -416,7 +408,6 @@ function toPolicyCheck(raw: RawPolicyEvaluation, isDraft: boolean): PullRequestC
   ) {
     return null;
   }
-  // A build Azure holds back on a draft stays out, as nothing would ever finish it.
   if (isDraft && raw.status.trim().toLowerCase() === "queued" && context?.buildId == null) {
     return null;
   }
@@ -527,7 +518,6 @@ const decodeChangePage = decodeJsonResult(RawChangePageSchema);
 const decodeChangeEntry = Schema.decodeUnknownExit(RawChangeEntrySchema);
 const decodeItemContent = decodeJsonResult(RawItemContentSchema);
 
-/** Preserve whitespace to match patch paths and viewed marks. */
 function toRepositoryPath(value: string | null | undefined): string | null {
   if (value === undefined || value === null) return null;
   const path = value.replace(/^\/+/, "");
@@ -579,11 +569,9 @@ export function decodeIterationChangesJson(
     const decodedChange = decodeChangeEntry(entry);
     if (Exit.isFailure(decodedChange)) continue;
     const change = decodedChange.value;
-    // Azure uses either field for renames, depending on route/version.
     const sourcePath =
       toRepositoryPath(change.sourceServerItem) ?? toRepositoryPath(change.originalPath);
     const deleted = toChangeKind(change.changeType, false) === "deleted";
-    // A deleted file has no `item.path`; only the source fields name it.
     const path = toRepositoryPath(change.item?.path) ?? (deleted ? sourcePath : null);
     if (path === null) continue;
     if (change.item?.isFolder === true) continue;
@@ -593,7 +581,6 @@ export function decodeIterationChangesJson(
       path,
       oldPath,
       changeKind: toChangeKind(change.changeType, oldPath !== path),
-      // Viewed marks read a deleted file at the empty revision, not a blob id.
       objectId: deleted ? null : trimmed(change.item?.objectId),
       originalObjectId: trimmed(change.item?.originalObjectId),
     });

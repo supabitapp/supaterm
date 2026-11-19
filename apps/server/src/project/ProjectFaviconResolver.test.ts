@@ -57,7 +57,6 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
         const path = yield* Path.Path;
         const cwd = yield* makeTempDir;
 
-        // A clone's project exists while its folder is still empty.
         expect(yield* resolver.resolvePath(cwd)).toBeNull();
         yield* writeTextFile(cwd, "favicon.ico", "icon");
         expect(yield* resolver.resolvePath(cwd)).toBeNull();
@@ -151,8 +150,6 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
       }),
     );
 
-    // An agent can save the favicon path, and statting a network path sent the
-    // Windows user's NTLM credentials to its host.
     it.effect("never stats a saved favicon on a network path outside the project", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
@@ -176,8 +173,6 @@ it.layer(layerTest)("ProjectFaviconResolverLive", (it) => {
       }),
     );
 
-    // This resolves inside the project, but Windows reads `\\?\` paths as
-    // written, so statting the raw string signed in to attacker.test.
     it.effect("stats the network favicon path it checked", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;

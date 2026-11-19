@@ -422,21 +422,18 @@ export function makeMcpAppHost(options: McpAppHostOptions): McpAppHost {
         if (isId(data.id) && ("result" in data || "error" in data)) handleResponse(data.id);
         return;
       }
-      // postMessage keeps undefined, which the RPC's JSON codec rejects; pass on the JSON form.
       const { params: jsonParams }: { params?: unknown } = JSON.parse(json);
       const params = Predicate.isObject(jsonParams) ? jsonParams : {};
       if (isId(data.id)) handleRequest(data.id, method, params);
       else handleNotification(method, params);
     },
     setToolCall: (call) => {
-      // A running call has no result yet; only its completion may replace it.
       if (toolCall === undefined || !toolCallSent) {
         if (toolCall?.result === undefined) toolCall = call;
         sendToolCall();
         return;
       }
       if (toolCall.result !== undefined || call.result === undefined) return;
-      // The app already has this call's input; it only needs the result.
       toolCall = { arguments: toolCall.arguments, result: call.result };
       notify("ui/notifications/tool-result", normalizeMcpAppToolResult(call.result));
     },

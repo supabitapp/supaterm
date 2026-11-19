@@ -13,9 +13,7 @@ const PROTECT_DROP_IN = "90-supaterm-protect.conf";
 const SYSTEM_UNIT_DIR = "/etc/systemd/system";
 export const REMOTE_ACCESS_UNITS = ["tailscaled.service", "ssh.service", "sshd.service"];
 
-// Covers app.slice (the server's 1536M) and init.scope (the user manager's 256M).
 const USER_CHAIN_LOW = "MemoryLow=2G";
-// Near the floor, but unlike -1000 the kernel can still kill it as a last resort.
 const PROTECTED_OOM_SCORE = "OOMScoreAdjust=-900";
 
 export interface DropIn {
@@ -129,7 +127,6 @@ export function renderPrivilegedScript(plan: ProtectionPlan, mode: "apply" | "un
   }
   lines.push(
     "systemctl daemon-reload",
-    // OOMScoreAdjust applies at exec; this gives running main processes the configured score.
     `for unit in ${plan.oomUnits.map(quoteShell).join(" ")}; do`,
     '  pid=$(systemctl show --property=MainPID --value "$unit")',
     '  if [ "${pid:-0}" -gt 0 ]; then',
@@ -240,8 +237,6 @@ const runPrivileged = Effect.fn("ServiceProtection.runPrivileged")(function* (sc
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const exitCode = yield* spawner
     .exitCode(
-      // Effect detaches children on POSIX by default; sudo then has no controlling
-      // terminal and cannot ask for a password.
       ChildProcess.make("sudo", ["/bin/sh", "-c", script], {
         detached: false,
         stdin: "inherit",
@@ -263,7 +258,6 @@ export const applyProtection = Effect.fn("ServiceProtection.apply")(function* (
     .exists(plan.managerDefaults.path)
     .pipe(Effect.orElseSucceed(() => false));
   yield* writeDropIns([plan.managerDefaults]);
-  // A partial run may already have lowered the manager; its default must then stay.
   const manager = plan.system.find(({ unit }) => unit.startsWith("user@"));
   const rollBack = Effect.gen(function* () {
     if (hadManagerDefaults) return;

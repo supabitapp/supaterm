@@ -10,7 +10,6 @@ import { rpcRequestDuration, rpcRequestsTotal, withMetrics } from "./Metrics.ts"
 
 type WsRpcMethod = RpcGroup.Rpcs<typeof WsRpcGroup>["_tag"];
 
-// Trace queries and dashboards depend on these labels, including deviations from method prefixes.
 const RPC_AGGREGATES = {
   [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: "orchestrationV2",
   [ORCHESTRATION_V2_WS_METHODS.getWorkflowScript]: "orchestration",
@@ -252,8 +251,6 @@ export const rpcInstrumentationLayer = Layer.succeed(RpcInstrumentation)((effect
   if (RPC_METHODS_WITH_TRACING_DISABLED.has(method)) {
     return measured.pipe(Effect.provideService(References.TracerEnabled, false));
   }
-  // The ambient span is the socket's `GET /ws` request, open for the whole connection. Parenting
-  // every call to it grows one trace past the collector's per-trace limit, which then drops it.
   return Effect.currentParentSpan.pipe(
     Effect.option,
     Effect.flatMap((connection) =>

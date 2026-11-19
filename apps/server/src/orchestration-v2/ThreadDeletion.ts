@@ -133,7 +133,6 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
       .map((task) => task.runId!),
   ]);
   for (const parentRunId of cohortRunIds) {
-    // Use the projected cancellation so disposing a cohort cannot revive its run.
     const parentRun = current.runs.find((run) => run.id === parentRunId);
     if (parentRun === undefined) continue;
     const cohort = parentRun.delegatedCompletion;
@@ -182,7 +181,6 @@ export const planThreadDeletion = Effect.fn("ThreadDeletion.planThreadDeletion")
   }
 
   for (const session of projection.providerSessions) {
-    // An errored session can still own a reusable live runtime.
     if (session.status === "stopped") continue;
     yield* emitEvent({
       type: "provider-session.detached",

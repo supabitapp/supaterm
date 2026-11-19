@@ -42,7 +42,6 @@ function PairRouteView() {
     <PairingRouteSurface
       auth={authGateState.auth}
       onAuthenticated={() => {
-        // Recreate the connection so WebSocket and cached scopes use the new pairing cookie.
         router.history.replace("/");
         router.history.flush();
         window.location.reload();

@@ -209,7 +209,6 @@ function TelemetryExportForm() {
                   disabled={saving || !canEdit}
                   onChange={(event) => {
                     const value = event.target.value;
-                    // Clear restored drafts so later saves cannot overwrite another client's changes.
                     setDraft((previous) => {
                       const next = { ...previous, [key]: value };
                       if (value.trim() === saved[key]) delete next[key];

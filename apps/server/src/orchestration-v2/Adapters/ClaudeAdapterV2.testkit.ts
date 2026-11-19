@@ -336,7 +336,6 @@ function isClaudeSdkReplayMessage(frame: unknown): frame is SDKMessage {
     type === "system" ||
     type === "stream_event" ||
     type === "rate_limit_event" ||
-    // The SDK types omit command_lifecycle for prompt uuids.
     type === "command_lifecycle"
   );
 }
@@ -658,7 +657,6 @@ function makeReplayQueryRunner(
     },
   });
 
-  // Prompt uuids differ on replay; rewrite inbound echoes and acknowledgements to match.
   const promptUuidReplacements = new Map<string, string>();
   const replayedPromptUuid = (value: string): string => promptUuidReplacements.get(value) ?? value;
   const withReplayedPromptUuids = (frame: unknown): unknown => {
@@ -838,7 +836,6 @@ function makeReplayQueryRunner(
               mode,
             });
           }),
-        // Recorded sessions already hold their title, and no replay asserts rename frames.
         renameSession: () => Effect.void,
         stopTask: (taskId) =>
           replayEffect(() => {
@@ -848,7 +845,6 @@ function makeReplayQueryRunner(
           replayEffect(() => {
             assertNextOutboundFrame({ type: "query.background_tasks", toolUseId });
           }).pipe(Effect.as(true)),
-        // Recorded CLIs predate MCP Apps capabilities, so replays never reach these.
         mcpServerStatus: Effect.die("unexpected MCP server status in replay"),
         readMcpResource: () => Effect.die("unexpected MCP resource read in replay"),
         callMcpTool: () => Effect.die("unexpected MCP tool call in replay"),
@@ -977,7 +973,6 @@ function layerClaudeAgentSdkReplay(
   );
 }
 
-/** Replays write recorded Bash output to task_started files under a scenario-owned CLAUDE_CODE_TMPDIR. */
 const writeReplayTaskOutputFiles = Effect.fn("ClaudeReplay.writeTaskOutputFiles")(function* (
   transcript: ClaudeAgentSdkReplayTranscript,
 ) {
@@ -1045,8 +1040,6 @@ function layerClaudeProviderAdapterRegistryReplay(
               displayName: undefined,
               environment: [
                 { name: "CLAUDE_CODE_TMPDIR", value: tmpRoot, sensitive: false },
-                // Recorded session ids also name the recorder's real transcripts,
-                // which would turn the recorded create into a resume.
                 {
                   name: "CLAUDE_CONFIG_DIR",
                   value: `${tmpRoot}/claude-config`,
@@ -1201,7 +1194,6 @@ function sanitizeSdkMessageForReplay(input: {
       session_id: message.session_id,
     };
   }
-  // Recorded commands and skills are account configuration.
   if (message.type === "system" && message.subtype === "commands_changed") {
     return { ...message, commands: [] };
   }
@@ -1495,8 +1487,6 @@ async function recordMessagesUntilToolUse(input: {
   }
 }
 
-// The SDK may lack a platform executable. Prefer installed Claude only when directly spawnable,
-// including Windows shims resolved to package entries.
 const resolveClaudeRecordingExecutablePath = Effect.fn("resolveClaudeRecordingExecutablePath")(
   function* (environment: NodeJS.ProcessEnv) {
     const resolveExecutable = yield* SpawnExecutableResolution;
@@ -1645,7 +1635,6 @@ async function recordClaudeStreamingQuery(input: {
         frame: makeClaudePromptOfferFrame(message),
       });
       promptQueue.offer(message);
-      // Wake turns can precede the prompt turn; identify results by origin.
       let promptSettled = false;
       let wakes = 0;
       const expectedWakes = input.backgroundWakeCounts?.[index] ?? 0;
@@ -1657,7 +1646,6 @@ async function recordClaudeStreamingQuery(input: {
         }
       }
       if (input.backgroundWakeCounts !== undefined && input.offerNextPromptImmediately !== true) {
-        // system:init opens each turn; leave ongoing subagent frames for the next recording.
         while (isSystemInitFrame(await iterator.peekWithin(CLAUDE_RECORDING_WAKE_QUIET_MS))) {
           await recordTurn(index + 1);
         }

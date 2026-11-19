@@ -31,7 +31,6 @@ describe("EnvironmentOwnedDataCleanup", () => {
     const warnings: Array<unknown> = [];
     let releaseDrafts = () => {};
     let draftsCleared = false;
-    // The drafts clear finishes only after the outbox failure is logged.
     const logger = Logger.make(({ message }) => {
       warnings.push(message);
       releaseDrafts();

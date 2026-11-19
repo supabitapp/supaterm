@@ -21,15 +21,12 @@ export const make = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const processRunner = yield* ProcessRunner.ProcessRunner;
 
-  // Services started by systemd lack WSL_DISTRO_NAME and WSL_INTEROP; the kernel release does not.
-  // Hosts without this file (macOS, Windows) are not WSL.
   const isWsl = fs.readFileString(KERNEL_RELEASE_PATH).pipe(
     Effect.map((release) => release.toLowerCase().includes("microsoft")),
     Effect.orElseSucceed(() => false),
   );
 
   const readWindowsHostListeners = Effect.gen(function* () {
-    // The automount root is configurable, so `/mnt/c` is not guaranteed.
     const netstat = yield* processRunner.run({
       command: "wslpath",
       args: ["-u", WINDOWS_NETSTAT_PATH],
@@ -56,7 +53,6 @@ export const make = Effect.gen(function* () {
     if (!windows.has(preferred) && (yield* net.isPortAvailableOnLoopback(preferred))) {
       return preferred;
     }
-    // Linux and Windows ephemeral ranges overlap, so fallback ports can collide too.
     for (let attempt = 0; attempt < FALLBACK_ATTEMPTS; attempt += 1) {
       const port = yield* net.reserveLoopbackPort();
       if (!windows.has(port)) return port;

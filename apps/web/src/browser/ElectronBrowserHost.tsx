@@ -32,14 +32,12 @@ import { openUrlInPreview } from "./openFileInPreview";
 import { rendersServerTabNatively } from "./previewRuntime";
 import { previewRuntimeTabId } from "./previewRuntimeTabId";
 
-/** Every session this window renders as a hosted webview, in a fixed (non-display) order. */
 function hostedBrowserSessions(
   previewByThreadKey: Record<string, ThreadPreviewState>,
   primaryEnvironmentId: EnvironmentId | null,
 ) {
   const activeSessions = Object.entries(previewByThreadKey).flatMap(([threadKey, previewState]) => {
     const threadRef = parseScopedThreadKey(threadKey);
-    // Only tabs the server backs with this desktop's page render as native webviews.
     return threadRef
       ? Object.values(previewState.sessions)
           .filter(
@@ -74,7 +72,6 @@ function startAnnotationThemeSync(preview: DesktopPreviewBridge): () => void {
       lastSerializedTheme = "";
     });
   };
-  // App services start before the first paint, when the theme styles may not be applied yet.
   const frameId = window.requestAnimationFrame(syncTheme);
   const observer = new MutationObserver(syncTheme);
   observer.observe(document.documentElement, {

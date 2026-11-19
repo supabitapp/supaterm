@@ -31,7 +31,6 @@ function isOrchestrationV2SupersededInterrupt(input: {
     return false;
   }
 
-  // Show paired stop-then-steer results; hide legacy plain-steer results without matching requests.
   const hasMatchingRequest = input.items.some(
     (candidate) => candidate.type === "run_interrupt_request" && candidate.runId === item.runId,
   );
@@ -52,8 +51,6 @@ export function isOrchestrationV2TurnItemVisible(input: {
     return false;
   }
 
-  // A steer can return to the queue before delivery. Keep its retained item out
-  // of conversation history until its run starts; cancelled queued inputs stay hidden.
   if (
     item.type === "user_message" &&
     item.inputIntent === "queued_turn" &&

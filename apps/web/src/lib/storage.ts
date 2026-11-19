@@ -62,7 +62,6 @@ export function createDeferredStorage<TValue>(
     },
     removeItem: (name) => {
       debouncedSetItem.cancel();
-      // cancel() leaves the captured value in Pacer's lastArgs.
       debouncedSetItem.reset();
       resolvedStorage.removeItem(name);
     },

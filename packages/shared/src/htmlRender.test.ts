@@ -179,7 +179,6 @@ describe("readHtmlRenderImageRequest", () => {
       images: [{ src: "https://example.com/a.png", name: "A" }, b],
       index: 1,
     });
-    // An index that does not point at the clicked image falls back to that image alone.
     expect(request({ index: 0 })).toEqual({ images: [b], index: 0 });
     expect(request({ index: -1 })).toEqual({ images: [b], index: 0 });
   });
@@ -234,7 +233,6 @@ describe("readHtmlRenderSelectionEvent", () => {
       return event?._tag === "selected" ? event.selection.text : undefined;
     };
     expect(read("a".repeat(limit * 3))).toHaveLength(limit + 1);
-    // Padding must not hide the overflow: trimming after the cut would leave a quote at the limit.
     expect(read(` ${"a".repeat(limit)}TAIL`)).toHaveLength(limit + 1);
     expect(read(` ${"a".repeat(limit)} `)).toHaveLength(limit);
   });
@@ -249,7 +247,6 @@ describe("htmlRenderFromToolItem", () => {
       ["supaterm.html_render", { structuredContent: result, content: [] }],
       ["supaterm-thread_1_html_render", JSON.stringify(result)],
       ["html_render", result],
-      // OpenCode 2 Code Mode reports a script's nested html_render call as one `execute` item.
       ["execute", JSON.stringify(result)],
     ] as const) {
       expect(htmlRenderFromToolItem({ toolName, output })).toEqual(reference);

@@ -47,7 +47,6 @@ const listenHub = Effect.fn("DeviceHubProxyTest.listenHub")(function* (
 const serveProxy = Effect.fn("DeviceHubProxyTest.serveProxy")(function* (hubPort: number) {
   const services = yield* Layer.build(
     HttpRouter.serve(DeviceHubProxy.layer, { disableListenLog: true }).pipe(
-      // Production's WebSocket options, so viewers can offer permessage-deflate.
       Layer.provideMerge(
         NodeHttpServer.layer(NodeHttp.createServer, {
           port: 0,
@@ -115,8 +114,6 @@ it.effect("preserves binary input and admission frames through the real socket p
   }),
 );
 
-// Each viewer tick makes the hub emit one frame, skipped the way serve-emu does once its socket to
-// the proxy holds more than 512 KiB. 1024 incompressible frames overfill every buffer in between.
 const stallViewer = Effect.fn("DeviceHubProxyTest.stallViewer")(function* () {
   const frame = crypto.getRandomValues(new Uint8Array(64 * 1024));
   const hub = { sent: 0, skipped: 0, closed: Promise.withResolvers<void>() };
@@ -186,8 +183,6 @@ it.effect("closes a viewer that stays stalled and releases its hub connection", 
 it.live("closes an upstream socket that is still connecting without an unhandled error", () =>
   Effect.gen(function* () {
     const dialed = Promise.withResolvers<NodeNet.Socket>();
-    // Accepts the connection and never answers the WebSocket handshake. It reads what arrives,
-    // since a paused socket never emits `close` for the client's FIN.
     const hub = yield* Effect.acquireRelease(
       Effect.promise(
         () =>

@@ -68,7 +68,6 @@ export function useStartTriage() {
   const prepare = useAtomCommand(serverEnvironment.prepareTriage, { reportFailure: false });
   const openScratch = useAtomCommand(projectEnvironment.openScratch, { reportFailure: false });
 
-  // With no draft to show, a toast is the only place to point at the CLI.
   const fail = (description: string) =>
     toastManager.add(
       stackedThreadToast({
@@ -77,7 +76,6 @@ export function useStartTriage() {
         description: `${description} Run ${TRIAGE_CLI_COMMAND} in a terminal on that machine instead.`,
         timeout: 0,
         actionProps: { children: "Copy command", onClick: () => void copyTriageCliCommand() },
-        // "Copy command" is the copy that helps here, not the error text.
         data: { hideCopyButton: true },
       }),
     );
@@ -89,8 +87,6 @@ export function useStartTriage() {
     fail(error instanceof Error ? error.message : "An error occurred.");
   };
 
-  // `routeChanged` tells the steps the user went elsewhere while they waited;
-  // the draft then stays closed instead of pulling them away.
   const openTriageDraft = async (environmentId: EnvironmentId, routeChanged: () => boolean) => {
     const prepared = await prepare({
       environmentId,
@@ -100,7 +96,6 @@ export function useStartTriage() {
     const project = await openScratch({ environmentId, input: {} });
     if (project._tag === "Failure") return failWith(project);
     if (routeChanged()) return;
-    // A null result means the user went elsewhere; only a throw is a failure.
     await handleNewThread(scopeProjectRef(project.value.environmentId, project.value.id), {
       prompt: prepared.value.prompt,
     }).catch(() => fail("Supaterm could not open a new thread."));
@@ -112,8 +107,6 @@ export function useStartTriage() {
       return;
     }
     const requestingRouteHref = router.state.location.href;
-    // The palette is already closed, and a slow network can hold up the source
-    // lookup, so say something when the draft does not open at once.
     let pendingToastId: ReturnType<typeof toastManager.add> | undefined;
     const pendingTimer = setTimeout(() => {
       pendingToastId = toastManager.add({

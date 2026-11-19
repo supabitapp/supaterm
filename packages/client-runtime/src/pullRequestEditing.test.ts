@@ -213,7 +213,6 @@ describe("description drafts", () => {
   const ticked = "- [x] Ship it";
 
   it("hides readings taken during the saves and ends at the first one after them", () => {
-    // Ticking and unticking the same box saves the host's own body last.
     let draft: DescriptionDraft | null = startDescriptionSave(null, { url, observedAt: 1 }, ticked);
     draft = startDescriptionSave(draft, { url, observedAt: 1 }, unticked);
     expect(descriptionDraftInForce(draft, url, 2)?.body).toBe(unticked);
@@ -222,14 +221,12 @@ describe("description drafts", () => {
     expect(descriptionDraftInForce(draft, url, 2)?.body).toBe(unticked);
     draft = settleDescriptionSave(draft, url, true);
     expect(descriptionDraftInForce(draft, url, 2)?.body).toBe(unticked);
-    // The acknowledging reading ends the draft, so the host's later ticks show.
     expect(descriptionDraftInForce(draft, url, 3)).toBeNull();
   });
 
   it("outlives failed saves until a reading after the last one, losing the body only with it", () => {
     let draft: DescriptionDraft | null = startDescriptionSave(null, { url, observedAt: 1 }, ticked);
     draft = startDescriptionSave(draft, { url, observedAt: 1 }, unticked);
-    // The save still running writes the whole body again.
     draft = settleDescriptionSave(draft, url, false);
     expect(descriptionDraftInForce(draft, url, 2)).toMatchObject({ body: unticked, saves: 1 });
     draft = descriptionDraftInForce(draft, url, 2);

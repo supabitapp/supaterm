@@ -20,7 +20,6 @@ export function resolveThreadFeedSubmissionAnchor<AnchorId>(input: {
   readonly queuedMessageCount: number;
   readonly deliveryDeferred: boolean;
 }): AnchorId | null {
-  // Keeping the first message's anchor holds a short thread in place; a follow-up never anchors.
   if (input.currentAnchorMessageId !== null) {
     return input.currentAnchorMessageId;
   }

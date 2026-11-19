@@ -207,8 +207,6 @@ function defaultViewMode(path: string | null): FileViewMode {
     : "source";
 }
 
-// Android numbered rows are separate text views, so a long-press opens the whole file as one
-// selectable text at that line. Back returns to the numbered rows at the same line.
 function FileSourceSurface(props: ComponentProps<typeof SourceFileSurface>) {
   const navigation = useNavigation();
   const [selection, setSelection] = useState<{
@@ -217,7 +215,6 @@ function FileSourceSurface(props: ComponentProps<typeof SourceFileSurface>) {
   } | null>(null);
   usePreventRemove(selection?.active === true, ({ data }) => {
     setSelection((value) => value && { ...value, active: false });
-    // The re-dispatched action skips this guard, so "Return to chat" still leaves in one tap.
     if (data.action.type !== "GO_BACK" && data.action.type !== "POP") {
       navigation.dispatch(data.action);
     }
@@ -253,7 +250,6 @@ function FileContent(props: {
   readonly selectable: boolean;
   readonly onRefresh?: () => Promise<void> | void;
 }) {
-  // Reopening a mutable host file must not reuse a poster from an earlier visit.
   const thumbnailInstanceId = useId();
   const barOverlap = useContentTopInset();
   const reservedHeaderInset = props.truncated ? barOverlap : 0;
@@ -730,11 +726,9 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
     assetPreviewUri === null || previewRevision === 0
       ? assetPreviewUri
       : `${assetPreviewUri}${assetPreviewUri.includes("?") ? "&" : "?"}revision=${previewRevision}`;
-  // Remounting the preview after a re-mint is what makes a failed asset URL retryable.
   const handleRetryPreview = () => {
     void assetPreview.refresh().finally(() => setPreviewRevision((current) => current + 1));
   };
-  // Metadata is needed only to distinguish directories; file contents can load concurrently.
   const needsFileContents = needsWorkspaceFileContents({
     relativePath,
     metadataKind: metadata.data?.kind,
@@ -753,7 +747,6 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
       : null,
   );
   const fileData = fileQuery.data as ProjectReadFileResult | null;
-  // iOS only: Android lays out a whole-file selectable TextView on the UI thread, which stalls.
   const canSelectText =
     Platform.OS === "ios" && resolvedActiveMode === "source" && fileData?.contents != null;
   const selectingText = canSelectText && textSelectionPath === relativePath;
@@ -764,8 +757,6 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
     const segments = fileRoutePathSegments(
       resolveWorkspaceRelativeFilePath(cwd, targetPath) ?? targetPath,
     );
-    // A draft has no thread. `ThreadFile` would stringify null and then wait forever for a
-    // thread to resolve, so a draft stays on its own route and carries its workspace along.
     if (threadId === null) {
       navigation.dispatch(
         StackActions.push("NewTaskFile", {

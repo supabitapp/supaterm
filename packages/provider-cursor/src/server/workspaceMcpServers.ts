@@ -1,4 +1,3 @@
-// The SDK leaves editor variables literal; agent-level stdio clients take precedence.
 import type { McpServerConfig } from "@cursor/sdk";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -10,12 +9,10 @@ import { spawnAndCollect } from "@supaterm/provider-core/server/snapshotProbe";
 import { parse as parseJsonc, type ParseError } from "jsonc-parser";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
-// The SDK's own placeholder grammar: `${env:NAME}`, `${NAME}` and `${NAME:-default}`.
 const PLACEHOLDER_PATTERN = /\$\{(?:env:([A-Za-z_][A-Za-z0-9_]*)|([^:}]+)(?::-([^}]*))?)\}/g;
 const WORKSPACE_VARIABLE_PATTERN =
   /\$\{(?:workspaceFolder|workspaceFolderBasename|userHome|pathSeparator|\/)\}/;
 const WORKSPACE_PATH_PATTERN = /^\$\{(?:workspaceFolder|userHome)\}[\\/]/;
-// These exit when their script argument is missing; other arguments may be labels a server ignores.
 const SCRIPT_INTERPRETERS = new Set(["node", "bun", "tsx", "python", "python3"]);
 
 const StringRecord = Schema.Record(Schema.String, Schema.String);
@@ -54,8 +51,6 @@ function expand<A>(value: A, resolve: (text: string) => string): A {
   return value;
 }
 
-// Only servers whose literal copy cannot start: the SDK also starts the file-defined copy and
-// loses its handle when it keeps the inline one, and inline configs drop envFile and enabledTools.
 function needsWorkspaceExpansion(server: unknown): boolean {
   if (typeof server !== "object" || server === null) return false;
   if ("envFile" in server || "enabledTools" in server) return false;
@@ -72,7 +67,6 @@ function needsWorkspaceExpansion(server: unknown): boolean {
   );
 }
 
-/** Cursor's project slug, as `~/.cursor/projects/<slug>` names it. */
 function cursorProjectSlug(projectRoot: string): string {
   return projectRoot
     .replace(/[^a-zA-Z0-9]/g, "-")
@@ -149,7 +143,6 @@ export const cursorWorkspaceMcpServers = Effect.fn("cursorWorkspaceMcpServers")(
     path.join(userHome, ".cursor", "mcp.json"),
   ]) {
     const contents = yield* readJsonc(file);
-    // Like the SDK, expand before validating, so `"type": "${env:TYPE}"` is valid.
     const config = decodeCursorMcpFile(expand(contents, resolve));
     if (Option.isNone(config)) continue;
     const rawServers = (
@@ -160,7 +153,6 @@ export const cursorWorkspaceMcpServers = Effect.fn("cursorWorkspaceMcpServers")(
     for (const [name, server] of Object.entries(config.value.mcpServers)) {
       if (seen.has(name)) continue;
       seen.add(name);
-      // Plugin definitions take precedence in the SDK, which can see enabled plugins.
       if (
         "command" in server &&
         !name.startsWith("plugin-") &&

@@ -145,7 +145,6 @@ it.effect(
 
       yield* Effect.gen(function* () {
         const checkpoints = yield* CheckpointService.CheckpointServiceV2;
-        // A stopped run's post-turn capture writes the next run's baseline ref while holding the lock.
         const postTurn = yield* checkpoints
           .capture({
             scope,

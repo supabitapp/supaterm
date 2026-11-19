@@ -108,7 +108,6 @@ export function useNewProject() {
     }
 
     const projectRef = scopeProjectRef(input.environmentId, projectId);
-    // Wait for the stored project path; drafts use it as their key.
     const project = await waitForProject(projectRef).catch((error: unknown) => {
       toastManager.add(
         stackedThreadToast({

@@ -88,7 +88,6 @@ const makeHarness = Effect.fn("makeAuthTestHarness")(function* (
             yield* Deferred.succeed(closed, undefined);
           }),
         );
-        // Like AcpSessionRuntime, `start` reuses one memoized initialize handshake.
         const initialize = yield* Effect.cached(
           Effect.gen(function* () {
             events.push("initialize");
@@ -305,7 +304,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("AntigravityAuth"
       yield* harness.auth.controller.start(owner);
       yield* Deferred.await(initializing);
 
-      // A one-file runtime can take about a minute to unpack before it answers initialize.
       yield* TestClock.adjust("60 seconds");
       assert.isFalse(yield* hasHint);
 

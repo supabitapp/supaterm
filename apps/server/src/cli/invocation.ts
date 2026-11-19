@@ -81,19 +81,16 @@ export const resolveServerInstallation = Effect.gen(function* () {
     const launchedAs = yield* resolveLauncherPath;
     if (launchedAs === undefined) return null;
     const link = yield* fs.readLink(launchedAs).pipe(Effect.option);
-    // A launcher script execs the runtime itself, so look for the script that runs it.
     const launcher = Option.isSome(link)
       ? launchedAs
       : yield* findPosixLauncher({
           launchedAs,
           versionsDir: path.join(runtime[1] || "/", "runtime/versions"),
         });
-    // None for a runtime started directly, as SSH launches do, or through a copy.
     if (launcher === undefined) return null;
     const target = Option.isSome(link)
       ? path.resolve(path.dirname(launcher), link.value)
       : yield* readPosixLauncherTarget(launcher);
-    // Keep the home as the launcher spells it; `supaterm update` only repoints launchers into that spelling.
     const linked = target === undefined ? null : PINNED_RUNTIME_ENTRY.exec(target);
     if (!linked || (yield* fs.realPath(linked[1] || "/")) !== (runtime[1] || "/")) return null;
     return {
@@ -129,22 +126,11 @@ export const resolveServerInstallation = Effect.gen(function* () {
   return { kind: "npm-global", prefix } satisfies ServerInstallation;
 }).pipe(Effect.orElseSucceed(() => null));
 
-/**
- * The literal spec the user typed (e.g. `supaterm@nightly`) is resolved away before
- * our process starts, so re-derive it from the running version: nightly builds
- * re-suggest the nightly channel, anything else suggests the bare package.
- */
 function suggestedPackageSpec(version: string): string {
   const channel = /^[^-+]+-(nightly|preview)\./.exec(version)?.[1];
   return channel === undefined ? "supaterm" : `supaterm@${channel}`;
 }
 
-/**
- * Render a `supaterm <subcommand>` suggestion that matches how this process was
- * launched, so copy/pasting it actually works: `npx supaterm triage` suggests
- * `npx supaterm serve`, a global install suggests `supaterm serve`, and a nightly build
- * keeps the `@nightly` tag.
- */
 function formatCliCommand(input: {
   readonly subcommand: string;
   readonly entryPath: string;
@@ -165,31 +151,18 @@ export const resolveCliCommand = (subcommand: string) =>
 const shellWord = (value: string) =>
   /^[\w@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", `'"'"'`)}'`;
 
-/**
- * Quotes `value` for PowerShell, the default Windows terminal. Always quoted,
- * so a path reads the same whether or not it holds a space. Inside double
- * quotes `"` and its typographic forms (which also end the string) double,
- * and `$` and the backtick are escaped so nothing expands.
- */
 const powershellWord = (value: string) =>
   `"${value
     .replaceAll("`", "``")
     .replaceAll("$", "`$")
     .replace(/["\u201C\u201D\u201E]/g, "$&$&")}"`;
 
-/** Quotes a word for the host's shell: POSIX, or PowerShell on Windows. */
 const hostShellWord = (platform: NodeJS.Platform, value: string) =>
   platform === "win32" ? powershellWord(value) : shellWord(value);
 
 const electronRunAsNodePrefix = (platform: NodeJS.Platform) =>
   platform === "win32" ? "$env:ELECTRON_RUN_AS_NODE=1; " : "env ELECTRON_RUN_AS_NODE=1 ";
 
-/**
- * The words a person can type to run this install when `supaterm` is not on
- * PATH: the desktop app's `supaterm` shim, a standalone binary, or this
- * process's runtime and entrypoint, which an Electron runtime only runs as
- * Node with `ELECTRON_RUN_AS_NODE=1`.
- */
 const resolveInstallLauncher = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const environment = yield* HostProcess.Environment;
@@ -229,7 +202,6 @@ export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand
     const shim = (yield* HostProcess.Environment).SUPATERM_CLI_SHIM_PATH?.trim();
     const fs = yield* FileSystem.FileSystem;
     const real = (file: string) => fs.realPath(file).pipe(Effect.orElseSucceed(() => null));
-    // Windows `supaterm.cmd` shims are text files that never realpath to the executable they run.
     const own = shim
       ? yield* real(shim)
       : platform !== "win32" && (yield* HostProcess.IsExecutable)
@@ -246,7 +218,6 @@ export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand
   const launcher = yield* resolveInstallLauncher;
   if (Option.isNone(launcher)) return { command: withArgs(command), launcher: false };
   const quoted = launcher.value.words.map((word) => hostShellWord(platform, word)).join(" ");
-  // PowerShell runs a quoted path only through the call operator.
   const call = platform === "win32" ? `& ${quoted}` : quoted;
   const runAsNode = launcher.value.runAsNode ? electronRunAsNodePrefix(platform) : "";
   return { command: withArgs(`${runAsNode}${call} ${subcommand}`), launcher: true };

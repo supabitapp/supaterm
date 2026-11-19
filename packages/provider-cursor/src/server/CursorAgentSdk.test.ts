@@ -21,7 +21,6 @@ const cursorSdkMock = vi.hoisted(() => {
   const closeExecutionOrder: Array<string> = [];
   const runOperations: Array<string> = [];
   let agentCloseFailure: unknown;
-  // The local store lists runs oldest first, like the real SDK.
   let storedRuns: Array<{ readonly id: string; readonly status: string }> = [];
   const runWait = vi.fn(async () => ({
     id: "run-cursor-agent-sdk-test",
@@ -75,7 +74,6 @@ const cursorSdkMock = vi.hoisted(() => {
   }));
   const listRuns = vi.fn(async (_agentId: string, options?: ListRunsOptions) => {
     runOperations.push("agent.listRuns");
-    // Mirrors the SDK's opaque cursor pagination with its default page size of 50.
     const offset = options?.cursor === undefined ? 0 : Number(options.cursor);
     const end = offset + (options?.limit ?? 50);
     return {

@@ -1,7 +1,3 @@
-// Run with: node packages/source-control-github/scripts/measure-pr-preview.ts owner/repo 123 456
-// Numbers form a session with shared repository-permission caches. Browser and
-// service caches are excluded. Uses real GitHub reads, without a server or database.
-
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as SourceControlRateLimit from "@supaterm/source-control-core/server/SourceControlRateLimit";
@@ -28,7 +24,6 @@ if (!repository || numbers.length === 0 || numbers.some((number) => !/^\d+$/.tes
 type Read = { graphqlRequests: number; restRequests: number; cost: number };
 const reads: Read[] = [];
 
-/** The `graphql` quota's use so far, and the window it counts in. */
 let graphqlUsed: { used: number; reset: string } | null = null;
 const decodeRateLimit = Schema.decodeUnknownSync(
   Schema.fromJsonString(
@@ -40,10 +35,6 @@ const decodeRateLimit = Schema.decodeUnknownSync(
   ),
 );
 
-/**
- * What one GraphQL answer spent: how far it moved `used` past the highest value seen, so requests
- * answered out of order still add up to the window's total. A new window starts from zero.
- */
 function graphqlCost(headers: Readonly<Record<string, string | undefined>>): number {
   const used = Number(headers["x-ratelimit-used"]);
   const reset = headers["x-ratelimit-reset"] ?? "";
@@ -53,7 +44,6 @@ function graphqlCost(headers: Readonly<Record<string, string | undefined>>): num
   return Math.max(0, used - previous);
 }
 
-/** The HTTP client the GitHub transports send through, recording each request as it is answered. */
 const measuredHttp = Layer.effect(
   HttpClient.HttpClient,
   Effect.gen(function* () {
@@ -71,8 +61,6 @@ const measuredHttp = Layer.effect(
   }),
 ).pipe(Layer.provide(FetchHttpClient.layer));
 
-// Default settings, so `gh` picks the account and no saved token applies. Only the credential
-// lookup runs a process, and it needs no more than its output.
 const sourceControlHost = Layer.unwrap(
   Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -118,7 +106,6 @@ for (const mode of ["detail", "preview"] as const) {
     Effect.scoped(
       Effect.gen(function* () {
         const provider = yield* GitHubPullRequestProvider.make;
-        // Where the `graphql` quota stands before the first read. `rate_limit` is free.
         const api = yield* GitHubRest.GitHubRest;
         const limits = decodeRateLimit(
           (yield* api.rest({ host: "github.com", operation: "rateLimit", path: "rate_limit" }))

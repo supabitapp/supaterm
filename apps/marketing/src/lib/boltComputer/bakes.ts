@@ -21,7 +21,6 @@ export const GLASS = extents(SCREEN_HOLE, GASKET);
 const GRID_COLS = Math.ceil((2 * GLASS.hx) / LED_PITCH);
 const GRID_ROWS = Math.ceil((2 * GLASS.hy) / LED_PITCH);
 export const newGrid = () => makeGrid(GRID_COLS, GRID_ROWS);
-// The screen image reaches past the glass so the recess never shows a gap as it turns.
 export const SCREEN = (() => {
   const { cols, rows } = newGrid();
   return {
@@ -43,7 +42,6 @@ export function context2d(canvas: HTMLCanvasElement) {
   return ctx;
 }
 
-/** Lighting of a tilted bit of the plate, relative to the flat plate. */
 function tilt(nx: number, ny: number, nz: number, gloss = 0.35, power = 14): number {
   const l = Math.hypot(nx, ny, nz);
   const [x, y, z] = [nx / l, ny / l, nz / l];
@@ -62,7 +60,6 @@ function grad(fn: Distance, u: number, v: number): readonly [number, number] {
   return [gx / l, gy / l];
 }
 
-/** The plate rolling down into a hole `fn` describes, `d` outside its edge. */
 function rollInto(fn: Distance, u: number, v: number, d: number, width: number): number {
   const [gx, gy] = grad(fn, u, v);
   const s = 1 - d / width;
@@ -70,10 +67,6 @@ function rollInto(fn: Distance, u: number, v: number, d: number, width: number):
   return tilt(-gx * Math.sin(th), -gy * Math.sin(th), Math.cos(th));
 }
 
-/**
- * Bake a relief over the plate as light: positive brightens toward white,
- * negative darkens toward black, laid over the shell with that alpha.
- */
 function bakeRelief(unit: number, fn: (u: number, v: number, grain: number) => number) {
   const canvas = makeCanvas(PLATE.hx * 2 * unit, PLATE.hy * 2 * unit);
   const ctx = context2d(canvas);
@@ -126,7 +119,6 @@ const HANDLE: Outline = {
 };
 const handle: Distance = (u, v) => sd(HANDLE, u, v);
 
-/** How fully a control standing `height` off the plate hides the key light from a point. */
 const shadowOf = (fn: Distance, u: number, v: number, height: number) =>
   1 - smooth(-0.004, 0.004, fn(u + KEY[0] * height, v + KEY[1] * height));
 
@@ -154,7 +146,6 @@ function bakeFront(unit: number, controls: boolean) {
       const th = (dg / GASKET - 0.45) * 2.2;
       return tilt(gx * Math.sin(th), gy * Math.sin(th), Math.cos(th), 0.22, 14) * 0.7 + grain * 0.4;
     }
-    // The lip's shadow cast onto the glass, darker toward the edge.
     const k = 0.05;
     const blocked = smooth(-0.012, 0.012, glass(u - KEY[0] * k, v - KEY[1] * k));
     return -(0.5 * blocked + 0.32 * Math.exp(dg / 0.014));
@@ -195,7 +186,6 @@ function bakeBack(unit: number) {
   });
 }
 
-// The dark lens of an unlit LED, faintly tinted by the phosphor.
 const UNLIT_LED = "rgba(71,77,53,0.16)";
 
 /** The screen's dark phosphor and the unlit LEDs, which never change. */
@@ -271,7 +261,6 @@ export function grainPattern(ctx: CanvasRenderingContext2D) {
 const GROOVE_ALBEDO: V3 = [44, 48, 34];
 const RIDGES = [-0.008, 0, 0.008];
 
-/** `albedo` lit the way bakeRelief lights the shell: toward white above zero, black below. */
 const lit = (albedo: V3, light: number): V3 => {
   const tone = light > 0 ? 255 : 0;
   const k = Math.min(1, Math.abs(light));
@@ -287,13 +276,11 @@ interface Paint {
   readonly cover: number;
 }
 
-/** `color` covering as much of a pixel `px` wide as lies inside an edge `d` away. */
 const paint = (color: V3, d: number, px: number): Paint => ({
   color,
   cover: Math.min(1, Math.max(0, 0.5 - d / px)),
 });
 
-/** `top` laid over `under`, so an antialiased edge blends into what is beneath it. */
 function over(top: Paint | null, under: Paint | null): Paint | null {
   if (!top || top.cover === 0) return under;
   if (!under || under.cover === 0) return top;
@@ -303,7 +290,6 @@ function over(top: Paint | null, under: Paint | null): Paint | null {
   return { color: [mixed(0), mixed(1), mixed(2)], cover };
 }
 
-/** The handle's top is flat, its edges roll off over `bevel`, and ridges are cut across its middle. */
 function handleLight(u: number, v: number, inside: number): number {
   const bevel = 0.007;
   let [nx, ny, nz] = [0, 0, 1];
@@ -322,7 +308,6 @@ function handleLight(u: number, v: number, inside: number): number {
 
 /** The slot's floor, the knob and the slider's handle, coloured and lit over the plate. */
 export function bakeControls(unit: number, knobs: V3) {
-  // The handle is a shade darker than the knob, as on the app icon.
   const handleAlbedo: V3 = [knobs[0] * 0.88, knobs[1] * 0.88, knobs[2] * 0.88];
   const canvas = makeCanvas(PLATE.hx * 2 * unit, PLATE.hy * 2 * unit);
   const ctx = context2d(canvas);
@@ -357,7 +342,6 @@ export function bakeControls(unit: number, knobs: V3) {
       }
       let floor: Paint | null = null;
       if (ds < px) {
-        // The floor sits below the plate, so its top wall shades it from the key light.
         const walled = smooth(-0.004, 0.004, slot(u + KEY[0] * 0.02, v + KEY[1] * 0.02));
         const light = -0.55 * walled - 0.5 * shadowOf(handle, u, v, 0.016) + grain;
         floor = paint(lit(GROOVE_ALBEDO, light), ds, px);

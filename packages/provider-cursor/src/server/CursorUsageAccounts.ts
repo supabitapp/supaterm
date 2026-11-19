@@ -61,7 +61,6 @@ const make = Effect.gen(function* () {
   const cachePath = path.join(host.paths.stateDir, CURSOR_ACCOUNT_CACHE_FILE_NAME);
   const caches = new Map<string, CursorAccountCache>();
   let cacheDirty = false;
-  /** Failed refreshes share the cache TTL to prevent repeated requests; null means no login. */
   const failures = new Map<string, { readonly atMs: number; readonly error: string | null }>();
   const refreshes = new Map<string, Deferred.Deferred<void>>();
 
@@ -75,7 +74,6 @@ const make = Effect.gen(function* () {
     ),
   );
 
-  // Serialize snapshots; clear dirty before encoding and restore it on failure so changes retry.
   const persistLock = yield* Semaphore.make(1);
   const persist = Effect.gen(function* () {
     if (!cacheDirty) return;
@@ -157,14 +155,12 @@ const make = Effect.gen(function* () {
     credentialKey: string,
     retentionStartMs: number,
   ) =>
-    // Enroll and fork atomically so interruption cannot strand a registered refresh.
     Effect.uninterruptible(
       Effect.gen(function* () {
         const current = refreshes.get(credentialKey);
         if (current !== undefined) return current;
         const done = Deferred.makeUnsafe<void>();
         refreshes.set(credentialKey, done);
-        // Detached: a departing client must not cancel a fetch later reads reuse.
         yield* refreshAccount(credential, credentialKey, retentionStartMs).pipe(
           Effect.catchCause(() =>
             Clock.currentTimeMillis.pipe(
@@ -225,7 +221,6 @@ const make = Effect.gen(function* () {
           : { files: null, message: failureMessage ?? CURSOR_ACCOUNT_READ_ERROR }),
       } satisfies ProviderUsageScan;
     }
-    // Account history spans machines; a stable fingerprint prevents duplicate environment counts.
     const source = `cursor-account:${cache.accountKey}`;
     return {
       dir: source,
@@ -267,9 +262,6 @@ const make = Effect.gen(function* () {
             ),
           { concurrency: 2 },
         );
-        // Keys for one account share its source, and a repeated source would count sessions twice.
-        // A failed key can hold older records, so a current read wins, then a refresh the client
-        // must follow up on.
         const rank = (source: ProviderUsageScan) =>
           source.status === "ok" ? 2 : source.refreshing ? 1 : 0;
         const byAccount = new Map<string, ProviderUsageScan>();

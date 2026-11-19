@@ -47,7 +47,6 @@ export async function enqueueVoiceThreadOutboxMessage(
 
 /** Deletes recordings that no queued voice message owns any more. */
 export async function releaseUnusedQueuedVoiceRecordings(): Promise<void> {
-  // An unreadable outbox record may still own a recording.
   if (!(await threadOutboxManager.load())) return;
   const { File } = await loadExpoFileSystem();
   const directory = await audioDirectory();

@@ -225,10 +225,6 @@ export const SHOWCASE_THREADS = [
       "The bisect harness records the failing seed and replay command so the next run can stop at the first bad commit.",
     snoozeMinutes: 8 * 60,
   },
-  // Finished work, done by hand: the list keeps it as a receded tail so
-  // the active block above reads as everything still in flight. The active
-  // block stays small enough that the done tail begins above the fold —
-  // a store screenshot has to show that history exists, not just imply it.
   {
     id: "cold-start-bundle",
     projectId: "supaterm",
@@ -345,8 +341,6 @@ function encodePayload<A, I extends object>(schema: Schema.Codec<A, I>, payload:
   return JSON.stringify(payload);
 }
 
-// Thread projection tables this seed owns. `projection_projects` holds the
-// projects, so the seed upserts its own rows there instead of clearing it.
 const SEEDED_THREAD_TABLES = [
   "orchestration_v2_projection_turn_items",
   "orchestration_v2_projection_messages",
@@ -585,9 +579,6 @@ function seedDatabase(
     }
     database.exec("COMMIT");
   } catch (error) {
-    // A failed BEGIN (or an error SQLite already auto-rolled back) leaves no
-    // transaction, and the rollback's own "cannot rollback" error would then
-    // replace the one that actually explains the failure.
     try {
       database.exec("ROLLBACK");
     } catch {}
@@ -638,8 +629,6 @@ export async function seedShowcaseEnvironment(input: {
         });
       }),
   );
-  // The environment server begins listening before it finishes migrating the
-  // database, so wait for the schema before deleting from and reseeding it.
   await waitForSeedableSchema(dbPath);
   seedDatabase(dbPath, workspaceRoots, projects, threads, now);
 

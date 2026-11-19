@@ -121,7 +121,6 @@ describe("resolveProjectSettings", () => {
     expect(resolved.sources.defaultModelSelection).toBe("environment");
   });
 
-  // regression: #17556 a hidden project default silently became the catalog's first model
   it.each([
     ["hidden", ["gpt-5.6-terra", "gpt-5.6-sol"], [], "gpt-6.1-sol", "environment"],
     ["visible", ["gpt-5.6-terra"], [], "gpt-5.6-sol", "project"],

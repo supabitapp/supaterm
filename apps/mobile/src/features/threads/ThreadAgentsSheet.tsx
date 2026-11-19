@@ -64,7 +64,6 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
       })
     )
       return;
-    // Replace this leaf sheet so the child enters the workspace stack expected by Home's Back button.
     navigation.dispatch(
       StackActions.replace("Thread", {
         environmentId: target.environmentId,
@@ -77,7 +76,6 @@ export function ThreadAgentsSheet({ route }: StaticScreenProps<AgentsTarget>) {
     <ScrollView
       nestedScrollEnabled
       className="flex-1"
-      // UIKit must inset content beneath the floating translucent iOS header.
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={{ paddingBottom: Math.max(insets.bottom, 16) + 8 }}
     >
@@ -137,11 +135,7 @@ function AgentRow(props: {
         subagent={subagent}
         elapsed={<AgentElapsed subagent={subagent} tickSeconds={props.tickSeconds} />}
       />
-      {props.isLast ? null : (
-        // left-10 is this row's padding plus SubagentRow's status dot and gap,
-        // so the rule starts at the text column and the dots sit in a gutter.
-        <View className="absolute right-0 bottom-0 left-10 h-px bg-border" />
-      )}
+      {props.isLast ? null : <View className="absolute right-0 bottom-0 left-10 h-px bg-border" />}
     </View>
   );
 

@@ -232,7 +232,6 @@ export const ChatHeader = memo(function ChatHeader({
     const rect = event.currentTarget.getBoundingClientRect();
     openMenu({ x: rect.left, y: rect.bottom + 4 });
   };
-  // A native menu takes the second click, so only the in-page menu lets a double-click reach here.
   const handleTitleDoubleClick = (event: ReactMouseEvent) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if ((event.target as HTMLElement).closest("[data-thread-title-chevron]") !== null) return;

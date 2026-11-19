@@ -18,8 +18,6 @@ function composerFileLinkBasename(path: string): string {
   return separatorIndex >= 0 ? path.slice(separatorIndex + 1) : path;
 }
 
-// Emphasis markers too: `__init__.py` would otherwise render as bold "init.py",
-// which no longer matches the path, so the label shows beside the chip.
 function escapeMarkdownLinkLabel(label: string): string {
   return label.replace(/[\\[\]*_]/g, "\\$&");
 }
@@ -63,11 +61,6 @@ function tokenEndForCursor(text: string, cursor: number): number {
   return index;
 }
 
-/**
- * `$5`, `€9.99` and `$10k` are money, not skills. Matches the amounts the inline skill
- * token regexes already refuse to render as skills, plus the punctuation prose puts after
- * one (`$10k.`, `($5)`).
- */
 function isCurrencyAmountQuery(query: string): boolean {
   return /^\.?[0-9][0-9,._]*(?:[kKmMbBtT]|[eE][0-9]+)?[.,;:!?)]*$/.test(query);
 }

@@ -213,7 +213,6 @@ it.each(["[Docs](https://example.com/docs)", "[Readme](docs/readme.md)"])(
     using _setup = setup();
     await using screen = await renderMarkdown(text);
     screen.anchor().focus();
-    // macOS Chromium opens no context menu for Shift+F10; the ContextMenu key works everywhere.
     await userEvent.keyboard("{ContextMenu}");
     await vi.waitFor(() => expect(state.choose.mock.lastCall?.[2]).toBe("keyboard"));
     await userEvent.click(screen.anchor(), { button: "right" });

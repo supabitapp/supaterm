@@ -49,7 +49,6 @@ const reviewViewedFileIdsByThreadKeyAtom = Atom.family((threadKey: string) =>
 );
 
 export const MAX_CACHED_REVIEW_DIFFS = 8;
-// This bounds source string length, not the parsed or native heap size.
 export const MAX_CACHED_REVIEW_SOURCE_CHARACTERS = 4 * 1024 * 1024;
 
 interface CachedReviewParsedDiff {
@@ -120,8 +119,6 @@ export function useReviewCacheForThread(input: {
 }
 
 export function setReviewSelectedSectionId(threadKey: string, sectionId: string | null): void {
-  // A line selection belongs to the section it was made in; switching away drops it, so
-  // switching back does not bring back a range over lines that may have changed.
   clearReviewCommentTarget();
   appAtomRegistry.set(reviewSelectedSectionIdByThreadKeyAtom(threadKey), sectionId);
 }

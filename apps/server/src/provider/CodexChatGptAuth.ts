@@ -160,7 +160,6 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
     metadata = result;
     return result;
   });
-  // Reused for 10 minutes like jose's remote set; an unknown kid refetches once for rotation.
   let keySet: { readonly keys: Jwks.KeySet; readonly expiresAt: number } | undefined;
   const fetchKeySet = Effect.fn("CodexChatGptAuth.fetchKeySet")(function* (jwksUri: string) {
     return yield* http.get(jwksUri).pipe(
@@ -170,7 +169,6 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       ),
       Effect.flatMap((response) => response.json),
       Effect.flatMap(decodeKeySet),
-      // Bounds the body read too, as jose's remote set did; a stalled endpoint fails the sign-in.
       Effect.timeoutOrElse({
         duration: "5 seconds",
         orElse: () => Effect.fail(failure("verify", "Could not reach ChatGPT sign-in. Try again.")),
@@ -437,7 +435,6 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
                     response.writeHead(410).end("Sign-in is no longer active.");
                     return;
                   }
-                  // Reject a stray request without ending the sign-in, so the real redirect still lands.
                   let returned: URL;
                   try {
                     returned = codexCallbackUrl(url.toString(), callbackBase, state);
@@ -468,7 +465,6 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
     const address = server?.address();
     if (!clientCallback && (!address || typeof address === "string"))
       return yield* failure("callback", "Could not start the local sign-in callback.");
-    // Only the port may vary between attempts; token exchange uses this exact URI.
     const port =
       address && typeof address !== "string"
         ? address.port
@@ -597,8 +593,6 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       const expectedSubject =
         savedRegistration?.subject ??
         (previous?.clientId === registeredClientId ? previous?.subject : undefined);
-      // Subjects are checked within the same registration. Legacy callback migration
-      // registers a new client, whose subject cannot be compared with the old client.
       if (registeredClientId && expectedSubject && identity.subject !== expectedSubject)
         return yield* failure(
           "verify",
@@ -685,8 +679,6 @@ export const makeCodexChatGptAuth = Effect.fn("makeCodexChatGptAuth")(function* 
       ),
     );
   });
-  // ID tokens survive renewal but change on sign-in. Bind active children to the
-  // launch profile without putting an identity token or subject in their argv.
   const profileKey = (record: CodexChatGptCredentials) =>
     digest
       .digest(

@@ -37,9 +37,7 @@ function acpPathIsWithinRoot(path: string, root: string): boolean {
   );
 }
 
-// Canonicalize existing ancestors for symlink-aware checks of new paths; fail closed on errors.
 function acpCanonicalPathForContainment(path: string): string | undefined {
-  // realpath must resolve symlinks before ..; lexical normalization can hide traversal.
   let candidate = path;
   const missingSuffix: Array<string> = [];
 
@@ -83,7 +81,6 @@ function isAcpReadKind(toolKind: string): boolean {
   return toolKind === "read" || toolKind === "search" || toolKind === "think";
 }
 
-/** Reads never ask; an absent sandbox implies read-only in approval-required mode. */
 function acpReadDisposition(runtimePolicy: AcpRuntimePolicy): "allow" | "deny" {
   switch (unknownRecord(runtimePolicy.sandboxPolicy)?.type) {
     case undefined:
@@ -211,7 +208,6 @@ export function acpMcpToolApprovalElicitationDisposition(
   ) {
     return undefined;
   }
-  // Supaterm's authenticated MCP endpoint enforces scope; only explicit approval mode needs a user prompt.
   return acpPolicyRequiresApproval(runtimePolicy) ? "ask" : "allow";
 }
 
@@ -239,7 +235,6 @@ export function makeAcpClientPolicyGrants(): AcpClientPolicyGrants {
   let turnExecute: string | null = null;
   return {
     recordApproval: (input) => {
-      // Other kinds also show as command cards, but approving them must not open terminals.
       if (input.toolKind !== "execute") return;
       if (input.scope === "session") {
         sessionExecute = true;

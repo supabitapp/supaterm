@@ -113,7 +113,6 @@ class FakeElement {
     return search(this);
   }
 
-  /** Supports the `:scope > a > b` child paths the table serializer queries. */
   querySelectorAll(selector: string): FakeElement[] {
     return selector.split(", ").flatMap((part) =>
       part
@@ -320,7 +319,6 @@ describe("serializeRenderedMarkdownFragment", () => {
   });
 
   it("copies alert and insight callouts as their Markdown instead of the rendered label", () => {
-    // The shape ChatMarkdown renders for `> [!WARNING]\n> Back up first.`.
     const callout = new FakeElement("DIV", [], {
       role: "note",
       "data-markdown-alert": "warning",
@@ -436,7 +434,6 @@ describe("serializeRenderedMarkdownFragment", () => {
 });
 
 function renderedFormula(tex: string): FakeElement {
-  // MarkdownMath's wrapper; its children stand in for KaTeX's glyphs.
   return new FakeElement("SPAN", [], {
     "data-markdown-math": "inline",
     "data-markdown-copy": `\\(${tex}\\)`,

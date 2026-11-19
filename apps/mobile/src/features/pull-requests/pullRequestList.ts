@@ -339,11 +339,6 @@ export function appendPullRequestListPage(
   };
 }
 
-/**
- * A filter picker's rows: what is picked stays in view, then the loaded rows' values that match,
- * then the host's answers, each once. The host matched its own way (an author's display name, say),
- * so its answers are not narrowed again here.
- */
 const FILTER_CHOICE_LIMIT = 100;
 
 export function pullRequestFilterChoices(input: {
@@ -363,7 +358,6 @@ export function pullRequestFilterChoices(input: {
   };
   const loaded = input.suggestions.filter((value) => value.toLowerCase().includes(needle));
   for (const value of input.selected) add(value);
-  // Loaded matches alone could fill the list, so the host's answers get room after the first half.
   for (const value of loaded.slice(0, FILTER_CHOICE_LIMIT / 2)) add(value);
   for (const value of input.hosted) add(value);
   for (const value of loaded.slice(FILTER_CHOICE_LIMIT / 2)) add(value);

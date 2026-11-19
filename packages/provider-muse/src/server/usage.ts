@@ -21,7 +21,6 @@ const Entry = Schema.Struct({
   schema_version: Schema.Literal(1),
   record_type: Schema.Literal("event"),
   payload_type: Schema.Literal("runtime.session"),
-  // Native automated review completions use session payload version 3.
   payload_schema_version: Schema.Literals([1, 3]),
   id: Schema.NonEmptyString,
   recorded_at: Schema.Number,
@@ -66,7 +65,6 @@ function parseRecord(parsed: unknown): readonly UsageRecord[] {
   );
   const outputTokens = tokenCount(usage.output_tokens);
   const totals = {
-    // Muse's cache counters are subsets of input; reasoning is a subset of output.
     uncachedInputTokens: input - cachedInputTokens - cacheCreationTokens,
     cachedInputTokens,
     cacheCreationTokens,
@@ -83,8 +81,6 @@ function parseRecord(parsed: unknown): readonly UsageRecord[] {
       totals,
       reportedCostUsd: null,
       speed: "standard",
-      // Runtime envelopes can be copied into another session. The source record
-      // identifies the inference even when the enclosing envelope has a new ID.
       dedupeKey: JSON.stringify(["muse", entry.payload.source_run_record_id ?? entry.id]),
     },
   ];

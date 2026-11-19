@@ -160,7 +160,6 @@ export function ConnectAgentSurface() {
   const { details } = loaded;
   const canApprove =
     pending === null && resolveApprovalDecision({ code: pairingCode, access, details }) !== null;
-  // A code from "Use Supaterm in another app (MCP)" names its level, so the page does not ask again.
   const codeAccess = parseMcpApprovalCode(pairingCode)?.access;
 
   return (

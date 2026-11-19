@@ -9,7 +9,6 @@ import { describe, expect, it } from "vite-plus/test";
 
 import { splitMarkdownBlocks } from "./markdownStreamBlocks";
 
-// Whitespace between top-level blocks collapses in the rendered message.
 const html = (source: string) =>
   renderToStaticMarkup(
     <ReactMarkdown

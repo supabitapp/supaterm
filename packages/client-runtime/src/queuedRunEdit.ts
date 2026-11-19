@@ -1,9 +1,3 @@
-/**
- * A queued-message edit ends on save, cancel, or when its run leaves the queue.
- * The store owns one watcher per edit, so "run left the queue" is handled exactly
- * once, when the projection reports it, wherever the user is in the app. It also
- * owns the edit's save, because a save outlives the view that started it.
- */
 import type { RunId } from "@supaterm/contracts";
 import { Atom, type AtomRegistry } from "effect/reactivity";
 
@@ -99,7 +93,6 @@ export function makeQueuedRunEditStore<E extends { readonly runId: RunId }>(opti
     Atom.keepAlive,
     Atom.withLabel(`${options.label}-saving`),
   );
-  // Each begin creates a new watch, so the watch is the edit's identity.
   const watches = new Map<string, ExitWatch<E>>();
 
   const setSaving = (threadKey: string, saving: boolean) => {
@@ -155,14 +148,8 @@ export function makeQueuedRunEditStore<E extends { readonly runId: RunId }>(opti
 
   return {
     atom,
-    /** Thread keys whose edit has a save in flight. */
     savingAtom,
     get,
-    /**
-     * Starts an edit, replacing any edit already open on the thread. When the
-     * run leaves the queue the edit is removed and `onRunLeftQueue` receives
-     * it; if the run already left, that happens immediately.
-     */
     begin(
       threadKey: string,
       edit: E,
@@ -185,12 +172,6 @@ export function makeQueuedRunEditStore<E extends { readonly runId: RunId }>(opti
       stopWatch(threadKey);
       write(threadKey, null);
     },
-    /**
-     * Claims the open edit for a save, or returns null when there is no edit
-     * or a save is in flight. The exit watch pauses so the save's result decides
-     * the edit's fate. The claim outlives the edit: the server orders saves by
-     * arrival, so an overlapping older save could overwrite a newer one.
-     */
     startSave(threadKey: string): FinishQueuedRunEditSave | null {
       const watch = watches.get(threadKey);
       if (watch === undefined || threadKey in registry.get(savingAtom)) return null;

@@ -24,7 +24,6 @@ interface ActivePictureInPicture {
   readonly stop: () => void;
 }
 
-// Owns its stream outside React so the floating window survives panel unmounts.
 let active: ActivePictureInPicture | null = null;
 const listeners = new Set<() => void>();
 
@@ -78,7 +77,6 @@ export async function openServerPictureInPicture(input: {
   const seed = input.seed && input.seed.width > 0 && input.seed.height > 0 ? input.seed : null;
   canvas.width = seed?.width ?? 640;
   canvas.height = seed?.height ?? 400;
-  // The capture emits a frame per draw, so the seed is drawn after it starts.
   const stream = canvas.captureStream();
   if (seed) context?.drawImage(seed, 0, 0);
   else context?.fillRect(0, 0, canvas.width, canvas.height);
@@ -86,7 +84,6 @@ export async function openServerPictureInPicture(input: {
   video.muted = true;
   video.playsInline = true;
   video.srcObject = stream;
-  // Safari only floats a video that is in the document.
   video.style.cssText =
     "position:fixed;right:0;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none";
   document.body.append(video);

@@ -80,7 +80,6 @@ const make = Effect.gen(function* () {
   const serviceScope = yield* Effect.scope;
   const runs = yield* Ref.make<ReadonlyMap<string, PullRequestReviewGuideRun>>(new Map());
   let runCounter = 0;
-  // Serialize claims and guide writes so a newer claim cannot steal ownership between checking and storing.
   const ownership = yield* Semaphore.make(1);
 
   const keyFor = Effect.fn("PullRequestReviewGuideService.keyFor")(function* (
@@ -185,7 +184,6 @@ const make = Effect.gen(function* () {
         args: ["fetch", "--quiet", "--no-tags", "--", remote, ...args],
         timeoutMs: 5 * 60_000,
       });
-    // Reject invalid branch names and refspec operators before fetching host-provided names.
     yield* git
       .execute({
         operation: "PullRequestReviewGuideService.checkBaseBranch",
@@ -202,7 +200,6 @@ const make = Effect.gen(function* () {
             }),
         ),
       );
-    // FETCH_HEAD is workspace-global; isolate this run's base from concurrent fetches.
     const baseRef = `refs/supaterm/review-guide/${runId}/base`;
     yield* fetch([`+refs/heads/${detail.baseBranch}:${baseRef}`]);
     yield* Effect.addFinalizer(() =>
@@ -227,7 +224,6 @@ const make = Effect.gen(function* () {
           detail: `The host reported a head for #${number} that is not a commit hash.`,
         });
       }
-      // rev-parse prefers same-named branches/tags over short hashes.
       const resolveHead = git.resolveCommit({ cwd: workspaceRoot, revision: sha }).pipe(
         Effect.filterOrFail(
           ({ commitSha }) => commitSha.startsWith(sha),
@@ -296,7 +292,6 @@ const make = Effect.gen(function* () {
     yield* git.execute({
       operation: "PullRequestReviewGuideService.addWorktree",
       cwd: workspaceRoot,
-      // Scratch checkout for reading the change: repository hooks (installs, LFS) only slow or fail it.
       args: [
         "-c",
         "core.hooksPath=/dev/null",
@@ -331,7 +326,6 @@ const make = Effect.gen(function* () {
         .execute({
           operation: "PullRequestReviewGuideService.readChange",
           cwd,
-          // Override user diff prefixes so the parser can find headers.
           args: [
             "-c",
             "core.quotePath=false",
@@ -482,7 +476,6 @@ const make = Effect.gen(function* () {
       headSha: currentHeadSha,
       startedAt: yield* nowIso,
     };
-    // Claim atomically and re-read the head so stale clicks cannot replace a newer head's run.
     const claimed = yield* ownership.withPermits(1)(
       pullRequests.detail(input).pipe(
         Effect.flatMap((latest) =>

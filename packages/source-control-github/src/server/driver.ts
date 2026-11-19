@@ -16,8 +16,6 @@ import * as GitHubRest from "./GitHubRest.ts";
 import * as GitHubHttpClient from "./GitHubHttpClient.ts";
 import * as GitHubSourceControlProvider from "./GitHubSourceControlProvider.ts";
 
-// `GitHubRest.layerWithDependencies` carries the quota reserve every GitHub reader shares, so it
-// must be built once; the driver is.
 const services = GitHubPullRequestApi.layer.pipe(
   Layer.provideMerge(GitHubRest.layerWithDependencies),
   Layer.provideMerge(GitHubHttpClient.layer),

@@ -32,7 +32,6 @@ it.effect("idle sweeps skip SQL until the next wake time or a relevant event", (
                 Effect.flatMap((nowMs) => Queue.offer(queries, nowMs - startMs)),
                 Effect.as([]),
               ),
-            // One armed thread resets at 60s.
             getLimitRecoveryWakeAt: (now) =>
               Effect.succeed(
                 DateTime.toEpochMillis(now) < startMs + 60_000 ? startMs + 60_000 : null,
@@ -54,7 +53,6 @@ it.effect("idle sweeps skip SQL until the next wake time or a relevant event", (
     );
     yield* Effect.gen(function* () {
       assert.equal(yield* Queue.take(queries), 0);
-      // Eleven idle ticks before the recorded wake time, then the wake tick itself.
       yield* TestClock.adjust("60 seconds");
       assert.equal(yield* Queue.take(queries), 60_000);
       yield* Queue.offer(events, {
@@ -64,7 +62,6 @@ it.effect("idle sweeps skip SQL until the next wake time or a relevant event", (
       yield* TestClock.adjust("30 seconds");
       yield* Queue.offer(events, { type: "run.updated", payload: { status: "failed" } } as never);
       yield* TestClock.adjust("5 seconds");
-      // A streaming item at 90s does not wake it; the failed run does on the 95s tick.
       assert.equal(yield* Queue.take(queries), 95_000);
     }).pipe(Effect.provide(layer));
   }),

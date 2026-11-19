@@ -22,7 +22,6 @@ const hostPath = process.env.PATH;
 
 const wrapped = NonBlockingSpawner.layer.pipe(Layer.provideMerge(NodeServices.layer));
 
-/** What a caller sees of a command: its output, or the error of a spawn that failed. */
 const outcome = (command: ChildProcess.Command) =>
   ChildProcessSpawner.ChildProcessSpawner.use((spawner) => spawner.string(command)).pipe(
     Effect.match({
@@ -40,7 +39,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("NonBlockingSpa
         ["stale/tool", 0o644],
         ["fresh/tool", 0o755],
         ["target/bin/tool", 0o755],
-        // GNU env reads a lone `-` as -i and `NAME=value` as an assignment, even after `--`.
         ["fresh/-", 0o755],
         ["fresh/launch=stable", 0o755],
       ] as const) {
@@ -61,7 +59,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("NonBlockingSpa
           ["%s\\n", "-n", "--", "a b", `it's "quoted"`, "$HOME", "; exit 3", "", "A=b"],
           { cwd: root },
         ),
-        // dash would drop the exported function and add PWD and OLDPWD.
         "keeps the environment": ChildProcess.make("env", [], {
           cwd: root,
           env: { PATH: hostPath, A: "1", "BASH_FUNC_x%%": "() {  echo exported\n}" },
@@ -90,7 +87,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("NonBlockingSpa
         "a missing explicit path": ChildProcess.make("./missing", [], { cwd: root }),
         "a non-executable explicit path": ChildProcess.make(`${root}/stale/tool`, []),
         "a missing cwd": ChildProcess.make("true", [], { cwd: `${root}/missing` }),
-        // The native check sees `missing`, although the path resolves to an existing directory.
         "a cwd through a missing directory": ChildProcess.make("true", [], {
           cwd: `${root}/missing/..`,
         }),
@@ -146,7 +142,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("NonBlockingSpa
     Effect.gen(function* () {
       const allArrived = yield* Deferred.make<void>();
       let arrivals = 0;
-      // Each spawn resolves its cwd, then starts its check within microtasks.
       const arrivalPath = Layer.effect(
         Path.Path,
         Effect.map(Path.Path, (path) => ({

@@ -25,7 +25,6 @@ export const make = Effect.gen(function* () {
   const net = yield* NetService.NetService;
 
   const discoverTargets = Effect.gen(function* () {
-    // Check both loopback families: sshd can be bound IPv6-only.
     const sshdListening = yield* Effect.zipWith(
       net.hasListenerOnHost(SSH_PORT, "127.0.0.1"),
       net.hasListenerOnHost(SSH_PORT, "::1"),
@@ -43,8 +42,6 @@ export const make = Effect.gen(function* () {
     const targets: Array<RemoteOpenTarget> = [];
 
     if (!sshdListening) {
-      // sshd may listen only on the tailnet address (ListenAddress), and Tailscale SSH
-      // needs no local sshd; tailscaled alone does not prove an SSH route.
       if (magicDnsName === null) return targets;
       const tailnetSshdListening = yield* Effect.forEach(
         tailscaleStatus?.tailnetIpv4Addresses ?? [],
@@ -74,7 +71,6 @@ export const make = Effect.gen(function* () {
       });
     }
 
-    // hostname() may be an FQDN; mDNS always uses <first-label>.local.
     const hostname = yield* HostProcess.Hostname;
     const shortHostname = hostname.split(".")[0]?.trim();
     if (shortHostname !== undefined && shortHostname.length > 0) {
@@ -88,8 +84,6 @@ export const make = Effect.gen(function* () {
     return targets;
   });
 
-  // Advertised on every client connect; probing sshd and tailscaled is slow
-  // on a loaded host, so serve the last result while it refreshes.
   const resolveTargets = yield* makeStaleWhileRevalidate(discoverTargets, TARGETS_CACHE_TTL);
 
   return RemoteOpenTargets.of({

@@ -71,7 +71,6 @@ export function threadCreated(
     },
   };
 }
-// Visited between the history and the measured turn.
 export function threadVisited(provider: ProviderDriverKind): OrchestrationV2DomainEvent {
   const now = DateTime.makeUnsafe("2026-06-01T00:10:30Z");
   return {
@@ -202,8 +201,6 @@ export function turnEvents(
           },
     });
   }
-  // The live turn repeats its answer in a turn item, as adapters do, so live dedupe has work.
-  // History turns skip it to keep the fallback thread snapshot under its wire ceiling.
   if (measured)
     events.push({
       ...common,
@@ -673,7 +670,6 @@ export function staleTodoListThreadBatches(
     });
     message("user", `Continue the migration, step ${index}.`);
 
-    // The list is done but never closed: the node stays running and the plan stays active.
     const steps = Array.from({ length: 6 }, (_, step) => ({
       id: `step-${step + 1}`,
       text: `Migrate module group ${index}.${step + 1} and run its checks`,
@@ -760,8 +756,6 @@ export function staleTodoListThreadBatches(
               },
       });
     if (live) {
-      // A ready handoff rides along with every window. Its history and delivery are for the
-      // provider turn start and must not reach a client.
       const earlierItemId = TurnItemId.make(`turn-item:stale-todo:${index}:handoff-source`);
       events.push({
         ...common,

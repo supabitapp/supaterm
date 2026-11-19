@@ -34,7 +34,6 @@ import {
 type ListTarget = { readonly environmentId: EnvironmentId; readonly input: PullRequestListInput };
 type Read = <A>(atom: Atom.Atom<A>) => A;
 
-/** The head the list query holds now, cached or answered. */
 function currentHead(read: Read, target: ListTarget) {
   return AsyncResult.getOrElse(
     read(pullRequestHostAnswer(composerPullRequests.list(target))),
@@ -152,8 +151,6 @@ async function refreshHeads(
   return requestErrors(responses);
 }
 
-// One load of each kind per list scope. The atoms are not kept alive, so leaving a scope (a
-// filter change, unmount) interrupts its load and aborts the requests.
 const pageLoadFamily = Atom.family((scopeKey: string) =>
   Atom.fn((retry: boolean, get) =>
     Effect.promise((signal) => loadNextPages(get.registry, JSON.parse(scopeKey), retry, signal)),
@@ -165,7 +162,6 @@ const refreshLoadFamily = Atom.family((scopeKey: string) =>
   ),
 );
 
-// Changes when any of the scope's environments brings up a new session.
 const sessionsFamily = Atom.family((scopeKey: string) =>
   Atom.make((get) =>
     (JSON.parse(scopeKey) as readonly ListTarget[])
@@ -187,10 +183,6 @@ export function usePullRequestList(targets: readonly ListTarget[]) {
   const refresh = useAtomValue(refreshAtom);
   const loadError = settledError(page);
 
-  // A page or refresh asked for while an environment was unreachable fails at once, and its
-  // error stops loading on scroll. Once it is back, ask for the page again; a refresh's error is
-  // stale by then because the list queries re-run on reconnect.
-  // A listener alone does not compute the atom, so nothing would follow the connections.
   useAtomMount(sessionsFamily(scopeKey));
   useAtomSubscribe(sessionsFamily(scopeKey), () => {
     const pageResult = registry.get(pageAtom);
@@ -200,8 +192,6 @@ export function usePullRequestList(targets: readonly ListTarget[]) {
       registry.set(pageAtom, true);
   });
 
-  // Read from the registry, not the render: a second onEndReached before React re-renders must
-  // see the load the first one started.
   const loadMore = (retry = false) => {
     const pageResult = registry.get(pageAtom);
     const refreshResult = registry.get(refreshAtom);
@@ -262,8 +252,6 @@ export function usePullRequestList(targets: readonly ListTarget[]) {
   };
   const visibleRows =
     visible.key === scopeKey && visible.rows.length ? visible.rows : data.entries.slice(0, 8);
-  // Visible rows carry the cached-answer overlay below. Decide which still need stats on the rows
-  // without it, so a cached answer shown offline does not unmount the query that holds it.
   const withoutCachedOverlay = new Map(
     data.entries.map((row) => [scopedPullRequestListKey(row), row]),
   );
@@ -294,9 +282,6 @@ export function usePullRequestList(targets: readonly ListTarget[]) {
     );
   }, [statsKey]);
   const counts = useAtomValue(statsAtom);
-  // Server answers land in pullRequestListStatsFamily; these cover a cached answer, which is
-  // all an offline environment has. Scrolling makes a new stats query, which has no answer until
-  // its cached rows load, so each environment keeps the answer it showed until the new one lands.
   const [shown, setShown] = useState({ counts, answers: answeredStats(counts, []) });
   if (shown.counts !== counts) setShown({ counts, answers: answeredStats(counts, shown.answers) });
   const entries = useMemo(
@@ -381,7 +366,6 @@ type StatsAnswer = {
   readonly stats: readonly PullRequestDiffStat[];
 };
 
-/** Each environment's newest stats answer, or the one it had while its query has none. */
 function answeredStats(
   counts: readonly {
     readonly environmentId: EnvironmentId;

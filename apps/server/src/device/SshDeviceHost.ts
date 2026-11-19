@@ -118,7 +118,6 @@ const bootstrap = (
     ),
   );
 
-// ssh exits 255 for its own failures; the remote bootstrap never does.
 const SSH_CONNECT_FAILURES: ReadonlyArray<readonly [SshConnectError["reason"], RegExp]> = [
   ["host_key_changed", /REMOTE HOST IDENTIFICATION HAS CHANGED/u],
   ["host_key_unknown", /^Host key verification failed\.$/u],
@@ -153,13 +152,11 @@ const explainSshConnectFailure = (
   return error;
 };
 
-// cmd expands only %OS% and PowerShell only $env:OS; POSIX shells expand neither to Windows_NT.
 const explainWindowsHost = Effect.fn("SshDeviceHost.explainWindowsHost")(function* (
   config: SshDeviceHostConfig,
   error: DeviceHost.DeviceHostError,
 ) {
   const cause = error.cause;
-  // Windows ssh.exe preserves full remote exit statuses such as 9009.
   if (
     !(cause instanceof SshCommandError) ||
     cause.exitCode === null ||
@@ -176,7 +173,6 @@ const explainWindowsHost = Effect.fn("SshDeviceHost.explainWindowsHost")(functio
     Effect.orElseSucceed(() => false),
   );
   if (!windows) {
-    // Git Bash does not expand Windows shell variables, but its Node still reports win32.
     windows = yield* runSshCommand(targetFor(config), {
       preHostArgs: identityArgs(config),
       remoteCommandArgs: ["node", "-p", "process.platform"],
@@ -300,7 +296,6 @@ export const make = Effect.fn("SshDeviceHost.make")(function* (
     provide(
       runSshCommand(targetFor(config), {
         preHostArgs: identityArgs(config),
-        // Match the hub cwd so relative executables and PATH entries resolve identically.
         remoteCommandArgs: commandArgs(
           `cd "$HOME/.supaterm/device/hosts/${owner}" && exec ${[command, ...args].map(quoteRemoteArg).join(" ")}`,
         ),
@@ -446,7 +441,6 @@ export const make = Effect.fn("SshDeviceHost.make")(function* (
         origin: hubOrigin,
         http,
         run,
-        // Keep probing negative reports so an SDK installed after connecting is still found.
         platforms: Effect.suspend(() =>
           summary.platforms.some((p) => p.platform === "android" && p.available)
             ? Effect.succeed(summary.platforms)
@@ -488,9 +482,6 @@ export const make = Effect.fn("SshDeviceHost.make")(function* (
       ? { ...next, releaseAgentSession: releaseAgentDeviceSession(http, next.agentDevice) }
       : next;
     yield* onStatus("ready");
-    // Reconnect also repairs helpers that died while SSH itself stayed connected.
-    // A loaded host can miss a probe or two while still working, and reconnecting
-    // then drops the forward in use, so only consecutive misses count.
     const unhealthy = Effect.gen(function* () {
       let misses = 0;
       while (true) {
@@ -552,7 +543,6 @@ export const make = Effect.fn("SshDeviceHost.make")(function* (
       );
       if (result._tag === "Success") return result.success;
       yield* closeConnection;
-      // SSH binds after the reservation is released, so a competing bind needs fresh ports.
       if (
         attempt >= 2 ||
         !["forwarding ports", "waiting for SSH forward"].includes(result.failure.step)

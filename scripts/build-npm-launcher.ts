@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// GitHub archives avoid npm scanning delays; output <output-dir>/supaterm/ and publishable supaterm.tgz.
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
@@ -46,7 +45,6 @@ export function npmLauncherPackageManifest(version: string, databaseMigration: n
   };
 }
 
-/** Highest server migration id, from the `NNN_Name.ts` files the server registers. */
 const latestServerMigrationId = Effect.fn("latestServerMigrationId")(function* () {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -93,7 +91,6 @@ export const buildNpmLauncher = Effect.fn("buildNpmLauncher")(function* (input: 
   const tarball = path.join(input.outputDir, `${NPM_LAUNCHER_PACKAGE_NAME}.tgz`);
   yield* fs.remove(tarball, { force: true });
   const tar = (yield* HostProcess.Platform) === "win32" ? windowsSystemTar() : "tar";
-  // npm tarballs root everything under `package/`.
   const child = yield* spawner.spawn(
     ChildProcess.make(tar, ["-czf", tarball, "-C", scratch, "package"], {
       stdout: "inherit",

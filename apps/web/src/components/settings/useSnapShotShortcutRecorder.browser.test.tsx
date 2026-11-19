@@ -42,7 +42,6 @@ async function renderRecorder(props: Parameters<typeof Recorder>[0] = {}) {
   const screen = await render(<Recorder {...props} />);
   const button = () =>
     screen.container.querySelector<HTMLButtonElement>("[data-keybinding-capture]")!;
-  // aria-pressed mirrors the hook's recording state, which flips once suppression resolves.
   const expectRecording = async (recording: boolean) =>
     await expect
       .element(screen.getByRole("button"))

@@ -28,12 +28,6 @@ import { WizardPopup } from "../ui/wizard";
 import { findRevertCheckpoint } from "../../session-logic";
 import { registerThreadOverlay } from "./threadOverlayRetention";
 
-/**
- * Open state for overlays the chat view hosts. It lives in atoms rather than
- * ChatView state so opening or closing one renders only its host, not the
- * whole chat chrome. Each entry carries the thread it was opened for; a host
- * shows only its own thread's entry, and a thread no route or pane shows drops it.
- */
 type ThreadOverlayAtom<T> = Atom.Writable<{ readonly threadKey: string; readonly value: T } | null>;
 
 function makeThreadOverlayAtom<T>(label: string): ThreadOverlayAtom<T> {
@@ -152,7 +146,6 @@ export function RevertConfirmHost(props: {
   readonly onConfirm: (turnCount: number, messageId: MessageId, restoreFiles: boolean) => void;
 }) {
   const pending = useThreadOverlay(revertConfirmAtom, props.threadKey);
-  // The server refuses file restore outside an isolated worktree.
   const canRestoreFiles =
     pending !== null &&
     props.worktreePath !== null &&

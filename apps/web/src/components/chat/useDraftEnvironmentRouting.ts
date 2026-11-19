@@ -59,7 +59,6 @@ interface DraftEnvironmentRoutingInput {
   readonly sendInFlightRef: { readonly current: boolean };
 }
 
-// Multiple-model selections are kept per route, so a draft moving machine takes them along.
 function carryFanoutSelections(
   draft: Pick<DraftSessionState, "environmentId" | "threadId">,
   environmentId: EnvironmentId,
@@ -191,7 +190,6 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       }
       const projectRef = scopeProjectRef(target.environmentId, target.projectId);
       if (originalDraft) carryFanoutSelections(originalDraft, target.environmentId);
-      // The send must read the target project's composer and provider context after retargeting.
       flushSync(() =>
         setDraftThreadContext(draftId, {
           projectRef,
@@ -293,7 +291,6 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
     };
     environmentChangeRef.current = request;
     setIsEnvironmentChanging(false);
-    // `triagePrompt` is the prompt the target machine prepared for a triage draft.
     const retarget = (project: (typeof allProjects)[number], triagePrompt?: string) => {
       const currentDraft = getDraftSession(draftId);
       if (
@@ -306,7 +303,6 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       )
         return;
       if (triagePrompt !== undefined) {
-        // Read now, so text typed while the machine prepared the session is kept.
         const prompt = getComposerDraft(draftId)?.prompt ?? "";
         const nextPrompt = replaceTriagePlaybookLink(prompt, triagePrompt);
         if (nextPrompt !== prompt) setPrompt(draftId, nextPrompt);
@@ -339,7 +335,6 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
       (project) =>
         project.environmentId === target.environmentId && project.id === target.projectId,
     );
-    // The playbook and context files exist only on the machine that prepared them.
     const followsTriage = isTriagePrompt(getComposerDraft(draftId)?.prompt ?? "");
     if (target.projectId !== null && !(knownProject && followsTriage)) {
       if (knownProject) retarget(knownProject);

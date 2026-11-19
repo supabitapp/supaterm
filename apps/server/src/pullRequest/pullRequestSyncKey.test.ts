@@ -5,8 +5,6 @@ import { pullRequestSyncKey } from "./pullRequestSyncKey.ts";
 
 describe("pullRequestSyncKey", () => {
   const reference = { projectId: ProjectId.make("project"), repository: "web", number: 7 };
-  // Every spelling of the key reaches dev.azure.com through the definition's canonical key,
-  // which the Azure DevOps package tests.
   it("resolves hostless and checkout-host references named by the bare repository", () => {
     const canonicalKey = "ssh.dev.azure.com/v3/org/project/web";
     const identity = {

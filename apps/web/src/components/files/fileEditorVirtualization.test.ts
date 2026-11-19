@@ -113,7 +113,6 @@ class MeasuredFile extends VirtualizedFile {
 
   async initialize(file: FileContents) {
     this.updateCodeViewLayout(file, 0);
-    // Document changes require the session an attached editor installs.
     (this as unknown as { installEditSession(file: FileContents): void }).installEditSession(file);
     await this.fileRenderer.initializeHighlighter();
     expect(

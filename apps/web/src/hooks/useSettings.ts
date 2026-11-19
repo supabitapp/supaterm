@@ -201,7 +201,6 @@ export function persistClientSettingsPatch(
     replaceClientSettingsSnapshot({ ...current, ...resolved });
     return resolved;
   };
-  // Patches queued before hydration must publish before newer optimistic patches.
   const deferPatch =
     clientSettingsHydrationStatus !== "ready" || deferredClientSettingsPatchCount > 0;
   if (deferPatch) {
@@ -218,7 +217,6 @@ export function persistClientSettingsPatch(
         deferredClientSettingsPatchCount -= 1;
       }
     }
-    // Also reapplies an optimistic patch that a refresh from another tab replaced.
     const current = getClientSettingsSnapshot();
     if (
       optimisticPatch === null ||
@@ -339,8 +337,6 @@ export function mergeEnvironmentSettings(
   serverSettings: ServerSettings,
   clientSettings: ClientSettings,
 ): UnifiedSettings {
-  // Decode drops retired client keys, but older untyped persistence adapters
-  // can still return them. Server-owned values must always win.
   return {
     ...clientSettings,
     ...serverSettings,
@@ -384,7 +380,6 @@ export function useToggleEnvironmentModelFavorite(environmentId: EnvironmentId |
     const favorites = currentSettings.favorites;
     const key = JSON.stringify([environmentId, provider, model]);
     const previous = pendingFavorites.current.get(key);
-    // Keep the acknowledged choice until the config stream catches up with the RPC reply.
     const previousFavorite =
       previous && (previous.pending || previous.settings.favorites === currentSettings.favorites)
         ? previous.favorite
@@ -395,7 +390,6 @@ export function useToggleEnvironmentModelFavorite(environmentId: EnvironmentId |
       pending: true,
     };
     pendingFavorites.current.set(key, pending);
-    // save settles into a result and never rejects, so the rollback below always runs.
     const result = await save({
       setModelFavorites: [{ provider, model, favorite: pending.favorite }],
     });
@@ -477,8 +471,6 @@ function useSharedSettingsSyncTargetIds(includePending = false): ReadonlyArray<E
   const results = useAtomValue(environmentSessionStatesAtom(environmentIdsKey(targetIds)));
   return targetIds.flatMap((environmentId, index) => {
     const result = results[index]!;
-    // A cold grant must not drop a shared edit. The server authorizes the
-    // write; mismatch suggestions still wait for a confirmed grant.
     if (includePending && result._tag === "Initial") {
       return [environmentId];
     }
@@ -537,7 +529,6 @@ function useUpdateSettingsTarget(environmentId: EnvironmentId | null) {
     }
     if (Object.keys(serverPatch).length > 0 && canWriteServerPatch) {
       const { sharedPatch, localPatch } = splitSharedServerPatch(serverPatch);
-      // Dropping the write silently leaves the control looking saved.
       const warnUnsaved = (description = PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE) => {
         options?.onFailed?.();
         return toastManager.add({

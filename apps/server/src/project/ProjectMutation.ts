@@ -55,7 +55,6 @@ export const projectMutationOperation = Effect.fn("projectMutationOperation")(fu
   }
 });
 
-// A disconnect after deletion commits must not leave the in-memory clone record behind.
 export const mutateProjectWithClone = Effect.fn("mutateProjectWithClone")(function* (
   projects: ProjectMutations,
   clones: Pick<ProjectCloneTracker["Service"], "discard">,

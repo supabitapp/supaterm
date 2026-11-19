@@ -42,7 +42,6 @@ export interface CodexMicroKeymap {
   readonly mappedAgentKeys: number | null;
 }
 
-// The firmware lights and reports a key as agent key N only where a layer maps it to KV_OAI_AG{N}.
 function countMappedAgentKeys(text: string): number | null {
   const keymap = decodeKeymap(text);
   if (Option.isNone(keymap)) return null;

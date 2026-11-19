@@ -87,7 +87,6 @@ export function withCreationProvenance(
 ): OrchestrationV2Command {
   switch (command.type) {
     case "thread.create": {
-      // Only the server folds in a first message, so a client cannot.
       const { initialMessage: _initialMessage, ...rest } = command;
       return { ...rest, ...provenance };
     }
@@ -444,8 +443,6 @@ export interface ThreadManagementServiceShape {
     readonly byOwnAgent: boolean;
   }) => Effect.Effect<
     { readonly sequence: number } | { readonly marksDoneWhenTurnEnds: true },
-    // Dispatches thread.mark-done, a command the enablement chokepoint never
-    // gates; the type stays accurate anyway.
     Orchestrator.OrchestratorV2Error | ThreadManagementProviderInstanceDisabledError
   >;
   readonly interruptThread: (
@@ -590,7 +587,6 @@ const make = Effect.gen(function* () {
 
   const getThreadProjection: ThreadManagementServiceShape["getThreadProjection"] =
     orchestrator.getThreadProjection;
-  // Full-thread exports can otherwise hold every SQLite reader and stall ordinary thread opens.
   const transcriptExportPermits = yield* Semaphore.make(2);
   const getThreadTranscript = Effect.fn("orchestrationV2.threadManagement.getThreadTranscript")(
     function* (threadId: ThreadId) {
@@ -744,7 +740,6 @@ const make = Effect.gen(function* () {
       });
     }
     const steerableRun = latestSteerableRun(target);
-    // A fresh send never joins a running turn, so it needs none to steer or restart.
     const mode =
       input.freshContext && (input.mode === "steer" || input.mode === "restart")
         ? "queue"
@@ -772,8 +767,6 @@ const make = Effect.gen(function* () {
       };
     }
 
-    // Turn start would fail on its own after the send reported success; a replay keeps its answer.
-    // A live steer starts no turn, so it needs no workspace.
     if (dispatchMode.type !== "steer_active") {
       yield* worktreeRestore
         .restore(target.thread)
@@ -834,8 +827,6 @@ const make = Effect.gen(function* () {
         messageId: input.messageId,
       });
     }
-    // A provider without interrupt-and-restart stops the turn and runs the
-    // restart as the next turn. Read from this command's own events, so a replay agrees.
     const restartedAsNextTurn =
       mode === "restart" &&
       dispatched.storedEvents.some(
@@ -865,8 +856,6 @@ const make = Effect.gen(function* () {
         threadId: input.threadId,
         cause,
       });
-    // Taken before the first read, so a run update between that read and
-    // the subscription below still replays.
     const afterSequence = yield* orchestrator
       .getThreadEventSequence(input.threadId)
       .pipe(Effect.mapError(loadError));
@@ -884,9 +873,6 @@ const make = Effect.gen(function* () {
     if (selectedRun === undefined) {
       return { threadId: input.threadId, run: null, timedOut: false };
     }
-    // A restart cuts a run and continues it as a new run. Follow that chain,
-    // so a cut run is not the answer while its continuation is pending.
-    // Runs per matching event and is already covered by the waitForThread span.
     const outcome = Effect.fnUntraced(function* (runs: ReadonlyArray<OrchestrationV2Run>) {
       const current = runs.find((candidate) => candidate.id === selectedRun.id);
       if (current === undefined) {
@@ -909,7 +895,6 @@ const make = Effect.gen(function* () {
         { messageRoles: ["user"], monitorNotificationsOnly: true },
       );
       const progress = delegatedTaskProgress(records);
-      // A thread rolled back past all its work, with nothing left running, has no answer to wait for.
       if (
         progress.resultRun === undefined &&
         records.runs.every((run) => isOrchestrationV2RunSettled(run.status))
@@ -941,16 +926,12 @@ const make = Effect.gen(function* () {
     const initial = yield* evaluate(target.runs);
     if (initial.settled) return settledResult(initial);
 
-    // A declined continuation records no event, so its effect settling wakes
-    // the wait too.
     const wait = Stream.merge(
       Stream.mergeAll(
         (
           [
             "run.updated",
             "thread.deleted",
-            // What delegated work reads besides runs: tasks and their
-            // deliveries, and a provider thread's background tasks.
             ...(untilDelegatedWorkSettled
               ? (["subagent.updated", "provider-thread.updated"] as const)
               : []),
@@ -988,9 +969,6 @@ const make = Effect.gen(function* () {
     );
     const waited = Option.flatten(yield* wait);
     if (Option.isSome(waited)) return settledResult(waited.value);
-    // The run may have reached a terminal status while the timeout was
-    // winning the race; the final projection read decides what actually
-    // happened, so only a still-active run counts as timed out.
     return settledResult(yield* evaluate((yield* getProjectThreadRecords(input, ["runs"])).runs));
   });
 
@@ -1004,7 +982,6 @@ const make = Effect.gen(function* () {
     const tryMarkDone = Effect.gen(function* () {
       const sequence = yield* orchestrator.getThreadEventSequence(input.threadId);
       const records = yield* getProjectThreadRecords(input, ["runs"]);
-      // Marking done ends every watch; one the agent started after asking to mark done must outlive it.
       if (
         threadPullRequestsOf(records.thread).some(
           (link) =>
@@ -1017,7 +994,6 @@ const make = Effect.gen(function* () {
       const cancelledMessageIds = later
         .filter((candidate) => candidate.status === "cancelled")
         .map((candidate) => candidate.userMessageId);
-      // Send now cancels a queued run and moves its message into the running turn.
       const steeredMessageIds =
         cancelledMessageIds.length === 0
           ? new Set()
@@ -1070,7 +1046,6 @@ const make = Effect.gen(function* () {
         expectedLatestRunId: latest.id,
       }).pipe(
         Effect.as(true),
-        // A notification can start between the projection read and the guarded dispatch.
         Effect.catchTags({
           OrchestratorDispatchError: () => Effect.succeed(false),
           OrchestratorCommandPreviouslyRejectedError: () => Effect.succeed(false),
@@ -1165,8 +1140,6 @@ const make = Effect.gen(function* () {
     "ThreadManagementService.forceStopThread",
   )(
     function* (input) {
-      // Under the thread lock no new run can be created between the check and the kill. The
-      // settlement below dispatches, which takes that lock itself, so it runs after release.
       const { records, target, killed } = yield* threadDispatch.withLock(
         input.threadId,
         Effect.gen(function* () {
@@ -1175,8 +1148,6 @@ const make = Effect.gen(function* () {
             "providerThreads",
             "providerTurns",
           ]);
-          // The run Force stop acts on: the active one, else the latest that started. Queued
-          // follow-ups never ran, so they neither count as targets nor supersede the request.
           const target =
             latestActiveRun(records) ??
             records.runs
@@ -1192,7 +1163,6 @@ const make = Effect.gen(function* () {
               reason: "superseded",
             });
           }
-          // Shared scopes are never tracked per thread, so this only kills the thread's own agent.
           const killed = yield* agentScope.kill(input.threadId);
           return { records, target, killed };
         }),
@@ -1204,7 +1174,6 @@ const make = Effect.gen(function* () {
             : [],
         ),
       );
-      // A run that already ended may still hold background work; settling it is a no-op otherwise.
       const run = target;
       if (run !== undefined) {
         const active = isOrchestrationV2RunInProgress(run.status);
@@ -1237,9 +1206,6 @@ const make = Effect.gen(function* () {
       const ownProviderThreadIds = records.providerThreads.flatMap((providerThread) =>
         providerThread.appThreadId === input.threadId ? [providerThread.id] : [],
       );
-      // Settling the target can promote a queued follow-up onto the same session; that run is
-      // not Force stop's to end. Only a newer run bound to a provider thread on this session
-      // counts. An unreadable thread counts as one, so its sessions are kept.
       const throughRunOrdinal = target?.ordinal ?? 0;
       const laterRunActive = (providerSessionId: ProviderSessionId) =>
         orchestrator.getThreadRecords(input.threadId, ["runs", "providerThreads"]).pipe(
@@ -1279,7 +1245,6 @@ const make = Effect.gen(function* () {
       }> = [];
       for (const providerSessionId of sessionIds) {
         if (!(yield* sessions.isLive(providerSessionId))) continue;
-        // Decided just before teardown, so the reply matches what happens to the process.
         const others = yield* sessions.otherWorkingThreads({
           providerSessionId,
           threadId: input.threadId,
@@ -1290,14 +1255,11 @@ const make = Effect.gen(function* () {
           yield* detach(providerSessionId);
           continue;
         }
-        // The session manager re-checks atomically with turn starts and keeps a session a
-        // sibling began using in the meantime.
         const fiber = yield* sessions
           .releaseUnlessBusy({
             providerSessionId,
             ownProviderThreadIds,
             throughRunOrdinal,
-            // A promoted follow-up may not have marked its turn busy yet.
             keepIf: laterRunActive(providerSessionId),
             reason: "manual_shutdown",
             detail: FORCE_STOP_REASON,
@@ -1305,7 +1267,6 @@ const make = Effect.gen(function* () {
           .pipe(Effect.forkIn(layerScope));
         releases.push({ providerSessionId, fiber });
       }
-      // Teardown waits on the provider's own exit paths; past this bound it keeps going on its own.
       let releasing = false;
       for (const release of releases) {
         const released = yield* Fiber.join(release.fiber).pipe(
@@ -1348,9 +1309,6 @@ const make = Effect.gen(function* () {
       if (records.thread.deletedAt !== null) {
         return yield* new OrchestrationV2StopWorkflowError({ ...input, reason: "unavailable" });
       }
-      // A limited caller (an agent over MCP) may not stop work on a thread
-      // running above its own modes. Checked under the thread lock, where the
-      // thread's user cannot raise the modes between this read and the stop.
       const limit = yield* DispatchModeLimit;
       const exceeded =
         limit === undefined ? undefined : exceededDispatchModeLimit(limit, records.thread);
@@ -1405,7 +1363,6 @@ const make = Effect.gen(function* () {
       if (runtime.value.stopTask === undefined) {
         return yield* new OrchestrationV2StopWorkflowError({ ...input, reason: "unsupported" });
       }
-      // Bounded so a provider that never answers cannot hold the thread lock.
       yield* runtime.value.stopTask({ providerThread, taskId }).pipe(
         Effect.timeout("15 seconds"),
         Effect.mapError(
@@ -1487,7 +1444,6 @@ const make = Effect.gen(function* () {
     for (const task of subagents) {
       if (task.origin !== "app_owned" || task.childThreadId === null) continue;
       const threadId = task.childThreadId;
-      // Follow-up tasks reuse a child thread; walk its subtree only once.
       if (stoppedChildThreadIds.has(threadId)) continue;
       stoppedChildThreadIds.add(threadId);
       yield* dispatch({

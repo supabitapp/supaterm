@@ -54,10 +54,8 @@ export interface ServerBrowserHandle {
 }
 
 const RESIZE_THROTTLE_MS = 150;
-// Reuse nearby probes when a slow link would return the tap's answer after it ends.
 const PROBE_REUSE_PX = 24;
 const PROBE_REUSE_MS = 10_000;
-// Android keyboards report Backspace as text deletion, so keep a deletable sentinel.
 const INPUT_SENTINEL = "\u200b";
 const BACKSPACE = { key: "Backspace", code: "Backspace", keyCode: 8 } as const;
 const DELETE = { key: "Delete", code: "Delete", keyCode: 46 } as const;
@@ -102,11 +100,9 @@ const buttonOf = (button: number): PreviewStreamMouseButton =>
 const pressedButtonOf = (buttons: number): PreviewStreamMouseButton =>
   buttons & 1 ? "left" : buttons & 2 ? "right" : buttons & 4 ? "middle" : "none";
 
-// Mouse thumb buttons: `button === 3` is Back, `button === 4` is Forward.
 const historyDeltaOf = (button: number): -1 | 1 | null =>
   button === 3 ? -1 : button === 4 ? 1 : null;
 
-/** Browsers may refuse a write that arrives after the key press; a toast button is a fresh gesture. */
 async function copyPageText(text: string) {
   try {
     await navigator.clipboard.writeText(text);
@@ -250,7 +246,6 @@ export function ServerBrowserSurface(props: {
   const popupOpened = useEffectEvent((popupTabId: string) => onPopup?.(popupTabId));
   const [cap, setCap] = useState<{ width: number; height: number } | null>(null);
 
-  // Keep clearInput stable: a new identity reconnects the stream.
   const send = (input: PreviewStreamInput) => {
     clientRef.current?.send(input);
   };
@@ -378,7 +373,6 @@ export function ServerBrowserSurface(props: {
       if (previous?.width === size.width && previous.height === size.height) return;
       sizeRef.current = size;
       if (followSize) clientRef.current?.send({ type: "resize", ...size });
-      // Growing the cap reconnects the stream; wait until resizing settles.
       if (capTimer !== null) clearTimeout(capTimer);
       capTimer = setTimeout(growCap, previous === null ? 0 : RESIZE_THROTTLE_MS * 2);
     };
@@ -502,7 +496,6 @@ export function ServerBrowserSurface(props: {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Registered natively: React's wheel listener is passive and cannot stop the panel scrolling.
     const onWheel = (event: WheelEvent) => {
       const point = pagePoint(event.clientX, event.clientY, false);
       if (!point) return;
@@ -529,7 +522,6 @@ export function ServerBrowserSurface(props: {
 
   const handlePointer = (event: PointerEvent<HTMLCanvasElement>) => {
     if (controlRef.current?.controller !== "you") return;
-    // Thumb buttons drive this tab's history in handleMouseUp, never the page.
     if (historyDeltaOf(event.button) !== null) return;
     const { type, pointerId, clientX, clientY } = event;
     const cancelled = type === "pointercancel";
@@ -594,7 +586,6 @@ export function ServerBrowserSurface(props: {
         return;
       }
       if (!point) return;
-      // iOS requires focus during the tap; late probe replies only raise Android's keyboard.
       if (probe?.editable === true) focusInput();
       else if (probe?.editable === false) inputRef.current?.blur();
       if (probe && !probe.answered) probe.tapped = true;
@@ -641,7 +632,6 @@ export function ServerBrowserSurface(props: {
       flushInput();
       mouse("up", buttonOf(event.button), event.buttons);
     } else {
-      // Chords arrive as pointermove. Cancellation releases every held button.
       const next = cancelled ? 0 : event.buttons & 7;
       const changed = previous ^ next;
       if (previous !== 0 && changed !== 0) {
@@ -667,9 +657,6 @@ export function ServerBrowserSurface(props: {
     }
   };
 
-  // Chromium runs a thumb button's back/forward on mouseup in this document, which
-  // would move the app's router. Cancel it and send the press to the preview, as
-  // the toolbar does.
   const handleMouseUp = (event: MouseEvent<HTMLDivElement>) => {
     const delta = historyDeltaOf(event.button);
     if (delta === null) return;
@@ -691,9 +678,7 @@ export function ServerBrowserSurface(props: {
     send({ type: "key", action: "up", ...key, modifiers });
   };
 
-  // Edit menu Copy and Cut fire no key, so send the shortcut the server copies on.
   const handleClipboard = (key: typeof COPY | typeof CUT, event: ClipboardEvent) => {
-    // Keep the sentinel off the clipboard.
     event.preventDefault();
     if (controlRef.current?.controller !== "you") return;
     sendKeyPress(key, CTRL);
@@ -719,7 +704,6 @@ export function ServerBrowserSurface(props: {
     const shortcut = event.ctrlKey || event.metaKey;
     if (shortcut && event.key.toLowerCase() === "v") return;
     if (event.shiftKey && event.key === "Insert") return;
-    // Enter carries "\r" like Puppeteer's key table, so forms submit and textareas break lines.
     const text = shortcut
       ? undefined
       : [...event.key].length === 1
@@ -736,12 +720,10 @@ export function ServerBrowserSurface(props: {
       ...(action === "down" && text !== undefined ? { text } : {}),
       modifiers: previewStreamModifiers(event),
     });
-    // Some Android keyboards edit the textarea even when keydown is prevented.
     keySentRef.current =
       action === "down" &&
       !shortcut &&
       (text !== undefined || event.key === "Backspace" || event.key === "Delete");
-    // The key copies or cuts in the page, so stop the browser's own copy or cut repeating it.
     if (
       event.ctrlKey !== event.metaKey &&
       !event.altKey &&
@@ -823,7 +805,6 @@ export function ServerBrowserSurface(props: {
             controller={control?.controller === "agent" ? "agent" : "none"}
           />
         ) : null}
-        {/* Pin top-left to avoid focus scrolling; 16px prevents iOS focus zoom. */}
         <textarea
           ref={inputRef}
           aria-label="Browser page"
@@ -939,7 +920,6 @@ export function ServerBrowserSurface(props: {
         </div>
       ) : null}
       {visible && accessDenied ? (
-        // The page can be invisible beneath an empty or unreachable state; reconnect must remain reachable.
         <div className="visible absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-background p-3 text-center">
           <p role="alert" className="text-xs text-muted-foreground">
             Browser connection was refused.

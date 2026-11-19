@@ -165,8 +165,6 @@ const makeCheckpointFixture = Effect.fn("makeCheckpointFixture")(function* (
   return { git, checkpointRef };
 });
 
-// macOS captures use batch fsync, whose Git transaction moves bulk-checkin packs between object
-// stores and fails to publish one written beside a loose object (Git 2.54 and 2.55).
 const bulkCheckinPacksSupported = HostProcess.Platform.defaultValue() !== "darwin";
 
 describe.runIf(bulkCheckinPacksSupported)("checkpoint bulk staging", () => {
@@ -191,8 +189,6 @@ describe.runIf(bulkCheckinPacksSupported)("checkpoint bulk staging", () => {
         const payload = yield* crypto.randomBytes(2 * 1024 * 1024);
         yield* fs.writeFile(path.join(cwd, "a-media.bin"), payload);
 
-        // Git keeps bulk-checkin's pack open while the next path's clean filter runs.
-        // The socket is a barrier, not a race against the speed of compression.
         const connected = Promise.withResolvers<NodeNet.Socket>();
         const sockets = new Set<NodeNet.Socket>();
         let released = false;
@@ -201,7 +197,6 @@ describe.runIf(bulkCheckinPacksSupported)("checkpoint bulk staging", () => {
             NodeNet.createServer((socket) => {
               sockets.add(socket);
               connected.resolve(socket);
-              // Git can run the filter again while refreshing the staged entry.
               if (released) socket.end();
             }),
           ),
@@ -264,8 +259,6 @@ describe.runIf(bulkCheckinPacksSupported)("checkpoint bulk staging", () => {
           Number((yield* fs.stat(path.join(objectDirectory, "pack", packs[0]!))).size),
           1024 * 1024,
         );
-        // An overlapping capture publishes the same large blob while the first
-        // still owns an unfinished pack. Its objects/ref must survive either exit.
         const concurrentRef = CheckpointRef.make("refs/supaterm/checkpoints/concurrent");
         const concurrentDriver = yield* GitVcsDriver.makeVcsDriverShape().pipe(
           Effect.provideService(VcsProcess.VcsProcess, {
@@ -517,7 +510,6 @@ it.effect("checkpoint capture ignores an inherited object directory", () =>
     const unrelated = path.join(sandbox, "unrelated");
     yield* git(["init", "--bare", unrelated]);
     const unrelatedObjects = path.join(unrelated, "objects");
-    // VcsProcess clears inherited selectors from git children; only the driver sees this one.
     yield* driver.checkpoints.captureCheckpoint({ cwd, checkpointRef }).pipe(
       Effect.provideService(HostProcess.Environment, {
         ...(yield* HostProcess.Environment),
@@ -622,17 +614,14 @@ it.effect.each([
         Effect.provideService(VcsProcess.VcsProcess, {
           run: (input) => {
             if (input.args.includes("core.ignorestat=true")) reused++;
-            // Only a capture whose staging took real time looks for files to remember.
             if (input.args.includes("add"))
               return liveProcess.run(input).pipe(Effect.tap(() => TestClock.adjust("1 second")));
-            // The files are hashed and published by now, but not yet remembered.
             return input.args.includes("update-ref")
               ? liveProcess.run(input).pipe(Effect.tap(() => afterPublish))
               : liveProcess.run(input);
           },
         }),
       );
-      // A driver that has never captured this workspace hashes every file, as a first capture does.
       const fresh = yield* GitVcsDriver.makeVcsDriverShape();
       const cwd = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-untracked-blobs-" });
       const { git, checkpointRef } = yield* makeCheckpointFixture(driver, cwd);
@@ -640,10 +629,8 @@ it.effect.each([
         fs.writeFileString(path.join(cwd, relativePath), contents);
       yield* fs.makeDirectory(path.join(cwd, "nested"));
       yield* write("nested/large.txt", "line\r\n".repeat(3 * 1024 * 1024));
-      // Only files left alone for a few seconds before a capture are remembered.
       yield* TestClock.adjust("36500 days");
       yield* driver.checkpoints.captureCheckpoint({ cwd, checkpointRef });
-      // A file is remembered by the first capture that read its conversion rules before hashing it.
       if (during !== undefined) afterPublish = during({ git, write, checkpointRef });
       yield* driver.checkpoints.captureCheckpoint({ cwd, checkpointRef });
       afterPublish = Effect.void;
@@ -672,7 +659,6 @@ it.effect.each(["sha1", "sha256"] as const)(
       const sandbox = yield* fs.makeTempDirectoryScoped({
         prefix: "supaterm-checkpoint-worktree-",
       });
-      // A separator must remain part of the alternate's path, not split the list.
       const platform = yield* HostProcess.Platform;
       const cwd = path.join(sandbox, platform === "win32" ? "repo;space" : 'repo:space"\u0001');
       yield* fs.makeDirectory(cwd);
@@ -775,7 +761,6 @@ it.effect.skipIf(!symlinksSupported)(
       yield* fileSystem.makeDirectory(path.dirname(link), { recursive: true });
       yield* fileSystem.symlink(subdir, link);
       const { git, checkpointRef } = yield* makeCheckpointFixture(driver, repo);
-      // Git returns ../../.git from the target; resolving it against the link reaches the decoy.
       yield* git(["-C", sandbox, "init"]);
       yield* fileSystem.writeFileString(path.join(subdir, "nested.txt"), "from-link\n");
       const realCommonDir = yield* fileSystem.realPath(path.join(repo, ".git"));
@@ -1334,7 +1319,6 @@ it.effect.each(
       if (indexMode === "sparse")
         yield* git(["sparse-checkout", "set", "--cone", "--sparse-index", "included"]);
       yield* fs.writeFileString(path.join(cwd, "z-skipped"), "modified\n");
-      // A flagged edit with the indexed size and mtime is invisible to Git's stat check.
       if (flagged) yield* fs.utimes(path.join(cwd, "z-skipped"), 1_700_000_000, 1_700_000_000);
       yield* fs.writeFileString(path.join(cwd, ".git/reads"), "");
       const originalIndex = yield* fs.readFile(path.join(cwd, ".git/index"));
@@ -1808,7 +1792,6 @@ it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
         "write-tree",
         "commit-tree",
         "update-ref",
-        // Without a parsed top level, capture cannot rule out submodules.
         "submodule",
       ]);
       assert.strictEqual((yield* git(["show", `${checkpointRef}:file.txt`])).stdout, "unstaged\n");
@@ -2001,7 +1984,6 @@ it.effect("sparse restore rewrites manual skip-worktree files and keeps exclusio
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const liveProcess = yield* VcsProcess.VcsProcess;
-    // One byte per chunk, so the index listing splits inside every record.
     const driver = yield* GitVcsDriver.makeVcsDriverShape().pipe(
       Effect.provideService(VcsProcess.VcsProcess, {
         run: (input) => {
@@ -2029,7 +2011,6 @@ it.effect("sparse restore rewrites manual skip-worktree files and keeps exclusio
     yield* git(["add", "."]);
     yield* git(["commit", "-m", "sparse fixture"]);
     yield* git(["sparse-checkout", "set", "--cone", "--sparse-index", "in"]);
-    // Keeps Git from clearing the bit on files that are present.
     yield* git(["config", "sparse.expectFilesOutsideOfPatterns", "true"]);
     yield* git(["update-index", "--skip-worktree", "in/skipped", "in/s space"]);
     const captureCwd = path.join(cwd, "in");
@@ -2121,7 +2102,6 @@ it.effect("restores and deletes checkpoints inside populated submodules", () =>
   }).pipe(Effect.scoped, Effect.provide(layerGitContract)),
 );
 
-// The real VCS process, spawning `command` wherever the driver runs git.
 const vcsProcessSpawning = (command: string) =>
   Layer.effect(
     VcsProcess.VcsProcess,
@@ -2172,7 +2152,6 @@ it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
   () =>
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
-      // A file without the execute bit fails to spawn with a permission error.
       const notExecutable = yield* fileSystem.makeTempFileScoped({ prefix: "supaterm-git-" });
       const driver = yield* GitVcsDriver.makeVcsDriverShape().pipe(
         Effect.provide(vcsProcessSpawning(notExecutable)),
@@ -2190,7 +2169,6 @@ it.effect("GitVcsDriver fails repository probes when git cannot read the reposit
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const root = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-bad-config-" });
-    // The included file's path appears in Git's message and must not read as "no repository".
     const includeDir = path.join(root, "not a git repository");
     yield* fileSystem.makeDirectory(includeDir);
     yield* fileSystem.writeFileString(path.join(includeDir, "included"), "invalid config\n");
@@ -2239,7 +2217,6 @@ it.effect("GitVcsDriver reports no repository for a deleted cwd or a bare reposi
   }).pipe(Effect.scoped, Effect.provide(layerGitContract)),
 );
 
-// Git outputs CI's Git version cannot produce with a real repository.
 const makeStubbedDriver = Effect.fn("test.makeStubbedDriver")(function* (output: {
   readonly code: number;
   readonly stdout: string;
@@ -2266,7 +2243,6 @@ const makeStubbedDriver = Effect.fn("test.makeStubbedDriver")(function* (output:
 
 it.effect("GitVcsDriver reports no repository when old Git answers false before failing", () =>
   Effect.gen(function* () {
-    // Git before 2.38 ignores safe.bareRepository, so a bare repo prints "false" and exits 128.
     const driver = yield* makeStubbedDriver({
       code: 128,
       stdout: "false\n",
@@ -2298,7 +2274,6 @@ it.effect("GitVcsDriver reads an absent checkpoint ref as absent despite a Git w
     const fileSystem = yield* FileSystem.FileSystem;
     const cwd = yield* fileSystem.makeTempDirectoryScoped({ prefix: "supaterm-git-warning-" });
     yield* runGit(cwd, ["init"]);
-    // Valid legacy config that makes every Git command print a deprecation warning.
     yield* runGit(cwd, ["config", "core.fsyncObjectFiles", "true"]);
     const driver = yield* GitVcsDriver.makeVcsDriverShape();
     const checkpointRef = CheckpointRef.make("refs/supaterm/checkpoints/absent/0");
@@ -2318,7 +2293,6 @@ const gitCommandCount = (operation: string, outcome: string) =>
 const gitCommandTiming = (operation: string) =>
   Metric.value(Metric.withAttributes(gitCommandDuration, [["operation", operation]]));
 
-// Keep VcsProcess's exit classification; replace only the subprocess and its clock.
 const makeMeteredDriver = Effect.fn("test.makeMeteredDriver")(function* (exitCode: number) {
   const process = yield* VcsProcess.make.pipe(
     Effect.provideService(ProcessRunner.ProcessRunner, {

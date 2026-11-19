@@ -12,7 +12,6 @@ export type NavigationWithFinishTransitioning = {
 
 const SHEET_DISMISSAL_KEYBOARD_OVERLAP_MS = 300;
 
-/** Gesture dismissal completes before router pop; recent completion means keyboard restoration need not wait again. */
 const NATIVE_DISMISSAL_ECHO_WINDOW_MS = 150;
 
 /** Blur/focus costs two keyboard animations; inputView overrides also replay show when removed. */
@@ -21,12 +20,9 @@ export function useThreadSettingsSheetPresentation(input: {
   /** Runs on the frame the sheet becomes visible, after the keyboard started leaving. */
   readonly onPresent: () => void;
 }) {
-  // Destructured so the compiler keys memoized handlers on the stable editor ref, not on
-  // the fresh input object: the finishTransitioning listener re-subscribes on every change.
   const { editorRef, onPresent } = input;
   const [phase, setPhase] = useState<PresentationPhase>("closed");
   const isActiveRef = useRef(false);
-  // Written by the editor's focus handlers; read when restoring focus after dismissal.
   const isEditorFocusedRef = useRef(false);
   const openingIdRef = useRef(0);
   const focusRestoreIdRef = useRef(0);
@@ -57,12 +53,10 @@ export function useThreadSettingsSheetPresentation(input: {
     const openingId = openingIdRef.current + 1;
     openingIdRef.current = openingId;
 
-    // Dismiss the keyboard before blur, then present next frame so native transitions overlap.
     void KeyboardController.dismiss({ animated: true });
     editorRef.current?.blur();
 
     requestAnimationFrame(() => {
-      // A composer unmounted during the frame takes its editor with it; present nothing.
       if (
         !isActiveRef.current ||
         openingIdRef.current !== openingId ||
@@ -80,7 +74,6 @@ export function useThreadSettingsSheetPresentation(input: {
     focusRestoreIdRef.current = focusRestoreId;
     let attemptsRemaining = 20;
 
-    // Retry focus restoration if UIKit briefly refuses first responder at the dismissal boundary.
     const restoreFocus = () => {
       if (focusRestoreIdRef.current !== focusRestoreId) {
         return;
@@ -116,7 +109,6 @@ export function useThreadSettingsSheetPresentation(input: {
       setPhase("closed");
       return;
     }
-    // Keep the card expanded during focus handoff; hardware keyboards cannot hide a collapse with keyboard travel.
     setPhase("restoring");
     restoreFocusAfterDismissRef.current = false;
     restorePendingRef.current = true;
@@ -140,8 +132,6 @@ export function useThreadSettingsSheetPresentation(input: {
     isEditorFocusedRef.current = focused;
   };
 
-  // Called when the composer unmounts: cancels a queued presentation frame, the
-  // dismissal restore timer, and any focus-restore retries still in flight.
   const dispose = () => {
     isActiveRef.current = false;
     openingIdRef.current += 1;

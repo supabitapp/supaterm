@@ -180,7 +180,6 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
     commitDraft: (text, selection) => read().commitPrompt(text, selection),
     onStateChange: (state) => {
       publishVoiceInputActivity(recorder, state.phase);
-      // The microphone opens while permission is asked, before the controller owns it.
       if (state.phase === "idle" || state.phase === "error") recorder.release();
       const cue = voiceInputCue(phase, state.phase);
       phase = state.phase;
@@ -189,7 +188,6 @@ function createVoiceRuntime(onStateChange: (state: VoiceInputState) => void) {
       options?.onBusyChange(voiceInputBlocksSubmission(state));
     },
   });
-  // One held key at a time; it never outlives its draft or composer.
   let heldKey: KeyHold | null = null;
   const releaseHeldKey = () => {
     heldKey?.cancel();
@@ -235,7 +233,6 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     [runtime, controller, recorder],
   );
 
-  // Send with a draft submits once React has committed the transcript into it.
   const submitAfterReview = useRef<{
     readonly ownerKey: string;
     readonly prompt: string;
@@ -259,7 +256,6 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
   const canRecord = availability.canReview || availability.canSend;
   const start = useStableCallback(() => {
     if (!canRecord) return;
-    // The start cue plays after the microphone opens, outside this gesture.
     void unlock();
     void controller.start();
   });
@@ -270,7 +266,6 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     submitAfterReview.current = null;
     controller.cancel();
   });
-  // Escape while transcribing cancels just that, like the pill's Cancel, instead of the form around it.
   useDiscardOnEscape(
     state.phase === "preparing" || state.phase === "recording" || state.phase === "transcribing",
     cancel,
@@ -292,11 +287,9 @@ export function useComposerVoiceInput(options: ComposerVoiceInputOptions) {
     if (availability.canReview) stop();
     else void send();
   });
-  // Letting go while the microphone still opens, as at the permission prompt, keeps it recording.
   const finishHeld = useStableCallback(() => {
     if (controller.currentState.phase === "recording") finish();
   });
-  /** `press` is the key that toggled, so holding it records until it comes up. */
   const toggle = useStableCallback((press?: { readonly code: string }) => {
     switch (controller.currentState.phase) {
       case "idle":

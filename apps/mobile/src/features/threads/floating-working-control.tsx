@@ -42,8 +42,6 @@ const HIDDEN_STYLE = { opacity: 0 } as const;
 const LABEL_ENTERING = FadeIn.duration(160).delay(80).reduceMotion(ReduceMotion.System);
 const LABEL_EXITING = FadeOut.duration(100).reduceMotion(ReduceMotion.System);
 
-// Expo reapplies glass after native layout and window reattachment, when UIKit
-// can otherwise leave the label visible but lose the material behind it.
 const UniwindGlassView = withUniwind(GlassView, {
   style: { fromClassName: "className" },
 });
@@ -91,7 +89,6 @@ export function FloatingWorkingControl(props: {
   const [previewWidth, setPreviewWidth] = useState(0);
   const agents = props.agents;
   const hasAgents = agents !== null;
-  // Only reserve the scroll button's slot while it is visible.
   const reservedWidth = props.showScrollToEnd ? CONTROL_HEIGHT + 32 : 16;
   const availableLabelWidth = Math.max(
     0,
@@ -120,10 +117,6 @@ export function FloatingWorkingControl(props: {
   const arrowTransformStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: -CONTROL_SEPARATION * (1 - separationProgress.value) }],
   }));
-  // Hiding follows a keystroke and the popover taking this slot appears without
-  // motion, so the control steps aside instantly too. UIKit drops a glass effect
-  // under a transparent ancestor, so native glass switches itself off and only
-  // the content inside it goes transparent.
   const hidden = props.hidden === true;
   const hiddenStyle = hidden ? HIDDEN_STYLE : undefined;
   const glassEffectStyle = hidden ? "none" : "regular";
@@ -131,10 +124,6 @@ export function FloatingWorkingControl(props: {
     opacity: hidden ? 0 : separationProgress.value,
   }));
 
-  // Animate an in-flow sizer so native glass receives real layout updates.
-  // Measure labels in a separate, fixed-width host: measuring against the
-  // animated capsule constrains the incoming text to each intermediate width
-  // and repeatedly retargets the animation as it grows.
   const capsuleWidth = useSharedValue<number | null>(null);
   const measuredWidthRef = useRef<number | null>(null);
   const handleLabelLayout = (event: LayoutChangeEvent) => {

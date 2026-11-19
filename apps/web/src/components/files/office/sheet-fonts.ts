@@ -7,8 +7,6 @@ import { loadFace, sheetFace } from "./fonts";
  * Office fonts. A family the app ships no face for stays with the browser's own fallback.
  */
 export function sheetFonts() {
-  // SAFETY: a worker's global scope is a FontFaceSource, whose `fonts` is a FontFaceSet (CSS Font Loading, exposed to
-  // workers). The window's types declare it on documents only. Without one, cells keep the browser's fallback.
   const fonts = "fonts" in self ? (self.fonts as FontFaceSet) : undefined;
   const loads = new Map<string, Promise<void>>();
 
@@ -22,7 +20,6 @@ export function sheetFonts() {
     const loading =
       face && fonts
         ? loadFace(face)
-            // A family without the requested style gets the face it has, which the browser then slants or emboldens.
             .then((bytes) =>
               new FontFace(family, bytes, {
                 weight: face.weight === 700 ? "700" : "400",
@@ -38,12 +35,10 @@ export function sheetFonts() {
     return loading;
   };
 
-  /** Loads the faces a frame's cell text uses before it paints. */
   return (lists: readonly DisplayList[]) =>
     Promise.all(
       lists.flatMap((list) =>
         list.commands.flatMap((command) => {
-          // Chart text arrives as a CSS family list whose first family is the one to load.
           const family =
             command.op === "text"
               ? (/^"([^"]+)"/.exec(command.fontFamily ?? "")?.[1] ?? command.fontFamily)

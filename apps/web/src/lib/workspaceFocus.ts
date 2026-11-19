@@ -3,7 +3,6 @@ import { dismissContextMenu } from "../contextMenuFallback";
 import { useRightPanelStore } from "../rightPanelStore";
 
 const AREA_SELECTOR = "[data-workspace-area]";
-// Threads side by side each render their own conversation, composer, and panels.
 const PANE_SELECTOR = "[data-chat-pane]";
 const FOCUS_BOUNDARY_SELECTOR =
   '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open], [data-slot$="-popup"]:not([data-slot="tooltip-popup"]):not([role="tooltip"])';
@@ -37,13 +36,11 @@ function areaPane(area: HTMLElement): HTMLElement | null {
   return area.closest<HTMLElement>(PANE_SELECTOR);
 }
 
-/** An area's identity: its name, qualified by its pane when threads are side by side. */
 function areaKey(area: HTMLElement, name = area.dataset.workspaceArea!): string {
   const pane = areaPane(area)?.dataset.chatPane;
   return pane ? `${name}@${pane}` : name;
 }
 
-/** The named area in the focused pane, else the first one with that name. */
 function pickArea(areas: ReadonlyArray<HTMLElement>, name: string): HTMLElement | undefined {
   const named = areas.filter(
     (area) => area.dataset.workspaceArea === name || areaKey(area) === name,
@@ -102,10 +99,6 @@ export function canReturnFocusTo(element: HTMLElement) {
   );
 }
 
-/**
- * Brings a restored control into view, innermost scrolling list first.
- * scrollIntoView would also scroll overflow-hidden layout containers out of place.
- */
 function revealInScrollers(target: HTMLElement) {
   for (const scroller of scrollingAncestors(target)) {
     const box = scroller.getBoundingClientRect();
@@ -119,9 +112,6 @@ function revealInScrollers(target: HTMLElement) {
 export function createWorkspaceFocusController(doc: Document) {
   const lastFocused = new Map<string, HTMLElement>();
   let lastArea: string | undefined;
-  // An area that took focus itself from the keyboard, or the non-tabbable default (the
-  // conversation's scroller) standing in for it. Chromium's :focus-visible also matches a
-  // clicked area after any later key press, so the ring and window return read this mark.
   let keyboardArea: HTMLElement | undefined;
   let previousTarget: EventTarget | null = null;
   const unmarkKeyboardArea = () => {
@@ -138,7 +128,6 @@ export function createWorkspaceFocusController(doc: Document) {
   };
   const remember = (event: FocusEvent) => {
     if (event.target !== keyboardArea) unmarkKeyboardArea();
-    // Window activation refocuses the same element; only focus arriving from elsewhere counts.
     const arrived = event.target !== previousTarget;
     previousTarget = event.target;
     if (!(event.target instanceof HTMLElement)) return;
@@ -148,10 +137,8 @@ export function createWorkspaceFocusController(doc: Document) {
     lastArea = areaKey(area);
     const key = area.dataset.workspaceFocusKey ?? lastArea;
     lastFocused.delete(key);
-    // Custom file trees retarget focusin to their nonfocusable shadow host.
     const target = event.composedPath().find((element) => element instanceof HTMLElement);
     lastFocused.set(key, target instanceof HTMLElement ? target : event.target);
-    // Surface history must not retain an unbounded number of detached panel trees.
     if (lastFocused.size > 64) lastFocused.delete(lastFocused.keys().next().value!);
   };
   doc.addEventListener("focusin", remember);
@@ -171,8 +158,6 @@ export function createWorkspaceFocusController(doc: Document) {
     const fallback = Array.from(area.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).find(
       (element) => element.tabIndex >= 0 && belongs(element),
     );
-    // Panel surfaces may unmount when hidden. Recover the same named control when
-    // it mounts again, without sharing focus history between different surface tabs.
     const restored =
       previous && !previous.isConnected
         ? Array.from(area.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).find(
@@ -193,9 +178,6 @@ export function createWorkspaceFocusController(doc: Document) {
           (element) => belongs(element) && element.tabIndex >= 0,
         )
       : undefined;
-    // Moving the timeline to an old control would also stop it following a running turn,
-    // so the conversation reuses a control only while it is still in view. A remembered
-    // area is only the fallback it was then, so controls mounted since take precedence.
     const isConversation = area.dataset.workspaceArea === "conversation";
     const targets = new Set([
       previous &&
@@ -217,7 +199,6 @@ export function createWorkspaceFocusController(doc: Document) {
       const active = root instanceof ShadowRoot ? root.activeElement : doc.activeElement;
       if (active === target || (active && target.contains(active))) {
         if (target !== area && !isConversation) revealInScrollers(target);
-        // Focusing the already focused area fires no focusin, as when F6 has nowhere else to go.
         if (standsInFor(target, area)) markKeyboardArea(target);
         return true;
       }
@@ -240,8 +221,6 @@ export function createWorkspaceFocusController(doc: Document) {
         : pickArea(areas, name);
     if (!area) return false;
     const surface = area.querySelector("[data-right-panel-surface-content]");
-    // A lazy surface's Suspense fallback is empty. Wait for its content instead
-    // of claiming focus on the tab strip before the useful controls mount.
     if (surface && !surface.hasChildNodes()) return false;
     if (!selector && surface?.contains(doc.activeElement)) return true;
     if (selector) {
@@ -253,13 +232,8 @@ export function createWorkspaceFocusController(doc: Document) {
     return focusArea(area, restore);
   };
   const move = (direction: 1 | -1, fromArea?: string, closingPalette = false) => {
-    // HTML context menus close on blur, unlike modal dialogs and Base UI popups.
     dismissContextMenu(false);
-    // A palette closes before running its command. Other popups keep their focus boundary.
-    // Inline listboxes (such as Settings search) belong to their workspace area, while
-    // portalled listboxes and menus can also supply a boundary without a popup data-slot.
     const activePopup = doc.activeElement?.closest<HTMLElement>('[role="menu"], [role="listbox"]');
-    // Settings opens as a route modal with its own areas; navigation stays inside it.
     const appModal = Array.from(doc.querySelectorAll<HTMLElement>("[data-app-modal]")).find(
       isWorkspaceElementVisible,
     );
@@ -267,8 +241,6 @@ export function createWorkspaceFocusController(doc: Document) {
       doc.querySelectorAll<HTMLElement>(FOCUS_BOUNDARY_SELECTOR),
     ).filter((boundary) => boundary !== appModal);
     if (activePopup && !activePopup.closest(AREA_SELECTOR)) boundaries.push(activePopup);
-    // A modal keeps focus wherever it is; any other popup only while it holds focus,
-    // so hover popups and notifications never swallow the key.
     if (
       boundaries.some(
         (boundary) =>
@@ -278,7 +250,6 @@ export function createWorkspaceFocusController(doc: Document) {
       )
     )
       return false;
-    // Panes cycle in layout order, each through its own areas; the sidebar comes first.
     const panes = Array.from(doc.querySelectorAll<HTMLElement>(PANE_SELECTOR));
     const order = (area: HTMLElement) => Number(area.dataset.workspaceOrder);
     const paneRank = (area: HTMLElement) => {
@@ -304,8 +275,6 @@ export function createWorkspaceFocusController(doc: Document) {
     return focusArea(area);
   };
 
-  // Focus that drops to the body because its element was hidden, made inert, disabled, or removed
-  // returns to a remounted control, else its area, or the composer for a finished timeline prompt.
   const recover = (event: FocusEvent) => {
     const lost = event.target;
     if (!(lost instanceof HTMLElement) || event.relatedTarget) return;
@@ -338,8 +307,6 @@ export function createWorkspaceFocusController(doc: Document) {
   };
   doc.addEventListener("focusout", recover);
 
-  // A request names a destination React has not committed yet, so it retries as the
-  // DOM changes. User input cancels it, and it gives up after two seconds.
   let pending: WorkspaceFocusTarget | undefined;
   let frame = 0;
   let deadline = 0;
@@ -361,7 +328,6 @@ export function createWorkspaceFocusController(doc: Document) {
   const request = (target: WorkspaceFocusTarget) => {
     cancelRequest();
     pending = target;
-    // The key or click that made the request may still be propagating.
     queueMicrotask(() => {
       if (pending === target) cancelOnInput = true;
     });
@@ -447,8 +413,6 @@ export function requestWorkspaceFocus(target: WorkspaceFocusTarget) {
 }
 
 export function requestWorkspaceContentFocus() {
-  // Resolve after the layout commits: closing a maximized panel makes the
-  // composer available again, while hiding a sidebar may leave only the panel.
   requestWorkspaceFocus({ area: "content" });
 }
 

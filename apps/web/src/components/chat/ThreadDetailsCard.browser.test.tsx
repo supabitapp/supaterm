@@ -49,15 +49,11 @@ function Card({
   threadRef: ScopedThreadRef;
   inline: boolean;
   fixture: ReturnType<typeof setup>;
-  /** Rows of 100px shown at full density. Compact always takes 50px. */
   rows?: number;
-  /** Rows of 100px in an automations list shown at full density. */
   automationRows?: number;
-  /** Rows of 100px that expanded server lists add, which density ignores. */
   serverOverflowRows?: number;
 }) {
   return (
-    // The web root renders in StrictMode, which re-runs ref callbacks on every mount.
     <StrictMode>
       <ChatCanvasContext
         value={{

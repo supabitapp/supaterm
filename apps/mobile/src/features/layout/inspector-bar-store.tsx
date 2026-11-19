@@ -5,7 +5,6 @@ export const InspectorCloseContext = createContext<(() => void) | null>(null);
 
 const NO_ROUTES: ReadonlyMap<string, object> = new Map();
 
-/** The options a pane's AppBar sets. External so a write re-renders the bar, not the pane. */
 function createInspectorBarStore() {
   let snapshot: object | undefined;
   const listeners = new Set<() => void>();

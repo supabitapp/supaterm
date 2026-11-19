@@ -46,7 +46,6 @@ const runExecutable = Effect.fn("runExecutable")(function* (
   const child = yield* spawner.spawn(
     ChildProcess.make(executable, args, {
       cwd,
-      // Isolate system Node and inherited launcher context from the archive smoke check.
       env: { PATH: "", HOME: cwd, USERPROFILE: cwd, TMPDIR: cwd, TEMP: cwd },
       extendEnv: false,
     }),
@@ -67,7 +66,6 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
   const platform = yield* HostProcess.Platform;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const scratch = yield* fs.makeTempDirectory({ prefix: "supaterm-cli-smoke-" });
-  // Windows can briefly retain executable locks; cleanup retries but must not fail a successful smoke check.
   yield* Effect.addFinalizer(() =>
     fs.remove(scratch, { recursive: true }).pipe(
       Effect.retry({ times: 10, schedule: Schedule.spaced("500 millis") }),
@@ -77,7 +75,6 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     ),
   );
 
-  // Windows bsdtar reads zip; Git Bash's GNU tar does not.
   const tar = platform === "win32" ? windowsSystemTar() : "tar";
   const extract = yield* spawner
     .spawn(ChildProcess.make(tar, ["-xf", input.archive, "-C", scratch]))
@@ -111,10 +108,8 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     }
   }
 
-  // The runner has libatomic installed; fresh Ubuntu servers do not.
   if (platform === "linux") {
     const ldd = yield* spawner.string(ChildProcess.make("ldd", [executable]));
-    // Older glibc prints the path as given, newer prints it resolved; compare both resolved.
     const loaded = /libatomic\.so\.1 => (\/.*) \(0x[0-9a-f]+\)/.exec(ldd)?.[1];
     if (
       loaded === undefined ||
@@ -135,7 +130,6 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     });
   }
 
-  // The service launcher loads outside the embedded CLI; without SUPATERM_HOME it exits right away.
   const launcher = yield* runExecutable(executable, ["__service-launcher"], contentDir);
   if (launcher.exitCode !== 1 || !launcher.stderr.includes("SUPATERM_HOME is required")) {
     return yield* new CliArchiveSmokeError({
@@ -169,7 +163,6 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     Effect.all([collect(server.stdout), collect(server.stderr)]),
   );
   const httpClient = yield* HttpClient.HttpClient;
-  // Probes can hang during server initialization; bound each request as SSH readiness does.
   const probe = httpClient.execute(HttpClientRequest.get(`http://127.0.0.1:${String(port)}/`)).pipe(
     Effect.map((response) => response.status === 200),
     Effect.timeout(Duration.seconds(2)),

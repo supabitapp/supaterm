@@ -30,8 +30,6 @@ const layerRuntime = NativeWebSocket.layer.pipe(
   Layer.provideMerge(layerHttpClient),
   Layer.provideMerge(Persistence.layer),
   Layer.provideMerge(MobileRelayGateway.layer),
-  // These layers read the keychain and the database while they build, and a
-  // failed build is kept for the life of the process.
   Layer.provide(Layer.effectDiscard(Effect.promise(whenProtectedDataAvailable))),
 );
 

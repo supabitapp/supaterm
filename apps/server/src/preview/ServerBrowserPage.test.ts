@@ -159,7 +159,6 @@ describe("snapshot deadline diagnostics", () => {
 
   it("reports a frame that didn't answer as the frame's own timeout", async () => {
     const main = {};
-    // A desktop tab refuses frame sessions, so the frame is read in its own world.
     const child = { evaluate: never, parentFrame: () => main };
     const captured = await stalledSnapshot({
       page: {
@@ -174,7 +173,6 @@ describe("snapshot deadline diagnostics", () => {
           elementHandle: async () => ({ contentFrame: async () => child, dispose: async () => {} }),
         }),
       },
-      // Both attempts wait out the frame; neither reaches the capture deadline.
       advanceMs: 2_000,
     });
     expect(captured).toMatchObject({
@@ -384,7 +382,6 @@ describe("server browser element refs", () => {
     await ServerBrowserPage.type(page, { text: "shadow" });
     expect(await field.inputValue()).toBe("shadow");
 
-    // Refused for now: focus inside a frame cannot be checked from the top document.
     const inner = page.frameLocator("iframe").locator("#inner");
     await inner.click();
     await expect(ServerBrowserPage.type(page, { text: "frame" })).rejects.toMatchObject({
@@ -445,7 +442,6 @@ describe("server browser element refs", () => {
   });
 
   it("shows a data: link or blocked data: navigation by media type only", async () => {
-    // Chromium keeps raw spaces and quotes in both, so a payload can't be cut at either.
     await page.setContent(`
       <a download href="data:text/plain;charset=&quot;a,b&quot;,head PAYLOAD'tail">Key</a>
       <a href="https://example.com/data:report,2026">Report</a>
@@ -594,7 +590,6 @@ describe("server browser snapshot screenshot", () => {
   let context: BrowserContext;
 
   beforeAll(async () => {
-    // ServerBrowserContexts launches with these, and the capture scale depends on them.
     browser = await chromium.launch({
       headless: true,
       args: ["--disable-gpu", "--force-device-scale-factor=2"],
@@ -613,7 +608,6 @@ describe("server browser snapshot screenshot", () => {
     await context.close();
   });
 
-  // Blue on the left half and red on the right, so a mirrored left half shows up on the right.
   const halves = (overlay: string) => `
     <style>
       body { margin: 0; background: white; }
@@ -637,7 +631,6 @@ describe("server browser snapshot screenshot", () => {
       actionTimeline: [],
     };
     const { screenshot, fullScreenshot } = await ServerBrowserPage.snapshot(input);
-    // The server has no DOM types, so the decoder runs as page source.
     const points = [
       [0.15, 0.75],
       [0.85, 0.25],
@@ -764,7 +757,6 @@ describe("server browser drag", () => {
       );
       void settled.then(() => (finished = true));
 
-      // Two macrotask turns: Node reports a rejection nobody observed after the first.
       for (let turn = 0; turn < 2; turn++) {
         // oxlint-disable-next-line supaterm/no-real-time-wait-in-tests -- Node emits unhandledRejection only between macrotasks; no promise can mark that point.
         await new Promise((resolve) => setImmediate(resolve));
@@ -836,7 +828,6 @@ describe("server browser action timeout", () => {
         const record = (step: string, options: StepOptions) =>
           steps.push(`${selector}.${step} ${options.timeout}`);
         return {
-          // Each step that finds the target takes 5 of the 9 seconds.
           scrollIntoViewIfNeeded: async (options: StepOptions) => {
             record("scrollIntoViewIfNeeded", options);
             now += 5_000;
@@ -864,7 +855,6 @@ describe("server browser click", () => {
     const clicks: Array<unknown> = [];
     const page = {
       locator: () => ({
-        // Playwright resolves the node once; a page re-rendering it detaches that node.
         scrollIntoViewIfNeeded: async () => {
           if (scrolls++ === 0) {
             throw new Error("locator.scrollIntoViewIfNeeded: Element is not attached to the DOM");
@@ -954,7 +944,6 @@ describe("server browser evaluate", () => {
 });
 
 describe("server browser type", () => {
-  // As on a desktop tab whose Playwright utility world never answers.
   const stalledPage = (focusAnswer: () => Promise<unknown>, typed: string[]) =>
     ({
       locator: () => ({ last: () => ({ count: () => new Promise<number>(() => {}) }) }),
@@ -1012,7 +1001,6 @@ describe("server browser unresponsive script", () => {
 
 describe("server browser wait", () => {
   it("ends at its timeout when a check never answers", async () => {
-    // As on a desktop tab whose Playwright utility world never answers.
     const page = {
       locator: () => ({ count: () => new Promise<number>(() => {}) }),
     } as unknown as Page;

@@ -82,14 +82,11 @@ const threadRef = {
   environmentId: EnvironmentId.make("secondary-terminal"),
   threadId: ThreadId.make("thread"),
 };
-// The mocked modules read `state`, so every test starts by resetting all of it.
 function setup() {
   state.allowed = true;
   state.listeners.clear();
   state.resize.mockReset().mockResolvedValue(AsyncResult.success(undefined));
   state.otherCommand.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  // A surface can report its initial grid while asynchronous WASM setup is
-  // pending. Keep that unrelated setup pending while exercising its callback.
   state.createSurface.mockReset().mockReturnValue(new Promise(() => undefined));
 }
 
@@ -118,7 +115,6 @@ it.each(["horizontal", "vertical"] as const)(
         event.stopPropagation();
       }
     };
-    // ChatView installs its capture listener before the terminal mounts.
     window.addEventListener("keydown", consumeShortcut, { capture: true });
     using _shortcut = {
       [Symbol.dispose]: () =>

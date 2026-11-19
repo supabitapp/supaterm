@@ -32,9 +32,6 @@ export interface ShellHttpSnapshot extends DeferredShellSnapshot {
 
 export type ShellHttpAnswer = ShellHttpSnapshot | OrchestrationV2ShellResumable;
 
-// On timeout the socket asks the same server for the same full snapshot, so a
-// short deadline only throws the first build away. The socket fallback is for
-// setups where /api fails but /ws works, such as a proxy that blocks /api.
 const DEFAULT_SHELL_SNAPSHOT_TIMEOUT_MS = 20_000;
 
 export const fetchEnvironmentShellSnapshot = Effect.fn(

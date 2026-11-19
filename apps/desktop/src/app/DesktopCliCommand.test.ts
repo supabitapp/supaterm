@@ -50,7 +50,6 @@ const commandIn = (
       : make;
   });
 
-/** `inherited` stands in for the app's own environment, which `extendEnv` passes on. */
 const fakePowerShell = (initial: string, inherited: Record<string, string> = {}) => {
   const registry = { path: initial, failReads: false, writes: 0, commands: [] as Array<string> };
   const spawner = ChildProcessSpawner.make((command) =>
@@ -241,10 +240,8 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect(yield* fs.readLink(link)).toBe(path.join(home, ".supaterm", "bin", "supaterm"));
       expect((yield* command.install).installedPath).toBe(link);
 
-      // Add to PATH appends one line, once, and keeps a final line with no newline intact.
       const zshrc = path.join(home, ".zshrc");
       yield* fs.writeFileString(zshrc, "# mine");
-      // A folder already on PATH needs nothing.
       process.env.PATH = path.join(home, ".local", "bin");
       yield* command.addToPath;
       expect(yield* fs.readFileString(zshrc)).toBe("# mine");
@@ -281,8 +278,6 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect(yield* fs.readFileString(theirs)).toBe("npm's supaterm\n");
       expect(yield* fs.readLink(path.join(home, "bin", "supaterm"))).toBe(path.join(home, "gone"));
 
-      // Installing automatically beside someone else's supaterm (even off PATH or a dangling link)
-      // adds no second supaterm in ~/bin.
       for (const dangling of [false, true]) {
         const besideHome = yield* fs.makeTempDirectoryScoped();
         const other = path.join(besideHome, ".local", "bin", "supaterm");
@@ -313,27 +308,21 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const link = (yield* before.install).installedPath;
 
       const after = yield* commandIn({ home, baseDir: path.join(home, "new-supaterm") });
-      // Installing automatically leaves another home's command alone; only Install takes it over.
       yield* after.installAutomatically;
       expect(yield* fs.readLink(link!)).toBe(path.join(home, "old-supaterm", "bin", "supaterm"));
-      // On PATH, it runs the other home's launcher. Settings offers Install (not Remove, and not
-      // "another supaterm runs first"), which updates that link in place.
       process.env.PATH = path.dirname(link!);
       expect(yield* after.state).toMatchObject({ installedPath: null, onPath: false });
       expect((yield* after.state).shadowedBy).toBeUndefined();
       process.env.PATH = "";
-      // Off PATH, Add to PATH would expose the other home's command, not this one.
       expect((yield* after.state).pathSetup).toBeUndefined();
       yield* Effect.flip(after.addToPath);
       expect(yield* fs.exists(path.join(home, ".zshrc"))).toBe(false);
-      // Behind another supaterm the install fails, and the old link still works.
       const shadow = path.join(home, "shadow");
       yield* fs.makeDirectory(shadow);
       yield* fs.writeFileString(path.join(shadow, "supaterm"), "#!/bin/sh\n", { mode: 0o755 });
       process.env.PATH = shadow;
       yield* Effect.flip(after.install);
       expect(yield* fs.readLink(link!)).toBe(path.join(home, "old-supaterm", "bin", "supaterm"));
-      // Install takes it over, also with its folder first on PATH.
       process.env.PATH = path.dirname(link!);
       expect((yield* after.install).installedPath).toBe(link);
       expect(yield* fs.readLink(link!)).toBe(path.join(home, "new-supaterm", "bin", "supaterm"));
@@ -342,11 +331,9 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect(yield* fs.exists(path.join(home, ".local", "bin", "supaterm"))).toBe(false);
       expect(yield* fs.exists(path.join(home, "bin", "supaterm"))).toBe(false);
 
-      // A folder already on PATH wins, even written with a trailing slash.
       process.env.PATH = `${path.join(home, "bin")}/`;
       expect((yield* after.install).installedPath).toBe(path.join(home, "bin", "supaterm"));
 
-      // An old link of ours is updated where it is, not moved to a folder that may be off PATH.
       yield* fs.writeFileString(path.join(home, "bin", "supaterm.staging"), "mine");
       yield* fs.remove(path.join(home, "bin", "supaterm"));
       yield* fs.symlink(
@@ -383,7 +370,6 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect(yield* fs.exists(path.join(home, ".local", "bin", "supaterm"))).toBe(false);
       expect(yield* fs.readFileString(theirs)).toBe("#!/bin/sh\n");
 
-      // Its folder is already on PATH behind theirs; adding it again would change which supaterm runs.
       yield* fs.makeDirectory(path.join(home, ".local", "bin"), { recursive: true });
       yield* fs.symlink(
         path.join(home, ".supaterm", "bin", "supaterm"),
@@ -392,7 +378,6 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       const behind = yield* command.state;
       expect(behind.installedPath).toBe(path.join(home, ".local", "bin", "supaterm"));
       expect(behind.pathSetup).toBeUndefined();
-      // Off PATH behind theirs, adding the folder would still put ours first.
       process.env.PATH = shadow;
       expect((yield* command.state).pathSetup).toBeUndefined();
       yield* Effect.flip(command.addToPath);
@@ -489,7 +474,6 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       yield* command.uninstall;
       expect(registry.path).toBe(userPath);
 
-      // A `;` in the folder would split it into two PATH entries, so nothing is written.
       const split = fakePowerShell(userPath);
       const semicolon = yield* commandIn(
         { home, baseDir: `${home}\\Supaterm;Home`, platform: "win32" },
@@ -498,7 +482,6 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       expect((yield* Effect.flip(semicolon.install)).message).toContain('has a ";"');
       expect(split.registry).toMatchObject({ path: userPath, writes: 0 });
 
-      // An inherited SUPATERM_SET=1 never turns a read into a write of the whole PATH.
       const inherited = fakePowerShell(userPath, {
         SUPATERM_SET: "1",
         SUPATERM_PATH: "C:\\other",
@@ -545,8 +528,6 @@ it.layer(NodeServices.layer)("DesktopCliCommand", (it) => {
       yield* command.uninstall;
       expect(registry.path).toBe(userPath);
 
-      // Installing automatically beside a standalone supaterm.cmd (from `supaterm install`), even off
-      // PATH, leaves PATH alone.
       const besideHome = yield* fs.makeTempDirectoryScoped();
       yield* fs.makeDirectory(path.join(besideHome, ".local", "bin"), { recursive: true });
       yield* fs.writeFileString(

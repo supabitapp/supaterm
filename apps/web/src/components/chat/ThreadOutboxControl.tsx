@@ -87,8 +87,6 @@ export function ThreadOutboxControl({
     setBusy(false);
   }
 
-  // Takes the key while the last message is mid-send rather than editing an
-  // older one.
   useImperativeHandle(ref, () => ({
     editLatest(repeat) {
       const latest = pending.at(-1);
@@ -247,7 +245,6 @@ function canChangeEntry(entry: PendingThreadTurn) {
   return !entry.attempted || entry.status === "failed";
 }
 
-// A voice message has no text to edit until the environment transcribes it.
 function canEditEntry(entry: PendingThreadTurn) {
   return canChangeEntry(entry) && entry.payload.voice === undefined;
 }

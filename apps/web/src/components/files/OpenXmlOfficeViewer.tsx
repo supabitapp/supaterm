@@ -48,8 +48,7 @@ export default function OfficeViewer(props: {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- Own the Open XML fetch, preparation worker, and timeout for this source and release them on cleanup.
   useEffect(() => {
     if ((props.sizeBytes ?? 0) > OFFICE_PREVIEW_MAX_BYTES) {
-      // Metadata bounds are checked before fetching or starting an engine.
-      // oxlint-disable-next-line react/set-state-in-effect
+      // oxlint-disable-next-line react/set-state-in-effect -- Metadata bounds are checked before fetching or starting an engine.
       setError("Preview limited to files under 50 MB.");
       return;
     }

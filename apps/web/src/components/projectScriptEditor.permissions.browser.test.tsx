@@ -34,7 +34,6 @@ vi.mock(import("~/state/session"), async (original) => {
   };
 });
 
-/** A grant change that React has already rendered, unlike a bare assignment. */
 const publish = () => act(async () => permissions.listeners.forEach((listener) => listener()));
 import { pressAgain, pressTwice } from "~/test/inlineConfirm";
 import { ProjectScriptEditorDialog, type ProjectScriptEditorRequest } from "./projectScriptEditor";

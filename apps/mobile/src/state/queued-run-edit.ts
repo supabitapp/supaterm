@@ -73,11 +73,6 @@ export function useQueuedRunEdit(threadKey: string | null): QueuedRunEdit | null
   return threadKey === null ? null : (edits[threadKey] ?? null);
 }
 
-/**
- * The run started or was cancelled elsewhere. A changed edit goes back into
- * the thread's composer when that is empty; otherwise it is dropped. Either
- * way the thread says so, wherever the user is when it happens.
- */
 function exitQueuedRunEdit(threadKey: string, edit: QueuedRunEdit): void {
   const editDraftKey = queuedEditDraftKey(threadKey, edit.runId);
   const editDraft = getComposerDraftSnapshot(editDraftKey);
@@ -88,14 +83,12 @@ function exitQueuedRunEdit(threadKey: string, edit: QueuedRunEdit): void {
       editDraft.text !== edit.originalText ||
       editDraft.attachments.length > 0 ||
       edit.removedExistingAttachment === true,
-    // A cleared edit has nothing to put back, so it can only be discarded.
     threadDraftEmpty:
       editRestorable &&
       threadDraft.text.trim().length === 0 &&
       threadDraft.attachments.length === 0,
   });
   if (recovery === "kept") {
-    // The merge publishes the draft before writing it, so a failed write only delays persistence to the next one.
     mergeComposerDraftContent(threadKey, {
       text: editDraft.text,
       attachments: editDraft.attachments,
@@ -124,7 +117,6 @@ export function beginQueuedRunEdit(
   if (previous !== null && previous.runId !== edit.runId) {
     clearComposerDraft(queuedEditDraftKey(threadKey, previous.runId));
   }
-  // The composer moves off the thread draft, so a paste or pick still running for it is dropped.
   abortComposerDraftOperations(threadKey);
   const draftKey = queuedEditDraftKey(threadKey, edit.runId);
   const originalText = stripAttachmentOnlyBootstrapPrompt(edit.originalText);

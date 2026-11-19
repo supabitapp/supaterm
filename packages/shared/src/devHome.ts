@@ -1,11 +1,8 @@
-/** Worktrees use isolated .supaterm state; ambient SUPATERM_HOME could otherwise select the live userdata database. */
-
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 
-// Match worktrees/<name>; bare repos and GIT_COMMON_DIR need not use a directory named .git.
 const pointsAtLinkedWorktree = (gitFileContents: string, path: Path.Path): boolean => {
   const gitdir = gitFileContents
     .split(/\r?\n/)

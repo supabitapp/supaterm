@@ -54,7 +54,6 @@ type CompletedScans = Map<
     sourceThreadIds: readonly ThreadId[];
   }
 >;
-// Segments may retain slices of their source text, so the budget includes both.
 interface RenderedSnapshot {
   current:
     | {
@@ -268,14 +267,9 @@ export const makeThreadFind = Effect.fn("makeThreadFind")(function* (
 
   const makeTextCache = (capacity: number) =>
     Cache.make({ capacity, lookup: (key: TextKey) => Effect.sync(() => parseText(key)) });
-  // Text keys are message content, so entries never go stale. Cache TTL only expires on access
-  // and would keep the last searched threads forever. Each search borrows this for its whole
-  // stream, and all of it is dropped once Find is idle.
   const findCaches = yield* RcRef.make({
     acquire: Effect.all({
-      // Scans visit every message; a cache smaller than the thread churns without hits.
       text: makeTextCache(8192),
-      // Bounded separately because each entry can hold a large body; typing reuses the parse.
       largeText: makeTextCache(32),
       scans: Effect.sync((): CompletedScans => new Map()),
       rendered: Effect.sync((): RenderedSnapshot => ({ current: undefined })),
@@ -369,7 +363,6 @@ export const makeThreadFind = Effect.fn("makeThreadFind")(function* (
         return loaded;
       });
       const payloads = yield* loadAll(candidates);
-      // Only runs with an empty reply can hide its fallback, so other tool payloads stay unread.
       const emptyReplyRunIds = new Set(
         payloads.flatMap((row) =>
           row.type === "assistant_message" && row.emptyText && row.runId !== null
@@ -423,7 +416,6 @@ export const makeThreadFind = Effect.fn("makeThreadFind")(function* (
           if (item.type === "user_input_request" && item.questionAnswer)
             foldedAnswerRunIds.set(`async-answer:${item.questionAnswer.requestId}`, item.runId);
         }
-        // The timeline hides an empty reply's fallback when its run shows an HTML render or MCP app.
         const embeddedResultRunIds = new Set<OrchestrationV2TurnItem["runId"]>();
         for (const payload of toolPayloads) {
           const { item } = yield* decode(payload);

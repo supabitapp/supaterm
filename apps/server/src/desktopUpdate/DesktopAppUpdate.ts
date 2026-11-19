@@ -159,7 +159,6 @@ export const make = Effect.fn("desktopUpdate.desktopAppUpdate.make")(function* (
                 failWith("Could not generate a desktop update request id.", error),
               ),
             );
-          // Subscribe before requesting to catch fast reports.
           const { changes } = yield* receiver.desktopUpdates;
           yield* receiver
             .requestDesktopUpdate(requestId, trackSwitch)

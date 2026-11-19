@@ -11,7 +11,6 @@ import { makeKimiPromptOutcomeWatch } from "./kimiAcp.ts";
 
 const SESSION_ID = "session_06abd65a-ab8c-4f7a-a504-9b105fc7cd0d";
 const endTurn = { stopReason: "end_turn" } as const;
-// Records trimmed from Kimi Code 2.5.3's wire.jsonl after the follow-up model request failed.
 const failedTurn = (turnId: number) =>
   JSON.stringify({
     type: "turn.ended",
@@ -40,10 +39,8 @@ it.layer(NodeServices.layer)("makeKimiPromptOutcomeWatch", (it) => {
       const agentDirectory = path.join(home, "sessions", "wd_proj_1", SESSION_ID, "agents", "main");
       yield* fileSystem.makeDirectory(agentDirectory, { recursive: true });
       const wire = path.join(agentDirectory, "wire.jsonl");
-      // An earlier turn's failure is history, not this prompt's outcome.
       yield* fileSystem.writeFileString(wire, failedTurn(0));
       const append = (text: string) => fileSystem.writeFileString(wire, text, { flag: "a" });
-      // Signals once a poll has closed the log, so the check is already waiting for its next poll.
       const polls = yield* Queue.unbounded<void>();
       const watch = yield* makeKimiPromptOutcomeWatch(home).pipe(
         Effect.provideService(FileSystem.FileSystem, {
@@ -60,7 +57,6 @@ it.layer(NodeServices.layer)("makeKimiPromptOutcomeWatch", (it) => {
       assert.isUndefined(yield* completed(endTurn));
       yield* Queue.take(polls);
 
-      // Kimi answers the prompt before `turn.ended` reaches disk.
       const failed = yield* watch(SESSION_ID);
       yield* append(failedTurn(2).slice(0, 40));
       const pending = yield* failed(endTurn).pipe(Effect.forkChild);

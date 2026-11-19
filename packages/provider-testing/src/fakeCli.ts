@@ -16,7 +16,6 @@ export interface FakeCliOptions {
 export function writeFakeCli(options: FakeCliOptions): string {
   NodeFS.mkdirSync(options.directory, { recursive: true });
   const stubPath = NodePath.join(options.directory, `${options.name}-stub.mjs`);
-  // JSON sidecars avoid shell quoting failures for arbitrary environment values.
   const envPath = NodePath.join(options.directory, `${options.name}-env.json`);
   NodeFS.writeFileSync(envPath, JSON.stringify(options.env ?? {}), "utf8");
   NodeFS.writeFileSync(

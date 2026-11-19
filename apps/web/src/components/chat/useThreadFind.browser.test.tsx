@@ -780,7 +780,6 @@ const pressFind = () =>
   );
 const paneFind = (environmentId: EnvironmentId) => paneFinds.get(environmentId)!.barProps;
 
-/** Panes for threads in environments a and b, a focused, on a router that follows focus. */
 async function renderSplit(resources: AsyncDisposableStack) {
   resources.defer(() => {
     useChatPaneStore.setState({ layout: null, closed: [], openToSide: null });
@@ -831,7 +830,6 @@ describe("find in split panes", () => {
     expect(paneFind(b).open).toBe(false);
     await act(() => paneFind(a).onQueryChange("needle"));
 
-    // Focus moves the URL to the focused pane's thread.
     await act(() => useChatPaneStore.getState().focus(paneB));
     await visit(threadPath(b));
     expect(paneFind(a)).toMatchObject({ open: true, query: "needle" });

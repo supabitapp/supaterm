@@ -25,7 +25,6 @@ function providerModelPickerNaturalWidth(picker: HTMLElement): number {
   const style = getComputedStyle(picker);
   const label = picker.querySelector<HTMLElement>('[data-chat-provider-model-picker-label="true"]');
   const labelIsCollapsed = label?.clientWidth === 0 && getComputedStyle(label).flexGrow === "0";
-  // A label with its own max width, such as a long model name, never grows past it.
   const labelMaxWidth = label ? Number.parseFloat(getComputedStyle(label).maxWidth) : Number.NaN;
   const hiddenLabelWidth =
     label && !labelIsCollapsed
@@ -57,7 +56,6 @@ function controlBlockWidths(block: HTMLElement): { natural: number; iconOnly: nu
   for (const label of block.querySelectorAll<HTMLElement>("[data-composer-control-label]")) {
     const labelStyle = getComputedStyle(label);
     const inFlow = labelStyle.position !== "absolute";
-    // Phone sr-only clipping survives compact styles overriding the label width.
     if (!inFlow && (!compact || labelStyle.clip !== "auto")) continue;
     const labelWidth = label.scrollWidth;
     const renderedWidth = inFlow ? label.getBoundingClientRect().width : 0;

@@ -113,7 +113,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         yield* writeTextFile(cwd, "sub/dist/out.js");
         const gitlink = yield* git(cwd, ["hash-object", "tracked.txt"]);
         yield* git(cwd, ["update-index", "--add", "--cacheinfo", `160000,${gitlink},sub`]);
-        // A nested clone that isn't a submodule keeps the outer repository's ignore rules.
         yield* git(cwd, ["init", "node_modules/pkg"]);
         yield* git(cwd, ["init", "sub/dist"]);
 
@@ -135,7 +134,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
           entries: [{ path: "node_modules/pkg/index.js", kind: "file", ignored: true }],
           truncated: false,
         });
-        // Git refuses pathspecs inside a submodule from the outer repository.
         expect((yield* workspaceEntries.list({ cwd, directoryPath: "sub" })).entries).toEqual(
           expect.arrayContaining([
             { path: "sub/.gitignore", kind: "file" },
@@ -186,8 +184,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
     );
 
     it.effect("hides folder links that lead back to a folder on the listed path", () =>
-      // "Expand all folders" loads every folder it expands, so a link that loops would
-      // keep nesting the same entries without end.
       Effect.gen(function* () {
         const platform = yield* HostProcess.Platform;
         if (platform === "win32") return;
@@ -207,9 +203,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
             .list({ cwd, directoryPath })
             .pipe(Effect.map(({ entries }) => entries.map((entry) => entry.path).toSorted()));
         expect(yield* paths("")).toEqual(["a", "b"]);
-        // A link into a sibling folder is fine on its own...
         expect(yield* paths("a")).toEqual(["a/file.txt", "a/to-b"]);
-        // ...but once followed, the sibling's link back is hidden.
         expect(yield* paths("a/to-b")).toEqual(["a/to-b/file.txt"]);
       }),
     );
@@ -221,7 +215,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         const cwd = yield* makeTempDir();
         const fileSystem = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        // Shaped like a pnpm `node_modules`: one link per package into `.pnpm`.
         const directoryPath = [...Array.from({ length: 80 }, () => "nested"), "node_modules"].join(
           "/",
         );
@@ -262,7 +255,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
 
     it.effect("labels the children of wide folders exactly as git does for each child", () =>
       Effect.gen(function* () {
-        // Above 1,000 children, listing first asks whether the whole folder is ignored.
         const cwd = yield* makeTempDir({ git: true });
         const fileSystem = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
@@ -303,14 +295,11 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         for (const { directoryPath, ignored, except } of [
           { directoryPath: "node_modules", ignored: true, except: [] },
           { directoryPath: "dist", ignored: true, except: ["dist/kept.js", "dist/vendored"] },
-          // git reads `[id]/page.tsx` as a pathspec, which matches the tracked `i/page.tsx`.
           { directoryPath: "[id]", ignored: true, except: ["[id]/page.tsx"] },
           { directoryPath: "src", ignored: false, except: ["src/bundle.map"] },
           ...(platform !== "win32"
             ? [
-                // git refuses to classify paths beyond a symlink, so nothing there is labelled.
                 { directoryPath: "node_modules/link", ignored: false, except: [] },
-                // Leading : is pathspec magic; Git sees foo/pkg-0.js, unignored by !foo/.
                 { directoryPath: ":foo", ignored: false, except: [] },
               ]
             : []),
@@ -463,7 +452,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
           kind: "file",
         });
 
-        // Native ranking can put either matching file first.
         expect(result.entries).toHaveLength(1);
         expect(result.entries[0]?.kind).toBe("file");
         expect(["src/index.ts", "src/internal.ts"]).toContain(result.entries[0]?.path);
@@ -586,7 +574,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         yield* fileSystem.symlink(outside, path.join(cwd, "outside-link"));
         yield* git(cwd, ["add", "tracked-link.ts"]);
         yield* writeTextFile(cwd, ".gitignore", "tracked-link.ts\nignored-link\n");
-        // A submodule path makes `git check-ignore` refuse the whole batch without --no-index.
         const submodule = path.join(cwd, "vendor/sub");
         yield* writeTextFile(submodule, "a.ts", "export {};");
         yield* git(submodule, ["init"]);
@@ -641,7 +628,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
           expect(paths).toContain("sub/hide-link.ts");
           expect(paths).not.toContain("keep-link.ts");
         }
-        // The real files are shown or hidden by the same rules.
         const listedPaths = listed.entries.map((entry) => entry.path);
         expect(listedPaths).toContain("sub/hide-real.ts");
         expect(listedPaths).not.toContain("keep-real.ts");
@@ -655,7 +641,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         const path = yield* Path.Path;
         yield* writeTextFile(cwd, "src/index.ts", "export {};");
         yield* writeTextFile(cwd, ".gitignore", "blink\n");
-        // `!link` must not re-include `blink`, and `folder-link/` does not apply to a link.
         yield* writeTextFile(cwd, ".ignore", "!link\nfolder-link/\n");
         yield* fileSystem.symlink("src", path.join(cwd, "blink"));
         yield* fileSystem.symlink("src", path.join(cwd, "folder-link"));
@@ -689,7 +674,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         yield* git(cwd, ["worktree", "add", "-b", "x", ".worktrees/x"]);
         yield* writeTextFile(cwd, ".worktrees/x/src/foo.py", "print(1)");
         const expected = [".worktrees/x/src/foo.py"];
-        // Windows file names cannot contain a newline.
         if ((yield* HostProcess.Platform) !== "win32") {
           yield* git(cwd, ["worktree", "add", "--detach", ".worktrees/line\nname"]);
           yield* writeTextFile(cwd, ".worktrees/line\nname/src/foo.py", "print(2)");
@@ -974,7 +958,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
           if (created.ok) {
             const finder = created.value;
             finders += 1;
-            // The synchronous rescan and grep wait on fff's picker lock on the event loop.
             finder.scanFiles = () => {
               throw new Error("refresh must not rescan on the JS thread");
             };
@@ -1010,7 +993,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         const result = yield* searchNeedle;
 
         expect(result.matches.map((match) => match.path)).toEqual(["src/notes.ts"]);
-        // The second search ran on the rescanned live finder, not a rebuild.
         expect({ finders, rescans }).toEqual({ finders: 1, rescans: 1 });
       }),
     );
@@ -1019,7 +1001,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
       Effect.gen(function* () {
         const cwd = yield* makeTempDir({ prefix: "supaterm-workspace-content-slow-scan-" });
         yield* writeTextFile(cwd, "src/notes.ts", "const needle = 1;\n");
-        // Real finders; only the initial wait and the progress it reads report a scan still running.
         let scanning = true;
         let finders = 0;
         let settle = (): Promise<unknown> => Promise.resolve();

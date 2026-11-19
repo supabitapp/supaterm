@@ -132,7 +132,6 @@ describe("width classes", () => {
 });
 
 describe("isPrimarySidebarPinned", () => {
-  // regression: #20406 sidebar toggle works on iPad and iPhone Duo
   it("keeps compact native roots pinned so search cannot hide the sidebar for a later split", () => {
     expect(
       isPrimarySidebarPinned({ pathname: "/", nativeWorkspace: true, usesSplitView: false }),
@@ -207,7 +206,6 @@ describe("deriveWorkspacePaneLayout", () => {
   it.each([
     { width: 1_194, height: 834, horizontalSafeArea: 0, fraction: 0.4, suppressed: false },
     { width: 1_032, height: 1_376, horizontalSafeArea: 0, fraction: 0.4, suppressed: true },
-    // The unfolded Duo's system bar leaves no room for the sidebar beside even the narrowest inspector.
     { width: 951, height: 669, horizontalSafeArea: 76, fraction: 0, suppressed: true },
   ])(
     "steps the sidebar aside for the native inspector only when the page gets too narrow ($width wide)",

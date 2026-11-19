@@ -127,8 +127,6 @@ function resolveTerminalDrawerMaxHeight(input: DrawerLayout): number {
     Math.floor(input.viewportHeight * MAX_DRAWER_HEIGHT_RATIO),
   );
   if (input.chatColumnHeight === undefined) return windowCap;
-  // The composer overlays the timeline, so flex layout cannot reserve its
-  // height; without this cap a tall drawer pushes it into the header.
   return Math.min(
     windowCap,
     Math.max(0, input.chatColumnHeight - (input.headerHeight ?? 0) - (input.composerHeight ?? 0)),
@@ -175,7 +173,6 @@ export function writeTerminalOutputUpdate(
   }
 }
 
-// Avoid formatting unbounded scrollback selections on every output update.
 const MAX_COMPARED_SELECTION_CELLS = 3_000;
 
 export function synchronizeTerminalOutput(
@@ -210,7 +207,6 @@ export function synchronizeTerminalSession(
     session.version === previous.version && session.output === previous.output
       ? cursor
       : synchronizeTerminalOutput(terminal, session, cursor);
-  // An attach failure can change only the error, keeping the last buffer.
   if (
     session.error !== null &&
     (session.error !== previous.error ||
@@ -288,7 +284,6 @@ const TERMINAL_PALETTES = {
   ].map(hexToGhosttyColor),
 };
 
-// Read visibility when WASM finishes loading, not when setup starts.
 function withLiveVisibility(
   visibleRef: { readonly current: boolean },
   options: Omit<GhosttyTerminalSurfaceOptions, "visible">,
@@ -442,10 +437,6 @@ function terminalContextMenuItems(options: {
   ];
 }
 
-/**
- * A writable session's output generation. A new one is a fresh PTY (or a
- * reconnect) that has not seen the surface's grid yet.
- */
 function writableSessionGeneration(
   session: TerminalSessionState,
   canOperate: boolean,
@@ -585,7 +576,6 @@ function TerminalSessionViewport({
   const runTerminalWrite = useAtomCommand(terminalEnvironment.write, {
     reportFailure: false,
   });
-  // Recovery keeps the original registry-bound command after this viewport unmounts.
   const retainedTerminalWrite = useRef(runTerminalWrite);
   const runTerminalResize = useAtomCommand(terminalEnvironment.resize, {
     reportFailure: false,
@@ -617,7 +607,6 @@ function TerminalSessionViewport({
     }),
   );
   const terminalFontRef = useRef({ family: terminalFontFamily, size: terminalFontSize });
-  // Keyed by the launch (see TerminalViewport), so the atom is fixed for this surface.
   const terminalSessionAtom = attachedTerminalSessionAtom(environmentId, {
     threadId,
     terminalId,
@@ -626,15 +615,12 @@ function TerminalSessionViewport({
     ...(runtimeEnv ? { env: runtimeEnv } : {}),
     ...(providerInstanceId ? { providerInstanceId } : {}),
   });
-  // Attaching starts with the viewport, while the WASM surface is still loading;
-  // the surface reads the session itself, so output chunks never re-render here.
   useAtomMount(terminalSessionAtom);
   const readTerminalSession = useEffectEvent(() => appAtomRegistry.get(terminalSessionAtom));
   const subscribeTerminalSession = useEffectEvent(
     (listener: (session: TerminalSessionState) => void) =>
       appAtomRegistry.subscribe(terminalSessionAtom, listener),
   );
-  // The surface reports a resent grid like any other, so the next report is the retry.
   const resizeRetryGenerationRef = useRef<number | null>(null);
   const resizeTerminal = useEffectEvent(async (cols: number, rows: number) => {
     const generation = writableSessionGeneration(readTerminalSession(), hasTerminalWriteAccess());
@@ -645,7 +631,6 @@ function TerminalSessionViewport({
       environmentId,
       input: { threadId, terminalId, cols, rows },
     });
-    // Resend the current grid, not this one: a newer resize may already be queued behind it.
     if (!retry && result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
       resizeRetryGenerationRef.current = generation;
       terminalRef.current?.resendSize();
@@ -701,7 +686,6 @@ function TerminalSessionViewport({
   useLayoutEffect(() => {
     visibleRef.current = visible;
     terminalRef.current?.setVisible(visible);
-    // A request made while this viewport was hidden could not focus it.
     if (visible) consumePendingTerminalFocus(threadRef, terminalId);
   }, [terminalId, threadRef, visible]);
 
@@ -739,7 +723,6 @@ function TerminalSessionViewport({
         canActivateLink: (text) => canActivateTerminalLink(text),
         validateLink: (text) => validateTerminalLink(text),
         onLinkHover: (text) => setLinkPath(text !== null && !isTerminalUrl(text) ? text : null),
-        // Surface listeners start before WASM loading finishes and the terminal handler exists.
         onContextMenu: (event) => {
           if (terminalRef.current) void showTerminalContextMenu(event);
         },
@@ -750,13 +733,11 @@ function TerminalSessionViewport({
         return null;
       }
       terminal.setVisible(visibleRef.current);
-      // Re-read theme changes during WASM loading, before the observer was installed.
       terminal.setTheme(terminalThemeFromApp(mount));
       setupTerminal = terminal;
       terminalRef.current = terminal;
       terminal.input.setAttribute("data-workspace-focus-default", "");
       terminal.input.readOnly = !hasTerminalWriteAccess();
-      // Reapply font settings hydrated during loading, when terminalRef was null.
       const currentFont = terminalFontRef.current;
       if (currentFont.family !== setupFont.family || currentFont.size !== setupFont.size) {
         void terminal.setFont(terminalFontOptions(currentFont.family, currentFont.size));
@@ -774,7 +755,6 @@ function TerminalSessionViewport({
       if (latestSession.error !== null) writeSystemMessage(terminal, latestSession.error);
       synchronizedStatusRef.current = "closed";
       synchronizeTerminalStatus(terminal, latestSession.status, latestSession.version);
-      // Read and subscribe in one synchronous step so no output lands between them.
       let previousSession = latestSession;
       let resizeGeneration = writableSessionGeneration(latestSession, hasTerminalWriteAccess());
       setupCleanups.push(
@@ -782,7 +762,6 @@ function TerminalSessionViewport({
           const nextResizeGeneration = writableSessionGeneration(session, hasTerminalWriteAccess());
           if (nextResizeGeneration !== resizeGeneration) {
             resizeGeneration = nextResizeGeneration;
-            // The first fit can precede authorization/attach; replay the grid for each writable session.
             if (nextResizeGeneration !== null) terminal.resendSize();
           }
           const previous = previousSession;
@@ -841,8 +820,6 @@ function TerminalSessionViewport({
       };
 
       const addSelectionToChat = (clipboardText: string) => {
-        // Output keeps moving the selected rows while a menu is open, so take
-        // the line numbers now, and only if the same text is still selected.
         const current = readSelectionAction();
         if (current?.clipboardText !== clipboardText) return;
         handleAddTerminalContext(current.selection);
@@ -878,7 +855,6 @@ function TerminalSessionViewport({
         const activeTerminal = terminalRef.current;
         if (!activeTerminal) return;
         try {
-          // Let the surface own clipboard reads so paste shortcuts can supersede an in-flight menu paste.
           await activeTerminal.pasteFromClipboard(
             () => readTextFromClipboard("terminal input"),
             () => requestId === selectionActionRequestIdRef.current,
@@ -892,7 +868,6 @@ function TerminalSessionViewport({
 
       const showTerminalContextMenu = async (event: MouseEvent) => {
         if (!localApi || !terminalRef.current) return;
-        // Prevent default before awaits; native menus offer a permanently disabled Paste over the canvas.
         event.preventDefault();
         clearSelectionAction();
         const selectionAction = readSelectionAction();
@@ -952,8 +927,6 @@ function TerminalSessionViewport({
         fallbackError: string,
         kind?: "binary" | "reply",
       ) => {
-        // The server rejects input until the shell runs, and each rejection would print an error.
-        // Input belongs to the shell and surface it was typed into; a restart the client has seen drops what is left.
         const session = readTerminalSession();
         const generation = writableSessionGeneration(session, hasTerminalWriteAccess());
         const lifecycleVersion = session.lifecycleVersion;
@@ -987,7 +960,6 @@ function TerminalSessionViewport({
             }
             return false;
           },
-          // Close the bracket only for the process that saw it open; wait while its pid is unknown.
           async () => {
             const pid = session.summary?.pid ?? null;
             const current = readInputSession();
@@ -1019,7 +991,6 @@ function TerminalSessionViewport({
           isTerminalSplitVerticalShortcut(event, currentKeybindings, options) ||
           isTerminalNewShortcut(event, currentKeybindings, options) ||
           isDiffToggleShortcut(event, currentKeybindings, options) ||
-          // Match Sidebar's context, or a key it will reject skips the shell.
           isThreadNavigationShortcut(event, currentKeybindings, {
             context: { ...readThreadShortcutContext(), terminalFocus: true },
           })
@@ -1177,9 +1148,6 @@ function TerminalSessionViewport({
         canOperate: readEnvironmentScope(environmentId, AuthTerminalOperateScope),
         visible: visibleRef.current,
       });
-    // Once per viewport: a re-attached ref (a fresh callback identity) must not
-    // pull focus back on every render of a chatty terminal. As a request, it
-    // waits for the grant or for the viewport to show when it cannot focus yet.
     if (autoFocus && !autoFocusedRef.current) {
       autoFocusedRef.current = true;
       focusTerminal(threadRef, terminalId);
@@ -1426,8 +1394,6 @@ export default function ThreadTerminalDrawer({
   const [drawerLayout, setDrawerLayout] = useState(() => readDrawerLayout(null));
   const maxDrawerHeight = resolveTerminalDrawerMaxHeight({ ...drawerLayout, composerHeight });
   const drawerHeight = clampDrawerHeight(height, maxDrawerHeight);
-  // A drag only writes the drawer's style; the store hears the height once, at
-  // pointerup. The custom property outranks the rendered height while it is set.
   const resizeStateRef = useRef<{
     pointerId: number;
     startY: number;
@@ -1635,8 +1601,6 @@ export default function ThreadTerminalDrawer({
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
     resizeState.drawer?.style.removeProperty(DRAG_HEIGHT_PROPERTY);
-    // A drag that ends where it started keeps the stored preference, which may
-    // be taller than the capped height the drag started from.
     if (resizeState.height === resizeState.startHeight || resizeState.height === height) return;
     onHeightChange(resizeState.height);
   };
@@ -1650,8 +1614,6 @@ export default function ThreadTerminalDrawer({
         layout.viewportHeight !== previous.viewportHeight ||
         layout.chatColumnHeight !== previous.chatColumnHeight ||
         layout.headerHeight !== previous.headerHeight;
-      // The column also reports width-only changes, such as every frame of a
-      // right panel drag; the surface refits itself for those.
       if (!heightBudgetChanged && source === "column") return;
       drawerLayoutRef.current = layout;
       const resizeState = resizeStateRef.current;
@@ -1673,8 +1635,6 @@ export default function ThreadTerminalDrawer({
     if (!visible) {
       return;
     }
-    // The column and window may have resized while the drawer was hidden and
-    // not listening, so measure before the first visible paint.
     const column = isPanel ? null : chatColumnOf(drawerRef.current);
     const onWindowResize = () => updateDrawerLayout(column, "window");
     onWindowResize();
@@ -1856,7 +1816,6 @@ export default function ThreadTerminalDrawer({
           {hasTerminalSidebar && (
             <aside className="flex w-36 min-w-36 flex-col border border-border/70 bg-muted/10">
               <div className="flex h-[22px] items-stretch justify-end border-b border-border/70">
-                {/* Sits above the taller touch resize handle so its buttons keep their taps. */}
                 <div className="inline-flex h-full items-stretch any-pointer-coarse:relative any-pointer-coarse:z-30">
                   <TerminalActionButton
                     disabled={!canOperateTerminal}

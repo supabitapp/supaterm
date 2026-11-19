@@ -160,7 +160,6 @@ it.effect(
       ]) {
         database.exec("DELETE FROM credential");
         insert.run("cred_selected", "opencode", JSON.stringify(consoleRow), active, 2, 2);
-        // Legacy selections follow creation order, even when an older key was updated later.
         insert.run(
           "cred_older",
           "opencode",
@@ -198,7 +197,6 @@ it.effect(
               NodeAssert.equal(request.url, "https://opencode.ai/zen/go/v1/usage");
               const key = (request.headers.authorization ?? "").replace("Bearer ", "");
               authorizations.push(key);
-              // The legacy key is expired in the regression; it only works in fallback scenarios.
               const status =
                 key === "console-key" ? consoleStatus : requested.includes(key) ? 200 : 401;
               return Effect.succeed(
@@ -787,7 +785,6 @@ it.effect("lists a catalog whose cold server start outlasts the settle budget", 
       { providerID: "opencode", id: "big-pickle", name: "Big Pickle", variants: [] },
     ];
     let reads = 0;
-    // The loader's read includes spawning the server; a loaded host can take 6s to start it.
     const read = Effect.suspend(() =>
       reads++ === 0 ? Effect.sleep("6 seconds").pipe(Effect.as(catalog)) : Effect.succeed(catalog),
     );

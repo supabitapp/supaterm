@@ -40,7 +40,6 @@ const MAX_PROVIDER_FAILURE_CODE_LENGTH = 128;
 
 const DEFAULT_PROVIDER_FAILURE_MESSAGE = "Provider turn failed.";
 
-// Gateways answer an oversized body with a 413 page; resending the same history fails identically.
 const REQUEST_TOO_LARGE_STATUS = /^\s*(?:(?:API Error|Error|HTTP|status)(?:\s*:)?\s*)?413\b/iu;
 const REQUEST_TOO_LARGE_REASON = /\b(?:Request Entity|Payload|Content) Too Large\b/u;
 const REQUEST_TOO_LARGE_MESSAGE =
@@ -67,11 +66,9 @@ const PROVIDER_FAILURE_CATEGORIES: Partial<
   },
 };
 
-// codex_protocol::protocol::validate_thread_goal_objective
 const CODEX_GOAL_VALIDATION_MESSAGE =
   /^goal objective must (?:not be empty|be at most \d{1,6} characters)$/u;
 
-// codex_config::ConstraintError::InvalidValue for a managed requirements.toml or cloud policy.
 const CODEX_ACCESS_REQUIREMENT_REJECTION =
   /invalid value for `(approval_policy|sandbox_mode)`: `([A-Za-z]{1,32})` is not in the allowed set /u;
 
@@ -80,11 +77,6 @@ const PROVIDER_FAILURE_REASONS: Record<ProviderAdapterFailureReason, string> = {
   attachment_unreadable: "an attachment could not be read",
 };
 
-/**
- * Walks a cause chain for curated text without reading arbitrary provider
- * defect text. `known` is the message of a domain error Supaterm raised itself;
- * `category` is the generic message of the innermost provider wrapper seen.
- */
 function curatedCauseMessages(cause: unknown): {
   readonly known: string | undefined;
   readonly category: string | undefined;
@@ -130,8 +122,6 @@ function curatedCauseMessages(cause: unknown): {
         case "ProviderCompactionUnsupportedError":
           return { known: stringField(cause, "message"), category: categoryMessage() };
         case "CodexAppServerRequestError": {
-          // Only Codex's fixed-shape goal validation and managed-requirements
-          // text is actionable and safe to show; other request error text stays hidden.
           const rejection = stringField(cause, "message");
           if (
             (cause as Record<string, unknown>).method === "thread/goal/set" &&
@@ -158,7 +148,6 @@ function curatedCauseMessages(cause: unknown): {
             category: categoryMessage(),
           };
         }
-        // ACP reserves -32000 for auth_required; the agent's own text is not shown.
         case "AcpRequestError":
           if ((cause as Record<string, unknown>).code !== -32000) break;
           return {
@@ -196,7 +185,6 @@ function curatedCauseMessages(cause: unknown): {
   return { known: undefined, category: categoryMessage() };
 }
 
-// Only the structured status; stderr and the spawner cause can carry provider output.
 function processExitStatus(exited: object): string {
   const { signal, code } = exited as Record<string, unknown>;
   if (typeof signal === "string" && /^SIG[A-Z0-9]{1,16}$/u.test(signal)) {

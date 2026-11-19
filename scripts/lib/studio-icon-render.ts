@@ -119,7 +119,6 @@ export const renderStudioIcons = Effect.fn("renderStudioIcons")(function* (repos
   );
   const page = yield* attempt(() => browser.newPage());
   yield* attempt(() => page.addScriptTag({ content: bundle.outputFiles[0]?.text ?? "" }));
-  // A string because scripts compile without DOM types; this runs in the page.
   const rendered = yield* attempt(() =>
     page.evaluate(`StudioIcon.renderBrandIcons(${ICON_LAYER_SIZE}, ${SCREEN_ART_SIZE})`),
   ).pipe(

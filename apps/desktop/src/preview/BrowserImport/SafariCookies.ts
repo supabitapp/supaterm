@@ -5,7 +5,6 @@ import * as Schema from "effect/Schema";
 
 import { cookieScope, type ImportedCookie } from "./CookieDatabase.ts";
 
-/** Safari's timestamps count seconds from 2001-01-01, not the UNIX epoch. */
 const APPLE_EPOCH_OFFSET_SECONDS = 978_307_200;
 
 const COOKIE_PAGE_HEADER_SIZE = 12;
@@ -45,7 +44,6 @@ export function parseBinaryCookies(buffer: Buffer): ReadonlyArray<ImportedCookie
   }
 
   const pageCount = buffer.readUInt32BE(4);
-  // Buffer.subarray silently clamps invalid bounds, so reject truncated pages and overlapping records.
   if (8 + pageCount * 4 > buffer.length) {
     throw new SafariCookieReadError({ reason: "readFailed" });
   }
@@ -64,13 +62,11 @@ export function parseBinaryCookies(buffer: Buffer): ReadonlyArray<ImportedCookie
     const page = buffer.subarray(pageStart, pageStart + pageSize);
     pageStart += pageSize;
 
-    // Page bodies switch to little-endian after the big-endian header.
     const cookieCount = page.readUInt32LE(4);
     const offsetTableEnd = COOKIE_PAGE_HEADER_SIZE + cookieCount * 4;
     if (offsetTableEnd > page.length) {
       throw new SafariCookieReadError({ reason: "readFailed" });
     }
-    // Reject offsets into the header, table, or earlier records to avoid fabricated cookies.
     const accepted: Array<readonly [start: number, end: number]> = [];
     for (let index = 0; index < cookieCount; index += 1) {
       const cookieStart = page.readUInt32LE(8 + index * 4);
@@ -121,13 +117,11 @@ export function parseBinaryCookies(buffer: Buffer): ReadonlyArray<ImportedCookie
         secure,
         httpOnly: (flags & FLAG_HTTP_ONLY) !== 0,
         expirationDate,
-        // Safari's SameSite flag encoding is undocumented; guessing None would widen cookie scope.
         sameSite: "lax",
       });
     }
   }
 
-  // Pages end with an 8-byte checksum and an optional length-prefixed plist.
   const trailer = buffer.length - pageStart;
   const validTrailer =
     trailer === 0 ||
@@ -141,7 +135,6 @@ export function parseBinaryCookies(buffer: Buffer): ReadonlyArray<ImportedCookie
 }
 
 export const isPermissionDenied = (error: PlatformError.PlatformError): boolean => {
-  // TCC returns EPERM (Effect Unknown); EACCES is a POSIX denial that Full Disk Access cannot fix.
   const code = (error.reason as { cause?: { code?: unknown } }).cause?.code;
   return code === "EPERM";
 };

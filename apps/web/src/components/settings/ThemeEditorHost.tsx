@@ -48,7 +48,6 @@ export function ThemeEditorHost() {
       return true;
     }
     if (!created) {
-      // Reapply the palette without setTheme, which would clear a mix containing the edited theme.
       const wasActive =
         getThemeDefinition(theme)?.id === savedTheme.id ||
         themeHalves?.light === savedTheme.id ||

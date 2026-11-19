@@ -352,9 +352,6 @@ import { useSelectWorkspaceDetail } from "../layout/workspace/useSelectWorkspace
 import { useMessageTimeFormatter } from "./useMessageTimeFormatter";
 
 const WIDE_MARKDOWN_BLOCK_OPTIONS = {
-  // Native iOS blockquotes and adjacent selectable text are separate layout
-  // chunks. Giving their shrink-to-fit bubble a definite width keeps both
-  // chunks measured against the width at which UIKit draws them.
   includeBlockquotes: Platform.OS === "ios",
   includeOrderedLists: Platform.OS === "android",
 } as const;
@@ -368,9 +365,6 @@ const THREAD_FEED_DISCLOSURE_ENTER_TRANSITION = FadeIn.duration(MOTION_ENTER_DUR
   .easing(Easing.bezier(0.32, 0.72, 0, 1))
   .reduceMotion(ReduceMotion.Never);
 
-// Entering animations must only play for rows born just now — LegendList
-// remounts rows when they scroll back into view, and replaying an entrance for
-// old content would be its own kind of jank.
 const FRESH_ENTRY_WINDOW_MS = 3_000;
 function isFreshTimestamp(input: string): boolean {
   const timestamp = Date.parse(input);
@@ -638,7 +632,6 @@ function MessageImage(props: {
 }) {
   const imageStyle = useResolveClassNames(props.className);
   const [loadedSize, setSize] = useState<{ width: number; height: number } | null>(null);
-  // Until it loads, assume a handed-off image is a photo larger than the bubble's caps.
   const size =
     loadedSize ??
     (props.handoff ? { width: props.handoff.aspectRatio * 4096, height: 4096 } : null);
@@ -1167,7 +1160,6 @@ function PendingMessageImage(props: {
   const { attachment, handoff } = props;
   const fileBacked = isFileBackedComposerAttachment(attachment);
   const preview = useLocalAttachmentPreview(fileBacked ? attachment : null);
-  // The composer already showed this image; reuse its pixels and shape instead of a blank box.
   const uri =
     handoff?.uri ?? (fileBacked ? preview.uri : (attachment.dataUrl ?? attachment.previewUri));
   return (
@@ -1190,11 +1182,6 @@ function PendingMessageImage(props: {
   );
 }
 
-/**
- * A sent video from queueing through delivery. Every stage renders this one player under a
- * thumbnail key of message and position, so swapping the local file for the server copy keeps
- * the poster on screen instead of remounting to black and extracting a frame again.
- */
 function UserMessageVideo(props: {
   readonly environmentId: EnvironmentId;
   readonly messageId: string;
@@ -1216,7 +1203,6 @@ function UserMessageVideo(props: {
       : props.uploaded !== null
         ? attachmentVideoPreviewSource(props.environmentId, props.uploaded, sourceIdentifier)
         : null;
-  // Each copy of a message reopens its local file; keep the last source while the next one loads.
   const [shown, setShown] = useState(current);
   if (
     current !== null &&
@@ -1257,12 +1243,8 @@ function MessageAttachmentUnknown(props: { readonly name: string }) {
   );
 }
 
-// LegendList only computes hook visibility when the list has a viewability config.
 const THREAD_MEDIA_VIEWABILITY_CONFIG = { itemVisiblePercentThreshold: 0 };
 
-// UIKit does not find a feed that mounts after the screen appears, as on a draft's first send.
-// Unregistered, the header loses its scroll-edge blur and the title draws over the feed.
-// Header minimization observes this scroll view.
 function ThreadFeedScrollView(props: ComponentPropsWithRef<typeof Animated.ScrollView>) {
   return (
     <NativeScrollViewMarker style={{ flex: 1 }}>
@@ -1291,7 +1273,6 @@ function ThreadMediaVisibility(props: {
   );
 }
 
-/** The reply a link sits in; a file it cites may be where the agent worked before writing it. */
 type MarkdownLinkReply = Pick<OrchestrationV2ProjectedTurnItem, "sourceThreadId" | "sourceItemId">;
 
 interface MarkdownLinkHandlers {
@@ -1302,7 +1283,6 @@ interface MarkdownLinkHandlers {
     actionId: string,
     reply?: MarkdownLinkReply,
   ) => void;
-  /** `withGallery` pages the image through its message's images; the feed's viewer sits outside that scope. */
   readonly onImagePress?: (
     href: string,
     withGallery?: (source: FilePreviewSource) => FilePreviewSource,
@@ -1433,11 +1413,9 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
   );
 });
 
-// Folds split first, so an artifact card inside a fold stays inside it.
 function AssistantMarkdownBlocks(props: {
   readonly isStreaming?: boolean;
   readonly markdown: string;
-  /** The reply's reference definitions, passed down by the enclosing fold. */
   readonly definitions?: ReadonlyArray<string> | undefined;
   readonly markdownStyles: MarkdownStyleSet;
   readonly linkHandlers: MarkdownLinkHandlers;
@@ -1452,7 +1430,6 @@ function AssistantMarkdownBlocks(props: {
       : { ...block, segments: splitCodexArtifactTemplateMarkdown(block.markdown) },
   );
   const [first] = blocks;
-  // A reply rendered as one document resolves its own references; skip the extra parse.
   const whole = blocks.length === 1 && first?.kind === "markdown" && first.segments.length === 1;
   const definitions =
     props.definitions ?? (whole ? [] : markdownReferenceDefinitions(props.markdown));
@@ -1545,7 +1522,6 @@ function useMarkdownStyles(): MarkdownStyleSets {
   const markdownCodeText = theme["--color-md-code-text"];
   const markdownInlineCodeText = theme["--color-foreground-secondary"];
   const markdownHrColor = theme["--color-md-hr"];
-  // Native chip drawing parses opaque hex only, and this role is translucent.
   const contextChipBorderColor = flattenThemeColor(
     theme["--color-border"],
     theme["--color-user-bubble"],
@@ -1604,7 +1580,6 @@ function useMarkdownStyles(): MarkdownStyleSets {
   };
 }
 
-/** Messages from other agents fold to one line so the user's own messages stay easy to find. */
 function AgentMessageFoldHeader(props: {
   readonly environmentId: EnvironmentId;
   readonly senderThreadId?: ThreadId;
@@ -1677,7 +1652,6 @@ function OpenSenderThreadButton(props: {
   );
 }
 
-/** Automation prompts are long, repeated runbooks; a folded bubble keeps them out of the way. */
 function ThreadAutomationMessageRow(props: {
   readonly environmentId: EnvironmentId;
   readonly text: string;
@@ -1882,7 +1856,6 @@ function compactionLabel(label: string, title: string | undefined) {
     title !== undefined && label.startsWith("Context compacted")
       ? title + label.slice("Context compacted".length)
       : label;
-  // Non-breaking spaces keep "549K → 16.8K tokens" on one line when the label wraps.
   return text.replace(/ (→|tokens)/g, "\u00A0$1").replace(/→ /g, "→\u00A0");
 }
 
@@ -1924,7 +1897,6 @@ function renderFeedEntry(
     | "workspaceRoot"
     | "worktreeSetup"
   > & {
-    /** The fold row of the turn the worktree setup handed off to. */
     readonly setupFoldRowId: string | null;
     readonly setupDetailsOpen: boolean;
     readonly onOpenSetupDetails: () => void;
@@ -2189,9 +2161,6 @@ function renderFeedEntry(
     const hasCopyText = presentation.text.trim().length > 0;
     const attachments = message.attachments ?? [];
     const hasReviewCommentContext = presentation.text.includes("<review_comment");
-    // Android positions a content-sized bubble's children during the unclamped pass and never moves
-    // them once `maxWidth` clamps, so a wider block overlaps its paragraphs. Pinning the width
-    // removes that pass.
     const hasWideBlock = hasWideMarkdownBlock(renderedText, WIDE_MARKDOWN_BLOCK_OPTIONS);
     const assistantTurnStillInProgress =
       message.role === "assistant" &&
@@ -2213,7 +2182,6 @@ function renderFeedEntry(
       );
     }
     if (isCompactionCommandFeedEntry(entry)) {
-      // Stands in for the compaction item until the provider reports it.
       const active = props.inProgressTurnId !== null && message.runId === props.inProgressTurnId;
       return (
         <ThreadContextDivider
@@ -2292,7 +2260,6 @@ function renderFeedEntry(
           visibleAttachments.length + pendingBubbleAttachments.length > 0);
       return (
         <Animated.View
-          // A prompt sits close to its own response; the answer's margin separates turns.
           className={cn("items-end", props.userMessageGrouping.groupedWithNext ? "mb-1" : "mb-2")}
           {...(enterAnimated ? { entering: FadeInDown.duration(220) } : {})}
         >
@@ -2418,7 +2385,6 @@ function renderFeedEntry(
                       <MessageAttachmentUnknown key={attachment.id} name={attachment.name} />
                     ),
                   )}
-                  {/* An empty container still takes a gap, which pads every attachment-free bubble. */}
                   {visibleAttachments.length > 0 ? (
                     <View
                       className={inlineAttachmentIds.size ? "flex-row flex-wrap gap-2" : "gap-2"}
@@ -2927,8 +2893,6 @@ function ThreadFeedPlaceholder(props: {
   );
 }
 
-// A hook's return value is frozen to the compiler, so ThreadFeed's later
-// hooks can't drag this derivation into an uncached scope.
 function useThreadFeedPresentation(
   props: ThreadFeedProps,
   expandedTurnIds: ReadonlySet<RunId>,
@@ -2959,8 +2923,6 @@ const THREAD_FEED_MAINTAIN_SCROLL_AT_END = {
   on: { dataChange: true, itemLayout: true, layout: true },
 } as const;
 
-// A thread switch remounts the feed. Starting from the last split pane's size lays rows out once,
-// instead of at width 0 and again when the new feed's own layout reports the same width.
 let lastSplitViewport: { windowWidth: number; width: number; height: number } | null = null;
 
 export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
@@ -2972,7 +2934,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const openPullRequest = useOpenPullRequest();
   const navigation = useNavigation();
   const openLinkedThread = useOpenLinkedThread();
-  // Recycling a row disposes its native audio player, so a started clip's row stays rendered.
   const [retainedMediaRowId, setRetainedMediaRowId] = useState<string | null>(null);
   const focused = useIsFocused();
   if (!focused && retainedMediaRowId !== null) setRetainedMediaRowId(null);
@@ -3030,8 +2991,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     markdownLinkRequest.current?.abort();
   };
   useFocusEffect(useCallback(() => () => markdownLinkRequest.current?.abort(), []));
-  // A preview belongs to the thread and presentation it was opened from: a change closes it and
-  // aborts a pending lookup.
   const markdownLinkScope = JSON.stringify([
     props.environmentId,
     props.threadId,
@@ -3087,7 +3046,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const bottomContentInset = props.contentBottomInset ?? 18;
   const usesNativeAutomaticInsets =
     props.usesAutomaticContentInsets === true && Platform.OS === "ios";
-  // Without the native contentInset, a list-header spacer clears the bar the column lays content under.
   const topContentInset = usesNativeAutomaticInsets ? 0 : columnTopInset;
   const anchorTopInset = usesNativeAutomaticInsets ? barInset : topContentInset;
 
@@ -3118,10 +3076,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       props.environmentId,
     );
     if (resolved !== null || link.environmentId !== null) return resolved;
-    // A v1 link names no environment, so it falls back to this message's.
     return scopeThreadRef(props.environmentId, link.threadId);
   };
-  // The file a chat link names: in this workspace, else in the one other project that has it.
   const findFileLinkTarget = async (
     linkPath: string,
     path: string,
@@ -3192,7 +3148,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             : pickProjectLinkMatch(relativePath, await Promise.all(otherRoots.map(searchRoot)));
       }
       if (match === null && reply !== undefined && !signal.aborted) {
-        // No project has the file, so it opens where the agent last worked, as written.
         const agentRoots = agentWorkingDirectories(
           appAtomRegistry.get(
             environmentThreadDetails.quietThreadAtom(
@@ -3220,7 +3175,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
       }
       if (!match || match === relativePath || signal.aborted) return relativePath;
       const metadata = await metadataOf(originalPath);
-      // Another project's file never replaces a thread-local file the search missed.
       return metadata._tag === "Success" &&
         (needsWorkspaceBasenameLookup(relativePath) && !otherProject
           ? metadata.value?.kind !== "directory"
@@ -3565,7 +3519,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const inProgressTurnId = threadFeedRunIsInProgress(props.latestRun)
     ? props.latestRun.runId
     : null;
-  // One sheet for the setup's card, chip, and summary row, so it stays open as setup moves between them.
   const [setupDetailsThreadId, setSetupDetailsThreadId] = useState<string | null>(null);
   const setupDetailsOpen = setupDetailsThreadId === props.threadId && !!props.worktreeSetup;
   const openSetupDetails = () => setSetupDetailsThreadId(props.threadId);
@@ -3581,9 +3534,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   ) : null;
   const setupAnchorContent =
     worktreeSetupCard ?? (props.preparingWorktree ? <WorktreePreparingHeader /> : null);
-  // LegendList does not invalidate visible rows when only the renderItem closure changes.
-  // Include turn completion so unchanged message rows reveal their footer and spacing
-  // even when the final message update arrives before the turn settles.
   const listAppearanceData = {
     setupDetailsOpen,
     formatMessageTime,
@@ -3614,7 +3564,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     onHeaderMaterialVisibilityChange?.(visible);
   };
   const handleScrollBeginDrag = () => {
-    // Android's on-drag only blurs RN TextInputs, not the native composer editor.
     if (Platform.OS === "android" && KeyboardController.isVisible()) {
       void KeyboardController.dismiss();
     }
@@ -3629,7 +3578,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const setupAnchorIndex = presentedFeed.findIndex(
     (entry) => entry.type === "message" && entry.message.role === "user",
   );
-  // As on web, setup still running after the agent took the turn rides on the live Working row.
   const setupFoldRowId =
     props.worktreeSetup &&
     worktreeSetupHandedOff(props.worktreeSetup) &&
@@ -3653,10 +3601,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     workflowOpeningMessageId: workflowOpening?.messageId,
     setupAnchorIndex: worktreeSetup || props.preparingWorktree ? setupAnchorIndex : undefined,
   });
-  // The empty↔filled key below remounts the list and resets its imperative
-  // content-inset override. Seed each fresh instance as it attaches with the
-  // current overlay height before the scroll integration's next reaction;
-  // on Android the declarative contentInset floor covers this same window.
   const listMountKey = `${feedThreadKey}:${presentedFeed.some((entry) => entry.type !== "thinking") ? "filled" : "empty"}`;
   const {
     loading: feedLoading,
@@ -3679,8 +3623,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     ) {
       onListLanded();
     }
-    // Offset 0 before the first positioning, and the gaps while rows measure in, are not the
-    // user leaving the end; only a scroll away stops end following.
     onIsAtEndChange?.(feedLoading || state.isAtEnd || state.isFollowingEnd);
   };
   const handleMetricsChange = () => reportMetrics(listLoaded);
@@ -3767,7 +3709,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     }
     return new Set(terminalIdsByTurn.values());
   })();
-  // An interrupted run unfolds; a run that is no longer latest folds back.
   const [previousLatestRun, setPreviousLatestRun] = useState(props.latestRun);
   if (previousLatestRun !== props.latestRun) {
     setPreviousLatestRun(props.latestRun);
@@ -3831,7 +3772,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const preserveDisclosurePosition = (anchorKey: string | null, motionStartedAt?: number) => {
     const list = listRef.current;
     const working = props.activeWorkStartedAt !== null || props.runlessWorkActive === true;
-    // An anchor ends end-follow until the reader scrolls, so a streaming turn keeps the live end.
     if (anchorKey !== null && list && !(working && list.getState().isFollowingEnd)) {
       list.cancelScroll();
       list.anchorVisibleContent({ key: anchorKey });
@@ -3911,7 +3851,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   const { messageJump = null, onMessageJumpFailed } = props;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- drives the message jump on the native list: scrolls to it, unfolds its turn or loads history until it lands
   useEffect(() => {
-    // A thread opened at a message waits for the list's own initial positioning.
     if (!messageJump || feedLoading) return;
     const isTarget = (entry: ThreadFeedEntry) =>
       entry.type === "message" && entry.message.id === messageJump.messageId;
@@ -3963,9 +3902,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
     openPreview(markdownLinkScope, { file: source });
   };
 
-  // Without this, every row above the viewport is assumed to be
-  // estimatedItemSize tall, and scrolling up through unmeasured content
-  // corrects each row's height as it mounts — the feed visibly jumps.
   const getFixedItemSize = (entry: ThreadFeedRow) => {
     if (entry.type === "pending-fold") {
       return workRowSizing.fixedRowHeight === undefined
@@ -3998,8 +3934,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         ) {
           return undefined;
         }
-        // Once opened, keep details measured through their closing fade.
-        // Unopened work rows retain their premeasured fast path.
         return entry.activities.some(
           (activity) =>
             activity.prominent || threadWorkRowNeedsMeasurement(activity.id, expandedWorkRows),
@@ -4010,10 +3944,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
         return undefined;
     }
   };
-  // Row geometry inputs mostly arrive as props with no handler here. LegendList
-  // reads getFixedItemSize only when it renders, so its size cache is cleared
-  // after the commit that hands it rows at the new geometry; clearing earlier
-  // re-caches old sizes.
   const { textSizeKey } = workRowSizing;
   const hasHtmlRenders = presentedFeed.some((entry) => entry.type === "html-render");
   const previousRowGeometry = useRef({ textSizeKey, contentWidth });
@@ -4138,9 +4068,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
   return (
     <PresentationSource identifier={fileShareSourceIdentifier} style={{ flex: 1 }}>
       <View className="flex-1" onLayout={handleViewportLayout}>
-        {/* In a split, rows only re-wrap in the render that hands the list its new width. A native
-            column resize would re-wrap them first, and the list would place the taller or shorter
-            rows at their old offsets until their measurements came back. */}
         <Animated.View
           className="flex-1"
           style={[
@@ -4154,16 +4081,9 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
           {/* oxlint-disable-next-line supaterm/require-registered-list-scroll -- ThreadFeedScrollView is passed through the iOS-only spread below; the prop rejects undefined. */}
           <KeyboardAwareLegendList
             ref={attachList}
-            // The empty↔filled key remounts the list when messages first arrive, so the loading
-            // handoff waits for the filled list's own initial placement.
             key={listMountKey}
             style={{ flex: 1 }}
-            // RN 0.81+ drops touches inside the contentInset area
-            // (facebook/react-native#54123); the anchored end space after a send
-            // is pure inset, so without this the blank region can't be scrolled.
             applyWorkaroundForContentInsetHitTestBug
-            // Spread because the keyboard list's types omit ScrollViewComponent, though it
-            // forwards the prop to KeyboardChatScrollView at runtime.
             {...(Platform.OS === "ios" ? { ScrollViewComponent: ThreadFeedScrollView } : {})}
             contentInsetAdjustmentBehavior="never"
             automaticallyAdjustsScrollIndicatorInsets={usesNativeAutomaticInsets}
@@ -4181,7 +4101,6 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             viewabilityConfig={THREAD_MEDIA_VIEWABILITY_CONFIG}
             keyExtractor={(entry) => entry.id}
             getItemType={(entry) => {
-              // Same container as the live fold that replaces it.
               if (entry.type === "pending-fold") return "run-fold";
               if (entry.type !== "message") return entry.type;
               if (isCompactionCommandFeedEntry(entry)) return "message:compaction";
@@ -4201,11 +4120,8 @@ export const ThreadFeed = memo(function ThreadFeed(props: ThreadFeedProps) {
             {...(retainedMediaRowId ? { alwaysRender: { keys: [retainedMediaRowId] } } : {})}
             keyboardShouldPersistTaps="always"
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-            // Android scrolls a tapped selectable message into view when it takes focus, which reads
-            // as a user scroll and drops end following before the keyboard closes.
             scrollsChildToFocus={false}
             keyboardLiftBehavior={props.sendingWithKeyboard ? "persistent" : "whenAtEnd"}
-            // Seed the initial viewport before native onLayout.
             {...(viewportHeight > 0 && viewportWidth > 0
               ? { estimatedListSize: { height: viewportHeight, width: viewportWidth } }
               : {})}

@@ -363,7 +363,6 @@ describe("global voice input", () => {
       await session.start(createTarget("first", () => "first", vi.fn(), { start: 5, end: 5 }));
       expect(session.getSnapshot().state.phase).toBe("recording");
       expect(keepAwake).toHaveBeenCalledTimes(1);
-      // Silence on a silent history publishes nothing.
       expect(publishAudioLevels).not.toHaveBeenCalled();
 
       sample = { durationMillis: 2_400, metering: 0 };
@@ -378,7 +377,6 @@ describe("global voice input", () => {
       vi.advanceTimersByTime(800);
       expect(publishAudioLevels).toHaveBeenCalledTimes(publishedLevels);
       expect(snapshots).toHaveLength(publishedSnapshots);
-      // The finished recording's time stays readable until the next one starts.
       expect(session.getSnapshot().elapsedSeconds).toBe(2);
 
       sample = { durationMillis: 0, metering: -100 };

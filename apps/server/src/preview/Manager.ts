@@ -147,7 +147,6 @@ export const make = Effect.gen(function* PreviewManagerMake() {
       () => Effect.sync(() => beforeClose.delete(handler)),
     ).pipe(Effect.asVoid);
 
-  /** Publish inside the lock to preserve state-transition order. */
   const mutateExistingSession = <R, E>(
     threadId: string,
     tabId: string,
@@ -202,7 +201,6 @@ export const make = Effect.gen(function* PreviewManagerMake() {
         runtime === "server" && input.assetRelativeUrl !== undefined
           ? new URL(input.assetRelativeUrl, assetOrigin).href
           : input.url;
-      // Persisted client surfaces must not bind to a different tab after a server restart.
       const tabId = `${newPreviewTabId()}${runtime === "server" ? `_${serverEpoch}` : ""}`;
       const updatedAt = yield* currentIsoTimestamp;
       const snapshot: PreviewSessionSnapshot = {
@@ -424,7 +422,6 @@ export const make = Effect.gen(function* PreviewManagerMake() {
 
   const close: PreviewManager["Service"]["close"] = Effect.fn("PreviewManager.close")(
     function* (input) {
-      // Unload runs outside the state lock; tabs opened meanwhile belong to a later close.
       const current = yield* SynchronizedRef.get(stateRef);
       const targets = input.tabId
         ? [current.sessions.get(compositeKey(input.threadId, input.tabId))].filter(

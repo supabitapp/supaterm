@@ -31,8 +31,6 @@ import {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-// Keys are the `icon` names callers put on context menu items; desktop maps the same
-// names to native symbols.
 const ICONS: Readonly<Record<string, IconNode>> = {
   archive: Archive,
   check: Check,
@@ -214,13 +212,11 @@ export function showContextMenuFallback<T extends string>(
           break;
         case " ":
         case "Enter":
-          // Keyboard activation must not depend on the opening pointer gesture's frame.
           canDismissFromPointer = true;
           buttons[index]?.click();
           break;
         case "ArrowLeft":
           if (level === 0) return;
-        // Fall through to cancel this submenu only.
         case "Escape": {
           const parent = submenuTriggerStack[level];
           if (parent) {
@@ -230,7 +226,6 @@ export function showContextMenuFallback<T extends string>(
           break;
         }
         case "Tab":
-          // Tab closes the menu and continues from the element that opened it.
           cleanup(null);
           return;
         default:
@@ -372,7 +367,6 @@ export function showContextMenuFallback<T extends string>(
         button.appendChild(label);
 
         if (item.detail) {
-          // The comma gives screen readers a pause between label and detail.
           button.setAttribute("aria-label", `${item.label}, ${item.detail}`);
           const detail = document.createElement("span");
           detail.className = "ms-auto shrink-0 ps-4 text-muted-foreground text-xs";
@@ -476,8 +470,6 @@ export function showContextMenuFallback<T extends string>(
       menu.addEventListener("mouseenter", () => {
         closeMenusFromLevel(level + 1);
       });
-      // Like a native menu, take thumb Back/Forward presses instead of letting Chromium
-      // run the app router's history underneath.
       const swallowThumbButton = (event: MouseEvent) => {
         if (event.button === 3 || event.button === 4) event.preventDefault();
       };
@@ -493,7 +485,6 @@ export function showContextMenuFallback<T extends string>(
           clampMenuPosition(menu, preferredLeft, preferredTop, level === 0);
           return;
         }
-        // A fixed menu near the right edge shrinks to the space left; measure its real width.
         menu.style.width = "max-content";
         menu.style.maxWidth = "min(24rem, calc(100vw - 0.5rem))";
         const { width } = menu.getBoundingClientRect();
@@ -509,8 +500,6 @@ export function showContextMenuFallback<T extends string>(
     document.addEventListener("contextmenu", onContextMenu, true);
     openMenu(items, position?.x ?? 0, position?.y ?? 0, 0);
     activeContextMenuDismiss = dismiss;
-    // A keyboard-opened menu starts on its first action, a pointer-opened one on the menu itself.
-    // Text fields always match :focus-visible, so they say nothing about how the menu opened.
     const firstAction =
       previouslyFocusedElement?.matches(":focus-visible") &&
       !previouslyFocusedElement.matches('input, textarea, select, [contenteditable="true"]')

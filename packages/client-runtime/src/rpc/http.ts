@@ -82,7 +82,6 @@ export type RemoteEnvironmentRequestError =
   | RemoteEnvironmentAuthUndeclaredStatusError
   | RemoteEnvironmentAuthTimeoutError;
 
-// Socket tickets, pairing tokens, and OAuth codes travel in query strings.
 const layerRedactedUrlParams = Layer.effect(
   UrlParams.CurrentRedactedNames,
   Effect.map(UrlParams.CurrentRedactedNames, (names) => [

@@ -73,7 +73,6 @@ const HTML_ATTACHMENT_TOKEN_BUCKET_MS = 30 * 60 * 1000;
 const PROJECT_FAVICON_VERSION_PREFIX = "v";
 const PROJECT_FAVICON_ICNS_MIN_SIZE = 96;
 const INLINE_VIDEO_MIME_TYPE_PATTERN = /^video\/[\w!#$&^.+-]+$/i;
-// Use server-assigned attachment extensions, never client MIME types.
 const INLINE_PREVIEW_MIME_TYPES: Record<string, string> = {
   svg: "image/svg+xml",
   pdf: "application/pdf",
@@ -86,7 +85,6 @@ const inlinePreviewMimeTypeForExtension = (extension: string) =>
   undefined;
 const PREVIEW_ASSET_EXTENSIONS = new Set([
   ...WORKSPACE_BROWSER_PREVIEW_EXTENSIONS,
-  // Keep HTML dependency grants independent of newly supported file viewers.
   ".avif",
   ".gif",
   ".ico",
@@ -187,7 +185,6 @@ const AssetClaimsSchema = Schema.Union([
   Schema.Struct({
     version: Schema.Literal(1),
     kind: Schema.Literal(SOURCE_CONTROL_MEDIA_ASSET),
-    /** A host's `fetchUrl`, narrowed at mint time; the signature is what keeps it there. */
     url: Schema.String,
     cwd: Schema.String,
     repository: Schema.optionalKey(Schema.String),
@@ -252,7 +249,6 @@ const optionOnNotFound = <A, R>(
 
 export const readMcpAppHtml = Effect.fn("AssetAccess.readMcpAppHtml")(function* (filePath: string) {
   const fileSystem = yield* FileSystem.FileSystem;
-  // Allow space for stored CSP tags, but bound reads if the attachment grows after minting.
   const limit = MCP_APP_MAX_HTML_BYTES + 128 * 1024;
   const chunks = yield* Stream.runCollect(fileSystem.stream(filePath, { bytesToRead: limit + 1 }));
   const size = chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
@@ -280,7 +276,6 @@ const readToolOutputImage = Effect.fn("AssetAccess.readToolOutputImage")(functio
     : { mimeType: image.mimeType, bytes: Buffer.from(image.data, "base64") };
 });
 
-// Browsers cannot draw .icns; serve its embedded PNG.
 const projectFaviconAsset = Effect.fn("AssetAccess.projectFaviconAsset")(function* (
   filePath: string,
 ) {
@@ -372,7 +367,6 @@ const readImageDimensionsFromOpenFile = (filePath: string, file: OpenMediaFile) 
     Effect.orElseSucceed((): ImageDimensions | null => null),
   );
 
-// Non-blocking open prevents swapped-in FIFOs from hanging the request.
 const readImageDimensionsFromHeader = (filePath: string) =>
   openMediaFile(filePath).pipe(
     Effect.flatMap((file) =>
@@ -391,10 +385,6 @@ const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMe
     readonly expiresAt: number;
   }) {
     const path = yield* Path.Path;
-    // Resolving a network path makes Windows sign in to its host with the
-    // user's NTLM credentials, so only the thread's own project may be on a share.
-    // Windows reads a `\\?\` path as written, `..` included, so the lookup gets
-    // the resolved path this check approved.
     const requestedPath = path.resolve(input.requestedPath);
     if (
       isNetworkPath(input.requestedPath) &&
@@ -411,8 +401,6 @@ const finalizeAbsoluteMediaFileAsset = Effect.fn("AssetAccess.finalizeAbsoluteMe
         (cause) => new AssetWorkspaceAssetInspectionError({ resource: input.resource, cause }),
       ),
     );
-    // The workspace caller pins its containment-checked path; never follow a
-    // replacement symlink to a different file during this second resolution.
     if (
       !canonicalFile ||
       (input.expectedCanonicalPath !== undefined && canonicalFile !== input.expectedCanonicalPath)
@@ -737,8 +725,6 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
         ),
       );
       const faviconResolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
-      // A lookup in a half-cloned checkout would cache a miss that outlives the clone.
-      // Once it lands, a miss cached before (by enrichment) is stale too.
       if (input.projectCheckout === "cloned") yield* faviconResolver.invalidate(workspaceRoot);
       const faviconPath =
         input.projectCheckout === "pending"
@@ -893,7 +879,6 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
     claims = { ...claims, expiresAt };
   }
   if (claims.kind === "attachment" && claims.mimeType === "text/html") {
-    // Stable URLs let immutable HTML reloads hit the cache; image retries need fresh URLs.
     expiresAt =
       Math.ceil(expiresAt / HTML_ATTACHMENT_TOKEN_BUCKET_MS) * HTML_ATTACHMENT_TOKEN_BUCKET_MS;
     claims = { ...claims, expiresAt };

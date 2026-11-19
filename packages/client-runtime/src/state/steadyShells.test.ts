@@ -53,7 +53,6 @@ describe("stepSteadyShells", () => {
     let state = stepSteadyShells(EMPTY_STEADY_SHELLS_STATE, [shell(A, cached, "connecting")], 0);
     expect(shown(state, A)).toBe(cached);
 
-    // The cached links fill in without new server data.
     state = stepSteadyShells(state, [shell(A, withLinks, "connecting")], 10);
     expect(shown(state, A)).toBe(withLinks);
 
@@ -101,7 +100,6 @@ describe("stepSteadyShells", () => {
     );
     expect(shown(state, A)).toBe(serverA);
     expect(shown(state, B)).toBe(serverB);
-    // B is not live yet, and A's next rows do not wait for it.
     const liveA = snapshot(5);
     state = stepSteadyShells(
       state,
@@ -236,7 +234,6 @@ describe("stepSteadyShells", () => {
     state = stepSteadyShells(state, [shell(A, liveA, "live"), shell(B, cachedB, "connecting")], 10);
     expect(shown(state, A)).toBe(cachedA);
 
-    // The user settles a thread of A: its rows show at once, and B's rows still wait.
     const heldB = shell(B, replayedB, "connecting");
     state = stepSteadyShells(state, [shell(A, settledA, "live", 0, 1), heldB], 20);
     expect(shown(state, A)).toBe(settledA);
@@ -245,8 +242,6 @@ describe("stepSteadyShells", () => {
     state = stepSteadyShells(state, [shell(A, confirmedA, "live", 0, 1), heldB], 30);
     expect(shown(state, A)).toBe(confirmedA);
 
-    // B still synchronizes when the user archives a thread there. Its rows follow the
-    // replayed events until it is live, then wait again on the next reconnect.
     const a = shell(A, confirmedA, "live", 0, 1);
     state = stepSteadyShells(state, [a, shell(B, replayedB, "connecting", 0, 1)], 40);
     expect(shown(state, B)).toBe(replayedB);

@@ -260,10 +260,7 @@ export function WorkspaceBrowserPreview(props: {
     workspaceRoot: props.workspaceRoot,
     absolutePath: props.absolutePath,
   });
-  // Each workspace mutation re-mints the URL: a file outside the workspace is signed by its
-  // inode, which an atomic replace changes.
   const assetUrl = useAssetUrlState(props.environmentId, resource, props.workspaceMutationId);
-  // The HTML frame keeps its first URL per key, so the key moves only once the re-minted URL arrives.
   const [settledMutationId, setSettledMutationId] = useState(props.workspaceMutationId);
   if (
     assetUrl._tag === "Success" &&
@@ -324,16 +321,12 @@ function WorkspaceVideoPreview(props: {
     workspaceRoot: props.workspaceRoot,
     absolutePath: props.absolutePath,
   });
-  // Each workspace mutation re-mints the URL, so an edited file loads its new bytes.
   const assetUrl = useAssetUrlState(
     props.environmentId,
     resource,
     props.workspaceMutationId ?? undefined,
   );
   const refreshAssetUrl = useAssetUrlRefresh(props.environmentId, resource);
-  // Servers that report the file's revision let an unchanged file stay loaded; older ones
-  // only offer the workspace mutation, which changes after every command. The revision also
-  // goes in the URL, since two mints in the same millisecond sign identical URLs.
   const fileRevision = assetUrl._tag === "Success" ? assetUrl.fileRevision : undefined;
   const revision = fileRevision ?? props.workspaceMutationId;
   const revisionSuffix =
@@ -418,7 +411,6 @@ function WorkspaceAudioPreview(props: {
   );
 }
 
-// Office files and fonts render from the host; other binary files only offer a download.
 function WorkspaceBinaryFilePreview(props: {
   readonly environmentId: EnvironmentId;
   readonly threadRef: ScopedThreadRef;
@@ -438,7 +430,6 @@ function WorkspaceBinaryFilePreview(props: {
           path: props.absolutePath,
           ...(props.document ? {} : { disposition: "attachment" as const }),
         };
-  // Drafts keep reloading on every workspace mutation, as before.
   const revisioned = props.document && resource._tag === "media-file";
   const assetUrl = useAssetUrlState(
     props.environmentId,
@@ -447,8 +438,6 @@ function WorkspaceBinaryFilePreview(props: {
   );
   const resolved =
     assetUrl._tag === "Success" ? (assetUrl.fileRevision ?? props.workspaceMutationId) : undefined;
-  // A reconnect reports Loading and keeps the last revision, so the open file stays loaded;
-  // a failure (say the file was deleted) remounts so the preview shows its error.
   const [shown, setShown] = useState(resolved);
   if (resolved !== undefined && resolved !== shown) setShown(resolved);
   const revision = !revisioned
@@ -456,7 +445,6 @@ function WorkspaceBinaryFilePreview(props: {
     : assetUrl._tag === "Failure"
       ? `failure:${props.workspaceMutationId}`
       : (resolved ?? shown);
-  // Waiting on the first revision keeps the preview from mounting twice when it opens.
   if (revisioned && revision === undefined && assetUrl._tag === "Loading") {
     return <FileSurfaceLoading />;
   }
@@ -503,7 +491,6 @@ function updateFileLinkReveal(fileContainer: HTMLElement, line: number | null): 
 }
 
 const REVEAL_MAX_ATTEMPTS = 30;
-/** Hold the reveal target against late focus/restoration scroll resets. */
 const REVEAL_GUARD_FRAMES = 20;
 const REVEAL_GUARD_TOLERANCE_PX = 2;
 
@@ -512,7 +499,6 @@ interface FileRevealState {
   cancelGuard: (() => void) | null;
   handledRequestId: number | null;
   latestRequestId: number | null;
-  /** The path's code view offset when it last unmounted, restored when it is shown again. */
   scrollTop: number;
   scrollContainer: HTMLElement | null;
   restoreFrameId: number | null;
@@ -555,7 +541,6 @@ function useFileLineReveal(
     const scrollContainer = fileContainer.closest<HTMLElement>(".file-preview-virtualizer");
 
     if (phase === "unmount") {
-      // A view torn down before its restore ran never showed the saved offset, so keep it.
       const restorePending = state.restoreFrameId !== null;
       cancelPendingReveal();
       if (scrollContainer && !restorePending) state.scrollTop = scrollContainer.scrollTop;
@@ -579,7 +564,6 @@ function useFileLineReveal(
     if (scrollContainer && state.scrollContainer !== scrollContainer) {
       state.scrollContainer = scrollContainer;
       const savedScrollTop = state.scrollTop;
-      // A pending line reveal owns the scroll position.
       if (
         savedScrollTop > 0 &&
         (revealLine === null || state.handledRequestId === revealRequestId)
@@ -588,7 +572,6 @@ function useFileLineReveal(
           state.restoreFrameId = requestAnimationFrame(() => {
             state.restoreFrameId = null;
             if (!scrollContainer.isConnected || scrollContainer.scrollTop !== 0) return;
-            // Wait for the virtualizer to size the file so the offset is not clamped.
             const fits =
               scrollContainer.scrollHeight - scrollContainer.clientHeight >= savedScrollTop;
             if (fits || attempt >= REVEAL_MAX_ATTEMPTS) {
@@ -663,8 +646,6 @@ function useFileLineReveal(
       };
       scrollContainer.addEventListener("wheel", cancelGuard, { passive: true });
       scrollContainer.addEventListener("touchstart", cancelGuard, { passive: true });
-      // Capture gutter pointer events before Pierre stops propagation so comments can cancel the reveal
-      // guard.
       scrollContainer.addEventListener("pointerdown", cancelGuard, {
         passive: true,
         capture: true,
@@ -697,8 +678,6 @@ function useFileLineReveal(
           return;
         }
 
-        // Wait for contents and metrics; missing data would clamp fresh-mount reveals to line 1 and mark them
-        // handled.
         const currentContents = instance.file?.contents;
         const line =
           currentContents === undefined ? null : clampFileLine(currentContents, revealLine);
@@ -755,8 +734,6 @@ function needsWorkerHighlight(workerPool: WorkerPoolManager | undefined, file: F
   return lines <= DEFAULT_TOKENIZE_MAX_LENGTH;
 }
 
-/** Enable editing only after worker highlighting renders; active edit sessions highlight on the main
- * thread. */
 function useEditableAfterHighlight(file: FileContents) {
   const workerPool = useWorkerPool();
   const [highlightedFile, setHighlightedFile] = useState<FileContents | null>(null);
@@ -771,8 +748,6 @@ function useEditableAfterHighlight(file: FileContents) {
 
   const onPostRender = (renderedFile: FileContents | undefined, phase: PostRenderPhase) => {
     if (ready || phase === "unmount" || renderedFile?.cacheKey !== file.cacheKey) return;
-    // Cache results arrive just before instance rendering; seeing the cache during render means rows are
-    // highlighted.
     if (workerPool?.getFileResultCache(file) !== undefined) setHighlightedFile(file);
   };
   return { ready, onPostRender };
@@ -829,7 +804,6 @@ function EditableFileSurface({
   const selectionFrameRef = useRef<number | null>(null);
   const saveTarget = { environmentId, cwd, relativePath };
   useFileSaveSession(saveTarget, onPendingChange);
-  // Retain file identity for echoed editor changes; only external changes replace the editor's draft.
   const [externalFile, setExternalFile] = useState(() =>
     editableFileContents(environmentId, cwd, relativePath, contents),
   );
@@ -862,7 +836,6 @@ function EditableFileSurface({
     changeFileSaveSession(saveTarget, file.contents);
     if (!nextLineAnnotations) return;
     const remapped = remapFileCommentAnnotations(nextLineAnnotations);
-    // The editor hands back the array it was given until an edit moves an annotation.
     setLineAnnotations((current) => (current === nextLineAnnotations ? current : remapped));
     for (const annotation of remapped) {
       for (const entry of annotation.metadata.entries) {
@@ -1033,7 +1006,6 @@ function EditableFileSurface({
             selectedLines={selectedRange}
             lineAnnotations={lineAnnotations}
             renderAnnotation={(annotation) => {
-              // Sent comments stay annotated so a failed send can restore them at remapped lines.
               const entries = promptFileCommentEntries(
                 annotation.metadata.entries,
                 promptCommentIds,
@@ -1070,7 +1042,6 @@ function selectRenderedContentOnSelectAll(event: ReactKeyboardEvent<HTMLElement>
     (mac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey) &&
     !event.shiftKey &&
     !event.altKey;
-  // React bubbles keys from portaled children (the image dialog) through this surface.
   if (
     !selectAll ||
     !(event.target instanceof Node) ||
@@ -1218,14 +1189,10 @@ export default function FilePreviewPanel({
   );
   const [fileRefreshRevision, setFileRefreshRevision] = useState(0);
   const attemptedPath = file.readError?.resolvedPath ?? file.readError?.operationPath;
-  // Folder links fail file reads; retain mutation refresh to detect conversion to files. Host folders own
-  // roots; folderTrail keeps descendants.
   const breadcrumbPath =
     attachment !== undefined ? null : (relativePath ?? (folderTrail === undefined ? null : ""));
-  // Reset crumbs when a host trail reaches the workspace root and no longer passes through the current path.
   const breadcrumbTrail =
     breadcrumbPath === null ? null : retainedBreadcrumbTrail(folderTrail, breadcrumbPath);
-  // A trail implies a folder before reads settle, preventing file-preview flashes while navigating up.
   const isFolder =
     attachment === undefined &&
     (file.isNotFile || (folderTrail !== undefined && file.data === null && file.error === null));
@@ -1235,7 +1202,6 @@ export default function FilePreviewPanel({
     !isFolder &&
     (file.data !== null || file.error !== null) &&
     serverConfig?.shellRevealInFileManager === true;
-  // Everything preview-related keys off previewPath; a folder has no preview.
   const previewPath = isFolder ? null : relativePath;
   const [explorerOpen, setExplorerOpen] = useState(initialExplorerOpen);
   const showExplorer = shouldShowFileExplorer({
@@ -1258,7 +1224,6 @@ export default function FilePreviewPanel({
     true,
     Schema.Boolean,
   );
-  // Reveal ids restart at one per file; pair with the path so dismissal cannot swallow another file's reveal.
   const [handledReveal, setHandledReveal] = useState<{ path: string; requestId: number } | null>(
     null,
   );
@@ -1315,8 +1280,6 @@ export default function FilePreviewPanel({
   const focusEditorFromContent = () => {
     const editor = fileEditorRef.current;
     if (!editor || document.activeElement !== contentFocusRef.current) return;
-    // Without a caret the editor focuses with no selection, so no caret shows and typing
-    // lands on whatever the browser selection held.
     const hasCaret = Boolean(editor.getViewState().selections?.length);
     editor.focus(
       hasCaret
@@ -1368,7 +1331,6 @@ export default function FilePreviewPanel({
     !isVideo &&
     previewAvailable &&
     isBrowserPreviewFile(previewPath);
-  // Navigating up preserves the file tab; retain the trail's path spelling to find its folder tab.
   const navigateToFolder = (crumbPath: string) => {
     const path =
       breadcrumbTrail !== null && breadcrumbPathOf(breadcrumbTrail) === crumbPath
@@ -1383,12 +1345,10 @@ export default function FilePreviewPanel({
         ? resolvePathLinkTarget(relativePath, cwd)
         : null;
   const onFilePostRender = useFileLineReveal(relativePath, revealLine, revealRequestId);
-  // Mounting the file read under the workspace mutation id refetches it after each mutation.
   useAtomMount(
     canReadFiles &&
       attachment === undefined &&
       relativePath !== null &&
-      // Skip mutation reads for media and documents; folders still detect conversion to files.
       (isFolder || (!isMedia && !isPdf && !isDocument)) &&
       !selectedFilePending
       ? revisionedQuery(
@@ -1401,7 +1361,6 @@ export default function FilePreviewPanel({
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- scrolls the breadcrumb DOM so the deepest and current crumbs are in view after commit
   useEffect(() => {
     const crumbs = breadcrumbRef.current?.querySelectorAll<HTMLElement>("[data-file-crumb]");
-    // Show the deepest crumb when it fits, but never at the cost of the current one.
     crumbs?.[crumbs.length - 1]?.scrollIntoView({ block: "nearest", inline: "end" });
     breadcrumbRef.current
       ?.querySelector<HTMLElement>("[data-current-file-crumb='true']")
@@ -1566,9 +1525,6 @@ export default function FilePreviewPanel({
         content={
           <>
             {mayOpenEditor ? (
-              // Panel focus lands here and passes to the editor once it attaches. sr-only keeps the
-              // 1px box workspace focus needs, and clips it so clicks in the file never reach it.
-              // The hand-off waits a microtask: workspace focus checks that focus stayed here.
               <div
                 ref={contentFocusRef}
                 tabIndex={-1}
@@ -1820,7 +1776,6 @@ export function WorkspaceLargeTextPreview(props: {
       description: cause instanceof Error ? cause.message : "Try again.",
     });
   };
-  // Each workspace mutation re-mints the URL, so an edited file loads its new bytes.
   const assetUrl = useAssetUrlState(
     props.environmentId,
     resource,

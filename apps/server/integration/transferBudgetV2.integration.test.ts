@@ -93,10 +93,6 @@ import {
   turnEvents,
 } from "./TransferBudgetV2Fixture.integration.ts";
 
-// The opt-ins current web and mobile clients send, as client-runtime's boundedThreadSnapshotHttp.ts,
-// threadHistoryHttp.ts, shellSnapshotHttp.ts, threads.ts and shell.ts send them. Each is `Required`,
-// so an opt-in added to a contract fails typecheck here until this test sends it. An omitted field
-// differs per request (a cursor, or what the client holds), so each scenario sends its own.
 const CLIENT_BOUNDED_OPT_INS = {
   compactTurnItems: "1",
   dedupeBodies: "1",
@@ -128,7 +124,6 @@ const query = (optIns: Readonly<Record<string, string>>) => new URLSearchParams(
 const CLIENT_BOUNDED_QUERY = query(CLIENT_BOUNDED_OPT_INS);
 const CLIENT_HISTORY_QUERY = query(CLIENT_HISTORY_OPT_INS);
 const CLIENT_SHELL_QUERY = query(CLIENT_SHELL_OPT_INS);
-// A client that holds shell rows names their cursor in the same request.
 const clientShellResumeQuery = (resumeFrom: number) =>
   query({
     ...CLIENT_SHELL_OPT_INS,
@@ -389,9 +384,6 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
                 "sequence" in item && item.sequence >= last.sequence;
               const threadItems = yield* collectUntil(tq, delivered);
               yield* collectUntil(ttq, delivered);
-              // Shell items carry the shell read when their batch is projected, and unchanged
-              // shells are skipped, so a turn split across batches may never yield an item at
-              // the last sequence. Wait for the final shell instead.
               const finalShell = yield* projection.getThreadShell(THREAD_ID);
               for (const queue of [sq, ssq])
                 yield* collectUntil(
@@ -402,10 +394,6 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
                 );
               return { items: threadItems, last };
             });
-          // The completion marker is sent before the live subscription attaches,
-          // so a turn written right after it can arrive through one-at-a-time
-          // catch-up replay and split into different frames. A warm-up event
-          // reaching every stream proves each one is live before the baseline.
           yield* writeUntilDelivered([threadVisited(provider)]);
           const threadBefore = thread.recorder.totals();
           const shellBefore = shell.recorder.totals();
@@ -414,7 +402,6 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
           const { items: liveTurn, last } = yield* writeUntilDelivered(
             turnEvents(provider, TRANSFER_HISTORY_TURN_COUNT, true),
           );
-          // A direct check, so live dedupe stays guarded however small the turn gets.
           const liveAnswer = liveTurn.flatMap((item) =>
             item.kind === "event" &&
             item.event.type === "turn-item.updated" &&
@@ -484,7 +471,6 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
               );
               return { http, rows: threads.length, snapshotSequence, projectIdentities };
             });
-          // A new socket, read until the subscription caught up or the server ended it.
           const open = (subscription: Subscription) =>
             Effect.gen(function* () {
               const socket = yield* openMeasuredWsClient({ url, cookie: "" });
@@ -499,20 +485,17 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
               return { kinds: items.map((item) => item.kind), items, totals };
             });
 
-          // A phone that comes back after one ordinary turn replays it, without tool bodies.
           const shortTurn = yield* sink.write({
             events: turnEvents(provider, TRANSFER_HISTORY_TURN_COUNT + 1, false),
           });
           const shortTurnResume = yield* open({ thread: THREAD_ID, afterSequence: last.sequence });
           assert.notInclude(shortTurnResume.kinds, "snapshot");
-          // The byte cap below also passes when the resume skips the turn.
           assert.isTrue(
             shortTurnResume.items.some(
               (item) => "sequence" in item && item.sequence === shortTurn.at(-1)!.sequence,
             ),
           );
 
-          // A turn that is still running cannot defer its work, so it loads in row-budget windows.
           const [finishLongTurn, ...longTurnHistory] = longTurnThreadBatches(provider).toReversed();
           for (const events of longTurnHistory.toReversed()) yield* sink.write({ events });
           const longTurnRunningColdOpenLegacy = yield* readColdOpen("compactTurnItems=1");
@@ -522,7 +505,6 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
           const longTurnRunningHistoryPageLegacy = yield* readHistoryPage(cursor, "");
           const longTurnRunningHistoryPage = yield* readHistoryPage(cursor, CLIENT_HISTORY_QUERY);
 
-          // Once it finishes, its work stays on the server until a group is expanded.
           yield* sink.write({ events: finishLongTurn! });
           const longTurnColdOpen = yield* readColdOpen(CLIENT_BOUNDED_QUERY);
           const { workAnchor } = longTurnColdOpen;
@@ -532,7 +514,6 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
             workAnchor.item.deferredWork.cursor,
             `view=work&throughEntryId=${encodeURIComponent(workAnchor.sourceItemId)}&compactIds=1`,
           );
-          // Mobile opens a thread over the socket alone.
           const socketOpen = yield* open({ thread: LONG_TURN_THREAD_ID });
           const socketSnapshot = socketOpen.items.find(
             (item) => item.kind === "snapshot" && "projection" in item,
@@ -543,7 +524,6 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
             ...socketOpen,
             rows: socketSnapshot.projection.visibleTurnItems.length,
           };
-          // The row cap below also passes when the socket ignores the deferral and sends a window.
           assert.equal(longTurnSocketColdOpen.rows, longTurnColdOpen.rows);
           const idleThreadResume = yield* open({
             thread: LONG_TURN_THREAD_ID,
@@ -551,9 +531,7 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
           });
           assert.deepEqual(idleThreadResume.kinds, ["synchronized"]);
 
-          // The transfer thread plus the long-turn thread.
           const earlierThreads = decodedShell.threads.length + 1;
-          // The fleet's project is in a repository. Earlier phases have no project, as on `main`.
           yield* (yield* ProjectStore.ProjectStoreV2).apply(fleetProjectCreated);
           yield* sink.write({ events: shellFleetEvents(provider) });
           const fleetShellLegacy = yield* readShell("");
@@ -565,28 +543,21 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
           const { projectIdentities } = fleetShell;
           if (projectIdentities === undefined)
             return yield* Effect.die("Expected the shell snapshot to name its project identities");
-          // A cold connect subscribes from the snapshot it just loaded and names its identities.
-          // Without them the resume sends the project again, in a marked snapshot.
           const fleetShellSubscribe = yield* open({
             shell: true,
             afterSequence: fleetShell.snapshotSequence,
             knownProjectIdentities: projectIdentities,
           });
           assert.notInclude(fleetShellSubscribe.kinds, "snapshot");
-          // A client that holds those rows asks the route whether they still resume, and keeps them.
           const fleetShellResumeHttp = yield* get(
             `/api/orchestration/shell?${clientShellResumeQuery(fleetShell.snapshotSequence)}`,
           );
           yield* decodeShellResumable(decoded(fleetShellResumeHttp));
           const fleetShellResume = { http: fleetShellResumeHttp, rows: 0 };
-          // A cursor the server cannot replay gets the snapshot in the same answer. This server
-          // replays any gap up to 500 changed threads, so the cursor here comes from another
-          // database: it is ahead of this one's head.
           const staleShellReload = yield* readShell(
             clientShellResumeQuery(fleetShell.snapshotSequence + 1_000),
           );
           assert.equal(staleShellReload.rows, fleetShell.rows);
-          // When that request fails, the socket tells the client to reload, with no snapshot.
           const staleShellResume = yield* open({
             shell: true,
             afterSequence: fleetShell.snapshotSequence + 1_000,
@@ -599,17 +570,14 @@ it.live("reports V2 thread HTTP and WebSocket transfer budgets", () =>
             `/api/orchestration/threads/${STALE_TODO_THREAD_ID}/bounded?${CLIENT_BOUNDED_QUERY}`,
           );
           const staleTodo = (yield* decodeBoundedSnapshot(decoded(staleTodoHttp))).projection;
-          // Clients show the diff of the last finished turn from this record.
           assert.include(
             staleTodo.checkpoints.map((checkpoint) => checkpoint.id),
             STALE_TODO_LAST_FINISHED_CHECKPOINT_ID,
           );
-          // The caps below also pass when the running turn loses its own tasks.
           assert.lengthOf(
             staleTodo.subagents.filter((subagent) => subagent.runId === STALE_TODO_LIVE_RUN_ID),
             STALE_TODO_SUBAGENTS_PER_RUN,
           );
-          // The byte cap below also passes when the window loses the handoff.
           assert.lengthOf(staleTodo.contextHandoffs, 1);
           const staleTodoColdOpen = {
             http: staleTodoHttp,

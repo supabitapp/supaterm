@@ -51,8 +51,6 @@ const make = Effect.gen(function* () {
       ...new Set(requests.map((request) => request.nativeTurnId)),
     ]);
 
-    // The first running event for this attempt precedes any steering changes
-    // to the selection. A missing selection there must not fall through to a later event.
     const rows = yield* sql<{
       readonly native_thread_id: string | null;
       readonly native_turn_id: string;
@@ -89,7 +87,6 @@ const make = Effect.gen(function* () {
       ),
     );
 
-    // Keep duplicates ambiguous even when an attempt is missing or its destination differs.
     const byTurn = new Map<string, (typeof rows)[number] | null>();
     for (const row of rows) {
       byTurn.set(row.native_turn_id, byTurn.has(row.native_turn_id) ? null : row);

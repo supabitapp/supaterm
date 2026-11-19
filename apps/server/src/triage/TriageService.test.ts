@@ -45,7 +45,6 @@ const TestLayer = GitVcsDriver.layer.pipe(
 
 const RELEASE_COMMIT = "7027b1f";
 
-/** The service over a stub git that answers each command with `answer`. */
 const makeTriage = (
   answer: (command: string) => Effect.Effect<string, GitCommandError> = (command) =>
     Effect.succeed(
@@ -152,7 +151,6 @@ it.effect("does not trust a folder without its own .git, even inside a repo at t
     const fs = yield* FileSystem.FileSystem;
     const config = yield* ServerConfig.ServerConfig;
     yield* fs.makeDirectory(`${config.baseDir}/source/${RELEASE_COMMIT}`, { recursive: true });
-    // The stub answers rev-parse with the commit, as a parent repository could.
     const { triage, commands } = yield* makeTriage();
 
     yield* triage.prepare({ client: {} });

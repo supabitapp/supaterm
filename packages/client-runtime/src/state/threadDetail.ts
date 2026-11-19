@@ -87,12 +87,9 @@ type TurnItem = OrchestrationV2ThreadProjection["turnItems"][number];
 type VisibleTurnItem = OrchestrationV2ThreadProjection["visibleTurnItems"][number];
 type AppThread = OrchestrationV2ThreadProjection["thread"];
 
-// Items are stripped once each: unchanged items keep their identity across
-// structure changes, which the incremental timeline relies on.
 const structureTurnItems = new WeakMap<TurnItem, ThreadStructureTurnItem>();
 const structureVisibleTurnItems = new WeakMap<VisibleTurnItem, ThreadStructureVisibleTurnItem>();
 
-// Queued text, attachments and attribution all come from the message, so its identity covers them.
 function queueWorkflowStatesEqual(
   left: ThreadQueueWorkflowState,
   right: ThreadQueueWorkflowState,
@@ -141,9 +138,6 @@ export function isCompleteTurnItemRow(row: ThreadStructureVisibleTurnItem): row 
   return row.item.type !== "assistant_message" && row.item.type !== "reasoning";
 }
 
-// The open thread is marked visited several times while a reply streams. Visit
-// state is read from the shell, or from lastVisitedAtAtom while the thread is
-// not in the shell index yet, so a mark is not structure.
 function toThreadStructureThread(thread: AppThread): ThreadStructureThread {
   const { updatedAt: _updatedAt, lastVisitedAt: _lastVisitedAt, ...structure } = thread;
   return structure;
@@ -163,8 +157,6 @@ const sameTurnItem = Schema.toEquivalence(OrchestrationV2TurnItem);
 const sameAppThread = Schema.toEquivalence(OrchestrationV2AppThread);
 const sameMessage = Schema.toEquivalence(OrchestrationV2ConversationMessage);
 
-// Overlays previous's structure on next, so the fields the strip functions
-// remove are exactly the ones ignored here.
 function sameApartFromStripped<T extends object>(
   same: (left: T, right: T) => boolean,
   previous: T,
@@ -186,7 +178,6 @@ function sameTurnItemStructure(previous: TurnItem, next: TurnItem): boolean {
   return sameApartFromStripped(sameTurnItem, previous, structure, next);
 }
 
-// A streaming reply's text also lands on its message; readers of that text read the live thread.
 function sameMessageStructure(
   previous: OrchestrationV2ConversationMessage,
   next: OrchestrationV2ConversationMessage,
@@ -224,7 +215,6 @@ function isStreamingAssistantMessage(visibleItem: VisibleTurnItem): boolean {
   return visibleItem.item.type === "assistant_message" && visibleItem.item.streaming;
 }
 
-/** Whether `next` only streams more text into assistant messages that were already streaming. */
 function sameApartFromStreamedAssistantText(
   previous: OrchestrationV2ThreadProjection["visibleTurnItems"],
   next: OrchestrationV2ThreadProjection["visibleTurnItems"],
@@ -314,9 +304,6 @@ export function createEnvironmentThreadDetailAtoms<E>(
     }).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread:${key}`));
   });
 
-  // Streamed assistant and reasoning text replaces an item several times a
-  // second. Readers of the thread's structure (runs, requests, which items
-  // exist and their status) keep the previous value through those updates.
   const quietThreadAtomFamily = Atom.family((key: string) => {
     let previousProjection: OrchestrationV2ThreadProjection | null = null;
     let previous: EnvironmentThreadStructure | null = null;
@@ -334,13 +321,11 @@ export function createEnvironmentThreadDetailAtoms<E>(
           projection: toThreadStructure(next.projection),
         };
       }
-      // Comparing the latest projection lets consecutive replacements bypass history scans.
       previousProjection = next?.projection ?? null;
       return previous;
     }).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-quiet-thread:${key}`));
   });
 
-  // Read from the structure so streamed text does not rescan runs and turn items.
   const usageLimitNoticeRowsAtomFamily = Atom.family((key: string) => {
     let previous: EnvironmentThreadStructure | null = null;
     let value: UsageLimitNoticeRows | null = null;
@@ -354,7 +339,6 @@ export function createEnvironmentThreadDetailAtoms<E>(
     }).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-usage-limit-notice:${key}`));
   });
 
-  // Presentation only: the projection keeps every row for other readers.
   const visibleTurnItemsAtomFamily = Atom.family((key: string) => {
     const projectQuestionHistory = createQuestionHistoryProjector();
     let previousRows: OrchestrationV2ThreadProjection["visibleTurnItems"] | null = null;
@@ -387,8 +371,6 @@ export function createEnvironmentThreadDetailAtoms<E>(
     );
   });
 
-  // Holds while only streamed assistant text moves, so the timeline re-renders on structure;
-  // each streaming message reads its text through assistantMessageTextAtom.
   const timelineVisibleTurnItemsAtomFamily = Atom.family((key: string) => {
     let previous = EMPTY_VISIBLE_TURN_ITEMS;
     return Atom.make((get) => {
@@ -522,7 +504,6 @@ export function createEnvironmentThreadDetailAtoms<E>(
       ) {
         const { checkpoints, messages } = projection;
         const next = deriveThreadCheckpointSummaries({ checkpoints, messages });
-        // The same checkpoints give the same summaries; messages only pick each assistant message.
         if (
           checkpoints !== previous?.checkpoints ||
           next.some(

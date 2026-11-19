@@ -1,16 +1,9 @@
-/**
- * Gitignore-syntax matching for `.ignore` files, which git cannot evaluate for us. Patterns come
- * from the repository, so each runs as an NFA over the path (O(pattern × path)): a backtracking
- * regex stalls for seconds on `a*a*a*…b`. POSIX `[:class:]` names are not supported.
- */
-
 type Token =
   | { readonly type: "char"; readonly char: string }
   | { readonly type: "one" }
   | { readonly type: "class"; readonly negated: boolean; readonly ranges: ReadonlyArray<string> }
   | { readonly type: "star" }
   | { readonly type: "any" }
-  /** A leading or inner `**` segment: nothing, or anything ending in `/`. */
   | { readonly type: "folders" };
 
 interface Pattern {
@@ -23,7 +16,6 @@ export type IgnoreDecision = "ignored" | "included";
 
 const utf8 = new TextEncoder();
 
-// Git wildcards consume UTF-8 bytes, including inside character classes.
 const globBytes = (value: string) =>
   Array.from(utf8.encode(value), (byte) => String.fromCharCode(byte));
 
@@ -52,7 +44,6 @@ function parseClass(chars: ReadonlyArray<string>, start: number) {
 
 function parseLine(rawLine: string): Pattern | undefined {
   let line = rawLine.endsWith("\r") ? rawLine.slice(0, -1) : rawLine;
-  // Trailing spaces are dropped unless escaped.
   while (line.endsWith(" ") && !line.endsWith("\\ ")) line = line.slice(0, -1);
   if (line === "" || line.startsWith("#")) return undefined;
   const negated = line.startsWith("!");
@@ -66,8 +57,6 @@ function parseLine(rawLine: string): Pattern | undefined {
 
   const chars = globBytes(line);
   const tokens: Token[] = anchored ? [] : [{ type: "folders" }];
-  // A `[` that never closes leaves every later `[` unclosed too, so one failed scan settles them
-  // all; rescanning the suffix for each would make `[[[[…` quadratic.
   let classesClose = true;
   for (let index = 0; index < chars.length; index += 1) {
     const char = chars[index]!;
@@ -101,14 +90,9 @@ function parseLine(rawLine: string): Pattern | undefined {
   return { tokens, negated, folderOnly };
 }
 
-/**
- * States are token positions. A `folders` token that has consumed part of a segment is `~position`
- * instead: it may only finish after the next `/`, so an inner globstar never matches `xbar` as `bar`.
- */
 function matches(tokens: ReadonlyArray<Token>, path: ReadonlyArray<string>): boolean {
   let states = new Set<number>();
   const add = (set: Set<number>, position: number) => {
-    // Wildcards also match nothing, so reaching one reaches the token after it.
     for (; position <= tokens.length && !set.has(position); position += 1) {
       set.add(position);
       const type = tokens[position]?.type;

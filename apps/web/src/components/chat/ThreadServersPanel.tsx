@@ -76,7 +76,6 @@ function ThreadServersList(props: ThreadServersPanelProps) {
 
   const open = async (server: DiscoveredLocalServer, event: MouseEvent<HTMLElement>) => {
     if (event.button > 1) return;
-    // Like links: modified and middle clicks go to the system browser.
     if (event.metaKey || event.ctrlKey || event.button === 1) {
       event.preventDefault();
       const url = resolveDiscoveredServerUrl(props.environmentId, server.url);
@@ -132,7 +131,6 @@ function ThreadServersList(props: ThreadServersPanelProps) {
                   }
                 >
                   <GlobeIcon aria-hidden className={THREAD_DETAILS_PANEL_ICON_CLASS} />
-                  {/* The end padding keeps text clear of the stop button. */}
                   <span className={cn("flex min-w-0 flex-1 flex-col gap-0.5", stoppable && "pe-6")}>
                     <span className="truncate text-xs font-medium leading-4 text-foreground/85">
                       localhost:{server.port}

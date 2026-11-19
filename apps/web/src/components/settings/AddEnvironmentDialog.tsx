@@ -65,8 +65,6 @@ import {
 import { isImeComposing } from "~/lib/imeComposition";
 
 const EMPTY_DISCOVERED_SSH_HOSTS: ReadonlyArray<DesktopDiscoveredSshHost> = [];
-// known_hosts can list one host on several ports. Its own bracketed form keeps an IPv6
-// host's port separate from the address; no portless known_hosts entry has that form.
 const sshHostSuggestionValue = (target: DesktopDiscoveredSshHost) =>
   target.port === null ? target.alias : `[${target.alias}]:${target.port}`;
 
@@ -121,8 +119,6 @@ export function AddEnvironmentDialog({
   const desktopSshHosts = useEnvironmentQuery(
     isSshDiscoveryActive ? desktopSshHostsStateAtom : null,
   );
-  // The discovery atom is kept alive across dialog opens, so re-read SSH config
-  // each time the SSH tab is shown; stale hosts stay visible while it refreshes.
   const refreshDesktopSshHosts = desktopSshHosts.refresh;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- rereads desktop SSH config through the bridge each time the SSH tab is shown
   useEffect(() => {

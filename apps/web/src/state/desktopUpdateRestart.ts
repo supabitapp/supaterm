@@ -24,7 +24,6 @@ export function createDesktopUpdateRestartController() {
             actionError ?? result.state.message ?? "The update could not start. Try again.",
           );
         }
-        // Install acceptance precedes app shutdown, so keep the screen until the window closes.
       })
       .catch((error: unknown) => {
         pendingInstall = null;

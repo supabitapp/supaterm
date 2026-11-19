@@ -1,6 +1,3 @@
-// TEMPORARY one-time workaround for a Node --build-sea bug on Linux arm64.
-// It breaks kernels with 16 KiB or 64 KiB pages. Revert when Node ships a fix.
-// Node issue: https://github.com/nodejs/node/issues/67048
 import * as NodeModule from "node:module";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -32,7 +29,6 @@ const run = Effect.fn("LinuxArm64Sea.run")(function* (
   }
 });
 
-// Builds the SEA blob with `nodePath` and injects it into a copy of that Node with postject.
 export const injectLinuxArm64Sea = Effect.fn("LinuxArm64Sea.inject")(function* (input: {
   bundlePath: string;
   cliAssetPath: string;
@@ -53,9 +49,7 @@ export const injectLinuxArm64Sea = Effect.fn("LinuxArm64Sea.inject")(function* (
       output: blobPath,
       mainFormat: "module",
       disableExperimentalSEAWarning: true,
-      // Node SEA useCodeCache breaks import(), which the server needs.
       useCodeCache: false,
-      // The bootstrap loads the embedded CLI with require(esm).
       execArgv: ["--require-module"],
     }),
   );
@@ -77,7 +71,6 @@ export const injectLinuxArm64Sea = Effect.fn("LinuxArm64Sea.inject")(function* (
   );
 }, Effect.scoped);
 
-// Kernels map LOAD segments in whole pages. Checking at 64 KiB covers 4, 16, and 64 KiB kernels.
 export function assertLinuxArm64PageCompatibility(bytes: Uint8Array) {
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   if (

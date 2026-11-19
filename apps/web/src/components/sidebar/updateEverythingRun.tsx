@@ -91,7 +91,6 @@ export function retryFailedUpdateRunServers(
   );
   const pending: typeof failed = [];
   for (const entry of failed) {
-    // The host rejects a same-version update; a server that came back on the target is done.
     if (
       runsVersion(
         appAtomRegistry.get(serverEnvironment.configValueAtom(entry.target.environmentId)),
@@ -185,7 +184,6 @@ export function postponeUpdateRestart(): void {
 
 const SAVED_RESULT_KEY = "supaterm:update-everything-result:v1";
 const SAVED_RESULT_MAX_AGE_MS = 10 * 60 * 1000;
-// Covers a background service's 30-minute trial start, like the server update itself.
 const HANDOFF_TIMEOUT_MS = 32 * 60 * 1000;
 
 const HandedOffServer = Schema.Struct({
@@ -211,7 +209,6 @@ export function saveUpdateEverythingResult(result: UpdateEverythingResult): void
   const handedOff = (run?.machines ?? []).flatMap((machine): HandedOffServer[] => {
     if (machine.result !== null) return [];
     const state = appAtomRegistry.get(serverEnvironment.updateStateAtom(machine.environmentId));
-    // Only the desktop-managed server's update state knows its own feed version.
     const targetVersion =
       machine.handedOffVersion ??
       (state.status === "running" ? state.targetVersion : machine.server?.targetVersion);
@@ -298,7 +295,6 @@ function followHandedOffServers(servers: ReadonlyArray<HandedOffServer>): void {
   let updatedServers = 0;
   const failures: string[] = [];
   for (const server of servers) {
-    // Update state is in memory, so restore it or the relaunched app offers this server's update again.
     const stateAtom = serverUpdateStateAtom(server.environmentId);
     appAtomRegistry.set(stateAtom, {
       status: "running",
@@ -308,7 +304,6 @@ function followHandedOffServers(servers: ReadonlyArray<HandedOffServer>): void {
           .serverVersion ?? server.targetVersion,
       targetVersion: server.targetVersion,
     });
-    // Nothing observes the atom until the UI mounts, and the registry drops unobserved atoms.
     const releaseState = appAtomRegistry.mount(stateAtom);
     let settled = false;
     const settle = (failure: string | null) => {

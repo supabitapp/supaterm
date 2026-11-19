@@ -1,6 +1,5 @@
 import type { ClientSettings } from "@supaterm/contracts";
 
-// Ids are stored in client settings, so never rename one.
 export const THREAD_DETAILS_ITEMS = [
   { id: "environment", label: "Environment", defaultVisible: true },
   { id: "openIn", label: "Open in editor", defaultVisible: true },

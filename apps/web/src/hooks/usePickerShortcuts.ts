@@ -70,7 +70,6 @@ export function usePickerShortcuts<T>({
     }
     const index = commands.findIndex((candidate) => candidate === command);
     if (index === -1) return;
-    // Even an empty slot belongs to the picker; it must not jump to a sidebar thread.
     event.preventDefault();
     event.stopPropagation();
     const item = items[index];

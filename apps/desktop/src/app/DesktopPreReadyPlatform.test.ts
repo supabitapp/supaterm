@@ -115,7 +115,6 @@ describe("DesktopPreReadyPlatform", () => {
           appendSwitchMock.mock.calls.some(([name]) => name === "force-device-scale-factor"),
         );
 
-        // The settings service discards fields it does not own when rewriting its document.
         files.set(settingsPath, JSON.stringify({ linuxPasswordStore: "basic" }));
         commandLine.clear();
         assert.equal(yield* launch, explicitScale);

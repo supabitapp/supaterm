@@ -82,8 +82,6 @@ class AgentSessionThreadModifiedError extends Schema.TaggedError<AgentSessionThr
   }
 }
 
-// ACP imports read the history while holding the session-mutation lock, and an agent can
-// leave session/resume or initialize unanswered. Longer than session/load's own deadline.
 const NATIVE_HISTORY_READ_TIMEOUT = "2 minutes";
 
 /**
@@ -227,7 +225,6 @@ const make = Effect.gen(function* () {
           (cause) => new AgentSessionScanError({ operation: "read-projects", cause }),
         ),
       );
-    // The thread's project owns its transcripts: a linked worktree import records the worktree as cwd.
     const completedSources = (yield* Effect.forEach(runtimeRows, (runtime) => {
       const imported = AgentSessionScanner.decodeImportedTranscriptPayload(
         runtime.runtimePayload,
@@ -280,7 +277,6 @@ const make = Effect.gen(function* () {
             });
           }
           const driver = ProviderDriverKind.make(thread.source);
-          // Pi resumes by session file path; its session UUID only names the thread.
           const nativeThreadId =
             thread.source === "pi" ? source.filePath : thread.providerSessionId;
           const persistRuntime = runtimes.upsert(
@@ -314,8 +310,6 @@ const make = Effect.gen(function* () {
             if (existing.value.thread.historyOrigin !== "v1_import") {
               return yield* new AgentSessionThreadModifiedError({ threadId });
             }
-            // A transcript can change after the import, so record it only when the
-            // thread already holds exactly its messages.
             const stored = existing.value.messages;
             if (
               stored.length !== thread.messages.length ||
@@ -478,12 +472,6 @@ const make = Effect.gen(function* () {
     return { importedCount, skippedCount } satisfies AgentSessionImportResult;
   });
 
-  /**
-   * Loading a native session replays its history only into the adapter's own
-   * snapshot, so copy that snapshot into the thread as run-less history. The
-   * `v1_import` origin keeps it in forks and marks the import done, so a call
-   * after a failed read repairs the thread and any later call does nothing.
-   */
   const importNativeHistory = Effect.fn("importNativeHistoryV2")(function* (input: {
     readonly threadId: ThreadId;
     readonly workspaceRoot: string;
@@ -498,8 +486,6 @@ const make = Effect.gen(function* () {
           ? records
           : null,
     );
-    // Thread commands write whole thread rows, so hold their lock from the
-    // re-read through the write to keep both this marker and their changes.
     const commit = (messages: ReadonlyArray<HistoryMessage>) =>
       threadCommands.withLock(
         input.threadId,
@@ -536,7 +522,6 @@ const make = Effect.gen(function* () {
       providerInstanceId: providerThread.providerInstanceId,
       threadId: input.threadId,
     });
-    // The registry admits this open against sign-in changes, like any other open.
     const adapter = yield* registry.get(thread.modelSelection.instanceId);
     const snapshot = yield* adapter
       .openSession({
@@ -572,7 +557,6 @@ const make = Effect.gen(function* () {
           ]
         : [],
     );
-    // Loading the session can take a while, and the thread is usable meanwhile.
     return yield* commit(messages);
   });
 

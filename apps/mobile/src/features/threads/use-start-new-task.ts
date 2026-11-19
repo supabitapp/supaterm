@@ -53,12 +53,10 @@ export async function readStartNewTaskDestination(requestId: string) {
   );
   const preferences = appAtomRegistry.get(mobilePreferencesAtom);
   const saved = AsyncResult.isSuccess(preferences) ? preferences.value : undefined;
-  // The draft's own catalog: projects on enabled environments only.
   const projects = appAtomRegistry.get(environmentProjects.projectsAtom);
   const projectGroupingMode = (
     saved ? resolveMobileProjectGroupingSettings(saved) : DEFAULT_MOBILE_PROJECT_GROUPING_SETTINGS
   ).sidebarProjectGroupingMode;
-  // Resolve the thread list's filter as useHomeListOptions does: a removed connection's filter reads as all.
   const listFilters = saved?.threadListFilters;
   const listEnvironmentId =
     listFilters?.environmentId != null &&

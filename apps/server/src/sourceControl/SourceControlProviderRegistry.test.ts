@@ -47,7 +47,6 @@ const UNKNOWN_AUTH = {
 const linkSubject = (host: string) => () =>
   Effect.succeed({ title: `${host} subject`, body: null });
 
-/** Only GitHub and GitLab read linked subjects, as in production. */
 const PROVIDERS = [
   fakeSourceControlProvider("github", { resolveLink: linkSubject("github") }),
   fakeSourceControlProvider("gitlab", { resolveLink: linkSubject("gitlab") }),
@@ -56,7 +55,6 @@ const PROVIDERS = [
   fakeSourceControlProvider("azure-devops"),
 ];
 
-/** A host CLI that claims every server it is signed in to, as `glab` does. */
 const claimingCli = (claims: string): SourceControlCliDiscoverySpec => ({
   type: "cli",
   kind: kind(claims),

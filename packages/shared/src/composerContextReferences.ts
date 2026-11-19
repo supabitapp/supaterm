@@ -25,7 +25,6 @@ const CONTEXT_LINK = new RegExp(
   "g",
 );
 
-// The digest alone distinguishes producer ids sharing the truncated 48-character slug.
 function fnv1a64(value: string): string {
   let forward = 0x811c9dc5;
   let reverse = 0x9dc5811c;
@@ -235,7 +234,6 @@ function formatComposerContextProviderMarker(
   return `[${kindDisplayName(kind)}: ${escapeComposerContextPayloadText(cleanLabel)}; ref=${contextId}]`;
 }
 
-// Escape envelope tags so payload text cannot close the envelope and forge records.
 function escapeComposerContextPayloadText(text: string): string {
   return text.replace(
     new RegExp(String.raw`<(?=/?(?:${CONTEXT_ENVELOPE_TAG}|${CONTEXT_ENTRY_TAG})\b)`, "gi"),
@@ -430,7 +428,6 @@ export function composerContextProviderTextForDisplay(text: string): string {
   return result + text.slice(cursor);
 }
 
-// Thread reads are environment-local even when a draft moves between machines.
 export function threadContextsOutsideEnvironment(input: {
   text: string;
   records: ReadonlyArray<ComposerContextRecord>;

@@ -11,9 +11,6 @@ interface ComposerTextDirections {
   readonly decorations: DecorationSet;
 }
 
-// Nodes are immutable and blocks are shared between documents, so a keystroke
-// only recounts the block it changed, and every reader of one document shares
-// one result.
 const blockDirections = new WeakMap<ProseMirrorNode, TextDirection | null>();
 const docDirections = new WeakMap<ProseMirrorNode, ComposerTextDirections>();
 
@@ -77,8 +74,6 @@ export const ComposerTextDirectionExtension = Extension.create({
         key: new PluginKey("composer-text-direction"),
         props: {
           decorations: (state) => composerTextDirections(state.doc).decorations,
-          // On Chrome, ProseMirror reads the arrow keys' direction from the
-          // editor root, so the root follows the line holding the caret.
           attributes: (state): Record<string, string> => {
             const dir = caretLineDirection(state);
             return dir ? { dir } : {};

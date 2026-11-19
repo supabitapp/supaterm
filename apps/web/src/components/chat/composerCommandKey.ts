@@ -139,9 +139,6 @@ export function composerCommandKeyHandler(input: {
     onEditLatestQueuedMessage,
     onCancelQueuedMessageEdit,
   } = input;
-  // The composer persists across threads. A recall from thread A must not
-  // be treated as active in thread B, where the text-match fallback could
-  // otherwise turn B's own draft into a browsing position.
   const promptHistoryTargetKey = composerTargetKey(composerDraftTarget);
 
   const replacePromptFromHistory = (
@@ -174,7 +171,6 @@ export function composerCommandKeyHandler(input: {
       return false;
     }
     const recalled = promptHistoryPositionRef.current;
-    // Sending a recalled prompt clears the composer without clearing the ref.
     const position =
       recalled?.targetKey === promptHistoryTargetKey &&
       recalled.position.recalled === promptRef.current
@@ -187,13 +183,11 @@ export function composerCommandKeyHandler(input: {
     if (!editor?.isCaretOnVisualEdge(direction === "backward" ? "start" : "end")) {
       return false;
     }
-    // A queued message is newer than anything sent, so it comes before history.
     if (direction === "backward" && position === null && onEditLatestQueuedMessage(event.repeat)) {
       return true;
     }
     const step = stepComposerPromptHistory({
       direction,
-      // Built on the keypress, not per render: the timeline changes on every streamed delta.
       entries: buildComposerPromptHistoryEntries(
         promptHistoryEntries.flatMap((entry) => (entry.kind === "message" ? [entry.message] : [])),
       ),
@@ -255,7 +249,6 @@ export function composerCommandKeyHandler(input: {
       !event.ctrlKey &&
       promptRef.current === ""
     ) {
-      // Accepting only fills the draft; the user still reads it and sends.
       if (key === "Tab" || key === "ArrowRight") {
         replacePromptFromHistory(promptSuggestion.text, NO_PROMPT_HISTORY_MENTIONS);
         return true;

@@ -5,8 +5,6 @@ import { Tool } from "effect/ai";
 
 import { OrchestratorToolkit } from "./tools.ts";
 
-// Oversized page sizes clamp on decode, so the schema has no `maximum`; Codex also drops
-// bounds from its TypeScript view. The description is the only place a model sees a limit.
 it("states supaterm_thread_read page size limits in the parameter descriptions", () => {
   const schema = Tool.getJsonSchema(OrchestratorToolkit.tools.supaterm_thread_read) as {
     readonly properties: Readonly<Record<string, { readonly description?: string }>>;

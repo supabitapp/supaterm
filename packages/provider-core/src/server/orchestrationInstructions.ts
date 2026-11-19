@@ -1,6 +1,5 @@
 import type { ProviderInteractionMode } from "@supaterm/contracts";
 
-// Codex truncates entries over 4,000 bytes; keep each section self-contained and below that limit.
 export const SUPATERM_ORCHESTRATION_SECTIONS: ReadonlyArray<string> = [
   `## Supaterm orchestration
 
@@ -53,8 +52,6 @@ export const SUPATERM_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH = deviceToolInst
   ` Load them with ToolSearch \`select:${SUPATERM_DEVICE_TOOLS.map((tool) => `mcp__supaterm__${tool}`).join(",")}\`.`,
 );
 
-// ACP only: some ACP agents accept the injected MCP server but never expose
-// its tools, so they need the terminal transport other harnesses never use.
 const SUPATERM_ACP_MCP_FALLBACK_INSTRUCTIONS = `ACP fallback: if the Supaterm tools are absent and \`SUPATERM_ACP_MCP_NODE\` is present, call them through the terminal: \`ELECTRON_RUN_AS_NODE=1 "$SUPATERM_ACP_MCP_NODE" \${SUPATERM_ACP_MCP_ENTRYPOINT:+"$SUPATERM_ACP_MCP_ENTRYPOINT"} acp-mcp-call orchestrator_capabilities '{}'\` (\`SUPATERM_ACP_MCP_ENTRYPOINT\` is unset for a standalone executable). Delegate with \`acp-mcp-call delegate_task '{"task":"...","target":{"providerInstanceId":"...","model":"..."},"mode":"async","clientRequestId":"..."}'\`.`;
 
 const SUPATERM_ACP_DEFAULT_MODE_INSTRUCTIONS = `## Supaterm interaction mode: Default
@@ -77,7 +74,6 @@ export function supatermAcpPromptWithInstructions(input: {
   readonly state: SupatermAcpInstructionState;
   readonly previousState?: SupatermAcpInstructionState;
 }): string {
-  // Native slash commands must remain at the start of the prompt.
   if (input.prompt.trimStart().startsWith("/")) return input.prompt;
   if (
     input.previousState?.interactionMode === input.state.interactionMode &&

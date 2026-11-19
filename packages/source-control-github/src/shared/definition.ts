@@ -21,8 +21,6 @@ const CHECKOUT_COMMAND = /^gh\s+pr\s+checkout\s+(.+)$/i;
 const CHANGE_REQUEST_REFERENCE =
   /^https?:\/\/[^/?#\s]+\/[^/\s]+\/[^/\s]+\/pull\/(\d+)(?:[/?#].*)?$/i;
 
-// GitHub Enterprise Server runs on any hostname, so the `<owner>/<repo>/pull/<n>` route alone
-// identifies a GitHub pull request.
 const CHANGE_REQUEST_PATH = /^\/([^/]+\/[^/]+)\/pull\/(\d+)(?:\/|$)/u;
 const COMMIT_PATH = /^\/([^/]+\/[^/]+)\/(?:commit|pull\/\d+\/commits)\/([0-9a-f]+)\/?$/iu;
 const ISSUE_PATH = /^\/([^/]+\/[^/]+)\/issues\/(\d+)(?:\/|$)/u;
@@ -39,8 +37,6 @@ function isRepositoryPath(repository: string): boolean {
   const segments = repository.split("/");
   return (
     segments.length === 2 &&
-    // GitHub owner and repository names are only these characters, so nothing here can
-    // be an encoded dot segment, query or fragment that `new URL` would reinterpret.
     segments.every((segment) => /^[\w.-]+$/u.test(segment) && segment !== "." && segment !== "..")
   );
 }
@@ -86,13 +82,11 @@ export const definition = defineSourceControl({
   },
   commitUrl: (input) =>
     isRepositoryPath(input.repository) ? buildCommitUrl(input, "commit") : null,
-  // A known project's host can be any GitHub Enterprise Server name.
   parseCommitUrl: (url, known) =>
     known || isGitHubHost(url.hostname) ? parseCommitPath(url, COMMIT_PATH) : null,
   parseChangeRequestUrl: (url) => parseChangeRequestPath(url, CHANGE_REQUEST_PATH),
   repositoryUrlFromPage: (url) =>
     isGitHubHost(url.hostname) ? repositoryUrlFromPagePath(url, REPOSITORY_PAGE_PATH) : null,
-  // GitHub writes every bare reference through `/issues/`, including pull requests.
   changeRequestUrlFromReferenceAutolink: (url) => {
     const match = isGitHubHost(url.hostname) ? ISSUE_PATH.exec(url.pathname) : null;
     if (match?.[1] === undefined || match[2] === undefined) return null;
@@ -114,7 +108,6 @@ export const definition = defineSourceControl({
   ] as const),
   checkoutCommand: ({ number }) => `gh pr checkout ${number}`,
   changeRequestCloseCommand: /\bgh\s+(?:pr\s+(?:merge|close)|stack\s+merge)\b/u,
-  // `new` is gh's alias for `create`.
   changeRequestCreateCommand: /\bgh\s+pr\s+(?:create|new)\b/u,
   authorProfileUrl: (login, repositoryUrl) =>
     login.endsWith("[bot]")
@@ -122,9 +115,7 @@ export const definition = defineSourceControl({
       : new URL(`/${encodeURIComponent(login)}`, repositoryUrl).toString(),
   referenceAutolinks: gitHubReferenceAutolinks,
   changeRequestChecksUrl: (changeRequestUrl) => `${changeRequestUrl.replace(/\/+$/u, "")}/checks`,
-  // Before servers reported their actions, GitHub was the only host they acted on from a list.
   changeRequestActionsWhenUnreported: new Set(["close", "merge", "ready", "reopen"] as const),
-  // One search reads every repository on the host.
   changeRequestListScope: "host",
   hardLineBreaks: true,
   reviewSummaryRequired: () => false,
@@ -132,7 +123,6 @@ export const definition = defineSourceControl({
   isChangeRequestReference: (url) => CHANGE_REQUEST_REFERENCE.test(url),
   checkoutChangeRequestHost: (identity) => projectChangeRequestHost(identity, KIND),
   changeRequestHeadRef: (number) => `refs/pull/${number}/head`,
-  // `*.ghe.com` is GitHub Enterprise Cloud with data residency, one subdomain per enterprise.
   recognizeRemote: ({ host, hostname }) =>
     isGitHubHost(hostname)
       ? {

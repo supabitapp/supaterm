@@ -50,30 +50,28 @@ const currentEnvironmentTraceId = Effect.currentParentSpan.pipe(
   Effect.orElseSucceed(() => "unavailable"),
 );
 
-export const annotateEnvironmentRequest =
-  /* Request instrumentation already owns the span; keep this helper in that context. */
-  Effect.fnUntraced(function* (endpoint: string) {
-    const request = yield* HttpServerRequest.HttpServerRequest;
-    const url = requestUrl(request);
-    const traceId = yield* currentEnvironmentTraceId;
+export const annotateEnvironmentRequest = Effect.fnUntraced(function* (endpoint: string) {
+  const request = yield* HttpServerRequest.HttpServerRequest;
+  const url = requestUrl(request);
+  const traceId = yield* currentEnvironmentTraceId;
 
-    yield* Effect.addFinalizer((exit) =>
-      exit._tag === "Failure"
-        ? Effect.logWarning("environment api request failed", {
-            endpoint,
-            traceId,
-            errorTag: causeErrorTag(exit.cause),
-            cause: exit.cause,
-          })
-        : Effect.void,
-    );
-    yield* Effect.annotateLogsScoped({ "environment.endpoint": endpoint, traceId });
-    yield* Effect.annotateCurrentSpan({
-      "environment.endpoint": endpoint,
-      "http.request.method": request.method,
-      "url.path": url._tag === "Some" ? url.value.pathname : "unknown",
-    });
+  yield* Effect.addFinalizer((exit) =>
+    exit._tag === "Failure"
+      ? Effect.logWarning("environment api request failed", {
+          endpoint,
+          traceId,
+          errorTag: causeErrorTag(exit.cause),
+          cause: exit.cause,
+        })
+      : Effect.void,
+  );
+  yield* Effect.annotateLogsScoped({ "environment.endpoint": endpoint, traceId });
+  yield* Effect.annotateCurrentSpan({
+    "environment.endpoint": endpoint,
+    "http.request.method": request.method,
+    "url.path": url._tag === "Some" ? url.value.pathname : "unknown",
   });
+});
 
 export function failEnvironmentAuthInvalid(reason: EnvironmentAuthInvalidReason) {
   return currentEnvironmentTraceId.pipe(
@@ -138,44 +136,44 @@ export function failEnvironmentNotFound(reason: EnvironmentResourceNotFoundReaso
  * authenticator: a cookie for browser sessions, or a short-lived `wsTicket` minted over
  * authenticated HTTP for bearer clients.
  */
-export const authenticateMediaRequest =
-  /* Request instrumentation already owns the span; keep this helper in that context. */
-  Effect.fnUntraced(function* (requiredScope: AuthEnvironmentScope) {
-    const request = yield* HttpServerRequest.HttpServerRequest;
-    const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
-    const session = yield* serverAuth.authenticateWebSocketUpgrade(request, "media").pipe(
-      Effect.catch((error) =>
-        Effect.gen(function* () {
-          if (EnvironmentAuth.isServerAuthCredentialError(error)) {
-            return yield* failEnvironmentAuthInvalid(
-              EnvironmentAuth.serverAuthCredentialReason(error),
-            );
-          }
-          return yield* failEnvironmentInternal("internal_error", error);
-        }),
-      ),
-    );
-    if (!session.scopes.includes(requiredScope)) {
-      return yield* failEnvironmentScopeRequired(requiredScope);
-    }
-    return session;
-  });
+export const authenticateMediaRequest = Effect.fnUntraced(function* (
+  requiredScope: AuthEnvironmentScope,
+) {
+  const request = yield* HttpServerRequest.HttpServerRequest;
+  const serverAuth = yield* EnvironmentAuth.EnvironmentAuth;
+  const session = yield* serverAuth.authenticateWebSocketUpgrade(request, "media").pipe(
+    Effect.catch((error) =>
+      Effect.gen(function* () {
+        if (EnvironmentAuth.isServerAuthCredentialError(error)) {
+          return yield* failEnvironmentAuthInvalid(
+            EnvironmentAuth.serverAuthCredentialReason(error),
+          );
+        }
+        return yield* failEnvironmentInternal("internal_error", error);
+      }),
+    ),
+  );
+  if (!session.scopes.includes(requiredScope)) {
+    return yield* failEnvironmentScopeRequired(requiredScope);
+  }
+  return session;
+});
 
-export const failEnvironmentInternal =
-  /* Request instrumentation already owns the span; keep this helper in that context. */
-  Effect.fnUntraced(function* (reason: EnvironmentInternalErrorReason, error?: unknown) {
-    const traceId = yield* currentEnvironmentTraceId;
-    if (error !== undefined) {
-      yield* Effect.logError("environment api operation failed", {
-        reason,
-        traceId,
-        cause: error,
-      });
-    }
-    return yield* new EnvironmentInternalError({ code: "internal_error", reason, traceId });
-  });
+export const failEnvironmentInternal = Effect.fnUntraced(function* (
+  reason: EnvironmentInternalErrorReason,
+  error?: unknown,
+) {
+  const traceId = yield* currentEnvironmentTraceId;
+  if (error !== undefined) {
+    yield* Effect.logError("environment api operation failed", {
+      reason,
+      traceId,
+      cause: error,
+    });
+  }
+  return yield* new EnvironmentInternalError({ code: "internal_error", reason, traceId });
+});
 
-// Plaintext LAN servers still need the cookie; TLS arrives through a proxy that sets X-Forwarded-Proto.
 const sessionCookieOptions = (request: HttpServerRequest.HttpServerRequest) => ({
   httpOnly: true,
   path: "/",

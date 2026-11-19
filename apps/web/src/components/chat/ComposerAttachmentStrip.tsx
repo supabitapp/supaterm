@@ -188,8 +188,6 @@ export function ComposerAttachmentMediaRow({
           : "flex-wrap",
       )}
     >
-      {/* A preparing image renders through the same tile, keyed by the id its compressed image
-          takes, so the thumbnail element survives the swap. */}
       {[
         ...imageExits.items.map((image) => ({ image, ready: image })),
         ...preparingImages.map((image) => ({ image, ready: null })),
@@ -745,9 +743,6 @@ export function ComposerAttachButton({
         onChange={(event) => {
           const files = Array.from(event.currentTarget.files ?? []);
           event.currentTarget.value = "";
-          // Inserting a chip refocuses the editor after the draft renders;
-          // focusing synchronously here would report the editor's stale text
-          // over the prompt that was just written.
           void addComposerAttachments(files).then((inserted) => {
             if (!inserted) focusComposer();
           });

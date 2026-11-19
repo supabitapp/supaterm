@@ -1,5 +1,3 @@
-// The native markdown renderer draws a link's icon from a raster image, so each source control
-// host's mark is rendered from its definition's artwork into a bundled PNG.
 import * as NodeFS from "node:fs";
 import * as NodeModule from "node:module";
 import * as NodePath from "node:path";
@@ -26,7 +24,6 @@ function attribute(name: string, value: string | number | undefined): string {
   return value === undefined ? "" : ` ${name}="${value}"`;
 }
 
-// A monochrome mark is tinted by the renderer, which only reads its alpha.
 function svgMarkup(icon: SourceControlIcon): string {
   const paint = (value: SourceControlIcon["paths"][number]["fill"]) =>
     value === undefined

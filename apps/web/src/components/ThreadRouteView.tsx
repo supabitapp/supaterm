@@ -31,13 +31,8 @@ import {
   type ThreadRouteTarget,
 } from "../threadRoutes";
 
-/**
- * Keeps the family of an open thread the shell leaves out (an older Done thread) in the shell
- * rows until the route leaves it, so every reader of its shell row finds it.
- */
 function useOpenThreadFamily(threadRef: ScopedThreadRef | null, missing: boolean) {
   const key = threadRef === null ? null : scopedThreadKey(threadRef);
-  // Sticks to the route thread, so the row the family brings in does not release it.
   const [mountedKey, setMountedKey] = useState<string | null>(null);
   const nextKey = missing || mountedKey === key ? key : null;
   if (nextKey !== mountedKey) setMountedKey(nextKey);
@@ -57,7 +52,6 @@ function useOpenThreadFamily(threadRef: ScopedThreadRef | null, missing: boolean
  */
 export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget; paneId: string }) {
   const navigate = useNavigate();
-  // Under Settings or Usage the thread stays mounted but must not move the route.
   const background = use(BackgroundThreadContext);
   const draftId = target.kind === "draft" ? target.draftId : null;
   const draftSession = useComposerDraftStore((store) =>
@@ -73,8 +67,6 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
   const serverThreadShell = useQuietThreadShell(serverThreadRef);
   const pendingCreation = usePendingThreadCreation(serverThreadRef ?? draftThreadRef);
   const outboxLoaded = useThreadOutboxLoaded();
-  // A send queued while the host is offline opens its thread before the host creates it; the
-  // draft stays until the store promotes it.
   const pendingRedirect =
     draftSession && pendingCreation && !pendingCreation.payload.background
       ? resolveDraftPromotionNavigationTarget({
@@ -95,12 +87,9 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
   const draftThread = useComposerDraftStore((store) =>
     serverThreadRef ? store.getDraftThreadByRef(serverThreadRef) : null,
   );
-  // Reached from the sidebar before finalize, the thread still has its draft.
   const serverThreadDraftId = useComposerDraftStore((store) =>
     serverThreadRef ? store.getDraftIdByRef(serverThreadRef) : null,
   );
-  // The ChatView that carried a draft keeps its key through the redirect to its thread, and only
-  // until the route leaves that thread, so later visits reuse the shared unkeyed ChatView.
   const [handoffKey, setHandoffKey] = useState<{ threadKey: string; key: string } | null>(null);
   const nextHandoffKey =
     draftId !== null && draftSession === null && draftRedirect
@@ -118,9 +107,6 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
   const environmentHasDraftThreads = useComposerDraftStore((store) =>
     serverThreadRef ? store.hasDraftThreadsInEnvironment(serverThreadRef.environmentId) : false,
   );
-  // Until the shell lists the thread, its own load (HTTP, then the socket)
-  // decides whether it exists. Read only then: once listed, ChatView keeps
-  // this stream open and its updates need not re-render the route.
   const unlistedThreadRef =
     target.kind === "server" && serverThreadShell === null && draftThread === null
       ? target.threadRef
@@ -203,7 +189,6 @@ export function ThreadRouteView({ target, paneId }: { target: ThreadRouteTarget;
         />
       );
     } else if (draftRedirect) {
-      // Same slot and key as the server route renders, so the swap keeps this instance.
       view = (
         <ChatView
           key={target.draftId}

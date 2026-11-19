@@ -146,8 +146,6 @@ describe("Claude Agent SDK replay fixtures", () => {
       const rest = entries.filter((_, index) => index !== toolIndex);
       return [...rest.slice(0, resultIndex), toolEntry, ...rest.slice(resultIndex)];
     };
-    // A subagent's foreground Bash run during the root's turn is tailed like a
-    // root call's, so the child's command row streams live.
     const SUBAGENT_BASH_ID = "toolu_01JMN3SSQCHzUTNua9AWdkiH";
     it.effect("streams a subagent's foreground Bash output live during the root turn", () =>
       runClaudeReplayFixture({
@@ -182,7 +180,6 @@ describe("Claude Agent SDK replay fixtures", () => {
               (frame.type === "system" && frame.tool_use_id === SUBAGENT_BASH_ID)
             );
           };
-          // Recorded without the structured result the replay writes output files from.
           const bashFrames = transcript.entries.filter(isBashFrame).map((entry) => {
             const frame = (entry as { readonly frame: Record<string, any> }).frame;
             return frame.type === "user"

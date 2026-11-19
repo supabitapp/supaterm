@@ -5,7 +5,6 @@ import { codexAuthDeliveryUrl, readCodexAuthDelivery } from "@supaterm/shared/co
 import { EnvironmentId, ProviderInstanceId } from "@supaterm/contracts";
 import { receiveCodexAuthCallback, cancelCodexAuthCallback } from "./CodexAuthCallback.ts";
 
-// Holds every probe socket until all ports are read, so one call never returns the same port twice.
 async function freePorts(count: number) {
   const servers = Array.from({ length: count }, () => NodeHttp.createServer());
   await Promise.all(

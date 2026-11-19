@@ -105,7 +105,6 @@ export function unlockNotificationAudio() {
   audioContext ??= new AudioContext();
   void audioContext.resume().catch(() => undefined);
   if (!firstUnlock) return;
-  // Fetch and decode during interaction so the first alert is ready when the thread finishes.
   for (const url of [completionUrl, inputUrl]) {
     void loadNotificationBuffer(audioContext, url).catch(() => undefined);
   }
@@ -128,7 +127,5 @@ export async function playNotificationSound(
     source.connect(context.destination);
     source.start();
     playingUntil.set(url, context.currentTime + decoded.duration);
-  } catch {
-    // A failed load is retried on the next alert.
-  }
+  } catch {}
 }

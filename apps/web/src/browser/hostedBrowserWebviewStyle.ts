@@ -49,7 +49,6 @@ export function resolveHostedBrowserWebviewWrapperStyle(input: {
   }
 
   if (renderingActive) {
-    // Electron stops compositing offscreen guests; keep capture-active guests inside the viewport behind the app.
     return {
       left: 0,
       top: 0,

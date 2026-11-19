@@ -29,7 +29,6 @@ export function SettingsScreen(
   const deviceType = useDeviceType();
   const back = useSettingsPageBack();
   const cover = deviceType === "duo-folded";
-  // Opened as a workspace tab, the Settings list has nothing to go back to.
   const workspaceRoot = props.workspaceRoot || (workspace !== null && route.name === "Settings");
 
   const surfaceClassName = workspaceRoot || cover ? "bg-screen" : "bg-sheet";

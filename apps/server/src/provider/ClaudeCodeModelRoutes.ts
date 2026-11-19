@@ -12,7 +12,6 @@ import * as Schema from "effect/Schema";
 import { claudeLocalSettingsDirectory } from "./Drivers/ClaudeHome.ts";
 import { type ClaudeModelCatalog, withClaudeCodeModelRoutes } from "./ClaudeModelCatalog.ts";
 
-// Env names that pick the backend, its region, or the model a family alias resolves to.
 const MODEL_SETTINGS_ENV_PREFIXES = [
   "ANTHROPIC_",
   "CLAUDE_CODE_USE_",
@@ -21,7 +20,6 @@ const MODEL_SETTINGS_ENV_PREFIXES = [
   "VERTEX_",
 ];
 
-/** Equal keys mean Claude Code resolves model ids the same way under both settings. */
 function claudeModelSettingsKey(settings: ClaudeSdkSettings): string {
   const sortedEntries = (record: Readonly<Record<string, string | undefined>> | undefined) =>
     Object.entries(record ?? {}).toSorted(([a], [b]) => a.localeCompare(b));
@@ -45,8 +43,6 @@ export const resolveClaudeModelSettingsKey = Effect.fn("resolveClaudeModelSettin
   settingSources: ReadonlyArray<SettingSource>,
   cwd: string | null,
 ) {
-  // The SDK reads the local file from cwd, Claude Code from the main checkout's root. No key, so
-  // no routes, when that root file touches model settings.
   const localDirectory = cwd === null ? null : yield* claudeLocalSettingsDirectory(cwd);
   if (localDirectory !== null && localDirectory !== cwd) {
     const rootLocal = yield* Effect.tryPromise({
@@ -98,8 +94,6 @@ export const makeClaudeCodeModelRoutes = Effect.fn("makeClaudeCodeModelRoutes")(
       cwd: string | null,
       launchSettings?: ClaudeSdkSettings,
     ) {
-      // Leave room for the sequential version and capability probes before falling back once;
-      // an expired wait counts as settled so later calls do not wait again.
       yield* Deferred.await(firstProbeSettled).pipe(
         Effect.timeoutOption("2 minutes"),
         Effect.andThen(Deferred.succeed(firstProbeSettled, undefined)),
@@ -107,8 +101,6 @@ export const makeClaudeCodeModelRoutes = Effect.fn("makeClaudeCodeModelRoutes")(
       if (claudeModelSettingsKey(launchSettings ?? {}) !== NO_MODEL_SETTINGS_KEY) return base;
       const { models, settingsKey: probeKey } = yield* Ref.get(reported);
       const routed = withClaudeCodeModelRoutes(base, models);
-      // Project settings can point an alias at another model, so routes hold only where the
-      // cwd resolves the same model settings as the probe's.
       if (routed === base || probeKey === undefined) return base;
       return (yield* settingsKey(cwd)) === probeKey ? routed : base;
     }),

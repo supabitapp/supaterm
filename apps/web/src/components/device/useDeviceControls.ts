@@ -33,8 +33,6 @@ export function useDeviceControls(options: {
       : NO_FOREGROUND_ATOM,
   );
   const [pending, setPending] = useState(false);
-  // Hiding does not cancel host commands, so actions stay serialized until settlement
-  // rather than letting a reopened panel race the previous command.
   const busy = useRef(false);
 
   const available = detail !== null && visible;

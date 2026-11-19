@@ -50,13 +50,11 @@ const NO_PATHS: readonly string[] = [];
 
 type PullRequestDiffTarget = Parameters<typeof composerPullRequests.diff>[0];
 
-// Keyed by the diff's serialized target, which the hook already holds as its scope.
 const withheldFileDiff = (targetKey: string, path: string) => {
   const target = JSON.parse(targetKey) as PullRequestDiffTarget;
   return composerPullRequests.diff({ ...target, input: { ...target.input, path } });
 };
 
-// One read per withheld file the reader asked for, so only that file's diff crosses the wire.
 const withheldFileDiffsAtom = Atom.family((key: string) => {
   const { targetKey, paths } = JSON.parse(key) as {
     readonly targetKey: string;
@@ -90,13 +88,11 @@ export function usePullRequestDiffEntry(navigation: {
       closing = data.closing;
       if (!closing) finish();
     });
-    // Initial and unanimated presentations may have no transition events; let the shell paint first.
     let frame = requestAnimationFrame(() => {
       frame = requestAnimationFrame(() => {
         if (!opening) finish();
       });
     });
-    // A missing native completion must not strand the route on its loading state.
     const fallback = setTimeout(finish, 1_000);
     return () => {
       removeStart();
@@ -152,17 +148,14 @@ export function usePullRequestDiff(
     for (const path of withheldPaths) registry.refresh(withheldFileDiff(key, path));
   };
   const loadWithheldFile = (path: string) => {
-    // The read is keyed without the head, so even a first load must not reuse an older one.
     registry.refresh(withheldFileDiff(key, path));
     if (!withheldPaths.includes(path)) setWithheldLoads({ key, paths: [...withheldPaths, path] });
   };
-  // A refetch keeps showing the last patch, whose lines may not exist at the new head.
   const withheldRefetching = withheldResults.some((result) => result.waiting);
   const loads = new Map<string, WithheldFileLoad>();
   withheldPaths.forEach((path, index) => {
     const result = withheldResults[index];
     if (result === undefined) return;
-    // A failed refetch still carries the last patch; show the failure instead.
     loads.set(
       path,
       result._tag === "Failure"
@@ -176,7 +169,6 @@ export function usePullRequestDiff(
     () => getCachedPullRequestDiffPages(pages, key, terminology),
     [key, pages, terminology],
   );
-  // The server says whether a withheld file can be read alone; GitHub may refuse the whole diff.
   const withheldFilesReadable = pages[0]?.result.withheldFilesReadable === true;
   const parsed = withWithheldFiles(pagesParsed, loads, withheldFilesReadable, key);
   const patch = useMemo(() => pages.map((page) => page.result.patch).join("\n"), [pages]);

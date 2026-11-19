@@ -21,7 +21,6 @@ export function clearSnapShotSetupResume(): void {
   } catch {}
 }
 
-// Check once per startup so opening System Settings cannot redirect later navigation.
 export function shouldResumeSnapShotSetupOnStartup(): boolean {
   if (startupChecked) return false;
   startupChecked = true;

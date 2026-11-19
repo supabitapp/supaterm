@@ -43,11 +43,8 @@ function hasConsecutiveLineNumbers(
   return typeof previous === "number" && typeof next === "number" && next === previous + 1;
 }
 
-// Native lexing is non-incremental. Cache theme-independent raw records, never
-// expanded token objects for an entire large file. Bound both entry count and bytes.
 const MAX_TOKEN_CACHE_BYTES = 64 * 1024 * 1024;
 const MAX_TOKEN_CACHE_ENTRIES = 8;
-// LRU entries own only token data; source contexts and diff rows can collect independently.
 const tokenCacheKeys = new WeakMap<object, object>();
 const tokenCache = new Map<object, { language: string; tokens: TokenizedCode }>();
 let tokenCacheBytes = 0;
@@ -127,8 +124,6 @@ function matchesSourceSide(
 ) {
   const cached = context.validation.get(rows);
   if (cached !== undefined) return cached;
-  // Context participates on both sides, even though it displays NEW tokens.
-  // A known mismatch anywhere invalidates grammar from the entire source side.
   const matches = rows.every((row) => {
     if (row.change === (side === "old" ? "add" : "delete")) return true;
     const lineNumber = side === "old" ? row.oldLineNumber : row.newLineNumber;
@@ -143,7 +138,6 @@ function matchesSourceSide(
 function createFullSourceContext(contents: string): FullSourceContext {
   return {
     contents,
-    // The diff parser retains CR on patch rows, unlike the token output.
     comparisonLines: contents.split("\n"),
     validation: new WeakMap(),
   };
@@ -169,7 +163,6 @@ interface SourceSegment {
   readonly rows: NativeReviewDiffLineRow[];
 }
 
-// Row arrays are immutable snapshots; comments and hidden hunks retain source context.
 const sourceSegmentsCache = new WeakMap<
   ReadonlyArray<NativeReviewDiffRow>,
   Map<string, { readonly segment: SourceSegment; readonly index: number }>
@@ -201,8 +194,6 @@ function getSourceSegments(rows: ReadonlyArray<NativeReviewDiffRow>) {
         segment.fileId !== row.fileId ||
         !hasConsecutiveLineNumbers(previousLineNumber, lineNumber)
       ) {
-        // A gap has no known incoming grammar state. Highlight the available
-        // fragment independently; never join it to an earlier, incomplete hunk.
         segment = { fileId: row.fileId, side, rows: [] };
       }
       if (displaySide(row) === side) {
@@ -216,8 +207,6 @@ function getSourceSegments(rows: ReadonlyArray<NativeReviewDiffRow>) {
 }
 
 function displaySide(row: NativeReviewDiffLineRow): DiffSide {
-  // Unified context rows have one token array. Match the NEW side, while OLD
-  // context still advances deletion grammar independently.
   return row.change === "delete" ? "old" : "new";
 }
 
@@ -243,7 +232,6 @@ export async function highlightNativeReviewDiffVisibleRows(
   input: HighlightNativeReviewDiffVisibleRowsInput,
 ): Promise<{
   readonly tokensByRowId: Record<string, ReadonlyArray<NativeReviewDiffToken>>;
-  // Deliver plain tokens for these rows without marking them permanently highlighted.
   readonly retryableRowIds: ReadonlyArray<string>;
   readonly rowCount: number;
   readonly durationMs: number;
@@ -273,8 +261,6 @@ export async function highlightNativeReviewDiffVisibleRows(
   const visibleStartIndex = clampRowIndex(input.firstRowIndex, input.rows);
   const visibleEndIndex = clampRowIndex(input.lastRowIndex, input.rows);
   const visibleFileIds = new Set<string>();
-  // Overscan warms visible files without loading unrelated neighboring sources.
-  // Headers and already-highlighted rows still identify files in the viewport.
   for (let rowIndex = visibleStartIndex; rowIndex <= visibleEndIndex; rowIndex += 1) {
     const fileId = input.rows[rowIndex]?.fileId;
     if (typeof fileId === "string") visibleFileIds.add(fileId);
@@ -334,7 +320,6 @@ export async function highlightNativeReviewDiffVisibleRows(
       durationMs: Math.round(performance.now() - startedAt),
     });
   };
-  // The file filling the viewport should not wait for a sliver of its neighbor.
   for (const [fileId, fileRows] of [...sourceFiles].sort((a, b) => b[1].length - a[1].length)) {
     if (input.signal?.aborted) break;
     const file = fileMap.get(fileId)!;
@@ -385,8 +370,6 @@ export async function highlightNativeReviewDiffVisibleRows(
         ) {
           matchingRows.push({ row, lineIndex });
         } else {
-          // A changed revision or missing source cannot
-          // supply trustworthy grammar. Do not cache guessed syntax colors.
           tokensByRowId[row.id] = makePlainTokenFallback(row);
         }
       }

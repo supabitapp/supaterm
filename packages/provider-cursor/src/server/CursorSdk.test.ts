@@ -17,8 +17,6 @@ import * as CursorSdk from "./CursorSdk.ts";
 const cursorSdkUrl = new URL("./CursorSdk.ts", import.meta.url).href;
 const packageDirectory = new URL("../..", import.meta.url);
 
-// The vitest worker already has its own unhandledRejection listener, which
-// would hide the process-exit behavior.
 const probeProgram = `
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -147,8 +145,6 @@ function runProbe(mode: string): Promise<{ code: number | null; stdout: string; 
         probeProgram,
         mode,
       ],
-      // The package directory resolves the probe's imports however the suite is run.
-      // A hung probe is killed so it cannot outlive the test.
       { cwd: packageDirectory, stdio: ["ignore", "pipe", "pipe"], timeout: 5_000 },
     );
     let stdout = "";
@@ -170,7 +166,6 @@ function runProbe(mode: string): Promise<{ code: number | null; stdout: string; 
 
 const sdkDefaults = vi.hoisted(() => ({ useHttp1ForAgent: undefined as boolean | undefined }));
 
-// Holds the SDK's process-wide default the way it does: only keys present change, null clears.
 vi.mock("./sdk.ts", () => ({
   loadCursorSdk: () => ({
     Cursor: {

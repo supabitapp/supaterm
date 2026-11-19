@@ -240,12 +240,8 @@ export function StyledDiffCodeView<LAnnotation = undefined>({
           itemMetrics: {
             diffHeaderHeight: 32,
             hunkSeparatorHeight: 24,
-            // Zero both spacing and paddingTop; Pierre's expanded-file fallback otherwise adds an 8px header
-            // gap.
             spacing: 0,
             paddingTop: 0,
-            // Include Pierre's 8px --diffs-gap-fallback in metrics or each expanded file loses a scrollable
-            // row.
             paddingBottom: 8,
           },
           layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },

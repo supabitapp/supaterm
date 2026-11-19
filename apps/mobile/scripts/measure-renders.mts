@@ -1,5 +1,3 @@
-// Measures React renders in a running Supaterm Dev client. See
-// docs/internals/mobile-development.md#measuring-renders.
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
@@ -81,7 +79,6 @@ const median = (values: ReadonlyArray<number>) => {
   return sorted.length % 2 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
 };
 
-/** One Hermes inspector session, reached through Metro's inspector proxy. */
 const connectInspector = Effect.fn("measure.connectInspector")(function* (metro: string) {
   const http = yield* HttpClient.HttpClient;
   const targets = yield* http
@@ -92,8 +89,6 @@ const connectInspector = Effect.fn("measure.connectInspector")(function* (metro:
     return yield* new MeasureError({
       message: `No Supaterm app is attached to Metro at ${metro}.`,
     });
-  // Expo terminates inspector sockets whose Origin differs from the URL Metro
-  // advertises (the LAN address with `--lan`), so pass that URL as `--metro`.
   const socket = yield* Socket.makeWebSocket(target.webSocketDebuggerUrl, {
     headers: { origin: new URL(metro).origin },
     openTimeout: "10 seconds",
@@ -143,7 +138,6 @@ const connectServer = Effect.fn("measure.connectServer")(function* (options: Opt
   let projectId = shell.projects.find(
     (project) => project.workspaceRoot === options.projectRoot,
   )?.id;
-  // A project record outlives its folder, and turns fail without it.
   yield* (yield* FileSystem.FileSystem).makeDirectory(options.projectRoot, { recursive: true });
   if (!projectId) {
     projectId = ProjectId.make(yield* uuid);
@@ -164,7 +158,6 @@ const connectServer = Effect.fn("measure.connectServer")(function* (options: Opt
     .pipe(
       Effect.flatMap(HttpClientResponse.schemaBodyJson(Schema.Struct({ ticket: Schema.String }))),
     );
-  // Built into the caller's scope: `Effect.provide` would close the socket once `make` returns.
   const protocol = yield* Layer.build(
     RpcClient.layerProtocolSocket().pipe(
       Layer.provide(
@@ -179,14 +172,11 @@ const connectServer = Effect.fn("measure.connectServer")(function* (options: Opt
   return { client, environmentId: EnvironmentId.make(descriptor.environmentId), projectId };
 });
 
-// Streaming lands in turn items. Some providers stream reasoning but deliver the
-// reply text in one piece, so any streaming text item counts as mid-stream.
 const streamingItem = (projection: OrchestrationV2ThreadProjection) =>
   projection.turnItems.find(
     (item) => (item.type === "assistant_message" || item.type === "reasoning") && item.streaming,
   );
 
-/** A thread streams a long reply: the open one, or with `route` a thread the app never shows. */
 const measureStreamReply = Effect.fn("measure.streamReply")(function* (
   options: Options,
   run: number,
@@ -205,13 +195,11 @@ const measureStreamReply = Effect.fn("measure.streamReply")(function* (
       instanceId: ProviderInstanceId.make(options.provider),
       model: options.model,
     },
-    // The prompt needs no tools; approval-required keeps a stray call from acting.
     runtimeMode: "approval-required",
     interactionMode: "default",
     workspaceStrategy: { type: "root" },
     initialMessage: { text: STREAM_PROMPT, attachments: [] },
   });
-  // A failed or interrupted window must not leave a provider turn running.
   yield* Effect.addFinalizer(() =>
     Effect.gen(function* () {
       const after = yield* client["orchestration.getThreadProjection"]({ threadId });
@@ -248,8 +236,6 @@ const measureStreamReply = Effect.fn("measure.streamReply")(function* (
   const report = yield* decodeReport(
     yield* evaluate("JSON.stringify(__supatermRenderCounterStop())"),
   );
-  // React commits on every streamed delta, so an empty window means the app is not on the thread.
-  // A thread streaming out of view may rightly commit nothing.
   if (report.commits === 0 && Option.isNone(route))
     return yield* new MeasureError({
       message: `Run ${run}: no React commits in the window. Check the device for a red box.`,
@@ -261,12 +247,10 @@ const measureStreamReply = Effect.fn("measure.streamReply")(function* (
 const appLink = (options: Options, route: string) =>
   `__supatermRenderCounterOpen(${encodeJson(`${options.scheme}://${route.replace(/^\//, "")}`)})`;
 
-/** Reloads onto Home, then opens `route` and lets it settle; `/` stays on Home. */
 const reloadAndOpen = Effect.fn("measure.reloadAndOpen")(function* (
   options: Options,
   route: string,
 ) {
-  // A link to an already-open screen only refocuses it, so each run starts from a reload.
   yield* Effect.scoped(
     Effect.flatMap(connectInspector(options.metro), (evaluate) =>
       evaluate("__supatermRenderCounterReload()"),
@@ -282,7 +266,6 @@ const reloadAndOpen = Effect.fn("measure.reloadAndOpen")(function* (
   yield* Effect.sleep("5 seconds");
 });
 
-/** Opens a screen from a freshly loaded Home and records its mount and data settling. */
 const measureRouteOpen = Effect.fn("measure.routeOpen")(function* (
   options: Options,
   route: string,
@@ -340,7 +323,6 @@ const formatTable = (reports: ReadonlyArray<RenderReport>) => {
     "|---|---:|",
     `| renders | ${totals((r) => r.totalRenders)} |`,
     `| commits | ${totals((r) => r.commits)} |`,
-    // Provider pace sets how many commits land in the window; per-commit cost compares across runs.
     `| renders per commit | ${totals((r) => Math.round(r.totalRenders / Math.max(r.commits, 1)))} |`,
     "",
     ...medianTable("Component", reports, (r) => r.components, 20),
@@ -403,7 +385,6 @@ const command = Command.make(
         `run ${run}: ${report.totalRenders} renders in ${report.commits} commits${stillStreaming === false ? " (warning: streaming ended inside the window)" : ""}`,
       );
       reports.push(report);
-      // Let the interrupted turn settle so the next run starts from a quiet app.
       yield* Effect.sleep("3 seconds");
     }
     yield* Console.log(formatTable(reports));

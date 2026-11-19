@@ -1,5 +1,4 @@
 export function checkZipDirectory(bytes: ArrayBuffer, entryLimit = 2048) {
-  // Reject oversized directories before JSZip allocates objects for their entries.
   const view = new DataView(bytes);
   let directoryEnd = -1;
   let directorySize = 0;
@@ -22,7 +21,6 @@ export function checkZipDirectory(bytes: ArrayBuffer, entryLimit = 2048) {
     ) {
       const locator = offset - 20;
       const record = locator - 56;
-      // JSZip uses the last locator, including signatures inside the archive comment.
       for (let candidate = bytes.byteLength - 4; candidate > locator; candidate--)
         if (view.getUint32(candidate, true) === 0x07064b50)
           throw new Error("Unsupported ZIP64 directory.");

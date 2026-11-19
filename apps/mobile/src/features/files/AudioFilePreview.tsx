@@ -18,7 +18,6 @@ export function AudioFilePreview(props: { uri: string; onRetry: () => void }) {
   const [playbackRequested, setPlaybackRequested] = useState(false);
   const playback = createAudioPlaybackSession(player, false, setPlaybackRequested);
   const [seekError, setSeekError] = useState(false);
-  // Video teardown deactivates the shared iOS session, which would stop this player.
   useMediaAudioSessionHold(status.playing);
   const fullscreenVideoOpen = useFullscreenVideoOpen();
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- keeps the shared audio session in step with the native player status and fullscreen video

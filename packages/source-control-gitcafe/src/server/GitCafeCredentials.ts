@@ -96,7 +96,6 @@ export const make = Effect.gen(function* () {
   const environment = yield* HostProcess.Environment;
   const workingDirectory = yield* HostProcess.WorkingDirectory;
 
-  /** cafe has no auth-token command; its credential helper keeps tokens out of argv/logs. */
   const fromCafe = (host: string) =>
     process
       .run({

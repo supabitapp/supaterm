@@ -14,7 +14,6 @@ import { buildFileDiffEntries, getRenderablePatch } from "../../lib/diffRenderin
 import { getDiffHeaderClickAction } from "./diffHeaderClick";
 import { StyledDiffCodeView } from "./StyledDiffCodeView";
 
-/** Records each worker pool's initialization so the test can wait for highlighting. */
 function captureWorkerPools() {
   const pools = new Map<WorkerPoolManager, Promise<void>>();
   const initialize = WorkerPoolManager.prototype.initialize;
@@ -29,7 +28,6 @@ function captureWorkerPools() {
   return { pools, [Symbol.dispose]: () => spy.mockRestore() };
 }
 
-// Exercises the production click helper against Pierre's real shadow DOM.
 function RepeatedDiffs({
   entries,
   viewerRef,
@@ -102,7 +100,6 @@ describe("repeated diff blocks", () => {
           viewer = value;
         }}
       />,
-      // This viewer fixture does not navigate or read router state.
       { router: false },
     );
     const pool = [...pools.keys()][0]!;

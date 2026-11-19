@@ -23,11 +23,8 @@ const PROTOCOLS = ["chatgpt-dictation", "codex-desktop"];
 const SAMPLE_RATE = 16_000;
 const CONNECT_TIMEOUT = "15 seconds";
 const MIN_CLOSE_DEADLINE_MS = 15_000;
-// A session lives 300 s. Rotate in a pause after 240 s of audio, and at 285 s regardless.
 const ROTATE_AFTER_BYTES = 240 * PCM_BYTES_PER_SECOND;
 const FORCE_ROTATE_BYTES = 285 * PCM_BYTES_PER_SECOND;
-// The desktop app's audio worklet posts one 128-sample render quantum, then 2048-sample
-// frames, and pads every session with 250 ms of silence before closing it.
 const FIRST_FRAME_BYTES = 128 * 2;
 const FRAME_BYTES = 2048 * 2;
 const CLOSING_SILENCE = new Uint8Array(PCM_BYTES_PER_SECOND / 4);
@@ -131,7 +128,6 @@ interface Live {
 
 interface Session {
   readonly send: (chunk: Uint8Array) => Effect.Effect<void, TranscriptionError>;
-  /** Ends the audio and waits for the server's final word on this session. */
   readonly close: (audioMs: number) => Effect.Effect<string, TranscriptionError>;
   readonly speaking: Effect.Effect<boolean>;
 }
@@ -212,7 +208,6 @@ const openSession = Effect.fnUntraced(function* (input: {
     ),
   );
 
-  // The desktop composer's start: no session ids, segments for its live preview, server stops honored.
   yield* send({
     type: "session.start",
     client_capabilities: ["server_stop_requested"],
@@ -300,7 +295,6 @@ export const streamCodexDictation = Effect.fn("CodexDictation.stream")(function*
       live = undefined;
       if (text) texts.push(text);
     });
-    // Untraced, like `append`: both run for every chunk or frame of audio.
     const sendFrame = Effect.fnUntraced(function* (frame: Uint8Array) {
       let current = live;
       if (current !== undefined) {
@@ -330,7 +324,6 @@ export const streamCodexDictation = Effect.fn("CodexDictation.stream")(function*
         frameBytes = FRAME_BYTES;
       }
     });
-    // Like the desktop worklet at a session boundary, the partial frame goes out with the old session.
     const stop = Effect.gen(function* () {
       const current = live;
       if (current === undefined) return;
@@ -341,7 +334,6 @@ export const streamCodexDictation = Effect.fn("CodexDictation.stream")(function*
       }
       yield* finish;
     });
-    // A stop request closes its session even while no audio arrives; the next frame opens another.
     yield* Stream.merge(
       Stream.map(input.audio, (chunk) => ({ _tag: "Audio", chunk }) as const),
       Stream.map(Stream.fromQueue(stopRequests), (scope) => ({ _tag: "Stop", scope }) as const),

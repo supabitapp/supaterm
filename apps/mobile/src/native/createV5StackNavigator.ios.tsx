@@ -60,10 +60,8 @@ export function V5CardStackView(
   },
 ) {
   const { preventedRoutes } = usePreventRemoveContext();
-  // Options a screen set inside this workspace tab slot, over its route's.
   const slot = use(WorkspaceSlotOptionsContext);
   const nativePopSource = useRef<string | null>(null);
-  // Back reveals the card beneath; a full-screen presentation covers the card without revealing one.
   const cardRevealed = useRef(false);
   const { onNativePopChange } = props;
   const setNativePopSource = useCallback(
@@ -109,7 +107,6 @@ export function V5CardStackView(
       observedDescriptors: props.descriptors,
     });
   }
-  // Retain the real descriptor through dismissal; placeholders reject setOptions and dispatch.
   const nativeDismiss = useCallback(
     (key: string) => {
       const state = props.navigation.getState();
@@ -122,7 +119,6 @@ export function V5CardStackView(
           completedNativeDismissals.add(key);
           return { ...current, completedNativeDismissals, nativeCompletingPops };
         }
-        // Clean delayed callbacks immediately; the router already removed this route and will not update again.
         completedNativeDismissals.delete(key);
         const descriptors = { ...current.descriptors };
         delete descriptors[key];
@@ -194,7 +190,6 @@ export function V5CardStackView(
                   const action = nativeStackPopAction(state, source, route.key);
                   if (action) {
                     const sourceIndex = state.routes.findIndex((current) => current.key === source);
-                    // Keep children until UIKit's dismissal callback; early router removal would enqueue a second pop.
                     const poppedKeys = state.routes
                       .slice(sourceIndex - action.payload.count + 1, sourceIndex + 1)
                       .map((popped) => popped.key);
@@ -218,7 +213,6 @@ export function V5CardStackView(
               onWillDisappear={() => {
                 if (index === 0) props.onRootVisibilityChange?.(false);
                 const state = props.navigation.getState();
-                // Only native Back leaves the disappearing card active; JS navigation already changed history.
                 if (state.index > 0 && state.routes[state.index]?.key === route.key) {
                   cardRevealed.current = false;
                   setNativePopSource(route.key);

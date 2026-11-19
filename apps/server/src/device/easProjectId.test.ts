@@ -321,7 +321,6 @@ it.effect("gives no answer when an app's config is there but cannot be read", ()
       const root = yield* workspace({
         "apps/two/app.json": JSON.stringify({ expo: { extra: { eas: { projectId: ID_B } } } }),
       });
-      // A directory where the file should be: it exists but cannot be read.
       yield* fs.makeDirectory(path.join(root, "apps/one", file), { recursive: true });
       expect(yield* findEasProjectId(root)).toEqual(Option.none());
     }

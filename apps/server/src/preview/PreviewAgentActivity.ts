@@ -31,7 +31,6 @@ export class PreviewAgentActivity extends Context.Service<
 
 const make = Effect.gen(function* () {
   const changes = yield* PubSub.unbounded<PreviewAgentTurnChange>();
-  // A token per turn, so overlapping turns on one thread end only when the last does.
   const turns = new Map<ThreadId, Set<symbol>>();
 
   const begin = Effect.fn("PreviewAgentActivity.begin")(function* (threadId: ThreadId) {

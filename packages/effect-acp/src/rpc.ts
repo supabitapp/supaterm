@@ -142,9 +142,6 @@ export const AgentRpcs = RpcGroup.make(
 );
 
 const CompatInitializeRpc = Rpc.make(AGENT_METHODS.initialize, {
-  // The negotiation request intentionally carries both v1 and v2 capability
-  // field names. A union encoder would select one branch and discard the
-  // other generation's fields before they reach the agent.
   payload: Schema.Unknown,
   success: Schema.Union([AcpSchema.InitializeResponse, AcpSchemaV1.InitializeResponse]),
   error: AcpSchema.Error,
@@ -247,7 +244,6 @@ const CompatPromptRpc = Rpc.make(AGENT_METHODS.session_prompt, {
   payload: Schema.Union([AcpSchema.PromptRequest, AcpSchemaV1.PromptRequest]),
   success: Schema.Union([
     AcpSchemaV1.PromptResponse,
-    // fx sends empty usage on cancellation; retain its stop reason when usage is invalid.
     Schema.Struct({ stopReason: AcpSchemaV1.StopReason }),
     AcpSchema.PromptResponse,
   ]),
@@ -318,7 +314,6 @@ const CompatElicitationRpc = Rpc.make(CLIENT_METHODS.elicitation_create, {
   error: AcpSchema.Error,
 });
 
-// Native ACP agents still use the older nested elicitation response.
 const legacyElicitationRpc = <const Method extends string>(method: Method) =>
   Rpc.make(method, {
     payload: AcpSchema.CreateElicitationRequest,

@@ -33,7 +33,6 @@ export const kiroClient = defineProviderClient({
     viewBox: "0 0 1200 1200",
     fill: { light: "#9046FF", dark: "#9046FF" },
     paths: [
-      // The ghost is a hole in the tile, so a monochrome icon still shows it.
       { d: `${TILE}${GHOST}${LEFT_EYE}${RIGHT_EYE}`, fillRule: "evenodd" },
       { d: GHOST, fill: white },
       { d: LEFT_EYE, fill: black },

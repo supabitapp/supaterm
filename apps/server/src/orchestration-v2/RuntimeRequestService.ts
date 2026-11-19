@@ -86,7 +86,6 @@ export const layer: Layer.Layer<
               requestId: input.requestId,
             });
           }
-          // Dispatch persists resolution before this effect runs; pending requests are not executable.
           if (request.status !== "resolved") {
             return yield* new RuntimeRequestResponseExecutionError({
               reason: "request-not-ready",

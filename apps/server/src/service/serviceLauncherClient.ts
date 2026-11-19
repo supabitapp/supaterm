@@ -194,7 +194,6 @@ export const repointLaunchers = Effect.fn("cloud.service_launcher_client.repoint
               () => Effect.succeedNone,
             ),
           );
-          // A legacy symlink, or the script install.sh and `supaterm update` write.
           const current = Option.isSome(linkTarget)
             ? path.resolve(path.dirname(launchedAs), linkTarget.value)
             : yield* readPosixLauncherTarget(launchedAs);
@@ -231,7 +230,6 @@ export const make = Effect.fn("cloud.service_launcher_client.make")(function* (o
   readonly currentVersion?: string;
 }) {
   const { host, context, managed } = yield* resolveStartup(options);
-  // prepareTrial runs later, outside whatever context built the client.
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const environment = yield* HostProcess.Environment;

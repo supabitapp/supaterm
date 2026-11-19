@@ -30,8 +30,6 @@ const update = makePackageManagedProviderMaintenanceResolver({
   mise: { tool: "claude" },
   nativeUpdate: {
     args: ["update"],
-    // On Unix the native launcher links into ${XDG_DATA_HOME:-~/.local/share}/claude/versions; a
-    // plain file at ~/.local/bin/claude is a wrapper whose owner `claude update` cannot see.
     isCommandPath: (commandPath) => {
       const normalized = normalizeCommandPath(commandPath);
       return (
@@ -57,7 +55,6 @@ const readUpdateChannel = Effect.fn("ClaudeMaintenance.readUpdateChannel")(funct
         : "/etc/claude-code";
   const dropInDirectory = path.join(managedDirectory, "managed-settings.d");
   const dropIns = yield* fs.readDirectory(dropInDirectory).pipe(Effect.orElseSucceed(() => []));
-  // The updater inherits the server's config directory, not the instance's homePath.
   const configDirectory = yield* resolveClaudeHomePath({ homePath: "" }, environment);
   const settingsPaths = [
     path.join(configDirectory, "settings.json"),

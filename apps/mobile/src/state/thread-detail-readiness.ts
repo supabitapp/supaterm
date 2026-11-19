@@ -6,8 +6,6 @@ import { scopedThreadKey } from "../lib/scopedEntities";
 import type { PendingThreadCreationOutcome } from "./pending-thread-creation";
 import type { QueuedThreadMessage } from "./thread-outbox-model";
 
-// The shell can arrive before creation is acknowledged. Reading earlier gets a
-// definitive not-found, which the thread state keeps as a deleted thread.
 export function createThreadDetailReadiness(options: {
   readonly outcomesAtom: Atom.Atom<Readonly<Record<string, PendingThreadCreationOutcome>>>;
   readonly queuedMessagesAtom: Atom.Atom<

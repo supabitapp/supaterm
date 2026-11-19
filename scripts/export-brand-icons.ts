@@ -613,8 +613,6 @@ const renderMacIcon = Effect.fn("iconExport.renderMacIcon")(function* (
   return Buffer.from(yield* fs.readFile(path.join(iconset, iconsetImage)));
 });
 
-// The Dock's launch animation lights the bolt LED by LED between the icon and the same icon with
-// its screen switched off, in whichever appearance the Dock is drawing.
 const renderDockMacIcon = Effect.fn("iconExport.renderDockMacIcon")(function* (
   sourcePath: string,
   outputDirectory: string,
@@ -622,7 +620,6 @@ const renderDockMacIcon = Effect.fn("iconExport.renderDockMacIcon")(function* (
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  // actool names the compiled icon after the project, so the copy keeps the original name.
   const projectPath = path.join(outputDirectory, "project", `${MAC_ICON_NAME}.icon`);
   yield* fs.makeDirectory(path.dirname(projectPath), { recursive: true });
   yield* fs.copy(sourcePath, projectPath);
@@ -634,17 +631,13 @@ const renderDockMacIcon = Effect.fn("iconExport.renderDockMacIcon")(function* (
     const document = yield* fs.readFileString(documentPath);
     yield* fs.writeFileString(documentPath, bakeIconAppearance(document, "dark"));
   }
-  // The animation blends each pair pixel for pixel, so both halves need the same rendition: light
-  // pairs with the brand's 1024px icon, dark with the 512px dark icon rendered here.
   const rendition = look.dark ? "icon_256x256@2x.png" : "icon_512x512@2x.png";
   return yield* renderMacIcon(projectPath, outputDirectory, rendition);
 });
 
 const LAUNCH_ICON_LEDS_MODULE = "apps/desktop/src/app/LaunchIconLeds.generated.ts";
-// actool draws an icon's canvas as an 824px body centred in the 1024px macOS tile.
 const MAC_ICON_BODY = 824 / 1024;
 
-/** The desktop app's map from the bolt's LEDs to the macOS icon tile, as a module. */
 const launchIconLedsModule = (leds: LaunchIconArt["leds"]) => {
   const toTile = (fraction: number) => (1 - MAC_ICON_BODY) / 2 + fraction * MAC_ICON_BODY;
   return Buffer.from(

@@ -167,7 +167,6 @@ describe("GhosttyTerminalCore snapshots", () => {
     },
   );
 
-  // smkx is what ncurses keypad(True) sends; a raw-mode parser such as Crossterm never does.
   it.each([
     { mode: "", ctrlKey: true, expected: "\x1b[13;5~" },
     { mode: "\x1b[?1h\x1b=", ctrlKey: true, expected: "\x1b[1;5R" },
@@ -297,7 +296,6 @@ describe("GhosttyTerminalCore snapshots", () => {
     expect(cells[0]!.foreground).toEqual({ r: 1, g: 9, b: 2 });
     expect(cells[1]!.foreground).toEqual({ r: 255, g: 0, b: 0 });
 
-    // Inverse, default and explicit-background cells, cached before a program sets OSC 10/11.
     core.resetAndWrite("\x1b[7mI\x1b[0mD\x1b[48;2;9;8;7mB\x1b[0m\r\n");
     core.snapshot();
     const colors = () => {
@@ -587,7 +585,6 @@ describe("GhosttyTerminalCore scrollback", () => {
     try {
       core.write(Array.from({ length: 1_200 }, (_, index) => `${index}\r\n`).join(""));
       const scrollbar = core.scrollbarState();
-      // max_scrollback is a byte budget in the pinned ABI, not a row count.
       expect(scrollbar!.total - scrollbar!.len).toBeGreaterThan(1_000);
     } finally {
       core.dispose();
@@ -597,7 +594,6 @@ describe("GhosttyTerminalCore scrollback", () => {
 
 describe("GhosttyTerminalCore mouse encoding", () => {
   it("reports the cell drawn under the pointer on a fractional grid", async () => {
-    // The default 13px font measures a fractional 7.82666015625px cell; rows are 18px.
     const cellWidth = 7.82666015625;
     const cellHeight = 18;
     const core = await GhosttyTerminalCore.create(

@@ -14,7 +14,6 @@ import * as VcsProjectConfig from "./VcsProjectConfig.ts";
 import * as VcsDriver from "./VcsDriver.ts";
 
 const DETECTION_CACHE_CAPACITY = 2_048;
-// Detection costs three git processes per cwd; cached hits still stat disk, so TTL bounds only undetectable changes.
 const DETECTION_CACHE_TTL = Duration.minutes(5);
 
 export interface VcsDriverResolveInput {
@@ -85,8 +84,6 @@ export const make = Effect.gen(function* () {
     driver: VcsDriver.VcsDriver["Service"],
     cwd: string,
   ) {
-    // Status, review and source control show a repository Git cannot read as none at all.
-    // Checkpoints need the failure, so CheckpointStore asks the driver directly.
     const repository = yield* driver.detectRepository(cwd).pipe(
       Effect.catchTags({
         VcsProcessExitError: (error) =>
@@ -119,7 +116,6 @@ export const make = Effect.gen(function* () {
     return yield* detectWithDriver("git", git, input.cwd);
   });
 
-  // Symlinks can put cwd outside root; then inspect cwd alone.
   const foldersBelowRoot = (cwd: string, rootPath: string) => {
     const relative = path.relative(path.resolve(rootPath), path.resolve(cwd));
     if (relative.startsWith("..") || path.isAbsolute(relative)) return [cwd];

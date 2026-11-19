@@ -52,7 +52,6 @@ export function resolveThreadRouteRenderState(input: {
   ) {
     return "missing";
   }
-  // Shell membership can lag a new thread; its detail decides.
   const projection = Option.getOrNull(input.unlistedThreadDetail.data);
   if (projection === null) {
     return "loading";

@@ -21,7 +21,6 @@ export interface ProfileReport {
   readonly recordingFrameRate: ClientSettings["browserRecordingFrameRate"];
 }
 
-/** Environments this client may operate a server browser in, with the config each currently runs. */
 const reportTargetsAtom = Atom.make((get) => {
   const targets = new Map<EnvironmentId, EnvironmentServerConfig>();
   for (const [environmentId, config] of get(environmentPresentations.serverConfigsAtom)) {

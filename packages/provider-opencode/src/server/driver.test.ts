@@ -135,7 +135,6 @@ const openCode2Model = (providerID: string, id: string, name: string) => ({
   enabled: true,
   limit: { context: 1000000, output: 65536 },
 });
-// Serves one machine catalog everywhere plus extra models for the project directory.
 const makeOpenCode2ProjectInstance = (
   projectCatalog: "listed" | "models-unavailable" | "providers-unavailable",
 ) =>
@@ -167,7 +166,6 @@ const makeOpenCode2ProjectInstance = (
       return Effect.succeed(
         HttpClientResponse.fromWeb(
           request,
-          // An external server without a requested location answers for its own default.
           new Response(
             JSON.stringify({ location: { directory: directory ?? "/srv/remote" }, data }),
             {
@@ -190,7 +188,6 @@ const makeOpenCode2ProjectInstance = (
     );
     yield* TestClock.adjust("5 seconds");
     yield* Fiber.join(ready);
-    // Catalog reads repeat until two agree, so let them settle on the test clock.
     return (cwd: string) =>
       Effect.gen(function* () {
         const read = yield* Effect.forkChild(instance.snapshotForCwd!(cwd));
@@ -271,7 +268,6 @@ it.live("discovers models through a home-relative OpenCode wrapper", () =>
   ),
 );
 
-// Under MISE_OFFLINE the shim cannot install OpenCode; a normal run installs 2.x first.
 const lazyMiseShim = {
   ...openCode2Runtime,
   runOpenCodeCommand: ({ environment }: { readonly environment?: NodeJS.ProcessEnv }) =>
@@ -345,7 +341,6 @@ it.layer(layer)("OpenCodeDriver", (it) => {
       serverStarts.length = 0;
       const instance = yield* create({}, noHttp).pipe(
         Effect.provideService(OpenCodeRuntime.OpenCodeRuntime, lazyMiseShim),
-        // The background status check probes offline, which this shim always fails.
         Effect.provide(TestProviderHost.layer({ runBackgroundWork: false })),
       );
 
@@ -529,8 +524,6 @@ it.layer(layer)("OpenCodeDriver", (it) => {
 
   it.effect("caches a cold OpenCode 2 directory's skills only after its scan ends", () =>
     Effect.gen(function* () {
-      // OpenCode 2.2.7: touching a location lists it as loaded with built-in commands and skills
-      // at once, while provider.list waits for the scan that adds the project's skills.
       const scanEnded = yield* Deferred.make<void>();
       const builtinSkills = JSON.stringify({
         location: { directory: "/work" },
@@ -750,7 +743,6 @@ it.layer(layer)("OpenCodeDriver", (it) => {
           },
         ],
       });
-      // Like a real remote OpenCode 2 server: a directory it does not have is a 404.
       const server = HttpClient.make((request) => {
         const url = new URL(request.url);
         if (url.pathname !== "/api/model" && url.pathname !== "/api/provider") {
@@ -864,7 +856,6 @@ it.layer(layer)("OpenCodeDriver", (it) => {
           Deferred.await(releaseResponse).pipe(Effect.andThen(server.execute(request))),
         ),
       );
-      // Wait for startup and its maintenance enrichment, both of which probe.
       const rejected = yield* instance.snapshot.streamChanges.pipe(
         Stream.filter(
           (snapshot) => snapshot.status === "error" && snapshot.versionAdvisory !== undefined,
@@ -1215,7 +1206,6 @@ it.layer(layer)("OpenCodeDriver", (it) => {
   );
 });
 
-// npm links into opencode-ai for 1.x and @opencode/cli for 2.x.
 const npmGlobalInstall = (prefix: string, packagePath: ReadonlyArray<string>, bin: string) => {
   const target = NodePath.join(prefix, "lib", "node_modules", ...packagePath, "bin", bin);
   NodeFS.mkdirSync(NodePath.dirname(target), { recursive: true });
@@ -1345,8 +1335,6 @@ it.layer(layerUpdate)("OpenCodeDriver updates", (it) => {
       Effect.gen(function* () {
         versionOutput.current = "1.18.18\n";
         const instance = yield* create({}, noHttp);
-        // Let the startup status check claim the refresh permit, then wait behind it so it
-        // cannot probe after the upgrade below.
         yield* Effect.yieldNow;
         yield* instance.snapshot.refresh;
         serverStarts.length = 0;

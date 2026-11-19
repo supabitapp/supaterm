@@ -125,7 +125,6 @@ export async function refreshAssetUrl(
     ...(signal ? { signal } : {}),
   });
   if (result._tag === "Failure") throw squashAtomCommandFailure(result);
-  // The query can wait through a reconnect; resolve against the connection that answered it.
   const connection = appAtomRegistry.get(connectionAtom);
   if (connection._tag === "None") return null;
   const state = assetUrlStateFromResult(result, connection.value.httpBaseUrl);
@@ -140,13 +139,10 @@ export interface AuthorizedAssetUrl {
 interface FreshAssetUrlKey {
   readonly environmentId: EnvironmentId | null;
   readonly resource: AssetResource;
-  /** A reconnect changes the base URL, and any URL minted against the old one is unusable. */
   readonly httpBaseUrl: string | null;
-  /** Bumped by Retry so a file replaced on disk is reauthorized. */
   readonly revision: number;
 }
 
-// Plain-object keys compare structurally (Effect `Equal`/`Hash`).
 const freshAssetUrlFamily = Atom.family((key: FreshAssetUrlKey) =>
   Atom.make(
     Effect.tryPromise({

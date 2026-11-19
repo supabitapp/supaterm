@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off
-// Windows cleanup must outlive this executable to delete its directory; scoped ChildProcess kills children on exit.
 import * as NodeChildProcess from "node:child_process";
 
 import * as HostProcess from "@supaterm/shared/HostProcess";
@@ -63,7 +62,6 @@ export const findOwnedLauncher = Effect.fn("cli.uninstall.find_launcher")(functi
   return yield* findPosixLauncher({ launchedAs: input.launchedAs, versionsDir: input.versionsDir });
 });
 
-/** Whether `launcher` is a link, unedited `supaterm` script, or unedited `supaterm.cmd` into this home's runtime/versions. */
 const ownsLauncher = Effect.fn("cli.uninstall.owns_launcher")(function* (
   launcher: string,
   versionsDir: string,
@@ -74,8 +72,6 @@ const ownsLauncher = Effect.fn("cli.uninstall.owns_launcher")(function* (
   const realVersionsDir = yield* fs
     .realPath(versionsDir)
     .pipe(Effect.orElseSucceed(() => versionsDir));
-  // The link's own text keeps a pruned (dangling) target; the real path sees through a
-  // symlinked Supaterm home.
   const targets =
     platform === "win32"
       ? [
@@ -120,7 +116,6 @@ export const findRecordedLaunchers = Effect.fn("cli.uninstall.find_recorded_laun
   return owned;
 });
 
-// cmd.exe needs verbatim quoting and a literal path, with delayed expansion disabled.
 export function spawnWindowsRemoval(comspec: string, dir: string) {
   return NodeChildProcess.spawn(
     comspec,
@@ -258,7 +253,6 @@ const runUninstall = Effect.fn("cli.uninstall.run")(function* (input: {
     yield* Console.log("Removed the background service.");
   }
   for (const launcher of plan.launchers) {
-    // The prompt can wait a long time; never delete a file that replaced the launcher meanwhile.
     if (!(yield* ownsLauncher(launcher, plan.versionsDir))) {
       yield* Console.log(`Left ${launcher}: it no longer runs this supaterm.`);
       continue;
@@ -273,7 +267,6 @@ const runUninstall = Effect.fn("cli.uninstall.run")(function* (input: {
     yield* Console.log(`Removed ${launcher}.`);
   }
   if (plan.runtimeDir !== undefined) {
-    // Windows refuses to unlink this running executable; a detached shell removes it after exit.
     if (platform === "win32") {
       const runtimeDir = plan.runtimeDir;
       const comspec = environment["ComSpec"] ?? environment["COMSPEC"] ?? "cmd.exe";

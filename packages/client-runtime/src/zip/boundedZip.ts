@@ -43,7 +43,6 @@ export async function boundedZip(
         .on("data", (chunk) => {
           total += chunk.length;
           length += chunk.length;
-          // Word relationship targets can use arbitrary extensions, so count every part.
           if (limits.markupLimit !== undefined)
             for (const byte of chunk) if (byte === 0x3c) markup++;
           if (

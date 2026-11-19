@@ -24,7 +24,6 @@ export const isOpenCode1 = (probed: ProbedOpenCode) => probed.generation === "v1
 
 const OPENCODE_VERSION_PROBE_TIMEOUT_MS = 10_000;
 const OPENCODE_SERVER_PROBE_TIMEOUT_MS = 5_000;
-// 2.x's own CLI decodes `{version, pid}` from `/api/info`; requiring both keeps unrelated JSON out.
 const decodeApiInfo = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Struct({ version: Schema.String, pid: Schema.Int })),
 );
@@ -41,7 +40,6 @@ function probed(version: string | null | undefined): ProbedOpenCode | undefined 
 export const classifyOpenCodeCliVersion = (output: string) =>
   probed(parseGenericCliVersion(output));
 
-// Cross-version paths return HTML 200s, so require JSON; either version returns 401 for bad passwords.
 function classifyOpenCodeProbeResponse(
   path: "/api/info" | "/global/health",
   response: {
@@ -96,7 +94,6 @@ export const probeOpenCodeBinary = Effect.fn("probeOpenCodeBinary")(function* (
   });
 });
 
-// Use fixed status text; underlying errors may expose URLs, credentials, or password headers.
 const probeOpenCodeServer = Effect.fn("probeOpenCodeServer")(function* (
   serverUrl: string,
   serverPassword: string,
@@ -110,7 +107,6 @@ const probeOpenCodeServer = Effect.fn("probeOpenCodeServer")(function* (
       detail: "The OpenCode server URL is not a valid http:// or https:// URL.",
     });
   }
-  // Both versions decode it as UTF-8; `HttpClientRequest.basicAuth` uses Latin-1 `btoa`.
   const authorization = serverPassword
     ? `Basic ${Buffer.from(`opencode:${serverPassword}`, "utf8").toString("base64")}`
     : undefined;
@@ -187,8 +183,6 @@ export const probeOpenCodeRuntime = (
     ? probeOpenCodeServer(settings.serverUrl, settings.serverPassword, environment)
     : probeOpenCodeBinary(settings.binaryPath, environment);
 
-// Only 2.x is kept: 1.x can be upgraded in place while Supaterm runs, and 2.x converts the shared
-// database, so going back is unsupported.
 export const makeOpenCodeRuntimeProbe = <E>(probe: Effect.Effect<ProbedOpenCode, E>) =>
   Effect.map(
     Cache.makeWith(() => probe, {

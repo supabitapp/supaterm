@@ -30,11 +30,6 @@ import Migration0020 from "./Migrations/020_TurnItemMessageOrdinalIndex.ts";
 import Migration0021 from "./Migrations/021_TurnItemInlineWorkOutput.ts";
 import Migration0022 from "./Migrations/022_RepairStaleTitleRegeneration.ts";
 
-/**
- * Add a schema change as a new entry with the next id. Never edit, renumber, or
- * remove a shipped entry: the migrator skips every id up to the highest one a
- * database recorded.
- */
 const migrationEntries = [
   [1, "Baseline", Migration0001],
   [2, "ThreadMessageSearch", Migration0002],
@@ -83,11 +78,6 @@ export function skippedMigrations(
   });
 }
 
-/**
- * The migrator compares ids only, so it would silently skip this build's migrations at or below
- * the highest recorded id that the ledger holds under another name. Refuse that. Unknown recorded
- * ids, such as a newer Supaterm's, stay so older builds keep opening the database.
- */
 const assertKnownMigrationHistory = Effect.fn("assertKnownMigrationHistory")(function* () {
   const sql = yield* SqlClient.SqlClient;
   const tables = yield* sql`
@@ -118,11 +108,6 @@ const assertKnownMigrationHistory = Effect.fn("assertKnownMigrationHistory")(fun
   }
 });
 
-/**
- * Additive schema that older builds tolerate. It stays out of the migration
- * ledger because earlier releases refuse to open a database that recorded a
- * migration they do not know.
- */
 const ensureUnrecordedSchema = Effect.fn("ensureUnrecordedSchema")(function* () {
   const sql = yield* SqlClient.SqlClient;
   yield* sql`
@@ -144,9 +129,6 @@ const ensureUnrecordedSchema = Effect.fn("ensureUnrecordedSchema")(function* () 
     ON orchestration_v2_projection_turn_items(thread_id, run_id)
     WHERE type = 'run_interrupt_request'
   `;
-  // Shell resume groups a sequence range by aggregate. Covering it, without a predicate on
-  // the columns stored after the payload, keeps both the query and the first build off
-  // payload overflow pages. The first build still reads every event once.
   const unindexedEvents = yield* sql`
     SELECT 1 FROM orchestration_events
     WHERE NOT EXISTS (
@@ -166,7 +148,6 @@ const ensureUnrecordedSchema = Effect.fn("ensureUnrecordedSchema")(function* () 
 
 const latestMigrationId = Math.max(...migrationEntries.map(([id]) => id));
 
-// Mirrors the Migrator, which runs only ids above the highest recorded.
 export const hasPendingMigrations = Effect.fn("hasPendingMigrations")(function* () {
   const sql = yield* SqlClient.SqlClient;
   const tables = yield* sql`
@@ -193,7 +174,6 @@ export const runMigrations = Effect.fn("runMigrations")(function* ({
   toMigrationInclusive,
 }: { readonly toMigrationInclusive?: number } = {}) {
   yield* assertKnownMigrationHistory();
-  // The desktop waits past its readiness budget until the finished line follows this one.
   if (yield* hasPendingMigrations()) yield* Effect.log(DATABASE_MIGRATIONS_STARTED_MESSAGE);
   const sql = yield* SqlClient.SqlClient;
   const ledger = yield* sql`
@@ -210,8 +190,6 @@ export const runMigrations = Effect.fn("runMigrations")(function* ({
     ([id]) =>
       id > latestRecordedId && (toMigrationInclusive === undefined || id <= toMigrationInclusive),
   );
-  // One transaction per migration: an index build on a large database can take minutes, and a
-  // restart then resumes after the last finished migration instead of rolling all of them back.
   const executedMigrations: Array<readonly [id: number, name: string]> = [];
   for (const [index, [id, name]] of pending.entries()) {
     if (latestRecordedId > 0) {

@@ -123,7 +123,6 @@ describe("fallbackTextGenerationModelSelection", () => {
         { defaultModelSelection: threadDefault },
       ),
     ).toEqual(threadDefault);
-    // An exhausted Go quota leaves the custom model unusable but the driver default still works.
     expect(
       fallbackTextGenerationModelSelection(
         providerInstances,
@@ -275,7 +274,6 @@ describe("serverSettings helpers", () => {
       otlpMetricsUrl: "http://localhost:4318/v1/metrics",
       otlpLogsUrl: "http://localhost:4318/v1/logs",
     });
-    // The server still loads a file holding the retired token streaming mode.
     expect(
       parsePersistedServerObservabilitySettings(
         JSON.stringify({
@@ -548,7 +546,6 @@ describe("serverSettings helpers", () => {
     });
   });
 
-  // A newer client must still see this server drop a key it does not know.
   it("drops an override key this server does not know from a patch and keeps one it stored", () => {
     const projectId = ProjectId.make("project-a");
     const current = decodeServerSettings({
@@ -685,7 +682,6 @@ describe("serverSettings helpers", () => {
     });
 
     it("keeps them when the client resends the entry to edit another key", () => {
-      // Decoded the way the server receives it, from a client whose schema predates the keys.
       const patch = decodeServerSettingsPatch({
         projectSettingsOverrides: {
           [projectId]: {

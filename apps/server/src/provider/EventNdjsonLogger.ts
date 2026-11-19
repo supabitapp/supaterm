@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off
-/** Native and canonical views share write state to avoid races on the same thread file. */
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
@@ -159,7 +158,6 @@ function resolveThreadSegment(raw: string | null | undefined): string {
   if (typeof raw !== "string") return GLOBAL_THREAD_SEGMENT;
   const normalized = toSafeThreadAttachmentSegment(raw);
   if (normalized === null) return GLOBAL_THREAD_SEGMENT;
-  // Delegated thread ids share a prefix longer than the segment, so ids that may be cut get a hash.
   if (raw.length <= ATTACHMENT_ID_THREAD_SEGMENT_MAX_CHARS) return normalized;
   const hash = NodeCrypto.createHash("sha256").update(raw).digest("hex").slice(0, 16);
   return `${normalized}-${hash}`;
@@ -192,7 +190,6 @@ export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unk
 
     const nested = Reflect.get(event, "event");
     const envelope = typeof nested === "object" && nested !== null ? nested : event;
-    // Decoded frames preserve raw-frame information without duplicating every token delta.
     if (Reflect.get(envelope, "stage") === "raw") return false;
     const decodedPayload = Reflect.get(envelope, "payload");
     const nativeEvent =
@@ -229,7 +226,6 @@ export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unk
     if (nativeType === "interaction.update") {
       let update = Reflect.get(nativeEvent, "update");
       if (typeof update !== "object" || update === null) return true;
-      // Subagent updates arrive wrapped; keep the wrapper when it carries a lifecycle record.
       if (Reflect.get(update, "type") === "tool-call-delta") {
         update = Reflect.get(update, "taskUpdate");
         if (typeof update !== "object" || update === null) return true;
@@ -256,7 +252,6 @@ export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unk
       const partType = Reflect.get(part, "type");
       if (partType === "text" || partType === "reasoning") return false;
       if (partType === "tool") {
-        // Running snapshots repeat growing output.
         const state = Reflect.get(part, "state");
         if (typeof state === "object" && state !== null) {
           return Reflect.get(state, "status") !== "running";
@@ -566,8 +561,6 @@ const drainPending = Effect.fnUntraced(function* (input: {
   const retentionDue =
     input.now - input.state.lastRetentionAt >= input.options.retentionCheckIntervalMs;
   if (retentionDue) {
-    // A sink idle for a whole retention interval reopens from disk on its next
-    // write, so retention may remove its files without leaving a stale size.
     for (const threadSegment of sinks.keys()) {
       if (!writtenSegments.has(threadSegment)) sinks.delete(threadSegment);
     }
@@ -744,7 +737,6 @@ export const makeEventNdjsonLogStore = Effect.fnUntraced(function* (
       if (!shouldPersistProviderEvent(stream, event)) return;
       let payload = yield* serializeEvent(boundProviderEventForLogging(event));
       if (payload === undefined) return;
-      // Escaping can expand strings beyond their input size.
       if (Buffer.byteLength(payload) > MAX_RECORD_CHARACTERS) {
         payload = yield* serializeEvent(summarizeProviderEvent(event));
         if (payload === undefined) return;

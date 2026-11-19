@@ -71,7 +71,6 @@ it.effect("keeps branch deletion on the credential that passed source repository
           } else if (operation.includes("updateRefs(")) {
             body = { data: { updateRefs: { clientMutationId: null } } };
           } else {
-            // The credential rotates the moment the permission read is answered.
             activeToken = "account-b";
             body = {
               data: {
@@ -102,7 +101,6 @@ it.effect("keeps branch deletion on the credential that passed source repository
     const provider = yield* GitHubPullRequestProvider.make.pipe(
       Effect.provide(
         GitHubPullRequestApi.layer.pipe(
-          // GraphQL reads go over `http` too, through the same credential and quota as REST.
           Layer.provide(
             GitHubRest.layer.pipe(
               Layer.provideMerge(Layer.mergeAll(credentials, http)),

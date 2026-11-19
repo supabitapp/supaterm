@@ -381,8 +381,6 @@ const cleanupFixture = (
         execute: (input) =>
           Effect.gen(function* () {
             gitInspections++;
-            // Before Git's own clean check: inside `git worktree remove`, or on
-            // Windows the same status check the removal makes before deleting.
             if (
               editBeforeRemoval &&
               (input.args.includes("remove") || input.args.includes("--porcelain"))
@@ -1612,7 +1610,6 @@ describe("subagent worktree ownership", () => {
 describe("deleted thread worktrees", () => {
   const parent = (worktreePath: string) =>
     shell({ branch: "feature", worktreePath, deletedAt: at(-DAY_MS) });
-  // Deleting the parent leaves its native subagent thread in the projection.
   const subagent = (
     owner: OrchestrationV2ThreadShell,
     overrides: Partial<OrchestrationV2ThreadShell> = {},
@@ -1673,7 +1670,6 @@ describe("deleted thread worktrees", () => {
         outcome: "kept",
         reason: "Repository or branch changed",
       });
-      // The deleted owner cannot follow, so moving its subagent would split their records.
       expect(fixture.threadBranches()).toEqual(["feature"]);
     }).pipe(Effect.provide(cleanupTestLayer), Effect.scoped),
   );
@@ -1700,7 +1696,6 @@ describe("deleted thread worktrees", () => {
     }).pipe(Effect.provide(cleanupTestLayer)),
   );
 
-  // Releases one stopped-session event after the startup sweep and returns the snapshot reads it caused.
   const stopSessionAfterStartupSweep = (
     fixture: Effect.Success<ReturnType<typeof cleanupFixture>>,
     threadId: ThreadId,
@@ -2000,7 +1995,6 @@ describe("deleted thread worktrees", () => {
         yield* fixture.service.drain;
         fixture.setDeletedThreads([owner]);
         fixture.setOpenSessionCwd(fixture.worktree);
-        // The deletion's sweep sees the session live; it stops before just sweep publishes its result.
         fixture.setOnLiveCheck(
           Effect.gen(function* () {
             fixture.setOnLiveCheck(Effect.void);
@@ -2134,7 +2128,6 @@ describe("orphan worktree reports", () => {
           yield* fixture.command(fixture.repo, ["worktree", "add", "-b", "orphan", orphan]);
           if (location === "annexed") yield* annexWorktree(fixture, orphan);
           const sizes = yield* Effect.forEach(
-            // Links are not measured, and the annexed `.git` is one.
             (yield* fixture.fs.readDirectory(orphan)).filter(
               (name) => location !== "annexed" || name !== ".git",
             ),
@@ -2540,7 +2533,6 @@ describe("storage cleanup reports and local file policies", () => {
               Stream.flatMap(({ event, processed }) =>
                 Stream.succeed(event).pipe(
                   Stream.concat(
-                    // The next pull acknowledges that the listener handled this event.
                     Stream.fromEffect(Deferred.succeed(processed, undefined)).pipe(Stream.drain),
                   ),
                 ),
@@ -2593,7 +2585,6 @@ describe("storage cleanup reports and local file policies", () => {
           }
           expect(fixture.sessionLiveChecks()).toBe(worktreeOnDelete ? 5 : 0);
 
-          // Release removes the live entry before publishing its final error update.
           fixture.setSessionLive(false);
           yield* publish(sessionUpdated("error", ""));
           expect(fixture.snapshotReads()).toBe(startupReads + Number(worktreeOnDelete));
@@ -2611,7 +2602,6 @@ describe("storage cleanup reports and local file policies", () => {
             occurredAt: at(0),
             payload: { ...shell({ deletedAt: at(0) }), lastVisitedAt: null },
           });
-          // Deletion always sweeps so the deleted thread's checkpoint refs are pruned.
           expect(fixture.snapshotReads()).toBe(startupReads + 2 * Number(worktreeOnDelete) + 1);
           expect(fixture.sessionLiveChecks()).toBe(worktreeOnDelete ? 6 : 0);
         }),
@@ -2663,7 +2653,6 @@ describe("storage cleanup reports and local file policies", () => {
         yield* fixture.fs.writeFileString(`${folder}/notes.md`, "scratch\n");
         fixture.setProjectRoots([scratchRoot]);
         fixture.setStoredWorktreePaths([]);
-        // Only this rule lets cleanup delete untracked files, which is all a scratch folder has.
         fixture.setPolicy("tracked-changes");
         fixture.setThreads([
           shell({ worktreePath: folder, doneAt: at(-20 * DAY_MS), status: "completed" }),
@@ -2720,7 +2709,6 @@ describe("storage cleanup reports and local file policies", () => {
             { recursive: true },
           );
           yield* fixture.fs.writeFileString(`${folder}/notes.md`, "scratch\n");
-          // No thread owns this one, so it is listed and never removed.
           const leftover = `${scratchRoot}/leftover`;
           yield* fixture.fs.makeDirectory(leftover);
           yield* fixture.fs.utimes(leftover, 1, 1);
@@ -2902,7 +2890,6 @@ describe("storage cleanup reports and local file policies", () => {
         }),
       ),
   );
-  // A checkout or an agent can link the manifest anywhere, including a network share.
   it.live("ignores a pnpm manifest reached through a link", () =>
     runCleanupTest(
       Effect.gen(function* () {
@@ -2937,8 +2924,6 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
-  // A checkout can link a directory to a network share and point the manifest
-  // through it, so nothing beneath a link inside the worktree may be touched.
   it.live("never reads through a link inside the worktree to find the pnpm store", () =>
     runCleanupTest(
       Effect.gen(function* () {
@@ -2973,8 +2958,6 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
-  // An agent can write this manifest. Statting its store sent the Windows
-  // user's NTLM credentials to attacker.test during a background sweep.
   it.live.each([
     { storeDir: "\\\\attacker.test\\s" },
     { storeDir: "/local/store", virtualStoreDir: "//attacker.test/s" },
@@ -3056,7 +3039,6 @@ describe("storage cleanup reports and local file policies", () => {
         }),
       ),
   );
-  // A checkout or an agent can link the manifest anywhere, including a network share.
   it.live("ignores a pnpm manifest reached through a link", () =>
     runCleanupTest(
       Effect.gen(function* () {
@@ -3091,8 +3073,6 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
-  // A checkout can link a directory to a network share and point the manifest
-  // through it, so nothing beneath a link inside the worktree may be touched.
   it.live("never reads through a link inside the worktree to find the pnpm store", () =>
     runCleanupTest(
       Effect.gen(function* () {
@@ -3127,8 +3107,6 @@ describe("storage cleanup reports and local file policies", () => {
       }),
     ),
   );
-  // An agent can write this manifest. Statting its store sent the Windows
-  // user's NTLM credentials to attacker.test during a background sweep.
   it.live.each([
     { storeDir: "\\\\attacker.test\\s" },
     { storeDir: "/local/store", virtualStoreDir: "//attacker.test/s" },
@@ -3413,7 +3391,6 @@ describe("storage cleanup reports and local file policies", () => {
         yield* command(worktree, ["switch", "--orphan", "other"]);
         expect((yield* service.runNow).entries[0]).toMatchObject(changed);
         yield* command(worktree, ["tag", "feature", "feature"]);
-        // Newer Git refuses to create a tag named HEAD, but still reads one.
         yield* command(worktree, ["update-ref", "refs/tags/HEAD", "refs/heads/feature"]);
         yield* command(worktree, ["switch", "feature"]);
         expect((yield* service.runNow).entries[0]).toMatchObject(changed);
@@ -3625,7 +3602,6 @@ describe("storage cleanup reports and local file policies", () => {
         const remote = yield* fs.makeTempDirectoryScoped({ prefix: "cleanup-remote-" });
         yield* command(remote, ["init", "--bare", "-b", "trunk"]);
         yield* command(repo, ["remote", "add", "origin", remote]);
-        // The remote HEAD names an unborn trunk; main exists but is not its default.
         yield* command(repo, ["push", "origin", "main"]);
 
         const report = yield* service.runNow;
@@ -3712,7 +3688,6 @@ describe("storage cleanup reports and local file policies", () => {
         }),
       ),
   );
-  // macOS and Windows file systems reject names that are not valid UTF-8.
   it.live.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
     "keeps hidden edits to files whose names are not valid UTF-8",
     () =>
@@ -3720,7 +3695,6 @@ describe("storage cleanup reports and local file policies", () => {
         Effect.gen(function* () {
           const { service, fs, worktree, command } = yield* cleanupFixture();
           const git = yield* GitVcsDriver.GitVcsDriver;
-          // Git unquotes C-quoted paths on stdin, which reaches a name a JS string cannot.
           const quoted = '"bad-\\377.txt"';
           const stdin = (args: string[], input: string) =>
             git.execute({ operation: "cleanup-test", cwd: worktree, args, stdin: input });
@@ -3732,7 +3706,6 @@ describe("storage cleanup reports and local file policies", () => {
           yield* stdin(["update-index", "--index-info"], `100644 ${original}\t${quoted}\n`);
           yield* stdin(["checkout-index", "--stdin"], `${quoted}\n`);
           yield* command(worktree, ["commit", "-m", "bad name"]);
-          // The committed content moves on while the file on disk keeps the other version.
           const edited = yield* blob("edited\n");
           yield* stdin(["update-index", "--index-info"], `100644 ${edited}\t${quoted}\n`);
           yield* command(worktree, ["commit", "-m", "edit"]);
@@ -3770,7 +3743,6 @@ describe("storage cleanup reports and local file policies", () => {
         yield* command(worktree, ["commit", "-m", "link"]);
         yield* command(worktree, ["update-index", "--assume-unchanged", "link"]);
         yield* fs.remove(`${worktree}/link`);
-        // Without core.symlinks, Git checks a link out as a regular file holding its target.
         if (kind === "file") {
           yield* command(worktree, ["config", "core.symlinks", "false"]);
           yield* fs.writeFileString(`${worktree}/link`, target);

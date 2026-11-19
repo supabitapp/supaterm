@@ -98,7 +98,6 @@ function EnvironmentProviders({
   readonly providers: ReadonlyArray<ServerProvider>;
 }) {
   const accounts = providers.filter(canManageProvider);
-  // Claude has no in-app sign-in; each account is its own instance on a signed-in config folder.
   const claudeAccounts = providers.filter(
     (provider) => provider.driver === CLAUDE_DRIVER && !canManageProvider(provider),
   );
@@ -162,7 +161,6 @@ function ProviderAccount({
     serverEnvironment.removeProviderAuthMethod.permissionAtom(environmentId),
   );
   const name = provider.displayName ?? provider.driver;
-  // Matches ListRowLayout: large text moves the action below the status instead of squeezing the name.
   const stacked = useWindowDimensions().fontScale >= 1.5;
   const [pending, setPending] = useState(false);
   const [choosingMethod, setChoosingMethod] = useState(false);

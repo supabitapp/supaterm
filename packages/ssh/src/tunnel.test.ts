@@ -99,10 +99,6 @@ function commandArgs(command: ChildProcess.Command): ReadonlyArray<string> {
 
 const ARCHIVE = { archiveVersion: "1.2.3-preview.20260911.4" } as const;
 
-// Emulates `supaterm serve`: it takes the home owner lock at startup, then binds
-// once a second server has tried the same home (or after 2s), so a concurrent
-// launch always sees the home still unclaimed. Like the real server, it
-// publishes server-runtime.json after it starts answering HTTP, if at all.
 const fakeSupatermServe = (publishDelayMs: number | null) => `const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
@@ -135,14 +131,9 @@ const serve = (tries) => {
 serve(40);
 `;
 
-// The launch's POSIX bootstrap without the account login shell around it, so the
-// test machine's login profile cannot move HOME.
 const launchStateKey = (command: ChildProcess.Command) =>
   /exec sh -s -- ([^"]+)"/u.exec(commandArgs(command).join(" "))?.[1];
 
-// Runs the remote half of an SSH launch as a local shell
-// whose HOME is the given directory. Every launch after the first starts once
-// a server is running (or after 10s), which lines up the race deterministically.
 const localRemoteShellLayer = (home: string) =>
   Layer.effect(
     ChildProcessSpawner.ChildProcessSpawner,
@@ -162,7 +153,6 @@ const localRemoteShellLayer = (home: string) =>
             {
               ...command.options,
               env: { ...command.options.env, HOME: home },
-              // Like an SSH session ending, the shell's exit leaves its nohup'd server running.
               detached: false,
             },
           ),
@@ -237,8 +227,6 @@ describe("ssh tunnel scripts", () => {
       yield* fs.makeDirectory(stateDir, { recursive: true });
       yield* fs.makeDirectory(bin);
       yield* fs.writeFileString(NodePath.join(stateDir, "server.log"), "EARLIER_LAUNCH\n");
-      // The new server exits without output. Readiness then fails after a process from the
-      // earlier launch writes through the log descriptor it still holds (fd 3).
       yield* fs.writeFileString(
         NodePath.join(bin, "node"),
         '#!/bin/sh\n[ "$1" = - ] || exit 0\ncat >/dev/null\ncase "$2" in\n  */port) echo 37731 ;;\n  37731) { printf "EARLIER_PROCESS\\n" >&3; } 2>/dev/null; exit 1 ;;\n  *) exit 1 ;;\nesac\n',
@@ -333,7 +321,6 @@ describe("ssh tunnel scripts", () => {
         assert.notEqual(result.status, 0);
         if (downloads) {
           assert.include(result.stderr, "download attempt");
-          // A bare curl error does not tell the user that supaterm itself could not be downloaded.
           assert.include(result.stderr, ARCHIVE.archiveVersion);
           assert.include(result.stderr, "https://github.com/supabitapp/supaterm/releases/download");
         } else {
@@ -346,11 +333,9 @@ describe("ssh tunnel scripts", () => {
     },
   );
 
-  // bsdtar and BusyBox tar gunzip internally, so only GNU tar needs gzip on PATH.
   const tarNeedsGzip = NodeChildProcess.spawnSync("tar", ["--version"], {
     encoding: "utf8",
   }).stdout.includes("GNU tar");
-  // sha256sum and shasum escape a newline in a file name they print, so the home path has one.
   const checksumTools =
     NodeChildProcess.spawnSync("sh", ["-c", 'command -v "$1"', "sh", "shasum"]).status === 0
       ? ["sha256sum", "shasum"]
@@ -452,8 +437,6 @@ describe("ssh tunnel scripts", () => {
         const directory = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-ssh-login-" });
         const startupFile = `${directory}/bash-env`;
         const bash = `${directory}/bash`;
-        // System profiles can reset HOME. Suppress profile reads while BASH_ENV
-        // checks that the launcher still requests Bash login mode.
         yield* fs.writeFileString(bash, '#!/bin/sh\nexec /bin/bash --noprofile "$@"\n');
         yield* fs.chmod(bash, 0o755);
         yield* fs.writeFileString(
@@ -542,7 +525,6 @@ describe("ssh tunnel scripts", () => {
             { concurrency: "unbounded" },
           );
           assert.equal(Number(exitCode), 0, stderr);
-          // First-run shell messages can precede the bootstrap response.
           const response = stdout.trim().split(/\r?\n/u).at(-1) ?? "";
           assert.match(response, new RegExp(`^${expected}:[a-f0-9]{16}$`), shell || "unset SHELL");
         }
@@ -689,7 +671,6 @@ describe("ssh tunnel scripts", () => {
   it.effect("waits for a tunnel whose ssh connection outlasts the readiness timeout", () =>
     Effect.gen(function* () {
       const LOCAL_PORT = 41_773;
-      // ssh spends ConnectTimeout on each unreachable address before the forward listens.
       const SSH_CONNECT_MS = 25_000;
       let forwardListensAt = Number.POSITIVE_INFINITY;
       const tunnelSpawned = yield* Deferred.make<void>();
@@ -762,7 +743,6 @@ describe("ssh tunnel scripts", () => {
 
   it.effect("connects and reuses a tunnel whose responses take over a second", () =>
     Effect.gen(function* () {
-      // Over a ~1s RTT link each request through the forward takes a few round trips.
       const RESPONSE_MS = 2_500;
       const tunnelSpawned = yield* Deferred.make<void>();
       const reconnectProbed = yield* Deferred.make<void>();
@@ -863,7 +843,6 @@ describe("ssh tunnel scripts", () => {
           username: null,
           port: null,
         });
-        // The VM restarts on a new port; the client reconnects with the target it saved.
         yield* manager.disconnectEnvironment(added.target);
         configPort = 53_812;
         yield* manager.ensureEnvironment(added.target);
@@ -1116,7 +1095,6 @@ describe("ssh tunnel scripts", () => {
   );
 
   it.live("concurrent launches on one remote home record the server that owns it", () =>
-    // The second row's server never publishes server-runtime.json.
     Effect.forEach([1_500, null], (publishDelayMs) =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
@@ -1137,7 +1115,6 @@ describe("ssh tunnel scripts", () => {
         );
         const serverScript = path.join(home, "fake-supaterm.cjs");
         yield* fs.writeFileString(serverScript, fakeSupatermServe(publishDelayMs));
-        // A launch that died holding the lock must not block or double-admit later ones.
         const launchLock = path.join(home, ".supaterm", "ssh-launch", ".launch.lock");
         yield* fs.makeDirectory(path.dirname(launchLock), { recursive: true });
         yield* fs.writeFileString(launchLock, "999999999\n");
@@ -1184,9 +1161,6 @@ describe("ssh tunnel scripts", () => {
   );
 });
 
-// On Linux kill -0 accepts a thread ID and kill <tid> signals its whole process,
-// but ps lists only thread-group leaders. After a reboot the managed pid file can
-// name a thread or a whole process that is not our server.
 describe.runIf(HostProcess.Platform.defaultValue() === "linux")("stale managed pid file", () => {
   const FAKE_SERVER = `const fs = require("node:fs");
 const http = require("node:http");
@@ -1225,8 +1199,6 @@ server.listen(Number(flag("--port") ?? 0), "127.0.0.1", () => {
       const fakeServer = `${root}/fake-supaterm.cjs`;
       yield* fs.makeDirectory(home, { recursive: true });
       yield* fs.writeFileString(fakeServer, FAKE_SERVER);
-      // Runs the remote command locally under the temp HOME. setsid keeps a launched server alive
-      // when the command's process group goes away, as sshd would.
       const sshAsLocalShell = ChildProcessSpawner.make((command) => {
         if (command._tag !== "StandardCommand" || command.command !== "ssh") {
           return realSpawner.spawn(command);
@@ -1296,8 +1268,6 @@ server.listen(Number(flag("--port") ?? 0), "127.0.0.1", () => {
       assert.deepEqual(yield* launch, first);
       assert.equal(yield* readPid, firstPid);
 
-      // Reboot: our server is gone and its recorded PID now names something that
-      // answers on the recorded port.
       process.kill(firstPid, "SIGKILL");
       yield* fs.remove(`${home}/.supaterm/userdata/server-runtime.json`);
       yield* fs.writeFileString(`${stateDir}/pid`, `${staleId}\n`);
@@ -1351,7 +1321,6 @@ server.listen(Number(flag("--port") ?? 0), "127.0.0.1", () => {
       const originalPid = yield* runtimePid;
       launchedPids.push(originalPid);
 
-      // Another desktop on another version shares the server; it must not take it over.
       const otherDesktop = yield* launch(
         { ...target, alias: "devbox-other" },
         updatedServer,
@@ -1378,14 +1347,12 @@ server.listen(Number(flag("--port") ?? 0), "127.0.0.1", () => {
         "the update left the server launched under the old alias running",
       );
 
-      // A rename and an update in one reconnect still replace the server.
       const updatedPid = yield* runtimePid;
       const renamedAndUpdated = yield* launch({ ...target, alias: "devbox-again" }, fakeServer);
       launchedPids.push(yield* runtimePid);
       assert.equal(renamedAndUpdated.remoteServerKind, "managed");
       assert.isFalse(yield* isRunning(updatedPid), "a rename with an update kept the old server");
 
-      // A server that a launch without an ID started under a reused key is not this desktop's.
       const again = { ...target, alias: "devbox-again" };
       process.kill(yield* runtimePid, "SIGKILL");
       assert.equal((yield* launch(again, fakeServer, null)).remoteServerKind, "managed");
@@ -1420,14 +1387,6 @@ server.listen(Number(flag("--port") ?? 0), "127.0.0.1", () => {
   );
 });
 
-// On macOS, Node can bind 127.0.0.1:<port> while another process (such as the
-// desktop app with network access on) listens on *:<port>. Linux refuses that
-// bind unless both sockets set SO_REUSEPORT, so on Linux the preload adds it to
-// the picker's probe and the holder sets it too.
-
-// Reuse decisions live in generated shell, so drive the real launch script in
-// a temporary HOME. Each archive version gets a pre-installed fake runtime
-// whose server writes the default runtime file the way `supaterm serve` does.
 describe("archive launch script", () => {
   const windowsHost = HostProcess.Platform.defaultValue() === "win32";
   const FAKE_SUPATERM = `const fs = require("node:fs");
@@ -1536,9 +1495,6 @@ const canBind = (port) =>
       return { stdout, stderr, exitCode };
     });
 
-  // Installs a fake runtime per version so the runner never downloads. The
-  // seeded remembered port keeps the test off the default 3773, which a live
-  // Supaterm on this machine may own.
   const prepareLaunch = (versions: ReadonlyArray<string>) =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -1565,7 +1521,6 @@ const canBind = (port) =>
       const readServerVersion = fs
         .readFileString(`${home}/.supaterm/userdata/server-runtime.json`)
         .pipe(Effect.map((raw) => (JSON.parse(raw) as { serverVersion: string }).serverVersion));
-      // Launched servers outlive the script, so stop each PID it recorded.
       const launchedPids = new Set<number>();
       yield* Effect.addFinalizer(() =>
         readManagedPid.pipe(

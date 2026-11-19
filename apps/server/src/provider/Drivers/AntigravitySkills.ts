@@ -37,7 +37,6 @@ export function antigravityUserSkillDirectories(
 const MAX_SKILL_BYTES = 1_000_000;
 const MAX_SCAN_BYTES = 8_000_000;
 const MAX_SCAN_ENTRIES = 10_000;
-// Typical frontmatter fits in one chunk, so most skills cost about this much of the scan budget.
 const SKILL_READ_CHUNK_BYTES = 1024;
 
 const SkillFrontmatter = Schema.Struct({
@@ -92,7 +91,6 @@ function parseSkillFrontmatter(contents: string, fileName: string) {
     );
     const name = frontmatter.name || fileName.slice(0, -3);
     const description = frontmatter.description?.trim();
-    // Native names are not trimmed. Do not rename one to fit the picker contract.
     if (!name || name !== name.trim()) return undefined;
     return { name, ...(description ? { description } : {}) };
   } catch {
@@ -100,7 +98,6 @@ function parseSkillFrontmatter(contents: string, fileName: string) {
   }
 }
 
-/** The native loader orders child paths with Go's URL.EscapedPath encoding. */
 function skillPathSortKey(entry: string) {
   return encodeURI(entry).replace(
     /[!'()*?#]/g,
@@ -110,7 +107,6 @@ function skillPathSortKey(entry: string) {
 
 const DASH = 0x2d;
 
-/** Finds the byte offset after the second `---`, as parseSkillFrontmatter's indexOf calls do. */
 function makeFrontmatterEndFinder() {
   let bytesSeen = 0;
   let dashes = 0;
@@ -129,7 +125,6 @@ function makeFrontmatterEndFinder() {
   };
 }
 
-/** Reads through the frontmatter only, so skill bodies do not spend the scan budget. */
 const readSkillFrontmatter = Effect.fn("readAntigravitySkill")(function* (
   skillPath: string,
   budget: ScanBudget,

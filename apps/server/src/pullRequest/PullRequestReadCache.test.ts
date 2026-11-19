@@ -40,7 +40,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("PR filesystem ca
       const invalidate = yield* cache
         .invalidate("pr")
         .pipe(Effect.forkChild({ startImmediately: true }));
-      // Another PR's invalidation does not wait on this read; this one's does.
       yield* cache.invalidate("other-pr");
       assert.isUndefined(invalidate.pollUnsafe());
       yield* Deferred.succeed(release, undefined);
@@ -200,7 +199,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("PR filesystem ca
     Effect.gen(function* () {
       const cache = yield* PullRequestReadCache.make;
       class SweepData extends Map<string, number> {}
-      // Like a sync sweep: an Effect.fn made per run that closes over that run's data.
       const sweep = Effect.fn("sweep")(function* (index: number) {
         const groups = new SweepData(Array.from({ length: 1_000 }, (_, id) => [`group-${id}`, id]));
         const read = Effect.fn("read")(function* (pr: string) {
@@ -212,7 +210,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("PR filesystem ca
         yield* Effect.forEach(["pr-1", "pr-2"], read, { discard: true });
       });
       for (let index = 0; index < 5; index++) yield* sweep(index);
-      // Counts after a full GC. A WeakRef would keep its target alive until the job ends.
       assert.strictEqual(NodeV8.queryObjects(SweepData, { format: "count" }), 0);
     }).pipe(Effect.provide(KeyValueStore.layerMemory)),
   );

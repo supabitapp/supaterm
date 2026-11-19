@@ -49,8 +49,6 @@ export function useStartTriage() {
     const opened = await settlePromise(async () => {
       await waitForComposerDraftsLoaded();
       const route = activeRootRoute();
-      // The user went elsewhere while this waited; leave them there. Split view
-      // selects another thread by changing the route's params, not its key.
       if (
         !navigation.isFocused() ||
         route?.key !== startRoute?.key ||

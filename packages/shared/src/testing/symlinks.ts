@@ -13,7 +13,6 @@ export const symlinksSupported: boolean = (() => {
   } catch {
     return false;
   } finally {
-    // Cleanup EPERM/EBUSY must not fail module initialization or decide symlink support.
     try {
       if (directory !== undefined) NodeFS.rmSync(directory, { recursive: true, force: true });
     } catch {}

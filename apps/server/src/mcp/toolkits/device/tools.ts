@@ -30,8 +30,6 @@ const DeviceToolFailure = Schema.Union([DeviceToolError, OrchestratorMcpFailure]
 const DeviceListTool = Tool.make("device_list", {
   description:
     "List iOS Simulators and Android Emulators on every device host, what each host can run, and what is open in this thread's Device panel. Call before `device_open` when you do not know a device id.",
-  // An empty struct serializes as `anyOf [object, array]`, which some
-  // providers reject and then drop every tool on the server with it.
   parameters: Schema.Struct({
     hostId: Schema.optional(
       Schema.String.annotate({ description: "Limit to one device host. Defaults to all hosts." }),
@@ -59,7 +57,6 @@ const DeviceOpenTool = Tool.make("device_open", {
     FileSystem.FileSystem,
     Path.Path,
     ServerConfig.ServerConfig,
-    // The thread's project can name the Expo project a cloud device runs under.
     ProjectService.ProjectService,
   ],
 })

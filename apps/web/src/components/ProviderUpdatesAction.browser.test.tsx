@@ -156,7 +156,6 @@ it("provider updates and checks exclude connections without a confirmed manageme
   await act(async () => {
     await check();
   });
-  // A model refresh always drops the server's cached latest provider versions.
   expect(state.checks).toEqual([{ environmentId: writableId, input: { refreshModels: true } }]);
 
   using toast = vi.spyOn(toastManager, "add");

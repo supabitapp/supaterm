@@ -60,10 +60,6 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
   const canWrite = () =>
     threadRef !== null && readEnvironmentScope(threadRef.environmentId, AuthTerminalOperateScope);
 
-  // Every client-side id source participates: the server list lags fresh opens,
-  // and an id collision attaches two viewports to one PTY session. Without a
-  // readable session list the next free number may already be taken on the
-  // server, so the id gets a unique suffix.
   const allocateTerminalId = () => {
     const ids = new Set([
       ...(knownSessions ?? []).map((session) => session.target.terminalId),
@@ -91,12 +87,6 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
         }
       : null;
 
-  /**
-   * Starts a session for `terminalId` on the server. `place` records the id in
-   * the surface that will show it, before the open resolves, so the viewport
-   * mounts while the session starts. `write` stays bound to this thread after
-   * the caller awaits, even if the user switches threads meanwhile.
-   */
   const launchTerminal = (input: {
     readonly place: (terminalId: string) => void;
     readonly terminalId?: string;
@@ -134,7 +124,6 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
     return { terminalId, result, write };
   };
 
-  /** Ends a session and deletes its history. A failed close falls back to typing `exit`. */
   const closeTerminalSession = (terminalId: string, target = threadRef) => {
     if (!target || !readEnvironmentScope(target.environmentId, AuthTerminalOperateScope)) return;
     const environmentId = target.environmentId;

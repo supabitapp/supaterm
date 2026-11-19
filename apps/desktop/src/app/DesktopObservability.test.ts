@@ -93,7 +93,6 @@ const layerCollector = (requests: Array<ExportedRequest>) =>
     ),
   );
 
-// A developer's own OTEL_* variables would otherwise pick the endpoints.
 const layerEmptyEnv = ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} }));
 
 const encodeObservabilitySettingsFile = Schema.encodeSync(

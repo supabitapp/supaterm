@@ -122,7 +122,6 @@ describe("workspaceAssetResource", () => {
     absolutePath: "/repo/docs/index.html",
   };
 
-  // regression: #21067 images outside the workspace load through the host media resource
   it("serves a file outside the workspace as host media and keeps workspace files on workspace access", () => {
     expect(
       workspaceAssetResource({ ...input, absolutePath: "/tmp/screenshots/shot.png", draft: false }),
@@ -325,7 +324,6 @@ Third}`;
         },
       ],
     });
-    // IPython traceback frames can omit trailing newlines or place ANSI resets after them.
     const failed = openNotebook(
       bytes(
         JSON.stringify({

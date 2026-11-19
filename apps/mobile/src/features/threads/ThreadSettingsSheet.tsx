@@ -130,10 +130,6 @@ const PRIMARY_PROVIDER_DRIVERS: ReadonlySet<string> = new Set([
   "codex",
   "antigravity",
 ]);
-/**
- * Keep measured row changes stable, but let catalog mutations use the list's
- * native bounds so a filtered catalog that underflows returns to the top.
- */
 const THREAD_SETTINGS_MAINTAIN_VISIBLE_CONTENT_POSITION = {
   data: false,
   size: true,
@@ -334,7 +330,6 @@ type ThreadSettingsSessionValue = {
   readonly setSearchQuery: (query: string) => void;
   readonly setShowLegacy: (showLegacy: boolean) => void;
   readonly toggleProvider: (providerKey: string) => void;
-  /** The provider whose catalog for this folder the picker keeps fresh. */
   readonly workspaceScan: { readonly instanceId: ProviderInstanceId; readonly cwd: string } | null;
 };
 
@@ -580,7 +575,6 @@ function ThreadSettingsSessionProvider(
   };
 
   const environmentId = props.environmentId;
-  // Like the web picker's open tab: scanning every provider would spawn a probe per provider.
   const scannedInstanceId =
     providerFilter !== null && providerFilter !== FAVORITES_PROVIDER_FILTER
       ? ProviderInstanceId.make(providerFilter)
@@ -640,7 +634,6 @@ function ThreadSettingsSessionProvider(
   );
 }
 
-/** A project's own provider config can add models only its workspace scan lists. */
 function ProviderWorkspaceSnapshotScan(props: {
   readonly environmentId: EnvironmentId;
   readonly instanceId: ProviderInstanceId;
@@ -859,7 +852,6 @@ function ThreadSettingsOptionsItem(props: {
       >
         {session.displayedDescriptors.map((descriptor) => {
           if (descriptor.type === "select") {
-            // The prompt's Ultrathink prefix overrides the saved level, which the slider cannot show.
             const promptControlsDescriptor =
               session.promptTraits.ultrathinkPromptControlled &&
               descriptor.id === session.promptTraits.primarySelectDescriptor?.id;
@@ -979,7 +971,6 @@ function ThreadSettingsMainContent(props: {
   const refreshModelCatalog = useEffectEvent(() => {
     const environmentId = session.environmentId;
     if (!environmentId) return;
-    // An older server drops the field and probes every provider.
     const config = registry.get(environmentServerConfigsAtom).get(environmentId);
     if (config?.environment.capabilities.modelCatalogRefresh !== true) return;
     void refreshProvidersCommand({ environmentId, input: { modelCatalogOnly: true } });
@@ -996,8 +987,6 @@ function ThreadSettingsMainContent(props: {
     const workspaceScan = session.workspaceScan;
     void refreshProviderCatalog(environmentId)
       .then(async (result) => {
-        // A project's own models are read per folder, so the machine refresh alone keeps them stale.
-        // A failed folder read keeps its previous models and retries, so only the machine result alerts.
         if (result._tag === "Success" && workspaceScan) {
           await refreshProvidersCommand({
             environmentId,
@@ -1013,7 +1002,6 @@ function ThreadSettingsMainContent(props: {
       });
   };
   const [listLoaded, setListLoaded] = useState(false);
-  // Android can drop the first frame of a reduced-motion fade, leaving rows invisible.
   const reducedMotion = useReducedMotion();
   const reduceMotionEnabled = useReducedMotionPreference();
   const animationsReady = listLoaded && !reducedMotion && !reduceMotionEnabled;
@@ -1385,16 +1373,13 @@ export function ExistingThreadSettingsRouteScreen({
   route,
 }: StaticScreenProps<ExistingThreadSettingsRouteParams>) {
   const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
-  // Reads the same environmentId/threadId params as the Thread route beneath it.
   const { selectedThread, selectedThreadRef, selectedEnvironmentRuntime } = useThreadSelection();
   const { selectedThreadCwd } = useSelectedThreadWorktree();
-  // Streamed text would otherwise re-render the whole model picker on every delta.
   const structure = useQuietThreadStructure(selectedThreadRef);
   const reportedModelSelection = useThreadReportedModelSelection(selectedThreadRef);
   const threadKey = scopedThreadKey(route.params.environmentId, route.params.threadId);
   const draftSettings = useComposerDraftSettings(threadKey);
   const queuedRunEdit = useQueuedRunEdit(threadKey);
-  // A queued edit can end while the sheet is open; the prompt then belongs to the thread's draft.
   const draftKey = activeComposerDraftKey(threadKey, route.params.draftKey, queuedRunEdit);
   const prompt = useComposerDraft(draftKey).text;
 

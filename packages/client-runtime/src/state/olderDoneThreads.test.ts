@@ -84,16 +84,12 @@ describe("olderDoneCountKey", () => {
 
   it("changes on every event that can change the older count", () => {
     const start = key(base);
-    // A removal, even of an id removed before (the map keeps its size).
     expect(key(base, new Map([[ThreadId.make("x"), 4]]))).not.toBe(start);
     expect(key(base, new Map([[ThreadId.make("x"), 9]]))).not.toBe(
       key(base, new Map([[ThreadId.make("x"), 4]])),
     );
-    // An omitted thread that arrives unsettled.
     expect(key([...base, row("woken", { createdDay: 5 })])).not.toBe(start);
-    // A local row that turns older (a backdated auto-mark-done).
     expect(key([base[0]!, row("open", { createdDay: 60, doneDay: 20 })])).not.toBe(start);
-    // An older row that moves to another project.
     expect(key([{ ...base[0]!, projectId: ProjectId.make("project-b") }, base[1]!])).not.toBe(
       start,
     );
@@ -116,15 +112,12 @@ describe("Done shelf listing", () => {
   const at = (day: number) => DateTime.formatIso(DateTime.makeUnsafe(day * DAY));
 
   it("lists rows at or above the highest frontier still loading", () => {
-    // No page yet: the cut is the frontier, so only rows newer than it list.
     const one = doneShelfFrontier([{ older, pages: pages({ doneAt: before }) }]);
     expect(isListedDoneThread(row("recent", { doneDay: 60 }), one)).toBe(true);
     expect(isListedDoneThread(row("old", { doneDay: 30 }), one)).toBe(false);
-    // A row that became older inside the loaded range lists at its place.
     const loaded = doneShelfFrontier([{ older, pages: pages({ doneAt: at(20) }) }]);
     expect(isListedDoneThread(row("old", { doneDay: 30 }), loaded)).toBe(true);
     expect(isListedDoneThread(row("older", { doneDay: 10 }), loaded)).toBe(false);
-    // All loaded, or a shell that keeps every done thread: everything lists.
     expect(doneShelfFrontier([{ older, pages: pages(null) }])).toBeNull();
     expect(doneShelfFrontier([{ older: null, pages: pages(null) }])).toBeNull();
   });
@@ -136,7 +129,6 @@ describe("Done shelf listing", () => {
     ]);
     expect(frontier).toEqual({ doneAt: at(40) });
     expect(isListedDoneThread(row("b-loaded", { doneDay: 30 }), frontier)).toBe(false);
-    // A failed environment holds no one back.
     expect(
       doneShelfFrontier([
         { older, pages: { ...pages({ doneAt: at(40) }), status: "failed" } },
@@ -165,7 +157,6 @@ describe("Done shelf listing", () => {
 
 it("counts older threads the client does not hold, once", () => {
   const local = [
-    // Kept by the snapshot (snoozed) and loaded by a page: the server counts both.
     { source: row("snoozed-old", { doneDay: 10 }), environmentId },
     { source: row("paged-old", { doneDay: 20 }), environmentId },
     { source: row("recent", { doneDay: 60 }), environmentId },
@@ -185,7 +176,6 @@ it("counts older threads the client does not hold, once", () => {
       threads: local,
     }),
   ).toBe(0);
-  // Two projects in one environment: each subtracts only its own loaded rows.
   const other = ProjectId.make("project-b");
   const twoProjects = (): OlderDone => ({
     ...older,
@@ -236,7 +226,6 @@ describe("wantedOlderDonePages", () => {
     expect(wanted({ environments, listed: 9, visible: 10 })).toEqual(
       new Map([[otherEnvironment, 1]]),
     );
-    // A deleted row drops the listed count again.
     expect(
       wanted({ requested: new Map([[environmentId, 1]]), environments, listed: 34, visible: 35 }),
     ).toEqual(
@@ -272,8 +261,6 @@ const TARGET = new PrimaryConnectionTarget({
   wsBaseUrl: "wss://older.example.test",
 });
 
-// The atoms over a fake connected environment whose `getOlderDoneThreads` and `searchThreads`
-// take their replies, in order, from `replies`.
 const makeAtoms = Effect.fn(function* () {
   const replies =
     yield* Queue.unbounded<
@@ -283,7 +270,6 @@ const makeAtoms = Effect.fn(function* () {
       >
     >();
   const requests: unknown[] = [];
-  // Each request, with a signal for when its read is stopped.
   const requestLog = yield* Queue.unbounded<{
     readonly input: unknown;
     readonly stopped: Deferred.Deferred<void>;
@@ -339,7 +325,6 @@ const makeAtoms = Effect.fn(function* () {
           followStream,
         } as unknown as EnvironmentRegistry.EnvironmentRegistry["Service"]),
       ),
-      // The test's clock, so the count re-read's wait moves with `TestClock.adjust`.
       Layer.succeed(Clock.Clock, yield* Clock.Clock),
     ),
   );
@@ -357,7 +342,6 @@ const makeAtoms = Effect.fn(function* () {
     registry,
     setShell: (state: Partial<EnvironmentShellState>) =>
       registry.set(shellState, AsyncResult.success({ ...EMPTY_SHELL_STATE, ...state })),
-    // The first value that passes, from a subscription.
     until: <A>(atom: Atom.Atom<A>, done: (value: A) => boolean) =>
       AtomRegistry.toStream(registry, atom).pipe(
         Stream.filter(done),
@@ -393,17 +377,14 @@ describe("createOlderDoneThreadAtoms", () => {
       const count = (value: OlderDone | null) => value?.counts.get(project);
       registry.mount(olderAtom);
 
-      // A cached shell: its counts stand, read nothing.
       setShell({ snapshot: shellSnapshot({ sequence: 5, asOfSequence: 3, count: 5 }) });
       expect(count(registry.get(olderAtom))).toBe(5);
-      // This session's snapshot: its counts are current until something changes.
       setShell({
         snapshot: shellSnapshot({ sequence: 3, asOfSequence: 3, count: 5 }),
         generation: 1,
       });
       expect(count(registry.get(olderAtom))).toBe(5);
 
-      // A removal can change the count: one read once changes stop for a moment.
       yield* Queue.offer(
         replies,
         Effect.succeed({
@@ -422,7 +403,6 @@ describe("createOlderDoneThreadAtoms", () => {
       expect(count(yield* until(olderAtom, (value) => count(value) === 4))).toBe(4);
       expect(requests).toEqual([{ before: { doneAt: before }, limit: 0 }]);
 
-      // A new snapshot brings its own counts and drops the read.
       setShell({
         snapshot: shellSnapshot({ sequence: 9, asOfSequence: 9, count: 7 }),
         generation: 2,
@@ -438,7 +418,6 @@ describe("createOlderDoneThreadAtoms", () => {
       const scope = { environmentId, projectIds: null };
       const snapshot = shellSnapshot({ sequence: 3, asOfSequence: 3, count: 30 });
 
-      // A cached shell holds no other environment back: nothing can load yet.
       setShell({ snapshot });
       expect(registry.get(atoms.pagesAtom(scope, 1))).toEqual({
         reads: [],
@@ -468,7 +447,6 @@ describe("createOlderDoneThreadAtoms", () => {
       const done = yield* until(twoPages, (pages) => pages.reads.length === 2);
       expect(done.frontier).toBeNull();
       expect(done.status).toBe("ready");
-      // The second page continues from the first page's last row.
       expect(requests).toEqual([
         { before: { doneAt: before }, limit: 25 },
         {
@@ -477,7 +455,6 @@ describe("createOlderDoneThreadAtoms", () => {
         },
       ]);
 
-      // A new snapshot reads again; a failed page shows until a retry reads it.
       const onePage = atoms.pagesAtom(scope, 1);
       registry.mount(onePage);
       setShell({ snapshot, generation: 2 });
@@ -508,7 +485,6 @@ describe("createOlderDoneThreadAtoms", () => {
       const input = { query: "old", olderDoneBefore: before, titlesOnly: true };
       const search = atoms.searchAtom(environmentId, input);
 
-      // That snapshot would drop the rows: loading while it is on its way, idle while offline.
       setShell({ snapshot, status: "synchronizing" });
       registry.mount(search);
       expect(registry.get(search).waiting).toBe(true);
@@ -519,7 +495,6 @@ describe("createOlderDoneThreadAtoms", () => {
       setShell({ snapshot, status: "live", generation: 1 });
       yield* Queue.offer(replies, Effect.succeed(found));
       yield* until(search, AsyncResult.isSuccess);
-      // A new snapshot reads the rows again.
       setShell({ snapshot, status: "live", generation: 2 });
       yield* Queue.offer(replies, Effect.succeed({ ...found, snapshotSequence: 8 }));
       yield* until(
@@ -552,7 +527,6 @@ describe("createOlderDoneThreadAtoms", () => {
       );
       yield* until(atoms.pagesAtom(scope, 1), (pages) => pages.reads.length === 1);
 
-      // React builds the next shelf before the last one lets go, so page 1 is not read again.
       registry.get(atoms.pagesAtom(scope, 2));
       releaseOne();
       const releaseTwo = registry.mount(atoms.pagesAtom(scope, 2));
@@ -562,7 +536,6 @@ describe("createOlderDoneThreadAtoms", () => {
         limit: 25,
       });
 
-      // Collapsing stops the pending read: nothing is left to run again on a reconnect.
       releaseTwo();
       yield* Deferred.await(second.stopped);
     }),

@@ -19,7 +19,6 @@ function loadAlignmentPerformer() {
     const defaultPerformer = call("sel_registerName", "defaultPerformer");
     const perform = call("sel_registerName", "performFeedbackPattern:performanceTime:");
     return () => {
-      // Apple asks for the performer per use; it changes with input devices and preferences.
       const performer = load({
         library,
         funcName: "objc_msgSend",

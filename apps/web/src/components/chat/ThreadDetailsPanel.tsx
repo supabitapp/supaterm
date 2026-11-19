@@ -111,8 +111,6 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
     props.environmentId,
     props.activeProjectScripts && visible.scripts ? props.gitCwd : null,
   );
-  // Same rule as the composer strip: a lone remote machine still gets a row,
-  // shown as a static label because there is nothing to pick.
   const canPickEnvironment = props.availableEnvironments.length > 1;
   const showEnvironment = shouldShowEnvironmentIndicator({
     activeEnvironment:
@@ -122,8 +120,6 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
   const activeThreadRef = { environmentId: props.environmentId, threadId: props.threadId };
   const project = useProject(scopeProjectRef(props.environmentId, props.projectId));
   const serverConfig = useServerConfigs().get(props.environmentId);
-  // A No project thread's folder sits inside the shared scratch root, so it must never get git.
-  // Until the config and project load, a No project thread looks like any other folder.
   const offersGit =
     props.gitCwd !== null &&
     serverConfig !== undefined &&
@@ -162,8 +158,6 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
         .map((item) => item.id)
         .join(",")}
       onContextMenu={(event) => {
-        // Popups the card opens bubble here through React; they, fields, links, and selected text
-        // keep their own menus.
         const target = event.target;
         const selection = window.getSelection();
         if (
@@ -181,13 +175,11 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
       }}
     >
       {(density) => {
-        // Section flags follow the rows that will render, so no empty section steals the divider rule.
         const show = {
           environment: density === "full" && showEnvironment && visible.environment,
           openIn: density !== "essential" && visible.openIn && props.showOpenInPicker,
           scripts: visible.scripts && props.activeProjectScripts !== undefined,
           branch: offersGit && props.isGitRepo && visible.branch,
-          // Without a branch selector, linked pull requests still need somewhere to show.
           pullRequests: !(offersGit && props.isGitRepo) && visible.branch,
           git:
             offersGit &&
@@ -318,7 +310,6 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
 
               {visible.usage ? <ThreadDetailsLimits {...props.usage} /> : null}
 
-              {/* Shown only when no section above has content, so an emptied card can be refilled. */}
               <div className="p-2 group-has-[>section>:last-child:not(:empty)]/details-items:hidden">
                 <ThreadDetailsControl
                   size="xs"

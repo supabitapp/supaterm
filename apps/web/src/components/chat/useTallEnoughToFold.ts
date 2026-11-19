@@ -2,7 +2,6 @@ import { useLayoutEffect, useRef, useState } from "react";
 
 import { observeResize } from "~/lib/observeResize";
 
-// The folds clip with `max-h-44`, which is 11rem.
 const FOLDED_HEIGHT_REM = 11;
 
 /**
@@ -20,7 +19,6 @@ export function useTallEnoughToFold(enabled = true) {
       const remPx = Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
       setTallEnough(content.offsetHeight >= FOLDED_HEIGHT_REM * 2 * remPx);
     };
-    // Measured here too: waiting for the observer would paint one unfolded frame.
     measure();
     return observeResize(content, measure);
   }, [enabled]);

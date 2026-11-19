@@ -57,7 +57,6 @@ export function EnvironmentRoutesList({
   const savedIds = saved.map((route) => connectionRouteId(route.target));
   const [pending, setPending] = useState<ReadonlyArray<string> | null>(null);
   const shownPending = pendingRouteOrder(pending, savedIds);
-  // Dropped during render so a stale order never outlives the save it was for.
   if (pending !== null && shownPending === null) setPending(null);
   const order: Array<string> = shownPending === null ? savedIds : [...shownPending];
   const byId = new Map(saved.map((route) => [connectionRouteId(route.target), route]));
@@ -124,9 +123,6 @@ export function EnvironmentRoutesList({
                   inUse={connectionRouteId(route.target) === activeRouteId}
                   unused={unused}
                   refused={environment.refusedRouteIds.includes(connectionRouteId(route.target))}
-                  // Learned routes are refreshed from the server and are not
-                  // removed manually unless a connect skips them; paired
-                  // routes can be removed individually.
                   removable={routes.length > 1 && (!isLearned(route) || unused)}
                   onRemove={() => void confirmRemove(route)}
                 />
@@ -180,7 +176,6 @@ function SortableRouteRow({
   const id = connectionRouteId(route.target);
   const label = connectionRouteLabel(route);
   const address = connectionRouteAddress(route);
-  // A route a connect skips has no speed worth measuring.
   const latency = useAtomValue(
     unused ? NO_LATENCY : environmentSession.routeLatencyAtoms(route).labelAtom,
   );

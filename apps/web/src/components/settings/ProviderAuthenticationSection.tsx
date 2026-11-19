@@ -147,7 +147,6 @@ export function ProviderAuthenticationSection({
       return;
     }
     const requiresConsent = interaction?.type === "browser" && interaction.requiresConsent;
-    // Reserve tabs before awaiting consent; browsers block later opens.
     const pending = requiresConsent && !window.desktopBridge ? window.open("", "_blank") : null;
     if (pending) pending.opener = null;
     try {
@@ -238,8 +237,6 @@ export function ProviderAuthenticationSection({
                       variant="ghost-muted"
                       disabled={disabled}
                       onClick={() => {
-                        // Copy during the click to retain clipboard activation; consent must still be
-                        // recorded before use.
                         const copied = writeTextToClipboard(url, "Provider sign-in link");
                         void (async () => {
                           await copied;

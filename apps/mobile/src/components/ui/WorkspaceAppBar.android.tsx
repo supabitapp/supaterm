@@ -21,7 +21,6 @@ import { useToolbarLayout } from "./useToolbarLayout";
 const SEARCH_ICON = require("../../../assets/icons/search.xml");
 const FILTER_ICON = require("../../../assets/icons/filter.xml");
 const FILTER_FILLED_ICON = require("../../../assets/icons/filter-filled.xml");
-// Material TopAppBar: 48dp icon buttons, the last one 4dp from the end.
 const ACTION_SIZE = 48;
 const ACTION_END_INSET = 4;
 
@@ -116,17 +115,11 @@ export function WorkspaceAppBar(props: WorkspaceAppBarProps) {
   useLayoutEffect(() => {
     store?.set(owner, props);
   });
-  // Hidden panes destroy their effects, so the tab leaving the screen releases the bar.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- releases the workspace bar when this tab hides or unmounts
   useLayoutEffect(() => (store ? () => store.clear(owner) : undefined), [store, owner]);
   return store ? null : <WorkspaceAppBarView {...props} />;
 }
 
-/**
- * Every tab draws the same bar, so a switch only changes its contents. The actions are Compose nodes
- * and the title host keeps one height: React Native content hosted in Compose lags Compose's layout
- * by a frame whenever its size changes, which showed as the filter jumping between tabs.
- */
 function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
   const { search, filter } = props;
   const searching = search?.active === true;
@@ -151,7 +144,6 @@ function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
             onPress={open}
           />
         ) : (
-          // The bar draws the icon; this takes the touch so the menu can anchor to the slot.
           <Pressable
             accessibilityLabel={filter.accessibilityLabel}
             accessibilityRole="button"
@@ -183,8 +175,6 @@ function WorkspaceAppBarView(props: WorkspaceAppBarProps) {
               </View>
             </RNHostView>
           }
-          // Both slots always exist: Expo UI applies a child insert or removal a frame before the
-          // other children's new props, so changing the slot count drew the wrong glyph mid-switch.
           nativeActions={
             <>
               <IconButton enabled={search !== undefined} onClick={search?.onOpen}>

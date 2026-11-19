@@ -98,7 +98,6 @@ export function ComposerAttachmentThumbnail(props: ComposerAttachmentThumbnailPr
   );
 }
 
-/** Fabric re-parses URLs each layout; large data URLs can stall and abort commits. */
 const INLINE_PREVIEW_FALLBACK_MAX_CHARS = 256_000;
 
 const noMaterializedPreview = Atom.make(AsyncResult.initial<string | null>()).pipe(
@@ -114,7 +113,6 @@ function useComposerImagePreviewUri(attachment: DraftComposerImageAttachment): s
       : noMaterializedPreview,
   );
   if (fileUri !== undefined) {
-    // Reinstalls move the app container, so a stored file URI may point at the old one.
     const owned = resolveOwnedComposerAttachmentFileUri(fileUri, Paths.document.uri);
     if (owned !== null) return owned;
     return previewUri.startsWith("data:") ? fileUri : previewUri;
@@ -178,7 +176,6 @@ function ComposerImageAttachment(
 
 function ComposerAttachmentContent(props: ComposerAttachmentThumbnailProps) {
   const { attachment } = props;
-  // The document picker types every pick as a plain file, so a picture arrives here as one.
   if (attachment.type === "image" || imageMimeType(attachment) !== null) {
     const { source: _droppedSource, ...rest } = attachment;
     return (

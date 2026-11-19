@@ -78,7 +78,6 @@ describe("chat route commands", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(useThreadSelectionStore.getState().selectedThreadKeys.size).toBe(0);
-    // With nothing selected, Escape is left for other handlers.
     expect(pressEscape().defaultPrevented).toBe(false);
   });
 

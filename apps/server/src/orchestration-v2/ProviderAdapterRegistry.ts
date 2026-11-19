@@ -104,7 +104,6 @@ export const layerFromProviderInstanceRegistry: Layer.Layer<
                     ProviderAdapter.ProviderAdapterV2Error | ProviderSetupError,
                     Scope.Scope
                   > = adapter.openSession(input);
-                  // Shared credential changes must interrupt a peer's startup too.
                   for (const peer of related) {
                     if (peer.auth?.withAccess) admitted = peer.auth.withAccess(admitted);
                   }

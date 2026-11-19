@@ -20,7 +20,6 @@ function toExpoDigestAlgorithm(algorithm: Digest.Algorithm): ExpoCrypto.CryptoDi
   }
 }
 
-// Hermes has no SubtleCrypto, so Effect's WebCrypto layers cannot back these services.
 const digest = (algorithm: Digest.Algorithm, data: Uint8Array) =>
   Effect.promise(async () => {
     const input = new Uint8Array(data.length);

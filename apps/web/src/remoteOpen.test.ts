@@ -52,7 +52,6 @@ describe("resolveRemoteOpenState", () => {
   });
 
   it("keeps exec behavior for the desktop app's own primary even on a NAT URL", () => {
-    // wsl-only binds the desktop-owned primary to its WSL2 NAT address.
     expect(
       resolveRemoteOpenState({
         target: primaryTarget("http://172.29.112.1:14369"),
@@ -65,8 +64,6 @@ describe("resolveRemoteOpenState", () => {
   });
 
   it("keeps exec behavior for the environment that owns the desktop's Supaterm home", () => {
-    // With Local environment off, a background service on this machine can own the
-    // desktop's home and still be reached as a saved connection.
     expect(
       resolveRemoteOpenState({
         target: new BearerConnectionTarget({
@@ -198,7 +195,6 @@ describe("resolveRemoteOpenState", () => {
 describe("remoteFallbackEditors", () => {
   it.each([
     {
-      // iPadOS Safari requests the desktop site with a Macintosh user agent by default.
       device: "iPad with a desktop user agent",
       userAgent:
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
@@ -249,8 +245,6 @@ describe("buildRemoteOpenUrl", () => {
       username: "vm+demo",
       absolutePath: "/workspace/project",
     });
-    // VS Code decodes the authority, then Remote-SSH (0.129) takes `authority.split("+")[1]` and
-    // reads it as hex-encoded JSON `{ hostName, user }` or as `user@host`.
     const authority = decodeURIComponent(new URL(url ?? "").pathname.split("/")[1] ?? "");
     const destination = authority.split("+")[1] ?? "";
     const hexBytes = /^(?:[0-9a-f]{2})+$/i.test(destination)

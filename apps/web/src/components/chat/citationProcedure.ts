@@ -78,13 +78,10 @@ export async function loadCitedHistory(input: {
     const result = await input.loadThrough();
     if (input.signal.aborted) return { _tag: "aborted" };
     if (result._tag === "error") return COULD_NOT_LOAD;
-    // A noop page means the store has nothing older to load (no cursor, or the
-    // thread is gone), so re-reading would only spin on the same snapshot.
     if (result._tag === "noop") return UNAVAILABLE;
   }
 }
 
-/** A response is cited by its message id, an HTML render or sent message by its item id. */
 const isCited = (candidate: TimelineEntry | MessagesTimelineRow, messageId: string) =>
   (candidate.kind === "message" && candidate.message.id === messageId) ||
   ((candidate.kind === "html-render" || candidate.kind === "sent-message") &&
@@ -99,7 +96,6 @@ export function resolveCitationPhase(input: {
 }): CitationPhase {
   if (input.history._tag === "failed") return { _tag: "failed" };
   const source = input.entries.find((entry) => isCited(entry, input.messageId));
-  // The history store can hold the message a render before the entries do.
   if (!source) return { _tag: "loading" };
   if (source.kind === "message" && source.message.role !== "assistant") return { _tag: "failed" };
   const row = input.rows.find((candidate) => isCited(candidate, input.messageId));
@@ -128,8 +124,6 @@ export function citedThreadSnapshot(input: {
     if (input.status === "deleted") return { message: null, hasMoreHistory: false };
     return input.error === null ? null : { message: null, hasMoreHistory: false, loadFailed: true };
   }
-  // Older pages merge into the visible turn items, not the message list. As in history
-  // paging, a message matches by its message id and an HTML render or sent message by its item id.
   const item = input.thread.projection.visibleTurnItems.find(({ item }) =>
     item.type === "assistant_message" || item.type === "user_message"
       ? item.messageId === input.messageId
@@ -179,11 +173,6 @@ function waitForSettledThread(
   });
 }
 
-/**
- * The citation procedure for one activation (the location key). Mounting it
- * starts paging; leaving the location unmounts it and the finalizer stops it.
- * Plain-object keys compare structurally, so one activation is one procedure.
- */
 const citedHistoryAtom = Atom.family(
   ({ key, environmentId, threadId, messageId }: CitedHistoryKey) => {
     const ref = { environmentId, threadId };

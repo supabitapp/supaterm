@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off - FIFO gates must be released with a synchronous
-// open on the main thread, because the Effect FileSystem queues behind the pinned libuv pool.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
@@ -108,7 +107,6 @@ const layerScannerTest = (input: ScannerTestInput) =>
               driver: ProviderDriverKind.make("codex"),
               config: { homePath: input.codexHomePath },
             },
-            // Keeps the default Pi instance off the developer's real ~/.pi.
             [ProviderInstanceId.make("pi")]: {
               driver: ProviderDriverKind.make("pi"),
               enabled: true,
@@ -225,7 +223,6 @@ function makeRecordLimitTranscript(cwd: string, overflow: boolean): string {
     : records;
 }
 
-// Pi retains every entry, keeping tool results as links outside the history budget.
 function makePiToolResultTranscript(sessionId: string, cwd: string, recordCount: number): string {
   const entry = (id: number, message: { readonly role: string; readonly content: string }) =>
     encodeTranscriptRecord({
@@ -282,7 +279,6 @@ const makeFileIdentityFixture = Effect.fn("AgentSessionScanner.test.makeFileIden
       });
     }
 
-    // Adjacent NTFS IDs round to the same number; birthtimes can also collide.
     const birthtime = Option.some(DateTime.toDateUtc(DateTime.makeUnsafe(nowMs)));
     const ids = new Map<bigint, bigint>();
     const effectIdentity = (target: string, info: FileSystem.File.Info) => {
@@ -326,12 +322,6 @@ const makeFileIdentityFixture = Effect.fn("AgentSessionScanner.test.makeFileIden
 
 const LIBUV_POOL_SIZE = Number(process.env.UV_THREADPOOL_SIZE ?? 4);
 
-/**
- * Opening a FIFO for reading waits in `open()` until a writer appears, like a
- * TCC-protected file in a headless macOS daemon, and pins one libuv pool thread
- * that fiber interruption cannot free. The finalizer opens it for writing on the
- * main thread, which releases every waiting reader even with the pool exhausted.
- */
 const makeOpenGate = Effect.fn("AgentSessionScanner.test.makeOpenGate")(function* (
   gatePath: string,
 ) {
@@ -342,29 +332,17 @@ const makeOpenGate = Effect.fn("AgentSessionScanner.test.makeOpenGate")(function
         NodeFS.closeSync(
           NodeFS.openSync(gatePath, NodeFS.constants.O_WRONLY | NodeFS.constants.O_NONBLOCK),
         );
-      } catch {
-        // ENXIO: no reader is waiting.
-      }
+      } catch {}
     }),
   );
 });
 
-/**
- * Resolves once a reader has opened the FIFO, so its read deadline is already
- * scheduled on the TestClock. The writer stays open until the scope closes, so
- * the reader sees no EOF and has to wait out that deadline.
- */
 const awaitGateReader = (gatePath: string) =>
   Effect.acquireRelease(
     Effect.promise(() => NodeFS.promises.open(gatePath, NodeFS.constants.O_WRONLY)),
     (handle) => Effect.promise(() => handle.close()),
   );
 
-/**
- * Offers each of `filePaths` to `finished` once its `cat` child has exited. A
- * deadline fires for every read still in flight, so a test must wait for the
- * unblocked reads before it moves the clock.
- */
 const layerReportingProcessRunner = (
   filePaths: ReadonlySet<string>,
   finished: Queue.Queue<string>,
@@ -712,7 +690,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const codexHomePath = yield* makeTempDir("supaterm-codex-home-");
         const recentWorkspace = yield* makeTempDir("supaterm-workspace-recent-");
         const olderWorkspace = yield* makeTempDir("supaterm-workspace-older-");
-        // More project folders than the discovery budget reads, in an order unrelated to age.
         const folderCount = 12_000;
         const recentCount = 40;
         const newestMs = Date.parse("2026-03-01T00:00:00.000Z");
@@ -764,9 +741,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const olderWorkspace = yield* makeTempDir("supaterm-workspace-older-");
         const lastWorkspace = yield* makeTempDir("supaterm-workspace-last-");
         const newestMs = Date.parse("2026-03-01T00:00:00.000Z");
-        // Both homes outgrow their first share; together they fit the source's budget, but only
-        // when what the medium home leaves over on its rescan reaches the large one, which is
-        // listed first and so needs a second pass.
         yield* Effect.sync(() => {
           const writeSessions = (directory: string, count: number, cwd: string, ageMs: number) => {
             NodeFS.mkdirSync(directory, { recursive: true });
@@ -789,7 +763,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
             olderWorkspace,
             60_000,
           );
-          // Read last because its folder is oldest, yet it holds the newest session.
           const lastDirectory = path.join(largeHomePath, "projects", "-last");
           writeSessions(lastDirectory, 1, lastWorkspace, 0);
           const oldSeconds = (newestMs - 3_600_000) / 1000;
@@ -833,7 +806,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const piInstanceHome = yield* makeTempDir("supaterm-pi-instance-home-");
         const piHomeWorkspace = yield* makeTempDir("supaterm-workspace-pi-home-");
 
-        // Pi nests sessions per cwd by default and keeps a custom session directory flat.
         for (const [filePath, cwd, mtime] of [
           [
             path.join(piAgentDir, "sessions", "--slug--", "2026-01-03_pi.jsonl"),
@@ -1075,7 +1047,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
           path.join(submodule, ".git"),
           `gitdir: ${submoduleGitDir}\n`,
         );
-        // A repository whose sessions all ran in a linked worktree is still offered.
         const worktreeOnly = yield* makeTempDir("supaterm-workspace-worktree-only-");
         const worktreeOnlyCheckout = yield* makeTempDir("supaterm-workspace-worktree-only-wt-");
         const worktreeOnlyGitDir = path.join(worktreeOnly, ".git", "worktrees", "wt");
@@ -1090,8 +1061,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
           `gitdir: ${worktreeOnlyGitDir}\n`,
         );
 
-        // Not offered: the config is unreadable, so the repository could be bare; and
-        // the main checkout is reached through a symlink into Supaterm's own state.
         const configBaseDir = yield* fileSystem.realPath(
           yield* makeTempDir("supaterm-scanner-base-"),
         );
@@ -1639,7 +1608,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
             timestamp: "2026-08-24T11:00:00.000Z",
             message,
           });
-        // The user rewound to the first prompt; the abandoned branch stays in the file.
         yield* writeTranscript({
           filePath: path.join(piAgentDir, "sessions", "--selected--", "2026-08-24_pi.jsonl"),
           contents: [
@@ -1680,7 +1648,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
           ].join("\n"),
           mtimeMs: nowMs - 30 * 60 * 1000,
         });
-        // Version 1 sessions predate the entry tree.
         yield* writeTranscript({
           filePath: path.join(piAgentDir, "sessions", "--selected--", "2025-01-01_pi-v1.jsonl"),
           contents: [
@@ -1878,7 +1845,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
             mtimeMs: nowMs - 60_000 + index,
           });
         }
-        // Codex records a chat's project only in its state DB; the rollout keeps the original cwd.
         yield* Effect.sync(() => {
           const db = new NodeSqlite.DatabaseSync(path.join(codexHomePath, "state_5.sqlite"));
           try {
@@ -2044,7 +2010,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
           { subagent: { other: "guardian" } },
           { subAgent: "compact" },
         ];
-        // Newer subagents would exhaust the 100-transcript import budget before any parent.
         const sources = [
           ...Array.from({ length: 100 }, (_, index) => subagentSources[index % 4]),
           "vscode",
@@ -2053,7 +2018,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
           { custom: "launcher" },
         ];
         const fileSystem = yield* FileSystem.FileSystem;
-        // Rollouts imported before subagents were excluded still have import records.
         const legacyImports: Array<AgentSessionImportSource> = [];
         for (const [index, source] of sources.entries()) {
           const filePath = path.join(
@@ -2068,7 +2032,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
             filePath,
             contents: [
               { type: "session_meta", payload: { id: `session-${index}`, cwd: workspace, source } },
-              // A later cwd must not make an excluded rollout eligible again.
               { type: "turn_context", payload: { cwd: workspace } },
               {
                 type: "event_msg",
@@ -2172,7 +2135,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const workspace = yield* makeTempDir("supaterm-workspace-");
         const codexRollout = (name: string) =>
           path.join(codexHomePath, "sessions", "2026", "08", "24", `rollout-${name}.jsonl`);
-        // Newer empty sessions would exhaust the 100-transcript import budget before any real one.
         const emptySessions = Array.from({ length: 100 }, (_, index) =>
           index % 2 === 0
             ? {
@@ -2215,7 +2177,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const transcripts = [
           ...emptySessions,
           {
-            // Without session_meta there is no resumable session ID.
             filePath: codexRollout("unusable"),
             records: [
               { type: "turn_context", payload: { cwd: workspace } },
@@ -2268,7 +2229,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const workspace = yield* makeTempDir("supaterm-workspace-");
         const threadId = "019a0000-0000-7000-8000-000000000001";
         const rolloutId = "019a0000-0000-7000-8000-000000000002";
-        // The ancestor rollout is missing, and this rollout added no messages of its own.
         yield* writeTranscript({
           filePath: path.join(
             codexHomePath,
@@ -2308,7 +2268,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const claudeHomePath = yield* makeTempDir("supaterm-record-budget-claude-");
         const codexHomePath = yield* makeTempDir("supaterm-record-budget-codex-");
         const workspace = yield* makeTempDir("supaterm-record-budget-workspace-");
-        // The newer transcript retains 100,001 records; the older one exactly 100,000.
         for (const [sessionId, recordCount, mtimeMs] of [
           ["excessive", 100_001, nowMs],
           ["older", 100_000, nowMs - 1_000],
@@ -2343,7 +2302,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const claudeHomePath = yield* makeTempDir("supaterm-shared-records-claude-");
         const codexHomePath = yield* makeTempDir("supaterm-shared-records-codex-");
         const workspace = yield* makeTempDir("supaterm-shared-records-workspace-");
-        // Together these exceed 100,000 records, but each one is individually valid.
         const recordCounts = [20_000, 20_000, 20_000, 58_000];
         for (const [index, recordCount] of recordCounts.entries()) {
           yield* writeTranscript({
@@ -2386,8 +2344,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         for (const [index, sessionId] of sessionIds.entries()) {
           yield* writeTranscript({
             filePath: path.join(claudeHomePath, "projects", "p", `${sessionId}.jsonl`),
-            // 999 cwd-less records cost 1,000 metadata records, so 100 newer transcripts
-            // exhaust MAX_METADATA_RECORDS_PER_SOURCE.
             contents:
               "{}\n".repeat(999) +
               `${encodeTranscriptRecord({
@@ -2462,7 +2418,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
           const sources = Array.from(outcomes).flatMap((outcome) =>
             outcome._tag === "Importable" ? [outcome.source] : [],
           );
-          // A record whose file identity no longer matches must not lend its cwd.
           const newest = sources[0]!;
           completed.push(...sources, {
             ...newest,
@@ -2693,7 +2648,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
               type: "assistant",
               message: { role: "assistant", model: "claude-opus-5-5", content: "First reply" },
             }),
-            // Small tool records exceed the real 32 MiB selected-history budget in aggregate.
             ...Array.from({ length: 20_000 }, () => toolResult),
             record({ type: "user", message: { role: "user", content: "Latest prompt" } }),
             record({
@@ -2752,12 +2706,10 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
               cwd: workspace,
               message: { role: "user", content: "First prompt" },
             }),
-            // 600 x 64 KiB exceeds the 32 MiB selected-history budget; the shown window fits.
             ...Array.from({ length: middleCount }, (_, index) => {
               const role = index % 2 === 0 ? "assistant" : "user";
               return record({ type: role, message: { role, content: longText } });
             }),
-            // Tool and progress records push the file past the 100,000-record limit.
             ...Array.from({ length: 100_000 }, () => "{}"),
             record({ type: "user", message: { role: "user", content: "Latest prompt" } }),
           ].join("\n"),
@@ -2789,7 +2741,6 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const workspace = yield* makeTempDir("supaterm-late-prompt-workspace-");
         const contents = [
           encodeTranscriptRecord({ type: "attachment", sessionId: "late-prompt", cwd: workspace }),
-          // The first prompt is still among the latest 200 messages after older replies drop out.
           ...Array.from({ length: 250 }, (_, index) => {
             const role = index < 60 || index % 2 === 1 ? "assistant" : "user";
             return encodeTranscriptRecord({
@@ -2974,7 +2925,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")(
               }),
             );
           }
-          // Hangs if the scans left libuv pool threads stuck in open().
           yield* fileSystem.readFileString(transcriptPath);
         }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
     );
@@ -3055,7 +3005,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")(
           yield* fileSystem.makeDirectory(path.join(repo, ".git"), { recursive: true });
           yield* makeOpenGate(path.join(repo, ".git", "config"));
         }
-        // Two linked worktrees of one bare repository share its blocked config.
         const bareGitDir = path.join(root, "bare.git");
         yield* fileSystem.makeDirectory(bareGitDir);
         yield* makeOpenGate(path.join(bareGitDir, "config"));
@@ -3080,8 +3029,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")(
             Effect.map(({ candidates }) => candidates.map(({ path }) => path).toSorted()),
           ),
         );
-        // Every blocked config is open before any deadline passes; reading them
-        // one after another would leave the later ones unopened.
         yield* Effect.forEach(
           [...repos.map((repo) => path.join(repo, ".git")), bareGitDir],
           (gitDir) => awaitGateReader(path.join(gitDir, "config")),
@@ -3125,14 +3072,12 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")(
           finishedPointerReads,
         );
 
-        // One scanner across scans: later scans skip the files that blocked.
         yield* Effect.gen(function* () {
           const scanner = yield* AgentSessionScanner.AgentSessionScanner;
           const scanPaths = scanner.scan.pipe(
             Effect.map(({ candidates }) => candidates.map(({ path }) => path)),
           );
           const first = yield* Effect.forkChild(scanPaths);
-          // Pointer files are read first, then the commondir files they lead to.
           yield* Effect.scoped(
             Effect.gen(function* () {
               yield* awaitGateReader(path.join(pointerCheckout, ".git"));
@@ -3151,7 +3096,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")(
             expect(yield* scanPaths, `scan ${attempt}`).toEqual([pointerCheckout]);
           }
         }).pipe(Effect.provide(layerScannerTest({ claudeHomePath, codexHomePath, processRunner })));
-        // Hangs if the scans left libuv pool threads stuck in open().
         yield* fileSystem.readFileString(path.join(worktree, ".git"));
       }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
     );
@@ -3331,7 +3275,6 @@ describe("parseAgentSessionTranscript", () => {
 
   it.each([
     { customTitles: ["Refactor auth module"], expected: "Refactor auth module" },
-    // Claude writes an empty customTitle when the user clears a rename.
     { customTitles: ["Refactor auth module", ""], expected: "Generated title" },
   ])("uses Claude custom titles $customTitles over the AI title", ({ customTitles, expected }) => {
     const aiTitle = JSON.stringify({
@@ -3347,8 +3290,6 @@ describe("parseAgentSessionTranscript", () => {
           timestamp: "2026-08-24T10:00:00.000Z",
           message: { role: "user", content: "<command-name>/effort</command-name>" },
         }),
-        // Claude rewrites both records on every metadata flush with ai-title
-        // last, so a later ai-title must not override the user's rename.
         ...customTitles.flatMap((customTitle) => [
           JSON.stringify({ type: "custom-title", customTitle, sessionId: "claude-session" }),
           aiTitle,

@@ -13,12 +13,8 @@ import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as CommandLine from "effect/process/CommandLine";
 
-// libuv's _PATH_DEFPATH, searched when the child environment has no PATH.
 const DEFAULT_PATH = "/usr/bin:/bin";
 
-// A check on a hung mount holds a libuv threadpool thread until the mount answers, and the
-// pool's four threads also compress every WebSocket frame. Checks therefore run one at a time
-// per directory and two at a time overall; the rest wait without holding a thread.
 const CHECK_LIMIT = 2;
 const directoryTails = new Map<string, Promise<unknown>>();
 const waiting: Array<() => void> = [];
@@ -33,14 +29,12 @@ const access = async (path: string, mode: number) => {
   } catch (error) {
     return error as NodeJS.ErrnoException;
   } finally {
-    // A waiter takes over the slot.
     const next = waiting.shift();
     if (next === undefined) running--;
     else next();
   }
 };
 
-/** The errno error of `access(path, mode)`, or undefined when it passes. */
 const check = (directory: string, path: string, mode: number) => {
   const result = (directoryTails.get(directory) ?? Promise.resolve()).then(() =>
     access(path, mode),
@@ -52,7 +46,6 @@ const check = (directory: string, path: string, mode: number) => {
   return Effect.promise(() => result);
 };
 
-// The PATH the child searches, from the environment Effect's Node spawner gives it.
 const childPath = ({ env, extendEnv }: ChildProcess.CommandOptions) => {
   if (env === undefined) return process.env.PATH;
   if (!Object.hasOwn(env, "PATH")) return extendEnv === true ? process.env.PATH : undefined;
@@ -60,7 +53,6 @@ const childPath = ({ env, extendEnv }: ChildProcess.CommandOptions) => {
   return value === undefined || !Redacted.isRedacted(value) ? value : Redacted.value(value);
 };
 
-// The spawn error Effect's Node spawner reports when execvp fails with `code`.
 const spawnFailure = (command: ChildProcess.StandardCommand, code: "ENOENT" | "EACCES") => {
   const syscall = `spawn ${command.command}`;
   return PlatformError.systemError({
@@ -79,7 +71,6 @@ const spawnFailure = (command: ChildProcess.StandardCommand, code: "ENOENT" | "E
   });
 };
 
-// The error of the `FileSystem.access(cwd)` Effect's Node spawner runs before it spawns.
 const cwdFailure = (cwd: string, cause: NodeJS.ErrnoException) =>
   PlatformError.systemError({
     _tag:
@@ -97,16 +88,10 @@ const cwdFailure = (cwd: string, cause: NodeJS.ErrnoException) =>
     cause,
   });
 
-/**
- * Fails as a native spawn does when the command is missing or not executable: callers read
- * that error to tell a CLI that is not installed from one that failed. execvp reports EACCES
- * when a candidate exists but cannot be run, and ENOENT otherwise.
- */
 const findExecutable = Effect.fnUntraced(function* (
   command: ChildProcess.StandardCommand,
   cwd: string | undefined,
 ) {
-  // Joined as text: the kernel resolves `..` after a symlink differently from a normalized path.
   const fromCwd = (path: string) =>
     cwd === undefined || path.startsWith("/") ? path : `${cwd}/${path}`;
   const candidates = command.command.includes("/")
@@ -121,7 +106,6 @@ const findExecutable = Effect.fnUntraced(function* (
       candidate,
       NodeFS.constants.X_OK,
     );
-    // Any other errno is left for `env` to report through its exit code.
     if (error === undefined || (error.code !== "ENOENT" && error.code !== "EACCES")) return;
     denied ||= error.code === "EACCES";
   }
@@ -134,16 +118,12 @@ const make = Effect.gen(function* () {
   if (!(yield* Effect.promise(supportsEnvChdir))) return native;
   const path = yield* Path.Path;
 
-  // Runs inside the NonBlockingSpawner.spawn span.
   const prepareStandard = Effect.fnUntraced(function* (input: ChildProcess.StandardCommand) {
     const { cwd: givenCwd, shell, ...options } = input.options;
-    // Effect rejects a shell command with arguments, and a NUL, itself.
     if ((shell && input.args.length > 0) || input.command.includes("\0")) return input;
-    // Node's shell mode on Unix, spelled out so the trampoline can run it.
     const command = shell
       ? ChildProcess.make(typeof shell === "string" ? shell : "/bin/sh", ["-c", input.command])
       : input;
-    // Checked as given and entered resolved, as Effect's Node spawner does.
     const cwd = givenCwd === undefined ? undefined : path.resolve(givenCwd);
     const trampoline = envTrampoline(command.command, command.args, cwd);
     if (trampoline === undefined) return input;

@@ -16,10 +16,6 @@ export function createLaunchSplashHomeRows() {
   };
   return {
     pending,
-    /**
-     * A Home list has rows that are not laid out yet. Call the returned release when it no
-     * longer has them or unmounts; rows that come later can hold again.
-     */
     hold: () => {
       let held = true;
       change(() => {
@@ -33,10 +29,6 @@ export function createLaunchSplashHomeRows() {
         });
       };
     },
-    /**
-     * The rows are laid out, the launch opened another route, or the splash is gone. It is
-     * final: lists that mount after the launch must not hold anything.
-     */
     markDone: () =>
       change(() => {
         settled = true;

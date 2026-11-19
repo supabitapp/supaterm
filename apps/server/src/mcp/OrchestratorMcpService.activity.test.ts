@@ -250,8 +250,6 @@ it("readThread preserves caller access errors and prefers activity-run status ov
     expect(result.thread.pendingBackgroundTasks).toEqual([
       { taskId: "task-subagent", kind: "subagent", childThreadId },
     ]);
-    // Every page read must not repeat each linked PR, and an open PR shows whether it is watched.
-    // A thread with many open PRs previews a few, watched first, then newest.
     const listed = result.thread.pullRequests ?? [];
     expect(listed.map((link) => link.number)).toEqual([2, 8, 7, 6, 5]);
     expect(result.thread.openPullRequestCount).toBe(7);
@@ -281,7 +279,6 @@ it("readThread preserves caller access errors and prefers activity-run status ov
     Object.assign(projection, {
       runs: [makeRun({ id: activeRunId, ordinal: 1, status: "completed" })],
     });
-    // An unawaited command (a dev server) does not hold the thread once its turn ends.
     pendingBackgroundTasks = [{ taskId: "dev-server", kind: "command" }];
     const released = yield* service.readThread(makeScope(), { threadId: parentThreadId });
     expect(released.thread.status).toBe("completed");
@@ -439,7 +436,6 @@ it("readThread returns the newest items that fit the response budget", async () 
     subagents: [],
     updatedAt: now,
   } as unknown as OrchestrationV2ThreadProjection;
-  // A long thread's newest 100 activity items, the read agents make most.
   const rows = Array.from({ length: 100 }, (_, position) => ({
     position,
     visibility: "local",
@@ -501,7 +497,6 @@ it("readThread returns the newest items that fit the response budget", async () 
       maxCharsPerItem: 1_500,
     };
     const result = yield* service.readThread(makeScope(), read);
-    // The CLI reads as a client without a cursor and follows only hasMore.
     const first = yield* service.readThread({ ...makeScope(), thread: undefined }, read);
     const fromStart = yield* service.readThread(makeScope(), { ...read, afterPosition: -1 });
 
@@ -510,7 +505,6 @@ it("readThread returns the newest items that fit the response budget", async () 
       { limit: 100, view: "activity" },
       { afterPosition: -1, limit: 100, view: "activity" },
     ]);
-    // Claude Code saves results over ~50k chars of this JSON to a file instead of showing them.
     expect(JSON.stringify(result).length).toBeLessThan(31_000);
     expect(result.items.length).toBeLessThan(100);
     expect(result.items.at(-1)?.position).toBe(99);
@@ -549,7 +543,6 @@ it("readThread keeps an activity page within an MCP client's output limit and pa
       type: "reasoning",
       runId: activeRunId,
       status: "completed",
-      // Command titles can carry a whole command.
       title: position === 1 ? "標".repeat(60_000) : null,
       text: position === 0 ? "😀a".repeat(30_000) : `${position} `.padEnd(3_000, "x"),
       updatedAt: now,
@@ -610,7 +603,6 @@ it("readThread keeps an activity page within an MCP client's output limit and pa
         maxCharsPerItem: 1_500,
         afterPosition: afterPosition ?? -1,
       });
-      // Claude Code rejects MCP results over 25k tokens; CJK text is about a token per char.
       expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThanOrEqual(50_000);
       if (page === 0) expect(result.hasMore).toBe(true);
       positions.push(...result.items.map((item) => item.position));

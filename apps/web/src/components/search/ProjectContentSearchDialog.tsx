@@ -22,10 +22,6 @@ interface ProjectContentSearchDialogProps {
   readonly onOpenChange: (open: boolean) => void;
 }
 
-/**
- * Result rows are syntax highlighted, so mounting all 500 possible rows at once
- * stalls the UI.
- */
 const VISIBLE_MATCH_WINDOW = 100;
 
 interface MatchGroup {

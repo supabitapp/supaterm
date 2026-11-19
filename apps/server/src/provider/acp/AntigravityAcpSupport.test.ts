@@ -82,7 +82,6 @@ describe("Antigravity release gates", () => {
           : {}),
         ...(version === undefined ? {} : { agentInfo: { name: "antigravity-acp", version } }),
       };
-      // Helpers send no append, so only the workflow filter can apply.
       expect(antigravitySessionMeta(initialize)).toEqual(
         filter ? { antigravity: { disabledTools: ["run_workflow"] } } : undefined,
       );
@@ -197,7 +196,6 @@ describe("applyAntigravityAcpModelSelection", () => {
 
   it.effect("passes a model ID saved on runtime 1.3 to the agent as its 1.4 family", () =>
     Effect.gen(function* () {
-      // The cold-resume model has no thinking option, so the level is unknown locally.
       const { runtime, selections } = makeModelRuntime([
         {
           ...modelConfig,

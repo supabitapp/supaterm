@@ -94,7 +94,6 @@ export class BrowserRecordingOperationError extends Schema.TaggedError<BrowserRe
     if (isPreviewCaptureFailure(this.cause)) {
       return this.cause.message;
     }
-    // Stream acquisition stores its primary failure on the aggregate when cleanup also fails.
     const captureCause = this.cause instanceof AggregateError ? this.cause.cause : this.cause;
     if (
       this.operation === "capture-media-stream" &&
@@ -282,7 +281,6 @@ const createMediaRecorder = (stream: MediaStream): MediaRecorder => {
 };
 
 const captureTabMediaStream = (frameRate: number): Promise<MediaStream> =>
-  // The armed tab supplies native-size frames without source or dimension constraints.
   navigator.mediaDevices.getDisplayMedia({
     audio: false,
     video: { frameRate: { ideal: frameRate, max: frameRate } },
@@ -326,7 +324,6 @@ const prepareTabMediaCapture = (tabId: string, frameRate: number) => {
   const pending: PendingTabMediaCapture = {
     start: () => {
       try {
-        // executeJavaScript(..., true) supplies transient activation for automated or delayed capture.
         resolveCapture(captureTabMediaStream(frameRate));
       } catch (cause) {
         rejectCapture(cause);
@@ -570,7 +567,6 @@ export async function startBrowserRecording(
       }
       throw recordingStartupCancelledError(recording);
     };
-    // Electron grants one display-media request at a time; serialize handoff, not recording.
     const grant = queueDisplayMediaGrant(async () => {
       if (startingLifecycle.cancelledBeforeGrant) {
         throw new BrowserRecordingStartCancelledError({ tabId });
@@ -752,7 +748,6 @@ const finalizeBrowserRecording = async (
   }
 
   if (result._tag === "Failure" && isStartupWaitTimeout(result.error)) {
-    // Reserve the slot until late-start cancellation finishes, or it could stop a newer recording.
     throw result.error;
   }
 

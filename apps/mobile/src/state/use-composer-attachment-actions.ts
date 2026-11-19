@@ -47,7 +47,6 @@ export function useComposerAttachmentActions(props: {
     }
     return appendComposerDraftAttachments(key, attachments, { appendReference: true, insertion });
   };
-  // A picker may finish after its draft was discarded or the composer moved off it.
   const withDraftOperation = async (key: string, work: (signal: AbortSignal) => Promise<void>) => {
     const operation = startComposerDraftOperation(key);
     await work(operation.signal).finally(operation.finish);

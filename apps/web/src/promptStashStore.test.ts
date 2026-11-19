@@ -242,7 +242,6 @@ describe("promptStashStore", () => {
     expect(usePromptStashStore.getState().entries).toEqual([]);
   });
 
-  // regression: #35010 stashing in one tab erased what another tab stashed after it loaded
   it("keeps an entry another tab stashed after this tab loaded", async () => {
     const sharedStorage = createMemoryStorage();
     vi.stubGlobal("localStorage", sharedStorage);

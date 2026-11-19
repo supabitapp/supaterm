@@ -59,8 +59,6 @@ describe("ProviderLatestVersions", () => {
         lookups += 1;
         return "2.0.0";
       });
-      // `cached` reads `fresh` in the same step that claims the key, so the
-      // interrupt arrives after the claim and before the lookup starts.
       const interruptOnClaim = {
         get fresh() {
           Fiber.getCurrent()?.interruptUnsafe();

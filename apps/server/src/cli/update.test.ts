@@ -28,7 +28,6 @@ import {
 import * as ProcessRunner from "../processRunner.ts";
 import { repointLauncher, resolveNewestVersion, runUpdate } from "./update.ts";
 
-// lsof listing one process, so prune sees a process list in which no runtime is running.
 const unrelatedLsof = ProcessRunner.ProcessRunner.of({
   run: () =>
     Effect.succeed({
@@ -92,7 +91,6 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
 
       assert.deepStrictEqual(Option.getOrUndefined(repointed), launcher);
       assert.equal(yield* fs.readFileString(launcher), posixLauncherScript(newExe));
-      // Replaced, not written through.
       assert.equal(yield* fs.readFileString(oldExe), "");
     }).pipe(Effect.scoped, Effect.provideService(HostProcess.Platform, "linux")),
   );
@@ -107,7 +105,6 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
         const root = yield* fs.realPath(
           yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-update-" }),
         );
-        // A quote and a space in the home path exercise the script's quoting.
         const home = path.join(root, "it's home");
         const entry = (version: string) => path.join(home, "runtime/versions", version, "supaterm");
         for (const version of ["1.0.0", "2.0.0"]) {
@@ -124,7 +121,6 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
         yield* fs.symlink(launcher, alias);
         const repoint = (environment: Record<string, string>) =>
           repointLauncher({
-            // The script execs by absolute path, so argv0 names the executable.
             launchedAs: entry("1.0.0"),
             baseDir: home,
             targetEntryPath: entry("2.0.0"),
@@ -141,8 +137,6 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
           [entry("2.0.0"), ...args].map((arg) => `[${arg}]\n`).join(""),
         );
 
-        // Like the shell, a relative PATH entry resolves from the working directory, and a
-        // script nobody can execute is passed over.
         const unrunnable = path.join(root, "unrunnable/supaterm");
         yield* fs.makeDirectory(path.dirname(unrunnable), { recursive: true });
         yield* fs.writeFileString(unrunnable, posixLauncherScript(entry("2.0.0")), { mode: 0o644 });
@@ -160,7 +154,6 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
         assert.equal(Option.getOrUndefined(relative), launcher);
         assert.equal(yield* fs.readFileString(unrunnable), posixLauncherScript(entry("2.0.0")));
 
-        // An edited script is the user's own wrapper now.
         const edited = `${posixLauncherScript(entry("1.0.0"))}# mine\n`;
         yield* fs.writeFileString(launcher, edited);
         assert.isTrue(Option.isNone(yield* repoint({ PATH: path.dirname(launcher) })));
@@ -173,9 +166,7 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
     { name: "an empty launcher record", recorded: "" },
     { name: "whole launcher records", recorded: "/opt/supaterm\n" },
     { name: "Windows launcher records", recorded: "C:\\supaterm.cmd\r\n" },
-    // An interrupted append cut this record short.
     { name: "an unterminated launcher record", recorded: "/opt/supa" },
-    // Another process's append is cut short after supaterm update reads the records.
     { name: "a record cut short after the read", recorded: "/opt/supaterm\n", cut: "/opt/supa" },
   ])("keeps the runtime a repointed launcher off PATH points at with $name", ({ recorded, cut }) =>
     Effect.gen(function* () {
@@ -193,7 +184,6 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
       if (recorded !== undefined) {
         yield* fs.writeFileString(path.join(root, "runtime/launchers"), recorded);
       }
-      // A launcher in the Supaterm home itself, which neither PATH nor the default bin dir reaches.
       const launcher = path.join(root, "supaterm");
       yield* fs.symlink(path.join(root, "runtime/versions/1.0.0/supaterm"), launcher);
 
@@ -217,7 +207,6 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
               ),
         }),
       );
-      // A later server start prunes with no idea how this machine launches supaterm.
       const removed = yield* prunePinnedRuntimes({ baseDir: root, keep: [] }).pipe(
         Effect.provideService(ProcessRunner.ProcessRunner, unrelatedLsof),
         Effect.provideService(HostProcess.Platform, "darwin"),
@@ -268,7 +257,6 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const { root, oldExe, newExe, launcher, launchersFile } = yield* launcherFixture();
-      // Appending to a directory fails the way a read-only or full disk would.
       yield* fs.makeDirectory(launchersFile);
 
       const result = yield* repointLauncher({
@@ -386,7 +374,6 @@ it.layer(NodeServices.layer)("supaterm update launcher", (it) => {
   );
 });
 
-// Without terminals, update skips its restart prompt whatever runs the test.
 const withoutTerminals = Effect.acquireRelease(
   Effect.sync(() =>
     [process.stdin, process.stdout].map((stream) => {
@@ -418,7 +405,6 @@ it.layer(NodeServices.layer)("supaterm update with a background service", (it) =
       yield* fs.writeFileString(runtime.sentinelPath, `${version}\n`);
       const unitPath = path.join(baseDir, "supaterm.service");
       const logPath = path.join(baseDir, "boot-service.log");
-      // An earlier `supaterm update` pointed the service at this version without restarting it.
       const service = Layer.mock(BootService.BootService, {
         status: Effect.succeed<BootService.BootServiceStatus>({
           supported: true,
@@ -527,7 +513,6 @@ it.layer(NodeServices.layer)("supaterm update checks the database before switchi
         "supaterm@0.1.8 could not confirm it supports this database (its check exited with code 1), so supaterm did not switch to it.",
     },
     {
-      // Newer builds keep accepting the current launcher protocol, which may drop 3.
       name: "checks a newer target with the current launcher protocol",
       targetVersion: "99.0.0",
       launcherProtocol: SERVICE_LAUNCHER_PROTOCOL,
@@ -567,7 +552,6 @@ it.layer(NodeServices.layer)("supaterm update checks the database before switchi
             preflightArgs.push(input.args);
             return Effect.succeed(preflight);
           }
-          // A target's --version always answers, whatever its database support.
           return input.args?.includes("--version") === true
             ? Effect.succeed(preflightOutput(`supaterm v${targetVersion}\n`))
             : unrelatedLsof.run(input);

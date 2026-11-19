@@ -95,8 +95,6 @@ export function mergeShellSnapshotProjects(
         return project;
       }
       if (resolvedRootSet?.has(project.workspaceRoot) === true) {
-        // Refreshes re-resolve every root; an unchanged identity keeps the project's identity
-        // so every subscriber (each pull request row, the sidebar) skips re-rendering.
         if (sameRepositoryIdentity(project.repositoryIdentity, candidate.repositoryIdentity)) {
           return project;
         }
@@ -113,7 +111,6 @@ export function mergeShellSnapshotProjects(
   }
 
   const previousById = new Map(previous.projects.map((project) => [project.id, project] as const));
-  // Project atoms and shell persistence compare by reference, so unchanged projects keep their objects.
   const projects = next.projects.map((project) => {
     const prior = previousById.get(project.id);
     const merged = retainRepositoryIdentity(prior, project);
@@ -138,10 +135,6 @@ export function applyShellStreamEvent(
 
   switch (event.kind) {
     case "project.updated": {
-      // Enrichment is async. A project mutation can land with null
-      // repositoryIdentity while an earlier snapshot already resolved it.
-      // Keep the prior identity for the same workspace root so multi-env
-      // grouping does not split until a full snapshot refresh arrives.
       const previous = snapshot.projects.find((project) => project.id === event.project.id);
       const project = retainRepositoryIdentity(previous, event.project);
       return {
@@ -172,9 +165,6 @@ export function applyShellStreamEvent(
           event.location === "active"
             ? upsertById(snapshot.threads, event.thread)
             : withoutThread(snapshot.threads),
-        // The archive has its own bounded query/subscription. Older servers may
-        // still send archive-located deltas here; remove them from the normal
-        // shell instead of growing its persisted cache again.
         archivedThreads: withoutThread(snapshot.archivedThreads),
         snapshotSequence: event.sequence,
       };
@@ -191,7 +181,6 @@ export function applyShellStreamEvent(
   }
 }
 
-/** Index a collection lazily and materialize it only if a delta changes its rows. */
 function batchRows<T extends { readonly id: unknown }>(rows: ReadonlyArray<T>) {
   let byId: Map<T["id"], T> | undefined;
   let changed = false;
@@ -220,7 +209,6 @@ export function applyShellStreamEvents(
   snapshot: OrchestrationV2ShellSnapshot,
   events: ReadonlyArray<ShellStreamEvent>,
 ): OrchestrationV2ShellSnapshot {
-  // Avoid indexing the whole shell for the common single-event delivery.
   if (events.length === 1) return applyShellStreamEvent(snapshot, events[0]!);
   const projects = batchRows(snapshot.projects);
   const threads = batchRows(snapshot.threads);
@@ -244,7 +232,6 @@ export function applyShellStreamEvents(
         } else {
           threads.remove(id);
         }
-        // Legacy archive deltas remove rows from the shell; the archive is queried separately.
         archivedThreads.remove(id);
         break;
       }
@@ -280,8 +267,6 @@ export function isAuthoritativeShellSnapshot(
 export type ShellResumeProgress =
   | { readonly _tag: "pending" }
   | { readonly _tag: "completed"; readonly generation: string }
-  // An unknown item moved the cursor past rows this build could not apply, so
-  // only another authoritative snapshot can make the cursor trustworthy again.
   | { readonly _tag: "tainted" };
 
 export const PENDING_SHELL_RESUME: ShellResumeProgress = { _tag: "pending" };

@@ -113,7 +113,6 @@ it.each(["system", "app"] as const)(
   "offers the original unavailable commit URL when web popups are blocked (%s)",
   async (browserLinkTarget) => {
     setup();
-    // Without preview access, the "app" preference opens a popup too.
     __setClientSettingsForTests({
       ...DEFAULT_CLIENT_SETTINGS,
       pullRequestLinksOpenInApp: true,

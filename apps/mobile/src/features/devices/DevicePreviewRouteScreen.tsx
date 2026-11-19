@@ -89,9 +89,7 @@ export function DevicePreviewScreen({
 }) {
   const embedded = onMaximize !== undefined;
   const insets = useSafeAreaInsets();
-  // In a pane the stream sits below the pane's bar, which content otherwise slides under.
   const barOverlap = useBarOverlap();
-  // NativeColumnContent already insets the sides, so only a book fold moves the hidden-controls pill.
   const handleBounds = deriveBottomControlInsets(useNativeColumnLayoutMetrics());
   const { themeVariables } = useAppearancePreferences();
   const focused = useIsFocused();

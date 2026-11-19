@@ -33,20 +33,17 @@ describe("inlineCodeFilePathCandidate", () => {
     ["docker/Dockerfile", "docker/Dockerfile"],
     ["src/main.ts/", null],
     ["./patches/", "./patches/"],
-    // regression: #30757 an agent's shortened path is not a file
     ["/tmp/claude-1000/...", null],
     ["/tmp/claude-1000/...:12", null],
     ["/tmp/.../scratchpad/notes.md", null],
     ["~/projects/…/notes.md", null],
     ["src/.../main.ts", null],
-    // regression: #22181 a `:line` suffix does not make an extensionless basename a file
     ["I/W217:220", null],
     ["bin/run:12", null],
     ["docs/README:12", "docs/README:12"],
     ["./bin/run:12", "./bin/run:12"],
     ["src/資料.備份:12", "src/資料.備份:12"],
     ["src/foo.c++:12", "src/foo.c++:12"],
-    // regression: #37740 absolute paths with spaces are files, commands are not
     ["/Users/me/Path Test/notes with spaces.md", "/Users/me/Path Test/notes with spaces.md"],
     ["~/Library/Mobile Documents/notes.md", "~/Library/Mobile Documents/notes.md"],
     [
@@ -114,7 +111,6 @@ describe("parseMarkdownFileLink", () => {
     expect(parseMarkdownFileLink("docs/My%20Folder/")?.path).toBe("docs/My Folder/");
   });
 
-  // regression: #16096 relative links with non-ASCII names open as files
   it("recognizes relative paths with non-ASCII names", () => {
     expect(parseMarkdownFileLink("pastexam/線性代數/exam_易志偉.pdf")?.path).toBe(
       "pastexam/線性代數/exam_易志偉.pdf",
@@ -200,7 +196,6 @@ describe("resolveMarkdownFileLinkTarget", () => {
     expect(resolveMarkdownFileLinkTarget("patches", "/repo/project")).toBeNull();
   });
 
-  // regression: #33625 backslash-separated relative links open the workspace file
   it.each([
     ["src/Example.cs", "C:\\repo\\src\\Example.cs"],
     ["src\\Example.cs", "C:\\repo\\src\\Example.cs"],
@@ -242,7 +237,6 @@ describe("resolveMarkdownFileLinkTarget", () => {
     expect(resolveMarkdownFileLinkTarget("file://server/share/workspace-image.svg", cwd)).toBe(
       "\\\\server\\share\\workspace-image.svg",
     );
-    // Opening these sent the Windows user's NTLM credentials to attacker.test.
     for (const href of ["file://attacker.test/s/x.ts", "\\\\attacker.test\\s\\x.ts"]) {
       expect(resolveMarkdownFileLinkTarget(href, cwd)).toBeNull();
     }

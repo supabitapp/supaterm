@@ -30,7 +30,6 @@ import { BrowserControlInterrupted } from "./SessionControl.ts";
 const MAX_EVALUATION_BYTES = 64_000;
 const MAX_VISIBLE_TEXT_LENGTH = 20_000;
 const MAX_SCREENSHOT_WIDTH = 1280;
-// Two attempts must fit in a snapshot's 10-second deadline.
 const SCREENSHOT_TIMEOUT_MS = 3_000;
 const WAIT_POLL_MS = 100;
 export const DIAGNOSTIC_BUFFER_LIMIT = 200;
@@ -75,9 +74,7 @@ export const toOperationError = (
   return new ServerBrowserOperationError("PreviewAutomationExecutionError", firstLine);
 };
 
-/** Playwright puts why an element was not actionable in its call log, below the first line. */
 const withActionabilityReason = (message: string, cause: Error) => {
-  // Playwright dims call-log lines with ANSI escapes when colour is on.
   const reason = NodeUtil.stripVTControlCharacters(cause.message)
     .split("\n")
     .map((line) => line.trim())
@@ -91,7 +88,6 @@ const TARGET_COUNT_MS = 250;
 const MAX_TARGET_CHARS = 200;
 
 const pageRefs = new WeakMap<Page, { generation: string; refs: Map<string, string> }>();
-// A compact runtime namespace prevents old refs from aliasing after a server restart.
 const refNamespace = NodeCrypto.randomUUID().slice(0, 8);
 let snapshotSequence = 0;
 const nextRefGeneration = () => `${refNamespace}-${(++snapshotSequence).toString(36)}`;
@@ -122,7 +118,6 @@ const targetLocator = (
 ): Locator | null => {
   const selector = input.locator ?? input.selector;
   if (selector === undefined) return null;
-  // Ignore quoted/escaped CSS values when looking for a selector-engine boundary.
   const engines = selector.replace(
     /\\.|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`/g,
     " ",
@@ -139,7 +134,6 @@ const targetLocator = (
     }
     return page.locator(`aria-ref=${nativeRef}`);
   }
-  // Playwright's strict locators reject ambiguous controls rather than acting on row one.
   return page.locator(selector);
 };
 
@@ -149,8 +143,6 @@ export type PointerReporter = (
 ) => Promise<void>;
 const noPointer: PointerReporter = async () => {};
 
-// Locator.scrollIntoViewIfNeeded resolves its node once and fails when the page replaces it; the
-// input actions after it re-resolve, so the scroll does too, within the same timeout.
 const DETACHED = /^locator\.scrollIntoViewIfNeeded: Element is not attached to the DOM(?:\n|$)/;
 
 const scrollIntoView = async (locator: Locator, timeout: number) => {
@@ -198,9 +190,6 @@ const MASKED_VALUE = "••••••••";
  * character and parameters are page-chosen too.
  */
 export const withoutDataPayload = (url: string) => {
-  // Read the scheme as a browser would: it ignores leading controls and spaces, and tabs and
-  // newlines anywhere. A snapshot's YAML value may be quoted and escaped; an escape that isn't a
-  // tab or newline still decodes to something that can't start a scheme.
   const value = url
     .replace(/^["']/, "")
     .replace(/\\(x[\da-f]{2}|u[\da-f]{4}|.)/gi, (_escape, code: string) =>
@@ -228,7 +217,6 @@ export const consoleText = (message: ConsoleMessage) =>
     ? message.text()
     : message.text().replace(/(?<![a-z\d])data:[^,;]*[,;][\s\S]*/i, withoutDataPayload);
 
-// Split on LF alone: a value keeps any U+2028 that a multiline regex would treat as a line end.
 const withoutTreeDataPayloads = (tree: string) =>
   tree
     .split("\n")
@@ -238,13 +226,9 @@ const withoutTreeDataPayloads = (tree: string) =>
     })
     .join("\n");
 
-// The broker waits 15s for the host; a snapshot, retry included, answers well before.
 const SNAPSHOT_TIMEOUT_MS = 10_000;
-// How long a frame in another process gets to answer; one that crashed never does.
 const FRAME_ANSWER_MS = 1_000;
 
-// Values the page draws as dots (password fields, and text fields whose CSS
-// draws dots), normalized like accessible text. Open shadow roots included.
 const DOTTED_SCRIPT = `(() => {
   const values = [];
   const visit = (root) => {
@@ -271,10 +255,6 @@ const pageChanged = () =>
 
 type SnapshotStage = typeof PreviewAutomationSnapshotStage.Type;
 
-/**
- * Running stages are counted, since a retry can overlap the previous attempt's unanswered
- * screenshot. A stage whose own timeout fired has stopped running but is still the cause.
- */
 interface SnapshotStages {
   readonly running: Map<SnapshotStage, number>;
   readonly timedOut: Set<SnapshotStage>;
@@ -301,10 +281,8 @@ const isTimeout = (cause: unknown) => cause instanceof Error && cause.name === "
 
 const VALUE_TOO_LONG = "A password field holds a value too long to hide, so no snapshot was taken.";
 
-/** A frame in another process keeps one CDP session, so none pile up across snapshots. */
 const frameSessions = new WeakMap<Frame, Promise<CDPSession>>();
 
-/** The value, or undefined when it fails or takes longer than a frame may. */
 const answered = <A>(promise: Promise<A>) => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const late = new Promise<undefined>((resolve) => {
@@ -313,12 +291,6 @@ const answered = <A>(promise: Promise<A>) => {
   return Promise.race([promise.catch(() => undefined), late]).finally(() => clearTimeout(timer));
 };
 
-/**
- * Reads dotted values in isolated worlds, where page script can't change `value`, through each
- * frame's process CDP session. An unattachable out-of-process frame (desktop tabs attach only the
- * page) falls back to the page's own world. `read` yields undefined for a reader that didn't
- * answer and fails when the page's own frames don't or frames came or went.
- */
 const openReaders = async (page: Page, cdp: CDPSession) => {
   const frames = page.frames();
   const owners = new Map<Frame, CDPSession | null | undefined>(
@@ -331,8 +303,6 @@ const openReaders = async (page: Page, cdp: CDPSession) => {
           return [frame, await session] as const;
         } catch (cause) {
           frameSessions.delete(frame);
-          // CdpRelay refuses all but the page. Any other refusal reads the frame through its
-          // parent's session, which fails the read if the frame isn't there.
           const desktop = String(cause).includes("Only this preview tab's page can be attached");
           return [frame, desktop ? null : undefined] as const;
         }
@@ -353,7 +323,6 @@ const openReaders = async (page: Page, cdp: CDPSession) => {
         node.frame.id,
         ...(node.childFrames ?? []).flatMap(ids),
       ];
-      // A frame Playwright knows but this session doesn't would go unread.
       if (ids(frameTree).length !== owned.length) throw pageChanged();
       return Promise.all(
         ids(frameTree).map(async (frameId) => {
@@ -383,7 +352,6 @@ const openReaders = async (page: Page, cdp: CDPSession) => {
       try {
         return (await values).flat();
       } catch (cause) {
-        // The frame may have moved to another process; the next snapshot opens a new session.
         if (session !== cdp) {
           frameSessions.delete(frame);
           void session.detach().catch(constVoid);
@@ -404,10 +372,8 @@ const openReaders = async (page: Page, cdp: CDPSession) => {
   ];
   return {
     readers,
-    /** Readers that didn't answer `before` aren't asked again. */
     read: async (before?: ReadonlyArray<unknown>) => {
       const now = page.frames();
-      // A frame added since the readers opened has none.
       if (now.length !== frames.length || now.some((frame, i) => frame !== frames[i])) {
         throw pageChanged();
       }
@@ -421,17 +387,10 @@ const openReaders = async (page: Page, cdp: CDPSession) => {
   };
 };
 
-/**
- * Matches each value as the snapshot prints it: raw, as a JSON name, as a
- * quoted value, and with '' for each quote inside a quoted key. A value under
- * four characters only matches between non-word characters; inside other words
- * it would mask unrelated text.
- */
 const dottedPattern = (values: ReadonlyArray<string>) => {
   const sources = values
     .flatMap((value) => {
       const json = JSON.stringify(value).slice(1, -1);
-      // Playwright writes control characters like JSON does, with \xNN for the unnamed ones.
       const quoted = value.replace(/[\\"\p{Cc}]/gu, (char) =>
         '\\"\b\f\n\r\t'.includes(char)
           ? JSON.stringify(char).slice(1, -1)
@@ -440,7 +399,6 @@ const dottedPattern = (values: ReadonlyArray<string>) => {
       const forms = [value, json, quoted].flatMap((form) => [form, form.replaceAll("'", "''")]);
       return [...new Set(forms)].map((form) => ({ form, word: value.length < 4 }));
     })
-    // Longest first, so a form inside another never leaves the rest showing.
     .toSorted((a, b) => b.form.length - a.form.length)
     .map(({ form, word }) => {
       const literal = form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -449,8 +407,6 @@ const dottedPattern = (values: ReadonlyArray<string>) => {
   if (sources.length === 0) return undefined;
   const pattern = new RegExp(sources.join("|"), "gu");
   try {
-    // Compiles it now, for one-byte and two-byte text: one too large fails only when it
-    // first runs on each, naming every value.
     pattern.test("");
     pattern.test("\u2022");
   } catch {
@@ -459,16 +415,9 @@ const dottedPattern = (values: ReadonlyArray<string>) => {
   return pattern;
 };
 
-// `- role "name" [attribute]...: value`, the key single-quoted when it holds ": ". A name
-// that starts and ends with "/" prints unquoted. Only Playwright's own attributes count, so
-// text around a value in a name can't pass for one.
 const TREE_LINE =
   /^(\s*- '?[^\s"':]+)( "(?:[^"\\]|\\.)*"| \/(?:.*?\/)?)?((?: \[(?:active|checked(?:=mixed)?|disabled|expanded|level=\d+|pressed(?:=mixed)?|selected|ref=(?:f\d+)?e\d+|cursor=pointer|box=-?\d+,-?\d+,\d+,\d+)\])*'?)(:.*)?$/;
 
-/**
- * Masks each value on a line, except one that only matches inside the role or attributes,
- * so refs keep working. A "/.../" name has no closing mark, so a value can seem to cross it.
- */
 const maskTree = (tree: string, dotted: RegExp) =>
   tree
     .split("\n")
@@ -484,7 +433,6 @@ const maskTree = (tree: string, dotted: RegExp) =>
     })
     .join("\n");
 
-/** Chromium sizes the capture, so the reported size is read from the PNG header. */
 const pngSize = (base64: string) => {
   const header = Buffer.from(base64.slice(0, 32), "base64");
   return { width: header.readUInt32BE(16), height: header.readUInt32BE(20) };
@@ -521,10 +469,6 @@ const scaledSize = (size: { readonly width: number; readonly height: number }, s
     ? { width: Math.round(size.width * scale), height: Math.round(size.height * scale) }
     : size;
 
-/**
- * A page's display ratio and CSS viewport, read in an isolated world since page script can
- * reassign `devicePixelRatio`, `innerWidth`, and `innerHeight` in its own, and its page zoom.
- */
 const readPageMetrics = async (cdp: CDPSession) => {
   const { frameTree } = await cdp.send("Page.getFrameTree");
   const { executionContextId } = await cdp.send("Page.createIsolatedWorld", {
@@ -532,7 +476,6 @@ const readPageMetrics = async (cdp: CDPSession) => {
     worldName: "supaterm-preview-metrics",
   });
   let { cssVisualViewport } = await cdp.send("Page.getLayoutMetrics");
-  // Desktop zoom applies asynchronously; bracket the CSS metrics to reject a torn read.
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const zoom = cssVisualViewport.zoom ?? 1;
     const { result } = await cdp.send("Runtime.evaluate", {
@@ -555,8 +498,6 @@ const readPageMetrics = async (cdp: CDPSession) => {
   );
 };
 
-// Never pass a clip scale: Chromium mirrors the top-left of the page into a `backdrop-filter`
-// in any capture it shrinks.
 export const captureViewport = async (
   cdp: CDPSession,
   options: { readonly format: "png" | "jpeg"; readonly quality?: number },
@@ -578,8 +519,6 @@ export const captureViewport = async (
       SCREENSHOT_TIMEOUT_MS,
     );
   });
-  // Hidden native guests can leave CDP captures pending forever. This deadline also
-  // releases a viewer's still-capture lock, which an agent snapshot may be waiting for.
   const { data } = await Promise.race([capture, expired]).finally(() => clearTimeout(timer));
   return data;
 };
@@ -588,7 +527,6 @@ export const captureFinalRecordingFrame = (cdp: CDPSession, quality: number) =>
   answered(
     cdp
       .send("Runtime.evaluate", {
-        // Capture the destination of finite transitions, not their initially transparent frame.
         expression: `(async () => {
           const paint = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
           await paint();
@@ -602,7 +540,6 @@ export const captureFinalRecordingFrame = (cdp: CDPSession, quality: number) =>
       .then(() => captureViewport(cdp, { format: "jpeg", quality })),
   );
 
-/** Runs in the page's own isolated world, as the server has no image library. */
 const SHRINK_PNG = `async function (png, width, height) {
   const bytes = Uint8Array.from(atob(png), (char) => char.charCodeAt(0));
   const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
@@ -650,13 +587,11 @@ type SnapshotInput = {
   readonly actionTimeline: PreviewAutomationSnapshot["actionTimeline"];
 };
 
-/** The scale a page renders at and its viewport in device-independent pixels. */
 const renderingOf = async (input: SnapshotInput) => {
   if (input.renderScale !== "display") {
     const viewport = input.page.viewportSize() ?? { width: 1280, height: 800 };
     return { renderScale: input.renderScale, viewport };
   }
-  // The display ratio a desktop page reports includes its page zoom, and its sizes are CSS pixels.
   const page = await readPageMetrics(input.cdp);
   return {
     renderScale: page.ratio / page.zoom,
@@ -690,7 +625,6 @@ const capture = async (
     }
   };
   const { renderScale, viewport } = await track("metrics", () => renderingOf(input));
-  // A late metrics reply must not begin a capture after viewers have resumed.
   if (Date.now() >= deadline) throw snapshotTimedOut();
   const scale = Math.min(1, MAX_SCREENSHOT_WIDTH / (viewport.width * renderScale));
   const state = refsFor(input.page);
@@ -698,8 +632,6 @@ const capture = async (
   const generation = state.generation;
   const { readers, read } = await track("frames", () => openReaders(input.page, input.cdp));
   const before = await track("frames", () => read());
-  // Taken between the reads, so a value that changes during either fails the comparison.
-  // Awaited after the tree: a capture that fails has finished its tree before a retry starts.
   const pageAndScreenshot = Promise.all([
     track(
       "page state",
@@ -711,7 +643,6 @@ const capture = async (
           >
         >,
     ),
-    // A cheap real frame still sizes the screenshot; computing it from metrics drifted from the PNG.
     track("screenshot", () =>
       metadataOnly
         ? captureViewport(input.cdp, { format: "jpeg", quality: 10 }).then((data) => ({
@@ -729,7 +660,6 @@ const capture = async (
     ),
   ]);
   void pageAndScreenshot.catch(constVoid);
-  // Leaves time for the second read; a frame that never loads holds the tree until then.
   const tree = await track("accessibility tree", () =>
     input.page.ariaSnapshot({
       mode: "ai",
@@ -738,12 +668,9 @@ const capture = async (
     }),
   );
   const after = await track("frames", () => read(before));
-  // A value that changed meanwhile may be in the tree under neither reading.
   if (after.some((values, i) => values && JSON.stringify(values) !== JSON.stringify(before[i])))
     throw pageChanged();
   const dotted = dottedPattern(after.flatMap((values) => values ?? []));
-  // A frame that didn't answer both times, such as one that crashed, can only hold values the
-  // tree shows if the tree shows its content.
   const unread = readers.flatMap((reader, i) => (after[i] ? [] : reader.frames));
   const filled = /^\s*- iframe (?:\[active\] )?\[ref=(\S+?)\].*:$/gm;
   for (const [, ref] of unread.length ? tree.matchAll(filled) : []) {
@@ -758,8 +685,6 @@ const capture = async (
   const [page, { full, data }] = await pageAndScreenshot;
   if (state.generation !== generation) throw pageChanged();
   const mask = (text: string) => (dotted ? text.replace(dotted, MASKED_VALUE) : text);
-  // Redacted before the cut, so a payload crossing it can't leave its start showing, and before
-  // masking, which could hide the `data:` scheme behind a password value's dots.
   const redacted = withoutTreeDataPayloads(tree);
   const accessibilityTree = (dotted ? maskTree(redacted, dotted) : redacted)
     .slice(0, MAX_VISIBLE_TEXT_LENGTH)
@@ -771,14 +696,11 @@ const capture = async (
   return {
     ...page,
     url: withoutDataPayload(page.url),
-    // Text that holds a value would otherwise show where the tree masked it. Masked before
-    // the cut, so a value crossing it can't leave its start showing.
     visibleText: mask(page.visibleText).slice(0, MAX_VISIBLE_TEXT_LENGTH),
     accessibilityTree,
     consoleEntries: [...input.consoleEntries],
     networkEntries: [...input.networkEntries],
     actionTimeline: [...input.actionTimeline],
-    // Reports the size the PNG path would have shrunk to.
     screenshot: metadataOnly
       ? scaledSize(jpegSize(data), scale)
       : { mimeType: "image/png" as const, data, ...pngSize(data) },
@@ -786,7 +708,6 @@ const capture = async (
   };
 };
 
-/** Snapshots begun per page; observers' snapshots aren't queued, so two can overlap. */
 const snapshotTurns = new WeakMap<Page, number>();
 
 const runSnapshot = async (input: SnapshotInput, metadataOnly: boolean) => {
@@ -798,9 +719,6 @@ const runSnapshot = async (input: SnapshotInput, metadataOnly: boolean) => {
   });
   const turn = (snapshotTurns.get(input.page) ?? 0) + 1;
   snapshotTurns.set(input.page, turn);
-  // A page that changed mid-capture, like one rotating ads, has usually settled by a second
-  // try. None starts late or after another snapshot began, since it would revoke the refs of
-  // whichever snapshot came next.
   const captured = capture(input, deadline, stages, metadataOnly).catch((cause: unknown) =>
     Date.now() < deadline &&
     snapshotTurns.get(input.page) === turn &&
@@ -832,7 +750,6 @@ export const click = async (
   input: PreviewAutomationClickInput,
   pointer: PointerReporter = noPointer,
 ): Promise<{ readonly x: number; readonly y: number }> => {
-  // One deadline across steps keeps the reply inside the broker's grace; Playwright reads 0 as none.
   const deadline = Date.now() + (input.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   const remaining = () => Math.max(1, deadline - Date.now());
   const locator = targetLocator(page, input);
@@ -843,12 +760,6 @@ export const click = async (
   }
 };
 
-/**
- * Playwright's timeout names neither the target nor why it waited. Counting only after the
- * wait failed keeps auto-wait intact, but the count describes the page after the timeout, not
- * what the click did: Playwright can dispatch the click and then time out waiting for the
- * navigation it started.
- */
 const namedTargetTimeout = async (
   locator: Locator,
   input: { readonly locator?: string | undefined; readonly selector?: string | undefined },
@@ -856,10 +767,8 @@ const namedTargetTimeout = async (
 ) => {
   if (!(cause instanceof Error && cause.name === "TimeoutError")) return cause;
   const selector = JSON.stringify(input.locator ?? input.selector);
-  // The warning leads and the target is capped, so a reply cut short still carries the warning.
   const target =
     selector.length > MAX_TARGET_CHARS ? `${selector.slice(0, MAX_TARGET_CHARS)}...` : selector;
-  // The host's reply must still beat the broker's short grace after the operation timeout.
   let timer: ReturnType<typeof setTimeout> | undefined;
   const matches = await Promise.race([
     locator.count().catch(() => undefined),
@@ -921,7 +830,6 @@ type FocusCandidate = {
   contains(other: FocusCandidate): boolean;
 };
 
-// Serialized into the page's main world, so it must not reference module scope.
 const focusTextTarget = (target: FocusCandidate | null) => {
   let element =
     target ??
@@ -929,12 +837,10 @@ const focusTextTarget = (target: FocusCandidate | null) => {
       .activeElement;
   if (target === null) {
     while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
-    // Focus inside a frame cannot be checked from here, and an editable frame would pass as contentEditable.
     if (element && ["IFRAME", "FRAME", "FENCEDFRAME", "OBJECT", "EMBED"].includes(element.tagName))
       return false;
   }
   if (element == null) return false;
-  // Require an enabled, focused text target to avoid losing input or sending it to the previous field.
   const nonText = [
     "button",
     "checkbox",
@@ -958,7 +864,6 @@ const focusTextTarget = (target: FocusCandidate | null) => {
   return active != null && (active === element || element.contains(active));
 };
 
-// A `*:focus` locator needs Playwright's utility world, which some desktop tabs never get.
 const focusedTextField = async (page: Page, timeout: number) => {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_, reject) => {
@@ -1067,7 +972,6 @@ export const drag = async (
   const target = targetLocator(page, { locator: input.target })!;
   await pointer(await targetPoint(page, source, {}, remaining), "move");
 
-  // Chromium delivers a single move before dragstart; steps give the page mousemoves during the drag.
   const dragFailure = source.dragTo(target, { timeout: remaining(), steps: 5 }).then(
     () => null,
     (error: unknown) => ({ error }),
@@ -1093,7 +997,6 @@ export const scroll = async (page: Page, input: PreviewAutomationScrollInput) =>
   const delta = [input.deltaX ?? 0, input.deltaY ?? 0] as const;
   const locator = targetLocator(page, input);
   if (locator === null) {
-    // Page-side code is passed as source: the server compiles without DOM types.
     await page.evaluate(`scrollBy(${delta[0]}, ${delta[1]})`);
     return;
   }
@@ -1116,7 +1019,6 @@ export const stopUnresponsiveScript = async (cdp: CDPSession, budgetMs = Infinit
     timer = setTimeout(() => resolve(false), Math.min(budgetMs, UNRESPONSIVE_SCRIPT_PROBE_MS));
   });
   const responsive = await Promise.race([answered, expired]).finally(() => clearTimeout(timer));
-  // Not awaited: a renderer blocked on something other than script may never acknowledge it.
   if (!responsive) void cdp.send("Runtime.terminateExecution").catch(constVoid);
 };
 
@@ -1144,9 +1046,6 @@ export const evaluate = async (
     awaitPromise: input.awaitPromise ?? true,
     returnByValue: true,
   };
-  // The devtools console's replMode allows top-level await but returns a trailing promise unawaited,
-  // so it only retries what the page's parser rejected. A parse error has a scriptId but no stack and
-  // ran nothing; a browser-internal rejection has neither.
   const evaluation = cdp.send("Runtime.evaluate", params).then((classic) => {
     const failure = classic.exceptionDetails;
     const unparsed =
@@ -1185,7 +1084,6 @@ export const waitFor = async (page: Page, input: PreviewAutomationWaitForInput) 
   const checks: Array<() => Promise<boolean>> = [];
   if (locator !== null) checks.push(async () => (await locator.count()) > 0);
   if (text !== undefined) {
-    // A navigation can destroy the context mid-check; that counts as not yet.
     checks.push(() =>
       page
         .evaluate(`(document.body?.innerText ?? "").includes(${JSON.stringify(text)})`)
@@ -1194,7 +1092,6 @@ export const waitFor = async (page: Page, input: PreviewAutomationWaitForInput) 
     );
   }
   if (urlIncludes !== undefined) checks.push(async () => page.url().includes(urlIncludes));
-  // `count()` and `evaluate()` take no timeout; a stalled check would hold the tab's control queue.
   let timer: ReturnType<typeof setTimeout> | undefined;
   const expired = new Promise<never>((_, reject) => {
     timer = setTimeout(
@@ -1233,7 +1130,6 @@ const NET_ERROR_CODES: Readonly<Record<string, number>> = {
 };
 
 export const parseNetError = (errorText: string) => {
-  // Names can hold digits, as in ERR_HTTP2_PROTOCOL_ERROR.
   const description = /ERR_[A-Z\d_]+/.exec(errorText)?.[0] ?? errorText;
   return { description, code: NET_ERROR_CODES[description] ?? -2 };
 };

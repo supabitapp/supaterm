@@ -45,7 +45,6 @@ export function takeThreadPromptLink(
   const params = route?.params as Readonly<Record<string, unknown>> | undefined;
   const search = promptLinkSearchFromParams(params, THREAD_LINK_KEYS);
   if (!route || !params || search === null) return state;
-  // A newer link replaces a waiting one even when it turns out to be invalid.
   dropPendingLink();
   const { prompt: _prompt, ...rest } = params;
   const routes = state.routes.slice();
@@ -73,12 +72,8 @@ export function takeThreadPromptLink(
 export function resolvePendingThreadPromptLink(state: NavigationState | undefined): void {
   if (pendingLink === null) return;
   const { ref } = pendingLink;
-  // A subagent thread the environment's list leaves out gets a shell once the screen mounts its
-  // family. An archived thread never does; the screen shows it from its detail.
   const shellAtom = environmentThreadShells.threadShellAtom(ref);
   const detailAtom = environmentThreads.stateAtom(ref.environmentId, ref.threadId);
-  // Read detail only while the screen holds it: opening it here for an unknown thread would keep
-  // retrying with no screen to close it.
   const screenHoldsDetail = appAtomRegistry.getNodes().has(detailAtom);
   const step = stepPendingPromptLink(pendingLink, {
     screenOnStack:

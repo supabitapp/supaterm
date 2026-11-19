@@ -20,7 +20,6 @@ export const CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_RESUME_PROMPT = [
 
 export const CLAUDE_BACKGROUND_SUBAGENT_LIFECYCLE_FINAL_PROMPT = "Reply with exactly: ALL_DONE";
 
-// Wake results start continuations for prior-turn notifications; wait for settlement before the next prompt.
 export function claudeBackgroundSubagentLifecycleInput(): OrchestratorFixtureInput {
   return {
     steps: [

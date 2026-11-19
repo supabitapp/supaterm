@@ -140,8 +140,6 @@ import { workspaceDetailRouter } from "./features/layout/workspace/workspace-det
 
 const settingsPage = (title: string) => pageRoute({ title, itemStyle: "standard" });
 
-// Thread settings keep the Duo's vertical bar so cancel, search, filter and confirm sit in the
-// rail. The picker stack spans the sheet so its header reaches the rail, and insets its content.
 const THREAD_SETTINGS_ROUTE = sheetRoute({
   detent: "full",
   header: "none",
@@ -149,8 +147,6 @@ const THREAD_SETTINGS_ROUTE = sheetRoute({
   spansRail: true,
 });
 
-// Search sheets push on Android like the branch picker; a formSheet there leaves the list's
-// header peeking above it once the keyboard opens.
 const SEARCH_SHEET_ROUTE = sheetRoute({ detent: 0.75, android: "card", itemStyle: "editor" });
 
 const SETTINGS_SCREENS = {
@@ -172,7 +168,6 @@ const SETTINGS_SCREENS = {
     linking: "settings/environments/:environmentId",
     options: settingsPage("Environment"),
   }),
-  // Old links to New threads and Agent behavior open Threads, which absorbed them.
   SettingsEnvironmentNewThreads: createNativeStackScreen({
     screen: SettingsThreadsRouteScreen,
     linking: "settings/new-threads",
@@ -302,9 +297,6 @@ const SETTINGS_SCREENS = {
     linking: "settings/diagnostics",
     options: settingsPage("Diagnostics"),
   }),
-  // No path: its params are a tap-time snapshot (wall-clock `now`, local filter, freshly
-  // aggregated pools), and React Navigation would round-trip them through the URL as a
-  // permanently stale query string.
   SettingsUsageAccount: createNativeStackScreen({
     screen: UsageLimitAccountScreen,
     options: settingsPage("Account"),
@@ -326,9 +318,6 @@ const SETTINGS_SCREENS = {
   }),
 };
 
-// A nested stack means a second UINavigationController with its own UINavigationBar, which breaks
-// iOS 26's shared-header morphing between Home and Thread (each pair inside one bar morphs;
-// across two bars the whole screen slides).
 const THREAD_LINKING_PREFIX = "threads/:environmentId/:threadId";
 
 function workspaceLocationFromState(state: NavigationState) {
@@ -351,8 +340,6 @@ export function rootPathnameFromState(state: NavigationState): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
 
-// Keep mounted across backgrounding so foreground recovery also catches up
-// threads that stopped while the app was suspended.
 function RunningThreadKeepAlive() {
   useAtomMount(runningThreadKeepAliveAtom);
   return null;
@@ -362,8 +349,6 @@ function RootStackLayout(props: {
   readonly children: React.ReactNode;
   readonly state: NavigationState;
 }) {
-  // Keyboard commands follow the top route; the workspace layout follows the
-  // thread beneath overlay sheets.
   const pathname = rootPathnameFromState(props.state);
   const workspaceLocation = workspaceLocationFromState(props.state);
   const settingsOpen = settingsOpenIn(
@@ -371,7 +356,6 @@ function RootStackLayout(props: {
       .slice(0, props.state.index + 1)
       .filter((route) => !isWorkspaceOverlayRoute(route.name)),
   );
-  // The topmost draft route stays served while a pushed live Thread covers it.
   const draftRoute = props.state.routes.findLast(isDraftThreadRoute);
   const draftRouteOnTop =
     draftRoute !== undefined &&
@@ -441,8 +425,6 @@ function NotFoundScreen() {
 const RootStackConfig = createWorkspaceStackNavigator({
   initialRouteName: "Home",
   UNSTABLE_router: workspaceDetailRouter,
-  // React Navigation calls layouts as plain functions inside its own render. Passing a
-  // compiled component directly would put its memo cache among the navigator's hooks.
   layout: (props) => <RootStackLayout {...props} />,
   screenOptions: {
     headerShown: false,
@@ -728,8 +710,6 @@ function GuardedScreenLayout(props: GuardedScreenLayoutProps) {
   );
 }
 
-// React Navigation calls screen layouts as plain functions inside its own render. Passing a
-// compiled component directly would put its memo cache among the navigator's hooks.
 function renderGuardedScreenLayout(props: GuardedScreenLayoutProps) {
   return <GuardedScreenLayout {...props} />;
 }
@@ -739,8 +719,7 @@ function ScreenRenderFallback(props: RenderFailureProps & { readonly routeName: 
   const exit = navigation.canGoBack()
     ? { label: "Go back", onPress: () => navigation.goBack() }
     : props.routeName === "Home"
-      ? // Home itself failed, and the Settings list renders inside it; open a Settings page.
-        {
+      ? {
           label: "Open settings",
           onPress: () => openSettings(navigation, DEFAULT_SETTINGS_PAGE),
         }

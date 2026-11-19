@@ -52,7 +52,6 @@ export function filterProjectScopes(
   );
 }
 
-// Cached configuration reserves the row; connection readiness only gates activation.
 export function resolveNewTaskScratchOption(input: {
   readonly environments: ReadonlyArray<{
     readonly environmentId: EnvironmentId;
@@ -89,9 +88,7 @@ export function resolveEnvironmentProjectMatch(
   const repositoryKey = selectedProject?.repositoryIdentity
     ? repositoryGroupingKeyOf(selectedProject.repositoryIdentity)
     : null;
-  // Use || null: placeholder workspaceRoot can be empty, which supplies no useful basename.
   const workspaceBasename = selectedProject?.workspaceRoot.split("/").at(-1) || null;
-  // Use weaker signals only when identity is unknown; different known repositories never match by basename or title.
   const isKnownMismatch = (project: EnvironmentProject) => {
     const projectKey = project.repositoryIdentity
       ? repositoryGroupingKeyOf(project.repositoryIdentity)
@@ -155,7 +152,6 @@ export function resolveDraftProjectSelection(
   if (hasExplicitProjectSelection) {
     return { kind: "preserve" };
   }
-  // A share draft holds content the user sent here, so cancelling the picker must not drop it.
   if (draft.pickerClosed && selectedProjectKey === null && draft.incomingShareId === undefined) {
     return { kind: "dismiss" };
   }
@@ -203,7 +199,6 @@ export function newTaskDestination(options: {
     options.projects.find(
       (project) => project.environmentId === ref.environmentId && project.id === ref.projectId,
     );
-  // A remembered project that was archived since opens the picker; the current one still wins.
   const last = find(options.lastProject);
   const project =
     options.useLastProject === false

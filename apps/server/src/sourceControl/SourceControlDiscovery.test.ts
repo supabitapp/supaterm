@@ -35,7 +35,6 @@ import * as SourceControlProviderRegistry from "./SourceControlProviderRegistry.
 
 const kind = SourceControlProviderKind.make;
 
-// Serves both the host's runs and the server's own VCS probes, whose inputs share these fields.
 const run = (
   input: Pick<
     SourceControlHost.SourceControlProcessInput,
@@ -257,7 +256,6 @@ it.effect.each(["darwin", "linux"] as const)(
   },
 );
 
-// Spawns a real login shell and `jj`, so it runs on wall-clock time; the fixture shell is POSIX sh.
 it.live.skipIf(HostProcess.Platform.defaultValue() === "win32")(
   "rescans with tools the login shell gained after the server started",
   () =>
@@ -269,8 +267,6 @@ it.live.skipIf(HostProcess.Platform.defaultValue() === "win32")(
       const fakebin = path.join(home, "fakebin");
       const loginShell = path.join(root, "loginsh");
       yield* fs.makeDirectory(fakebin, { recursive: true });
-      // Stands in for `$SHELL -ilc <capture>` and sources only the fixture
-      // profile, so the host's own shell init cannot change the result.
       yield* fs.writeFileString(
         loginShell,
         `#!/bin/sh\nexport HOME=${home}\n. "$HOME/.profile"\nshift\nexec /bin/sh -c "$1"\n`,
@@ -291,7 +287,6 @@ it.live.skipIf(HostProcess.Platform.defaultValue() === "win32")(
           }),
       );
 
-      // The user installs a tool after launch; their login shell now finds it.
       yield* fs.writeFileString(path.join(fakebin, "jj"), "#!/bin/sh\necho 'jj 0.99.0-test'\n", {
         mode: 0o755,
       });

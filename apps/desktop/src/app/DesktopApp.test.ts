@@ -298,7 +298,6 @@ it.effect.each([false, true])(
       yield* Deferred.await(registrationStarted);
       yield* Deferred.await(windowStarted);
       yield* Deferred.await(tokenRequested);
-      // The backend spawns before menus, and its token is minted without waiting for the renderer.
       assert.deepEqual(
         events.filter((event) => event !== "token"),
         ["identity", "ready", "identity", "backend", "menu", "window"],

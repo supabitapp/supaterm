@@ -16,7 +16,6 @@ import * as GitHubCredentials from "./GitHubCredentials.ts";
 import * as GitHubRequestPolicy from "./GitHubRequestPolicy.ts";
 
 const DEFAULT_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
-/** Added to the answer, never sent: names the credential an errored answer was given to. */
 const CREDENTIAL_SOURCE_HEADER = "x-supaterm-credential-source";
 const isCredentialSource = Schema.is(GitHubCredentials.GitHubCredentialSource);
 
@@ -33,7 +32,6 @@ export class GitHubGraphQlTarget extends Context.Service<
   }
 >()("@supaterm/source-control-github/server/gitHubGraphQlClient/GitHubGraphQlTarget") {}
 
-// Group traces by query without exposing query text.
 function queryHash(query: string): string {
   let hash = 0x811c9dc5;
   for (let index = 0; index < query.length; index++) {
@@ -107,7 +105,6 @@ export class GitHubGraphQlAuth extends GraphQLMiddleware.Service<
                     ? { _tag: "RateLimited" as const, status, headers: responseHeaders }
                     : {
                         _tag: "Ok" as const,
-                        // The source is local; never trust one GitHub's answer carries.
                         value: {
                           ...answer,
                           headers:
@@ -131,11 +128,6 @@ export class GitHubGraphQlAuth extends GraphQLMiddleware.Service<
   );
 }
 
-/**
- * What a refusal GitHub sent as an HTTP status means, read the way REST reads one. A
- * failure that never reached GitHub is a request error; one that is not about the transport
- * (an answer that does not decode) is the client's own.
- */
 const refused = Effect.fn("gitHubGraphQlClient.refused")(function* (
   error: GraphQLClientError.GraphQLClientError,
   context: { readonly host: string; readonly operation: string },
@@ -149,7 +141,6 @@ const refused = Effect.fn("gitHubGraphQlClient.refused")(function* (
     return yield* new GitHubRequestPolicy.GitHubApiRequestError({ ...context, cause: error });
   }
   const headers = reason.headers ?? Headers.empty;
-  // A secondary limit is a 403 that only its body names, which the transport read.
   const body =
     reason._tag === "TransportError" &&
     HttpClientError.isHttpClientError(reason.cause) &&
@@ -171,11 +162,6 @@ const refused = Effect.fn("gitHubGraphQlClient.refused")(function* (
   return { _tag: tag, status: status ?? 200, headers } as const;
 });
 
-/**
- * Reads each answer whole, up to the call's byte cap, before the protocol parses it. A body cut
- * at the cap hides any `errors` past the cut and cannot be decoded, so it fails, which the
- * middleware reports as a `GitHubApiResponseError` with the answer's status.
- */
 const capResponse = Effect.fn("gitHubGraphQlClient.capResponse")(function* (
   effect: Effect.Effect<HttpClientResponse.HttpClientResponse, HttpClientError.HttpClientError>,
 ) {
@@ -209,7 +195,6 @@ const capResponse = Effect.fn("gitHubGraphQlClient.capResponse")(function* (
   );
 });
 
-// Endpoint URLs isolate hosts. Disable client tracing to protect SHAs and branches in url.full.
 const layerProtocol = GraphQLProtocol.layerHttp({
   url: ({ context }) =>
     GitHubRequestPolicy.gitHubApiUrls(Context.getUnsafe(context, GitHubGraphQlTarget).host).graphql,

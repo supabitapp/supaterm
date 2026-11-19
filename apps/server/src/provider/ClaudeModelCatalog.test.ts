@@ -137,7 +137,6 @@ describe("Claude model catalog", () => {
       formatClaudeVersionUpgradeMessage(catalog, "3.1.9"),
       "Claude Code v3.1.9 is too old for Claude Synthetic Next. Upgrade to v3.2.0 or newer to access it.",
     );
-    // Claude Code before 2.1.321 does not know claude-fable-5-2 and runs it with a 200K window.
     assert.notInclude(
       resolveClaudeModelsForVersion(BUNDLED_CLAUDE_MODEL_CATALOG, "2.1.320").map(
         (model) => model.slug,
@@ -242,7 +241,6 @@ describe("Claude model catalog", () => {
     );
   });
 
-  // Rows Claude Code 2.1.310 reports from initialization for each configuration.
   it("sends the model id Claude Code reports when it serves a catalog model under another id", () => {
     const apiModel = (
       catalog: ClaudeModelCatalog,
@@ -255,7 +253,6 @@ describe("Claude model catalog", () => {
         ...(options ? { options } : {}),
       });
 
-    // Bedrock with ANTHROPIC_DEFAULT_*_MODEL and an availableModels allowlist of their ids.
     const configuredBedrock = withClaudeCodeModelRoutes(BUNDLED_CLAUDE_MODEL_CATALOG, [
       { value: "default", resolvedModel: "global.anthropic.claude-opus-5-5" },
       { value: "sonnet", resolvedModel: "global.anthropic.claude-sonnet-5-5[1m]" },
@@ -268,7 +265,6 @@ describe("Claude model catalog", () => {
     assert.strictEqual(apiModel(configuredBedrock, "claude-opus-5-5"), "opus");
     assert.strictEqual(apiModel(configuredBedrock, "claude-opus-5"), "claude-opus-5");
 
-    // Bedrock with no model settings: Claude Code's `haiku` is Haiku 4.5 there.
     const defaultBedrock = withClaudeCodeModelRoutes(BUNDLED_CLAUDE_MODEL_CATALOG, [
       {
         value: "us.anthropic.claude-opus-4-6-v1",
@@ -291,7 +287,6 @@ describe("Claude model catalog", () => {
     assert.strictEqual(apiModel(defaultBedrock, "claude-haiku-4-5"), "haiku");
     assert.strictEqual(apiModel(defaultBedrock, "claude-haiku-5-5"), "claude-haiku-5-5");
 
-    // First-party ids already are what Claude Code runs, even when an alias points elsewhere.
     const firstParty = withClaudeCodeModelRoutes(BUNDLED_CLAUDE_MODEL_CATALOG, [
       { value: "default", resolvedModel: "claude-opus-5-5" },
       { value: "opus", resolvedModel: "claude-opus-5-5" },
@@ -363,8 +358,6 @@ describe("Claude model catalog", () => {
         { id: "ultrathink", label: "Ultrathink" },
       ],
     ]);
-    // An effortMap that sends Extra High as max stays unmarked under an xhigh cap: the CLI runs
-    // it at xhigh, which is what the label says.
     assert.deepStrictEqual(
       options("xhigh").map((model) => model?.map((option) => option.label)),
       [
@@ -373,7 +366,6 @@ describe("Claude model catalog", () => {
       ],
     );
 
-    // A per-model cap applies without a top-level one and leaves other models uncapped.
     assert.deepStrictEqual(
       capClaudeCatalogEffort(catalog, models, [
         { modelMaxEffortLevels: new Map([["claude-plain", "high"]]) },
@@ -394,7 +386,6 @@ describe("Claude model catalog", () => {
       ],
     );
 
-    // Without an Extra High option (Opus 4.6), the CLI clamps an xhigh cap down to High.
     const noXhigh = {
       slug: "claude-no-xhigh",
       name: "claude-no-xhigh",
@@ -499,15 +490,12 @@ describe("Claude model catalog", () => {
       modelMaxEffortLevels: new Map(Object.entries(entries)),
     });
 
-    // Claude Code matches family aliases and [1m] spellings case-insensitively.
     assert.strictEqual(maxLabel([perModel({ Opus: "medium" })]), "Max (capped to Medium)");
     assert.strictEqual(
       maxLabel([perModel({ "claude-opus-5-5[1M]": "medium" })]),
       "Max (capped to Medium)",
     );
     assert.strictEqual(maxLabel([perModel({ " OPUS[1m] ": "medium" })]), "Max (capped to Medium)");
-    // Other keys name the most specific model id they contain, so dated and provider-prefixed ids
-    // match while the catalog's dotted aliases and a less specific model id do not.
     for (const key of [
       "claude-opus-5-5-20260101",
       "CLAUDE-OPUS-5-5-20260101[1m]",
@@ -519,12 +507,10 @@ describe("Claude model catalog", () => {
     for (const key of ["claude-opus-5.5", "opus-5.5", "opus-5-5", "opus [1m]", "claude-opus-5"]) {
       assert.strictEqual(maxLabel([perModel({ [key]: "medium" })]), "Max", key);
     }
-    // Keys naming the same model keep the lowest cap, and a `max` key does not exempt it.
     assert.strictEqual(
       maxLabel([perModel({ opus: "max", "claude-opus-5-5": "low" })]),
       "Max (capped to Low)",
     );
-    // A per-model `max` only exempts the model from its own source's top-level cap.
     assert.strictEqual(
       maxLabel([{ maxEffortLevel: "medium", ...perModel({ opus: "max" }) }]),
       "Max",

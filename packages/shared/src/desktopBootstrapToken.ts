@@ -11,7 +11,6 @@ function windowIndex(nowMs: number): number {
   return Math.floor(nowMs / DESKTOP_BOOTSTRAP_TOKEN_WINDOW_MS);
 }
 
-// Untraced: an inner step of the named callers below, run up to three times per check.
 const deriveToken = Effect.fnUntraced(function* (secret: string, window: number) {
   const mac = yield* Mac.Mac;
   const key = yield* Mac.key(Mac.hmacSha256, utf8(secret));

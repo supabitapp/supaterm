@@ -172,12 +172,9 @@ function EasDeviceHostEditor(props: {
   const check = useAtomCommand(deviceEnvironment.easAccount, { reportFailure: false });
   const [draft, setDraft] = useState(props.host);
   const tokenId = useId();
-  // A saved token arrives redacted; only a replacement or a clear changes it.
   const [token, setToken] = useState<
     { kind: "saved" } | { kind: "new"; value: string } | { kind: "cleared" }
   >(props.host.accessToken ? { kind: "saved" } : { kind: "cleared" });
-  // Checking on open names the saved project and shows a rejected credential
-  // before anything is changed. A manual check or a token edit replaces it.
   const openCheck = useAtomValue(
     deviceEasAccountCheck({
       environmentId: props.environmentId,
@@ -203,7 +200,6 @@ function EasDeviceHostEditor(props: {
       token.kind === "saved" ? props.host.accessToken : token.kind === "new" ? token.value : "",
   };
   const valid = Option.isSome(parseEasDeviceHostDraft(next));
-  // Why Save is off, for the limits the fields' ranges do not show.
   const problem = valid
     ? null
     : draft.maxSessionMinutes > 0 && draft.idleMinutes >= draft.maxSessionMinutes
@@ -211,8 +207,6 @@ function EasDeviceHostEditor(props: {
       : "Give the host a label and limits within the ranges shown.";
   const apps = account.status === "signed-in" ? account.account.apps : [];
 
-  // A check answers for the credential it was asked about: a later check or a
-  // token edit makes an earlier answer stale.
   const latestCheck = useRef(0);
   const resetAccount = () => {
     latestCheck.current++;
@@ -224,8 +218,6 @@ function EasDeviceHostEditor(props: {
       environmentId: props.environmentId,
       input: {
         ...(token.kind === "saved" && !props.isNew ? { hostId: props.host.id } : {}),
-        // A cleared token is sent as empty, so the check does not fall back to
-        // the saved one that Save is about to drop.
         ...(token.kind === "new"
           ? { accessToken: token.value }
           : token.kind === "cleared"
@@ -316,8 +308,6 @@ function EasDeviceHostEditor(props: {
                   placeholder="Optional"
                   onChange={(event) => {
                     const value = event.target.value;
-                    // Emptying the field is not clearing the saved token; the
-                    // Clear button is, so a saved token comes back here.
                     setToken(
                       value
                         ? { kind: "new", value }

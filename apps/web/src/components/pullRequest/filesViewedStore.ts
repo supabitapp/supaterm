@@ -70,7 +70,6 @@ interface FilesViewedScope {
   readonly sentBy: Map<string, number>;
   requests: number;
   timer: ReturnType<typeof setTimeout> | null;
-  // Completed reads retire acknowledged presses even when equal data is structurally shared.
   readonly answeredFrom: Set<string>;
 }
 
@@ -119,8 +118,6 @@ export function createFilesViewedStore(deps: FilesViewedStoreDeps) {
         .filter((path) => scope.sentBy.get(path) === request);
       for (const path of mine) scope.sentBy.delete(path);
       if (!isLive(key, scope)) {
-        // The overlay this press stood in is gone, but the cached answer still predates the
-        // write, and a reader coming back to this change request would be shown that.
         if (result._tag === "Success" || !isAtomCommandInterrupted(result)) {
           deps.refresh(scope.target);
         }
@@ -135,8 +132,6 @@ export function createFilesViewedStore(deps: FilesViewedStoreDeps) {
         }
         return;
       }
-      // Answered for from the next read on, whatever it says. A push landing between the write
-      // and that read comes back as `dismissed`, and the press must not stand over it.
       for (const path of mine) scope.answeredFrom.add(path);
       deps.refresh(scope.target);
     });
@@ -148,9 +143,6 @@ export function createFilesViewedStore(deps: FilesViewedStoreDeps) {
     handle: FilesViewedScopeHandle,
     listener: () => void,
   ) => {
-    // Registered from `subscribe`, which runs at commit, so a render that never commits leaves
-    // nothing behind. Re-registering here also carries a handle across StrictMode's
-    // subscribe-release-subscribe, so later renders keep returning it.
     if (!handles.has(key)) handles.set(key, handle);
     let scope = scopes.get(key);
     if (scope === undefined) {
@@ -177,8 +169,6 @@ export function createFilesViewedStore(deps: FilesViewedStoreDeps) {
     owned.listeners.add(listener);
     return () => {
       if (!owned.listeners.delete(listener) || owned.listeners.size > 0) return;
-      // Leaving a change request, the environment it lives on, or the page itself records what
-      // was pressed and then drops the rest, sending those last presses to the scope being left.
       if (owned.timer !== null) {
         clearTimeout(owned.timer);
         flush(key, owned);
@@ -190,10 +180,6 @@ export function createFilesViewedStore(deps: FilesViewedStoreDeps) {
   };
 
   return {
-    /**
-     * One stable handle per open scope, so readers keep their subscription across renders. Pure
-     * during render: an uncommitted handle is not cached, and any handle for a key behaves the same.
-     */
     scope(target: FilesViewedTarget): FilesViewedScopeHandle {
       const key = filesViewedScopeKey(target);
       const cached = handles.get(key);

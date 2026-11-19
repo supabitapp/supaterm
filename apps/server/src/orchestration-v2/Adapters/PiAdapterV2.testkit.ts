@@ -120,7 +120,6 @@ function adapterRequestId(frame: unknown): string | undefined {
   return typeof id === "string" && ADAPTER_REQUEST_ID.test(id) ? id : undefined;
 }
 
-/** Rebind adapter request ids without pinning counters; provider ids that responses must echo stay exact. */
 function withRequestId(expected: unknown, actual: unknown): unknown {
   const actualId = adapterRequestId(actual);
   return isRecord(expected) &&
@@ -181,7 +180,6 @@ interface PiReplayProcess {
   open: boolean;
 }
 
-/** Adapter fibers can reorder stdin writes; hold matches within the turn until reached, and fail unmatched writes. */
 class PiReplayController {
   private cursor = 0;
   private failure: unknown = null;
@@ -329,7 +327,6 @@ class PiReplayController {
   }
 }
 
-/** Deliberately outside the valid pid range so PiRpc's group kill never lands. */
 const REPLAY_PID = 999_999_999;
 
 function makePiReplaySpawner(
@@ -450,9 +447,7 @@ export function makePiRecordingSpawner(
         for (const line of lines) {
           try {
             record(type, decodeJsonLine(line));
-          } catch {
-            // PiRpc drops non-JSON stdout lines, so the transcript does too.
-          }
+          } catch {}
         }
       };
       record("expect_outbound", processStartFrame(command));

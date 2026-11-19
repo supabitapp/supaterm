@@ -13,7 +13,6 @@ export const workspaceConnections = createWorkspaceConnectionAtoms({
   presentationAtom: environmentPresentations.presentationAtom,
 });
 
-// A disconnected environment's retries also leave its shell synchronizing.
 const hasSyncingConnectedEnvironmentAtom = Atom.make((get) =>
   get(workspaceConnections.environmentsAtom).some(
     (environment) =>

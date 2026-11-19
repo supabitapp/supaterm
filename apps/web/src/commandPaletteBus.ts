@@ -14,8 +14,6 @@ export interface CommandPaletteOpenDetail {
 }
 
 export function openCommandPalette(detail: CommandPaletteOpenDetail = {}): void {
-  // With no palette on screen (e.g. /pair) the request is dropped; kept in the
-  // store, it would pop a stale palette once the app shell mounts.
   if (!isCommandPaletteMounted()) return;
   if (detail.open === "new-thread-in") {
     dispatchCommandPalette({ _tag: "OpenNewThreadIn" });

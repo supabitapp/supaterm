@@ -483,10 +483,8 @@ describe("DesktopShellEnvironment", () => {
 
       assert.deepEqual(commands, ["/bin/failing", "/usr/local/bin/fish"]);
       assert.equal(env.PATH, "/home/test/.local/bin:/usr/bin");
-      // The account's own login shell answered.
       assert.isTrue(answered);
 
-      // Only the platform fallback answered: its PATH can miss folders the user's shell adds.
       const fallbackOnly = yield* runShellEnvironment({
         env: { SHELL: "/usr/bin/fish", PATH: "/usr/bin" },
         platform: "linux",
@@ -608,8 +606,6 @@ describe("DesktopShellEnvironment", () => {
       expected: { ANDROID_HOME: "/shell/android-home", ANDROID_SDK_ROOT: "/shell/android-root" },
     },
     {
-      // The device host reads ANDROID_HOME before ANDROID_SDK_ROOT, so a shell
-      // ANDROID_HOME next to an inherited ANDROID_SDK_ROOT would change the SDK.
       name: "keeps an inherited ANDROID_SDK_ROOT selected over a login-shell ANDROID_HOME",
       inherited: { ANDROID_SDK_ROOT: "/inherited/android-sdk" },
       expected: { ANDROID_HOME: undefined, ANDROID_SDK_ROOT: "/inherited/android-sdk" },
@@ -711,7 +707,6 @@ describe("DesktopShellEnvironment", () => {
           Effect.gen(function* () {
             assert.isTrue(yield* service.awaitDiscovery);
             assert.equal(env.PATH, "/usr/bin");
-            // The Linux probe checks the D-Bus socket on the real filesystem, which the clock does not await.
             const published = yield* service.updates.pipe(
               Stream.filter((snapshot) => snapshot.environment.PATH === "/fish/bin:/usr/bin"),
               Stream.runHead,
@@ -727,7 +722,6 @@ describe("DesktopShellEnvironment", () => {
       }).pipe(Effect.provide(Logger.layer([])));
       assert.deepEqual(commands, ["/usr/bin/fish", "/bin/bash", "/usr/bin/fish"]);
 
-      // With no user shell to wait for, the fallback's answer is final.
       commands.length = 0;
       yield* runShellEnvironment({
         env: { PATH: "/usr/bin" },
@@ -750,7 +744,6 @@ describe("DesktopShellEnvironment", () => {
   it.effect("gives background retries time for a locked or slow shell, then publishes", () =>
     Effect.gen(function* () {
       const env: NodeJS.ProcessEnv = { SHELL: "/bin/zsh", PATH: "/usr/bin" };
-      // Startup fails fast, the first retry meets a shell blocked on a lock, the second a slow one.
       const spawned = yield* Effect.forEach([0, 1, 2], () => Deferred.make<void>());
       const stopped = yield* Deferred.make<ChildProcess.KillOptions>();
       let attempts = 0;
@@ -789,12 +782,10 @@ describe("DesktopShellEnvironment", () => {
 
             yield* TestClock.adjust("30 seconds");
             yield* Deferred.await(spawned[1]!);
-            // pyenv waits up to 60 s on its rehash lock before the shell continues.
             yield* TestClock.adjust("1 minute");
             assert.isFalse(yield* Deferred.isDone(stopped));
             yield* TestClock.adjust("1 minute");
             const stop = yield* Deferred.await(stopped);
-            // pyenv releases that lock in an EXIT trap, which SIGTERM runs and SIGKILL skips.
             assert.equal(stop.killSignal, "SIGTERM");
             assert.isAtLeast(Duration.toMillis(stop.forceKillAfter ?? 0), 5_000);
 
@@ -829,7 +820,6 @@ describe("DesktopShellEnvironment", () => {
           }
           shellProbes += 1;
           if (shellProbes > 1) return Effect.succeed(makeProcess(output));
-          // A cold start: the first login shell answers, but only after 7s.
           const slow = Effect.sleep("7 seconds");
           const stdout = Stream.fromEffect(slow.pipe(Effect.as(textEncoder.encode(output))));
           return Effect.succeed(
@@ -937,8 +927,6 @@ describe("DesktopShellEnvironment", () => {
   it.effect("gives up on a Windows shell that survives the kill", () =>
     Effect.gen(function* () {
       const commands: Array<string> = [];
-      // Both PowerShell probes spawn pwsh, time out, then spawn powershell. Each probe's timeout
-      // is armed before its spawn runs, so waiting for the spawns keeps the clock in step.
       const spawned = yield* Effect.forEach([0, 1, 2, 3], () => Deferred.make<void>());
       const fiber = yield* runShellEnvironment({
         env: { PATH: "C:\\Windows", APPDATA: "C:\\Roaming" },

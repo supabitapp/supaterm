@@ -47,8 +47,6 @@ function coalescibleUpdateKey(input: ThreadLiveEvent): string | null {
   return `${prefix}\u0000${event.payload.type}\u0000${event.payload.id}`;
 }
 
-// These events replace whole entities. Keep each survivor at its original
-// position/sequence so a resume cursor cannot skip an unrelated earlier update.
 export function coalesceLiveUpdatedEvents(
   events: ReadonlyArray<ThreadLiveEvent>,
 ): ReadonlyArray<ThreadLiveEvent> {
@@ -63,9 +61,6 @@ export function coalesceLiveUpdatedEvents(
       pendingKeys.clear();
       continue;
     }
-    // Both entity families use insertion order; partial timelines also reject
-    // unseen items below their watermark. Keep identity switches within each
-    // family, while allowing paired message/item updates to coalesce.
     const pendingKey = pendingKeys.get(event.event.type);
     if (pendingKey !== undefined && pendingKey !== key) latestUpdates.clear();
     pendingKeys.set(event.event.type, key);
@@ -97,7 +92,6 @@ export const makeThreadLiveEventCoalescer = Effect.fn(
   let windowFiber: Fiber.Fiber<void, never> | null = null;
   let closed = false;
 
-  // cancelWindow/flushPending/offerAll run per live event or batch; sub-ms spans here would flood the rotating trace.
   const cancelWindow = Effect.fnUntraced(function* () {
     const fiber = windowFiber;
     if (!fiber) {
@@ -134,8 +128,6 @@ export const makeThreadLiveEventCoalescer = Effect.fn(
       ),
     );
 
-  // Keep each source batch together so a synchronization marker cannot pass
-  // events already pulled from PubSub but still being coalesced.
   const offerAll = Effect.fnUntraced(function* (inputs: ReadonlyArray<ThreadLiveInput>) {
     yield* mutex.withPermits(1)(
       Effect.forEach(

@@ -20,7 +20,6 @@ const mergeProviderModels = (
   cachedModels: ReadonlyArray<ServerProvider["models"][number]>,
 ): ReadonlyArray<ServerProvider["models"][number]> => {
   const fallbackSlugs = new Set(fallbackModels.map((model) => model.slug));
-  // Settings already supply current custom models; cached rows could resurrect removed ones.
   return [
     ...fallbackModels,
     ...cachedModels.filter((model) => !model.isCustom && !fallbackSlugs.has(model.slug)),

@@ -9,9 +9,7 @@ const LED_PITCH = 14;
 const LED_RADIUS = 4.5;
 const GLOW_ROOM = 4;
 const HEIGHT = 18;
-// Cost scales with frame rate; 20 fps still shows every step of the 95 ms roll.
 const FRAME_MS = 1000 / 20;
-// A moment when each animation is lit, so the first frame and the reduced-motion still show it.
 const LIT_MS: Readonly<Record<SidePulseEffect, number>> = {
   solid: 1000,
   breathe: 2000,
@@ -28,7 +26,6 @@ const LIT_MS: Readonly<Record<SidePulseEffect, number>> = {
 
 const PANEL_WIDTH = SIDE_PULSE_LED_COUNT * LED_PITCH + GLOW_ROOM * 2;
 
-// One ticker paints every preview in the same animation frame, so the page composites once per tick.
 const frameListeners = new Set<(now: number) => void>();
 let frameTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -40,7 +37,6 @@ function scheduleFrame() {
         try {
           listener(now);
         } catch (error) {
-          // One preview's failure must not stop the others; report it without breaking the loop.
           queueMicrotask(() => {
             throw error;
           });
@@ -132,7 +128,6 @@ export function SidePulseLedPreview({
       painted = frame.slice();
       drawLeds(canvas, frame);
     };
-    // Restarts at the lit moment: the first frame, the reduced-motion still, and where motion resumes.
     const showLitFrame = () => {
       if (engine === null) return;
       engine.play(program);

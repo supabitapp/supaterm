@@ -2,8 +2,6 @@ import { useLayoutEffect, useRef } from "react";
 import { EASE_DRAWER } from "../../lib/motion";
 import { DRAFT_HERO_TRANSITION_ANIMATION_ID } from "./draftHeroTransition";
 
-// Measures the prompt surface, not its anchor: the hero's context strip above it
-// and a thread's strip below it come and go with the state change.
 function measureComposerSurface(anchor: HTMLElement | null): DOMRect | null {
   const surface = anchor?.querySelector('[data-chat-composer-main-surface="true"]') ?? anchor;
   return surface?.getBoundingClientRect() ?? null;

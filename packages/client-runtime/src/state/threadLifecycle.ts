@@ -48,7 +48,6 @@ export function createOptimisticThreadLifecycle(
     }),
   );
 
-  // Until the durable snapshot catches up, an older pending update can still replace what shows.
   const pendingThreadIdsAtom = Atom.family((environmentId: EnvironmentId) =>
     Atom.make(
       (get): ReadonlySet<ThreadId> =>

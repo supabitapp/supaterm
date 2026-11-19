@@ -38,7 +38,6 @@ export function WorkspaceToolbar(props: {
   const floatingTabs = useFloatingWorkspaceTabs();
   const duoSearch = NATIVE_LIQUID_GLASS_SUPPORTED && isDuoDevice(deviceType);
   const bottomSearch = duoSearch && sidebarTabs !== "picker";
-  // On the Duo, compose belongs to the threads tab, in the detail column's bar when unfolded.
   const nativeToolbarCompose =
     deviceType === "duo-folded" &&
     !workspace.settingsOpen &&
@@ -50,18 +49,14 @@ export function WorkspaceToolbar(props: {
   const { panes } = useWorkspacePaneState();
   const searchRef = useRef<SearchBarCommands>(null);
   const settingsMenu = useSettingsEnvironmentMenu();
-  // The Settings list takes the selected tab's place, so search follows it.
   const selectedTab = workspace.settingsOpen ? "settings" : workspace.state.selectedTab;
   const tab = workspace.state.tabs[selectedTab];
   const searchLabel = SEARCH_LABELS[selectedTab === "usage" ? "threads" : selectedTab];
   const { isTabActive: isListTabActive } = workspace;
-  // A retained tab slot stays mounted while another is shown.
   const isTabActive = (tab: typeof selectedTab) =>
     tab === "settings" ? tabActive : isListTabActive(tab);
   const foldedSearch = deviceType === "duo-folded";
   const primaryColumn = use(NativePrimaryColumnContext);
-  // UIKit hosts integrated search outside the sidebar's sliding content.
-  // Mount it after native appearance so it cannot precede the pane's reveal.
   const searchVisible = foldedSearch
     ? tab.searchMode !== "resting"
     : deviceType !== "duo-unfolded" || primaryColumn?.presented !== false;
@@ -86,14 +81,11 @@ export function WorkspaceToolbar(props: {
       ? enterSearch()
       : workspace.dispatch({ type: "search", tab: selectedTab });
   useHardwareKeyboardCommand("focusSearch", focusSearch);
-  // Home draws the Settings list under the `Settings` route, which holds navigation focus.
   const settingsListOnTop = useNavigationState(
     (state) => state.routes[state.index]?.name === "Settings",
   );
-  // The sidebar remains visible while its detail owns navigation focus.
   const searchHostVisible = focused || settingsListOnTop || primaryColumn?.presented === true;
   const restoreSearch = () => {
-    // A search cancelled while its screen was covered leaves its text in the native field.
     if (tab.searchMode === "resting") searchRef.current?.setText("");
     if (
       searchHostVisible &&
@@ -102,8 +94,6 @@ export function WorkspaceToolbar(props: {
       shouldRestoreNativeSearch(tab, duoSearch)
     ) {
       searchRef.current?.setText(tab.query);
-      // Integrated search collapses to its button when its screen reappears,
-      // which would hide the query that still filters the list.
       if (NATIVE_LIQUID_GLASS_SUPPORTED) {
         searchRef.current?.setActive(true);
         if (tab.searchMode === "active") searchRef.current?.focus();
@@ -147,8 +137,6 @@ export function WorkspaceToolbar(props: {
         optionsVersion={[selectedTab, tab.searchMode]}
         listeners={{ transitionEnd: restoreSearch }}
         options={{
-          // Without Liquid Glass, Settings keeps its search field out instead of a search button,
-          // which would take the header's trailing items from the scope filter.
           headerSearchBarOptions:
             (NATIVE_LIQUID_GLASS_SUPPORTED ||
               tab.searchMode !== "resting" ||
@@ -184,9 +172,6 @@ export function WorkspaceToolbar(props: {
               : undefined,
         }}
       />
-      {/* UIKit lays trailing items out from the edge inward. A trailing toolbar replaces the
-          header's own items, so on iPhone it would hide WorkspaceHeaderActions. iPhone composes
-          from its tab bar. */}
       {workspace.settingsOpen ? (
         <Toolbar placement="right">
           {searchButton}

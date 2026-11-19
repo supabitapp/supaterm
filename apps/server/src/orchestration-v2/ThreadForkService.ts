@@ -94,9 +94,7 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
         creationSource: input.creationSource,
         id: input.targetThreadId,
         title: input.title ?? `${input.sourceProjection.thread.title} fork`,
-        // The source's title job completes only on the source thread.
         titleRegeneration: null,
-        // Side chats show only their own rows, so the parent's pins would point at nothing.
         ...(input.sideChat ? { pinnedMessages: [] } : {}),
         activeProviderThreadId: null,
         lineage: {
@@ -122,7 +120,6 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
         activeOrderKey: null,
         autoMarkDoneDisabledAt: null,
         lastVisitedAt: null,
-        // A fork is a new thread; it does not inherit how often the source was opened.
         opens: null,
         deletedAt: null,
       };
@@ -135,7 +132,6 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
         basePoint: null,
         sourceProviderInstanceId:
           sourceRun?.providerInstanceId ?? input.sourceProjection.thread.providerInstanceId,
-        // Only native forks retain this context; portable handoffs rebuild it.
         sourceTokenUsage:
           (sourceRun?.status === "completed" || sourceRun?.status === "waiting") &&
           input.sourceProviderThread?.nativeThreadRef?.strength === "strong"

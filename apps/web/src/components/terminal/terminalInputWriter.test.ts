@@ -7,14 +7,12 @@ import { createTerminalInputWriter } from "./terminalInputWriter";
 const isWriteInput = Schema.is(TerminalWriteInput);
 const fitsWrite = (data: string) => isWriteInput({ threadId: "t", terminalId: "default", data });
 
-/** A `send` whose calls stay pending until the test settles them. */
 function heldSend() {
   const sent: Array<{ readonly chunk: string; readonly settle: (ok: boolean) => void }> = [];
   const waiters: Array<{ readonly count: number; readonly resolve: () => void }> = [];
   return {
     sent,
     chunks: () => sent.map(({ chunk }) => chunk),
-    /** Resolves once `count` chunks have been sent. */
     sends: (count: number) =>
       new Promise<void>((resolve) => {
         if (sent.length >= count) resolve();
@@ -83,7 +81,6 @@ describe("createTerminalInputWriter", () => {
     const large = "p".repeat(70_000);
     const pasted = write(large, send);
     const after = write("after", send);
-    // Finishing newer sends first must not let queued input overtake the oldest write.
     for (let index = inputs.length - 1; index > 0; index--) sent[index]!.settle(true);
     await Promise.all(smallWrites.slice(1));
     expect(sent).toHaveLength(32);

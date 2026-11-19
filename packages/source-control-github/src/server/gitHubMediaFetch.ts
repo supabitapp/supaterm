@@ -14,11 +14,6 @@ import { GITHUB_CREDENTIALED_MEDIA_HOSTS, gitHubLfsMediaUrl } from "../shared/gi
 import * as GitHubCredentials from "./GitHubCredentials.ts";
 import * as GitHubRest from "./GitHubRest.ts";
 
-/**
- * Everything a redirect leads to — the presigned object stores GitHub hands assets off to —
- * authorizes with its own signature, and some of them reject a request that also carries a
- * bearer token.
- */
 const isCredentialedHost = (url: string) => {
   const target = URL.parse(url);
   return (
@@ -36,14 +31,12 @@ const ATTACHMENT_PATH_PATTERN =
   /^\/(?:user-attachments\/assets\/[\w-]+|[^/]+\/[^/]+\/assets\/\d+\/[\w-]+)$/u;
 const LEGACY_ATTACHMENT_REPOSITORY_PATTERN = /^\/([^/]+\/[^/]+)\/assets\//u;
 const REPOSITORY_PATTERN = /^[\w.-]+\/[\w.-]+$/u;
-// GitHub's signed upload links last about five minutes.
 const SIGNED_URL_CACHE_TTL_MS = 4 * 60_000;
 const SIGNED_URL_CACHE_MAX_ENTRIES = 64;
 
 const contentTypeOf = (response: HttpClientResponse.HttpClientResponse) =>
   response.headers["content-type"]?.split(";", 1)[0]?.trim().toLowerCase() ?? "";
 
-/** The repository an upload has to be rendered in, or `undefined` when it is not an upload. */
 const uploadRepository = (request: SourceControlMediaRequest) => {
   const target = URL.parse(request.url);
   if (
@@ -57,10 +50,8 @@ const uploadRepository = (request: SourceControlMediaRequest) => {
   ) {
     return undefined;
   }
-  // A legacy upload names its repository; one the caller supplies cannot override that.
   const repository =
     LEGACY_ATTACHMENT_REPOSITORY_PATTERN.exec(target.pathname)?.[1] ?? request.repository;
-  // An unusable explicit context must not fall back to an unrelated checkout.
   return repository !== undefined && REPOSITORY_PATTERN.test(repository) ? repository : undefined;
 };
 
@@ -70,8 +61,6 @@ export const make = Effect.gen(function* () {
   const httpClient = HttpClient.withScope(yield* HttpClient.HttpClient);
   const signedUrls = new Map<string, { readonly at: number; readonly url: string }>();
 
-  // Both media hosts are served by github.com's account, which is the host `gh` stores it under.
-  // Read on every fetch, so media loads as soon as the user signs in.
   const credential = Effect.suspend(() => credentials.get("github.com")).pipe(
     Effect.orElseSucceed(() => null),
   );
@@ -90,7 +79,6 @@ export const make = Effect.gen(function* () {
           HttpClientRequest.get(target).pipe(
             HttpClientRequest.setHeaders({
               ...headers,
-              // The bytes are streamed straight through, so never let an encoding layer in.
               "accept-encoding": "identity",
               ...(authorization === null ? {} : { authorization }),
             }),
@@ -98,7 +86,6 @@ export const make = Effect.gen(function* () {
         )
         .pipe(
           Effect.provideService(FetchHttpClient.RequestInit, MANUAL_REDIRECT),
-          // A signed URL's query string is a bearer capability; keep it out of tracing spans.
           Effect.provideService(HttpClient.TracerDisabledWhen, () => true),
         );
       const location = response.headers.location;
@@ -112,8 +99,6 @@ export const make = Effect.gen(function* () {
     }
   });
 
-  // An organization with SAML SSO answers a token-authenticated upload request with its sign-in
-  // page. Rendering the link as markdown in the repository's context hands back a signed URL.
   const renderSignedUrl = Effect.fnUntraced(function* (url: string, repository: string) {
     const rendered = yield* rest
       .rest({
@@ -155,7 +140,6 @@ export const make = Effect.gen(function* () {
     if (cacheKey !== null && cached !== undefined && now - cached.at < SIGNED_URL_CACHE_TTL_MS) {
       response = yield* fetchFollowingRedirects(cached.url, request.headers, null);
       if (response === null || response.status >= 400) signedUrls.delete(cacheKey);
-      // A signed URL can expire before its TTL; only then is a fresh one worth rendering.
       if (response?.status !== 403) return response;
     } else {
       if (cacheKey !== null) signedUrls.delete(cacheKey);
@@ -188,7 +172,6 @@ export const make = Effect.gen(function* () {
       (media?.status === 200 || media?.status === 206) &&
       MEDIA_CONTENT_TYPE_PATTERN.test(contentTypeOf(media))
     ) {
-      // The render can run under another account if the user switched mid-request.
       const current = yield* credential;
       if (current?.fingerprint === signedIn.fingerprint) {
         if (signedUrls.size >= SIGNED_URL_CACHE_MAX_ENTRIES) {

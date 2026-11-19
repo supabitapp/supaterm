@@ -129,7 +129,6 @@ export class OpenCodeRuntime extends Context.Service<
 >()("@supaterm/provider-opencode/server/OpenCodeRuntime") {}
 
 export function parseServerUrlFromOutput(output: string): string | null {
-  // The last element is an unfinished line; a chunk can end mid-URL.
   for (const line of output.split("\n").slice(0, -1)) {
     const match = line.match(/server listening on\s+(https?:\/\/[^\s]+)/i);
     if (match?.[1]) return match[1];
@@ -259,8 +258,6 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
     });
     const spawnCommand = yield* resolveCommand(launch.command, launch.args, input.environment);
 
-    // Scopes close in reverse order. Forking this before the group kill is
-    // registered forgets the ledger entry only once the group is stopped.
     const ledgerScope = yield* Scope.fork(runtimeScope);
     const child = yield* spawner
       .spawn(
@@ -269,8 +266,6 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
           shell: spawnCommand.shell,
           env: {
             ...input.environment,
-            // The value is set explicitly (rather than relying on inheritance) because
-            // `extendEnv` is false whenever `input.environment` is provided.
             OPENCODE_CONFIG_CONTENT: resolveOpenCodeConfigContent(input.environment),
           },
           extendEnv: input.environment === undefined,
@@ -288,8 +283,6 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
         ),
       );
 
-    // Signals the server's own group and force-kills only what outlives the grace,
-    // so a group that exits promptly does not hold up the scope that closes it.
     const terminateChild = child
       .kill({ killSignal: "SIGTERM", forceKillAfter: OPENCODE_SERVER_TERMINATE_GRACE })
       .pipe(Effect.ignore);
@@ -340,7 +333,6 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
     const exitFiber = yield* child.exitCode.pipe(
       Effect.flatMap((code) =>
         Effect.gen(function* () {
-          // Allow trailing diagnostics to drain, but descendants can keep pipes open.
           const drained = yield* Fiber.joinAll([stdoutFiber, stderrFiber]).pipe(
             Effect.timeoutOption(OPENCODE_SERVER_EXIT_DRAIN_TIMEOUT),
           );
@@ -397,9 +389,6 @@ const makeOpenCodeRuntime = Effect.gen(function* () {
       });
     }
 
-    // Keep draining both pipes until the process scope closes. Stopping the
-    // readers can block OpenCode when its output buffers fill. Startup output
-    // is no longer needed, so discard later output instead of retaining it.
     yield* Ref.set(stdoutRef, null);
     yield* Ref.set(stderrRef, null);
 

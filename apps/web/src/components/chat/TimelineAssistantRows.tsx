@@ -38,7 +38,6 @@ const NO_VCS_STATUS = Atom.make(AsyncResult.initial());
 
 export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
-  // The timeline holds a streaming message's row while only its text grows.
   const liveText = useAssistantMessageText(
     row.message.streaming ? ctx.threadRef : null,
     row.projectedItem?.item.id,
@@ -115,7 +114,6 @@ export function SentMessageTimelineRow({
   return (
     <div className="min-w-0 px-1 py-0.5">
       <MessageAuthorHeading>Supaterm</MessageAuthorHeading>
-      {/* Sent messages have no message id; citations name their turn item instead. */}
       <AssistantCitationSource
         messageId={MessageId.make(row.id)}
         {...(ctx.threadRef ? { threadRef: ctx.threadRef } : {})}
@@ -368,8 +366,6 @@ export function McpAppTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "
   );
 }
 
-/** Subscribes directly to the UI state store for expand/collapse state,
- *  so toggling re-renders only this component — not the entire list. */
 const AssistantChangedFilesSection = memo(function AssistantChangedFilesSection({
   turnSummary,
   routeThreadKey,

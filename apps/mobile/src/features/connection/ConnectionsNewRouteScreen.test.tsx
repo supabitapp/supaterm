@@ -12,7 +12,6 @@ const PAIRED: PairingOutcome = { ok: true, error: null };
 const state = vi.hoisted(() => ({
   connectionPairingUrl: "",
   connectionPairingUrlListeners: new Set<() => void>(),
-  // The app-wide error slot that composer sends and git refreshes also write to.
   pendingConnectionError: null as string | null,
   autoConnectAttempt: null as DevAutoConnectAttempt | null,
   canGoBack: true,
@@ -79,7 +78,6 @@ vi.mock("../../lib/rootNavigation", () => ({
   rootNavigationRef: {},
   whenRootNavigationReady: vi.fn(),
 }));
-// React tests compile with `__DEV__` inlined to false; links prefill the form only in dev builds.
 vi.mock("./devAutoConnect", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./devAutoConnect")>()),
   linkedPairingUrl: (pairingUrl: string | undefined) => pairingUrl?.trim() ?? "",
@@ -324,7 +322,6 @@ describe("pairing links", () => {
 
     await openLink(secondLink);
     await act(() => {
-      // A successful pairing clears the shared draft URL.
       setConnectionPairingUrl("");
       result.resolve(PAIRED);
     });

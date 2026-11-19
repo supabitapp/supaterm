@@ -16,7 +16,6 @@ import { act, render } from "../../../test/render";
 import { useComposerDraftStore } from "../../composerDraftStore";
 import { ChatComposer, type ChatComposerHandle } from "./ChatComposer";
 
-// The real layer positions itself from the composer's on-screen rect, which a test page lacks.
 vi.mock("./ComposerCommandMenuLayer", () => ({
   ComposerCommandMenuLayer: ({ children }: { children: ReactNode }) => children,
 }));

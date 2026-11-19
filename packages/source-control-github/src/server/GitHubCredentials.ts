@@ -151,7 +151,6 @@ export const make = Effect.gen(function* () {
           ...(account === undefined ? [] : ["--user", account]),
         ],
         cwd: workingDirectory,
-        // Never let gh print the token into a debug log.
         env: { GH_DEBUG: "", GH_PROMPT_DISABLED: "1" },
         timeoutMs: 10_000,
         concurrency: GH_PROCESS_CONCURRENCY,
@@ -162,8 +161,7 @@ export const make = Effect.gen(function* () {
           error.cause instanceof PlatformError.PlatformError &&
           error.cause.reason._tag === "NotFound"
             ? new GitHubCliMissingError({ host })
-            : // gh exits non-zero with "no oauth token" when it has no login for the host.
-              error._tag === "VcsProcessExitError"
+            : error._tag === "VcsProcessExitError"
               ? new GitHubNotSignedInError({ host, ...(account === undefined ? {} : { account }) })
               : new GitHubCliFailedError({ host, cause: error }),
         ),

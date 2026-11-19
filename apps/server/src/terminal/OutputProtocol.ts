@@ -15,18 +15,14 @@ import type { RpcServer } from "effect/rpc";
 
 const MAX_PENDING_CHUNKS = 8;
 const MAX_PENDING_BYTES = 64 * 1024;
-// Charge an envelope so tiny events cannot bypass the byte budget.
 const EVENT_OVERHEAD = 128;
 const isFull = (sizes: number[]) =>
   sizes.length >= MAX_PENDING_CHUNKS ||
   sizes.reduce((total, size) => total + size, 0) >= MAX_PENDING_BYTES;
-// Terminal output is small chunks, so its window also caps bytes. The other streams
-// window by count only: sizing a multi-MB thread snapshot would serialize it twice.
 const BYTE_WINDOWED_STREAMS: ReadonlySet<string> = new Set([
   WS_METHODS.terminalAttach,
   WS_METHODS.terminalObserve,
 ]);
-// One ACK round trip per chunk stalls sync on high-latency links.
 const COUNT_WINDOWED_STREAMS: ReadonlySet<string> = new Set([
   WS_METHODS.subscribeServerConfig,
   ORCHESTRATION_V2_WS_METHODS.subscribeShell,
@@ -35,8 +31,6 @@ const COUNT_WINDOWED_STREAMS: ReadonlySet<string> = new Set([
 
 const byteLengthOf = (value: unknown) => (typeof value === "string" ? Buffer.byteLength(value) : 0);
 
-// Charges every variable-size field a terminal event can carry, so the byte
-// budgets below cannot be bypassed by a large payload in an uncharged field.
 const queuedSize = (event: TerminalEvent | TerminalAttachStreamEvent) =>
   EVENT_OVERHEAD +
   ("threadId" in event ? byteLengthOf(event.threadId) + byteLengthOf(event.terminalId) : 0) +
@@ -55,8 +49,6 @@ const queuedSize = (event: TerminalEvent | TerminalAttachStreamEvent) =>
             byteLengthOf(event.snapshot.label)
           : 0);
 
-// Byte-windowed streams carry TerminalAttachStreamEvent, whose encoded form is the
-// event itself, so charge it like the output queue does instead of serializing twice.
 const chunkSize = (values: ReadonlyArray<unknown>) =>
   values.reduce<number>(
     (total, value) => total + queuedSize(value as TerminalAttachStreamEvent),
@@ -71,8 +63,6 @@ interface Window {
 export function withOutputWindow(
   protocol: RpcServer.Protocol["Service"],
 ): RpcServer.Protocol["Service"] {
-  // RpcServer drops a disconnected client before its streams exit, so their Exit never
-  // reaches send; departed clients are pruned when a window opens instead.
   const clients = new Map<number, Map<string, Window>>();
   let receive: Parameters<RpcServer.Protocol["Service"]["run"]>[0];
   const windowFor = (clientId: number, requestId: string) => clients.get(clientId)?.get(requestId);
@@ -139,12 +129,9 @@ export function withOutputWindow(
 }
 
 const MAX_QUEUED_OUTPUT = 8 * 1024 * 1024;
-// Output that follows an emission this closely waits and rides along in one batch,
-// so a PTY that delivers one line per callback (ConPTY) is not sent one frame per line.
 const OUTPUT_WINDOW_NANOS = 2_000_000n;
 
 type Listener<A> = (event: A) => Effect.Effect<void>;
-// Acquisition must register cleanup synchronously with installing the listener.
 type Subscribe<A, E> = (
   listener: Listener<A>,
   registerCleanup: (stop: () => void) => void,
@@ -163,7 +150,6 @@ export function terminalOutputStream<A extends TerminalEvent | TerminalAttachStr
       let sizes: number[] = [];
       let head = 0;
       let queued = 0;
-      // Pending events other than output; any of them flushes the window early.
       let lifecycle = 0;
       let deadline = 0n;
       let overflowed = false;
@@ -195,16 +181,13 @@ export function terminalOutputStream<A extends TerminalEvent | TerminalAttachStr
                 sizes.push(size);
                 queued += size;
                 if (event.type !== "output") lifecycle += 1;
-                // A single snapshot must fit even when history fills the budget.
                 if (queued - sizes[head]! > maxQueued) {
                   release();
                   overflowed = true;
                 }
-                // The current or next pull handles the pending output deadline.
                 if (wasEmpty || overflowed || urgent()) ready.openUnsafe();
               }),
             (stop) => {
-              // Overflow or cancellation may invalidate acquisition before registration.
               if (id === subscription) unsubscribe = stop;
               else stop();
             },

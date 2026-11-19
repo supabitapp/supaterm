@@ -24,7 +24,6 @@ const BudgetModel = Schema.Struct({
   name: Schema.String,
   spent: Schema.optionalKey(Schema.Finite),
 });
-// Decode only fields needed by Supaterm, independently of the pinned 2.0 client.
 const ResponseBody = Schema.Struct({
   location: Schema.Struct({ directory: Schema.String }),
   data: Schema.NullOr(
@@ -96,7 +95,6 @@ export const readServerUsageLimits = Effect.fn("OpenCode2Client.usageLimits")(fu
       usageURL?.protocol === "http:" || usageURL?.protocol === "https:"
         ? { externalUsage: { label: workspace.name?.trim() || workspace.id, url: usageURL.href } }
         : {};
-    // A Zen-only workspace has neither a Go subscription nor spend limits.
     if (!go && budgets.length === 0)
       return {
         ...makeUnavailableUsageLimits({ checkedAt, reason: "unsupported" }),
@@ -166,7 +164,6 @@ export const readServerUsageLimits = Effect.fn("OpenCode2Client.usageLimits")(fu
           id: `budget_${budget.id}`,
           kind: "other",
           label: `Console · ${scope} · ${covered}${budget.per === "model" ? " · Most used model" : ""}`,
-          // Aggregate per-model spend cannot identify the exhausted model.
           ...(budget.per === "model"
             ? { modelIds: [] }
             : budget.coverage === "models"

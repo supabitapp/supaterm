@@ -20,7 +20,6 @@ export const EDITORS = [
     id: "cursor",
     label: "Cursor",
     commands: ["cursor"],
-    // File and workspace opens must target the IDE even when the Agents Window is active.
     baseArgs: ["--classic"],
     launchStyle: "goto",
     remoteScheme: "cursor",
@@ -58,7 +57,6 @@ export const EDITORS = [
   {
     id: "antigravity",
     label: "Antigravity",
-    // The IDE ships antigravity-ide; agy is the standalone CLI.
     commands: ["antigravity-ide", "agy-ide"],
     launchStyle: "goto",
   },
@@ -184,8 +182,6 @@ export const remoteSchemeForEditor = (id: EditorId): string | undefined => {
   return editor === undefined ? undefined : remoteSchemeOf(editor);
 };
 
-// `goto` editors share VS Code's `file:line:col` addressing, so their remote schemes also open
-// a local file as `<scheme>://file/<absolute path>[:line[:col]]`. Zed and JetBrains differ.
 export const LOCAL_FILE_LINK_SCHEMES: ReadonlyArray<string> = EDITORS.flatMap((editor) =>
   editor.launchStyle === "goto" && "remoteScheme" in editor ? [editor.remoteScheme] : [],
 );
@@ -221,15 +217,12 @@ export const buildRemoteOpenUrl = (input: {
     }
     return `${scheme}://gateway/ssh/environment?${params.toString()}`;
   }
-  // Windows server paths (`C:\...`) appear as `/C:/...` in vscode-remote URIs.
   const posixPath = input.absolutePath.replaceAll("\\", "/");
   const rootedPath = posixPath.startsWith("/") ? posixPath : `/${posixPath}`;
   const encodedHost = encodeURIComponent(input.host);
   if (input.editor === "zed") {
-    // Zed roots paths on the system drive, so omit the Windows drive prefix.
     const zedPath = /^[Cc]:[\\/]/.test(input.absolutePath) ? rootedPath.slice(3) : rootedPath;
     const encodedZedPath = zedPath.split("/").map(encodeURIComponent).join("/");
-    // Zed reads this segment as ssh URL userinfo, so the `@` stays literal.
     const zedDestination =
       input.username === undefined
         ? encodedHost
@@ -239,15 +232,12 @@ export const buildRemoteOpenUrl = (input: {
   const encodedPath = rootedPath.split("/").map(encodeURIComponent).join("/");
   const plainDestination =
     input.username === undefined ? input.host : `${input.username}@${input.host}`;
-  // Remote-SSH splits the decoded authority on "+", so a destination containing one must use its
-  // hex-encoded JSON form instead.
   const destination = plainDestination.includes("+")
     ? Array.from(
         new TextEncoder().encode(JSON.stringify({ hostName: input.host, user: input.username })),
         (byte) => byte.toString(16).padStart(2, "0"),
       ).join("")
     : plainDestination;
-  // VS Code opens a bare vscode-remote path as a folder; a trailing position makes it open the file.
   return `${scheme}://vscode-remote/ssh-remote+${encodeURIComponent(destination)}${encodedPath}${input.isFile ? ":1:1" : ""}`;
 };
 

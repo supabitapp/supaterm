@@ -11,8 +11,6 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, fakeTimers, render } from "../../../test/render";
 
-// Only the transport is substituted. The hook, atom registry and preview
-// store run unchanged, including idle-TTL node removal.
 type ListResult = AsyncResult.AsyncResult<PreviewListResult, never>;
 type EventResult = AsyncResult.AsyncResult<PreviewEvent, never>;
 const harness = vi.hoisted(() => ({
@@ -113,7 +111,6 @@ describe("desktop-hosted preview session sync", () => {
       useDesktopHostedPreviewSessions(ref.environmentId);
       return null;
     }
-    // The hook renders nothing and never reads or changes the route.
     await using _screen = await render(
       createElement(AppAtomRegistryProvider, null, createElement(DesktopSessionSync)),
       { router: false },
@@ -132,7 +129,6 @@ describe("desktop-hosted preview session sync", () => {
     );
     expect(listRequests()).toBe(1);
 
-    // One tab is still open, so the thread keeps syncing.
     await emit("closed", "first");
     await act(async () => vi.advanceTimersByTime(5_000));
     expect(isListMounted()).toBe(true);

@@ -39,9 +39,6 @@ export const isRelayPath = (pathname: string) =>
   pathname === "/oauth/token" ||
   pathname === "/.well-known/supaterm/environment";
 
-// Browsers attach cookies by host, not port, so a cookie inside a tunnel can
-// belong to any other local server. Tunneled requests carry their own Bearer
-// credentials, and cookies neither authenticate them nor come back.
 export const layerPathGuard = HttpRouter.middleware(
   (app) =>
     Effect.gen(function* () {

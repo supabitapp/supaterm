@@ -10,13 +10,8 @@ export default Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   yield* sql`ALTER TABLE orchestration_v2_projection_messages ADD COLUMN search_text TEXT`;
 
-  // Migration 4's triggers index the stored text, where a quote's words are
-  // percent-encoded. Recreated now that search_text exists, they index it, and
-  // the backfill below re-indexes every message that reads differently.
   yield* recreateMessageSearchTriggers(sql);
 
-  // Only messages holding a citation link read differently. The raw check
-  // first skips parsing the JSON of every other message.
   const pageSize = 500;
   let afterMessageId = "";
   while (true) {

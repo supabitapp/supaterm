@@ -8,7 +8,6 @@ const mocks = vi.hoisted(() => ({
   addToast: vi.fn<(toast: { readonly title?: unknown }) => void>(),
 }));
 
-// The event atom is derived from server state, as in production; nothing else reads it.
 vi.mock(import("../state/server"), async () => {
   const { Atom } = await import("effect/reactivity");
   mocks.state = Atom.make<{ readonly latestEvent: ServerConfigStreamEvent | null }>({

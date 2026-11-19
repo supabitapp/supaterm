@@ -25,8 +25,6 @@ export const layer = Layer.unwrap(
             | { readonly candidates: string; readonly origin: Promise<string> }
             | undefined;
           return {
-            // Every remote HTTP request prepares its origin, so the desktop
-            // tunnel is only restarted when its direct candidates change.
             prepare: () => {
               if (closed) return Promise.reject(new Error("Relay endpoint closed"));
               const urls = directTunnelUrls(directUrls(), relayUrl);

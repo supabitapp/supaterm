@@ -61,7 +61,6 @@ export function claudeKeychainAccount(
 type KeychainRead =
   | { readonly _tag: "Found"; readonly stored: string }
   | { readonly _tag: "Missing" }
-  // `security` waits on an unlock prompt only someone at the Mac can answer.
   | { readonly _tag: "NoAnswer" };
 
 const readKeychain = Effect.fnUntraced(function* (
@@ -84,7 +83,6 @@ const readKeychain = Effect.fnUntraced(function* (
   if (Option.isNone(result.success)) return { _tag: "NoAnswer" };
   const { code, stdout } = result.success.value;
   if (code === 0) return { _tag: "Found", stored: stdout };
-  // The CLI skips its file fallback for a locked keychain too.
   if (code === KEYCHAIN_LOCKED)
     return yield* new TranscriptionError({ reason: "credentialsLocked" });
   if (code !== KEYCHAIN_ITEM_NOT_FOUND) {

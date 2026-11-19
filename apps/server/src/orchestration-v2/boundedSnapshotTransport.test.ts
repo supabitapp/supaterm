@@ -228,7 +228,6 @@ function itemUpdated(
   };
 }
 
-// A conversation turn whose records (message, checkpoint, subagent) repeat in its turn items.
 function bodiesEvents(at: DateTime.Utc): OrchestrationV2DomainEvent[] {
   const event = (key: string, rest: Pick<OrchestrationV2DomainEvent, "type" | "payload">) =>
     ({
@@ -359,7 +358,6 @@ function bodiesSubagent(at: DateTime.Utc): OrchestrationV2Subagent {
   };
 }
 
-// Live after the snapshot: a reply pair, then a subagent update that repeats its prompt.
 function bodiesLiveTail(): OrchestrationV2StoredEvent[] {
   const at = DateTime.makeUnsafe("2026-10-01T00:00:00.000Z");
   const [reply, replyItem] = bodiesEvents(at).filter((event) =>
@@ -531,7 +529,6 @@ it.layer(TestLayer)("compact bounded snapshot transport", (it) => {
           [threadId],
         );
 
-        // Only the long thread has older history to page.
         if (threadId !== LONG) return;
         assert.isNotNull(decoded.historyCursor);
         const history = `/api/orchestration/threads/${encodeURIComponent(threadId)}/history?cursor=${encodeURIComponent(decoded.historyCursor ?? "")}`;
@@ -611,7 +608,6 @@ it.layer(TestLayer)("compact bounded snapshot transport", (it) => {
             boundedSnapshotProjection(decodeBounded(dedupedBody)),
             boundedSnapshotProjection(decodeBounded(compactBody)),
           );
-          // The client sends both opt-ins: bodies restore after the ID table resolves.
           const tabledBody = await (
             await get(`${base}?compactTurnItems=1&dedupeBodies=1&compactIds=1`)
           ).text();
@@ -658,7 +654,6 @@ it.layer(TestLayer)("compact bounded snapshot transport", (it) => {
             assert.deepStrictEqual(payloads(dedupedTail), [
               reply,
               { ...replyItem, text: "", textOmitted: true },
-              // The snapshot delivered this subagent's record, so its unchanged bodies repeat.
               { ...progress, prompt: "", promptOmitted: true, result: null, resultOmitted: true },
             ]);
           }

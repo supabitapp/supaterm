@@ -178,8 +178,6 @@ export function createPhoneViewer(options: {
         drawingBuffer.height !== viewport.height ||
         drawingBuffer.pixelRatio !== viewport.pixelRatio
       ) {
-        // Canvas allocation clears the previous image. Commit it with the redraw,
-        // rather than exposing an empty buffer between ResizeObserver and the next frame.
         renderer.setDrawingBufferSize(viewport.width, viewport.height, viewport.pixelRatio);
         drawingBuffer = viewport;
       }

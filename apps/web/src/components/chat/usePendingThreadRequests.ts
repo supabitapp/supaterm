@@ -134,7 +134,6 @@ function deriveActivePendingDraft(
 ) {
   const { environmentId, activeThreadId, activePendingUserInput, supportsQuestionAttachments } =
     scope;
-  // Suggested answers are shown until the user edits them; only edits are stored.
   const activePendingAnswerDrafts: Record<string, PendingUserInputDraftAnswer> =
     activePendingUserInput
       ? seedUserInputDraftAnswers(activePendingUserInput.questions, storedPendingAnswerDrafts)
@@ -214,7 +213,6 @@ export function usePendingUserInputDraft(scope: PendingUserInputDraftScope) {
   );
 }
 
-// Request callbacks read drafts when called, so the chat view never subscribes to them.
 export function readPendingUserInputDraft(scope: PendingUserInputDraftScope) {
   const { requestKey, questionKeys: keys } = pendingUserInputDraftKeys(scope);
   const questionComposerDrafts = selectQuestionComposerDrafts(keys)(
@@ -265,7 +263,6 @@ function makePendingCustomAnswerSetter(input: {
         ),
       },
     }));
-    // Resetting selection before rendering can re-enter Lexical with stale skill-token offsets.
   };
 }
 
@@ -301,11 +298,9 @@ export function usePendingThreadRequests(input: {
     reportFailure: false,
   });
   const userInputResponsesInFlight = useRef(new Set<string>());
-  // In the order the text went into the thread draft, which is how a copy is found again.
   const displacedAnswers = useRef<
     Array<{ readonly draft: string; readonly key: string; readonly text: string }>
   >([]);
-  // This hook outlives a thread switch, and each thread has its own draft.
   const displacedDraftKey =
     typeof composerDraftTarget === "string"
       ? composerDraftTarget
@@ -320,8 +315,6 @@ export function usePendingThreadRequests(input: {
     serverProjection !== null && serverProjection.thread.id === activeThreadId
       ? derivePendingThreadRequests(serverProjection)
       : NO_PENDING_REQUESTS;
-  // The projection changes on every streamed event, so shared empties keep the
-  // composer and approval panel from re-rendering while nothing is pending.
   const pendingApprovals =
     pendingRequests.approvals.length === 0
       ? NO_PENDING_APPROVALS
@@ -529,8 +522,6 @@ export function usePendingThreadRequests(input: {
     if (!activePendingUserInput) {
       return;
     }
-    // The option replaces the custom answer. Anything typed there is the
-    // user's text, so it goes back to the thread draft instead of vanishing.
     const displacedAnswer =
       readPendingUserInputDraft(draftScope).activePendingDraftAnswers[questionId]?.customAnswer;
     const currentPrompt =
@@ -595,7 +586,6 @@ export function usePendingThreadRequests(input: {
   const writePrompt = useStableCallback((prompt: string) => {
     promptRef.current = prompt;
   });
-  // Undo can put set-aside text back into the answer; left in the draft too, it is sent twice.
   const withdrawRestoredAnswer = useStableCallback((questionId: string, value: string) => {
     const key = `${activePendingRequestKey}:${questionId}`;
     const entries = displacedAnswers.current;

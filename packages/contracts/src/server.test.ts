@@ -67,7 +67,6 @@ describe("provider status deltas", () => {
     ];
 
     const deltas = serverProviderDeltas(previous, next);
-    // Unchanged lists stay home; a provider the reader never saw travels whole.
     expect(deltas[0]).toEqual(claude);
     expect(deltas[1]).not.toHaveProperty("models");
     expect(deltas[1]).not.toHaveProperty("slashCommands");
@@ -76,10 +75,8 @@ describe("provider status deltas", () => {
     const codec = Schema.toCodecJson(ServerConfigProviderStatusDeltasPayload);
     const wire = JSON.parse(JSON.stringify(Schema.encodeSync(codec)({ providers: deltas })));
     const received = Schema.decodeUnknownSync(codec)(wire).providers;
-    // A decoding default would turn the absent slash commands into an empty list.
     expect(received[1]).not.toHaveProperty("slashCommands");
     expect(applyServerProviderDeltas(previous, received)).toEqual(next);
-    // Without the provider the delta builds on, its lists are unknown.
     expect(applyServerProviderDeltas([], received)).toEqual([claude]);
   });
 });

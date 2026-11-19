@@ -27,7 +27,6 @@ import { quoteGitPatchPath } from "@supaterm/shared/gitPatchPath";
 import { decodeJsonResult } from "@supaterm/shared/schemaJson";
 import type { ProviderChangeRequestWatchFingerprint } from "@supaterm/source-control-core/server/PullRequestProvider";
 
-/** Unknown pipeline or merge status values must not fail the whole payload. */
 const RawUserSchema = Schema.Struct({
   id: Schema.optional(Schema.Int),
   username: Schema.String,
@@ -82,7 +81,6 @@ const RawMergeRequestSchema = Schema.Struct({
   closed_at: Schema.optional(Schema.NullOr(Schema.String)),
   reviewers: Schema.optional(Schema.NullOr(Schema.Array(RawUserSchema))),
   labels: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
-  // GitLab reports "1000+" past its counting limit.
   changes_count: Schema.optional(Schema.NullOr(Schema.String)),
   head_pipeline: Schema.optional(Schema.NullOr(RawPipelineSchema)),
   user: Schema.optional(
@@ -92,11 +90,9 @@ const RawMergeRequestSchema = Schema.Struct({
   auto_merge_enabled: Schema.optional(Schema.NullOr(Schema.Boolean)),
   squash_on_merge: Schema.optional(Schema.NullOr(Schema.Boolean)),
   squash: Schema.optional(Schema.NullOr(Schema.Boolean)),
-  /** Only detail reads with include_diverged_commits_count return this expensive count. */
   diverged_commits_count: Schema.optional(Schema.NullOr(Schema.Int)),
   source_project_id: Schema.optional(Schema.NullOr(Schema.Int)),
   target_project_id: Schema.optional(Schema.NullOr(Schema.Int)),
-  /** Null on merge requests from the same project, where it means nothing. */
   allow_collaboration: Schema.optional(Schema.NullOr(Schema.Boolean)),
   diff_refs: Schema.optional(Schema.NullOr(RawMergeRequestDiffRefs)),
 });
@@ -439,7 +435,6 @@ export function decodePipelineStageChecksJson(
     return Result.fail(decoded.failure);
   }
   const pipeline = decoded.success.data?.project?.mergeRequest?.headPipeline;
-  // Any stage left out could be the failed one, so a partial list is no list.
   if (
     (decoded.success.errors?.length ?? 0) > 0 ||
     pipeline?.stages?.pageInfo?.hasNextPage === true ||
@@ -468,12 +463,10 @@ export function decodePipelineStageChecksJson(
     }
     for (const job of jobs) {
       if (job === null || job.retried === true) continue;
-      // A trigger job reads as its downstream pipeline, as `decodeTriggerJobChecksJson` explains.
       const downstream = job.downstreamPipeline;
       const status = toPipelineStatus(downstream ? downstream.status : job.status);
       checks.push({
         name: `${name} / ${trimmed(job.name)}`,
-        // The same reading as `manual`: GitLab was told this failure does not fail the pipeline.
         status: status === "failure" && job.allowFailure === true ? "neutral" : status,
         description: downstream ? "Downstream pipeline" : trimmed(job.detailedStatus?.label),
         url: link(trimmed(downstream ? downstream.path : job.webPath)),
@@ -655,7 +648,6 @@ export function decodeTriggerJobChecksJson(
     const status = toPipelineStatus(downstream.status);
     checks.push({
       name,
-      // The same reading as `manual`: GitLab was told this failure does not fail the pipeline.
       status: status === "failure" && job.value.allow_failure === true ? "neutral" : status,
       description: "Downstream pipeline",
       url: trimmed(downstream.web_url),
@@ -836,7 +828,6 @@ export function decodeDiscussionsJson(
     }));
     const position = root.position;
     if (!position) {
-      // A thread started on the overview: resolvable, unlike a single comment.
       if (root.resolvable !== true) continue;
       if (root.resolved !== true) overviewFindingIds.push(String(root.id));
       threads.push({
@@ -1066,7 +1057,6 @@ function mergeRequestPatch(entries: ReadonlyArray<unknown>): GitLabMergeRequestP
       ...(value.deleted_file === true ? [`deleted file mode ${value.a_mode ?? "100644"}`] : []),
       ...(value.renamed_file === true
         ? [
-            // GitLab has no similarity score; Pierre needs this header to keep the rename.
             `similarity index ${hunks.length > 0 || value.too_large === true || value.collapsed === true ? 0 : 100}%`,
             `rename from ${quoteGitPatchPath(value.old_path)}`,
             `rename to ${quoteGitPatchPath(value.new_path)}`,
@@ -1173,7 +1163,6 @@ const RawAwardEmojiPageSchema = Schema.Struct({
                           ),
                         ),
                         resolved: Schema.optional(Schema.NullOr(Schema.Boolean)),
-                        // REST note authors carry no bot flag; GraphQL's does.
                         author: Schema.optional(
                           Schema.NullOr(
                             Schema.Struct({
@@ -1228,10 +1217,6 @@ function toReactions(
   );
 }
 
-/**
- * Resolving a thread moves lastEditedAt on every note in it; only lastEditedBy marks a text
- * edit, and a resolved note's stamp may be the resolve rather than that edit.
- */
 function textEditedAt(
   note: {
     readonly lastEditedAt?: string | null | undefined;
@@ -1380,7 +1365,6 @@ export function decodeRepositoryBlobsJson(
   if (nodes === undefined || nodes === null) return Result.succeed(null);
   const blobs = new Map<string, string>();
   for (const node of nodes) {
-    // Preserve path whitespace so blob-map keys match the caller's exact filenames.
     const path = node?.path;
     const oid = trimmed(node?.oid);
     if (path === undefined || path === null || path.length === 0 || oid === null) continue;
@@ -1444,7 +1428,6 @@ export function decodeSourceBranchJson(
     const mergeRequest = decoded.data.project?.mergeRequest;
     if (mergeRequest == null) return null;
     return {
-      // `locked` is GitLab's transient state while a merge runs, so only these two are done.
       open: mergeRequest.state !== "merged" && mergeRequest.state !== "closed",
       branch: mergeRequest.sourceBranch,
       headSha: trimmed(mergeRequest.diffHeadSha),
@@ -1490,7 +1473,6 @@ export const MERGE_MESSAGES_GRAPHQL_QUERY = `query($fullPath: ID!, $iid: String!
 }`;
 
 const RawMergeMessagesSchema = Schema.Struct({
-  // A field that errored reads as null, which must not pass for an absent template.
   errors: Schema.optionalKey(Schema.Never),
   data: Schema.Struct({
     project: Schema.NullOr(
@@ -1533,7 +1515,6 @@ export function decodeMergeMessagesJson(
   });
 }
 
-/** What a listed merge request needs beyond REST: its approval, reviewer and pipeline state. */
 const LIST_STATE_GRAPHQL_FIELDS = `iid approved approvedBy(first: 1) { nodes { username } }
   reviewers(first: 20) { nodes { username mergeRequestInteraction { reviewState } } }
   headPipeline { status }`;
@@ -1628,12 +1609,6 @@ function toChecksState(pipelineStatus: string | null | undefined): PullRequestCh
   }
 }
 
-/**
- * Only Enterprise Edition holds `approved` to the project's approval rules, so an unapproved
- * merge request there still needs review even when someone, such as a bot, approved it.
- * Community Edition reports `approved` once anyone approves and requires no review.
- * A reviewer asking for changes outranks both, as it does on GitHub.
- */
 function toListState(
   node: typeof RawListStateNodeSchema.Type,
   enterprise: boolean | null | undefined,
@@ -1720,7 +1695,6 @@ const RawGraphqlListNodeSchema = Schema.Struct({
   ),
 });
 
-// GitLab answers `project: null` for a project the reader cannot see, which REST reports as an error.
 const RawGraphqlListSchema = Schema.Struct({
   data: Schema.Struct({
     metadata: RawMetadataSchema,
@@ -2098,7 +2072,6 @@ export const MERGE_REQUEST_WATCH_FINGERPRINT_GRAPHQL_QUERY = `query($fullPath: I
 
 const PipelineIdentitySchema = Schema.Struct({ id: Schema.String, status: Schema.String });
 const JobCountSchema = Schema.NullOr(Schema.Struct({ count: Schema.Int }));
-// GitLab's connection `count` stops at its default limit and answers `limit + 1` above it.
 const JOB_COUNT_LIMIT = 1000;
 
 const decodeMergeRequestWatchFingerprint = decodeJsonResult(
@@ -2176,7 +2149,6 @@ export function decodeMergeRequestWatchFingerprintJson(
   const jobCounts = [pipeline?.succeeded, pipeline?.failed, pipeline?.stopped].map(
     (jobs) => jobs?.count ?? null,
   );
-  // Past a capped count or the first bridge page, a job can settle without moving the status.
   const seesEveryJob =
     pipeline?.jobs?.pageInfo.hasNextPage !== true &&
     jobCounts.every((count) => count === null || count <= JOB_COUNT_LIMIT);
@@ -2205,8 +2177,6 @@ export function decodeMergeRequestWatchFingerprintJson(
       bridges,
     ].join(" "),
     remarks: [mr.userNotesCount ?? "", newestEdit].join(" "),
-    // GraphQL never asks GitLab to recheck mergeability. The REST detail read does, but only for
-    // viewers who can update the merge request, so only they keep detail reads going until it settles.
     coversDetail:
       seesEveryJob &&
       (mr.conflicts ||

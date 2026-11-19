@@ -173,8 +173,6 @@ const actionSuccessLabels = (term: string): Record<PullRequestAction, string> =>
   close: `${capitalizeTerm(term)} closed`,
   reopen: `${capitalizeTerm(term)} reopened`,
   "update-branch": "Branch updated with the base branch",
-  // True whichever it did: a change request that was already mergeable merges the moment this is
-  // armed, and the client has no way to tell that apart from one still waiting on something.
   "enable-auto-merge":
     "Auto-merge turned on. Merges as soon as this is ready, sooner if it already is",
   "disable-auto-merge": "Auto-merge turned off",
@@ -228,7 +226,6 @@ const TABS: ReadonlyArray<{ value: PullRequestDetailTab; label: string }> = [
   { value: "code", label: "Code" },
 ];
 
-// The diff viewer pulls in its worker pool, so load it only when the reader approaches Code.
 const loadCodeTab = () => import("./PullRequestCodeTab");
 const PullRequestCodeTab = lazy(loadCodeTab);
 
@@ -384,7 +381,6 @@ export function PullRequestDetailPanel({
   const isTabAvailable = (value: PullRequestDetailTab) =>
     (value !== "code" || detail === null || detail.capabilities.diff) &&
     (value !== "guide" || reviewGuidesEnabled);
-  // An unavailable tab falls back without overwriting the saved selection.
   const tab = isTabAvailable(requestedTab) ? requestedTab : "summary";
   const selectTab = (next: PullRequestDetailTab) => {
     if (tabOnPage) useGuideRunStore.getState().showPageDetailTab(guideKey, next);
@@ -415,8 +411,6 @@ export function PullRequestDetailPanel({
     void loadCodeTab();
     selectTab("code");
   };
-  // Cached activity can predate a linked comment, so a miss waits for one host read. `after` is
-  // when that read's invalidation finished; null while it runs.
   const revealHostRead = useRef<{ readonly url: string; readonly after: number | null } | null>(
     null,
   );
@@ -433,7 +427,6 @@ export function PullRequestDetailPanel({
       void loadCodeTab();
     }
     selectTab(next);
-    // These name a tab, not a place in it.
     if (revealAnchor?.kind === "code" || revealAnchor?.kind === "commits") settleReveal(revealUrl);
   });
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- a clicked link lives in the panel store and selects its tab even when the panel is already mounted
@@ -447,7 +440,6 @@ export function PullRequestDetailPanel({
     key: tabScopeKey,
     tabs: new Set<PullRequestDetailTab>([tab]),
   }));
-  // A previously visited Code tab must not fetch diffs for every later PR while hidden.
   const mountedTabs =
     tabMountState.key === tabScopeKey ? tabMountState.tabs : new Set<PullRequestDetailTab>([tab]);
   if (tabMountState.key !== tabScopeKey) {
@@ -455,20 +447,17 @@ export function PullRequestDetailPanel({
   } else if (!tabMountState.tabs.has(tab)) {
     setTabMountState({ key: tabScopeKey, tabs: new Set(tabMountState.tabs).add(tab) });
   }
-  // A pointer on the Code tab reads the page it opens on; only intent costs the host a read.
   const [codeIntentKey, setCodeIntentKey] = useState<string | null>(null);
   useEnvironmentQuery(
     codeIntentKey === pullRequestKey && !mountedTabs.has("code")
       ? pullRequestEnvironment.diff({ environmentId, input: { ...reference } })
       : null,
   );
-  // Each tab restores the condensed state its own scrolling left behind.
   const [condensedByTab, setCondensedByTab] = useState<
     Partial<Record<PullRequestDetailTab, boolean>>
   >({});
   const condensed = condensedByTab[tab] ?? false;
   const scrollerByTab = useRef<Partial<Record<PullRequestDetailTab, HTMLElement | null>>>({});
-  // Fresh ref callbacks would detach and reattach every scroller on each render.
   const [scrollerRefs] = useState(() => ({
     summary: (node: HTMLElement | null) => {
       scrollerByTab.current.summary = node;
@@ -482,8 +471,6 @@ export function PullRequestDetailPanel({
   }));
   const foldRef = useRef<HTMLDivElement | null>(null);
   const condensedRowRef = useRef<HTMLDivElement | null>(null);
-  // Save the target before collapse: the browser may clamp scrollTop as the viewport grows,
-  // so applying a delta afterward would compensate twice.
   const compensationRef = useRef<{
     tab: PullRequestDetailTab;
     scroller: HTMLElement;
@@ -632,8 +619,6 @@ export function PullRequestDetailPanel({
     if (!shouldRefreshPullRequestActivity(activityRevision, next)) {
       setActivityRevision(next);
     } else if (!activityQuery.isPending) {
-      // Let an existing read settle before revalidating the new revision. Interrupting a
-      // mutation's activity refresh can leave SWR displaying its previous value.
       setActivityRevision(next);
       setActivityRevalidations((count) => count + 1);
       setRefreshToken((token) => token + 1);
@@ -653,10 +638,8 @@ export function PullRequestDetailPanel({
   const invalidate = useAtomCommand(pullRequestEnvironment.invalidate, { reportFailure: false });
   const [isInvalidating, setIsInvalidating] = useState(false);
   const refreshing = isInvalidating || detailQuery.isPending;
-  /** Resolves whether the host cache was invalidated before the refetch. */
   const refetchFromHost = async () => {
     setIsInvalidating(true);
-    // Atom commands settle instead of throwing, so the reset below always runs.
     const invalidated = await invalidate({ environmentId, input: { reference } });
     refreshDetail();
     setRefreshToken((token) => token + 1);
@@ -676,7 +659,6 @@ export function PullRequestDetailPanel({
             detail.comments,
             detail.reviewThreads,
           );
-  // Loaded activity without the linked item, keyed by load so a refetch is checked again.
   const revealMissedAt =
     timelineAnchor !== null &&
     detail !== null &&
@@ -695,14 +677,11 @@ export function PullRequestDetailPanel({
       revealHostRead.current = request;
       void refetchFromHost().then((invalidated) => {
         if (revealHostRead.current !== request) return;
-        // Without an invalidation the refetch could only repeat the cached read.
         if (!invalidated) return settleReveal(request.url);
         revealHostRead.current = { url: request.url, after: Date.now() };
       });
       return;
     }
-    // A read that finished before the invalidation cannot show the item is missing. `after` is
-    // stamped once the refetch was requested, so a read in that same millisecond is the new one.
     if (read.after !== null && (revealReadFailed || revealMissedAt >= read.after)) {
       settleReveal(revealUrl);
     }
@@ -783,9 +762,6 @@ export function PullRequestDetailPanel({
     });
     setPendingAction(null);
     if (result._tag === "Failure") {
-      // A merge strategy a branch policy forbids is refused at completion and nowhere earlier —
-      // Azure DevOps publishes no per-strategy availability to hide the control with — so
-      // "action failed" would leave the reader pressing the same button again.
       const failure = squashAtomCommandFailure(result);
       const hint =
         updateMethod === "rebase"
@@ -803,7 +779,6 @@ export function PullRequestDetailPanel({
     if (pullRequestActionNeedsHostRefresh(action)) {
       void refreshFromHost();
     } else {
-      // The action command already showed the reply in the detail or re-read it.
       activityQuery.refresh();
       nativeStackQuery.refresh();
     }
@@ -834,8 +809,6 @@ export function PullRequestDetailPanel({
       return { commentPosted: false };
     }
     const actionSucceeded = await finishAction(action);
-    // The comment is durable even if the state change was refused, so make it visible while the
-    // shared action failure explains why the pull request stayed where it was.
     if (!actionSucceeded) refreshDetail();
     return { commentPosted: true };
   };
@@ -956,7 +929,6 @@ export function PullRequestDetailPanel({
       return;
     }
     setHandoff(kind);
-    // Dismissing the loading toast cancels the handoff before it touches a draft.
     let cancelled = false;
     const toastId = toastManager.add({
       type: "loading",
@@ -971,9 +943,6 @@ export function PullRequestDetailPanel({
       actingEnvironmentId,
       acting?.projectId ?? handoffSummary.projectId,
     );
-    // The thread is opened before the checkout rather than after it, because the project's setup
-    // script only runs for a checkout that knows which thread it is for — and a worktree with no
-    // dependencies installed is not something anyone can test.
     const opened = await newThread(projectRef).then(
       (session) => session,
       () => null,
@@ -1025,9 +994,6 @@ export function PullRequestDetailPanel({
     }
     if (pointed === null) {
       setHandoff(null);
-      // The checkout is on disk; only the thread failed to move onto it. Writing the task now
-      // would send the agent at whatever the thread was already open on — which is the one
-      // outcome worth stopping for, since it reads as success and is not.
       toastManager.update(toastId, {
         type: "error",
         title: "Checked out, but the thread stayed where it was",
@@ -1035,7 +1001,6 @@ export function PullRequestDetailPanel({
       });
       return;
     }
-    // The draft carries the pull request until its first send makes it a thread, which links it.
     useComposerDraftStore.getState().setDraftThreadContext(pointed.draftId, {
       checkoutPullRequest: {
         url: prepared.value.pullRequest.url,
@@ -1059,8 +1024,6 @@ export function PullRequestDetailPanel({
       );
       return;
     }
-    // The task goes on the checkout draft: if the user typed into `opened` while the
-    // checkout ran, that is no longer the draft the user is looking at.
     await openThreadWithTask(projectRef, task, pointed);
     toastManager.update(
       toastId,
@@ -1151,11 +1114,6 @@ export function PullRequestDetailPanel({
     );
   };
 
-  /**
-   * Brings a remark into the composer beside this panel, with the pull request it belongs to,
-   * and nothing else: what to ask about it is the reader's to write. A remark on a line travels
-   * as its whole conversation, the way fixing one does.
-   */
   const addCommentToChat = (subject: PullRequestChatSubject) => {
     if (!detail || attachTarget === null) return;
     const thread =
@@ -1182,7 +1140,6 @@ export function PullRequestDetailPanel({
     const hasReference = (store.getComposerDraft(attachTarget)?.reviewComments ?? []).some(
       (existing) => existing.pullRequest?.url === detail.url,
     );
-    // The active editor may be answering a provider question rather than editing this draft.
     if (!hasReference) store.addReviewComment(attachTarget, reference, { insertAtCaret: false });
     store.addReviewComment(attachTarget, comment, { insertAtCaret: false });
     toastManager.add({ type: "success", title: "Added to the composer" });
@@ -1278,15 +1235,12 @@ export function PullRequestDetailPanel({
   const detailChecksState = detail ? pullRequestChecksState(detail.checks) : null;
   const latestChecksState =
     sharedSummary?.checksState === undefined ? detailChecksState : sharedSummary.checksState;
-  // List rollups can omit workflows awaiting approval. Only refreshed detail can clear those.
   const checksState =
     latestChecksState !== "failing" &&
     detail?.checks.some((check) => check.status === "action-required")
       ? "pending"
       : latestChecksState;
   const checksStale = checksState !== detailChecksState;
-  // The merge state remains in one stable slot from waiting through completion. Conflicts and
-  // drafts take the slot while they need a person.
   const primaryAction = detail
     ? resolvePullRequestPrimaryControl({
         state: detail.state,
@@ -1302,7 +1256,6 @@ export function PullRequestDetailPanel({
     : null;
   const mergeMenuActions = {
     ...resolvePullRequestMenuActions({ detail, primaryAction, canMergeSinglePullRequest }),
-    // The armed control beside the primary action is the off switch here.
     showsDisableAutoMerge: false,
   };
   const statePresentation = detail
@@ -1803,7 +1756,6 @@ export function PullRequestDetailPanel({
           const scroller = scrollerByTab.current[tab];
           if (event.target !== scroller || scroller === null || scroller === undefined) return;
           const top = scroller.scrollTop;
-          // Decided here, not in a state updater, which React may run during render.
           const previous = condensedByTab[tab] ?? false;
           const foldHeight = foldRef.current?.scrollHeight ?? 0;
           let next = previous;
@@ -1866,7 +1818,6 @@ export function PullRequestDetailPanel({
             {mountedTabs.has("guide") ? (
               <div
                 className={cn("absolute inset-0", tab !== "guide" && "invisible")}
-                // Read by the guide run notifier, which stays quiet for a guide on screen.
                 data-guide-shown={tab === "guide" ? guideKey : undefined}
               >
                 <PullRequestGuideTab

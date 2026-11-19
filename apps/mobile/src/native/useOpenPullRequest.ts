@@ -12,13 +12,11 @@ const nextLinkNavigationId = () => ++linkNavigationId;
 
 type PullRequestContext = { readonly environmentId: string; readonly projectId: string };
 
-// Avoid useRoute so layouts without route context can open any thread's pull requests.
 export function useNavigateToPullRequest(options?: { readonly replace?: boolean }) {
   const navigation = useNavigation();
   const projects = useProjects();
   const replace = options?.replace;
   return async (url: string, context: PullRequestContext | null) => {
-    // Read at press time so a config push does not hand every link a new handler.
     const serverConfigs = appAtomRegistry.get(environmentServerConfigsAtom);
     const destination = nativePullRequestDestination(url, context, projects, (environmentId) =>
       serverConfigs.has(environmentId),

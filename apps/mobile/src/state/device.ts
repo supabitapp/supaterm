@@ -11,9 +11,6 @@ import { environmentSession, usePreparedConnection } from "./session";
 
 export const deviceEnvironment = createDeviceEnvironmentAtoms(connectionAtomRuntime);
 
-// Hub tickets are single use, so each viewer resolves its own access: a new
-// viewer (a reload, a device switch, a return to the screen) never reuses a
-// ticket an earlier connection already spent.
 const deviceHubAccessAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.family((_viewer: string) =>
     connectionAtomRuntime

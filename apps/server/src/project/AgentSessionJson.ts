@@ -47,7 +47,6 @@ export function createTranscriptJsonReader(
   selectPath: (path: JsonPath) => boolean,
   options?: { readonly maxDepth?: number },
 ) {
-  // 3.6.0 omits the synchronous tokenizer from types; parser() adds an unnecessary async generator.
   const { jsonParser } = StreamJson as typeof StreamJson & {
     jsonParser: (
       options: ParserOptions,
@@ -86,7 +85,6 @@ export function createTranscriptJsonReader(
         assembler.consume(token);
     }
   };
-  // Preserve actual keys; adjacent duplicates share a path, but JSON.parse keeps the last value.
   const stack: Array<{ path: JsonPath; key: string | number | null; selected: boolean }> = [];
   let selectedValue = false;
   const startValue = () => {

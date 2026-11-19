@@ -47,8 +47,6 @@ function ThreadScreenOutlet() {
   );
 }
 
-// Controllers can change from draft to live without replacing the native screen,
-// the keyboard host, or the editor. Publish before paint to avoid an intermediate frame.
 export function ThreadScreenHost({ children }: { readonly children: ReactNode }) {
   const [store] = useState(createThreadScreenStore);
   return (

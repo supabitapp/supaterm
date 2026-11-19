@@ -7,8 +7,6 @@ import {
   type DiagramOptions,
 } from "./diagram.ts";
 
-// Without a resolver pele reads `$$` labels as plain text, where `\n` in `\nabla` breaks the
-// line. Declining every label keeps the TeX source readable instead.
 const literalMath: MathResolver = () => null;
 
 export function renderDiagram(

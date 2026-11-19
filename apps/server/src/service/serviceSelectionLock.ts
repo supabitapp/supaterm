@@ -6,7 +6,6 @@ import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
-// Coarse boot time: a lease from an earlier boot is dead even when its PID is live again.
 const bootEpochSeconds = () => Math.round(Date.now() / 1000 - NodeOS.uptime());
 
 /** Serialize durable selection and unit writes, never manager stop/start commands. */
@@ -30,7 +29,6 @@ export async function acquireServiceSelectionLock(selectionPath: string): Promis
     NodeFS.writeFileSync(NodePath.join(candidate, owner), "", { mode: 0o600 });
     while (true) {
       try {
-        // Publish the owner atomically; rename cannot replace another populated directory.
         NodeFS.renameSync(candidate, lock);
         return () => {
           NodeFS.unlinkSync(NodePath.join(lock, owner));
@@ -67,7 +65,6 @@ export async function acquireServiceSelectionLock(selectionPath: string): Promis
           }
         }
         if (dead) {
-          // Remove only this dead owner's unique file, never a replacement owner's.
           try {
             NodeFS.unlinkSync(NodePath.join(lock, previous));
           } catch (error) {

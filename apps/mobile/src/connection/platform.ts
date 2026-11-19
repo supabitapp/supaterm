@@ -68,7 +68,6 @@ const layerConnectivity = Connectivity.layer({
   ),
 });
 
-/** Wake connections on network path changes; online/offline misses Wi-Fi-to-cellular moves. */
 const networkPathChanges = Stream.callback<"network-changed">((queue) =>
   Effect.acquireRelease(
     Effect.sync(() => {
@@ -81,7 +80,6 @@ const networkPathChanges = Stream.callback<"network-changed">((queue) =>
         }
         previous = type ?? previous;
       };
-      // Seed the current type: the listener reports only changes and would miss the first move.
       void Network.getNetworkStateAsync()
         .then((state) => {
           if (active && previous === undefined && state.isConnected === true) {

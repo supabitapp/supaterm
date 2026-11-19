@@ -35,7 +35,6 @@ export function registerTerminalScriptPasteSurface(
     unsubscribe();
     if (surfaces.get(key) !== surface) return;
     surfaces.delete(key);
-    // A session reopened under the same id is not the one the user confirmed the script for.
     for (const pending of pendingByKey.get(key) ?? []) pending.reject(SCRIPT_PASTE_CLOSED_MESSAGE);
   };
 }

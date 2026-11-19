@@ -91,7 +91,6 @@ describe("HistorySwipeNavigation", () => {
     expect(navigateHistory).not.toHaveBeenCalled();
   });
 
-  // A vertical scroll 15° off vertical.
   const drift = Array.from({ length: 30 }, () => [-4, 15] as const);
   it.each([
     [

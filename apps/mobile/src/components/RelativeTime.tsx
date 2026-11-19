@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { msUntilRelativeTimeChange, relativeTime } from "../lib/time";
 
-// The React Compiler caches inline relativeTime calls on the timestamp alone.
 export function RelativeTime(props: { timestamp: string }) {
   const subscribe = (onChange: () => void) => {
     let timer: ReturnType<typeof setTimeout> | undefined;

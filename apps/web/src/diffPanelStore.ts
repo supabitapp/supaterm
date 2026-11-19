@@ -175,13 +175,10 @@ interface DiffPanelSessionStoreState {
     defaults: ReadonlySet<string>,
     update: (current: ReadonlySet<string>) => ReadonlySet<string>,
   ) => void;
-  // Null follows the diffIgnoreWhitespace setting until the panel toggle is used.
   ignoreWhitespace: boolean | null;
   setIgnoreWhitespace: (ignoreWhitespace: boolean) => void;
 }
 
-// Session-only so folds and the whitespace toggle survive right-panel switches without
-// changing reload defaults.
 export const useDiffPanelSessionStore = create<DiffPanelSessionStoreState>()((set) => ({
   collapsedFileKeysByScopeKey: {},
   updateCollapsedFileKeys: (scopeKey, defaults, update) =>

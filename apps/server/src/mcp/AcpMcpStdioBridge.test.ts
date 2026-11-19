@@ -224,11 +224,9 @@ describe("AcpMcpStdioBridge", () => {
     Effect.gen(function* () {
       const { input, written, requests, bridge } = makeHarness(
         () => Response.json({ jsonrpc: "2.0", id: 4, result: { ok: true } }),
-        // Object mode keeps the two writes as separate chunks instead of one buffered read.
         new NodeStream.PassThrough({ objectMode: true }),
       );
       const fiber = yield* Effect.forkChild(bridge);
-      // JSON.stringify leaves both separators unescaped, as MCP stdio clients send them.
       const message = JSON.stringify({
         jsonrpc: "2.0",
         id: 4,
@@ -236,7 +234,6 @@ describe("AcpMcpStdioBridge", () => {
         params: { name: "echo", arguments: { text: "a\u2028b\u2029c\u{1f30d}" } },
       });
 
-      // Split inside the emoji's UTF-8 bytes and leave the last line unterminated, as stdin may.
       const bytes = Buffer.from(message);
       const split = bytes.indexOf(Buffer.from("\u{1f30d}")) + 2;
       input.write(bytes.subarray(0, split));

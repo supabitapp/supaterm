@@ -63,7 +63,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
         isElectron && "drag-region",
       )}
     >
-      {/* From md up, the window-corner toggle sits where the in-flow trigger would be. */}
       <div className="relative top-[calc(var(--workspace-controls-top)-env(safe-area-inset-top))] ml-[calc(var(--workspace-controls-left)+1px-env(safe-area-inset-left))] flex min-w-0 flex-1 items-center md:ml-[calc(var(--workspace-controls-left)+1px+var(--workspace-titlebar-control-size))]">
         <SidebarTrigger className="md:hidden" aria-label="Toggle main sidebar" />
         <SidebarSearchButton />
@@ -132,7 +131,6 @@ function SidebarSearchButton() {
           <Button
             aria-label="Search"
             onClick={() => {
-              // The palette is a dialog over the whole app, so the sidebar sheet closes first.
               if (isMobile) setOpenMobile(false);
               openCommandPalette();
             }}
@@ -181,7 +179,6 @@ function HistoryNavigationButton({ direction }: { direction: HistoryDirection })
   );
 }
 
-// The desktop app's Settings menu item owns Mod+, so it is not in the keybinding registry.
 const DESKTOP_SETTINGS_SHORTCUT = parseKeybindingShortcut("mod+,")!;
 
 function SidebarUtilityItem({

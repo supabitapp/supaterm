@@ -45,7 +45,6 @@ export function DeviceHostEditor({
         if (!open && !busy) onClose();
       }}
     >
-      {/* The form owns the draft so a keystroke re-renders it, not the dialog chrome. */}
       <DialogPopup showCloseButton={!busy}>
         <DeviceHostEditorForm
           host={host}

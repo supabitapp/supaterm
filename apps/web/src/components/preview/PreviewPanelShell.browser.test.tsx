@@ -22,7 +22,6 @@ function Workspace(props: { open: boolean; present?: boolean; children?: ReactNo
   );
 }
 
-// Mirrors rightPanel.toggle from the composer: the panel opens and the shortcut focuses its content.
 async function openPanelFromComposer(screen: Screen) {
   await userEvent.click(screen.getByRole("textbox", { name: "Message New thread" }));
   await screen.rerender(<Workspace open />);
@@ -49,7 +48,6 @@ describe("PreviewPanelShell focus", () => {
   });
 
   it("returns focus to the composer when the panel's content takes focus as it mounts", async () => {
-    // A terminal surface focuses itself from its ref callback, before the shell's own ref attaches.
     const focusOnMount = (element: HTMLElement | null) => element?.focus();
     const panel = (present: boolean) => (
       <Workspace open present={present}>
@@ -116,7 +114,6 @@ describe("PreviewPanelShell focus", () => {
   });
 
   it("falls back to the toggle when the origin's drawer is closing", async () => {
-    // A closing drawer stays mounted for its exit animation but is no longer a workspace area.
     const layout = (open: boolean, drawerOpen: boolean) => (
       <div>
         <div data-workspace-area={drawerOpen ? "terminal" : undefined}>

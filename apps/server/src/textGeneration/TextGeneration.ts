@@ -62,7 +62,6 @@ const resolveInstance = (
     ),
   );
 
-// Review guides investigate the checkout read-only; the other drivers reject that request.
 const INVESTIGATING_DRIVERS = new Set(["codex", "claudeAgent"]);
 
 /** @public */
@@ -87,7 +86,6 @@ export const make = Effect.gen(function* () {
     );
     const now = DateTime.toEpochMillis(yield* DateTime.now);
     const selected = snapshots.find((provider) => provider.instanceId === selection.instanceId);
-    // Only a failed probe counts: a pending one is also not installed yet.
     const unusable =
       selected?.enabled === true &&
       (!isProviderTextGenerationCapable(selected) ||

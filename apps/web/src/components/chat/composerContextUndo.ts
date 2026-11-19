@@ -36,7 +36,6 @@ function createRetainedContextPayloads(): RetainedContextPayloads {
   };
 }
 
-// Deleted chips keep their payloads until their draft's undo history ends.
 export function useRetainedContextPayloads(draftTargetKey: string): RetainedContextPayloads {
   const [draft, setDraft] = useState(() => ({
     targetKey: draftTargetKey,

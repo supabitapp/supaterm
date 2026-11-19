@@ -27,7 +27,6 @@ export function usePullRequestIntentPrefetch(
 ) {
   const [target, setTarget] = useState<PullRequestIntentTarget | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  // A removed row fires no leave event.
   const listed = target !== null && isListed(target);
   if (target !== null && !listed) setTarget(null);
   const reference =

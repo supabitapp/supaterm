@@ -9,11 +9,7 @@ import { GhosttyRuntime, loadGhosttyRuntime } from "./runtime";
 
 const GHOSTTY_SUCCESS = 0;
 const GHOSTTY_OUT_OF_SPACE = -3;
-// The pinned ABI measures max_scrollback in bytes despite its header saying lines.
-// Match Ghostty's default scrollback-limit.
 const MAX_SCROLLBACK_BYTES = 10_000_000;
-// wasm32 C ABI layout for GhosttyTerminalSelectionFormatOptions at the
-// libghostty-vt revision pinned alongside this module.
 const SELECTION_FORMAT_OPTIONS_SIZE = 16;
 const PALETTE_BYTES = 256 * 3;
 
@@ -162,9 +158,6 @@ export interface GhosttyMouseInput {
   readonly anyButtonPressed: boolean;
 }
 
-// Ghostty sends modified F3 as CSI 13;m ~ to stay clear of cursor position reports, but the PTY
-// advertises xterm-256color, whose kf15/kf27/... are CSI 1;m R. Terminfo keys only apply in
-// keypad-transmit mode (smkx), so that mode marks a terminfo reader; raw parsers never set it.
 const MODIFIED_F3 = /^\x1b\[13;(\d+)~$/;
 /** Mouse report input: UTF-8 text, or one UTF-16 code unit per byte when `binary`. */
 interface GhosttyMouseReport {
@@ -176,7 +169,6 @@ const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 const strictDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const encoder = new TextEncoder();
 
-// Legacy X10 reports can contain bytes above 0x7f that are not valid UTF-8.
 function mouseReport(bytes: Uint8Array): GhosttyMouseReport {
   try {
     return { data: strictDecoder.decode(bytes), binary: false };
@@ -185,7 +177,6 @@ function mouseReport(bytes: Uint8Array): GhosttyMouseReport {
   }
 }
 
-// The encoder only takes whole-pixel cells, so cell reports rescale the pointer onto that grid.
 function encoderAxis(
   position: number,
   screen: number,
@@ -270,7 +261,6 @@ export class GhosttyTerminalCore {
   private cellQuery = 0;
   private scrollbar = 0;
   private rows: GhosttyRow[] = [];
-  // Defaults the cached rows resolved; Ghostty marks no row dirty when OSC 10/11 change them.
   private rowColors: Pick<GhosttySnapshot, "foreground" | "background"> | null = null;
   private disposed = false;
   private keyboardLayoutMap: GhosttyKeyboardLayoutMap | undefined;
@@ -399,9 +389,6 @@ export class GhosttyTerminalCore {
     if (bytes.length === 0) return;
     const pointer = this.runtime.alloc(bytes.length);
     this.runtime.bytes(pointer, bytes.length).set(bytes);
-    // An existing render deadline belongs to one group. Observe Ghostty before
-    // the next escape can reopen it; Ghostty still parses OSC/DCS and split VT
-    // sequences itself. Once that group ends, the remaining bytes can be batched.
     let synchronized = onSynchronizedOutputEnd !== undefined && this.isSynchronizedOutput();
     try {
       for (let start = 0; start < bytes.length;) {
@@ -422,8 +409,6 @@ export class GhosttyTerminalCore {
   resetAndWrite(data: string): void {
     this.ensureActive();
     this.runtime.call("ghostty_terminal_reset", this.terminal);
-    // RIS returns the cursor to Ghostty's built-in steady default, so the
-    // embedder default has to be applied again before the replay runs.
     this.applyDefaultCursorBlink();
     this.rows = [];
     if (data.length === 0) return;
@@ -456,11 +441,6 @@ export class GhosttyTerminalCore {
     );
   }
 
-  /**
-   * Option 23 is the embedder's default blink, which is the state a session
-   * starts in and returns to on DECSCUSR reset (CSI 0 q), so programs that ask
-   * for a specific cursor through DECSCUSR or DEC mode 12 still win.
-   */
   private applyDefaultCursorBlink(): void {
     const blink = this.runtime.alloc(1);
     this.runtime.bytes(blink, 1)[0] = 1;
@@ -703,7 +683,6 @@ export class GhosttyTerminalCore {
       this.terminal,
     );
 
-    // SGR pixel reports (DEC 1016) must name surface pixels, so they skip the rescale.
     const pixelReports = this.modeEnabled(1016);
     const x = encoderAxis(
       input.x,
@@ -1084,7 +1063,6 @@ export class GhosttyTerminalCore {
     return this.runtime.bytes(this.scratch, 1)[0]!;
   }
 
-  /** Reads a DEC private mode; an unknown mode reads as off. */
   private modeEnabled(mode: number): boolean {
     this.runtime.bytes(this.scratch, 1)[0] = 0;
     return (
@@ -1192,13 +1170,10 @@ export class GhosttyTerminalCore {
             this.graphemes,
           ) === GHOSTTY_SUCCESS
         ) {
-          // Read through a DataView: the byte-array allocator guarantees no
-          // 4-byte alignment, which a Uint32Array view would require.
           text = ghosttyCellText(this.runtime.memoryDataView(), graphemeLength, this.graphemes);
         }
       }
       let wide = 0;
-      // A wrap spacer in the final column can follow a spacer tail.
       if (text.length === 0 && (cells.at(-1)?.text.length || cells.length === cols - 1)) {
         this.assertSuccess(
           "ghostty_render_state_row_cells_get(raw)",
@@ -1217,7 +1192,6 @@ export class GhosttyTerminalCore {
         );
         wide = this.runtime.memoryDataView().getUint32(this.scratch + 8, true);
       }
-      // Read the style after allocation and ABI calls, which can grow WASM memory.
       const styleView = this.runtime.memoryDataView();
       if (styleView.getUint8(this.style + styleFields.inverse!.offset) !== 0) {
         [foreground, background] = [background, foreground];

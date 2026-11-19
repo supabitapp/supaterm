@@ -31,8 +31,6 @@ const SCENARIO_KEYS = [
 ];
 
 const SCENARIO_ROW_KEYS = ["phase", "metric", "unit", "observed", "ceiling"];
-// These labels come from the PR and reach a comment the bot posts: no markup, links or mentions.
-// GitHub still links plain text such as `GH-26`, so they are rendered as code spans.
 const SCENARIO_LABEL = /^[A-Za-z0-9][A-Za-z0-9 ,-]{0,79}$/;
 const MAX_SCENARIO_ROWS = 100;
 
@@ -146,7 +144,6 @@ function readResult(directory) {
   return readArtifactFile(directory, RESULT_FILE, validateResult);
 }
 
-// Older runs upload only the result file, so a run without scenarios is still a valid run.
 function readScenarios(directory) {
   return readArtifactFile(directory, SCENARIOS_FILE, validateScenarios);
 }
@@ -195,10 +192,6 @@ function providerLabel(provider) {
   return provider === "codex" ? "Codex" : "Claude";
 }
 
-/**
- * The scenario rows of a run against the same rows on `main`. Rows that fail or differ from
- * `main` are listed in the open; the full table is collapsed below them.
- */
 function renderScenarios(current, baseline, ceilingChanges) {
   if (!current) return { lines: [], failed: false };
   const header = [
@@ -386,7 +379,6 @@ async function resolve({ github, context, core }) {
         per_page: 100,
       });
     } catch (error) {
-      // A force-pushed or deleted PR head can disappear before this workflow runs.
       if (
         error.status === 422 &&
         error.response?.data?.message === `No commit found for SHA: ${source.head_sha}`
@@ -427,8 +419,6 @@ async function resolve({ github, context, core }) {
 
   const sourceArtifacts = await artifactsForRun(github, owner, repo, source.id);
   const sourceArtifact = findResultArtifact(sourceArtifacts);
-  // One page each for the exact base and the newest runs; paging through
-  // every successful main run costs up to ten requests to keep 20.
   const listRuns = async (filters) => {
     const { data } = await github.rest.actions.listWorkflowRuns({
       owner,

@@ -356,8 +356,6 @@ describe("AcpRegistrySupport", () => {
       expect(
         yield* (yield* catalog("C:\\bin\\cmdc.exe")).resolve(bare, "/workspace"),
       ).toMatchObject({ spawn: { command: "C:\\bin\\cmdc.exe", shell: false } });
-      // A bare name that PATHEXT resolves to a batch shim never launches, so the transport it
-      // selects cannot matter: there is no session to attach MCP servers to.
       expect(
         yield* (yield* catalog("C:\\bin\\cmdc.cmd")).resolve(bare, "/workspace").pipe(Effect.flip),
       ).toMatchObject({ reason: "runner_unavailable" });
@@ -935,7 +933,6 @@ describe("AcpRegistrySupport", () => {
       const source = `${cacheDir}/source`;
       yield* fileSystem.makeDirectory(source);
       yield* fileSystem.writeFileString(`${source}/agent`, "#!/bin/sh\necho managed\n");
-      // 5,000 long names list past the generic 1 MiB command output cap.
       const entries = `${source}/entries`;
       yield* fileSystem.makeDirectory(entries);
       yield* Effect.forEach(
@@ -1225,7 +1222,6 @@ describe("AcpRegistrySupport", () => {
       yield* resolver.search({ query: "example" });
       expect(requests).toBe(1);
 
-      // Prepare always refreshes; an unknown agent stops it right after the refresh.
       online = false;
       const missing = yield* resolver.prepare({ agentId: "missing-agent" }).pipe(Effect.flip);
       expect(missing.reason).toBe("agent_not_found");

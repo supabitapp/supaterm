@@ -11,7 +11,6 @@ import type { SourceControlApiDiscoverySpec } from "@supaterm/source-control-cor
 
 const isRepositoryLocatorError = Schema.is(BitbucketApi.BitbucketRepositoryLocatorError);
 
-/** A repository named some other way than `workspace/repository` is the user's to fix. */
 const repositoryDetail = (error: BitbucketApi.BitbucketApiError, fallback: string) =>
   isRepositoryLocatorError(error) ? error.detail : fallback;
 

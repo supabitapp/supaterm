@@ -1,4 +1,3 @@
-// Adapted from opencode (MIT). Copyright (c) 2025 opencode. See LICENSE.opencode.
 import {
   initWasm,
   needsElementDecode,
@@ -16,36 +15,18 @@ import { deckText } from "./slide-text";
 import { officeImageBitmap } from "./image-bitmap";
 import { serveWorker, Transfer } from "./worker-rpc";
 
-// One worker holds one open PowerPoint deck: its engine, fonts, laid-out slides, decoded pictures and painting. The
-// window terminates the worker when the deck closes, which is the only way the engine's memory is given back.
-
-/** English Metric Units per CSS pixel. */
 const emuPerPixel = 9525;
 
-/** The most device pixels one slide's bitmap holds, about a 4K screen: a zoomed slide stays sharp up to it. */
 const maxBitmapPixels = 3840 * 2160;
 
-/** The longest side a canvas takes in every browser. */
 const maxBitmapSide = 16384;
 
-/**
- * Shadow pixels a slide may blur, per pixel of its bitmap: sixteen slide-sized shadows before they are dropped. Past
- * it a slide gives up its shadows within about half a second, rather than painting for many seconds.
- */
 const shadowPixelsPerPixel = 16;
 
-/**
- * How many bytes of decoded pictures stay for repaints; the least recently drawn go first past it. A deck of camera
- * photos holds about 17 MB per picture, even scaled down to `maxImageSide`.
- */
 const pictureBudget = 128 * 1024 * 1024;
 
 type Size = { readonly width: number; readonly height: number };
 
-/**
- * A picture as the painter draws it: a bitmap, an SVG that the window rasterizes (a worker has no SVG decoder) with
- * the bitmap it last returned, or nothing when the browser cannot decode it.
- */
 type Picture =
   | { readonly kind: "bitmap"; readonly bitmap: ImageBitmap; readonly size: Size }
   | {
@@ -58,7 +39,6 @@ type Picture =
 
 type Deck = ReturnType<typeof createDeck>;
 
-/** The deck this worker opened, once it has. */
 type WorkerState = { deck: Deck | undefined };
 
 const state: WorkerState = { deck: undefined };
@@ -105,12 +85,9 @@ function required() {
   return state.deck;
 }
 
-/** The worker's own font set, which its canvases draw text with. */
 function workerFonts() {
   if (!("fonts" in self)) throw new Error("This browser has no fonts in workers");
 
-  // SAFETY: a worker's global scope is a FontFaceSource, whose `fonts` is a FontFaceSet (CSS Font Loading, exposed to
-  // workers). The window's types declare it on documents only, and workers expose no FontFaceSet to check against.
   return self.fonts as FontFaceSet;
 }
 
@@ -118,10 +95,8 @@ function createDeck(
   handle: PresentationHandle,
   layout: (index: number) => Promise<SlideDisplayList>,
 ) {
-  // A frame depends on the slide alone, so a new scale or pixel ratio paints the frame laid out before.
   const frames = new Map<number, Promise<SlideDisplayList | undefined>>();
   const pictures = new Map<string, Promise<Picture>>();
-  // The decoded bitmaps, least recently drawn first, which `trim` keeps within `pictureBudget`.
   const drawn = new Map<string, ImageBitmap>();
   const surface = new OffscreenCanvas(1, 1);
 
@@ -140,7 +115,6 @@ function createDeck(
   const decode = async (asset: string): Promise<Picture> => {
     const blob = presentationImageBlob(handle.mediaBytes(asset));
 
-    // SVG decodes through an image element, which a worker lacks.
     if (needsElementDecode(blob)) return { kind: "vector", blob, bitmap: undefined, failed: false };
 
     const source = await officeImageBitmap(blob).catch(() => undefined);
@@ -195,8 +169,6 @@ function createDeck(
         maxBitmapSide / Math.max(laid.width, laid.height),
       );
 
-      // One canvas paints every slide: a paint that was withdrawn leaves its pixels for the next to clear, rather than a
-      // slide-sized canvas each until the worker collects garbage. A reset context starts as a new canvas's does.
       const canvas = surface;
       const width = Math.max(1, Math.round(laid.width * scale));
       const height = Math.max(1, Math.round(laid.height * scale));
@@ -215,7 +187,6 @@ function createDeck(
       const wanted = new Map<string, VectorRequest>();
 
       const resolveImage = async (asset: string) => {
-        // A paint that was withdrawn finishes without pictures, and its reply is dropped.
         if (signal.aborted) return null;
 
         const found = await picture(asset);
@@ -247,9 +218,6 @@ function createDeck(
       };
 
       const attempt = (list: SlideDisplayList) =>
-        // SAFETY: the painter draws through the members a worker's 2D context shares with the window's, and makes its
-        // scratch canvases with OffscreenCanvas wherever it exists, as it does in a worker. Only the window's context
-        // type is declared, and it has two focus and attribute members the worker's lacks, hence the double cast.
         paintSlide(context as unknown as CanvasRenderingContext2D, list, scale, 1, options).then(
           () => true,
           () => false,
@@ -260,8 +228,6 @@ function createDeck(
       const scaled = { ...laid, primitives };
       const shadowed = await attempt(scaled);
 
-      // Past its shadow budget a slide throws, and paints again without shadows rather than not at all. It first lets
-      // through a cancellation that arrived meanwhile, such as a scroll that moved the slide away.
       if (!shadowed) await new Promise((resolve) => setTimeout(resolve));
 
       if (signal.aborted) return { kind: "cancelled" };
@@ -279,7 +245,6 @@ function createDeck(
       };
     },
 
-    /** Closes the least recently drawn pictures past the budget; they decode again when drawn. Call it between paints. */
     trim: () => {
       [...drawn].reduce(
         (total, [asset, bitmap]) => {
@@ -297,10 +262,6 @@ function createDeck(
       );
     },
 
-    /**
-     * Keeps the window's rasterized SVG pictures in place of coarser ones. A finer one that a paint at a larger scale
-     * returned stays, and so does any one when the window could not rasterize the picture again.
-     */
     vectors: (bitmaps: readonly VectorBitmap[]) =>
       Promise.all(
         bitmaps.map(async (entry) => {
@@ -321,10 +282,6 @@ function createDeck(
   };
 }
 
-/**
- * The bitmap size each SVG picture on a slide needs at `scale`: its drawn size in device pixels, before cropping and
- * up to `maxImageSide`. A tiled picture repeats at its own size, so it needs exactly that (undefined).
- */
 function vectorSizes(primitives: readonly SlidePrimitive[], scale: number) {
   const sizes = new Map<string, Size | undefined>();
 
@@ -363,7 +320,6 @@ function pixelBytes(bitmap: ImageBitmap) {
   return bitmap.width * bitmap.height * 4;
 }
 
-/** Whether a rasterized SVG picture is as fine as `need`; undefined needs the picture's own size, rasterized once. */
 function covers(bitmap: ImageBitmap | undefined, need: Size | undefined) {
   if (!bitmap) return false;
 
@@ -372,7 +328,6 @@ function covers(bitmap: ImageBitmap | undefined, need: Size | undefined) {
   return bitmap.width >= need.width && bitmap.height >= need.height;
 }
 
-/** A crop fraction as the painter reads it. */
 function fraction(value: number | undefined) {
   return value === undefined || !Number.isFinite(value) ? 0 : Math.min(Math.max(value, 0), 1);
 }
@@ -398,10 +353,6 @@ function withoutShadows(frame: SlideDisplayList): SlideDisplayList {
   return { ...frame, primitives: frame.primitives.map(strip) };
 }
 
-/**
- * The picture scaled down to `maxImageSide` when it is larger. Decks of camera photos would otherwise hold about 100 MB
- * per decoded picture for as long as the deck is open.
- */
 async function bounded(source: ImageBitmap) {
   const shrink = maxImageSide / Math.max(source.width, source.height);
 

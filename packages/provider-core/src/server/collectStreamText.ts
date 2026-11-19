@@ -38,7 +38,6 @@ export const collectUint8StreamText = <E>(input: {
         truncated: false,
       }),
       (state, chunk): CollectState => {
-        // Keep draining after truncation; killing a child on Windows can invoke expensive taskkill.
         if (state.truncated) {
           return state;
         }

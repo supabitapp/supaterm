@@ -194,7 +194,6 @@ const makeHarness = Effect.fn("ServerUsageTest.makeHarness")(function* (
       type: "settingsUpdated",
       payload: { settings },
     });
-    // An equal settings document keeps the previous object, so match on content.
     yield* AtomRegistry.toStream(registry, atoms.settingsValueAtom(TARGET.environmentId)).pipe(
       Stream.filter((current) => current !== null && sameServerSettings(current, next)),
       Stream.runHead,
@@ -234,7 +233,6 @@ const makeRefreshingHarness = Effect.fn("ServerUsageTest.makeRefreshingHarness")
       input.awaitRefresh === true
         ? Deferred.succeed(followUpStarted, undefined).pipe(Effect.andThen(followUp))
         : Effect.void,
-    // The saved answer differs from the plain one, so a test can tell which was kept.
     (input) => [
       {
         ...cursorSource(input.awaitRefresh !== true),
@@ -300,7 +298,6 @@ it.effect("keeps the cached usage summary when the awaited refresh fails", () =>
       cursorSource(true),
     ]);
     expect(AsyncResult.isSuccess(harness.registry.get(summary))).toBe(true);
-    // The saved answer is followed by a plain read before the one that waits for Cursor.
     expect(
       harness.inputs().map(({ provisional, awaitRefresh }) => ({ provisional, awaitRefresh })),
     ).toEqual([
@@ -308,7 +305,6 @@ it.effect("keeps the cached usage summary when the awaited refresh fails", () =>
       { provisional: undefined, awaitRefresh: undefined },
       { provisional: undefined, awaitRefresh: true },
     ]);
-    // With figures on screen, a refresh reads them exactly instead of asking for saved ones.
     yield* harness.updateSettings({
       ...DEFAULT_SERVER_SETTINGS,
       usagePriceOverrides: {

@@ -17,11 +17,6 @@ import { SshCommandError, SshInvalidTargetError } from "./errors.ts";
 const DEFAULT_SSH_COMMAND_TIMEOUT_MS = 60_000;
 const MAX_SSH_ERROR_OUTPUT_LENGTH = 4_000;
 
-/**
- * ssh is a real executable everywhere (`ssh.exe` on Windows), so it is always
- * spawned directly — cmd.exe shell mode would re-tokenize arguments such as
- * identity-file paths containing spaces.
- */
 const sshCommandForPlatform = (platform: NodeJS.Platform): string =>
   platform === "win32" ? "ssh.exe" : "ssh";
 
@@ -113,8 +108,6 @@ export function baseSshArgs(
     `BatchMode=${input?.batchMode ?? "no"}`,
     "-o",
     "ConnectTimeout=10",
-    // Supaterm always supplies its own remote command or only forwards ports, so a host
-    // alias's RemoteCommand or RequestTTY must not hijack the session.
     "-o",
     "RemoteCommand=none",
     "-o",
@@ -138,7 +131,6 @@ interface SshCommandOutput {
   stderr: string;
 }
 
-// Appends as chunks arrive so a timeout can still report what was printed.
 const collectProcessOutput = <E>(
   stream: Stream.Stream<Uint8Array, E>,
   output: SshCommandOutput,
@@ -170,14 +162,11 @@ export function shellSingleQuote(value: string): string {
 
 const SAFE_SHELL_ARG = /^[\w@%+=:,./-]+$/u;
 
-// cmd.exe and PowerShell both read double quotes, but not POSIX single quotes.
 function terminalArg(value: string, platform: NodeJS.Platform): string {
   if (SAFE_SHELL_ARG.test(value)) return value;
   return platform === "win32" ? `"${value}"` : shellSingleQuote(value);
 }
 
-// ssh prints this for unknown and changed host keys when it cannot ask. The app
-// never answers host key prompts, so the user checks the fingerprint in a terminal.
 function hostKeyVerificationMessage(input: {
   readonly target: DesktopSshEnvironmentTarget;
   readonly hostSpec: string;
@@ -257,7 +246,6 @@ const runSshCommandInScope = Effect.fn("ssh/command.runSshCommand.inScope")(func
     ...baseSshArgs(target, {
       batchMode: input.batchMode ?? (input.interactiveAuth ? "no" : "yes"),
     }),
-    // Cold installs need a long command budget; a lost connection must fail sooner.
     "-o",
     "ServerAliveInterval=15",
     "-o",
@@ -378,7 +366,6 @@ export const runSshCommand = Effect.fn("ssh/command.runSshCommand")(function* (
     Effect.flatMap((result) =>
       Option.match(result, {
         onSome: Effect.succeed,
-        // The enclosing operation owns the span for this inline handler.
         onNone: Effect.fnUntraced(function* () {
           const diagnosticStdout = redactSshErrorOutput(output.stdout, input.keepErrorOutputTail);
           const { stderr } = output;

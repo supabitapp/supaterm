@@ -60,7 +60,6 @@ export function PullRequestFilterSearchScreen({
   const [query, setQuery] = useState("");
   const typed = query.trim().slice(0, 100);
   const sent = useDebouncedValue(typed, 250);
-  // Until the search catches up with the typing, the host's answers are for older text.
   const settled = sent === typed;
   const key = JSON.stringify(
     environmentIds.map((id) => ({

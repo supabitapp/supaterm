@@ -50,7 +50,6 @@ export function DaysField({
       onFailed: () => setField((latest) => failAutoMarkDoneDaysField(latest, revision)),
     });
   };
-  // Base UI shows typed text until the input blurs, so a finished edit blurs and refocuses it.
   const resyncInput = (input: HTMLInputElement) => {
     input.blur();
     input.focus();
@@ -88,7 +87,6 @@ export function DaysField({
             if (event.nativeEvent.isComposing) return;
             if (event.key === "Enter") resyncInput(event.currentTarget);
             if (event.key === "Escape" && field.dirty) {
-              // An unhandled Escape closes the settings page, and the blur that follows would save.
               event.preventDefault();
               event.stopPropagation();
               setField(cancelAutoMarkDoneDaysField(field));

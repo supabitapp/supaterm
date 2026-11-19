@@ -86,7 +86,6 @@ lines.on("line", (line) => {
   }
   if (message.request?.subtype === "get_settings") {
     const sources = JSON.parse(process.env.SUPATERM_CLAUDE_SETTINGS_SOURCES ?? "[]");
-    // Like Claude Code, `effective` is the last-writer merge, which hides per-source caps.
     const effective = { modelSettings: {} };
     for (const { settings } of sources) {
       Object.assign(effective, settings, {
@@ -142,7 +141,6 @@ lines.on("line", (line) => {
     }) + "\n",
   );
 });
-// Stay alive for control requests only while the parent lives; SDK abort does not await child exit.
 const keepAlive = setInterval(() => {}, 1_000);
 lines.on("close", () => {
   clearInterval(keepAlive);

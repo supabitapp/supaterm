@@ -2,7 +2,6 @@ import { useRef, type RefObject } from "react";
 
 type PointerPresence = "active" | "idle";
 
-// Written to the DOM rather than React state so pointer moves never re-render.
 export function usePointerIdle(targetRef: RefObject<HTMLElement | null>, idleAfterMs: number) {
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

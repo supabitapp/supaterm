@@ -15,8 +15,6 @@ import { reloadOnceForChunkLoadError } from "./lib/chunkReloadGuard";
 
 const router = startAppServices();
 
-// A failed split-chunk fetch usually means the hashed assets went stale under
-// a deploy; one guarded reload picks up the fresh index.html.
 let reloadScheduled = false;
 window.addEventListener("vite:preloadError", (event) => {
   if (reloadOnceForChunkLoadError()) {
@@ -25,15 +23,9 @@ window.addEventListener("vite:preloadError", (event) => {
   }
 });
 
-// The index.html boot splash lives inside #root, and React's first commit
-// clears it. Resolve the initial route's split chunks before rendering, so the
-// splash holds until real UI paints instead of dropping to a blank window while
-// chunks download.
 export const startup = router
   .load()
   .then(() => {
-    // A route chunk failure still resolves router.load(): the error is parked in
-    // the lazy component and surfaces through the route error boundary.
     if (reloadScheduled) return;
     ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
       <React.StrictMode>

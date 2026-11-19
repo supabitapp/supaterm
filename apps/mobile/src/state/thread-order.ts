@@ -27,8 +27,6 @@ export function usePendingThreadOrder() {
 }
 
 let refreshPendingOrder: (() => void) | undefined;
-// Only one hold is live at a time; starting another tears down the previous
-// hold's subscriptions so its clocks and listeners do not outlive it.
 let teardownPendingOrder: (() => void) | undefined;
 
 export function getPendingThreadOrder(): PendingThreadOrder | null {
@@ -38,8 +36,6 @@ export function getPendingThreadOrder(): PendingThreadOrder | null {
 
 export function beginPendingThreadOrder(pending: PendingThreadOrder) {
   const unsubscribers: (() => void)[] = [];
-  // A timed wake can change section membership without a shell event, so the
-  // hold also re-checks on each minute and at the next snooze expiry.
   let wake: { readonly atMs: number | null; readonly unsubscribe: () => void } | null = null;
   const armWake = (atMs: number | null) => {
     if (wake?.atMs === atMs) return;

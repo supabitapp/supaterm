@@ -103,8 +103,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    // The server cwd is $HOME in packaged desktop builds, and `claude`
-    // wrappers that scope themselves to their cwd refuse to run there.
     const { stateDir } = yield* ServerConfig.ServerConfig;
     const httpClient = yield* HttpClient.HttpClient;
     const latestVersions = yield* ProviderLatestVersions.ProviderLatestVersions;
@@ -162,12 +160,9 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
         })),
       );
     const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
-    // The SDK's user source is the host's home, not a custom one; same rule as the adapter.
     const customHome =
       effectiveConfig.homePath.trim().length > 0 ||
       processEnv.CLAUDE_CONFIG_DIR !== (yield* HostProcess.Environment).CLAUDE_CONFIG_DIR;
-    // Only a successful probe records routes, so a failed one never sends turns back to slugs
-    // the backend rejects.
     const modelRoutes = yield* makeClaudeCodeModelRoutes(
       (cwd) =>
         resolveClaudeModelSettingsKey(
@@ -179,7 +174,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
         ),
       stateDir,
     );
-    // Retain reports until the registry subscribes; end its listener on teardown.
     const workspaceRescans = yield* Queue.unbounded<string, Cause.Done>();
     yield* Effect.addFinalizer(() => Queue.end(workspaceRescans));
     const orchestrationAdapter = yield* createClaudeAdapterV2(
@@ -285,7 +279,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
           Effect.map(stampIdentity),
         ),
       ),
-      // Disabled, failed version checks and interruption never reach the probe.
       Effect.ensuring(modelRoutes.settle),
       Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
       Effect.provideService(FileSystem.FileSystem, fileSystem),
@@ -339,9 +332,6 @@ export const ClaudeDriver: ProviderDriver<ClaudeSettings, ClaudeDriverEnv, Path.
       Effect.provideService(Path.Path, path),
     );
 
-    // Same rules as Codex: serialised on the config directory that holds the
-    // login, one request id kept until Claude answers (a cooldown or rate
-    // limit is an answer), then a re-probe.
     const consumeResetCredit: NonNullable<ProviderInstance["consumeResetCredit"]> = Effect.fn(
       "ClaudeDriver.consumeResetCredit",
     )(

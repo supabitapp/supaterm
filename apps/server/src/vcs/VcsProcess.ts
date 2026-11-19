@@ -66,7 +66,6 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const OUTPUT_TRUNCATED_MARKER = "\n\n[truncated]";
 const VCS_PROCESS_CONCURRENCY = 8;
-// Forge CLIs can take seconds per call; cap them together so git, checkpoints included, keeps slots.
 const NON_GIT_PROCESS_CONCURRENCY = VCS_PROCESS_CONCURRENCY / 2;
 
 export const GIT_INDEX_LOCKED_DETAIL =
@@ -74,7 +73,6 @@ export const GIT_INDEX_LOCKED_DETAIL =
 
 export const CHECKPOINT_CAPTURE_OPERATION = "GitVcsDriver.checkpoints.captureCheckpoint";
 
-// Caller operations are diagnostic strings; only known labels may become metric attributes.
 const gitMetricOperations = new Set([
   CHECKPOINT_CAPTURE_OPERATION,
   "GitVcsDriver.checkpoints.deleteCheckpointRefs",
@@ -114,7 +112,6 @@ export const gitConfigEnv = (
   if (
     inherited !== undefined &&
     inherited !== "" &&
-    // Match Git's strtoul count syntax, including whitespace, signs and non-negative -0.
     /^[ \t\r\n\v\f]*(?:\+?\d+|-0+)/.exec(inherited)?.[0] !== inherited
   ) {
     return {};
@@ -188,7 +185,6 @@ const classifyNonZeroExit = (
   return commandKind ?? "command-failed";
 };
 
-// Classify before discarding stderr; keep paths and process output out of errors.
 const isTransientGitExit = (stderr: string) =>
   /unable to create [^\n]*\.lock['"]?: file exists/i.test(stderr) ||
   /(?:unable to stat|lstat\(|error: open\()[^\n]+: no such file or directory/i.test(stderr);
@@ -233,8 +229,6 @@ export const make = Effect.gen(function* () {
           ...(input.command === "git"
             ? unsetInheritedRepositoryEnv(process.env, hostPlatform)
             : {}),
-          // Failures are read by English patterns; without LANG, macOS Git follows the system language.
-          // LANGUAGE leaves LC_CTYPE, which hooks inherit, alone.
           ...(input.command === "git" ? { LANGUAGE: "C" } : {}),
           ...input.env,
           ...explicitBareRepositoryEnv({ ...process.env, ...input.env }, hostPlatform),

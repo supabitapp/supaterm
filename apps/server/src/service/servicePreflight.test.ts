@@ -15,7 +15,6 @@ import { migrationManifest } from "../persistence/Migrations.ts";
 import { runServicePreflight } from "./servicePreflight.ts";
 import { SERVICE_LAUNCHER_PROTOCOL } from "./serviceProtocol.ts";
 
-// regression: #13239 a stale CLI shadowing the updated one kept "updating" to itself
 it.each([1])("blocks legacy launcher protocol %i with exact recovery steps", (launcherProtocol) => {
   const result = runServicePreflight({
     launcherProtocol,
@@ -34,11 +33,9 @@ it.each([1])("blocks legacy launcher protocol %i with exact recovery steps", (la
   expect(reason).toContain("which -a supaterm");
 });
 
-// regression: #34502 every installed launcher was protocol 3, so protocol 4 blocked every remote update
 it.each([3, SERVICE_LAUNCHER_PROTOCOL])(
   "is ready under launcher protocol %i and reports it back",
   (launcherProtocol) => {
-    // A released server accepts a ready result only when it names that server's own protocol.
     expect(
       runServicePreflight({
         databasePath: "/missing/state.sqlite",
@@ -86,10 +83,8 @@ it.layer(NodeServices.layer)("service preflight database", (it) => {
       const result = preflight();
       expect(result.status).toBe("blocked");
       expect(result.status === "blocked" ? result.reason : "").toContain(`${newerId}_FromNightly`);
-      // Servers report this head, so clients see a database a newer build migrated.
       expect(databaseMigrationHead(databasePath)).toBe(newerId);
 
-      // A database that exists but cannot be read has an unknown history, so it blocks.
       const unreadable = path.join(path.dirname(databasePath), "unreadable.sqlite");
       yield* fs.writeFileString(unreadable, "not a database");
       expect(databaseMigrationHead(unreadable)).toBeUndefined();
@@ -99,7 +94,6 @@ it.layer(NodeServices.layer)("service preflight database", (it) => {
           launcherProtocol: SERVICE_LAUNCHER_PROTOCOL,
         }).status,
       ).toBe("blocked");
-      // A missing database is a fresh install.
       expect(databaseMigrationHead(path.join(path.dirname(databasePath), "missing.sqlite"))).toBe(
         BUILD_MIGRATION_HEAD,
       );

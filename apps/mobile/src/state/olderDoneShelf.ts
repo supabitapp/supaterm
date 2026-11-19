@@ -67,7 +67,6 @@ export function useOlderDoneShelf(input: {
     pages,
     grow: (next: ReadonlyMap<EnvironmentId, number>) => setRequested({ scopeKey, pages: next }),
     isListed: (thread: EnvironmentThreadShell) => isListedDoneThread(thread.source, frontier),
-    /** Older done threads in scope that are not local; add it to the local Done rows. */
     unloadedCount: (threads: ReadonlyArray<EnvironmentThreadShell>) =>
       unloadedOlderDoneCount({ olderDone: olderOf, scopes, threads }),
     loading: loaded.some(({ scope }) => pagesOf(scope.environmentId)?.status === "pending"),

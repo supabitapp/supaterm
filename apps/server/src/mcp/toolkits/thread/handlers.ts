@@ -52,11 +52,6 @@ const dispatch = Effect.fn("mcp.dispatchThreadCommand")(function* (
   return { sequence: result.sequence };
 });
 
-/**
- * Places an agent pin at the top of the Pinned section, as a client pin is placed.
- * Without a key the sidebar sorts the pin below every keyed pin. Ordering is
- * best effort: if the index cannot be read, the pin still lands, keyless.
- */
 const topOfPinnedRunKey = Effect.fn("mcp.topOfPinnedRunKey")(function* (
   threads: Pick<ThreadManagement.ThreadManagementService["Service"], "listActiveShellIndex">,
 ) {
@@ -92,7 +87,6 @@ const readQuestion = Effect.fn("mcp.readQuestion")(function* (input: {
     });
   return { ...context, request, item };
 });
-/** A field the chosen action needs. `null` counts as given, as in `beforeRunId: null`. */
 const required = <A>(value: A | undefined, name: string) =>
   value === undefined
     ? Effect.fail(
@@ -408,9 +402,6 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
           };
           break;
         case "pin": {
-          // Always send a key, as the client does: the reducer ignores it for a
-          // thread that is already pinned, and a projection read before this
-          // command can be stale if an unpin commits in between.
           const orderKey = yield* topOfPinnedRunKey(threads);
           command = { ...common, type: "thread.pin", ...(orderKey ? { orderKey } : {}) };
           break;

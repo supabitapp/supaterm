@@ -87,7 +87,6 @@ export function createComposerContextHistory() {
       records.delete(record.contextId);
       records.set(record.contextId, record);
     }
-    // Recovery drafts can exceed the send cap. Evict undo-only entries, never live payloads.
     const limit = Math.max(COMPOSER_CONTEXT_MAX_RECORDS, current?.records.length ?? 0);
     while (records.size > limit) {
       const oldest = records.keys().next().value;
@@ -155,7 +154,6 @@ export function composerContextEditorTokens(
   tokens: readonly ComposerInlineToken[],
   knownSkills: { has(name: string): boolean },
 ) {
-  // `$HOME` and other `$name` text that is not one of the provider's skills stays prose.
   return withComposerLinkTokens(text, tokens).filter(
     (token) => token.type !== "skill" || knownSkills.has(token.value),
   );

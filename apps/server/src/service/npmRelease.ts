@@ -19,7 +19,6 @@ import * as ProcessRunner from "../processRunner.ts";
 
 const Version = Schema.String.check(Schema.isPattern(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/));
 const Manifest = Schema.Struct({ version: Version, supaterm: Schema.optionalKey(Schema.Unknown) });
-// npm prints a bare version string when the release has no `supaterm` field.
 const decodeManifest = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Union([Manifest, Schema.Tuple([Manifest]), Version])),
 );
@@ -73,20 +72,17 @@ export const make = Effect.fn("NpmRelease.make")(function* () {
     );
     return Option.isNone(json) ? null : yield* toRelease(spec, json.value);
   });
-  // npm loads the whole package history per lookup, so a burst of specs must not spawn one each.
   const npmPermits = yield* Semaphore.make(2);
   const cache = yield* Cache.make({
     capacity: 32,
     timeToLive: Duration.minutes(1),
     lookup: Effect.fn("NpmRelease.lookup")(function* (spec: string) {
-      // Without npm there is no configured registry to honor, so use the public one.
       const npmPath = yield* resolveCommandPath("npm");
       if (npmPath === null) return yield* lookupPublic(spec);
       const output = yield* npmPermits
         .withPermits(1)(
           runner.run({
             command: npmPath,
-            // Named fields keep the output small; the full package document grows with every release.
             args: ["view", "--global", "--json", `supaterm@${spec}`, "version", "supaterm"],
             timeout: Duration.seconds(15),
             maxOutputBytes: 256 * 1024,

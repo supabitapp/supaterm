@@ -41,7 +41,6 @@ export function createRecentThreadShortcuts(dependencies: RecentThreadShortcutsD
   let persistable = false;
   let active: RecentThreadShortcut | null = null;
   let savedEnvironmentIds: ReadonlySet<string> | null = null;
-  // Serialize saves so older lists cannot overwrite newer ones.
   let saveQueue: Promise<unknown> = Promise.resolve();
 
   const commit = (next: ReadonlyArray<RecentThreadShortcut>) => {
@@ -83,7 +82,6 @@ export function createRecentThreadShortcuts(dependencies: RecentThreadShortcutsD
 
   return {
     loaded,
-    /** Resolves once every save issued so far has finished. */
     saved: () => saveQueue,
     recordActiveThread(next: RecentThreadShortcut | null): void {
       active = next;
@@ -124,7 +122,6 @@ const activeThreadShortcutAtom = Atom.make((get): RecentThreadShortcut | null =>
 
 /** Wired to the root navigation container's state changes. */
 export function recordAppShortcutNavigationState(state: NavigationState): void {
-  // Launcher shortcuts are Android-only; iOS never subscribes to thread shells.
   if (Platform.OS !== "android") return;
   const next = activeThreadRef(state);
   const current = appAtomRegistry.get(activeThreadRefAtom);
@@ -141,7 +138,6 @@ export function recordAppShortcutNavigationState(state: NavigationState): void {
  */
 export function installAppShortcuts(navigate: (href: string) => void): () => void {
   const open = (action: QuickActions.Action) => {
-    // "New task" goes through the compose action so it opens the last project.
     if (action.id === NEW_TASK_SHORTCUT_ID) {
       void readStartNewTaskDestination(uuidv4()).then((params) =>
         whenRootNavigationReady(() =>

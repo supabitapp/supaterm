@@ -182,7 +182,6 @@ describe("AcpClientTerminals", () => {
           terminalId: created.terminalId,
         });
         expect(exit.exitCode === 0 ? null : exit.exitCode).not.toBe(0);
-        // Windows has no signals: a killed process only reports an exit code.
         if (yield* HostProcess.isWindows) {
           expect(exit.signal).toBeNull();
         } else {
@@ -202,7 +201,6 @@ describe("AcpClientTerminals", () => {
 
   it.effect("answers wait_for_exit when a background child keeps the output pipes open", () =>
     Effect.gen(function* () {
-      // Models `sh -c "setsid server & echo done"`: sh exits, the orphan inherits stdout/stderr.
       const orphanExited = yield* Deferred.make<void>();
       const heldOpen = Stream.fromEffectDrain(Deferred.await(orphanExited));
       const child = ChildProcessSpawner.makeHandle({
@@ -252,7 +250,6 @@ describe("AcpClientTerminals", () => {
           pid: ChildProcessSpawner.ProcessId(1),
           exitCode: Deferred.await(exited),
           isRunning: Deferred.isDone(exited).pipe(Effect.map((done) => !done)),
-          // Model a process that only exits when the spawner escalates after its deadline.
           kill: (options) =>
             options?.forceKillAfter === undefined
               ? Deferred.await(exited).pipe(Effect.asVoid)
@@ -340,14 +337,12 @@ describe("AcpClientTerminals", () => {
         ],
       });
       const child = yield* Deferred.await(spawned);
-      // Reap only this test's captured child, including when the regression fails.
       yield* Effect.addFinalizer(() => child.kill({ killSignal: "SIGKILL" }).pipe(Effect.ignore));
       yield* Deferred.await(ready);
 
       const request = { sessionId: "session", ...terminal };
       yield* terminals.kill(request);
       const exit = yield* terminals.waitForExit(request);
-      // Windows has no signals: the command is terminated without a signal name.
       if (!(yield* HostProcess.isWindows)) {
         expect(exit).toEqual({ exitCode: null, signal: "SIGKILL" });
       }

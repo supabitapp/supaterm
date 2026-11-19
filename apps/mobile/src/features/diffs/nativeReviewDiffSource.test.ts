@@ -178,7 +178,6 @@ it("starts a shared fresh request for a file whose cancelled request was dropped
   response.resolve(SOURCE);
   await dropped.promise;
   const fresh = load("cancelled.ts");
-  // Settling first means the fresh caller joined the dropped request instead of fetching.
   await Promise.race([replacementStarted.promise, fresh]);
   const shared = load("cancelled.ts");
   replacementResponse.resolve(SOURCE);

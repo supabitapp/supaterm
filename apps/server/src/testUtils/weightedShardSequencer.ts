@@ -1,12 +1,10 @@
 // @effect-diagnostics nodeBuiltinImport:off - vitest loads this sequencer from the config,
-// outside any Effect runtime, and only needs path.relative.
 import * as NodePath from "node:path";
 
 import { BaseSequencer, type TestSpecification } from "vite-plus/test/node";
 
 import shardWeights from "./shardWeights.json" with { type: "json" };
 
-// Recordings omit files that took under this long, including their imports.
 const UNRECORDED_FILE_SECONDS = 0.5;
 
 const recordedSeconds: Readonly<Record<string, number>> = shardWeights;

@@ -47,11 +47,8 @@ export function secretRequestInputs(
 export const secretRequestValue = (values: Readonly<Record<string, string>>, key: string) =>
   Object.hasOwn(values, key) ? (values[key] ?? "") : "";
 
-// Backticks, <angle brackets> and markdown link targets (balanced parentheses allowed) keep their
-// exact text; a bare link drops trailing sentence punctuation.
 const REASON_LINK =
   /`(https?:\/\/[^`\s]+)`|<(https?:\/\/[^>\s]+)>|\]\((https?:\/\/(?:[^()\s]|\([^()\s]*\))+)\)|(https?:\/\/[^\s<>"'`[\]]+)/giu;
-/** Drops trailing sentence punctuation; a `)` stays when the link opened a matching `(`. */
 function trimPunctuation(link: string): string {
   let end = link.length;
   while (end > 0 && ".,;:!?)".includes(link[end - 1]!)) {
@@ -62,12 +59,10 @@ function trimPunctuation(link: string): string {
   return link.slice(0, end);
 }
 
-/** Drops a closing `*` or `_` run only when the same run opened emphasis before the link and is still open. */
 function trimEmphasis(link: string, before: string) {
   const run = /(\*{1,3}|_{1,3})$/u.exec(link)?.[1];
   if (run === undefined) return link;
   const escaped = run.replaceAll("*", "\\*");
-  // Nested emphasis (`**_url_**`) opens one run right after another.
   const opener = [...before.matchAll(new RegExp(`(?:^|[\\s(*_])${escaped}(?=\\S|$)`, "gu"))].at(-1);
   if (opener === undefined) return link;
   const closed = new RegExp(`\\S${escaped}(?:[\\s.,;:!?)]|$)`, "u").test(
@@ -76,7 +71,6 @@ function trimEmphasis(link: string, before: string) {
   return closed ? link : trimPunctuation(link.slice(0, -run.length));
 }
 
-/** The one distinct http(s) link in `reason`, for agents that put it there instead of in `url`. */
 function reasonLink(reason: string): string | undefined {
   const raw = Array.from(reason.matchAll(REASON_LINK), (match) => {
     const [, ticked, angled, target, bare] = match;
@@ -88,7 +82,6 @@ function reasonLink(reason: string): string | undefined {
     }
     return link;
   });
-  // Two spellings of one page (`https://a.dev` and `https://a.dev/`) count once.
   const links = new Set(raw.map((link) => secretRequestPageUrl(link)?.href ?? link));
   return links.size === 1 ? [...links][0] : undefined;
 }
@@ -108,7 +101,6 @@ export type SecretRequestDisplay =
       readonly outcome: "saved" | "declined" | "ended";
       readonly label: string;
     }
-  /** Shown as a card, not a work-log row: the user has to ask the agent again. */
   | { readonly kind: "expired"; readonly label: string; readonly hint: string };
 
 const SAVED_DISPLAY: SecretRequestDisplay = {
@@ -158,7 +150,6 @@ export function secretRequestDisplay(
 }
 
 export type SecretRequestReply =
-  /** Keyed by `SecretRequestInput.key`. */
   | { readonly type: "save"; readonly values: Readonly<Record<string, string>> }
   | { readonly type: "decline" };
 

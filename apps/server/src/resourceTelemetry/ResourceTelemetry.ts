@@ -329,27 +329,25 @@ export const make = Effect.fn("resourceTelemetry.resourceTelemetry.make")(functi
 
   const ingestNative = (snapshot: NativeTelemetryClient.NativeTelemetrySnapshot) =>
     rebuild({ nativeSnapshot: snapshot, updatePrevious: true });
-  const ingestDesktop =
-    /* Desktop samples arrive continuously; avoid a span per telemetry sample. */
-    Effect.fnUntraced(function* (snapshot: DesktopHostTelemetrySnapshot) {
-      const electronRoot = snapshot.electronProcesses.find(
-        (process) => process.pid === snapshot.electronPid,
-      );
-      yield* nativeClient
-        .setExternalProcesses([
-          {
-            pid: snapshot.electronPid,
-            ...(electronRoot === undefined ? {} : { startTimeMs: electronRoot.creationTimeMs }),
-          },
-        ])
-        .pipe(Effect.ignore);
-      yield* nativeClient.setHostPowerState(snapshot.power).pipe(Effect.ignore);
-      return yield* rebuild({
-        desktopSnapshot: snapshot,
-        updatePrevious: false,
-        publishWhenLive: true,
-      });
+  const ingestDesktop = Effect.fnUntraced(function* (snapshot: DesktopHostTelemetrySnapshot) {
+    const electronRoot = snapshot.electronProcesses.find(
+      (process) => process.pid === snapshot.electronPid,
+    );
+    yield* nativeClient
+      .setExternalProcesses([
+        {
+          pid: snapshot.electronPid,
+          ...(electronRoot === undefined ? {} : { startTimeMs: electronRoot.creationTimeMs }),
+        },
+      ])
+      .pipe(Effect.ignore);
+    yield* nativeClient.setHostPowerState(snapshot.power).pipe(Effect.ignore);
+    return yield* rebuild({
+      desktopSnapshot: snapshot,
+      updatePrevious: false,
+      publishWhenLive: true,
     });
+  });
 
   yield* desktopSubscription.changes.pipe(
     Stream.runForEach((snapshot) => ingestDesktop(snapshot)),

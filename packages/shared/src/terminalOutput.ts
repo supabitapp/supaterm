@@ -50,7 +50,6 @@ function sgr(pen: string): string {
   return pen === "" ? `${ESC}[0m` : `${ESC}[0;${pen}m`;
 }
 
-// Lines stay immutable after a feed, so their measured lengths can be cached.
 const lineLengths = new WeakMap<Line, number>();
 
 function lineLength(line: Line): number {
@@ -86,7 +85,6 @@ function lineWidth(line: Line): number {
   return width;
 }
 
-// Strip oldest styles to bound work on color-per-character output.
 const MAX_LINE_RUNS = 2_048;
 
 function sliceLine(line: Line, start: number, end: number): Array<Run> {
@@ -118,7 +116,6 @@ function sliceLine(line: Line, start: number, end: number): Array<Run> {
       if (width === 0) {
         if (base >= start && base < end && baseEnd <= end) text += character;
       } else if (col < end && col + width > start) {
-        // Overwriting either half of a wide glyph clears that glyph's other cell.
         text +=
           col >= start && col + width <= end
             ? character
@@ -141,7 +138,6 @@ function pushRun(runs: Array<Run>, run: Run): void {
   }
 }
 
-/** Mutates only lines owned by this feed. */
 function trimLineStart(runs: Array<Run>, count: number): number {
   const width = lineWidth(runs);
   const length = lineLength(runs);
@@ -152,7 +148,6 @@ function trimLineStart(runs: Array<Run>, count: number): number {
   while (dropped < runs.length) {
     const run = runs[dropped]!;
     let cut = Math.min(remaining, run.text.length);
-    // A retained tail must start at a complete character, with no detached marks.
     while (cut < run.text.length) {
       const code = run.text.charCodeAt(cut);
       const character = String.fromCodePoint(run.text.codePointAt(cut)!);
@@ -191,7 +186,6 @@ function writeLine(line: Line, col: number, text: string, pen: string): Line {
   return runs;
 }
 
-/** Erase in line: 0 cursor to end, 1 start to cursor, 2 whole line. */
 function eraseLine(line: Line, col: number, mode: number): Line {
   const length = lineWidth(line);
   if (mode === 0) return sliceLine(line, 0, col);
@@ -256,7 +250,6 @@ function formatPen(attributes: Attributes): string {
   return parts.join(";");
 }
 
-/** Reads 5;n or 2;r;g;b colors; returns the code and next index. */
 function extendedColor(
   code: number,
   params: ReadonlyArray<number>,
@@ -300,7 +293,6 @@ function applySgr(attributes: Attributes, params: ReadonlyArray<number>): void {
     else if (code === 39) attributes.fg = "";
     else if (code === 49) attributes.bg = "";
     else if (code === 38 || code === 48 || code === 58) {
-      // 58 (underline colour) is consumed but not kept: nothing renders it.
       const [color, next] = extendedColor(code, params, index);
       if (color !== undefined && code !== 58) attributes[code === 38 ? "fg" : "bg"] = color;
       index = next;
@@ -312,11 +304,9 @@ function applySgr(attributes: Attributes, params: ReadonlyArray<number>): void {
 
 const STRING_SEQUENCE_INTRODUCERS = new Set(["]", "P", "X", "_", "^"]);
 
-/** Length of a complete escape sequence starting at `index` (an ESC), or -1 if unfinished. */
 function escapeLength(input: string, index: number): number {
   const next = input[index + 1];
   if (next === undefined) return -1;
-  // A second ESC restarts the sequence.
   if (next === ESC) return 1;
   if (next === "[") {
     for (let cursor = index + 2; cursor < input.length; cursor += 1) {
@@ -326,11 +316,9 @@ function escapeLength(input: string, index: number): number {
     return -1;
   }
   if (STRING_SEQUENCE_INTRODUCERS.has(next)) {
-    // BEL/ST ends string sequences; also stop at newlines so stray binary introducers cannot hide later output.
     for (let cursor = index + 2; cursor < input.length; cursor += 1) {
       if (input[cursor] === "\u0007") return cursor - index + 1;
       if (input[cursor] === "\n") return cursor - index;
-      // Like xterm.js, an ESC that does not start ST ends the string and begins the next sequence.
       if (input[cursor] === ESC) {
         if (cursor + 1 >= input.length) return -1;
         return input[cursor + 1] === "\\" ? cursor - index + 2 : cursor - index;
@@ -338,7 +326,6 @@ function escapeLength(input: string, index: number): number {
     }
     return -1;
   }
-  // ECMA-35: any intermediate bytes (0x20-0x2F, e.g. charset designations, DECALN) precede one final byte.
   let cursor = index + 1;
   while (
     cursor < input.length &&
@@ -348,7 +335,6 @@ function escapeLength(input: string, index: number): number {
     cursor += 1;
   }
   if (cursor >= input.length) return -1;
-  // After intermediates, a control or ESC is not a final byte; end before it so it is still processed.
   const final = input.charCodeAt(cursor);
   if (cursor > index + 1 && (final < 0x30 || final > 0x7e)) return cursor - index;
   return cursor - index + 1;
@@ -356,11 +342,8 @@ function escapeLength(input: string, index: number): number {
 
 const penTransitions = new Map<string, string>();
 
-// Colon color sub-parameters carry an optional color-space id absent from the semicolon form.
 function csiParams(params: string): Array<number> {
   const numbers: Array<number> = [];
-  // After a semicolon-form 38/48/58 the next part is its mode, then that many
-  // colour values; tracking them keeps a value from being read as a code.
   let pending: "code" | "mode" | number = "code";
   for (const part of params.split(";")) {
     const sub = part.split(":").map(Number);
@@ -377,7 +360,6 @@ function csiParams(params: string): Array<number> {
         if (head === 5 || head === 2) pending = head === 5 ? 1 : 3;
         continue;
       }
-      // xterm also takes the mode's fields after colons (`38;2:255:0:0`).
       if (head === 2 && sub.length >= 5) sub.splice(1, 1);
       numbers.push(...sub.slice(0, head === 5 ? 2 : head === 2 ? 4 : 1));
       continue;
@@ -388,14 +370,10 @@ function csiParams(params: string): Array<number> {
       continue;
     }
     if (head !== 38 && head !== 48 && head !== 58) {
-      // Other sub-parameters pick a style variant (`4:3` curly underline); keep
-      // only the head, except that `4:0` turns underline off.
       numbers.push(head === 4 && sub[1] === 0 ? 24 : head);
       continue;
     }
     if (sub[1] === 2 && sub.length >= 6) sub.splice(2, 1);
-    // The group is one parameter, so fields past its mode's length must not
-    // leak out as SGR codes of their own. Indexed colour has no colour-space id.
     numbers.push(...sub.slice(0, sub[1] === 5 ? 3 : sub[1] === 2 ? 5 : 2));
   }
   return numbers;
@@ -409,10 +387,8 @@ class Terminal {
   col: number;
   pen: string;
   saved: { row: number; col: number } | null;
-  /** Output was discarded on purpose (scrollback cleared or window over budget). */
   dropped = false;
   readonly maxChars: number;
-  /** Lines created during this feed, which it may extend in place. */
   private readonly owned = new WeakSet<Line>();
 
   constructor(screen: TerminalScreen, maxChars: number) {
@@ -440,7 +416,6 @@ class Terminal {
     }
     this.col += width;
     if (line.length > MAX_LINE_RUNS) {
-      // Flatten old runs so later trimming stays cheap.
       const keep = line.length - MAX_LINE_RUNS / 8;
       const plain = line
         .slice(0, keep)
@@ -453,7 +428,6 @@ class Terminal {
       lineLengths.set(line, units);
       this.owned.add(line);
     }
-    // The output budget is UTF-16 units; cursor positions are terminal columns.
     const current = lineLength(line);
     if (current > this.maxChars) {
       const removed = trimLineStart(line as Array<Run>, current - this.maxChars);
@@ -494,7 +468,6 @@ class Terminal {
 
   moveTo(row: number, col: number): void {
     this.row = Math.max(0, Math.min(this.lines.length - 1, row));
-    // A huge column (ESC[999999999C) would otherwise pad a line past any string limit.
     this.col = Math.max(0, Math.min(2 * TERMINAL_OUTPUT_TAIL_CHARS, col));
   }
 
@@ -532,7 +505,6 @@ class Terminal {
         return this.moveTo(this.row, count - 1);
       case "H":
       case "f":
-        // Rows count from the top of the window: there is no fixed screen height.
         return this.moveTo(count - 1, Math.max(1, numbers[1] || 1) - 1);
       case "K":
         this.lines[this.row] = eraseLine(this.lines[this.row]!, this.col, numbers[0] ?? 0);
@@ -578,7 +550,6 @@ class Terminal {
     }
   }
 
-  /** Applies `input`; returns the unfinished escape left at its end. */
   feed(input: string): string {
     let printable = 0;
     const flush = (end: number) => {
@@ -599,7 +570,6 @@ class Terminal {
         if (length === -1) {
           const fragment = input.slice(index);
           if (fragment.length <= MAX_PENDING_ESCAPE) return fragment;
-          // Retain the introducer and possible ST prefix so long string payloads stay hidden until termination.
           if (STRING_SEQUENCE_INTRODUCERS.has(fragment[1]!)) {
             return fragment.slice(0, 2) + (fragment.endsWith(ESC) ? ESC : "");
           }
@@ -620,7 +590,6 @@ class Terminal {
   }
 }
 
-/** The active style at `index` of `text` and where a cut there may safely start. */
 function styleAt(text: string, index: number): { readonly start: number; readonly prefix: string } {
   const lineStart = text.lastIndexOf("\n", index - 1) + 1;
   let prefix = "";
@@ -645,23 +614,16 @@ export function terminalOutputTail(
   if (text.length <= maxChars) return { text, truncated: false };
   let start = text.length - maxChars;
   const newline = text.indexOf("\n", start);
-  // Drop the partial first line unless that would discard most of the tail.
   if (newline !== -1 && newline - start < maxChars / 4) {
     return { text: text.slice(newline + 1), truncated: true };
   }
-  // Cutting inside a line: never split an escape, and keep the colour in force.
   const style = styleAt(text, start);
   start = style.start;
-  // Never start on a lone low surrogate.
   const first = text.charCodeAt(start);
   if (first >= 0xdc00 && first <= 0xdfff) start += 1;
   return { text: style.prefix + text.slice(start), truncated: true };
 }
 
-/**
- * terminalOutputTail of the parts' concatenation, kept as parts. V8 copies a concatenated string
- * the first time it is searched or sliced, so a newline cut slices only the part it lands in.
- */
 function terminalOutputTailParts(
   parts: readonly [string, ...Array<string>],
   maxChars: number,
@@ -697,7 +659,6 @@ export function appendTerminalOutput(
   let truncated = state.truncated;
   let windowChars = terminal.lines.reduce((total, line) => total + lineLength(line), 0);
   while (windowChars > maxChars && terminal.row > 0) windowChars -= terminal.scrollOut();
-  // Lines below a cursor that moved up can't scroll out; they keep only their ends.
   if (windowChars > maxChars) {
     let budget = maxChars;
     for (let row = 0; row <= terminal.row; row += 1) budget -= lineLength(terminal.lines[row]!);
@@ -743,7 +704,6 @@ export function appendTerminalOutput(
 export function terminalOutputResumeText(state: TerminalOutputState): string {
   const { screen } = state;
   const lastRow = screen.lines.length - 1;
-  // Moves are relative to the last line, and a viewer only holds the lines in `text`.
   let reachable = 0;
   let cursor = 0;
   while (reachable < LIVE_LINES - 1) {
@@ -893,7 +853,6 @@ function spanStyle(pen: string, palette: ReadonlyArray<string>): TerminalSpanSty
   if (attributes.inverse) {
     [color, backgroundColor] = [backgroundColor, color ?? palette[7]];
   }
-  // Badges like "PASS" on green assume a terminal's own palette; keep their text readable.
   if (backgroundColor !== undefined) {
     const background = parseCssColor(backgroundColor);
     const foreground = color === undefined ? undefined : parseCssColor(color);

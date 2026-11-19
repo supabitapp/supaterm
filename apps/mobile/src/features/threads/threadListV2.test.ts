@@ -151,7 +151,6 @@ describe("layoutThreadListV2RowMenuActions", () => {
     ]);
     expect(leafIds(nested).toSorted()).toEqual(leafIds(flat).toSorted());
 
-    // Slim rows only offer "Arrange threads…", which needs no submenu of its own.
     const slim = layoutThreadListV2RowMenuActions({
       ...full,
       reorder: actions("arrange"),
@@ -343,7 +342,6 @@ describe("search lists ranked matches", () => {
       now: NOW,
     });
     expect(layout.kind).toBe("search");
-    // The exact title leads even from a collapsed Done shelf, and keeps its look.
     expect(layout.items.map((item) => [item.thread.id, item.variant])).toEqual([
       ["exact", "slim"],
       ["notes", "card"],
@@ -593,7 +591,6 @@ describe("buildThreadListV2Items", () => {
       pendingTasks: [],
       pinnedShelfExpanded: false,
     });
-    // Search lists its matches without shelves, so a collapsed pin still shows.
     expect(
       filteredList.map((entry) => (entry.type === "v2-thread" ? entry.item.thread.id : entry.type)),
     ).toEqual(["first"]);
@@ -633,7 +630,6 @@ describe("buildThreadListV2Items", () => {
           id: ThreadId.make("pinned-done"),
           title: "Pinned while done",
           pinnedAt: "2026-06-01T12:00:00.000Z",
-          // Stale done state (the decider clears it on pin): the pin wins.
           doneOverride: "done",
           doneAt: "2026-06-01T12:00:00.000Z",
         }),
@@ -643,8 +639,6 @@ describe("buildThreadListV2Items", () => {
       now: NOW,
     });
 
-    // A done thread leaves the active block even while pinned;
-    // the pin re-applies when the thread is un-done.
     expect(layout.items.map((item) => item.thread.id)).toEqual(["active", "pinned-done"]);
     expect(layout.items.map((item) => item.pinned)).toEqual([false, false]);
     expect(layout.doneCount).toBe(1);
@@ -1118,7 +1112,6 @@ describe("buildThreadListV2Items done paging", () => {
       searchQuery: "",
       doneLimit: 10,
       now: NOW,
-      // settled-1 came back mid-session, below the loaded range; the route keeps it visible.
       isListedDone: (thread) => thread.id !== "settled-1",
       unloadedDoneCount: 40,
       selectedThreadKey: `${threads[0]!.environmentId}:settled-1`,
@@ -1131,7 +1124,6 @@ describe("buildThreadListV2Items done paging", () => {
     expect(layout.doneCount).toBe(43);
     expect(layout.hiddenDoneCount).toBe(40);
 
-    // A scope whose done threads are all older still shows its Done header.
     const unloadedOnly = buildShelfLayout({
       threads: [],
       environmentId: null,
@@ -1664,7 +1656,6 @@ describe("pending mobile thread moves", () => {
     }).items.map((item) => item.thread.id);
   }
 
-  // The inbox is time-ordered, so only pinned holds reach the built layout.
   it("holds pinned order through every intermediate key upsert", () => {
     const { rows, assignments, pending, update } = fixture("pinned");
     let current = rows;
@@ -2230,9 +2221,6 @@ describe("threadListV2ListItemsAreEqual", () => {
       pendingTasks: [],
       snoozeLabelNow: NOW,
     });
-    // The same shells with B done: A now sits above the Done section
-    // rule instead of another row, so A's hairline must flip through the
-    // recycled equality — its own shell reference never changed.
     const doneB = makeThread({
       id: ThreadId.make("flip-b"),
       title: "flip b",
@@ -2276,8 +2264,6 @@ describe("buildThreadListV2ListItems clock scoping", () => {
     const done = byKey.get(`v2-thread:${environmentId}:tick-done`)!;
     const snoozed = byKey.get(`v2-thread:${environmentId}:tick-snoozed`)!;
     expect(ready.type === "v2-thread" && ready.snoozePresetMinute).toBe(NOW);
-    // The swipe-revealed snooze action exists on slim rows too (the variant
-    // only swaps the primary action), so done rows need the fresh clock.
     expect(done.type === "v2-thread" && done.snoozePresetMinute).toBe(NOW);
     expect(approval.type === "v2-thread" && approval.snoozePresetMinute).toBeUndefined();
     expect(snoozed.type === "v2-thread" && snoozed.snoozePresetMinute).toBeUndefined();
@@ -2313,9 +2299,6 @@ describe("buildThreadListV2ListItems clock scoping", () => {
         const item = byKey.get(key)!;
         return item.type === "v2-thread" ? item.timeLabel : "<shelf>";
       };
-      // Ready cards and done/snoozed slim rows draw a time; the wake
-      // countdown outranks the time on snoozed rows; cards with a status
-      // label never draw one.
       expect(label(`v2-thread:${environmentId}:tick-ready`)).toBe("5m");
       expect(label(`v2-thread:${environmentId}:tick-working`)).toBe("");
       expect(label(`v2-thread:${environmentId}:tick-done`)).toBe("3d");
@@ -2347,8 +2330,6 @@ describe("thread list v2 minute tick invalidation", () => {
           invalidated.push(atStart[index]!.key);
         }
       }
-      // Only the ready and done rows show minute-granular text (time label or snooze presets);
-      // every other row survives the tick untouched.
       expect(invalidated).toEqual([
         `v2-thread:${environmentId}:tick-ready`,
         `v2-thread:${environmentId}:tick-done`,

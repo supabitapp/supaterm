@@ -13,10 +13,6 @@ const Branch = Schema.Struct({
   sha: Schema.String,
   repo: Schema.NullOr(Repository),
 });
-// Once a pull request's head branch is deleted, Forgejo reports `ref` as `refs/pull/<N>/head`
-// and keeps the branch name only in `label`. An AGit pull request (`flow` 1) has no branch, only a
-// `user/topic` label, and without `repo` (a deleted fork) the label could name any repository's
-// branch, so the ref stays in both cases.
 export function forgejoHeadBranch(pr: {
   readonly flow?: number | undefined;
   readonly head: {

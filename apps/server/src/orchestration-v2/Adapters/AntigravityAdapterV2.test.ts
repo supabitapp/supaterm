@@ -81,7 +81,6 @@ describe("AntigravityAdapterV2 flavor", () => {
     assert.isNull(batch?.result);
     assert.isTrue(flavor.subagentsIdleOnTurnCompletion);
 
-    // Permission prompts carry the launch; later updates for the same call do not.
     const launch = flavor.extractSubagentUpdate?.({
       toolCallId: "35bea692fa95447fbdae6333fec5515f",
       title: "Run invoke_subagent?",
@@ -288,7 +287,6 @@ describe("AntigravityAdapterV2 client file system", () => {
         new URL("../../../scripts/acp-mock-agent.ts", import.meta.url),
       );
       type RuntimeService = AcpSessionRuntime.AcpSessionRuntime["Service"];
-      // effect-acp keeps the last handler registered per method; so does this.
       let readTextFile: Parameters<RuntimeService["handleReadTextFile"]>[0] | undefined;
       let writeTextFile: Parameters<RuntimeService["handleWriteTextFile"]>[0] | undefined;
       const logs = yield* fileSystem.makeTempDirectoryScoped({
@@ -616,7 +614,6 @@ describe("AntigravityAdapterV2 html_render pages", () => {
         title: "Revenue",
         height: 240,
       });
-      // Long enough that Antigravity bounds the html the adapter sees.
       const rows = Array.from({ length: 500 }, (_, row) => `<tr><td>Row ${row}</td></tr>`);
       const report = { html: `<table>${rows.join("")}</table>`, title: "Revenue", height: 240 };
       const failed = { ...report, html: "<p>Revenue</p>" };
@@ -642,9 +639,6 @@ describe("AntigravityAdapterV2 html_render pages", () => {
                 Effect.sync(() => {
                   sessionUpdate = handler;
                 }).pipe(Effect.andThen(runtime.handleSessionUpdate(handler))),
-              // agy_acp_server 1.3/1.4 without a permission prompt: the call is
-              // titled "Running <tool>" and completes with the step's summary
-              // in place of the MCP result.
               prompt: () =>
                 Effect.gen(function* () {
                   const send = (update: EffectAcpSchema.SessionUpdate) =>
@@ -933,8 +927,6 @@ describe("AntigravityAdapterV2 subagent reads", () => {
                   Effect.sync(() => {
                     readTextFile = handler;
                   }).pipe(Effect.andThen(runtime.handleReadTextFile(handler))),
-                // agy_acp_server announces a subagent's client_view_file on the parent session,
-                // never completes it, then fails every open call with the next step error.
                 prompt: () =>
                   Effect.gen(function* () {
                     if (sessionUpdate === undefined || readTextFile === undefined) {
@@ -946,7 +938,6 @@ describe("AntigravityAdapterV2 subagent reads", () => {
                       send(
                         normalizeAntigravitySessionUpdate({ sessionId: "mock-session-1", update }),
                       );
-                    // The agent's own view_file never reaches Supaterm, so it must not take a served read.
                     const reads = [
                       ["call_native", served, "Running view_file"],
                       ["call_served", served, "Running client_view_file"],
@@ -1075,7 +1066,6 @@ describe("AntigravityAdapterV2 subagent reads", () => {
               event.turnItem.nativeItemRef?.nativeId === nativeId &&
               event.turnItem.status === status,
           );
-        // Supaterm completes a served read itself instead of leaving it running until the flush.
         assert.isAbove(firstEvent("call_served", "completed"), -1);
         assert.isBelow(firstEvent("call_served", "completed"), firstEvent("call_native", "failed"));
         const failed = { status: "failed" as const, output: stepError };
@@ -1210,7 +1200,6 @@ describe("AntigravityAdapterV2 session system prompt", () => {
           .map((line) => JSON.parse(line) as { method?: string; params?: { _meta?: unknown } })
           .find((request) => request.method === "session/new");
         const append = JSON.stringify(sessionNew?.params?._meta ?? null);
-        // Identity stays per turn either way.
         assert.include(sent, "through the Antigravity harness, as gemini-test-low");
         if (agentVersion === "1.4.5") {
           assert.include(append, "pull_request_linking");

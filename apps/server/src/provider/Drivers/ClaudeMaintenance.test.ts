@@ -55,7 +55,6 @@ const fixture = Effect.fn("ClaudeMaintenance.test.fixture")(function* (
     install === "npm"
       ? path.join(directory, "lib/node_modules/@anthropic-ai/claude-code/cli.js")
       : path.join(directory, ".local/bin", platform === "win32" ? "claude.exe" : "claude");
-  // Unix native installs link the launcher to a versioned binary; Windows places a real .exe.
   const realBinaryPath =
     install === "native" && platform !== "win32"
       ? path.join(directory, ".local/share/claude/versions/2.1.314")
@@ -268,7 +267,6 @@ it.layer(NodeServices.layer)("ClaudeMaintenance", (it) => {
         status: row.advisory,
         latestVersion: row.expected,
       });
-      // npm installs ask `npm outdated`, which applies npm's release-age settings.
       const lookups = row.npm ? f.npmProbes : requests;
       expect(lookups).toHaveLength(1);
       if (row.npm) {

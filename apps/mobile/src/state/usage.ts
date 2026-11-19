@@ -74,7 +74,6 @@ const usageByWindowAtom = Atom.family((windowKey: string) =>
   }).pipe(Atom.withLabel(`mobile-usage:window:${windowKey}`)),
 );
 
-/** Every environment usage can come from, without asking any of them for usage. */
 const usageEnvironmentsAtom = Atom.make((get): readonly EnvironmentUsageStatus[] =>
   [...get(environmentPresentations.presentationsAtom)].map(([environmentId, presentation]) => ({
     environmentId,
@@ -101,7 +100,6 @@ export interface UsageView {
 export function useUsage(
   input: UsageSummaryInput,
   selectedEnvironmentIds: ReadonlySet<EnvironmentId> | null = null,
-  /** Off, it lists the environments without loading their usage. */
   load = true,
 ): UsageView {
   const windowKey = useMemo(

@@ -39,7 +39,6 @@ const STATUS_DOT_CLASS: Record<ScheduledTask["lastRunStatus"], string> = {
   failed: "bg-destructive",
 };
 
-/** The automation icon with a last-run status dot, labelled for hover and screen readers. */
 function AutomationStatusIcon({ task, now }: { task: ScheduledTask; now: number }) {
   const label = lastRunLabel(task, now) ?? "Not run yet";
   return (
@@ -114,8 +113,6 @@ export function ThreadAutomationsPanel(props: {
     )
       return;
     setBusyTaskId(task.id);
-    // Partial update: only the enabled flag changes, so a toggle can never
-    // revert concurrent edits made to the task elsewhere.
     const result = await setTaskEnabled({
       environmentId: props.environmentId,
       input: { id: task.id, enabled },
@@ -244,7 +241,6 @@ export function ThreadAutomationsPanel(props: {
           </li>
         ))}
       </ul>
-      {/* Kept last: the details card treats a section whose last child is empty as empty. */}
       {tasksQuery.error !== null ? (
         <p className="px-2.5 py-1.5 text-2xs text-destructive">
           Could not load automations: {tasksQuery.error}

@@ -6,7 +6,6 @@ export function SourceControlIconArtwork({
   icon,
   ...props
 }: { readonly icon: SourceControlIcon } & SVGProps<SVGSVGElement>) {
-  // Gradient ids are document-wide, and one page can show the same mark many times.
   const idPrefix = useId().replace(/[^\w-]/gu, "");
   const paint = (value: SourceControlIcon["paths"][number]["fill"]) =>
     value === undefined
@@ -43,8 +42,7 @@ export function SourceControlIconArtwork({
       ) : null}
       {icon.paths.map((path, index) => (
         <path
-          // Paths repeat with different paints, so their data is not a key.
-          // oxlint-disable-next-line react/no-array-index-key
+          // oxlint-disable-next-line react/no-array-index-key -- Paths repeat with different paints, so their data is not a key.
           key={index}
           d={path.d}
           fill={paint(path.fill)}

@@ -28,9 +28,6 @@ const layerClaudeTextGenerationTest = ServerConfig.ServerConfig.layerTest(proces
   prefix: "supaterm-claude-text-generation-test-",
 }).pipe(Layer.provideMerge(NodeServices.layer));
 
-// The stub behaviour lives in Node so the same implementation runs on Windows,
-// where a shebang file is not executable and would fall through to the real
-// Claude CLI on PATH; `writeFakeCli` picks the launcher shape per host.
 function makeFakeClaudeBinary(dir: string, lifecyclePort?: number) {
   return Effect.gen(function* () {
     const path = yield* Path.Path;

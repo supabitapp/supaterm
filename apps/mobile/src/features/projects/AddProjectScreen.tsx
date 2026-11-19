@@ -166,9 +166,6 @@ function AddProjectShell(props: { readonly children: ReactNode; readonly title: 
   const insets = useSafeAreaInsets();
 
   return (
-    // collapsable={false} is load-bearing: flattened, RNS's formSheet scroll-view frame correction
-    // mistakes this full-height wrapper for a "header" sibling and gives the ScrollView zero
-    // height, blanking the sheet on its next re-layout (e.g. when the keyboard opens).
     <SettingsScreen title={props.title}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
@@ -376,7 +373,6 @@ function useBrowsePathInput(
     [browseNavigation],
   );
 
-  // Registered roots are absolute and `~` expands on the host, so ask the host for its home.
   const resolveHomePath = async (path: string): Promise<string> => {
     if (
       !/^~(?:[\\/]|$)/.test(path) ||
@@ -708,7 +704,6 @@ function useOpenNewTaskDraft() {
   ) => {
     const state = navigation.getState();
     const activeRoute = state?.routes[state.index];
-    // A warm link can change the task without replacing its native route key.
     if (
       !state ||
       !originRoute ||
@@ -756,7 +751,6 @@ function useOpenExistingProject(environment: EnvironmentOption | null) {
       path,
     });
     if (!existing) return false;
-    // A folder holding another repository is not this clone; let the clone report it occupied.
     if (
       clone &&
       existing.repositoryIdentity?.canonicalKey !==
@@ -765,7 +759,6 @@ function useOpenExistingProject(environment: EnvironmentOption | null) {
       return false;
     }
     const prompt = clone?.prompt;
-    // Adding an archived project's folder again brings the project back.
     const unarchived =
       existing.archivedAt == null ||
       (
@@ -836,8 +829,6 @@ function useCreateProject(environment: EnvironmentOption | null) {
     if (AsyncResult.isFailure(result)) {
       return result;
     }
-    // A successful command can precede its project in the client store. The
-    // draft treats a missing project as a reason to return to the chooser.
     const project = await waitForProject(
       { environmentId: environment.environmentId, projectId },
       15_000,
@@ -1155,7 +1146,6 @@ export function AddProjectNewScreen(props: { readonly environmentId?: string | s
     </ListSection>
   ) : null;
 
-  // State lags a render behind, so a double tap could start a second create.
   const submittingRef = useRef(false);
   const submit = async () => {
     if (!environment || trimmedName.length === 0 || submittingRef.current) return;
@@ -1195,8 +1185,6 @@ export function AddProjectNewScreen(props: { readonly environmentId?: string | s
         }
       });
     }
-    // The draft screen resolves its project from the client store, so it
-    // must not open before the create event has arrived.
     const project = await waitForProject(
       { environmentId: environment.environmentId, projectId },
       15_000,
@@ -1491,10 +1479,6 @@ export function AddProjectDestinationScreen(props: {
       setError(errorMessage(Cause.squash(startResult.cause)));
     } else {
       const { projectId } = startResult.value;
-      // The draft screen resolves its project from the client store, so it
-      // must not open before the create event has arrived (it would fall
-      // back to the project picker and lose the clone controls). Stay in
-      // the submitting state until then; the clone keeps running either way.
       const project = await waitForProject(
         { environmentId: environment.environmentId, projectId },
         15_000,

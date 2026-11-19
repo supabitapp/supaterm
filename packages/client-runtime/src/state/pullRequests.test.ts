@@ -452,7 +452,6 @@ it.effect("forgets routed viewed marks when a viewed-files batch fails", () =>
         [WS_METHODS.pullRequestsRoutingIdentity]: identity,
         [WS_METHODS.pullRequestsFilesViewed]: () =>
           Effect.succeed({ files: [{ path: "a.ts", state: "unviewed" }], truncated: false }),
-        // The host may have applied part of the batch before refusing the rest.
         [WS_METHODS.pullRequestsSetFilesViewed]: () => Effect.fail("second path refused"),
         [WS_METHODS.pullRequestsInvalidate]: (input: unknown) =>
           Effect.sync(() => {
@@ -1200,20 +1199,16 @@ it.effect("shows an action's reply in loaded readers and moves list rows without
       });
     }
     expect(Option.getOrThrow(AsyncResult.value(registry.get(all))).entries).toMatchObject([
-      // The row keeps its own read time: the reply does not carry its checks or labels.
       { state: "merged", isDraft: false, observedAt: 100 },
     ]);
     expect(Option.getOrThrow(AsyncResult.value(registry.get(openDrafts))).entries).toEqual([]);
     expect(replies).toEqual([{ target, reply: actionReply }]);
-    // A cold start paints the saved copy, so the patch must replace the saved answer.
     const summaryKey = queryPersistenceKey(
       "environment-data:pull-requests:linked-summary",
       actionReference,
     );
     expect(JSON.parse(saved.get(summaryKey) ?? "null")).toMatchObject({ state: "merged" });
-    // Snapshot writers see the patched rows the way they see an answer.
     expect(listAnswers).toContainEqual([expect.objectContaining({ state: "merged" })]);
-    // Only a read can place a row the listing did not hold.
     yield* AtomRegistry.getResult(registry, merged, { suspendOnWaiting: true });
     expect(reads).toEqual(["list:merged"]);
   }),
@@ -1299,7 +1294,6 @@ it.effect("keeps a list read the server's refresh started before the action repl
         Effect.gen(function* () {
           actionInputs.push(input);
           state = "merged";
-          // The server announces its refresh before it replies.
           yield* PubSub.publish(refreshEvents, 1);
           yield* listWaiting.await;
           return actionReply;
@@ -1395,7 +1389,6 @@ it.effect("restarts a list page read sent while the action was in flight", () =>
       }),
     ).pipe(Effect.forkScoped);
     yield* Deferred.await(actionSent);
-    // Loading more rows re-reads a page while the close is on the wire.
     registry.refresh(page);
     yield* Fiber.join(action);
     yield* Deferred.succeed(release, undefined);
@@ -1491,7 +1484,6 @@ it.effect("keeps each reader's read time when a reply leaves its checks as they 
       }),
     );
 
-    // Checks read at 100 must not pass for a read at 300 against a newer checks read.
     for (const atom of readers) {
       expect(Option.getOrThrow(AsyncResult.value(registry.get(atom)))).toMatchObject({
         isDraft: false,
@@ -1509,7 +1501,6 @@ it.effect("re-reads an unstamped preview rather than order a reply against it", 
   Effect.gen(function* () {
     let reads = 0;
     const client = actionReplyClient({
-      // Previews from servers before action replies carry neither update nor read time.
       [WS_METHODS.pullRequestsPreview]: () =>
         Effect.sync(() => {
           reads++;
@@ -1611,7 +1602,6 @@ it.effect("keeps the server's post-commit read when a reopen reply lacks fields"
         }),
       [WS_METHODS.pullRequestsRunAction]: () =>
         Effect.gen(function* () {
-          // The server announces its refresh before it replies.
           yield* PubSub.publish(refreshEvents, 1);
           yield* detailWaiting.await;
           return { ...actionReply, state: "open" };
@@ -2419,7 +2409,6 @@ it.effect.each([
         ...shown,
         updatedAt: "2026-10-27T10:00:00Z",
       });
-      // Only a reopen re-reads, for the branch data and permissions its reply lacks.
       expect(reads).toBe(action === "reopen" ? 1 : 0);
     }),
   ),
@@ -2645,7 +2634,6 @@ it.effect("leaves a merge as it is until the host says what it did", () =>
           Effect.gen(function* () {
             yield* Deferred.succeed(sent, undefined);
             yield* Deferred.await(release);
-            // A merge queue takes the merge and merges later.
             return { ...actionReply, state: "open", autoMergeEnabled: true };
           }),
       });
@@ -2777,7 +2765,6 @@ it.effect.each(["accepted", "refused"] as const)(
         expect(Option.getOrThrow(AsyncResult.value(registry.get(retained)))[0]?.title).toBe(
           outcome === "refused" ? "Original" : "Edited",
         );
-        // The edit is known, so no reader asks the host again.
         expect(reads).toBe(3);
       }),
     ),
@@ -2969,7 +2956,6 @@ it.effect.each(["accepted", "refused"] as const)(
         expect(state()).toBe("closed");
         yield* Deferred.succeed(release, undefined);
         yield* Fiber.join(acting);
-        // An accepted close stays while the next checks read is still out.
         expect(state()).toBe(outcome === "accepted" ? "closed" : "open");
       }),
     ),
@@ -3001,7 +2987,6 @@ it.effect("paints a saved stack answer at once while the host read is out", () =
       yield* Effect.promise(() => executeAtomQuery(earlier.registry, first));
       expect(earlier.registry.get(stacks.answered(target))).toBe(true);
 
-      // A later session finds the answer saved while its own read waits on the host.
       const sent = yield* Deferred.make<void>();
       const waiting = yield* makeTestRuntime(
         {
@@ -3018,7 +3003,6 @@ it.effect("paints a saved stack answer at once while the host read is out", () =
       waiting.registry.mount(stack);
       yield* Deferred.await(sent);
       expect(waiting.registry.get(stack)).toMatchObject({ _tag: "Success", value: null });
-      // Offline, a saved answer settles without the host; only a host answer may clear a merge.
       expect(waiting.registry.get(waitingStacks.answered(target))).toBe(false);
     }),
   ),

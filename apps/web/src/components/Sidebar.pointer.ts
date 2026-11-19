@@ -6,9 +6,7 @@ type Options = {
   distance: number;
   onAttach: (sensor: SidebarPointerSensor) => void;
   onFinish: (started: boolean) => void;
-  /** Return true to claim the move: the sort gesture then ignores this pointer position. */
   onMove?: (point: { x: number; y: number }) => boolean;
-  /** Return true when the release was consumed elsewhere, so the sort is cancelled. */
   onDrop?: (point: { x: number; y: number }) => boolean;
 };
 
@@ -26,8 +24,6 @@ export class SidebarPointerSensor {
   private readonly document: Document;
   private readonly window: Window;
 
-  // The mark-done sweep constructs this sensor directly, outside dnd-kit, so it
-  // takes only the props the gesture reads.
   constructor(private readonly props: Omit<SensorProps<Options>, "activeNode" | "context">) {
     this.pointer = props.event as PointerEvent;
     this.document = getOwnerDocument(this.pointer.target);
@@ -127,16 +123,11 @@ export class SidebarPointerSensor {
     this.document.removeEventListener("dragstart", this.preventDefault);
     this.document.removeEventListener("contextmenu", this.preventDefault);
     this.document.removeEventListener("selectionchange", this.clearSelection);
-    // Cancellation can precede release by an arbitrary amount of time. Consume that release
-    // click, or let a fresh pointerdown end suppression if release happened outside the
-    // document.
     if (!aborted || cancelled) {
       this.document.addEventListener("click", this.suppressClick, { capture: true });
       this.document.addEventListener("pointerdown", this.clearClickSuppression, { capture: true });
     }
     try {
-      // Release the sidebar preview before dnd-kit clears its transforms.
-      // Its public end/cancel event can be omitted before its first layout.
       this.props.options.onFinish(!aborted);
     } finally {
       if (aborted) this.props.onAbort(this.props.active);

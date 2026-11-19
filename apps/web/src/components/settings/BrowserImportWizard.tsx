@@ -76,7 +76,6 @@ export function BrowserImportWizard({
   );
   const [targetError, setTargetError] = useState<string>();
   const newProfileId = useRef(`profile-${randomUUID()}`);
-  // Guard synchronously so a second click's refusal cannot leave the importing step during the first write.
   const importInFlight = useRef(false);
 
   const runImport = () => {

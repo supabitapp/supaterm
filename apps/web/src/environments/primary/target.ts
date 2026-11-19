@@ -192,7 +192,6 @@ function resolveConfiguredPrimaryTarget(): PrimaryEnvironmentTarget | null {
     return null;
   }
 
-  // Match URL scheme case-folding so uppercase WSS cannot downgrade to plaintext.
   const resolvedHttpBaseUrl =
     configuredHttpBaseUrl ??
     (configuredWsBaseUrl?.toLowerCase().startsWith("wss:")

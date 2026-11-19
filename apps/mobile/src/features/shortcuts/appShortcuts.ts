@@ -97,7 +97,6 @@ export function buildShortcutActions(recents: ReadonlyArray<RecentThreadShortcut
       params: { href: NEW_TASK_SHORTCUT_HREF },
     },
     ...recents.slice(0, MAX_RECENT_THREAD_SHORTCUTS).map((thread): Action => ({
-      // URI-encoded hrefs avoid env/thread id collisions that plain hyphen joins allow.
       id: `thread:${threadShortcutHref(thread)}`,
       title: threadShortcutLabel(thread),
       icon: SHORTCUT_ICON,

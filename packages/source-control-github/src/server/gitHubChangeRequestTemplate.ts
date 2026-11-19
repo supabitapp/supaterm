@@ -138,8 +138,6 @@ export const detect = Effect.fn("gitHubChangeRequestTemplate.detect")(function* 
   executeGit: ExecuteGit,
 ) {
   return yield* Effect.gen(function* () {
-    // Read committed regular blobs; worktree paths can become symlinks between validation and open.
-    // ls-tree does not support case-insensitive pathspecs; grep discovers only matching names.
     const paths = yield* executeGit({
       operation: "gitHubChangeRequestTemplate.findTemplatePaths",
       cwd,
@@ -167,7 +165,6 @@ export const detect = Effect.fn("gitHubChangeRequestTemplate.detect")(function* 
               .filter((path) => path.startsWith(`${treeish}:`))
               .map((path) => path.slice(treeish.length + 1)),
       ),
-      // grep exits with status 1 when no nonempty templates match.
       Effect.orElseSucceed(() => []),
     );
     const result = yield* executeGit({

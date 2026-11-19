@@ -26,7 +26,6 @@ export function PullRequestSearchSheet(props: {
     placeholder: props.placeholder,
     clearAccessibilityLabel: props.clearAccessibilityLabel,
   };
-  // The compact search toolbar floats over the end of the list.
   const searchToolbarInset = useSearchToolbarInset(search);
   const bottomInset = useUnadjustedBottomInset();
   return (
@@ -39,7 +38,6 @@ export function PullRequestSearchSheet(props: {
         search={search}
       />
       {props.children({
-        // Android's bottom inset also covers the floating workspace tabs while Settings is open.
         paddingBottom: bottomInset + searchToolbarInset + 16,
       })}
     </View>

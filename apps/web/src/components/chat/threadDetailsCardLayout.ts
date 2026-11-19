@@ -2,7 +2,6 @@ import type { PreviewMiniPlayerFrame } from "../preview/previewMiniPlayerLayout"
 import { DETAILS_CARD_CLEARANCE } from "./chatCanvasLayout";
 
 export const THREAD_DETAILS_CARD_GAP = 12;
-// Keep in sync with --thread-details-panel-width.
 const THREAD_DETAILS_CARD_WIDTH = 264;
 
 export function resolveThreadDetailsCardDensity(
@@ -22,7 +21,6 @@ export function resolveThreadDetailsCardLayout({
   overlapsDetailsCard = false,
 }: {
   container: { width: number; height: number };
-  // While a panel animates the container, the card fits only if it fits at both ends.
   narrowestWidth?: number;
   lane: { padding: number; minChatWidth: number };
   frame: PreviewMiniPlayerFrame | null;
@@ -31,8 +29,6 @@ export function resolveThreadDetailsCardLayout({
   const gap = THREAD_DETAILS_CARD_GAP;
   const width = THREAD_DETAILS_CARD_WIDTH;
   const x = container.width - width - gap;
-  // The transition ends are sampled once, so a resize mid-animation can leave them
-  // wider than the container is now.
   const fitWidth = Math.min(narrowestWidth, container.width);
   if (fitWidth - width - gap - DETAILS_CARD_CLEARANCE - lane.padding < lane.minChatWidth)
     return null;

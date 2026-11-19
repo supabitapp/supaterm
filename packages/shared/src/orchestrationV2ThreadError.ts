@@ -128,8 +128,6 @@ export function latestUnheldRun(
   return latest;
 }
 
-// Steering a queued message cancels its run before it starts and hands the message to the
-// earlier run, which outlives the cancellation; that earlier run then presents as latest.
 function outlivedBeforeStart(
   run: OrchestrationV2Run,
   runs: ReadonlyArray<OrchestrationV2Run>,

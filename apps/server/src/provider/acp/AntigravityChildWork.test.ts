@@ -58,7 +58,6 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
         prompt: LAUNCH.prompt,
         truncated: false,
       });
-      // The launch envelope repeats the prompt shown above, so the steps start with the child's work.
       expect(child?.steps?.map((step) => step.text ?? step.toolCalls[0]?.name)).toEqual([
         "view_file",
         "2: child read marker 4242",
@@ -86,7 +85,6 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
           ],
         ],
       });
-      // Another session's id, a step that is not the planner call, and parallel calls that share one id.
       expect(yield* read(profile, `00000000-0000-4000-8000-000000000000:1`)).toEqual([]);
       expect(yield* read(profile, `${ROOT}:2`)).toEqual([]);
       expect(yield* read(profile, `${ROOT}:5`)).toEqual([]);
@@ -97,7 +95,6 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
     Effect.gen(function* () {
       const other = { role: "Test Runner", prompt: "Run the tests" };
       const long = { role: "Long Reader", prompt: `Read this:\n${"x".repeat(9_000)}` };
-      // A role's leading byte order mark is part of its text.
       const marked = { role: "\uFEFFMarked", prompt: "Check the mark" };
       const { profile } = yield* makeProfile({
         steps: (logUri) => [
@@ -131,12 +128,10 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
       const opaque = "35bea692fa95447fbdae6333fec5515f";
       const matched = yield* read(profile, opaque, describeAntigravitySubagentLaunches([LAUNCH]));
       expect(matched.map((child) => child.role)).toEqual([LAUNCH.role]);
-      // Supaterm knows a second batch with this text that the agent has not recorded yet.
       const twin = { nativeTaskId: "f00d", ...describeAntigravitySubagentLaunches([LAUNCH]) };
       expect(
         yield* read(profile, opaque, describeAntigravitySubagentLaunches([LAUNCH]), [twin]),
       ).toEqual([]);
-      // Supaterm stores the launch from the bounded tool payload, which keeps only a long prompt's tail.
       const stored = antigravitySubagentLaunches(
         sanitizeAntigravityToolPayload({ Subagents: [{ Role: long.role, Prompt: long.prompt }] }),
       );
@@ -159,26 +154,21 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
       const launch = describeAntigravitySubagentLaunches([LAUNCH]);
       const opaque = "35bea692fa95447fbdae6333fec5515f";
       expect(yield* read(profile, opaque, launch)).toHaveLength(1);
-      // An earlier auto-approved batch stored no launch text, but its planner step claims the record.
       const auto = {
         nativeTaskId: `${ROOT}:1`,
         title: ANTIGRAVITY_SUBAGENT_BATCH_TITLE,
         prompt: "",
       };
       expect(yield* read(profile, opaque, launch, [auto])).toEqual([]);
-      // A sibling that cannot be ruled out refuses the match: its planner step is unreadable,
-      // or it is a permission batch whose launch text is missing or cut.
       for (const sibling of [
         { ...auto, nativeTaskId: `${ROOT}:99` },
         { nativeTaskId: "0ld", title: ANTIGRAVITY_SUBAGENT_BATCH_TITLE, prompt: "Running" },
-        // Its stored launch was cut, so it may be this same launch.
         { nativeTaskId: "cut", title: LAUNCH.role, prompt: "[Earlier output truncated]\n\nmarker" },
         { nativeTaskId: "cut", title: "[Earlier output truncated]\n\nReader", prompt: "x" },
         { nativeTaskId: "cut", title: null, prompt: "[Earlier output truncated]\n\nx" },
       ]) {
         expect(yield* read(profile, opaque, launch, [sibling])).toEqual([]);
       }
-      // A cut prompt under different roles is another launch.
       const other = {
         nativeTaskId: "cut",
         title: "Test Runner",
@@ -235,7 +225,6 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const sibling = "b468c0e1d2f34a5b6c7d8e9f0a1b2c3d";
-      // The record names this child's literal path, but the child directory links to a sibling.
       const linked = yield* makeProfile({ steps: autoApproved });
       const brain = path.join(linked.profile, "antigravity-acp", "brain");
       yield* fs.rename(path.join(brain, CHILD), path.join(brain, sibling));
@@ -244,7 +233,6 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
       expect(child?.role).toBe(LAUNCH.role);
       expect(child?.steps).toBeNull();
 
-      // This session's database links to another session's records.
       const other = yield* makeProfile({ steps: autoApproved });
       const conversations = path.join(other.profile, "antigravity-acp", "conversations");
       const peer = path.join(conversations, "00000000-0000-4000-8000-000000000000.db");
@@ -268,17 +256,14 @@ it.layer(NodeServices.layer)("readAntigravityChildWork", (it) => {
       const opaque = "35bea692fa95447fbdae6333fec5515f";
       const launch = describeAntigravitySubagentLaunches([LAUNCH]);
       const cases = [
-        // More records than one open may scan.
         (logUri: string) => [
           [1, 127, record("x", logUri)] as const,
           ...Array.from({ length: 200 }, (_, index) => filler(index + 2, logUri)),
         ],
-        // An oversized record could hold an identical launch.
         (logUri: string) => [
           [1, 127, record("x", logUri)] as const,
           [2, 127, new Uint8Array(1024 * 1024 + 1)] as const,
         ],
-        // So could one this reader cannot decode.
         (logUri: string) => [
           [1, 127, record("x", logUri)] as const,
           [2, 127, Uint8Array.from([0xff, 0xff])] as const,

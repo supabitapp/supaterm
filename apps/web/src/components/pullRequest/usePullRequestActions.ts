@@ -252,18 +252,12 @@ export function usePullRequestHandoffs({
     environmentId,
     cwd: detail?.workspaceRoot ?? null,
   });
-  // One at a time whatever the key: they all check the same pull request out.
   const [handoff, setHandoff] = useState<string | null>(null);
-  // Prompt links hand over a URL alone, so the URL is what names the host.
   const terminology = (
     (detail && sourceControlClients.findByChangeRequestUrl(detail.url)) ||
     sourceControlClients.get(undefined)
   ).changeRequest;
 
-  /**
-   * Nothing is checked out: asking a question is not a reason to move somebody's working tree
-   * or to make a worktree they did not ask for.
-   */
   const openThreadWithTask = async (
     projectRef: ReturnType<typeof scopeProjectRef>,
     task: PullRequestThreadTask | null,
@@ -311,10 +305,7 @@ export function usePullRequestHandoffs({
   ) => {
     if (!detail || handoff !== null) return;
     setHandoff(kind);
-    // Dismissing the loading toast cancels the handoff before it touches a draft.
     let cancelled = false;
-    // It carries no timeout of its own: a loading toast never expires, and an explicit one
-    // would survive the update and pin the result on screen.
     const toastId = toastManager.add({
       type: "loading",
       title: `Preparing the ${terminology.singular} checkout...`,
@@ -325,9 +316,6 @@ export function usePullRequestHandoffs({
       },
     });
     const projectRef = scopeProjectRef(environmentId, detail.projectId);
-    // The thread is opened before the checkout rather than after it, because the project's setup
-    // script only runs for a checkout that knows which thread it is for — and a worktree with no
-    // dependencies installed is not something anyone can test.
     const opened = await newThread(projectRef).then(
       (session) => session,
       () => null,
@@ -386,7 +374,6 @@ export function usePullRequestHandoffs({
       });
       return;
     }
-    // The draft carries the pull request until its first send makes it a thread, which links it.
     useComposerDraftStore.getState().setDraftThreadContext(pointed.draftId, {
       checkoutPullRequest: {
         url: prepared.value.pullRequest.url,
@@ -410,8 +397,6 @@ export function usePullRequestHandoffs({
       );
       return;
     }
-    // The task goes on the checkout draft: if the user typed into `opened` while the
-    // checkout ran, that is no longer the draft the user is looking at.
     await openThreadWithTask(projectRef, task, pointed);
     toastManager.update(
       toastId,

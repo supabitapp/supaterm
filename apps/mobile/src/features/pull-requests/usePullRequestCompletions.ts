@@ -27,7 +27,6 @@ export function usePullRequestCompletions(input: {
   readonly support: PullRequestCompletionSupport | null;
 }) {
   const [selection, setSelection] = useState<{ start: number; end: number } | null>(null);
-  // Set only right after an insertion, so the native input keeps its own caret otherwise.
   const [placed, setPlaced] = useState<{ start: number; end: number } | null>(null);
   const trigger =
     input.support === null || selection === null || selection.start !== selection.end
@@ -57,7 +56,6 @@ export function usePullRequestCompletions(input: {
                 },
         }),
   );
-  // Older answers stay useful while the debounced search catches up, narrowed to what is typed now.
   const candidates = pullRequestCompletions(trigger, hosted.data, COMPLETION_SUGGESTION_LIMIT);
 
   return {

@@ -18,7 +18,6 @@ export const layer = Layer.succeed(
   Persistence.EnvironmentOwnedDataCleanup,
   Persistence.EnvironmentOwnedDataCleanup.of({
     clear: Effect.fn("Persistence.EnvironmentOwnedDataCleanup.clear")(function (environmentId) {
-      // Each clear settles on its own: a failure must not interrupt a clear that is still running.
       const settle = (
         operation: "outbox" | "drafts",
         clear: (environmentId: EnvironmentId) => Promise<void>,

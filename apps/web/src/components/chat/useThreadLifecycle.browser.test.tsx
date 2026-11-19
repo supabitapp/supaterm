@@ -138,7 +138,6 @@ it.each(["a", "b", "navigation"] as const)(
     await page.getByRole("button", { name: "Restore branch" }).click();
     await expect.element(page.getByRole("button", { name: "Restoring..." })).toBeDisabled();
 
-    // ChatView stays mounted across server threads, so the hook sees thread B in place.
     currentRouteThreadKeyRef.current = threadB.routeThreadKey;
     await screen.rerender(harness(threadB));
     await expect.element(page.getByRole("button", { name: "Restore branch" })).toBeEnabled();
@@ -147,7 +146,6 @@ it.each(["a", "b", "navigation"] as const)(
       expect.objectContaining({ input: { cwd: "/repo", refName: "feature-b" } }),
     );
 
-    // Back on thread A, its own restore is still pending, so it can't start a second one.
     currentRouteThreadKeyRef.current = threadA.routeThreadKey;
     await screen.rerender(harness(threadA));
     await expect.element(page.getByRole("button", { name: "Restoring..." })).toBeDisabled();

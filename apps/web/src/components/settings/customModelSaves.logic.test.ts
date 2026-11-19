@@ -11,7 +11,6 @@ type Step =
   | { readonly reply: string; readonly saved?: boolean }
   | { readonly echo: string };
 
-/** Replays sends, replies and stored-list echoes; returns the pending saves' keys. */
 function replay(initial: string, steps: ReadonlyArray<Step>) {
   let stored = initial;
   let saves: ReadonlyArray<CustomModelSave> = [];

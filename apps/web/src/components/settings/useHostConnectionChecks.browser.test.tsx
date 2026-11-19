@@ -49,7 +49,7 @@ describe("useHostConnectionChecks", () => {
     );
     let checks!: ReturnType<typeof useHostConnectionChecks>;
     await using _screen = await render(<Harness onReady={(next) => (checks = next)} />, {
-      router: false, // the hook reads no route state
+      router: false,
     });
 
     const results = await act(() =>

@@ -219,7 +219,6 @@ describe("SettingsServerControlsRouteScreen", () => {
     act(() => toggle("Agent browser access").click());
     act(() => toggle("Automatically mark merged threads as Done").click());
 
-    // Both rewrite the whole project override, so a second write planned now would drop the first.
     expect(mocks.updateSettings).toHaveBeenCalledOnce();
     await act(async () => pending.resolve(AsyncResult.success(undefined)));
   });

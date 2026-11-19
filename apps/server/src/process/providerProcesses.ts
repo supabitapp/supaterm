@@ -27,7 +27,6 @@ const OwnershipRecord = Schema.Struct({
 });
 const decodeRecord = Schema.decodeUnknownSync(Schema.fromJsonString(OwnershipRecord));
 
-// A concurrent exit can remove the record. Incomplete/unknown records never authorize a signal.
 const readRecord = (recordPath: string) => {
   try {
     return decodeRecord(NodeFS.readFileSync(recordPath, "utf8"));
@@ -84,14 +83,10 @@ const make = Effect.gen(function* () {
     NodeFS.renameSync(pendingPath, recordPath);
     return () => NodeFS.rmSync(recordPath, { force: true });
   };
-  // Publish the server identity even before its first provider. Another server
-  // using this home must not stop the shared systemd slice while we are alive.
   const forgetOwner = writeRecord([]);
   yield* Effect.addFinalizer(() => Effect.sync(forgetOwner));
   let hasOtherLiveOwner = false;
 
-  // Only immutable per-launch records are shared between server instances. A
-  // live owner's records belong to that server, even when it uses this home.
   for (const file of NodeFS.readdirSync(directory)) {
     if (!file.endsWith(".json")) continue;
     const recordPath = NodePath.join(directory, file);
@@ -105,17 +100,12 @@ const make = Effect.gen(function* () {
     let survived = false;
     for (const survivor of record.processes) {
       if (survivor.pid === process.pid || !matches(survivor)) continue;
-      // Never infer ownership from argv, executable names, or group membership.
-      // As in the ACP controller, starttime blocks reuse between observations.
-      // Node has no pidfd_send_signal, so the final read-to-signal race remains.
       kill(survivor);
       for (let attempt = 0; matches(survivor) && !survived; attempt++) {
         survived = attempt === 100;
         if (!survived) yield* Effect.sleep("10 millis");
       }
     }
-    // Like a failed slice stop, an unkillable CLI must not keep the server down;
-    // its record stays so the next start retries.
     if (survived) {
       yield* Effect.logWarning("Could not stop a provider left by a previous server", { file });
       continue;
@@ -130,8 +120,6 @@ const make = Effect.gen(function* () {
       if (provider === undefined || provider.ppid !== process.pid) {
         throw new Error("Cannot identify spawned provider");
       }
-      // A rename keeps startup from seeing a partial write. The child is gated
-      // until this returns, so an abrupt death cannot leave an unrecorded CLI.
       return writeRecord([{ pid, startTime: provider.startTime, pgid: provider.pgid }]);
     },
   };

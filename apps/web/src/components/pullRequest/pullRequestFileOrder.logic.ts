@@ -22,7 +22,6 @@ const GENERATED_DIRECTORIES = new Set([
   "vendor",
 ]);
 const TEST_DIRECTORIES = new Set(["__tests__", "tests", "test"]);
-// `.mts` also ends in `.ts`, so longer extensions come first.
 const MODULE_EXTENSIONS = [".mts", ".cts", ".mjs", ".cjs", ".tsx", ".jsx", ".ts", ".js"];
 
 function diffFileTier(path: string): DiffFileTier {
@@ -57,8 +56,6 @@ function baseName(path: string): string {
   return stripExtension(path.split("/").at(-1) ?? "");
 }
 
-// Import specifiers omit module extensions but keep dotted names such as `b.logic`, so module-map
-// keys strip only the extensions an import could omit.
 function stripModuleExtension(path: string): string {
   const extension = MODULE_EXTENSIONS.find((candidate) => path.endsWith(candidate));
   return extension === undefined ? path : path.slice(0, -extension.length);
@@ -91,7 +88,6 @@ function importedPaths(
     IMPORT_SPECIFIER.lastIndex = 0;
     let match = IMPORT_SPECIFIER.exec(line);
     while (match !== null) {
-      // Bundler queries such as `?worker` or `?url` name the same file.
       const specifier = (match[1] ?? "").replace(/\?.*$/, "");
       const resolved = stripModuleExtension(
         specifier.startsWith(".") ? resolveRelative(path, specifier) : specifier,
@@ -126,8 +122,6 @@ function orderByImports(
   return ordered;
 }
 
-// `a.logic.test.ts` covers `a.logic.ts` while `a.browser.test.ts` covers `a.ts`, so the longest
-// dotted prefix that names a source file wins.
 function testedSourcePosition(path: string, sourcePositions: ReadonlyMap<string, number>): number {
   let name = (path.split("/").at(-1) ?? "").replace(/\.(?:test|spec)\..*$/, "");
   while (true) {

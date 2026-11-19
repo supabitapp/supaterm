@@ -240,15 +240,10 @@ function CommentBody({
   );
 }
 
-/**
- * What Add to chat hands over for a remark: a remark on a line goes as its whole conversation,
- * the way fixing one does. Null when there are no words in it to talk about.
- */
 function chatSubject(
   comment: PullRequestComment,
   thread: PullRequestConversationThread | undefined,
 ): PullRequestChatSubject | null {
-  // An overview thread has no line to attach, so it goes as its opening remark, as fixing it does.
   if (thread !== undefined && thread.path !== null) {
     return thread.comments.some((entry) => visibleBody(entry.body) !== null)
       ? { kind: "thread", thread }
@@ -260,7 +255,6 @@ function chatSubject(
 function AddToChatButton({ onClick }: { onClick: () => void }) {
   return (
     <Button size="xs" variant="ghost" className="shrink-0" onClick={onClick}>
-      {/* Wrapped like Fix's label so both sit on the header's baseline. */}
       <span className="inline-flex items-baseline gap-1">
         <MessageSquarePlusIcon className="size-3 self-center" />
         <span>Add to chat</span>
@@ -319,7 +313,6 @@ function CollapsedComment({
                 className={cn("size-3.5 transition-transform", open && "rotate-180")}
               />
             </CollapsibleTrigger>
-            {/* Collapsed, the status label already says "Resolved". */}
             {open ? resolveButton : null}
             {onAddToChat ? <AddToChatButton onClick={onAddToChat} /> : null}
             {reactionBar}
@@ -381,12 +374,10 @@ function Section({
   title: string;
   defaultOpen?: boolean;
   keepMounted?: boolean;
-  /** Reopens the section each time a link reveals it. */
   revealCount?: number;
   actions?: ReactNode;
   children: ReactNode;
 }) {
-  // A reveal opens at once: the opening animation would move what was just scrolled to.
   const [open, setOpen] = useState<boolean | "revealed">(
     revealCount > 0 ? "revealed" : defaultOpen,
   );
@@ -408,7 +399,6 @@ function Section({
           sectionTop: section.getBoundingClientRect().top,
           headingTop: heading.getBoundingClientRect().top,
         });
-        // Adjust before paint to keep the collapsed heading in place.
         if (target !== null) scroller.scrollTop = target;
       }
     }
@@ -530,15 +520,12 @@ export function PullRequestSummaryTab({
         {hiddenConversationCount === 1 ? "" : "s"} ({hiddenConversationCount} hidden)
       </Button>
     ) : null;
-  // Verdicts outside the visible comment window still count.
   const reviewOutcomes = latestPullRequestReviewOutcomes(detail.comments, detail.commits);
-  // Host login casing varies; normalize to preserve verdicts and deduplicate reviewers.
   const outcomeByLogin = new Map(
     reviewOutcomes.flatMap((entry) =>
       entry.actor ? [[reviewerKey(entry.actor.login), entry] as const] : [],
     ),
   );
-  // Hosts remove reviewed actors from requests; include submitted verdicts.
   const reviewerEntries = [
     ...detail.reviewers.map((actor) => ({
       key: actor.login,
@@ -576,7 +563,6 @@ export function PullRequestSummaryTab({
   });
   const canUpdate = useAtomValue(pullRequestEnvironment.update.permissionAtom(environmentId));
   const canEditDescription = canUpdate && canEditPullRequestChangeRequest(detail);
-  // The editor keeps the body it opened from, so a failed save cannot reset what was typed.
   const [bodyScope, setBodyScope] = useState<{
     readonly url: string;
     readonly body: string;
@@ -592,7 +578,6 @@ export function PullRequestSummaryTab({
   const descriptionSaving = (descriptionDraftKept?.saves ?? 0) > 0;
   const descriptionSavesRunning = useRef(0);
   const [commentEdit, dispatchCommentEdit] = useReducer(stepPullRequestEdit, { kind: "viewing" });
-  // Hosts can reuse comment ids across pull requests.
   const commentTarget = (comment: PullRequestComment) => `${detail.url}:${comment.id}`;
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -628,7 +613,6 @@ export function PullRequestSummaryTab({
             (node) => node.id === location.anchor || node.id === `user-content-${location.anchor}`,
           );
     }
-    // A heading may still be rendering; the link stays pending until it appears.
     if (!target) return;
     stopHolding.current?.();
     const heading = target.hasAttribute("data-pull-request-summary-section")
@@ -649,7 +633,6 @@ export function PullRequestSummaryTab({
   }, [revealUrl, description, checksReveals, descriptionReveals, editingDescription]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- the hold observes DOM outside React and must end with the tab
   useEffect(() => () => stopHolding.current?.(), []);
-  // Checkbox ticks and the editor share one draft, so each starts from the other's latest body.
   const saveDescription = async (body: string) => {
     const key = detail.url;
     setDescriptionDraft((draft) => startDescriptionSave(draft, detail, body));
@@ -740,7 +723,6 @@ export function PullRequestSummaryTab({
             ? null
             : { kind: "comment", comment }
           : { kind: "thread", thread };
-    // A reply goes with its conversation, from the card that heads it.
     const chat = reply ? null : chatSubject(comment, thread);
     return (
       <article
@@ -906,7 +888,6 @@ export function PullRequestSummaryTab({
                   })}
                 </span>
               )}
-              {/* Azure DevOps accepts reviewers but cannot list candidates. */}
               {detail.capabilities.reviewers.request &&
               detail.capabilities.reviewers.listCandidates ? (
                 <PullRequestReviewerPicker
@@ -1011,8 +992,6 @@ export function PullRequestSummaryTab({
               const failing = check.status === "failure" || check.status === "cancelled";
               return (
                 <div
-                  // Counted among repeats too: the host decides how many runs share a name, and a
-                  // repeated key would be a rendering fault on top of whatever the list already says.
                   key={key}
                   className="group flex items-center gap-2 rounded-md pr-1 hover:bg-accent/60"
                 >

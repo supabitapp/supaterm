@@ -11,7 +11,6 @@ import * as OtlpLogger from "effect/observability/OtlpLogger";
 
 import * as ServerConfig from "./config.ts";
 
-// HTTP errors logged with --log-ws-events carry the request URL and its connection ticket.
 const redactingCredentials = <Output>(logger: Logger.Logger<unknown, Output>) =>
   Logger.make<unknown, Output>((options) =>
     logger.log({ ...options, cause: SharedObservability.redactCauseCredentials(options.cause) }),
@@ -63,9 +62,6 @@ export const layer = Effect.gen(function* () {
           resource: ServerConfig.otlpResource(config, hostName),
         }).pipe(Effect.map(redactingCredentials));
 
-  // `Logger.layer` replaces the whole logger set, so every logger is named in this one call. The
-  // OTLP logger is a superset of `Logger.tracerLogger` (it stamps trace and span ids on every
-  // record), so keeping both would export every in-span message twice.
   const layerLogger = Logger.layer(
     otlpLogger === undefined
       ? [consolePretty(), Logger.tracerLogger]

@@ -6,7 +6,6 @@ import type * as Scope from "effect/Scope";
 import * as Tracer from "effect/Tracer";
 
 const MB = 1024 * 1024;
-// Smaller growth is noise from concurrent fibers; an attribute on every span would bloat exports.
 const SPAN_GROWTH_ATTRIBUTE_BYTES = 8 * MB;
 const SPIKE_GROWTH_BYTES = 128 * MB;
 const SPIKE_WINDOW_SAMPLES = 10;
@@ -57,7 +56,6 @@ export const make = (tracer: Tracer.Tracer, heapUsed: () => number = readHeapUse
       },
     });
 
-    // Untraced: it runs every second and only emits a span when the heap spikes.
     const sample = Effect.fnUntraced(function* () {
       const heap = heapUsed();
       tick++;
@@ -71,7 +69,6 @@ export const make = (tracer: Tracer.Tracer, heapUsed: () => number = readHeapUse
       if (growthBytes < SPIKE_GROWTH_BYTES) return;
       cooldown = SPIKE_COOLDOWN_SAMPLES;
       const suspects = [
-        // Spans open since before the window, such as subscriptions, would claim all of its growth.
         ...[...open.values()].flatMap(({ name, startHeap, startTick }) =>
           tick - startTick <= samples.length ? [{ name, growthBytes: heap - startHeap }] : [],
         ),
@@ -82,7 +79,6 @@ export const make = (tracer: Tracer.Tracer, heapUsed: () => number = readHeapUse
         .slice(0, REPORTED_SPANS)
         .map(({ name, growthBytes }) => `${name} +${Math.round(growthBytes / MB)} MB`);
       recent.length = 0;
-      // A span, not a log: this fiber starts before the server logger is provided.
       yield* Effect.void.pipe(
         Effect.withSpan("server.heap.spike", {
           root: true,

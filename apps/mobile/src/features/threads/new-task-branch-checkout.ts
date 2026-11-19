@@ -18,8 +18,6 @@ export interface BranchCheckoutRequest {
   readonly worktreePath: string | null;
 }
 
-// The family key lists the request's fields in a fixed order, so equal
-// requests share one key and start can rebuild the request from it.
 const RequestKey = Schema.fromJsonString(
   Schema.Tuple([
     Schema.String,
@@ -70,10 +68,7 @@ export function makeNewTaskBranchCheckouts(deps: {
   /** Runs once the route is released, unless the route was abandoned first. */
   readonly onFailure: (request: BranchCheckoutRequest, result: BranchCheckoutFailure) => void;
 }) {
-  // Ignoring a stale result cannot undo its Git mutation, so checkouts run one
-  // at a time across routes.
   let tail: Promise<unknown> = Promise.resolve();
-  // Registered when a checkout starts, never from render.
   const entries = new Map<string, CheckoutEntry>();
 
   function abandon(key: string, entry: CheckoutEntry): void {
@@ -86,8 +81,6 @@ export function makeNewTaskBranchCheckouts(deps: {
     const existing = entries.get(key);
     if (existing) return existing.checkout;
     const request = requestFromKey(key);
-    // A route asks for one checkout at a time; a superseded request no longer
-    // owns the route's failure handling or holds navigation.
     for (const [otherKey, other] of entries) {
       if (other.request.flowKey === request.flowKey) abandon(otherKey, other);
     }
@@ -101,7 +94,6 @@ export function makeNewTaskBranchCheckouts(deps: {
       await released.promise;
       if (!entry.abandoned) deps.onFailure(request, result);
     });
-    // Navigation waits for the failure handling too, so its goBack lands first.
     deps.holdNavigation(Promise.allSettled([handled, released.promise]));
     return checkout;
   }
@@ -112,11 +104,9 @@ export function makeNewTaskBranchCheckouts(deps: {
         Atom.withLabel("mobile:new-task-branch-checkout"),
       ),
     ),
-    /** The route rendered with removal unblocked, so navigation may proceed. */
     release(key: string): void {
       entries.get(key)?.release();
     },
-    /** Abandons the checkouts of draft routes that are no longer on the stack. */
     prune(liveFlowKeys: ReadonlySet<string>): void {
       for (const [key, entry] of entries) {
         if (!liveFlowKeys.has(entry.request.flowKey)) abandon(key, entry);

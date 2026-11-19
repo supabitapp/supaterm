@@ -231,7 +231,6 @@ export function searchableMessageSegments(
   skills: readonly InlineSkill[] = [],
 ): readonly string[] | null {
   if (message.role === "user") {
-    // Clients hide this prompt, so find must not match text nobody can see.
     if (isAttachmentOnlyBootstrapPrompt(message.text)) return [];
     const text = message.context ? message.text : upgradeLegacyContextMessage(message.text).text;
     return markdownThreadFindText(text, true, cwd, skills);

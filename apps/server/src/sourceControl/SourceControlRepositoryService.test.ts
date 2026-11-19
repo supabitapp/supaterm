@@ -266,7 +266,6 @@ it.effect.each([
       .listRefs({ cwd: destinationPath })
       .pipe(Effect.map((result) => result.refs.map((ref) => ref.name)));
     let duringClone: ReadonlyArray<string> | null = null;
-    // Stands in for git clone so the read lands at a chosen point inside it.
     const cloneInTwoSteps = Effect.gen(function* () {
       yield* fs.makeDirectory(destinationPath).pipe(Effect.orDie);
       if (readBeforeInit) duringClone = yield* refNames;
@@ -384,8 +383,6 @@ it.effect("says a clone that ran out of time timed out, not git's last remote li
       Effect.provide(
         layer({
           git: {
-            // Like the real driver: the transfer outlives its deadline and git's last line is
-            // a remote summary.
             execute: (input) =>
               Effect.gen(function* () {
                 yield* (
@@ -556,7 +553,6 @@ it.effect.each([
           execute: (input) =>
             Effect.gen(function* () {
               const cloneUrl = input.args.at(-2)!;
-              // Git treats @ in a pathless URL's query as userinfo, losing the query delimiter.
               const diagnosticUrl =
                 cloneUrl === "https://github.com?access_token=abc@secret"
                   ? "https://secret"

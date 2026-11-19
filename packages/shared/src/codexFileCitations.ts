@@ -22,7 +22,6 @@ function citationLabel(path: string): string {
 
 function markdownDestinationPath(path: string): string {
   const destination = path.replaceAll("%", "%25").replaceAll("#", "%23").replaceAll("?", "%3F");
-  // Only disambiguate rejected relative paths; recognized links keep workspace lookup behavior.
   return parseMarkdownFileLink(destination) || /^(?:[a-z][a-z\d+.-]*:|[\\/])/i.test(path)
     ? destination
     : `./${destination}`;

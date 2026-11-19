@@ -3,7 +3,6 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 
-// `wslpath` honours the distro's configurable automount root, so the fake maps drives under a temp dir.
 export const makeFakeWslHost = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;

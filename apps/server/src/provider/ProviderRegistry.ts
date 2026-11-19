@@ -195,8 +195,6 @@ const shouldRetainMissingProviderModels = (provider: ServerProvider): boolean =>
   }
 
   if (provider.driver === ProviderDriverKind.make("acpRegistry")) {
-    // ACP Registry discovery probes return the agent's complete inventory, so
-
     return !(
       provider.installed &&
       provider.status === "ready" &&
@@ -205,15 +203,10 @@ const shouldRetainMissingProviderModels = (provider: ServerProvider): boolean =>
   }
 
   if (provider.driver === ProviderDriverKind.make("kiro")) {
-    // Kiro is ready once `whoami` confirms the account, even when `--list-models` failed and
-    // the snapshot fell back to the built-in list.
     return true;
   }
 
   if (provider.driver === ProviderDriverKind.make("claudeAgent")) {
-    // Claude Code keeps one gateway model cache per Claude home, for one base URL at a time, so a
-    // ready probe can omit this instance's gateway models after another instance or a terminal
-    // `claude` on a different gateway rewrote that cache.
     return true;
   }
 
@@ -221,8 +214,6 @@ const shouldRetainMissingProviderModels = (provider: ServerProvider): boolean =>
   const isCodex = provider.driver === ProviderDriverKind.make("codex");
   const isOpenCode = provider.driver === ProviderDriverKind.make("opencode");
   if (!isAntigravity && !isCodex && !isOpenCode) {
-    // Any other driver must report ready only after a completed model listing, or opt out above:
-    // a ready list is authoritative, and warning/error probes keep the old models.
     return !(provider.installed && provider.status === "ready");
   }
 
@@ -233,12 +224,10 @@ const shouldRetainMissingProviderModels = (provider: ServerProvider): boolean =>
     return false;
   }
 
-  // Antigravity's local health check does not authenticate or discover models.
   const isPendingAntigravityAuthentication =
     isAntigravity && provider.status === "warning" && provider.auth.status === "unknown";
   const isPendingInitialProbe =
     provider.enabled && !provider.installed && provider.status === "warning";
-  // A cold OpenCode server can finish its probe as a warning before it lists any models.
   const isIncompleteInstalledProbe =
     provider.installed &&
     (provider.status === "error" || ((isCodex || isOpenCode) && provider.status === "warning"));
@@ -287,11 +276,6 @@ const mergeProviderModels = (
     : mergedModels;
 };
 
-/**
- * Antigravity's health check only initializes the agent, so after a server
- * restart it reports the account as unchecked. The saved Google login still
- * works, and the previous snapshot proves it.
- */
 const carrySavedAntigravityAccount = (
   previousProvider: ServerProvider,
   nextProvider: ServerProvider,
@@ -324,7 +308,6 @@ export const mergeProviderSnapshot = (
   const savedAccount = carrySavedAntigravityAccount(previousProvider, nextProvider);
   const { message: _uncheckedMessage, ...nextWithoutMessage } = nextProvider;
   const models = mergeProviderModels(nextProvider, previousProvider.models, nextProvider.models);
-  // Folder catalogs were compared with the old machine catalog, so every folder rescans.
   const previousWorkspaceSnapshots = Equal.equals(models, previousProvider.models)
     ? previousProvider.workspaceSnapshots
     : previousProvider.workspaceSnapshots?.map((snapshot) => ({
@@ -389,9 +372,6 @@ const snapshotInstanceKey = (provider: ServerProvider): ProviderInstanceId => {
   return provider.instanceId;
 };
 
-// Each call re-captures the instance's `snapshot` closures, so after
-// `ProviderInstanceRegistry` rebuilds an instance (e.g. because its settings
-// changed), a fresh source rides the new PubSub instead of a closed one.
 const buildSnapshotSource = (instance: ProviderInstance): ProviderSnapshotSource => ({
   supportsReviewGuides: instance.textGeneration.supportsReviewGuides === true,
   instanceId: instance.instanceId,
@@ -431,7 +411,6 @@ export const layer = Layer.effect(
       }
       fallbackByInstance.set(source.instanceId, provider);
     }
-    // Read after the snapshots: a snapshot read as awaiting is the pre-check placeholder.
     const awaitingBootInstances = new Set<ProviderInstance>();
     for (const instance of bootInstances) {
       if (yield* instance.snapshot.isAwaitingFirstCheck ?? Effect.succeed(false)) {
@@ -451,7 +430,6 @@ export const layer = Layer.effect(
           if (fallbackProvider === undefined) {
             return undefined;
           }
-          // A completed check is seeded by the boot upsert instead, which persists it.
           const placeholder = awaitingBootInstances.has(bootInstances[index]!)
             ? fallbackProvider
             : undefined;
@@ -609,7 +587,6 @@ export const layer = Layer.effect(
           });
         }
         if (options?.publish !== false) {
-          // A newer upsert may have committed and published during the cache write; never republish an older array.
           yield* PubSub.publish(changesPubSub, yield* Ref.get(providersRef));
         }
       }
@@ -618,8 +595,6 @@ export const layer = Layer.effect(
     });
 
     const compatibilityRefreshRunning = yield* Ref.make(false);
-    // Reclassify the current read model after fetching. Never republish the
-    // probe captured before the fetch: a newer health result may have landed.
     const refreshCompatibility = Effect.gen(function* () {
       if (!(yield* Ref.getAndSet(compatibilityRefreshRunning, true))) {
         yield* manifestService.refresh.pipe(
@@ -635,7 +610,6 @@ export const layer = Layer.effect(
         readonly publish?: boolean;
       },
     ) {
-      // Latest-version status cannot resolve a failed recommended-version install.
       if (provider.versionAdvisory?.status === "current") {
         yield* Ref.update(maintenanceActionStatesRef, (previous) => {
           const action = previous.get(provider.instanceId);
@@ -694,12 +668,10 @@ export const layer = Layer.effect(
 
     const refreshOneSource = Effect.fn("refreshOneSource")(function* (instance: ProviderInstance) {
       const providerSource = buildSnapshotSource(instance);
-      // Enrichment can publish a newer snapshot before refresh returns its pre-enrichment probe.
       const probe = yield* providerSource.refresh.pipe(
         Effect.andThen(providerSource.getSnapshot),
         Effect.exit,
       );
-      // Settings can replace or remove the instance mid-probe; its late result or failure is stale.
       if (!(yield* isCurrentInstance(instance))) {
         return yield* Ref.get(providersRef);
       }
@@ -710,9 +682,6 @@ export const layer = Layer.effect(
     });
 
     type RefreshAllCompletion = Deferred.Deferred<ReadonlyArray<ServerProvider>>;
-    // A refresh is how a user asks Supaterm to see a CLI installed since launch; a burst shares one probe.
-    // Drivers copy the environment when built, so instances still missing their CLI are rebuilt
-    // on the new PATH. They cannot have live sessions, and installed ones keep theirs.
     const refreshHostPath = yield* refreshWindowsPath().pipe(
       Effect.flatMap((changed) =>
         changed
@@ -733,7 +702,6 @@ export const layer = Layer.effect(
       Option.none(),
     );
 
-    // What the last full pass could see; a later manifest fetch does not reach providers by itself.
     const probedManifestUpdatedAt = yield* Ref.make(initialManifest.updatedAt);
 
     const refreshAll = Effect.fn("refreshAll")(function* () {
@@ -754,9 +722,6 @@ export const layer = Layer.effect(
         },
       );
       if (claimed.owner) {
-        // Detached so an interrupted first caller cannot cancel the pass that
-        // other callers are already awaiting. Syncing first keeps a refresh
-        // right after a rebuild from probing the replaced instance.
         yield* manifestService.current.pipe(
           Effect.flatMap(({ updatedAt }) =>
             syncLiveSourcesAndContinue.pipe(
@@ -824,7 +789,6 @@ export const layer = Layer.effect(
           cause: Cause.pretty(cause),
         });
         failedInstances.add(instanceId);
-        // A cached ready snapshot cannot verify a successful update.
         return yield* updateProviders((providers) =>
           providers.map((candidate) =>
             candidate.instanceId === instanceId
@@ -833,12 +797,10 @@ export const layer = Layer.effect(
           ),
         );
       });
-      // Instances can share the replaced service, so none may invalidate before it restarts.
       const selectedInstance = instances.find(
         (instance) => instance.instanceId === selectedInstanceId,
       );
       if (selectedInstance?.afterUpdate !== undefined) {
-        // The probe below reports what is running, so a failed hook needs no status of its own.
         yield* selectedInstance.afterUpdate.pipe(
           Effect.catchCause((cause) =>
             Cause.hasInterruptsOnly(cause)
@@ -850,8 +812,6 @@ export const layer = Layer.effect(
           ),
         );
       }
-      // Accounts can share an installation, but discovery must use each
-      // instance's own executable, environment, and credentials.
       yield* Effect.forEach(
         instances,
         (instance) =>
@@ -874,7 +834,6 @@ export const layer = Layer.effect(
           ),
         { concurrency: "unbounded", discard: true },
       );
-      // A replaced instance's cached row did not come from this pass's probe.
       const refreshedInstances = yield* Effect.filter(
         instances.filter((instance) => !failedInstances.has(instance.instanceId)),
         isCurrentInstance,
@@ -894,9 +853,6 @@ export const layer = Layer.effect(
       provider: ProviderDriverKind,
       options?: { readonly fresh?: boolean },
     ) {
-      // Read the instance registry, not `liveSubsRef`: the latter trails
-      // reconciliation, and an update must never run a retired instance's
-      // command against a freshly configured executable.
       const instance = yield* instanceRegistry.getInstance(instanceId);
       if (!instance || instance.driverKind !== provider) {
         return makeManualProviderMaintenanceCapabilities(provider);
@@ -953,10 +909,6 @@ export const layer = Layer.effect(
           }
         }
 
-        // Fork long-lived subscriptions to each new/rebuilt instance's
-        // change stream before reading its current snapshot. If the
-        // driver's own initial probe finishes during this sync, either
-        // the current read or the active subscriber observes the result.
         for (const [, instance] of newlyAdded) {
           const source = buildSnapshotSource(instance);
           yield* Stream.runForEach(source.streamChanges, (provider) =>
@@ -976,7 +928,6 @@ export const layer = Layer.effect(
             Effect.gen(function* () {
               const source = buildSnapshotSource(instance);
               const provider = yield* source.getSnapshot;
-              // Boot shows the cached status until this instance's first check publishes a result.
               if (
                 awaitingBootInstances.has(instance) &&
                 (yield* instance.snapshot.isAwaitingFirstCheck ?? Effect.succeed(false))
@@ -1083,12 +1034,10 @@ export const layer = Layer.effect(
       readonly cwd: string;
       readonly scanCwd?: string;
       readonly fresh?: boolean;
-      // Set by an instance's own report that its workspace skills changed.
       readonly rescan?: ProviderInstance;
     }) {
       const workspaceSnapshotOf = (candidate: ServerProvider | undefined) =>
         candidate?.workspaceSnapshots?.find((s) => s.cwd === input.cwd);
-      // What clients saw before the awaited scan, which may already have published the change.
       const heldBeforeWait = input.rescan
         ? workspaceSnapshotOf(
             (yield* Ref.get(providersRef)).find(
@@ -1096,8 +1045,6 @@ export const layer = Layer.effect(
             ),
           )
         : undefined;
-      // A rescan waits for a running scan, which may have read files before the hook linked them.
-      // Claims are read before snapshots: a scan publishes before it releases its claim.
       const runningScan = input.rescan
         ? (yield* Ref.get(workspaceRefreshesRef)).get(input.rescan)?.get(input.cwd)
         : undefined;
@@ -1126,18 +1073,14 @@ export const layer = Layer.effect(
       ) {
         return providers;
       }
-      // Drivers spread their machine snapshot, whose `checkedAt` is the last
-      // health check. The TTL needs the time this scan started reading files.
       const scannedAt = DateTime.formatIso(now);
       const instance = yield* instanceRegistry.getInstance(input.instanceId);
       const snapshotForCwd = instance?.snapshotForCwd;
       if (!instance || !snapshotForCwd) return providers;
-      // A report never enrolls a cwd nobody requested, nor outlives the instance that made it.
       if (input.rescan && (input.rescan !== instance || (!runningScan && !scannedFrom))) {
         return providers;
       }
       const token = yield* Deferred.make<void>();
-      // A machine refresh can change this cwd's snapshot, so the scan publishes against the result.
       const refreshMachineSnapshot = input.fresh
         ? (instance.invalidateCaches ?? Effect.void).pipe(
             Effect.andThen(refreshInstance(input.instanceId)),
@@ -1161,7 +1104,6 @@ export const layer = Layer.effect(
             Effect.flatMap((currentInstance) => {
               if (currentInstance !== instance) return Ref.get(providersRef);
               return updateProviders((currentProviders) => {
-                // Read ownership inside the update so a newer claim cannot race publication.
                 if (Ref.getUnsafe(workspaceRefreshesRef).get(instance)?.get(input.cwd) !== token) {
                   return currentProviders;
                 }
@@ -1178,7 +1120,6 @@ export const layer = Layer.effect(
                     slashCommandsPending:
                       scopedSnapshot.slashCommandsPending ?? scopedSnapshot.status === "error",
                   });
-                  // Clients keep fetched snapshots, so a changed rescan must tell them to fetch again.
                   const rescanned = workspaceSnapshotOf(scanned);
                   const held = heldBeforeWait ?? scanBase;
                   return input.rescan &&
@@ -1206,8 +1147,6 @@ export const layer = Layer.effect(
           }).pipe(Effect.andThen(Deferred.succeed(token, undefined))),
         ),
       );
-      // The claim and the fork happen together, so the token is always completed. The scan is
-      // detached so a disconnecting owner cannot cancel the result its waiters depend on.
       const claim = yield* Effect.uninterruptible(
         Effect.gen(function* () {
           const inFlight = yield* Ref.modify(workspaceRefreshesRef, (refreshes) => {
@@ -1220,12 +1159,10 @@ export const layer = Layer.effect(
           });
           if (inFlight) return { inFlight } as const;
           return {
-            // Starting now attaches the scan's `ensuring` before anything can close the scope.
             scan: yield* Effect.forkIn(runScan, serviceScope, { startImmediately: true }),
           } as const;
         }),
       );
-      // Wait for the running scan: on-demand clients get its result only in this reply.
       if ("inFlight" in claim) {
         return yield* Deferred.await(claim.inFlight).pipe(Effect.andThen(Ref.get(providersRef)));
       }
@@ -1249,8 +1186,6 @@ export const layer = Layer.effect(
         (instance) =>
           Effect.gen(function* () {
             yield* instance.invalidateCaches ?? Effect.void;
-            // Instance and full refreshes resolve installer metadata fresh
-            // themselves; a cached workspace refresh needs it resolved here.
             const maintenance = yield* instance.snapshot.resolveMaintenance({
               fresh:
                 input.instanceId !== undefined && input.cwd !== undefined && input.fresh !== true,
@@ -1267,10 +1202,8 @@ export const layer = Layer.effect(
 
     const refreshModelCatalog = Effect.fn("ProviderRegistry.refreshModelCatalog")(function* () {
       const { updatedAt } = yield* manifestService.refreshOnDemand;
-      // The first pass can be one that started before the fetch, so allow one more.
       for (let pass = 0; pass < 2; pass++) {
         if ((yield* Ref.get(probedManifestUpdatedAt)) === updatedAt) return;
-        // A new model usually ships with the CLI release that supports it.
         yield* latestVersions.invalidateAll;
         yield* refreshAll();
       }

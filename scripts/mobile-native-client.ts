@@ -104,7 +104,6 @@ export const hashBundle = Effect.fn("hashBundle")(function* (root: string) {
     for (const name of names) {
       const key = path.join(relative, name);
       const absolute = path.join(root, key);
-      // FileSystem.stat follows links; readLink distinguishes them without following a cycle.
       const link = yield* fs.readLink(absolute).pipe(
         Effect.catchIf(
           (error) => isNotLink(error.reason.cause),
@@ -183,7 +182,6 @@ export const resolveAdb = Effect.gen(function* () {
   });
 });
 
-/** Build tool output goes to this file instead of the caller's terminal; null streams it. */
 const BuildLog = Context.Reference<string | null>("nativeClient/BuildLog", {
   defaultValue: () => null,
 });
@@ -211,7 +209,6 @@ const command = Effect.fn("nativeClient.command")(function* (
         SUPATERM_IOS_PERSONAL_TEAM: "0",
         CI: "1",
         EXPO_NO_GIT_STATUS: "1",
-        // macOS tar otherwise adds AppleDouble entries that change the extracted bundle.
         COPYFILE_DISABLE: "1",
       },
       stdin: "ignore",
@@ -247,8 +244,6 @@ const command = Effect.fn("nativeClient.command")(function* (
 const fingerprint = Effect.fn("nativeClient.fingerprint")(function* (platform: NativePlatform) {
   const output = yield* command(yield* HostProcess.ExecutablePath, [
     "--eval",
-    // Same hash on every machine: generated native projects and the config's `extra` (env-specific
-    // values a dev client reads from Metro) stay out, so a Mac and a Linux VM share builds.
     `const f = require('expo/fingerprint'); f.createFingerprintAsync(process.cwd(), { platforms: [process.argv[1]], silent: true, ignorePaths: ['android/**', 'ios/**'], sourceSkips: f.DEFAULT_SOURCE_SKIPS | f.SourceSkips.ExpoConfigExtraSection }).then(fp => console.log('SUPATERM_NATIVE_FINGERPRINT=' + fp.hash)).catch(e => { console.error(e); process.exitCode = 1; });`,
     platform,
   ]);
@@ -266,7 +261,6 @@ const runtimeName = (runtime: string) =>
     .replace(/^com\.apple\.CoreSimulator\.SimRuntime\./, "")
     .replace(/-(\d+)-(\d+)$/, " $1.$2");
 
-/** Validate the named device, or pick the only booted one; otherwise list exact commands to choose from. */
 const resolveDevice = Effect.fn("nativeClient.resolveDevice")(function* (
   platform: NativePlatform,
   requested: string | undefined,
@@ -285,7 +279,6 @@ const resolveDevice = Effect.fn("nativeClient.resolveDevice")(function* (
       return yield* new NativeClientError({
         message: "Run iOS installs on the Mac that hosts the simulator.",
       });
-    // The shared iOS client is an arm64 simulator build; Intel simulators cannot run it.
     if ((yield* HostProcess.Architecture) !== "arm64")
       return yield* new NativeClientError({
         message: "mobile:install needs an Apple silicon Mac. Use vp run ios:dev on Intel Macs.",
@@ -348,7 +341,6 @@ const resolveDevice = Effect.fn("nativeClient.resolveDevice")(function* (
     return yield* new NativeClientError({
       message: `Android device ${selected.id} is ${selected.state}, not ready.`,
     });
-  // Emulators report a generic model; their AVD name is what users recognize.
   const avd = selected.id.startsWith("emulator-")
     ? yield* command("adb", ["-s", selected.id, "emu", "avd", "name"]).pipe(
         Effect.map((output) => output.split("\n")[0]?.trim()),
@@ -426,7 +418,6 @@ export const prebuildAndroid = Effect.fn("nativeClient.prebuildAndroid")(functio
 const artifactNames = { ios: "SupatermDev.app", android: "app-debug.apk" } as const;
 const publish = Effect.fn("nativeClient.publish")(function* (staging: string, target: string) {
   const fs = yield* FileSystem.FileSystem;
-  // A concurrent ensure may have published the same fingerprint first; either copy is valid.
   if (yield* fs.exists(target)) return;
   yield* fs.rename(staging, target);
 });
@@ -459,7 +450,6 @@ const build = Effect.fn("nativeClient.build")(function* (
     if (platform === "ios") {
       const output = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-native-client-" });
       yield* command("pod", ["install"], true, path.join(mobile, "ios"));
-      // One device-independent arm64 simulator build installs on every iPhone and iPad simulator.
       yield* command(
         "xcrun",
         [
@@ -497,7 +487,6 @@ const build = Effect.fn("nativeClient.build")(function* (
         path.join(staging, artifactNames.android),
       );
     }
-    // Native edits during the build would publish this binary under a fingerprint it doesn't match.
     if ((yield* fingerprint(platform)) !== expected)
       return yield* new NativeClientError({
         message: "Native inputs changed during the build, so it was discarded. Run this again.",
@@ -509,7 +498,6 @@ const build = Effect.fn("nativeClient.build")(function* (
   );
 });
 
-/** Keep the newest few fingerprints per platform; each artifact is a few hundred megabytes. */
 const prune = Effect.fn("nativeClient.prune")(
   function* (parent: string, keep: string) {
     const fs = yield* FileSystem.FileSystem;
@@ -551,7 +539,6 @@ export const resolveArtifact = Effect.fn("nativeClient.resolveArtifact")(functio
   const artifact = { directory, file: path.join(directory, artifactNames[platform]) };
   if (yield* fs.exists(artifact.file)) {
     yield* Console.error(`Using cached client ${key}.`);
-    // Pruning keeps the most recently used, so a client another checkout is installing stays.
     const now = yield* Clock.currentTimeMillis;
     yield* fs.utimes(directory, now / 1000, now / 1000).pipe(Effect.ignore);
     return { ...artifact, source: "local" as const };
@@ -591,12 +578,10 @@ const install = Effect.fn("nativeClient.install")(function* (
         ),
     }),
   );
-  // Emulators reach Metro through 10.0.2.2; a phone on USB needs the port forwarded.
   if ((yield* command("adb", ["-s", device, "shell", "getprop", "ro.kernel.qemu"])) !== "1")
     yield* command("adb", ["-s", device, "reverse", "tcp:8081", "tcp:8081"]).pipe(Effect.ignore);
 });
 
-/** Install through the agent-device command device_open returned; a cache miss builds here first. */
 const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function* (
   home: string,
   platform: NativePlatform,
@@ -605,7 +590,6 @@ const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function
   metro: string | undefined,
 ) {
   const started = yield* Clock.currentTimeMillis;
-  // agent-device scopes session ownership to the workspace (working directory) it runs in.
   const workspace = yield* HostProcess.WorkingDirectory;
   const current = yield* fingerprint(platform);
   const artifact = yield* resolveArtifact(
@@ -643,7 +627,6 @@ const installIntoSession = Effect.fn("nativeClient.installIntoSession")(function
   );
 });
 
-/** Build tool output goes to a fresh log file unless SUPATERM_NATIVE_CLIENT_VERBOSE=1, so stdout stays one JSON line. */
 const withBuildLog =
   (home: string, platform: NativePlatform) =>
   <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -746,7 +729,6 @@ const main = Command.make(
     const path = yield* Path.Path;
     const cache = path.join(home, ".cache/supaterm/native-clients");
     const recordPath = path.join(cache, platform, `${yield* digest(device)}.json`);
-    // An iOS simulator build is arm64 for every device; an APK carries only the device's own ABI.
     const abi = Effect.gen(function* () {
       if (platform === "ios") return null;
       const value = yield* command("adb", ["-s", device, "shell", "getprop", "ro.product.cpu.abi"]);
@@ -811,7 +793,6 @@ const main = Command.make(
 
 if (import.meta.main) {
   Command.run(main, { version: "0.0.0" }).pipe(
-    // Expected failures carry their next step; a stack trace only buries it.
     Effect.catchTags({
       NativeClientError: (error) =>
         Console.error(error.message).pipe(

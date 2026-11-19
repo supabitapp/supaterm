@@ -29,14 +29,11 @@ export function createPreviewEnvironmentAtoms<R, E>(
     events: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:preview:events",
       tag: WS_METHODS.subscribePreviewEvents,
-      // Stream atoms publish only the last value per chunk; every preview event must arrive.
       transform: (stream) => stream.pipe(Stream.rechunk(1)),
     }),
     discoveredServers: createEnvironmentRpcSubscriptionAtomFamily(runtime, {
       label: "environment-data:preview:discovered-servers",
       tag: WS_METHODS.subscribeDiscoveredLocalServers,
-      // Configured URLs are part of this atom's key. Dispose immediately so
-      // unmounted projects stop contributing probe candidates on the server.
       idleTtlMs: 0,
     }),
     open: createEnvironmentRpcCommand(runtime, {

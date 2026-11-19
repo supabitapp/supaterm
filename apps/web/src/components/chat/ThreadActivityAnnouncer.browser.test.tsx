@@ -62,13 +62,11 @@ const regions = (container: HTMLElement) => {
 
 describe("ThreadActivityAnnouncer", () => {
   it("drops a waiting step once the agent has moved on", async () => {
-    // The announcer reads no route.
     await using screen = await render(announcer({ status: "idle", runStatus: "completed" }), {
       router: false,
     });
     const { detail, status } = regions(screen.container);
     {
-      // Restored before the assertions, which poll on real timers.
       using _timers = fakeTimers();
       await screen.rerender(announcer({}));
       await screen.rerender(announcer({ entries: [prompt, command("git")] }));
@@ -83,7 +81,6 @@ describe("ThreadActivityAnnouncer", () => {
   });
 
   it("holds a waiting step while the thread's detail is behind, then reads it", async () => {
-    // The announcer reads no route.
     await using screen = await render(announcer({ status: "idle", runStatus: "completed" }), {
       router: false,
     });
@@ -91,7 +88,6 @@ describe("ThreadActivityAnnouncer", () => {
     const entries = [prompt, command("git")];
     const heard: string[] = [];
     {
-      // Restored before the assertion, which polls on real timers.
       using _timers = fakeTimers();
       await screen.rerender(announcer({}));
       await screen.rerender(announcer({ entries }));
@@ -107,7 +103,6 @@ describe("ThreadActivityAnnouncer", () => {
   });
 
   it("keeps a message beside the status that follows it, then reads the newest step", async () => {
-    // The announcer reads no route.
     await using screen = await render(announcer({ status: "idle", runStatus: "completed" }), {
       router: false,
     });
@@ -137,7 +132,6 @@ describe("ThreadActivityAnnouncer", () => {
   });
 
   it("reads a status that lands with a message as the message's last sentence", async () => {
-    // The announcer reads no route.
     await using screen = await render(announcer({ status: "idle", runStatus: "completed" }), {
       router: false,
     });

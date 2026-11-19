@@ -24,7 +24,6 @@ export function Sheet(props: SheetProps) {
     >
       <BottomSheetContext value>
         <RoutedFormSheetContext value={false}>
-          {/* Android FormSheet does not bound flex children. */}
           <View collapsable={false} className="absolute inset-0 bg-header">
             <AppBar
               sheet

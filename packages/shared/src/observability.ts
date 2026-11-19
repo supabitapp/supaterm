@@ -210,11 +210,9 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// Repeated references expand once per path, so a small shared graph can grow exponentially.
 const TRACE_ATTRIBUTE_MAX_NODES = 10_000;
 
 interface NormalizeState {
-  // Only the current ancestors, so a value repeated under two keys is not a cycle.
   readonly seen: WeakSet<object>;
   remainingNodes: number;
 }
@@ -408,7 +406,6 @@ function spanToTraceRecord(span: SerializableSpan): EffectTraceRecord {
   };
 }
 
-// WebSocket tickets and their DPoP proofs ride in URL queries and stay valid after the request.
 const URL_CREDENTIAL_PARAMS = /(^|[?&"\s])(wsTicket|dpop)=[^&#"\\\s]*/g;
 
 export const redactUrlCredentials = (text: string) =>
@@ -463,7 +460,6 @@ export const makeTraceSink = Effect.fn("makeTraceSink")(function* (options: Trac
       const startedAt = performance.now();
       const written = yield* sink.write(chunk).pipe(Effect.result);
       if (Result.isFailure(written)) {
-        // Drop the batch after disk failure to avoid an ever-growing retry backlog.
         writeFailing = true;
         droppedCount += records.length - persistedCount;
         return;
@@ -511,10 +507,8 @@ export const makeTraceSink = Effect.fn("makeTraceSink")(function* (options: Trac
       }),
     )
     .pipe(
-      // Cancelled OS writes still finish; await completion before rotation or finalizer drain.
       Effect.uninterruptible,
       Effect.withTracerEnabled(false),
-      // Drop the ended makeTraceSink parent span so timed-fiber logs cannot accumulate on it.
       Effect.updateContext(Context.omit(Tracer.ParentSpan)<never>),
     );
 
@@ -563,7 +557,6 @@ export const makeTraceSink = Effect.fn("makeTraceSink")(function* (options: Trac
   } satisfies TraceSink;
 });
 
-// Effect's HTTP errors, including failed upgrades, put the request URL in their message.
 export function redactCauseCredentials(cause: Cause.Cause<unknown>): Cause.Cause<unknown> {
   if (cause.reasons.length === 0 || Cause.hasInterruptsOnly(cause)) {
     return cause;
@@ -622,7 +615,6 @@ class LocalFileSpan implements Tracer.Span {
   }
 
   end(endTime: bigint, exit: Exit.Exit<unknown, unknown>): void {
-    // Cached lookup fibers retain parent spans. Traces need success status, not result payloads.
     const traceExit = ExitRuntime.isSuccess(exit) ? ExitRuntime.void : exit;
     this.status = {
       _tag: "Ended",
@@ -702,8 +694,6 @@ export function decodeOtlpTraceRecords(
 ): ReadonlyArray<OtlpTraceRecord> {
   const records: Array<OtlpTraceRecord> = [];
 
-  // OTLP/JSON follows protobuf JSON, which omits unset and empty fields, so a
-  // valid batch can leave out any field read here.
   for (const resourceSpan of payload.resourceSpans ?? []) {
     const resourceAttributes = decodeAttributes(resourceSpan.resource?.attributes);
 

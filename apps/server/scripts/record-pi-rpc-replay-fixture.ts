@@ -30,10 +30,8 @@ import {
   makeCheckpointWorkspace,
 } from "@supaterm/provider-testing/replayWorkspace";
 
-// Exclude user context; --approve lets the throwaway workspace's `.pi/settings.json` load.
 const HERMETIC_LAUNCH_ARGS =
   "--no-extensions --no-skills --no-prompt-templates --no-context-files --approve";
-// Pi excludes ~20k recent tokens from compaction; lower the budget for this short fixture.
 const WORKSPACE_PI_SETTINGS = { compaction: { keepRecentTokens: 50 } };
 const CLOCK_TICK = Duration.millis(20);
 
@@ -69,7 +67,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-// Normalize both directions consistently so echoed paths, UUIDs and times still match on replay.
 function normalizeEntries(input: {
   readonly entries: ReadonlyArray<ProviderReplayEntry>;
   readonly workspace: string;
@@ -119,7 +116,6 @@ function normalizeEntries(input: {
     if (typeof value === "string") return normalizeString(value);
     if (Array.isArray(value)) return value.map(normalizeValue);
     if (!isRecord(value)) return value;
-    // Pi's unread system messages contain machine-specific context; retain only their shape.
     if (value.role === "system" && isRecord(value.sections)) {
       return {
         ...value,
@@ -178,7 +174,6 @@ function encodeTranscriptNdjson(transcript: ProviderReplayTranscript): string {
   ].join("\n");
 }
 
-// Follow wall time for live Pi timers while retaining replay's TestClock steps.
 const followWallClock = Effect.gen(function* () {
   while (true) {
     yield* TestClock.withLive(Effect.sleep(CLOCK_TICK));
@@ -284,7 +279,6 @@ const record = Effect.gen(function* () {
     }),
   } satisfies ProviderReplayTranscript;
 
-  // Assert on normalized replay; the live projection has raw paths. Failed assertions preserve the fixture.
   yield* Effect.gen(function* () {
     const replayWorkspace = yield* checkpointWorkspace(fixture.name, fixtureInput.workspaceFiles);
     const materialized = yield* materializeInput;

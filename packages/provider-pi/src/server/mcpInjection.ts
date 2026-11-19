@@ -101,7 +101,6 @@ function normalizePiBuiltInEqualsArguments(args: ReadonlyArray<string>): Readonl
 }
 
 export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution {
-  // Pi treats equals-form tokens as extension flags; split only known built-ins.
   const args = normalizePiBuiltInEqualsArguments(tokenizeCliArgs(launchArgs));
   let hasProvider = false;
   let hasModel = false;
@@ -135,7 +134,6 @@ export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution 
       continue;
     }
     if (arg.startsWith("--")) {
-      // Arbitrary extension flags may consume one following non-flag token.
       if (
         args[index + 1] !== undefined &&
         !args[index + 1]!.startsWith("-") &&
@@ -231,8 +229,6 @@ export const materializePiSupatermMcpExtension = Effect.fn("materializePiSupater
     const dest = piSupatermMcpExtensionDestPath(cacheDir);
     const existing = yield* fs.readFileString(dest).pipe(Effect.orElseSucceed(() => ""));
     if (existing !== PI_SUPATERM_MCP_EXTENSION_SOURCE) {
-      // Concurrent pi launches read this file: stage it in a per-call directory
-      // and rename so readers and other writers never see a partial file.
       yield* Effect.scoped(
         Effect.gen(function* () {
           const stagingDir = yield* fs.makeTempDirectoryScoped({ directory: cacheDir });
@@ -253,8 +249,6 @@ export function buildPiRpcLaunch(input: {
   readonly extensionPath: string | undefined;
   readonly sessionPath?: string | undefined;
   readonly ephemeral?: boolean;
-  // Supaterm stops these processes as soon as they answer. They run --offline because Pi's startup
-  // catalog refresh renews expired OAuth tokens, and a stop mid-request loses the rotated one.
   readonly shortLived?: boolean;
   readonly disableExtensions?: boolean;
   readonly disableTools?: boolean;
@@ -282,7 +276,6 @@ export function buildPiRpcLaunch(input: {
         : []),
     ...launchArgs,
     ...(input.shortLived === true && !launchArgs.includes("--offline") ? ["--offline"] : []),
-    // Restrictions must follow launch args so user flags cannot re-enable unattended tools/extensions.
     ...(input.disableExtensions === true ? ["--no-extensions"] : []),
     ...(input.disableTools === true ? ["--no-tools"] : []),
   ];
@@ -294,7 +287,6 @@ export function buildPiRpcLaunch(input: {
     args.push("--extension", input.extensionPath);
   }
   const environment = { ...input.environment };
-  // MCP credentials belong to this Supaterm session; discard inherited server/parent credentials.
   delete environment[SUPATERM_MCP_URL_ENV];
   delete environment[SUPATERM_MCP_BEARER_ENV];
   delete environment[SUPATERM_PI_MCP_EXTENSION_PATH_ENV];

@@ -13,7 +13,6 @@ export async function officeImageBitmap(blob: Blob) {
         ? { width: view.getUint16(18, true), height: view.getUint16(20, true) }
         : { width: view.getInt32(18, true), height: Math.abs(view.getInt32(22, true)) };
   }
-  // Unknown dimensions cannot be decoded safely: compressed bytes do not bound pixel memory.
   if (!size || size.width <= 0 || size.height <= 0 || size.width > 16_777_216 / size.height)
     throw new Error("This embedded image exceeds the preview pixel limit.");
   return createImageBitmap(blob);

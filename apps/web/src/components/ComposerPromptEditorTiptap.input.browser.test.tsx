@@ -130,7 +130,6 @@ async function mountEditor(...props: Parameters<typeof composer>) {
   return Object.assign(screen, {
     [Symbol.asyncDispose]: () => environment.disposeAsync(),
     editor,
-    /** Rerenders the same composer with new props, as a parent would. */
     update: async (...next: Parameters<typeof composer>) => {
       await screen.rerender(composer(...next));
       return editorIn(screen.container);
@@ -227,8 +226,6 @@ it.each([
     await using screen = await mountEditor("ship it **now** done");
     const { editor } = screen;
     const mod = isMacPlatform(navigator.platform) ? "Meta" : "Control";
-    // ProseMirror rewrites the DOM caret 20ms after focus. Run that now, or it
-    // can undo the first arrow key before ProseMirror reads the native move.
     {
       using _timers = fakeTimers();
       await act(async () => {
@@ -297,13 +294,11 @@ it.each([
       });
     });
 
-    // Whether the selection spans shown markers or not, Mod+B removes the bold.
     await userEvent.keyboard(modB);
     await vi.waitFor(() => expect(serializeEditorDoc(editor.state.doc).value).toBe(value));
   },
 );
 
-// The mocked server keybindings bind Command-Up and Command-Down to thread navigation.
 it("leaves Command-arrow thread navigation bindings to the app on macOS", async () => {
   using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
   await using screen = await mountEditor("first\nsecond");
@@ -428,14 +423,12 @@ it.each([
   expect(textWithMark(editor, "markdownSource")).toEqual(["**bold**"]);
   await act(async () => {
     editor.commands.setTextSelection(row.selection);
-    // A composition canceled before it edits anything keeps the redo and adds no undo.
     editor.view.dom.dispatchEvent(new CompositionEvent("compositionstart"));
     editor.view.dom.dispatchEvent(new CompositionEvent("compositionend", { data: "" }));
   });
   expect([undoDepth(editor.state), redoDepth(editor.state)]).toEqual([1, 1]);
   await act(async () => {
     editor.view.dom.dispatchEvent(new CompositionEvent("compositionstart"));
-    // ProseMirror numbers each composition; the canceled one was 1.
     editor.view.dispatch(editor.state.tr.insertText("漢").setMeta("composition", 2));
     editor.view.dom.dispatchEvent(new CompositionEvent("compositionend", { data: "漢" }));
     editor.commands.setTextSelection(editor.state.doc.content.size - 1);
@@ -479,7 +472,6 @@ it("keeps unknown dollar names editable when restoring and pasting a draft", asy
   expect(serializeEditorDoc(editor.state.doc).value).toBe(value);
 });
 
-// regression: #25180 Tiptap's paste rules styled the pasted text a second time
 it.each([
   "Read https://example.com/_handle_/status/1 and open src/__test__.tsx",
   "see `**x**` now",
@@ -583,8 +575,6 @@ it("keeps the caret inside unknown dollar text across rich and plain remounts", 
 });
 
 async function focusAt(editor: Editor, position: number | "end") {
-  // ProseMirror rewrites the DOM caret 20ms after focus. Run that now, or it
-  // can undo the first key before ProseMirror reads the native move.
   using _timers = fakeTimers();
   await act(async () => {
     editor.commands.focus(position);
@@ -594,9 +584,7 @@ async function focusAt(editor: Editor, position: number | "end") {
 }
 
 it("reopens a long draft scrolled to its caret without taking focus", async () => {
-  // App CSS is not loaded here; give the editor its own scroll box.
   const style = document.head.appendChild(document.createElement("style"));
-  // The bottom padding stands in for space reserved under overlaid controls.
   style.textContent =
     ".composer-tiptap { max-height: 120px; overflow-y: auto; padding-bottom: 48px; }";
   using _style = { [Symbol.dispose]: () => style.remove() };
@@ -714,7 +702,6 @@ describe("Markdown markers around styled text", () => {
       caret: 1,
       keys: `**Test**${isMacPlatform(navigator.platform) ? "{Meta>}b{/Meta}" : "{Control>}b{/Control}"}{Shift>}{Enter}{/Shift}f`,
       expected: "**Test**\n**f**",
-      // The caret beside f shows it as source.
       marks: { bold: ["Test"] },
     },
     {
@@ -728,7 +715,6 @@ describe("Markdown markers around styled text", () => {
   ])("edits the markers as text: $name", async ({ value, caret, keys, expected, marks }) => {
     await using screen = await mountEditor(value);
     const { editor } = screen;
-    // Position 1 is the start of the styled word; 3 is two characters into it (5 in a list item).
     await focusAt(editor, caret);
     if (typeof keys === "string") await userEvent.keyboard(keys);
     else await keys(editor);
@@ -770,7 +756,6 @@ describe("Markdown markers around styled text", () => {
     expect(value()).toBe("**bold** after!");
     expect(textWithMark(editor, "markdownSource")).toEqual(["**bold**"]);
     const end = () => editor.state.doc.content.size - 1;
-    // Undo restored the markers as text; leaving hides them without touching the text undo needs.
     await act(async () => {
       editor.commands.setTextSelection(end());
     });
@@ -781,7 +766,6 @@ describe("Markdown markers around styled text", () => {
       editor.commands.undo();
     });
     expect(value()).toBe("**bold** after");
-    // Moving the caret into styled text keeps redo, and adds no undo step after it.
     await act(async () => {
       editor.commands.setTextSelection(3);
     });
@@ -812,14 +796,12 @@ describe("Markdown markers around styled text", () => {
     await act(async () => {
       editor.commands.undo();
     });
-    // Undo puts the caret back inside the styled text.
     expect(editor.state.doc.textContent).toBe("**bold** after");
     await act(async () => {
       editor.commands.setTextSelection(end());
     });
     expect(editor.state.doc.textContent).toBe("bold after");
     expect(textWithMark(editor, "bold")).toEqual(["bold"]);
-    // After a completed redo, markers still follow the caret, and Delete edits the opening one.
     await userEvent.keyboard("?");
     await act(async () => {
       editor.commands.undo();
@@ -1011,8 +993,6 @@ describe("composer context undo lifetime", () => {
 
 describe("an Arabic line", () => {
   async function focusEnd(editor: Editor) {
-    // ProseMirror rewrites the DOM caret 20ms after focus. Run that now, or it
-    // can undo the first arrow key before ProseMirror reads the native move.
     using _timers = fakeTimers();
     await act(async () => {
       editor.commands.focus("end");

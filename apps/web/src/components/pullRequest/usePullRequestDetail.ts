@@ -25,7 +25,6 @@ import {
   resolveDisplayedPullRequestDetail,
 } from "./pullRequestDetail.logic";
 
-// Query atoms key on JSON order, so the panel and the row prefetch must build the ref here.
 export function pullRequestPanelReference(target: {
   readonly projectId: ProjectId;
   readonly repository: string;
@@ -108,10 +107,7 @@ export function usePullRequestDetail(
     cached: cachedDetail,
     reference,
   });
-  // Every hook runs above this line: a hook between the merge and the panel's plain readers of
-  // `detail` would cost it its cache scope.
   const listSummary = listEntry === null ? null : pullRequestListEntryToSummary(listEntry);
-  // The row can come from the page's stored snapshot, which no answer has published yet.
   const sharedSummary = newestDisplayedPullRequestSummary(
     resolvedCoreDetail,
     liveDetail === null,

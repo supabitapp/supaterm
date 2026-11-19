@@ -280,7 +280,6 @@ describe("handoff budget", () => {
       );
     }
     assert.equal(handoffBudget({ ...base, tokenCap: 2_000 }), 2_000);
-    // The work reserve never takes more than half of a small local window.
     for (const [modelContextWindow, nativeContextEstimate, expected] of [
       [8_192, 0, 4_086],
       [32_768, 0, 16_758],
@@ -419,7 +418,6 @@ describe("handoff budget", () => {
         assert.isAtMost(historyCost(selected.messages, selected.context), budget);
       }
       assert.equal(handoffBudget({ ...input, modelContextWindow: 2_000_000 }), 16_000);
-      // 20k window: half is reserved for work, then 27 prompt bytes and 8,192 per image.
       const smallWindowBudget = count === 1 ? 1_781 : 0;
       assert.equal(handoffBudget({ ...input, modelContextWindow: 20_000 }), smallWindowBudget);
       assert.equal(

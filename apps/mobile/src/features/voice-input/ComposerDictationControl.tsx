@@ -51,7 +51,6 @@ const SESSION_CAPSULE_STYLE = {
 } as const;
 const TOOLBAR_PERSPECTIVE = 600;
 
-/** Rolls a face in or out around the horizontal axis at one of its edges. */
 function toolbarFlip(
   fromDegrees: number,
   toDegrees: number,
@@ -107,8 +106,6 @@ const SESSION_TOOLBAR_FACE = toolbarFace("dictation", SESSION_CONTROL_HEIGHT, -9
 const TOOLBAR_FACES = {
   draft: toolbarFace("draft", TOOLBAR_HEIGHT, 90),
   error: toolbarFace("dictation", TOOLBAR_HEIGHT, -90),
-  // Android snaps the composer to its shorter height, which would clip the
-  // taller session row mid-flip.
   active: {
     ...SESSION_TOOLBAR_FACE,
     exiting: Platform.OS === "android" ? undefined : SESSION_TOOLBAR_FACE.exiting,

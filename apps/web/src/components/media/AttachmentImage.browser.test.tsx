@@ -21,7 +21,6 @@ function image(screen: Screen) {
   return img!;
 }
 
-// Stands in for the browser failing to decode the current source.
 async function failDecode(screen: Screen) {
   const img = image(screen);
   await act(() => {

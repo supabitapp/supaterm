@@ -45,8 +45,6 @@ const MAX_DESCRIPTION_LENGTH = 1_024;
 const MAX_COMMAND_LINE_LENGTH = 2_048;
 const PROBE_TIMEOUT_MS = 60_000;
 const COMMAND_ADVERTISEMENT_GRACE = "500 millis";
-// Agents that fetch their catalog after session setup (Qoder CLI, OpenCode)
-// settle it in seconds, not milliseconds; commands arrive much sooner.
 const MODEL_ADVERTISEMENT_GRACE = "5 seconds";
 const PROBE_SESSION_DELETE_TIMEOUT = "5 seconds";
 
@@ -56,10 +54,6 @@ const boundedText = (value: string, maximumLength: number): string =>
 const boundedOpaqueValue = (value: string, maximumLength: number): string | undefined =>
   value.length > 0 && value === value.trim() && value.length <= maximumLength ? value : undefined;
 
-/**
- * The session's reasoning option with the levels a model advertises in `_meta`, in the
- * shape Grok uses. Null when the model has none, undefined when it says nothing.
- */
 function advertisedReasoningEffort(
   option: EffectAcpSchema.SessionConfigOption | undefined,
   meta: Readonly<Record<string, unknown>> | null | undefined,
@@ -119,7 +113,6 @@ function normalizeModels(
     seen.add(id);
     models.push(normalizedModel(id, candidate));
   }
-  // Keep the running model visible even when its advertised position exceeds the cap.
   if (currentModelId !== null && models.length === MAX_MODELS && !seen.has(currentModelId)) {
     const current = candidates.find((candidate) => candidate.id === currentModelId);
     if (current !== undefined) {
@@ -205,8 +198,6 @@ export interface AcpRegistryLiveConfiguration {
   readonly currentModelId: string | null;
   readonly configOptions: AcpRegistryProbeResult["configOptions"];
   readonly modelOptionIds?: NonNullable<AcpRegistryProbeResult["modelOptionIds"]>;
-  // A single model from an explicit select is the agent's deliberate catalog
-  // (e.g. an entitlement change), not a cold-start placeholder.
   readonly modelsFromModelSelect?: boolean;
 }
 
@@ -406,7 +397,6 @@ export const probeAcpRegistryConfiguration = Effect.fn("AcpRegistryProbe.probeCo
     const pty = yield* Effect.serviceOption(PtyAdapter.PtyAdapter);
 
     const result = yield* Effect.gen(function* () {
-      // Resolution may install packages; bound it by the probe deadline.
       const resolved = yield* catalog
         .resolve(input.settings, input.cwd, input.environment)
         .pipe(Effect.mapError(AcpRegistrySupport.toAcpRegistryOperationError));
@@ -514,8 +504,6 @@ export const probeAcpRegistryConfiguration = Effect.fn("AcpRegistryProbe.probeCo
         );
       }
       const started = startResult.success;
-      // Agents that persist sessions (OpenCode) would otherwise keep one empty session per probe.
-      // The runtime only sends session/delete when the agent advertises it.
       yield* Effect.addFinalizer(() =>
         runtime
           .deleteSession(started.sessionId)
@@ -540,7 +528,6 @@ export const probeAcpRegistryConfiguration = Effect.fn("AcpRegistryProbe.probeCo
         { concurrency: "unbounded" },
       );
 
-      // config_option_update replaces the full option set, so an empty notice is authoritative.
       const liveConfiguration = normalizeAcpRegistryLiveConfiguration(
         (yield* Ref.get(configOptionsRef)) ?? (yield* runtime.getConfigOptions),
         (yield* runtime.getModeState) ?? parseSessionModeState(started.sessionSetupResult),

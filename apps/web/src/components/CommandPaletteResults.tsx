@@ -150,7 +150,6 @@ export function CommandPaletteVirtualizedResults(props: CommandPaletteVirtualize
         onLayout={updateScrollFade}
         onScroll={updateScrollFade}
         onReady={updateScrollFade}
-        // Legend counts style padding (not class padding) in its size, end state and row positions.
         style={{ paddingTop: 8, paddingBottom: 8 }}
         contentContainerClassName="px-2"
         className={cn(
@@ -179,17 +178,12 @@ function CommandPaletteTitle({
   );
 }
 
-/**
- * Project and environment for a thread row whose second line shows a message
- * snippet or match hint instead, so similar rows can still be told apart.
- */
 function ThreadRowContext({
   item,
 }: {
   item: CommandPaletteActionItem | CommandPaletteSubmenuItem;
 }) {
   if (!item.threadSearch || !(item.threadContentMatch || item.matchHint)) return null;
-  // A "Project: …" hint already names the project.
   const context = [item.threadSearch.projectTitle, item.threadSearch.environmentLabel]
     .filter((part) => part && part !== item.matchHint?.text)
     .join(" · ");

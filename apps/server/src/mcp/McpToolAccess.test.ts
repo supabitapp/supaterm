@@ -178,7 +178,6 @@ const layerProbeHandlers = McpToolAccess.toLayer(ProbeToolkit, probeHandlers);
 
 const unchecked = () => ran;
 
-// `@ts-expect-error` fails the build if one ever compiles. Never called.
 export const refusedAtCompileTime = () => {
   McpToolAccess.toLayer(ProbeToolkit, {
     ...probeHandlers,
@@ -394,7 +393,6 @@ it.effect("refuses a change when the calling thread cannot be read", () =>
   ),
 );
 
-// Discovery hides these tools. The handler must refuse on its own if that ever changes.
 it.effect.each(["reads_as_caller", "acts_as_caller", "acts_as_full_thread"] as const)(
   "%s refuses an outside client behind discovery",
   (tool) =>

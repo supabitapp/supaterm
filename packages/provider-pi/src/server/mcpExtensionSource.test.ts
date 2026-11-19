@@ -100,7 +100,6 @@ describe("Pi project trust", () => {
       isProjectTrusted: () => trusted,
       ui: { notify: (message: string) => sent.push(message) },
     };
-    // Pi reruns extension factories on session replacement without asking about trust again.
     for (const _session of [1, 2]) {
       const handlers = (await loadHooks([], ["node", "pi", ...argv])) as Map<
         string,

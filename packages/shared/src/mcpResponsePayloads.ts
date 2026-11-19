@@ -43,8 +43,6 @@ export function responsePayloads<E>(
   if (mediaType.toLowerCase() === "text/event-stream") {
     const body = response.body;
     if (body === null) return Stream.empty;
-    // Interrupting fromAsyncIterable cannot return a generator parked on read(), so the
-    // reader is cancelled from a finalizer instead; that settles the read and closes the body.
     return Stream.unwrap(
       Effect.acquireRelease(
         Effect.sync(() => body.getReader()),

@@ -12,16 +12,12 @@ import type * as EffectAcpSchema from "effect-acp/compat";
 
 import { antigravityManagedPath, antigravityProfileRoot } from "./AntigravityProfilePaths.ts";
 
-// CORTEX_STEP_TYPE_ERROR_MESSAGE in the native trajectory.
 const ERROR_STEP_TYPE = 17;
-// The harness error text leads the payload; a Go stack trace follows it.
 const MAX_ERROR_PAYLOAD_BYTES = 16_384;
-// The Go harness's rendering of a Google API error, as the agent's api_errors.py reads it.
 const API_ERROR = /Error (\d{3}), Message: (.+?), Status: ([A-Z_]+)/s;
 const QUOTA_EXHAUSTED = /\breason:QUOTA_EXHAUSTED\b/;
 const RESET_TIMESTAMP = /\bquotaResetTimeStamp:([^\s\]]+)/;
 const RESET_DELAY = /\bquotaResetDelay:((?:\d+(?:\.\d+)?(?:ns|us|µs|μs|ms|h|m|s))+)(?=[\s\]])/;
-// google.rpc.RetryInfo, which plain rate limits carry instead of a quota reset.
 const RETRY_DELAY = /\bretryDelay:((?:\d+(?:\.\d+)?(?:ns|us|µs|μs|ms|h|m|s))+)(?=[\s\]])/;
 const GO_DURATION_PART = /(\d+(?:\.\d+)?)(ns|us|µs|μs|ms|h|m|s)/g;
 const GO_DURATION_UNIT_MS: Record<string, number> = {
@@ -75,7 +71,6 @@ const lastStepAfter =
   };
 
 function resetAtFrom(text: string, now: DateTime.Utc): string | undefined {
-  // makeProviderFailure drops a timestamp that does not parse, so fall back to the delay.
   const timestamp = RESET_TIMESTAMP.exec(text)?.[1];
   if (timestamp !== undefined && Option.isSome(DateTime.make(timestamp))) return timestamp;
   const delay = RESET_DELAY.exec(text)?.[1] ?? RETRY_DELAY.exec(text)?.[1];
@@ -96,7 +91,6 @@ function turnFailure(
     step?.type === ERROR_STEP_TYPE
       ? new TextDecoder().decode(step.payload ?? new Uint8Array())
       : undefined;
-  // The agent maps only the SDK's QUOTA_EXHAUSTED stop reason to `refusal`.
   if (errorText === undefined && stopReason !== "refusal") return undefined;
   const text = errorText ?? "";
   const apiError = API_ERROR.exec(text);
@@ -149,7 +143,6 @@ export const watchAntigravityPromptOutcome = Effect.fn("AntigravityTurnOutcome.w
       return undefined;
     }
     const database = await antigravityManagedPath(root, segments, "file");
-    // A path that exists but fails the proof is a link or other foreign entry.
     if (database === undefined) {
       const present = await NodeFSP.lstat(NodePath.join(root, ...segments)).then(
         () => true,
@@ -176,7 +169,6 @@ export const watchAntigravityPromptOutcome = Effect.fn("AntigravityTurnOutcome.w
   return Effect.fn("AntigravityTurnOutcome.check")(function* (
     result: EffectAcpSchema.PromptResponse,
   ) {
-    // The same file as before the prompt, or one this prompt created, still unlinked.
     const after = yield* Effect.tryPromise(() =>
       antigravityManagedPath(before.root, segments, "file"),
     ).pipe(Effect.orElseSucceed(() => undefined));

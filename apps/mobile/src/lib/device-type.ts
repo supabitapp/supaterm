@@ -8,7 +8,6 @@ export function deriveDeviceType(input: {
   readonly metrics: NativeLayoutMetrics | null;
 }): DeviceType {
   if (input.isPad) return "pad";
-  // Duo reads as phone until the first native hinge layout; compact width includes narrow inner windows.
   if (input.metrics?.hasHinge !== true) return "phone";
   return input.metrics.horizontalSizeClass === "regular" ? "duo-unfolded" : "duo-folded";
 }

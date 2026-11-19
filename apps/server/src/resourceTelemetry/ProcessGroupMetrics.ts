@@ -24,8 +24,6 @@ const processCount = Metric.gauge("supaterm_process_group_count", {
   attributes: { unit: "{process}" },
 });
 
-// Each direct child of the server names the group of its whole subtree. A fixed set keeps one
-// series per group per server, however many agents and processes come and go.
 const PROVIDER_GROUPS: ReadonlyArray<readonly [RegExp, string]> = [
   [/codex/, "codex"],
   [/claude/, "claude"],
@@ -38,10 +36,6 @@ const OTHER_GROUPS: ReadonlyArray<readonly [RegExp, string]> = [
   [/chrom/, "browser"],
   [/^(?:ba|z|fi|da|c)?sh(?:\.exe)?$|^pwsh|^powershell|^cmd\.exe$/, "terminal"],
 ];
-// A CLI shipped as a script runs under a JavaScript runtime, so its process name is the
-// runtime's (older Claude packages run `node .../@anthropic-ai/claude-code/cli.js`). Only those
-// are matched by command line; any other name is matched by name alone, so a shell or `git`
-// whose arguments mention a provider stays in its own group.
 const SCRIPT_RUNTIME = /^(?:node|bun|deno)(?:\.exe)?$/;
 
 const match = (groups: ReadonlyArray<readonly [RegExp, string]>, text: string) =>
@@ -70,7 +64,6 @@ export function groupProcesses(
     if (process.category === "resource-monitor") return "resource-monitor";
     if (process.category.startsWith("electron-")) return "electron";
     let current = process;
-    // Bounded by the table size, in case a reused PID makes the parent chain loop.
     for (let step = 0; step < processes.length; step++) {
       if (current.ppid === serverPid) return childGroup(current.name, current.command);
       const parent = byPid.get(current.ppid);
@@ -102,7 +95,6 @@ export const layer = Layer.effectDiscard(
     const config = yield* ServerConfig.ServerConfig;
     if (config.otlpMetricsUrl === undefined) return;
     const telemetry = yield* ResourceTelemetry.ResourceTelemetry;
-    // A group that empties reads zero rather than holding its last value.
     const seen = new Set<string>();
     const sample = Effect.fn("ProcessGroupMetrics.sample")(function* () {
       const totals = groupProcesses((yield* telemetry.refresh).processes);
@@ -115,8 +107,6 @@ export const layer = Layer.effectDiscard(
         yield* Metric.update(Metric.withAttributes(processCount, attributes), total.count);
       }
     });
-    // A failing collector would otherwise leave these series silently absent, so the first
-    // failure and the recovery are logged; the repeats stay at debug.
     const failing = yield* Ref.make(false);
     const recordSuccess = Ref.getAndSet(failing, false).pipe(
       Effect.flatMap((wasFailing) =>

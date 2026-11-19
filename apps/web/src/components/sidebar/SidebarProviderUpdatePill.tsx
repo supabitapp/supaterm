@@ -12,7 +12,6 @@ import {
 } from "../ProviderUpdateLaunchNotification.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
-// Matches the pill's `duration-180` class.
 const PROVIDER_UPDATE_PILL_EXIT_MS = 180;
 
 const PROVIDER_UPDATE_PILL_STYLES = {
@@ -114,7 +113,6 @@ export function SidebarProviderUpdatePill() {
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- fallback timer that finishes the exit if the CSS transition never ends
   useEffect(() => {
     if (exitingKey === null) return;
-    // A cancelled or skipped CSS transition must not keep a hidden spinner mounted.
     const timeoutId = window.setTimeout(finishExit, PROVIDER_UPDATE_PILL_EXIT_MS);
     return () => window.clearTimeout(timeoutId);
   }, [exitingKey]);

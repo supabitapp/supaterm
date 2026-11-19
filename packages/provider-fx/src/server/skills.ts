@@ -1,10 +1,3 @@
-/**
- * Discovers fx skills for the `$` picker by scanning the SKILL.md folders fx
- * reads (fx 0.0.13, src/builtins/skills.zig), so no `fx acp` session starts
- * for a composer menu.
- *
- * @module provider-fx/server/skills
- */
 import type { ServerProviderSkill } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -13,12 +6,6 @@ import * as Path from "effect/Path";
 import type * as PlatformError from "effect/PlatformError";
 import * as Stream from "effect/Stream";
 
-/**
- * fx's menu order: managed `~/.fx/skills`, then the workspace's `.fx/skills`
- * and `skills/`, then every compatibility root (`skillGroupRank` in
- * src/core/skills/skill_runtime.zig). Symlinked skill folders are followed
- * everywhere except the managed root.
- */
 type SkillRoot = {
   readonly relative: string;
   readonly rank: 0 | 1 | 2;
@@ -50,11 +37,6 @@ const encoder = new TextEncoder();
 const strictDecoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 const lenientDecoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
-/**
- * fx reads bytes: a BOM means no frontmatter, and invalid UTF-8 in a value
- * makes the skill invalid while a literal U+FFFD is fine. So the BOM is kept,
- * and a line with invalid UTF-8 ends in a NUL, which the parser rejects.
- */
 function decodeSkillFile(bytes: Uint8Array): string {
   const lines: Array<string> = [];
   for (let start = 0; ;) {
@@ -89,13 +71,10 @@ function compareUtf8(left: string, right: string): number {
   return a.length - b.length;
 }
 
-/** fx trims only spaces and tabs. */
 const trimSpaceTab = (value: string) => value.replace(/^[ \t]+|[ \t]+$/g, "");
 
-/** fx's `invalidTextCause`: no ASCII control bytes (invalid UTF-8 shows up as one). */
 const hasControlByte = (value: string) => [...value].some((char) => char < " " || char === "\x7f");
 
-/** fx's `parseRecognizedValue`: one quoted or bare scalar, no YAML. */
 function recognizedValue(raw: string): string | undefined {
   if (raw.startsWith("|") || raw.startsWith(">")) return undefined;
   const quoted = /^['"]/.test(raw) || /['"]$/.test(raw);
@@ -103,12 +82,6 @@ function recognizedValue(raw: string): string | undefined {
   return raw.length >= 2 && raw[0] === raw.at(-1) ? raw.slice(1, -1) : undefined;
 }
 
-/**
- * Reads SKILL.md the way fx 0.0.13 does (`parseSkillFile` in
- * src/core/skills/skill_contract.zig): a line-based header, not YAML. No
- * frontmatter names the skill by its folder; unreadable frontmatter (no
- * closing `---`, missing or repeated `name`, a continued value) skips it.
- */
 function parseSkillMetadata(
   contents: string,
   folderName: string,
@@ -117,8 +90,6 @@ function parseSkillMetadata(
   if (opening === null) {
     return validSkillName(folderName) ? { name: folderName } : undefined;
   }
-  // fx drops a line's trailing `\r` only before a newline, and bounds the
-  // file up to the line after the closing `---`.
   const lines = contents.slice(opening[0].length).split("\n");
   const unterminated = (index: number) => index === lines.length - 1;
   const closing = lines.findIndex(
@@ -157,9 +128,6 @@ function parseSkillMetadata(
       if (sawDescription) return undefined;
       sawDescription = true;
       if (BLOCK_DESCRIPTION_STYLES.has(raw)) {
-        // A block description runs over the following space-indented lines;
-        // fx rejects a tab or a shrinking indent inside it.
-        // Blank lines stay part of the block (`undefined` below).
         const block: Array<string | undefined> = [];
         let baseIndent: number | undefined;
         for (; index + 1 < header.length; index++) {
@@ -189,11 +157,6 @@ function parseSkillMetadata(
   return { name, ...(description ? { description } : {}) };
 }
 
-/**
- * fx's `decode_block_description`: `|` keeps line breaks; `>` and `>-` join
- * neighbouring lines with a space and turn a blank line into a break. Only
- * `>-` drops the final newline, which the menu trims anyway.
- */
 function decodeBlockDescription(lines: ReadonlyArray<string | undefined>, style: string): string {
   const lastLine = lines.findLastIndex((line) => line !== undefined);
   let text = "";
@@ -207,7 +170,6 @@ function decodeBlockDescription(lines: ReadonlyArray<string | undefined>, style:
   return text.trim();
 }
 
-/** fx's `invalidSkillNameCause`. */
 function validSkillName(name: string): boolean {
   return (
     name.length > 0 &&
@@ -220,10 +182,6 @@ function validSkillName(name: string): boolean {
   );
 }
 
-/**
- * fx scans the workspace roots of each directory from the workspace up to,
- * not including, HOME, then its managed root, then the home roots.
- */
 function skillRoots(path: Path.Path, cwd: string, home: string) {
   const roots: Array<{
     readonly directory: string;
@@ -284,9 +242,6 @@ const discoverSkillsInRoot = Effect.fn("discoverFxSkillsInRoot")(function* (inpu
   const path = yield* Path.Path;
   const isLink = (target: string) =>
     Effect.option(fileSystem.readLink(target)).pipe(Effect.map(Option.isSome));
-  // fx gives its managed root no read authority: it loads nothing through a
-  // link to the root or to a folder or SKILL.md inside it (HOME is already
-  // a real path here, so a linked root changes its real path).
   if (
     !input.followsLinks &&
     (yield* fileSystem.realPath(input.directory).pipe(Effect.option)).pipe(
@@ -297,17 +252,14 @@ const discoverSkillsInRoot = Effect.fn("discoverFxSkillsInRoot")(function* (inpu
   }
   const entries = yield* skipUnreadable(input.directory, fileSystem.readDirectory(input.directory));
   const skills: Array<{ readonly skill: ServerProviderSkill; readonly folder: string }> = [];
-  // fx reads a root's folders in UTF-8 byte order; readDirectory promises none.
   for (const entry of [...(entries ?? [])].sort(compareUtf8)) {
     if (!input.followsLinks && (yield* isLink(path.join(input.directory, entry)))) continue;
-    // A stray file (`.DS_Store`, a README) is no skill folder.
     const entryInfo = yield* Effect.option(fileSystem.stat(path.join(input.directory, entry)));
     if (Option.isNone(entryInfo) || entryInfo.value.type !== "Directory") continue;
     const skillPath = path.join(input.directory, entry, "SKILL.md");
     if (!input.followsLinks && (yield* isLink(skillPath))) continue;
     const skillInfo = yield* skipUnreadable(skillPath, fileSystem.stat(skillPath));
     if (skillInfo?.type !== "File") continue;
-    // fx reads only the metadata prefix, so a long body never hides a skill.
     const prefix = yield* skipUnreadable(
       skillPath,
       fileSystem
@@ -345,8 +297,6 @@ export const discoverFxSkills = Effect.fn("discoverFxSkills")(function* (input: 
   readonly cwd: string;
   readonly environment: NodeJS.ProcessEnv;
 }): Effect.fn.Return<ReadonlyArray<ServerProviderSkill>, never, FileSystem.FileSystem | Path.Path> {
-  // fx reads skills only under a set HOME, and compares HOME and the
-  // workspace by their real paths.
   const configuredHome = input.environment.HOME?.trim();
   if (!configuredHome) return [];
   const fileSystem = yield* FileSystem.FileSystem;
@@ -356,8 +306,6 @@ export const discoverFxSkills = Effect.fn("discoverFxSkills")(function* (input: 
   const cwd = yield* realPath(input.cwd);
   const path = yield* Path.Path;
   const seenFolders = new Set<string>();
-  // `$review` and `$Review` each load the skill whose name matches the typed
-  // case, so only an exact repeat of a name is dropped.
   const seenNames = new Set<string>();
   const found: Array<{ readonly skill: ServerProviderSkill; readonly rank: number }> = [];
   for (const root of skillRoots(path, cwd, home)) {

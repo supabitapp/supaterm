@@ -184,7 +184,6 @@ describe("CodexAdapterV2 runtime policy", () => {
               },
             });
             assert.equal(params.effort, reasoningEffort);
-            // Some Responses providers reject `detailed`; `auto` is the most detailed a model supports.
             assert.equal(params.summary, "auto");
             assert.equal(params.additionalContext !== undefined, hasSupatermMcp === true);
           }
@@ -254,13 +253,11 @@ describe("CodexAdapterV2 runtime policy", () => {
           cyberAccess,
         });
 
-      // Custom models offer no Cyber Access, so even an explicit choice is dropped.
       assert.notProperty(yield* build(), "cyberAccessProgram");
       assert.notProperty(yield* build("daybreakBlue"), "cyberAccessProgram");
       const daybreak = { defaultProgram: "daybreakBlue" };
       assert.equal((yield* build(undefined, daybreak)).cyberAccessProgram, "daybreakBlue");
       assert.equal((yield* build("standard", daybreak)).cyberAccessProgram, "standard");
-      // An unread config leaves no default, but an explicit Standard still goes.
       const unknown = { defaultProgram: undefined };
       assert.notProperty(yield* build(undefined, unknown), "cyberAccessProgram");
       assert.equal((yield* build("standard", unknown)).cyberAccessProgram, "standard");
@@ -848,7 +845,6 @@ function codexReplayPreamble(input: {
   ];
 }
 
-/** Every turn/start follows a config/read; inserts that exchange and shifts later client ids. */
 function withConfigReadBeforeTurnStart(
   entries: ReadonlyArray<CodexReplay.CodexAppServerReplayEntry>,
 ): Array<CodexReplay.CodexAppServerReplayEntry> {
@@ -1056,13 +1052,10 @@ describe("CodexAdapterV2 process exit", () => {
       }
 
       yield* Queue.end(input);
-      // Output closes only after the protocol records the process termination.
       yield* Deferred.await(outputEnded);
       const rpcError = yield* client.request("thread/list", {}).pipe(Effect.flip);
       assert.strictEqual(rpcError, terminationError);
-      // Without the fix the stream never ends, so this waits until the project timeout.
       const readerExit = yield* Fiber.await(eventReader);
-      // A failure, not a clean end, carries the Codex error into the session's lastError.
       assert.isTrue(
         Exit.isFailure(readerExit) &&
           isProviderAdapterEventStreamError(Cause.squash(readerExit.cause)),
@@ -1217,7 +1210,6 @@ describe("CodexAdapterV2 session initialize", () => {
     Effect.gen(function* () {
       const initializeAwaitingResponse = yield* Deferred.make<void>();
       const releaseInitialize = yield* Deferred.make<void>();
-      // Codex rejects a second initialize; the replay permits one handshake.
       const session = yield* openReplaySession(
         makeCodexReplayTranscript({
           scenario: "concurrent-initialize",
@@ -1372,7 +1364,6 @@ describe("CodexAdapterV2 session initialize", () => {
       yield* Deferred.await(initializeAwaitingResponse);
       yield* TestClock.adjust("30 seconds");
 
-      // The session manager discards a session whose open fails.
       assert.instanceOf(yield* Fiber.join(opened), ProviderAdapter.ProviderAdapterOpenSessionError);
     }).pipe(
       Effect.scoped,
@@ -1417,10 +1408,8 @@ describe("CodexAdapterV2 session initialize", () => {
       yield* TestClock.adjust("30 seconds");
 
       assert.equal((yield* Fiber.join(ensured))._tag, "ProviderAdapterEnsureThreadError");
-      // A waiter fails at once instead of re-sending initialize to the hung app-server.
       assert.equal((yield* Fiber.join(waiting))._tag, "ProviderAdapterEnsureThreadError");
       assert.equal(session.initializeRequests(), 1);
-      // The session manager retires a session whose event stream fails.
       const exit = yield* Fiber.join(eventsExit);
       assert.isTrue(Exit.isFailure(exit));
     }).pipe(
@@ -1489,9 +1478,6 @@ describe("CodexAdapterV2 session initialize", () => {
 });
 
 describe("CodexAdapterV2 post-settle continuation", () => {
-  // The harness notifies after every recorded event or continuation, so a wait
-  // re-checks exactly when the state it reads changes. Subscribing before the
-  // first check means a change that lands in between is not lost.
   const makeChangeSignal = Effect.gen(function* () {
     const changes = yield* PubSub.unbounded<void>();
     const until = (predicate: () => boolean): Effect.Effect<void> =>
@@ -2710,7 +2696,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           frame: { id, result: { sourceTurnId: nativeTurnId, text } },
         },
       ];
-      // The second turn's ordinary suggestion is the barrier for the first turn's sample.
       const firstSampleAnswered = yield* Deferred.make<void>();
       const harness = yield* makeCodexReplayHarness(
         makeCodexReplayTranscript({
@@ -3486,7 +3471,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     Effect.gen(function* () {
       const nativeThreadId = "context-thread";
       const nativeTurnId = "context-turn";
-      // An explicit Standard must reach Codex, or Codex falls back to Daybreak.
       const modelSelection = {
         ...CODEX_TEST_MODEL_SELECTION,
         options: [{ id: "cyberAccessProgram", value: "standard" }],
@@ -3556,7 +3540,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           { type: "emit_inbound", label: "restored", frame: { id: 4, result: {} } },
         ],
       });
-      // Codex queues items injected mid-turn as pending input and samples again.
       const wireOrder: Array<string> = [];
       const restoreRequested = yield* Deferred.make<void>();
       const harness = yield* makeCodexReplayHarness(
@@ -4247,7 +4230,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     ),
   );
 
-  // regression: #33747 Codex refuses thread/resume until an unsubscribed thread finishes closing
   it.effect.each([
     { name: "waits for thread/closed after a closing error", closedFirst: false },
     { name: "retries at once when the thread already closed", closedFirst: true },
@@ -5057,7 +5039,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         entries: [
           ...codexReplayPreamble({ nativeThreadId, nativeTurnId, prompt: "Continue." }),
           retryNotice(1),
-          // A later notice in the same retry window must not push the deadline back.
           { ...retryNotice(2), afterMs: 5 * 60 * 1000 },
           {
             type: "expect_outbound",
@@ -5655,7 +5636,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       yield* harness.until(
         () => harness.continuationRequests.length === 1 && commands().length === 2,
       );
-      // Restart recovery reads this to keep the wake the restart cut.
       assert.deepEqual(commands(), [
         ["running", "always"],
         ["completed", "always"],
@@ -5678,7 +5658,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
     { stop: "onStopAbandoned", woken: ["CODEX_BG_OTHER_DONE", "CODEX_BG_WAKE_DONE"] },
   ] as const)("wakes for every command but the one the user stopped ($stop)", ({ stop, woken }) =>
     Effect.gen(function* () {
-      // Same command and start as the stopped one, and it finishes first.
       const other = (status: "inProgress" | "completed") => ({
         ...backgroundCommandItem(status),
         id: "call-codex-bg-other",
@@ -5830,7 +5809,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               arguments: { persistent: true, command: "tail -f" },
             },
           });
-        // Replies fence notification handling on the same protocol reader.
         const unsubscribe = (id: number, notifications: ReturnType<typeof notification>[] = []) => [
           {
             type: "expect_outbound" as const,
@@ -6302,7 +6280,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         yield* worker.drain();
         yield* Fiber.join(settled);
         yield* worker.drain();
-        // regression: #37290 the command stayed running, and the thread waiting, until Stop.
         const projection = yield* orchestrator.getThreadProjection(threadId);
         assert.deepEqual(
           projection.turnItems.flatMap((item) =>
@@ -7069,8 +7046,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         });
         yield* harness.awaitTerminal(1);
 
-        // The TestClock never reaches the interrupt's timeout, so this arrives only
-        // if the reader is free to read the interrupt response and the frame after it.
         yield* harness.until(() =>
           harness.events.some(
             (event) =>
@@ -7098,7 +7073,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
   );
 
   it.effect.each([
-    // regression: #27773 a first-request 429 only notifies the reset-less premium limit
     {
       name: "first-request-reset",
       code: "usageLimitExceeded",
@@ -7155,7 +7129,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       expectedClass: "usage_limit",
     },
     { name: "retry", code: "usageLimitExceeded", notification: true, expectedClass: "usage_limit" },
-    // A proxy such as CLIProxyAPI strips the snapshot, so only the error text carries the reset.
     {
       name: "message-reset",
       code: "usageLimitExceeded",
@@ -7219,7 +7192,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       expectedCode: "subscription_sharing_workplace_individual_usage_limit_exceeded",
       expectedMessage: "workspace admin",
     },
-    // regression: #25333 ChatGPT sharing limit prose classifies as a usage limit
     {
       name: "chatgpt-sharing-prose-retry",
       code: "responseStreamDisconnected",
@@ -7347,7 +7319,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       };
       const readsReset =
         scenario.name === "first-request-reset" || scenario.name === "newer-reset-during-read";
-      // Usage limits with no known reset read the account before publishing their terminal.
       const readsAccount =
         scenario.expectedClass === "usage_limit" &&
         !("expectedCode" in scenario) &&
@@ -7607,7 +7578,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         undefined,
         {
           onUsageLimits: () => Deferred.succeed(snapshotReceipt, undefined),
-          // The late reset must land after the terminal its failed read released.
           beforeEmitInbound: (entry) =>
             entry.label === "account/rateLimits/updated/late"
               ? Deferred.await(terminalReceipt)
@@ -7841,7 +7811,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       ),
   );
 
-  // regression: #28032 an unlisted codexErrorInfo dropped the failed turn/completed
   it.effect("fails the turn when Codex reports an error info the schema does not list", () =>
     Effect.gen(function* () {
       const nativeThreadId = "native-unlisted-error-info";
@@ -7879,7 +7848,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               },
             },
           },
-          // Notifications dispatch in order, so this marks turn/completed as handled.
           {
             type: "emit_inbound",
             label: "usage",
@@ -9325,7 +9293,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       const secondPrompt = "Wait for the sub-agent.";
       const secondTurn = "native-codex-resume-root-turn-2";
       const { spawned, rootFinished } = lateChildPrefix();
-      // Reuse the preamble's turn/start exchange under the session's next request id.
       const secondTurnStart = codexReplayPreamble({
         nativeThreadId: RESUME_NATIVE_THREAD,
         nativeTurnId: secondTurn,
@@ -9640,7 +9607,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       });
       assert.isFalse(yield* harness.hasPendingBackgroundWork);
       assert.lengthOf(harness.terminalEvents(), 1);
-      // The first child turn finished inside the root turn; only the resume wakes it.
       assert.lengthOf(harness.continuationRequests, 1);
       assert.include(harness.continuationRequests[0]?.detail, "CODEX_RESUME_DONE");
     }).pipe(
@@ -10516,7 +10482,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             {
               type: "emit_inbound",
               label: "turn/interrupt",
-              // A slow acknowledgement leaves the adapter's own wait running past the deadline.
               ...(pastDeadline ? { afterMs: 6_000 } : {}),
               frame: { id: 4, result: {} },
             },
@@ -10590,7 +10555,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           }),
         })
         .pipe(
-          // The session manager bounds every Stop the same way.
           Effect.timeoutOrElse({
             duration: "15 seconds",
             orElse: () => Effect.fail({ _tag: "SessionStopDeadline" } as const),
@@ -10598,7 +10562,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           Effect.result,
           Effect.forkScoped,
         );
-      // Codex received the interrupt and kept reporting work on the turn.
       yield* harness.until(() =>
         harness.events.some(
           (event) =>
@@ -10798,7 +10761,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             [providerTurnId("goal-turn-2"), RunAttemptId.make("goal-attempt"), 2],
           ],
         );
-        // The goal is set paused until its first turn starts; only the result shows.
         assert.notInclude(providerGoals(harness.events), "paused");
         assert.equal(providerGoals(harness.events).at(-1), "complete");
       }).pipe(
@@ -11223,7 +11185,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
               threadId: nativeThreadId,
               turn: makeCodexReplayTurn({ id: "goal-turn", status: "completed" }),
             }),
-            // Codex continues before the wake lookup answers.
             notification("continuation", "turn/started", {
               threadId: nativeThreadId,
               turn: makeCodexReplayTurn({ id: "goal-turn-2", status: "inProgress" }),
@@ -11289,7 +11250,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         yield* harness.runtime.startTurn(yield* goalTurnInput(harness, "Delegate and wait"));
         yield* Deferred.await(lookupStarted);
         yield* Deferred.succeed(lookupAnswered, undefined);
-        // Settles without waiting out the continuation grace.
         yield* harness.firstTerminal;
         assert.deepEqual(providerGoals(harness.events), ["active", "paused"]);
         assert.deepEqual(
@@ -11306,7 +11266,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           [1],
         );
 
-        // Inspecting the goal must not cancel its resume on the wake.
         yield* harness.runtime.startTurn(yield* goalTurnInput(harness, "/goal"));
         yield* harness.runtime.startTurn(yield* goalTurnInput(harness, "Child finished"));
         yield* harness.until(() => providerGoals(harness.events).at(-1) === "active");
@@ -11801,7 +11760,6 @@ describe("CodexAdapterV2 post-settle continuation", () => {
       Effect.gen(function* () {
         const { harness, answerNext } = yield* startApprovalTurn("file-approval-after", [
           fileChange("started", nativeTurnId, "other-patch", [updateB]),
-          // Late details cannot arrive until the approval response has been sent.
           ...approval({ id: 0, turnId: nativeTurnId, itemId: "patch-a" }),
           fileChange("started", nativeTurnId, "patch-a", [addA]),
           fileChange("completed", nativeTurnId, "patch-a", [addA]),
@@ -12031,15 +11989,12 @@ describe("CodexAdapterV2 app-server process", () => {
           } catch {}
         };
         yield* Effect.addFinalizer(() => Effect.sync(killGroup));
-        // Stop it only once its SIGTERM trap is set; an early exit would pass without testing it.
         const firstLine = yield* child.stdout.pipe(
           Stream.decodeText(),
           Stream.splitLines,
           Stream.runHead,
         );
         assert.deepStrictEqual(firstLine, Option.some("ready"));
-        // Scope.close cannot be interrupted, so a regression is ended by this rescue instead of
-        // hanging the test; the deadline under test must make it unnecessary.
         let rescued = false;
         // oxlint-disable-next-line supaterm/no-real-time-wait-in-tests -- a watchdog for a hung child, not a wait for a milestone; it must never fire.
         const rescue = yield* Effect.sleep("10 seconds").pipe(

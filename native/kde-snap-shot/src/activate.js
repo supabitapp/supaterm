@@ -1,4 +1,3 @@
-// targetPid, targetTitle, and reply are supplied by the one-shot native helper.
 let finished = false;
 let target;
 const deadline = new QTimer();

@@ -91,7 +91,6 @@ function WindowRow(props: {
           bar
         ) : (
           <View className="h-1.5">
-            {/* Clip the same full-width bar so neither fill proportions nor corner radii change. */}
             {(
               [
                 [0, tickX - 3],
@@ -243,7 +242,6 @@ export function useRefreshLimits(
     Promise.all(
       connectedIds.map((environmentId) => refreshEnvironmentLimits(registry, environmentId)),
     );
-  // Android RefreshControl needs a true-to-false cycle to stop, even with nothing to probe.
   const refreshManually = async () => {
     if (refreshingRef.current) return;
     refreshingRef.current = true;

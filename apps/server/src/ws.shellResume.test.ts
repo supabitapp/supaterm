@@ -46,7 +46,6 @@ const resumeProjectFixture = (id: string): OrchestrationProjectShell => ({
 const insertResumeEvent = (aggregateKind: "project" | "thread", streamId: string) =>
   insertOrchestrationEventRow({ aggregateKind, streamId });
 
-// Collect a resume through the real handler and event store; shells and projects are fixtures.
 const collectShellResume = Effect.fnUntraced(function* (input: {
   readonly afterSequence?: number;
   readonly requestCompletionMarker?: boolean;

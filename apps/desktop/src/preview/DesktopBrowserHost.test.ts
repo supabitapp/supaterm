@@ -27,11 +27,9 @@ const decodeCdpMessage = Schema.decodeUnknownSync(
 );
 const key = { threadId: "thread-1", tabId: "tab-1" };
 
-/** A host whose client already draws `key` at full detail, so its screenshots go out at once. */
 const makeDrawnHost = Effect.tap(DesktopBrowserHost.make, (host) =>
   Effect.sync(() => host.setCaptureDrawn(key, true)),
 );
-/** Sends a page command whose id the fake debugger records as it receives it. */
 const command = (
   host: DesktopBrowserHost.DesktopBrowserHost["Service"],
   id: number,
@@ -48,7 +46,6 @@ const command = (
 const makeDebuggee = (
   options: {
     readonly deferFocus?: boolean;
-    /** The guest is still loading its first page. */
     readonly loading?: boolean;
     readonly refuse?: (method: string, sessionId: string | undefined) => boolean;
   } = {},
@@ -110,11 +107,8 @@ const makeDebuggee = (
     },
     failLoad: (code: number) =>
       webContents.emit("did-fail-load", {}, code, "Failed", "http://localhost/", true),
-    /** Ids of the commands the debugger received, in order. */
     sent,
-    /** Methods of the same commands, in order. */
     methods,
-    /** Refuses the pending command the debugger received with this id. */
     refuse: (id: number) => rejects[sent.indexOf(id)]?.(),
     focusEmulation,
     nextSend: () => new Promise<void>((resolve) => sendWaiters.push(resolve)),
@@ -124,7 +118,6 @@ const makeDebuggee = (
   };
 };
 
-/** Commands wait behind a focus emulation change; it settles within a macrotask. */
 // oxlint-disable-next-line supaterm/no-real-time-wait-in-tests -- a zero-delay macrotask boundary, not a wait for time
 const settle = Effect.promise(() => new Promise<void>((resolve) => setImmediate(resolve)));
 
@@ -135,12 +128,6 @@ const takeEvents = (host: DesktopBrowserHost.DesktopBrowserHost["Service"], coun
     Effect.map((lines) => lines.map((line) => decodeEvent(new TextDecoder().decode(line)))),
   );
 
-/**
- * Ids of the replies the host sends, in order. A screenshot's reply leaves after its turn
- * has passed on, so by then the next waiting screenshot, if any, has been sent. Subscribe
- * before sending commands: a new subscriber releases the tab's relay. Screencast frames
- * go to `frames` by the session they were sent to.
- */
 const watchReplies = (
   host: DesktopBrowserHost.DesktopBrowserHost["Service"],
   frames: Array<string | undefined> = [],
@@ -162,7 +149,6 @@ const watchReplies = (
     return replies;
   });
 
-/** Whether the client should paint the guest, each time that changes. */
 const watchPainting = (host: DesktopBrowserHost.DesktopBrowserHost["Service"]) =>
   Effect.gen(function* () {
     const painting: Array<boolean> = [];
@@ -353,7 +339,6 @@ describe("DesktopBrowserHost", () => {
         debuggee.releaseFirst();
         expect(yield* Queue.take(replies)).toBe(1);
 
-        // A client that never draws, such as a hidden window, only delays the capture.
         host.setCaptureDrawn(key, false);
         yield* command(host, 2, "Page.captureScreenshot");
         yield* settle;
@@ -378,7 +363,6 @@ describe("DesktopBrowserHost", () => {
       debuggee.navigate();
       expect(debuggee.sent).toEqual([1, 2]);
 
-      // The superseded screenshot answering late must not start a third beside the second.
       debuggee.releaseFirst();
       expect(yield* Queue.take(replies)).toBe(1);
       expect(debuggee.sent).toEqual([1, 2]);
@@ -447,7 +431,6 @@ describe("DesktopBrowserHost", () => {
       host.attach(key, debuggee.tab);
       const replies = yield* watchReplies(host);
 
-      // An evaluation awaiting the page's next frame, which a throttled guest never paints.
       yield* command(host, 1, "Runtime.evaluate");
       yield* settle;
       expect(debuggee.sent).toEqual([1]);
@@ -473,7 +456,6 @@ describe("DesktopBrowserHost", () => {
       yield* TestClock.adjust("1 minute");
       expect(debuggee.focusEmulation).toEqual([true, false]);
 
-      // A command the old document never answers.
       yield* command(host, 2, "Page.captureScreenshot");
       yield* settle;
       expect(debuggee.sent).toEqual([1, 2]);
@@ -511,7 +493,6 @@ describe("DesktopBrowserHost", () => {
       debuggee.navigate();
       debuggee.settleFocus();
       yield* settle;
-      // Two captures in flight would undo the one-at-a-time guard.
       expect(debuggee.sent).toEqual([2]);
     }),
   );
@@ -547,10 +528,8 @@ describe("DesktopBrowserHost", () => {
         encodeJson({ type: "turn", threadId: key.threadId, active: true }),
       );
 
-      // Playwright re-enabling a domain after a reload is not the agent using the tab.
       yield* command(host, 1, "Runtime.enable");
       yield* settle;
-      // The relay resets Runtime before a connection's first enable: answer the disable, then the enable.
       debuggee.release();
       yield* settle;
       debuggee.release();
@@ -583,7 +562,6 @@ describe("DesktopBrowserHost", () => {
       yield* settle;
       debuggee.release();
       yield* settle;
-      // The model thinks between steps; a focus-sensitive menu must not blur meanwhile.
       yield* TestClock.adjust("1 minute");
       expect(debuggee.focusEmulation).toEqual([true]);
 
@@ -604,7 +582,6 @@ describe("DesktopBrowserHost", () => {
           encodeJson({ type: "turn", threadId: key.threadId, active: true }),
         );
 
-        // A screenshot of a hidden guest the server already gave up on.
         yield* command(host, 1, "Page.captureScreenshot");
         yield* settle;
         expect(debuggee.sent).toEqual([1]);
@@ -627,7 +604,6 @@ describe("DesktopBrowserHost", () => {
       const turn = (active: boolean) =>
         host.handleCommandLine(encodeJson({ type: "turn", threadId: key.threadId, active }));
 
-      // The server's own CDP session, evaluating a promise that never settles.
       yield* turn(true);
       yield* raw({ id: 1, method: "Target.attachToTarget", params: { targetId: "GUEST" } });
       expect(yield* Queue.take(replies)).toBe(1);
@@ -637,7 +613,6 @@ describe("DesktopBrowserHost", () => {
       yield* TestClock.adjust("1 minute");
       expect(debuggee.focusEmulation).toEqual([true, false]);
 
-      // A viewer streaming the guest keeps it focused through a turn's end.
       yield* turn(true);
       yield* raw({ id: 3, method: "Target.attachToTarget", params: { targetId: "GUEST" } });
       expect(yield* Queue.take(replies)).toBe(3);
@@ -671,7 +646,6 @@ describe("DesktopBrowserHost", () => {
       expect(yield* Queue.take(replies)).toBe(3);
       expect(painting).toEqual([true]);
 
-      // The agent's screenshot waits its turn; painting lets the abandoned one finish first.
       yield* command(host, 4, "Page.captureScreenshot");
       yield* settle;
       expect(painting).toEqual([true]);
@@ -699,7 +673,6 @@ describe("DesktopBrowserHost", () => {
       const turn = (active: boolean) =>
         host.handleCommandLine(encodeJson({ type: "turn", threadId: key.threadId, active }));
 
-      // The agent's screenshot is abandoned at turn end; a viewer's waits behind it, then leaves.
       yield* turn(true);
       yield* command(host, 1, "Page.captureScreenshot");
       yield* settle;
@@ -716,7 +689,6 @@ describe("DesktopBrowserHost", () => {
       });
       expect(yield* Queue.take(replies)).toBe(4);
 
-      // The agent's answers late; the viewer's is dropped unsent, so nothing is left to paint.
       debuggee.release();
       yield* settle;
       expect(debuggee.sent).toEqual([1]);
@@ -767,7 +739,6 @@ describe("DesktopBrowserHost", () => {
       yield* settle;
       expect(painting).toEqual([true]);
 
-      // The first answers late; the second still goes in turn, painting but holding no focus.
       debuggee.releaseFirst();
       yield* settle;
       expect(debuggee.sent).toEqual([1, 2]);
@@ -891,7 +862,6 @@ describe("DesktopBrowserHost", () => {
       const raw = (message: Record<string, unknown>) =>
         host.handleCommandLine(encodeJson({ type: "cdp", ...key, message: encodeJson(message) }));
 
-      // A viewer's own CDP session, closed while its still of a hidden guest is pending.
       yield* raw({ id: 1, method: "Target.attachToTarget", params: { targetId: "GUEST" } });
       expect(yield* Queue.take(replies)).toBe(1);
       yield* raw({ id: 2, method: "Page.captureScreenshot", sessionId: "supaterm-preview-page-1" });
@@ -930,7 +900,6 @@ describe("DesktopBrowserHost", () => {
       yield* settle;
       debuggee.release();
       expect(yield* Queue.take(replies)).toBe(4);
-      // The dropped screenshot's error reply leaves as the first frees its turn.
       expect([yield* Queue.take(replies), yield* Queue.take(replies)]).toEqual([3, 2]);
       yield* settle;
       expect(debuggee.sent).toEqual([2]);
@@ -957,7 +926,6 @@ describe("DesktopBrowserHost", () => {
       yield* TestClock.adjust("1 minute");
       expect(debuggee.focusEmulation).toEqual([true, false]);
 
-      // A viewer whose connection went away without stopping its screencast.
       yield* command(host, 3, "Page.startScreencast");
       yield* settle;
       debuggee.release();
@@ -978,7 +946,6 @@ describe("DesktopBrowserHost", () => {
       const raw = (message: Record<string, unknown>) =>
         host.handleCommandLine(encodeJson({ type: "cdp", ...key, message: encodeJson(message) }));
 
-      // Two viewers, or a viewer and a recording, each on its own session.
       yield* raw({ id: 1, method: "Target.attachToTarget", params: { targetId: "GUEST" } });
       yield* raw({ id: 2, method: "Target.attachToTarget", params: { targetId: "GUEST" } });
       expect([yield* Queue.take(replies), yield* Queue.take(replies)]).toEqual([1, 2]);
@@ -1017,7 +984,6 @@ describe("DesktopBrowserHost", () => {
       yield* settle;
       expect(painting).toEqual([true]);
 
-      // The first answers once the guest paints; the queued one then takes its turn.
       debuggee.release();
       yield* settle;
       expect(debuggee.sent).toEqual([1, 2, 3]);
@@ -1036,7 +1002,6 @@ describe("DesktopBrowserHost", () => {
       const turn = (active: boolean) =>
         host.handleCommandLine(encodeJson({ type: "turn", threadId: key.threadId, active }));
 
-      // The server gave up on it, and the agent's turn ends; Chromium still holds the capture.
       yield* turn(true);
       yield* command(host, 1, "Page.captureScreenshot");
       yield* settle;
@@ -1044,7 +1009,6 @@ describe("DesktopBrowserHost", () => {
       yield* settle;
       expect(painting).toEqual([true]);
 
-      // The page loads a new document, which also frees the screenshot turn.
       debuggee.navigate();
       expect(painting).toEqual([true, false]);
       yield* command(host, 2, "Page.captureScreenshot");
@@ -1053,14 +1017,12 @@ describe("DesktopBrowserHost", () => {
       yield* settle;
       expect(painting).toEqual([true, false, true, false]);
 
-      // The server releases the relay; Chromium still holds the capture.
       yield* command(host, 3, "Page.captureScreenshot");
       yield* settle;
       yield* host.handleCommandLine(encodeJson({ type: "release", ...key }));
       yield* settle;
       expect(painting).toEqual([true, false, true, false, true]);
 
-      // The guest detaches; a replacement starts with no screenshot pending.
       const replacement = makeDebuggee();
       host.attach(key, replacement.tab);
       expect(painting).toEqual([true, false, true, false, true, false]);
@@ -1115,7 +1077,6 @@ describe("DesktopBrowserHost", () => {
       const nativeStops = () =>
         debuggee.methods.filter((method) => method === "Page.stopScreencast").length;
 
-      // A viewer and a recording share Chromium's single screencast for the guest.
       yield* raw({ id: 0, method: "Target.setAutoAttach", params: { autoAttach: true } });
       expect(yield* Queue.take(replies)).toBe(0);
       yield* raw({ id: 1, method: "Target.attachToTarget", params: { targetId: "GUEST" } });
@@ -1176,7 +1137,6 @@ describe("DesktopBrowserHost", () => {
       yield* settle;
       expect(frames).toContain("supaterm-preview-page-1");
 
-      // A refused replacement leaves the session's running stream, shared with another session.
       yield* raw({ id: 4, method: "Target.attachToTarget", params: { targetId: "GUEST" } });
       expect(yield* Queue.take(replies)).toBe(4);
       yield* raw({
@@ -1228,7 +1188,6 @@ describe("DesktopBrowserHost", () => {
       yield* raw({ id: 4, method: "Page.startScreencast", sessionId: "supaterm-preview-page-2" });
       yield* settle;
       debuggee.release();
-      // Streamers go without stopping, such as viewers that closed.
       yield* raw({
         id: 5,
         method: "Target.detachFromTarget",
@@ -1260,7 +1219,6 @@ describe("DesktopBrowserHost", () => {
 
       yield* raw({ id: 1, method: "Target.attachToTarget", params: { targetId: "GUEST" } });
       expect(yield* Queue.take(replies)).toBe(1);
-      // The start waits on focus emulation while the viewer closes.
       yield* raw({ id: 2, method: "Page.startScreencast", sessionId: "supaterm-preview-page-1" });
       yield* raw({
         id: 3,
@@ -1368,7 +1326,6 @@ describe("DesktopBrowserHost", () => {
       ] as const) {
         yield* command(host, 4, "Runtime.evaluate");
         expect(led()).toBe(true);
-        // The viewer's pointer only passes over the page the agent drives.
         yield* viewer(5, "Input.dispatchMouseEvent", "mouseMoved");
         yield* viewer(6, "Input.dispatchMouseEvent", "mouseWheel");
         expect(led()).toBe(true);
@@ -1401,7 +1358,6 @@ describe("DesktopBrowserHost", () => {
             message: encodeJson({ id: 1, method: "Target.setAutoAttach" }),
           }),
         );
-        // The command's reply and the page announcement.
         yield* Queue.takeN(events, 2);
       }
 

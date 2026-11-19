@@ -34,9 +34,6 @@ interface HarnessOptions {
   readonly desktopAppUpdate?: DesktopAppUpdate.DesktopAppUpdate["Service"];
 }
 
-// The staged runtime is a release archive: the fake client serves SHA256SUMS
-// and the tarball, and the fake runner stands in for tar before it answers
-// the staged preflight.
 const archiveBytes = new TextEncoder().encode("not really a tarball");
 const releaseHttpClient = (order: string[], beforeDownload?: Effect.Effect<void>) =>
   HttpClient.make((request) =>
@@ -69,7 +66,6 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
     run: (input) =>
       Effect.gen(function* () {
         if (input.command === "busctl") {
-          // No user bus: the unit directory falls back to XDG_CONFIG_HOME or ~/.config.
           return {
             stdout: "",
             stderr: "",
@@ -101,7 +97,6 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
         }
         if (options.preflightStarted) yield* Deferred.succeed(options.preflightStarted, undefined);
         if (options.preflightDuration !== undefined) {
-          // Like the real runner, fail once the caller's timeout elapses.
           const timeout = Duration.fromInputUnsafe(input.timeout ?? "60 seconds");
           const finished = yield* Effect.sleep(options.preflightDuration).pipe(
             Effect.timeoutOption(timeout),
@@ -115,7 +110,6 @@ const makeHarness = Effect.fn("test.make_self_update_harness")(function* (
           }
         }
         order.push("preflight");
-        // Like a release, report back the launcher protocol the server named.
         const named = input.args[input.args.indexOf("--launcher-protocol") + 1];
         preflightProtocols.push(named);
         const result =
@@ -199,7 +193,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
         .update({ targetVersion: "1.1.0" })
         .pipe(Effect.flip, Effect.forkScoped);
       yield* Deferred.await(downloadFailed);
-      // A 5xx is retried after 2, 4, then 8 seconds before the update gives up.
       yield* TestClock.adjust("14 seconds");
       const error = yield* Fiber.join(failing);
       expect(error.reason).toBe(
@@ -215,7 +208,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
     }),
   );
 
-  // regression: #34502 a remote update never replaces the launcher, so it can be older than the server
   it.effect("names its launcher's protocol to the staged preflight, not its own", () =>
     Effect.gen(function* () {
       const { selfUpdate, preflightProtocols, baseDir } = yield* makeHarness({
@@ -224,7 +216,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       yield* TestClock.setTime(5_000);
       expect((yield* selfUpdate.update({ targetVersion: "1.1.0" })).updateId).toBe("launcher-id");
       expect(preflightProtocols).toEqual(["3"]);
-      // That launcher holds no lock between its servers; SSH launches wait on this marker instead.
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       expect(
@@ -269,7 +260,6 @@ it.layer(NodeServices.layer)("server self update", (it) => {
       );
       expect(result).toEqual({ targetVersion: "1.2.0", method: "desktop-app" });
       expect(stages).toEqual(["downloading", "installing"]);
-      // The launcher staging path must not run on the desktop path.
       expect(order).toEqual([]);
     }),
   );
@@ -429,7 +419,6 @@ it.layer(NodeServices.layer)("pruning runtimes on start", (it) => {
         `<plist><dict>\n<key>ProgramArguments</key>\n<array>\n<string>${program}</string>\n<string>__service-launcher</string>\n</array>\n</dict></plist>\n`,
       );
     }
-    // Like `process.execPath`, the running runtime is reported by its real path.
     const executablePath =
       input.executable === "own runtime"
         ? yield* fs.realPath(path.join(versionsDir, packageJson.version, "supaterm"))
@@ -447,7 +436,6 @@ it.layer(NodeServices.layer)("pruning runtimes on start", (it) => {
     return { removed, remaining: (yield* fs.readDirectory(versionsDir)).toSorted() };
   });
 
-  // The SSH launcher runs `supaterm serve` straight from the pinned runtime, with no boot service.
   it.effect("prunes for a server started from its home's pinned runtime", () =>
     Effect.gen(function* () {
       const { removed, remaining } = yield* pruneOnStart({ executable: "own runtime" });
@@ -470,7 +458,6 @@ it.layer(NodeServices.layer)("pruning runtimes on start", (it) => {
     }),
   );
 
-  // In-place updates move the active version but leave the launch agent on the launcher's runtime.
   it.effect.each([
     { name: "", throughLink: false },
     { name: " through a symlinked Supaterm home", throughLink: true },
@@ -511,13 +498,10 @@ it("a host crosses tracks only to a release that knows its whole database", () =
   const nightly = "0.1.4-nightly.20261027.3796";
 
   expect(cross(nightly, "0.1.4", 72)).toBeNull();
-  // Another client moved this host to a newer Nightly after the switch was planned.
   expect(cross(nightly, "0.1.4", 72, 73)).toContain("does not support yet");
   expect(cross(nightly, "0.1.4", undefined)).toContain("Cannot confirm");
-  // A Stable tag can carry a migration the latest Nightly lacks.
   expect(cross("0.1.4", nightly, 72, 73)).toContain("does not support yet");
   expect(cross("0.1.3", "0.1.4", undefined)).toBeNull();
-  // A database that exists but cannot be read proves nothing.
   expect(
     ServerSelfUpdate.trackSwitchBlockReason({
       serverVersion: nightly,

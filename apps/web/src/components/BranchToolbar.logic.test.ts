@@ -349,8 +349,6 @@ describe("resolveBranchSelectionTarget", () => {
   });
 
   it("switches back to the main repo when the ref already lives there", () => {
-    // A subdirectory project's own checkout is reported at the repository root.
-    // The checkout root is undefined until the project's status loads.
     for (const [activeProjectCwd, activeWorktreePath, activeProjectCheckoutRoot] of [
       ["/repo", "/repo/.supaterm/worktrees/feature-a", "/repo"],
       ["/repo/packages/app", "/repo/.supaterm/worktrees/feature-a", "/repo"],
@@ -372,7 +370,6 @@ describe("resolveBranchSelectionTarget", () => {
         checkoutCwd: "/repo",
         nextWorktreePath: null,
         reuseExistingWorktree: true,
-        // A ref listed in the thread's own checkout may be stale, so it is checked out, not assumed.
         staysInActiveCheckout: activeWorktreePath === null,
       });
     }

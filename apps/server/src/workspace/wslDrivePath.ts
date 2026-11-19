@@ -4,11 +4,7 @@ import * as Effect from "effect/Effect";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
-// WSL mounts Windows drives under a configurable automount root, so only wslpath knows where.
-// No WSL env check: servers started by systemd lack WSL_DISTRO_NAME, and off WSL the spawn just fails.
-// Untraced: it runs for every chip path, and only drive paths on Linux do any work.
 export const toWslDrivePath = Effect.fnUntraced(function* (requestedPath: string) {
-  // spawn throws on a NUL byte instead of failing.
   if (!isWindowsDrivePath(requestedPath) || requestedPath.includes("\0")) return requestedPath;
   if ((yield* HostProcess.Platform) !== "linux") return requestedPath;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;

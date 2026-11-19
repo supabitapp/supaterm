@@ -175,8 +175,6 @@ it.effect("keeps the task list order when a toggle or edit rewrites updated_at",
 it.effect("keeps one queued occurrence of a recurring task while its bound thread is busy", () =>
   Effect.gen(function* () {
     yield* TestClock.setTime(Date.parse("2026-07-01T09:00:00.000Z"));
-    // The bound thread's own run never finishes, so every scheduled send lands
-    // in its queue and stays there.
     const activeRun = {
       id: RunId.make("run:busy"),
       status: "running",
@@ -189,7 +187,6 @@ it.effect("keeps one queued occurrence of a recurring task while its bound threa
     const runDueWork = yield* Ref.make<Effect.Effect<void>>(Effect.void);
     const layerDependencies = Layer.mergeAll(
       NodeCrypto.layer,
-      // Capture the poll pass so the test drives each due interval directly.
       Layer.mock(Scheduler.Scheduler)({
         register: (name, work) =>
           name !== "scheduled-tasks"
@@ -276,17 +273,14 @@ it.effect("keeps one queued occurrence of a recurring task while its bound threa
         );
       const queuedOccurrences = queuedOccurrencesOf(task.id);
       expect(yield* queuedOccurrences).toBe(1);
-      // Skipped intervals still move the schedule forward.
       const [listed] = (yield* service.list()).tasks;
       expect(Date.parse(listed?.nextRunAt ?? "")).toBeGreaterThan(
         Date.parse("2026-07-01T09:03:03.000Z"),
       );
 
-      // Run now is an explicit request, so it still queues behind the held one.
       yield* service.runNow({ id: task.id });
       expect(yield* queuedOccurrences).toBe(2);
 
-      // Once the queued copies start, the next interval sends again.
       yield* Ref.update(thread, (current) => ({
         ...current,
         runs: current.runs.map((run) =>
@@ -297,7 +291,6 @@ it.effect("keeps one queued occurrence of a recurring task while its bound threa
       yield* Effect.flatten(Ref.get(runDueWork));
       expect(yield* queuedOccurrences).toBe(1);
 
-      // A one-time task's only scheduled occurrence still sends behind a queued Run now.
       const { task: once } = yield* service.upsert(
         yield* decodeUpsertInput({
           id: "scheduled-task:busy-thread-once",
@@ -344,9 +337,7 @@ it.effect(
       );
       yield* Effect.gen(function* () {
         const service = yield* ScheduledTaskService.ScheduledTaskService;
-        // The first poll finds no tasks and remembers that nothing is due.
         yield* TestClock.adjust("6 seconds");
-        // Its year-10000+ next run sorts first as text; it must not hide the task below.
         yield* service.upsert(
           yield* decodeUpsertInput({
             title: "Far future",
@@ -373,7 +364,6 @@ it.effect(
             interactionMode: "default",
           }),
         );
-        // This poll records the new task's due time; the later ones must still fire it.
         yield* TestClock.adjust("6 seconds");
         yield* TestClock.adjust("60 seconds");
         expect(yield* Deferred.await(launched)).toBe(created.task.title);
@@ -431,7 +421,6 @@ it.effect("a fixed-time slot missed while the server was off shows on the task",
       }),
     );
 
-    // The server is off across the 09:00 slot and comes back at 09:30.
     yield* TestClock.setTime(DateTime.toEpochMillis(at(9, 30)));
     const [listed] = yield* withServer(
       Effect.gen(function* () {
@@ -444,7 +433,6 @@ it.effect("a fixed-time slot missed while the server was off shows on the task",
     expect(listed?.id).toBe(taskId);
     expect(yield* Ref.get(launches)).toBe(1);
     expect(listed?.nextRunAt).toBe(DateTime.formatIso(DateTime.toUtc(at(9, 0, 2))));
-    // The skipped slot must not read as the earlier manual run's clean success.
     expect({ status: listed?.lastRunStatus, error: listed?.lastRunError }).not.toEqual({
       status: "succeeded",
       error: null,
@@ -511,7 +499,6 @@ it.effect(
           return task.id;
         });
 
-      // Due at 07:00, 08:00 and 08:30; the server is off until 09:30.
       const morningId = yield* withServer(
         Effect.gen(function* () {
           yield* upsert("Slow", { type: "interval", everyMs: 60 * 60 * 1000 });

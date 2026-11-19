@@ -12,7 +12,6 @@ import { vi } from "vite-plus/test";
 
 import * as HostResources from "./HostResources.ts";
 
-// An 8-CPU host; every cpus() call advances each CPU by 100 ms at `host.busy` utilization.
 const host = vi.hoisted(() => ({ busy: 0, reads: 0 }));
 vi.mock("node:os", async (importOriginal) => {
   const actual = await importOriginal<typeof NodeOS>();
@@ -50,7 +49,6 @@ const unlimitedCgroup = {
   [`${cgroup}/memory.stat`]: [`anon ${450 * MiB}\ninactive_file ${100 * MiB}\n`],
 };
 
-// Each path serves its values in order and repeats the last one.
 const linuxHost = (files: Record<string, ReadonlyArray<string>>) => {
   const reads = new Map<string, number>();
   return HostResources.layer.pipe(
@@ -97,7 +95,6 @@ describe("HostResources.layer", () => {
       setup();
       const snapshot = yield* read;
 
-      // One CPU of quota, 150 ms of it used during the 200 ms sample.
       assert.strictEqual(snapshot.cpuCount, 1);
       assert.strictEqual(snapshot.cpuUtilization, 0.75);
     }).pipe(
@@ -120,7 +117,6 @@ describe("HostResources.layer", () => {
       const snapshot = yield* read;
 
       assert.strictEqual(snapshot.totalMemoryBytes, GiB);
-      // 600 MiB charged, of which 100 MiB is reclaimable page cache.
       assert.strictEqual(snapshot.availableMemoryBytes, GiB - 500 * MiB);
     }).pipe(
       Effect.provide(
@@ -134,12 +130,10 @@ describe("HostResources.layer", () => {
 
   it.effect("counts a busy host against an idle, quota-limited server cgroup", () =>
     Effect.gen(function* () {
-      // Agents in sibling cgroups keep the host 90% busy; the server's own cgroup is idle.
       setup(0.9);
       const snapshot = yield* read;
 
       assert.strictEqual(snapshot.cpuCount, 2);
-      // Only 0.8 of 8 host CPUs are free, which is 60% of the 2-CPU quota in use.
       assert.closeTo(snapshot.cpuUtilization ?? Number.NaN, 0.6, 1e-9);
     }).pipe(
       Effect.provide(
@@ -163,7 +157,6 @@ describe("HostResources.layer", () => {
         linuxHost({
           ...unlimitedCgroup,
           "/proc/self/status": ["Name:\tnode\nCpus_allowed_list:\t4\n"],
-          // CPU 1 is offline; the server's CPU 4 is saturated, everything else is idle.
           "/proc/stat": [0, 100].map((elapsed) =>
             [0, 2, 3, 4, 5, 6, 7]
               .map((id) =>

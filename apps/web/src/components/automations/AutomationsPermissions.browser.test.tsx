@@ -131,7 +131,6 @@ vi.mock(import("@effect/atom-react"), async (original) => {
         : []) as never,
   };
 });
-// Pickers and icons that read live provider and git state are out of scope here.
 vi.mock(import("../EnvironmentMachineIcon"), async (original) => ({
   ...(await original()),
   EnvironmentMachineIcon: (() => null) as never,
@@ -171,7 +170,6 @@ const taskId = ScheduledTaskId.make("task");
 const instanceId = ProviderInstanceId.make("codex");
 const boundThreadId = ThreadId.make("older-thread");
 
-// Stands in for the thread family read the editor makes when the shell lacks the bound thread.
 const threadFamilyRead = {
   snapshotSequence: 1,
   threads: [
@@ -224,7 +222,6 @@ const scope: ResolvedSettingsScope = {
   environmentIds: [primaryId, remoteId],
 };
 
-// Dialogs and menus render in a portal, so the whole document is searched.
 const pageText = () => document.body.textContent ?? "";
 const buttonNamed = (label: string) =>
   [...document.querySelectorAll<HTMLElement>("button, [role=menuitem]")].find((button) =>

@@ -46,7 +46,6 @@ vi.mock("node:worker_threads", async (importOriginal) => {
       if (args[1]?.workerData?.frames !== undefined) checkpointWorkers.push(this);
     }
     override terminate() {
-      // A "ready" already queued when termination starts reaches the parent before "exit".
       if (silentWorkers.readyOnTerminate) this.emit("message", { type: "ready" });
       return super.terminate();
     }
@@ -275,7 +274,6 @@ it.effect("keeps another connection from committing between a transaction's read
           const [row] = yield* sql<{ readonly value: number }>`
             SELECT value FROM counters WHERE id = 1
           `;
-          // Deferred BEGIN permits a competing commit, causing SQLITE_BUSY_SNAPSHOT that no timeout can resolve.
           yield* Effect.sync(() =>
             assert.throws(
               () => other.exec("UPDATE counters SET value = value + 1 WHERE id = 1"),
@@ -348,8 +346,6 @@ it.effect("lets the event loop run while a write waits for another connection's 
         sql`UPDATE counters SET value = value + 1 WHERE id = 1`,
         { startImmediately: true },
       );
-      // A writer on the event loop sleeps in SQLite's busy handler here, so this commit
-      // cannot run until that write has already timed out.
       yield* eventLoopTurn;
       yield* Effect.sync(() => other.exec("UPDATE counters SET value = 10 WHERE id = 1; COMMIT"));
       yield* Fiber.join(write);
@@ -374,7 +370,6 @@ it.effect("finishes a write already sent to the writer before its caller is inte
         startImmediately: true,
       });
       yield* eventLoopTurn;
-      // The write is waiting in the worker for the lock, so the interrupt has to wait too.
       assert.isUndefined(interrupted.pollUnsafe());
       yield* Effect.sync(() => other.exec("COMMIT"));
       yield* Fiber.join(interrupted);
@@ -397,7 +392,6 @@ it.effect("lets the writer commit while a read-only transaction is open", () =>
           Effect.gen(function* () {
             const before = yield* countEntries(sql);
             yield* Deferred.succeed(snapshotTaken, undefined);
-            // Holding the writer lock here would deadlock this join.
             yield* Fiber.join(writer);
             const after = yield* countEntries(sql);
             return { before, after };
@@ -423,7 +417,6 @@ it.effect("serves another read while a read-only transaction is open", () =>
           Effect.gen(function* () {
             yield* countEntries(sql);
             yield* Deferred.succeed(opened, undefined);
-            // One shared reader would make this join wait on the transaction forever.
             assert.equal(yield* Fiber.join(other), 1);
           }),
         )
@@ -468,7 +461,6 @@ it.effect("gives a queued read the first reader that frees up", () =>
         SqliteClient.readOnly,
         (effect) => Effect.forkChild(effect, { startImmediately: true }),
       );
-      // Masked read-only work keeps its cancellation pending and still runs once a reader frees up.
       let maskedRan = 0;
       const maskedRuns = yield* Effect.forEach(
         [
@@ -493,7 +485,6 @@ it.effect("gives a queued read the first reader that frees up", () =>
       yield* TestClock.adjust("1 second");
       yield* Deferred.succeed(holders[1]!.release, undefined);
       yield* Fiber.join(holders[1]!.fiber);
-      // Pinned to the first reader it saw, this read would wait for that reader's transaction.
       assert.equal(yield* Fiber.join(queued), 1);
       assert.equal((yield* Deferred.await(queuedSpan)).attributes.get("db.lock_wait_ms"), 1000);
       for (const { fiber, release } of [holders[0]!, holders[2]!, holders[3]!]) {
@@ -601,7 +592,6 @@ it.effect("uses the writer when the reader cannot open the database", () =>
       assert.equal(yield* sql.withTransaction(countEntries(sql)).pipe(SqliteClient.readOnly), 1);
       assert.equal(yield* sql.withTransaction(countEntries(sql)).pipe(SqliteClient.readOnly), 1);
 
-      // A read beside an open read transaction must not start a worker on the next slot.
       const held = yield* Deferred.make<void>();
       const release = yield* Deferred.make<void>();
       const holder = yield* sql
@@ -733,7 +723,6 @@ it.effect("backs off a reader that never starts without logging each retry", () 
           assert.deepEqual(yield* Fiber.join(read), { count: 1, connection: ["writer"] });
 
           const startedBefore = startedWorkers.length;
-          // Each retry waits 10 s for startup; the gaps between them double from 1 s up to a minute.
           yield* TestClock.adjust("10 minutes");
           assert.equal(startedWorkers.length - startedBefore, 12);
           assert.equal(Queue.sizeUnsafe(lines), 1);
@@ -923,7 +912,6 @@ it.effect("keeps writes moving while an outside reader pins the WAL, then trims 
     const path = yield* Path.Path;
     const directory = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-sqlite-pinned-wal-" });
     const filename = path.join(directory, "state.sqlite");
-    // Stands in for `sqlite3 statev2.sqlite` or a backup script reading the database.
     const outside = yield* Effect.acquireRelease(
       Effect.sync(() => new NodeSqlite.DatabaseSync(filename)),
       (db) =>
@@ -967,7 +955,6 @@ it.effect("keeps writes moving while an outside reader pins the WAL, then trims 
           checkpointer.unref();
         });
       });
-      // The worker checkpoints the released frames; the next write restarts the WAL at the limit.
       yield* Effect.all([caughtUp, sql`DELETE FROM blobs WHERE rowid = 1`], { concurrency: 2 });
       yield* sql`DELETE FROM blobs WHERE rowid = 2`;
       assert.isAtMost(yield* walSize, limit);

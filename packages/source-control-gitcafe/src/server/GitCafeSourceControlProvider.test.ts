@@ -29,10 +29,8 @@ const failure = (code: string, status: number | null) => ({
   error: { code, status, message: `Failure ${code}` },
 });
 
-/** Most calls touch no file; one that does fails the test. */
 const NoFiles = FileSystem.layerNoop({});
 
-/** A provider on git.cafe whose checkout has no remote and which may not run `cafe`. */
 const layerFor = (
   client: HttpClient.HttpClient,
   options: { readonly files?: Layer.Layer<FileSystem.FileSystem> } = {},

@@ -57,7 +57,6 @@ interface CommandScope {
 
 type KeyObserver = (event: KeyboardEvent, consumed: boolean) => void;
 
-// Within each list the newest scope wins.
 const globalScopes: CommandScope[] = [];
 const captureScopes: CommandScope[] = [];
 const observerScopes: KeyObserver[] = [];
@@ -107,7 +106,6 @@ function runKeyScope(scope: CommandScope, event: KeyboardEvent): boolean {
   return true;
 }
 
-// Keys typed into a shortcut recorder are being recorded, not run.
 function isKeybindingCaptureTarget(event: KeyboardEvent): boolean {
   return (
     event.target instanceof Element && event.target.closest("[data-keybinding-capture]") !== null

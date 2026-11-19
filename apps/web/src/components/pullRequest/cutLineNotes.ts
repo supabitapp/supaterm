@@ -29,7 +29,6 @@ export function markCutLineNotes(fileContainer: HTMLElement): void {
     CSS.highlights.set(HIGHLIGHT_NAME, highlight);
   }
   const marked = new Set<Node>();
-  // A range over a removed row collapses onto the row's parent rather than disconnecting.
   for (const range of highlight) {
     if (range.collapsed || !range.startContainer.isConnected) highlight.delete(range);
     else marked.add(range.startContainer);

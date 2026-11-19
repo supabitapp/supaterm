@@ -56,7 +56,6 @@ export function stepComposerStop(
   if (input.runId !== null && state.runId !== input.runId) {
     return { runId: input.runId, phase: "idle" };
   }
-  // Losing permission also clears canInterrupt; it does not acknowledge the stop.
   if (!input.canOperateThread) return state;
   if ((state.phase === "pending" || state.phase === "timedOut") && !input.canInterrupt) {
     return { ...state, phase: "landed" };
@@ -111,7 +110,6 @@ export type ComposerPrimaryAction = {
   | { readonly kind: ComposerSubmitKind; readonly preparingWorktree: boolean }
 );
 
-// A disconnected environment still queues messages, so it only blocks actions that need it now.
 function availabilityBlock(
   input: ComposerPrimaryActionInput,
   needsEnvironment: boolean,
@@ -130,8 +128,6 @@ function availabilityBlock(
   };
 }
 
-// An answer responds to the open request rather than starting a turn, so provider and project
-// state cannot block it; only its connection and its own attachments can.
 function answerBlock(
   input: ComposerPrimaryActionInput,
   pendingAction: ComposerPendingAnswer,

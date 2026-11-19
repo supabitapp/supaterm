@@ -59,7 +59,6 @@ vi.mock("@supaterm/client-runtime/state/runtime", async (importOriginal) => ({
 vi.mock("./session", async () => {
   const { Atom } = await import("effect/reactivity");
   const { appAtomRegistry } = await import("./atom-registry");
-  // A session's state is reduced to whether it grants the operate scope.
   const sessionStateAtom = Atom.family((_id: string) => Atom.make(false).pipe(Atom.keepAlive));
   const sessionHasScope = (granted: boolean, scope: string) =>
     granted && scope === AuthOrchestrationOperateScope;
@@ -216,7 +215,6 @@ const remaining = () =>
   Object.values(appAtomRegistry.get(state.manager.queuedMessagesByThreadKeyAtom)).flat();
 
 function setOperateGrant(environmentId: string, granted: boolean): void {
-  // The mocked session atom holds the grant itself (see the ./session mock).
   const sessionAtom = environmentSession.sessionStateAtom(EnvironmentId.make(environmentId));
   appAtomRegistry.set(sessionAtom as unknown as Atom.Writable<boolean>, granted);
 }
@@ -230,7 +228,6 @@ function runDrain() {
   return settled.promise.finally(release);
 }
 
-/** Starts the service once per test; later calls run another drain pass. */
 function startDelivery(): void {
   if (state.delivery !== null) {
     state.delivery.drain();
@@ -408,8 +405,6 @@ describe("queued task operation access", () => {
     setOperateGrant("secondary", true);
     const queued = message();
     await state.manager.enqueue(queued);
-    // Awaited steps catch their own failures, so a defect in the delivery's own code is what
-    // rejects a delivery.
     state.modelUnavailable.mockImplementationOnce(() => {
       throw new TypeError("Cannot read properties of undefined");
     });
@@ -425,7 +420,6 @@ describe("queued task operation access", () => {
     setOperateGrant("secondary", true);
     state.config.shellThreadFamilies = true;
     const subAgentThread = { ...state.thread, id: "sub-agent" };
-    // A cached family merges its rows into the shell list as soon as it is mounted.
     state.familyMount.mockImplementationOnce(() => {
       appAtomRegistry.set(state.threadShells, [state.thread, subAgentThread]);
       return () => {};
@@ -438,12 +432,9 @@ describe("queued task operation access", () => {
     const release = appAtomRegistry.subscribe(dispatchingQueuedMessageIdsAtom, (ids) => {
       if (Object.keys(ids).length === 0) delivered.resolve();
     });
-    // Ending the edit wakes the thread through a registry notification, the path on which the
-    // mount's synchronous row change wakes it again while it is deciding.
     appAtomRegistry.set(editingQueuedMessageIdsAtom, {});
     await delivered.promise.finally(release);
     expect(state.familyMount).toHaveBeenCalledOnce();
-    // One fiber took the message: a second would have prepared it again.
     expect(state.prepare).toHaveBeenCalledOnce();
     expect(state.start).toHaveBeenCalledOnce();
     expect(remaining()).toEqual([]);
@@ -587,7 +578,6 @@ describe("queued task whose launch reply is lost", () => {
       },
     });
 
-  /** The server creates the thread, but the launch reply is lost; the thread then shows up. */
   async function loseLaunchReply(queued: QueuedThreadMessage, edit?: string): Promise<void> {
     setOperateGrant("secondary", true);
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
@@ -616,7 +606,6 @@ describe("queued task whose launch reply is lost", () => {
     await fireRetry();
 
     expect(state.draftText).toBe("Keep this draft separate");
-    // The resend reuses the launch's command and message ids, so the server replays it.
     const [first, resent] = state.start.mock.calls.map(([call]) => call.input);
     expect(state.start).toHaveBeenCalledTimes(2);
     expect(resent.commandId).toBe(first.commandId);
@@ -674,7 +663,6 @@ describe("queued task whose launch reply is lost", () => {
 });
 
 describe("queued delivery timing", () => {
-  /** Runs `change`, then resolves once the delivery it starts has settled. */
   async function deliveryAfter(change: () => void): Promise<void> {
     const started = Promise.withResolvers<void>();
     const settled = Promise.withResolvers<void>();
@@ -699,7 +687,6 @@ describe("queued delivery timing", () => {
     await state.manager.enqueue(first);
     startDelivery();
     await firstStarted.promise;
-    // The queue empties under the running send, then the thread gets its next message.
     await state.manager.remove(first);
     const allDelivered = Promise.withResolvers<void>();
     const release = appAtomRegistry.subscribe(state.manager.queuedMessagesByThreadKeyAtom, () => {
@@ -708,7 +695,6 @@ describe("queued delivery timing", () => {
     await state.manager.enqueue(
       message({ messageId: MessageId.make("next"), commandId: CommandId.make("next-command") }),
     );
-    // The next message waits; only the interrupted send is still marked as sending.
     expect(sendingMessageIds()).toEqual(["message"]);
     expect(state.start).toHaveBeenCalledOnce();
     finishFirst.resolve(AsyncResult.success({}));
@@ -727,7 +713,6 @@ describe("queued delivery timing", () => {
       slowStarted.resolve();
       return finishSlow.promise;
     });
-    /** Resolves once only these message ids are still queued. */
     const queuedBecomes = (ids: ReadonlyArray<string>) => {
       const reached = Promise.withResolvers<void>();
       const release = appAtomRegistry.subscribe(state.manager.queuedMessagesByThreadKeyAtom, () => {
@@ -859,7 +844,6 @@ describe("queued voice messages in the delivery fiber", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setImmediate", "Date"] });
     state.cleanups.push(() => vi.useRealTimers());
     startDelivery();
-    // The fiber resumes on Effect's scheduler; running it dry shows what it dispatched.
     await vi.runAllTimersAsync();
 
     const [held, waiting] = remaining();

@@ -52,11 +52,6 @@ import { readLocalApi } from "~/localApi";
 import { cn } from "~/lib/utils";
 import { primaryServerKeybindingsAtom, serverEnvironment } from "~/state/server";
 
-/**
- * The page reports the keys, and a page script can report any key it likes,
- * so only commands that change what the reader sees are here, never one that
- * changes a thread.
- */
 const HTML_RENDER_SHORTCUT_COMMANDS: ReadonlySet<KeybindingCommand> = new Set([
   "commandPalette.toggle",
   "filePicker.toggle",
@@ -86,7 +81,6 @@ export const isPdfPreviewFile = (path: string): boolean =>
 
 const PdfViewer = lazy(() => import("./PdfViewer"));
 
-// The document stays mounted while each revision gets a fresh PDF.js document.
 function PdfDocument(props: { src: string; title: string; documentKey: string }) {
   const [view, setView] = useState<PdfViewState>({ page: 0, offset: 0, zoom: null, left: 0 });
   return (
@@ -101,7 +95,6 @@ function PdfDocument(props: { src: string; title: string; documentKey: string })
   );
 }
 
-// Keep signed URL renewals from reloading the same revision.
 function PdfDocumentRevision(props: {
   src: string;
   title: string;
@@ -110,8 +103,6 @@ function PdfDocumentRevision(props: {
   onViewChange: (view: PdfViewState) => void;
 }) {
   const [src] = useState(props.src);
-  // The Electron shell does not enable PDF plugins. WebKit embeds on iOS
-  // expose only the first page, even when pdfViewerEnabled reports support.
   const native =
     !isElectron &&
     navigator.pdfViewerEnabled &&
@@ -184,18 +175,13 @@ interface FileDocumentFrames {
   readonly next: FileDocumentRevision | null;
 }
 
-// Identity, not key, so a late load from a replaced frame cannot uncover a newer unloaded one.
 const showRevision =
   (next: FileDocumentRevision) =>
   (current: FileDocumentFrames): FileDocumentFrames =>
     current.next === next ? { shown: next, next: null } : current;
 
-// A page whose load never fires (a stalled subresource) must not pin the previous revision.
 const FILE_DOCUMENT_SWAP_TIMEOUT_MS = 5_000;
 
-// URL renewals keep a revision's first URL, so they do not discard form input or scroll. A new
-// revision loads beneath the page on screen, takes its scroll position and replaces it once
-// painted, so no blank frame shows and the reader keeps their place.
 function FileDocument(props: {
   readonly documentKey: string;
   readonly src: string;
@@ -215,10 +201,7 @@ function FileDocument(props: {
   const { next } = frames;
   const shownFrame = useRef<HTMLIFrameElement>(null);
   const nextFrame = useRef<HTMLIFrameElement>(null);
-  // The page reports its scroll position (see FILE_PREVIEW_SCROLL_SCRIPT); the next revision
-  // scrolls there before it is uncovered.
   const scroll = useRef<FilePreviewScroll | null>(null);
-  // Two frames let the browser paint the incoming page before it is uncovered.
   const reveal = (revision: FileDocumentRevision) =>
     requestAnimationFrame(() => requestAnimationFrame(() => setFrames(showRevision(revision))));
   const onFrameMessage = useEffectEvent((event: MessageEvent) => {
@@ -245,7 +228,6 @@ function FileDocument(props: {
     const timer = setTimeout(() => setFrames(showRevision(next)), FILE_DOCUMENT_SWAP_TIMEOUT_MS);
     return () => clearTimeout(timer);
   }, [next]);
-  // The shown frame stays last so it paints on top and is never moved, which would reload it.
   return (
     <div className="relative min-h-0 flex-1">
       {[next, frames.shown].map((revision) =>
@@ -309,8 +291,6 @@ export function HtmlRenderDocument(props: {
   const environmentKeybindings = useAtomValue(
     serverEnvironment.configValueAtom(props.threadRef?.environmentId ?? null),
   )?.keybindings;
-  // Replay only Cmd/Ctrl chords exclusive to allowed commands regardless of when; live resolution could
-  // otherwise type in the composer.
   const mac = isMacPlatform(navigator.platform);
   const resolve = (shortcut: KeybindingShortcut): HtmlRenderShortcut => ({
     key: shortcut.key,
@@ -340,8 +320,6 @@ export function HtmlRenderDocument(props: {
   };
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- posts allowed and blocked shortcuts to the sandboxed iframe's window
   useEffect(postShortcuts, [blocked, shortcuts]);
-  // Pages can forge key/code pairs; reject pairs matching other bindings and require named keys to match the
-  // shortcut.
   const isShortcut = useEffectEvent(
     (key: NonNullable<ReturnType<typeof readHtmlRenderKeyDown>>) => {
       const matches = (shortcut: HtmlRenderShortcut) =>
@@ -385,17 +363,12 @@ export function HtmlRenderDocument(props: {
     onFullscreenChange?.(true);
     return () => onFullscreenChange?.(false);
   }, [expandedImage, onFullscreenChange]);
-  // Links, keys and images require frame focus and recent reader activity: a page can take
-  // focus by script, so this blocks opens on load, though not a page that waits for the
-  // reader's next input.
   const onFrameMessage = useEffectEvent((frame: HTMLIFrameElement, event: MessageEvent) => {
     const height = readHtmlRenderContentHeight(event.data);
     if (height !== undefined) {
       props.onContentHeight?.(height);
       return;
     }
-    // A selection only offers an action the reader still has to take, and a long drag or a
-    // touch selection outlasts transient activation, so it needs frame focus alone.
     const selection = readHtmlRenderSelectionEvent(event.data);
     if (selection !== undefined) {
       if (selection._tag === "cleared" || document.activeElement === frame) {
@@ -424,7 +397,6 @@ export function HtmlRenderDocument(props: {
       setExpandedImage({ images: [...imageRequest.images], index: imageRequest.index });
     }
   });
-  // Attach at commit because a fast page may post its initial height before passive effects run.
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- attaches a window message listener for the iframe at commit, before its first height post
   useLayoutEffect(() => {
     const frame = frameRef.current;
@@ -441,18 +413,14 @@ export function HtmlRenderDocument(props: {
         ref={frameRef}
         src={src}
         title={props.title}
-        // Never allow-same-origin: the opaque origin keeps the page out of the app's session.
         sandbox="allow-scripts allow-forms"
-        // Lets a page's video or image viewer take the screen.
         allow="fullscreen"
         loading="lazy"
         onLoad={() => {
           setLoaded(true);
-          // Covers a theme change that landed while the page was loading.
           postTheme();
           postShortcuts();
         }}
-        // Match the blank document's scheme to avoid dark-mode white flashes, then follow the app after load.
         className={cn("border-0 scheme-light", props.className)}
         style={loaded ? { colorScheme: theme.appearance } : undefined}
       />

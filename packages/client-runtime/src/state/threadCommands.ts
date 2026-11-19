@@ -108,10 +108,6 @@ export function createThreadEnvironmentAtoms<R, E>(
     );
   });
 
-  // Runs whether or not the server accepted the interrupt, so a stale cached item still
-  // settles when Stop had nothing to interrupt; the interrupt's own failure still surfaces.
-  // The repair is detached: its lookups must not hold the thread's serial command key, and
-  // closing the thread cancels the repair, not the Stop that triggered it.
   const interruptTurn = Effect.fn("ThreadCommands.interruptTurn")(function* (
     input: InterruptThreadTurnInput,
   ) {
@@ -143,8 +139,6 @@ export function createThreadEnvironmentAtoms<R, E>(
     return { requestId, sequence: result.sequence };
   });
 
-  // Counts the commands that move or remove a thread's row. A list that holds its rows while
-  // environments synchronize (`stepSteadyShells`) shows the user's own change at once.
   const rowActionsAtom = Atom.family((_environmentId: EnvironmentId) =>
     Atom.make(0).pipe(Atom.keepAlive),
   );
@@ -577,7 +571,6 @@ export function createThreadEnvironmentAtoms<R, E>(
       ...thread,
       activeOrderKey: input.orderKey,
     })),
-    // Shown at once, so a composer that releases its accepted pick keeps showing it.
     setModelSelection: optimistic.wrap(commands.setModelSelection, (thread, input) => ({
       ...thread,
       modelSelection: input.modelSelection,

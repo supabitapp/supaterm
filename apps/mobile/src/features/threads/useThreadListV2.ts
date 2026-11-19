@@ -16,11 +16,6 @@ import {
   threadListV2LayoutTime,
 } from "./threadListV2";
 
-/**
- * Screens' select handlers read the content-only key set; a fresh one per list rebuild gave
- * every row a new handler whenever any thread shell changed. Keyed by a string, the set keeps
- * its identity until its keys change.
- */
 function useKeySet(newlineSeparatedKeys: string): ReadonlySet<string> {
   return useMemo(
     () => new Set(newlineSeparatedKeys.length === 0 ? [] : newlineSeparatedKeys.split("\n")),
@@ -33,10 +28,6 @@ type LayoutInput = Parameters<typeof buildThreadListV2Items>[0];
 const NO_LISTED_DONE: ReadonlyArray<EnvironmentThreadShell> = [];
 const NO_HIDDEN_ENVIRONMENTS: ReadonlySet<EnvironmentId> = new Set();
 
-/**
- * The React Compiler drops unread dependencies, so pass the expired-grace version through
- * this call to keep inbox updates tied to its subscription.
- */
 function observeInbox(
   threads: Parameters<typeof threadListInboxReturns.observe>[0],
   _expiredGraceVersion: number,
@@ -79,7 +70,6 @@ export function useThreadListV2(input: {
     () => threadListV2LayoutTime({ threads, now: input.now, searchQuery: input.searchQuery }),
     [threads, input.now, input.searchQuery],
   );
-  // A thread can stop working when the threads change, or when its exit grace expires.
   const inboxVersion = useSyncExternalStore(
     threadListInboxReturns.subscribe,
     threadListInboxReturns.getSnapshot,
@@ -93,7 +83,6 @@ export function useThreadListV2(input: {
     () => withoutOfflineEnvironmentThreads(threads, hiddenEnvironmentIds, input.selectedThreadKey),
     [threads, hiddenEnvironmentIds, input.selectedThreadKey],
   );
-  // Older done threads load in pages; the shelf lists them only as far as they are loaded.
   const scopes = useMemo(
     () =>
       olderDoneScopes(
@@ -109,11 +98,9 @@ export function useThreadListV2(input: {
   const olderDoneShelf = useOlderDoneShelf({
     scopes,
     expanded: input.doneShelfExpanded,
-    // A search lists only matches, so the shelf would page forever; loaded pages stay.
     visibleCount: input.searchQuery.trim().length === 0 ? input.doneLimit : 0,
   });
   const { isListed, unloadedCount } = olderDoneShelf;
-  // Done threads remain live shells; archived threads stay hidden.
   const layout = useMemo(
     () =>
       buildThreadListV2Items({
@@ -238,7 +225,6 @@ export function useThreadListV2(input: {
   return { layout, items, contentOnlyThreadKeys, olderDoneShelf };
 }
 
-/** The list's scope per environment: its projects there, or every project. */
 function olderDoneScopes(
   input: {
     readonly environmentId: EnvironmentId | null;

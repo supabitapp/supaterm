@@ -26,13 +26,11 @@ describe("useOlderDoneShelf", () => {
   it("keeps requested pages when the scope's projects reorder", async () => {
     await using screen = await render(
       <Shelf scopes={[{ environmentId, projectIds: [first, second] }]} />,
-      // A bare hook host; nothing here links or navigates.
       { router: false },
     );
     await userEvent.click(screen.getByRole("button", { name: "Grow" }));
     await expect.element(screen.getByRole("status")).toHaveTextContent("1");
 
-    // Loading a page can reorder the sidebar's projects; the shelf must not drop its pages.
     await screen.rerender(<Shelf scopes={[{ environmentId, projectIds: [second, first] }]} />);
     await expect.element(screen.getByRole("status")).toHaveTextContent("1");
   });

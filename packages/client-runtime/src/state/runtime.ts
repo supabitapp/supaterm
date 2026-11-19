@@ -303,26 +303,24 @@ export function createAtomCommandScheduler(): AtomCommandScheduler {
   };
 }
 
-export const scheduleAtomCommandEffect =
-  /* Every atom command passes through this scheduler; the command owns its tracing boundary. */
-  Effect.fnUntraced(function* <W, A, E, R>(
-    registry: AtomRegistry.AtomRegistry,
-    scheduler: AtomCommandScheduler,
-    concurrency: AtomCommandConcurrency<W>,
-    input: W,
-    effect: Effect.Effect<A, E, R>,
-  ): Effect.fn.Return<A, E, R> {
-    const context = yield* Effect.context<R>();
-    const result = yield* Effect.promise((signal) =>
-      scheduler.schedule<W, A, E>(registry, concurrency, input, async () => {
-        const exit = await Effect.runPromiseExitWith(context)(effect, { signal });
-        return Exit.isSuccess(exit)
-          ? AsyncResult.success(exit.value)
-          : AsyncResult.failure(exit.cause);
-      }),
-    );
-    return result._tag === "Success" ? result.value : yield* Effect.failCause(result.cause);
-  });
+export const scheduleAtomCommandEffect = Effect.fnUntraced(function* <W, A, E, R>(
+  registry: AtomRegistry.AtomRegistry,
+  scheduler: AtomCommandScheduler,
+  concurrency: AtomCommandConcurrency<W>,
+  input: W,
+  effect: Effect.Effect<A, E, R>,
+): Effect.fn.Return<A, E, R> {
+  const context = yield* Effect.context<R>();
+  const result = yield* Effect.promise((signal) =>
+    scheduler.schedule<W, A, E>(registry, concurrency, input, async () => {
+      const exit = await Effect.runPromiseExitWith(context)(effect, { signal });
+      return Exit.isSuccess(exit)
+        ? AsyncResult.success(exit.value)
+        : AsyncResult.failure(exit.cause);
+    }),
+  );
+  return result._tag === "Success" ? result.value : yield* Effect.failCause(result.cause);
+});
 
 export async function runAtomCommand<W, A, E>(
   registry: AtomRegistry.AtomRegistry,
@@ -503,18 +501,9 @@ function runInEnvironment<A, E, R>(
   );
 }
 
-/**
- * `Atom.makeRefreshOnSignal` subscribes to the signal, so a query that outlives its view on an
- * idle TTL still re-runs on every change. Reading the signal as a dependency instead lets the
- * registry re-run a mounted query right away and only mark an idle one stale, which then
- * refreshes on its next read.
- */
 const refreshOnSignalWhileRead =
   <V>(signal: Atom.Atom<unknown>, isFinal: (value: V) => boolean) =>
   <A extends V>(self: Atom.Atom<A>): Atom.Atom<A> => {
-    // The signal value each registry's data was read under. Held outside the node because the
-    // registry can sweep this node while `self` keeps the data, and the rebuilt node must still
-    // see a change it missed.
     const readUnder = new WeakMap<AtomRegistry.AtomRegistry, unknown>();
     return Atom.transform(
       self,
@@ -557,11 +546,6 @@ const isStale = (result: AsyncResult.AsyncResult<unknown, unknown>, staleTimeMs:
   return Date.now() - success.timestamp >= staleTimeMs;
 };
 
-/**
- * Stale-while-revalidate on every mount. `Atom.swr` checks only when its node builds, which an idle
- * TTL skips on a remount; this layer has no TTL (a transform drops it) while `self` keeps the cache.
- * It reads `self` as a dependency, not a subscription, so `self` goes idle with its last reader.
- */
 const revalidateOnMount =
   (staleTimeMs: number) =>
   <A, E>(
@@ -576,8 +560,6 @@ const revalidateOnMount =
           get.addFinalizer(() => {
             active = false;
           });
-          // Deferred out of the build, which runs while React renders. A plain read drops this
-          // node before the task runs, so only a mount refetches.
           get.registry.schedulerAsync.makeDispatcher().scheduleTask(() => {
             if (active && isStale(get.once(self), staleTimeMs)) get.refresh(self);
           }, 0);
@@ -607,10 +589,6 @@ const connectionAtomsByRuntime = new WeakMap<
   ) => Atom.Atom<AsyncResult.AsyncResult<EnvironmentConnection | null>>
 >();
 
-/**
- * One connection atom per environment for every query on a runtime, so a reader of the session
- * generation and a query it re-runs see the same connection change at once.
- */
 function environmentConnectionAtoms<R, ER>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, ER>,
 ) {
@@ -705,8 +683,6 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
   readonly input: Input;
 }) => Atom.Atom<AsyncResult.AsyncResult<A, E | ER | Error>> {
   const connectionAtom = environmentConnectionAtoms(runtime);
-  // `Atom.family` holds members weakly and the mounted layer has no TTL, so each member lives
-  // as long as its cache: keyed weakly, this lets both go once the cache's TTL ends.
   const membersByCache = new WeakMap<Atom.Atom<unknown>, Atom.Atom<unknown>>();
   const family = Atom.family((key: string) => {
     const target = parseEnvironmentRpcKey<Input>(key);
@@ -723,8 +699,6 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
           get(connectionAtom(target.environmentId)),
           () => null,
         );
-        // A refetch that returns equal content keeps the previous value's
-        // references, so readers of the data skip re-rendering on idle polls.
         const share = (value: A): A =>
           reuseUnchanged(
             Option.getOrUndefined(
@@ -767,9 +741,6 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
                 : Effect.never;
             case "connecting":
             case "backoff":
-              // A retry can take minutes. A query with an answer keeps showing it while it
-              // waits; one with nothing to show reports the failure the retry is recovering
-              // from, so its reader stops loading, and re-runs when the connection settles.
               return connectionState.lastFailure !== null &&
                 Option.isNone(
                   Option.flatMap(
@@ -821,8 +792,6 @@ export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
             return cached.value;
           }
           if (Option.isNone(previous) && Option.isSome(cached)) yield* emit(cached.value);
-          // Readers must not wait on the disk: web saves one IndexedDB row per listed PR's stats.
-          // The save ends with the query, so a removed environment's cache stays cleared.
           return yield* answer().pipe(
             Effect.tap((value) =>
               persistence.save(target.environmentId, cacheKey, value).pipe(Effect.forkScoped),
@@ -888,7 +857,6 @@ export function createEnvironmentSubscriptionAtomFamily<R, ER, Input, A, E>(
       Atom.withLabel(`${label(key)}:completed`),
     ),
   );
-  // Reading `completed` first drops the live subscription once its value is final.
   const family = Atom.family((key: string) =>
     Atom.make((get) => {
       const done = get(completed(key));
@@ -1080,8 +1048,6 @@ export function createEnvironmentRpcCommand<
         input,
       };
       let started: Started | undefined;
-      // Routing requires consent on the origin as well as the actual destination.
-      // The transport check below deliberately checks the destination again.
       return permissions.authorize(registry, environmentId, input).pipe(
         Effect.andThen(() => {
           started = options.onStart?.(target, registry);

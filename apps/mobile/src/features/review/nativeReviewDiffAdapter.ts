@@ -18,9 +18,7 @@ import type { ReviewInlineComment } from "./reviewCommentSelection";
 
 const NATIVE_REVIEW_MAX_WORD_DIFF_RANGE_COUNT = 4;
 const NATIVE_REVIEW_MAX_WORD_DIFF_COVERAGE = 0.45;
-// Keep eager word matching within the old 2,000-row budget while retaining more rendered rows.
 const NATIVE_REVIEW_MAX_WORD_DIFF_COMPARISONS = 1_000;
-// Bound the rows serialized to the native heap before mapping and word matching.
 const NATIVE_REVIEW_MAX_FILE_ROWS = 100_000;
 const TRUNCATED_FILE_NOTICE = "This diff is too large to show in full.";
 const NATIVE_HEX_COLOR = /^#([\da-f]{2})([\da-f]{2})([\da-f]{2})([\da-f]{2})?$/i;
@@ -204,7 +202,6 @@ export function createNativeReviewDiffTheme(
 ): NativeReviewDiffTheme {
   const terminalTheme = getMobileTerminalTheme(themeId, scheme);
   const [, terminalRed] = terminalTheme.palette;
-  // Swift and Android disagree on alpha-byte order; flatten to shared opaque #RRGGBB.
   const screen = opaqueNativeHexColor(
     appTheme["--color-screen"],
     scheme === "dark" ? "#000000" : "#ffffff",
@@ -357,7 +354,6 @@ function addNativeWordDiffRanges(
   const pairs: Array<{ deletionRowIndex: number; additionTokenIndex: number }> = [];
   let lineIndex = 0;
 
-  // Pierre can split adjacent change blocks to align similar lines. Keep those pairings.
   rows.forEach((row, rowIndex) => {
     if (row.kind !== "line") return;
     const source = lineRows[lineIndex++];
@@ -477,7 +473,6 @@ function prepareFileRows(file: ReviewRenderableFile): PreparedNativeReviewFileRo
     filePath: file.path,
     lineCount: lineRows.length,
     truncated: sourceRows !== file.rows,
-    // Pair source lines before inserting comments so comment rows cannot affect matching.
     rows: addNativeWordDiffRanges(rows, lineRows),
     commentTargetsByRowId,
     rowIdByCommentLineId,

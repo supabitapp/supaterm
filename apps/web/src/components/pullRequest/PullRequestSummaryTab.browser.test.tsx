@@ -182,7 +182,6 @@ it("ticks a description checkbox placed after an attachment and edits from the t
   expect([...boxes()].map((box) => box.checked)).toEqual([false, true]);
   await act(async () => finishSave({ _tag: "Success", value: undefined }));
 
-  // The host has not been read since the save, so the editor starts from the ticked body.
   await act(async () =>
     screen.container.querySelector<HTMLButtonElement>('[aria-label="Edit description"]')!.click(),
   );

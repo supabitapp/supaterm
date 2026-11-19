@@ -263,7 +263,6 @@ describe("SidePulse", () => {
         sidePulse.configure({ ...SETTINGS, enabled: true, brightness: 100 }),
       );
       yield* Deferred.await(scanning);
-      // Each update runs until it waits on the scan still holding the device lock.
       const working = yield* Effect.forkChild(sidePulse.setLedState("working"), {
         startImmediately: true,
       });

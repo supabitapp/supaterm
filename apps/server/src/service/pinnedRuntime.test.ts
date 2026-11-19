@@ -236,7 +236,6 @@ it.layer(NodeServices.layer)("ensurePinnedRuntimeInstalled", (it) => {
             ),
           );
           Deferred.doneUnsafe(archiveRequested, Effect.void);
-          // TestClock follows the work a woken sleep starts, so one adjust reaches the retry wait.
           return Effect.sleep("1 second").pipe(
             Effect.as<HttpClientResponse.HttpClientResponse>(
               Object.create(response, { stream: { value: failingBody } }),
@@ -512,7 +511,6 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
         "2.0.0",
         "2.1.0",
       ]);
-      // A downgrade another process installed but has not pointed anything at yet.
       yield* install("0.5.0", "just now");
       yield* install("1.0.1", "never");
       yield* install(".staging-abc", "never");
@@ -523,7 +521,6 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
       const customBinDir = path.join(baseDir, "custom-bin");
       yield* fs.makeDirectory(binDir);
       yield* fs.makeDirectory(customBinDir);
-      // Chained: the launcher reaches its runtime through a second link.
       yield* fs.symlink(
         path.join(versionsDir, "1.2.0", "supaterm"),
         path.join(baseDir, "alias-supaterm"),
@@ -559,11 +556,7 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
         Effect.provideService(HostProcess.Environment, { SUPATERM_INSTALL_BIN_DIR: binDir }),
       );
 
-      // 1.2.0 is the default launcher, 1.2.5 a recorded one, 1.3.0 running, 1.3.5 in the unit,
-      // 1.4.0 active, 1.5.0 the rolled-back target, 2.0.0 the caller's, 0.5.0 just installed.
-      // Being newer than the caller's version does not keep 2.1.0.
       assert.deepEqual(removed.toSorted(), ["0.8.0", "1.0.0", "1.1.0", "2.1.0"]);
-      // The launcher found on PATH is remembered for a service that cannot see it.
       assert.equal(
         yield* fs.readFileString(path.join(baseDir, "runtime", "launchers")),
         `${path.join(customBinDir, "supaterm")}\n\n${path.join(binDir, "supaterm")}\n`,
@@ -607,7 +600,6 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
       const binDir = path.join(baseDir, "bin");
       yield* fs.makeDirectory(binDir);
       yield* fs.symlink(path.join(versionsDir, "1.1.0", "supaterm"), path.join(binDir, "supaterm"));
-      // A temporary directory can itself sit under a link (/var on macOS), so name the real one.
       const ownDir = path.join(linkedHome ? yield* fs.realPath(versionsDir) : versionsDir, "1.0.0");
       if (recorded) {
         yield* fs.writeFileString(
@@ -621,7 +613,6 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
         : baseDir;
       if (linkedHome) yield* fs.symlink(baseDir, home);
 
-      // The launch agent puts the running runtime's own directory on PATH.
       const removed = yield* prunePinnedRuntimes({ baseDir: home, keep: ["2.0.0"] }).pipe(
         Effect.provideService(
           ProcessRunner.ProcessRunner,
@@ -651,7 +642,6 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
       const { baseDir, versionsDir } = yield* setup(["1.0.0", "1.1.0"]);
       let pathDirs = "/usr/bin:/bin";
       if (via === "bin") {
-        // The installer accepts any bin directory, including one under the versions directory.
         const binDir = path.join(versionsDir, "bin");
         yield* fs.makeDirectory(binDir);
         yield* fs.symlink(
@@ -681,9 +671,7 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
   );
 
   it.effect.each([
-    // An interrupted append cut this record short.
     { name: "an unterminated launcher record", recorded: "/opt/supa", cut: "" },
-    // Another process's append is cut short after prune reads the records.
     { name: "a record cut short after the read", recorded: "/opt/supaterm\n", cut: "/opt/supa" },
   ])("remembers a launcher found on PATH after $name", ({ recorded, cut }) =>
     Effect.gen(function* () {
@@ -718,7 +706,6 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
               ),
         }),
       );
-      // A service that cannot see the interactive PATH.
       const removed = yield* prune({});
 
       assert.deepEqual(removed, []);
@@ -785,13 +772,10 @@ it.layer(NodeServices.layer)("prunePinnedRuntimes", (it) => {
         const path = yield* Path.Path;
         const { baseDir, versionsDir } = yield* setup(["1.0.0", "1.1.0"]);
         const entry = path.join(versionsDir, "1.0.0", "supaterm");
-        // Multicall coreutils (Ubuntu's uutils) refuse to run renamed, so copy Node instead.
         yield* fs.copyFile(process.execPath, entry);
         yield* fs.chmod(entry, 0o755);
         const link = path.join(baseDir, "supaterm");
         yield* fs.symlink(entry, link);
-        // Its argv names only the link, as with `supaterm serve` run from PATH. Removing the link after
-        // spawning leaves the process's executable as the only reference.
         const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
         yield* spawner.spawn(ChildProcess.make(link, ["-e", "setTimeout(() => {}, 30_000)"]));
         yield* fs.remove(link);

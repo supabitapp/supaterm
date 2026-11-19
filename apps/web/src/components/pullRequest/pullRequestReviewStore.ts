@@ -3,7 +3,6 @@ import { create } from "zustand";
 
 export type PendingReviewComment = PullRequestReviewCommentDraft & { readonly id: string };
 
-// Content-derived ids can collide across comments; use a counter.
 let pendingCommentSequence = 0;
 
 export function nextPendingReviewCommentId(): string {
@@ -63,7 +62,6 @@ export const usePullRequestReviewStore = create<PullRequestReviewStoreState>()((
   setSummary: (key, body) => set((state) => ({ summaries: { ...state.summaries, [key]: body } })),
   clearSummary: (key, submittedBody) =>
     set((state) => {
-      // Keep summary edits made during submission; the textarea stays editable.
       if (state.summaries[key] !== submittedBody) return state;
       const { [key]: _removed, ...rest } = state.summaries;
       return { summaries: rest };

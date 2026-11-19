@@ -118,13 +118,10 @@ function makeSession(
       if (method === "Page.getLayoutMetrics") return { cssVisualViewport: { pageX: 0, pageY: 0 } };
       if (method === "Page.captureScreenshot") {
         if ((input as { format: string }).format === "jpeg" && heldStill) await heldStill();
-        // A snapshot sizes its screenshot from the PNG header; viewers get JPEG frames as-is.
         return { data: (input as { format: string }).format === "png" ? PNG_HEADER : "ZnJhbWU=" };
       }
-      // Snapshots shrink their screenshot in the page; the header stands in for the result.
       if (method === "Runtime.callFunctionOn") return { result: { value: PNG_HEADER } };
       if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "main" } } };
-      // Snapshots read password fields from their own isolated world in each frame.
       if (method === "Page.createIsolatedWorld") {
         const worldContexts: Record<string, number> = {
           "supaterm-preview-viewport": 9,
@@ -135,14 +132,12 @@ function makeSession(
           executionContextId: worldContexts[(input as { worldName: string }).worldName] ?? 7,
         };
       }
-      // A title watch settles only when the document's title changes.
       if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 11)
         return new Promise(() => {});
       if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 1) {
         return { result: { value: [] } };
       }
       if (method === "Page.addScriptToEvaluateOnNewDocument") frame?.recording.resolve();
-      // The recorder drops its last copy on every copy or cut key it sees.
       if (
         method === "Input.dispatchKeyEvent" &&
         ["copy", "cut"].includes((input as { commands?: Array<string> }).commands?.[0] ?? "")
@@ -243,16 +238,12 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
       throw new Error("Unexpected locator action");
     }),
     isClosed: () => closed,
-    // Models Playwright: unload handlers always run, but `beforeunload` only with
-    // `runBeforeUnload`, and a guarding page stays open behind a `beforeunload` dialog.
     beforeUnload: "none" as "none" | "listen" | "guard",
     unloadEvents: [] as string[],
     beforeUnloadDialog: null as null | {
       accept: ReturnType<typeof vi.fn>;
       dismiss: ReturnType<typeof vi.fn>;
     },
-    // Set to hold the page open after `beforeunload` until resolved, as Playwright's
-    // `runBeforeUnload` close resolves before the page actually closes.
     unloadGate: null as PromiseWithResolvers<void> | null,
     removed: false,
     pagehideBinding: null as (() => void) | null,
@@ -315,7 +306,6 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
   return context;
 }
 
-// Runs the real encoder script against fake canvas and MediaRecorder globals.
 function makeEncoderPage() {
   let paintedFrame = "";
   const canvas = {
@@ -375,7 +365,6 @@ function makeEncoderPage() {
     btoa,
     Blob,
     performance,
-    // Chromium pages have Uint8Array.fromBase64; Node 24 does not.
     Uint8Array: class extends Uint8Array {
       static override fromBase64(base64: string) {
         return new Uint8Array(Buffer.from(base64, "base64"));
@@ -412,7 +401,6 @@ let desktopRendersNext = false;
 let desktopPageUrl = "about:blank";
 let desktopConnectionGate: PromiseWithResolvers<void> | null = null;
 let desktopConnectionStarted: PromiseWithResolvers<void> | null = null;
-/** Replaces the answer to the desktop page's size reads. */
 let desktopSizeAnswer: (() => Promise<Record<string, unknown>>) | null = null;
 const desktopDetaches = new NodeEvents.EventEmitter();
 let desktopDetachReady = Promise.withResolvers<void>();
@@ -425,7 +413,6 @@ const desktopRenders = (tabId: string) => {
   }
   return desktopTabs.has(tabId);
 };
-/** When set, a desktop that has not attached a tab waits for it the way the real channel does. */
 let desktopAttachesLate = false;
 let desktopAttachWaiting = Promise.withResolvers<void>();
 const shownDesktopTabs = new Set<string>();
@@ -554,7 +541,6 @@ const viewerInput = (tabId: string, canOperate: boolean) => ({
   maxHeight: 800,
   quality: 70,
 });
-/** Fills a viewer's output with frames; resolves once every one of them is acknowledged. */
 const stallViewer = (viewer: ServerBrowser.ServerBrowserViewer) => {
   const output = viewer.output as unknown as Queue.Queue<ServerBrowser.ServerBrowserViewerOutput>;
   const acked = Promise.withResolvers<void>();
@@ -623,7 +609,6 @@ it.effect("tells the desktop once per thread when its agent turns start and end"
     desktopTurns.on("turn", record);
     yield* Effect.addFinalizer(() => Effect.sync(() => desktopTurns.off("turn", record)));
     const endFirst = yield* activity.begin(threadId);
-    // An overlapping turn on the same thread neither starts nor ends focus on its own.
     const endSecond = yield* activity.begin(threadId);
     expect(yield* Queue.take(turns)).toEqual([threadId, true]);
     yield* endFirst;
@@ -663,7 +648,6 @@ it.effect("preview_open reports its navigation timeout instead of the request bu
         timeoutMs: 15_000,
       });
       expect(error.message).toBe("Preview automation open timed out after 15000ms.");
-      // The failed open returned no tabId, so its tab must not linger and block later opens.
       const { sessions } = yield* manager.list({ threadId: scope.thread.threadId });
       expect(sessions.map((session) => session.tabId)).toEqual([tabId]);
       expect(contexts[1]!.page.close).toHaveBeenCalled();
@@ -732,7 +716,6 @@ it.effect.each([
         const { broker, tabId } = yield* ready;
         const page = contexts[0]!.page;
         const titleRequested = Promise.withResolvers<void>();
-        // A busy main thread never answers title(); drive its native deadline explicitly.
         page.title.mockImplementation(() => {
           titleRequested.resolve();
           return renderer === "busy"
@@ -744,7 +727,6 @@ it.effect.each([
           Object.assign(new Error(`${method}: Timeout ${timeout}ms exceeded.`), {
             name: "TimeoutError",
           });
-        // The document commits and parses, but a stalled subresource holds back `load`.
         page.goto.mockImplementation(async (next, options) => {
           page.commit(next);
           page.emit("request", {
@@ -798,7 +780,6 @@ it.effect("a desktop status answers with the last viewport while the renderer ca
         measuring.resolve();
         return new Promise(() => {});
       };
-      // A resize makes the next status measure again.
       yield* Effect.promise(() =>
         desktopConnections[0]!.context.sessions[0]!.emitAsync("Page.frameResized"),
       );
@@ -835,8 +816,6 @@ it.effect.each([
       const viewer = message ? yield* browser.attachViewer(viewerInput(tabId, true)) : null;
       if (viewer) yield* viewer.input({ type: "takeControl" });
       const { page, sessions } = contexts[0]!;
-      // As in Chrome: the hung renderer answers nothing, and a terminate reaches it only while
-      // no navigation is pending.
       let stopped = false;
       const probed = Promise.withResolvers<void>();
       const navigatedAfterStop: Array<boolean> = [];
@@ -984,14 +963,11 @@ it.effect("an agent's tab the reloaded desktop dropped goes back to the desktop"
         input: { url: "https://example.com/?t=1", reuseExistingTab: false, open: false },
       });
       const tabId = PreviewTabId.make(opened.tabId!);
-      // The renderer reloads on another thread: its webview goes, and it only mounts this
-      // thread's tabs again once a preview event for the thread reaches it.
       yield* Effect.promise(() => desktopDetachReady.promise);
       desktopAttachesLate = true;
       desktopTabs.delete(tabId);
       desktopDetaches.emit("detach", { threadId, tabId });
       yield* Effect.promise(() => desktopReleased.promise);
-      // It is still reloading when the agent's call arrives, so it misses the first event.
       yield* Effect.gen(function* () {
         yield* Effect.promise(() => desktopAttachWaiting.promise);
         const events = yield* manager.subscribeEvents;
@@ -1028,7 +1004,6 @@ it.effect("an agent's tab the reloaded desktop dropped goes back to the desktop"
   ).pipe(Effect.provide(layer)),
 );
 
-// Playwright emulates a light color scheme on every page it attaches to.
 it.effect("a desktop tab left on the system appearance clears Playwright's light emulation", () =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -1265,7 +1240,6 @@ it.effect.each([
   ).pipe(Effect.provide(layer)),
 );
 
-// The fake encoder decodes every frame at 1280x800, so 30 fps hits the bitrate floor.
 it.effect.each([
   { reports: [], frameRate: 30, bitsPerSecond: 2.5e6 },
   { reports: [30], frameRate: 30, bitsPerSecond: 2.5e6 },
@@ -1296,7 +1270,6 @@ it.effect.each([
     ).pipe(Effect.provide(layer)),
 );
 
-// Chrome stops sending screencast frames while too many are unacked.
 it.effect("recordings ack screencast frames without waiting for the encoder to decode them", () =>
   Effect.scoped(
     Effect.gen(function* () {
@@ -1558,7 +1531,6 @@ it.effect("keeps a tab's zoom when its viewer resizes", () =>
       yield* viewer.input({ type: "takeControl" });
       const cdp = contexts[0]!.sessions[0]!;
       cdp.send.mockClear();
-      // Resizing the page resets Chromium's device metrics, so zoom must be applied again.
       yield* viewer.input({ type: "resize", width: 390, height: 844 });
       expect(cdp.send).toHaveBeenCalledWith(
         "Emulation.setDeviceMetricsOverride",
@@ -1646,22 +1618,18 @@ it.effect("a viewer gets a settle still only when it may lack the page's final l
         session.send.mock.calls.filter(([method]) => method === "Page.screencastFrameAck").length;
       yield* frames;
 
-      // The still a viewer starts from repaints the page; Chromium's frame of that repaint shows
-      // nothing new, so its slot is released on Chromium's usual pace, not the viewer's.
       const acked = chromiumAcks();
       screencastFrame("repaint");
       yield* advance(200);
       expect(chromiumAcks()).toBe(acked + 1);
       expect(painted(yield* frames)).toEqual(["repaint"]);
 
-      // Chromium skips a capture only when all three of its unacked frames are out.
       screencastFrame("one");
       screencastFrame("two");
       const burst = yield* frames;
       yield* advance(200);
       expect(painted(yield* frames)).toEqual([]);
 
-      // Chromium may have captured this one before it read the first ack, then encoded it.
       yield* ack(burst.slice(0, 1));
       yield* advance(50);
       screencastFrame("three");
@@ -1669,7 +1637,6 @@ it.effect("a viewer gets a settle still only when it may lack the page's final l
       const settled = yield* frames;
       expect(painted(settled)).toEqual(["three", "frame"]);
 
-      // A capture that finished encoding after a newer one would otherwise be the last image.
       yield* ack([...burst.slice(1), ...settled]);
       yield* advance(200);
       screencastFrame("newer");
@@ -1678,7 +1645,6 @@ it.effect("a viewer gets a settle still only when it may lack the page's final l
       yield* advance(200);
       expect(painted(yield* frames)).toEqual(["frame"]);
 
-      // A frame the viewer's full backlog drops never reaches it.
       yield* ack(reordered);
       yield* advance(200);
       const backlog =
@@ -1689,8 +1655,6 @@ it.effect("a viewer gets a settle still only when it may lack the page's final l
       yield* advance(200);
       expect(painted(yield* frames)).toEqual(["frame"]);
 
-      // A scroll's frames are scaled down, so it ends with a full-scale still, even when the
-      // page moves on after the last wheel, once the screencast is back to full scale.
       const send = session.send.getMockImplementation()!;
       const restored = Promise.withResolvers<void>();
       session.send.mockImplementation(async (method, input) => {
@@ -2004,7 +1968,6 @@ it.effect.each(["agent", "client", "all", "concurrent"] as const)(
         const tabId = PreviewTabId.make(opened.tabId!);
         const { context, browser } = desktopConnections[0]!;
         const page = context.page;
-        // The desktop removes the webview once the session closes, dropping an unload in progress.
         const events = yield* manager.subscribeEvents;
         const sessionClosed = Promise.withResolvers<void>();
         yield* Effect.gen(function* () {
@@ -2024,7 +1987,6 @@ it.effect.each(["agent", "client", "all", "concurrent"] as const)(
                 ? Effect.all([close(), close()], { concurrency: "unbounded", discard: true })
                 : close()
         ).pipe(Effect.forkScoped);
-        // The page finishes unloading once the server listens for it, or too late if it never does.
         yield* Effect.promise(() =>
           Promise.race([page.pagehideWatched.promise, sessionClosed.promise]),
         );
@@ -2054,7 +2016,6 @@ it.effect("closing a tab with an unsaved-changes guard still closes it", () =>
       const browser = yield* ServerBrowser.ServerBrowser;
       const broker = yield* Broker.PreviewAutomationBroker;
       yield* Effect.yieldNow;
-      // A profile context is shared, so closing the tab cannot fall back to closing its context.
       const reportProfiles = yield* browser.profileReporter;
       yield* reportProfiles({
         profiles: [{ id: "profile-work", name: "Work", kind: "persistent" }],
@@ -2070,7 +2031,6 @@ it.effect("closing a tab with an unsaved-changes guard still closes it", () =>
       const page = contexts[0]!.page;
       page.beforeUnload = "guard";
       yield* broker.invoke({ scope, tabId, operation: "close", input: {} });
-      // The mock raises the dialog inside `close`, so an unanswered guard leaves the page open here.
       expect(page.beforeUnloadDialog).not.toBeNull();
       expect(page.beforeUnloadDialog!.accept).toHaveBeenCalledTimes(1);
       expect(page.isClosed()).toBe(true);
@@ -2098,7 +2058,6 @@ it.effect("a tab whose renderer crashes stays open instead of vanishing", () =>
         code: -2,
         description: "Page crashed",
       });
-      // The crashed page cannot load anything again, so Reload goes to the page that replaced it.
       const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
       yield* viewer.input({ type: "takeControl" });
       yield* viewer.input({ type: "reload" });
@@ -2130,7 +2089,6 @@ it.effect("a tab opened to a file the browser cannot show reports the file to do
       page.emit("download", {
         failure: async () => null,
         delete: async () => {
-          // A new navigation during cleanup must not erase the settled download status.
           page.emit("request", {
             url: () => "https://example.com/next",
             method: () => "GET",
@@ -2224,7 +2182,6 @@ it.effect.each(["before", "during"] as const)(
         if (requestTiming === "during") page.emit("request", failing);
         page.emit("requestfailed", failing);
         heldTitle.resolve("Held");
-        // A load at the same await depth reports after the held one, so its Success marks the end.
         page.emit("load");
 
         const statuses: Array<string> = [];
@@ -2457,8 +2414,6 @@ it.effect("a busy embedded frame does not hold a copy key back from the page", (
       context.page.emit("framenavigated", frame);
       yield* Effect.promise(() => frame.recording.promise);
 
-      // The frame answers its copy read only once the page has the key and the
-      // input after it, like a frame busy for longer than the user waits.
       const keyReached = Promise.withResolvers<void>();
       const pageSend = pageSession.send.getMockImplementation()!;
       pageSession.send.mockImplementation(async (method, input) => {
@@ -2636,7 +2591,6 @@ it.effect.each(["save failed", "oversized"])(
             savedPath = path;
             await NodeFSP.copyFile(original, path);
             if (outcome === "save failed") throw new Error("save interrupted");
-            // A sparse file exercises the size limit without writing a GiB of data.
             await NodeFSP.truncate(path, 1024 ** 3 + 1);
           },
           suggestedFilename: () => "report.csv",
@@ -3010,8 +2964,6 @@ it.live("an agent answers the page's file picker or sets files on a file input",
         operation: "status",
         input: {},
       });
-      // The chooser reads its accept attribute through already-settled promises, so it is
-      // recorded once the microtask queue drains.
       // oxlint-disable-next-line supaterm/no-real-time-wait-in-tests -- a zero-delay macrotask boundary, not a wait for time
       yield* Effect.promise(() => new Promise<void>((resolve) => setImmediate(resolve)));
       expect((yield* status).fileChooser).toEqual({ multiple: false, accept: ".csv" });
@@ -3025,7 +2977,6 @@ it.live("an agent answers the page's file picker or sets files on a file input",
       yield* upload({ paths: ["/tmp/b.csv"], locator: "input[type=file]" });
       expect(page.locator).toHaveBeenLastCalledWith("input[type=file]");
       expect(setInputFiles).toHaveBeenCalledWith(["/tmp/b.csv"], expect.anything());
-      // Reading a network path sent the Windows user's NTLM credentials to its host.
       expect(
         yield* Effect.flip(
           upload({ paths: ["//attacker.test/share/a.csv"], locator: "input[type=file]" }),
@@ -3047,7 +2998,6 @@ it.live("keeps an existing headless tab authoritative when desktop becomes avail
       );
       expect(opened?.browserBacking).toBe("headless");
 
-      // The desktop attaches after the server selected and opened its page.
       desktopTabs.add(tabId);
       const url = "https://example.test/authoritative";
       yield* broker.invoke({ scope, tabId, operation: "navigate", input: { url } });
@@ -3069,7 +3019,6 @@ it.effect(
   () =>
     Effect.scoped(
       Effect.gen(function* () {
-        // Each page size read waits here for its answer.
         const reads = yield* Queue.unbounded<PromiseWithResolvers<Record<string, unknown>>>();
         const deferReads = () => {
           desktopSizeAnswer = () => {
@@ -3084,15 +3033,11 @@ it.effect(
           result: { value: { width, height } },
         });
         const resized = () => cdp.emitAsync("Page.frameResized");
-        // The read on attach never answers and gives up with no size to send.
         const blocked = yield* Queue.take(reads);
         yield* TestClock.adjust("1 second");
-        // The next page load measures again.
         desktopSizeAnswer = null;
         yield* Effect.promise(() => cdp.emitAsync("Page.loadEventFired"));
         expect(viewportSizes(yield* Queue.takeAll(viewer.output))).toEqual(["1920x1080"]);
-        // While a dialog is open nothing reads. The host closing it clears it, and since
-        // closing resizes nothing, the close itself remeasures.
         deferReads();
         context.page.emit("dialog", {
           type: () => "alert",
@@ -3107,7 +3052,6 @@ it.effect(
           "1920x1080",
           "1920x1080",
         ]);
-        // The late answer, a read a navigation breaks and a hidden webview keep the last size.
         blocked.resolve(answer(100, 100));
         deferReads();
         const navigated = resized();
@@ -3120,7 +3064,6 @@ it.effect(
           "1920x1080",
           "1920x1080",
         ]);
-        // Resizes during a read share one more read, so the newest size arrives last.
         const first = resized();
         const firstRead = yield* Queue.take(reads);
         const burst = Promise.all([resized(), resized()]);
@@ -3157,7 +3100,6 @@ it.effect("a desktop tab reports the size the desktop draws after a resize", () 
       const status = broker
         .invoke<PreviewAutomationStatus>({ scope, tabId, operation: "status", input: {} })
         .pipe(Effect.map((result) => result.viewport));
-      // The desktop draws the new size once the session update reaches it.
       const resize = (input: Record<string, unknown>, width: number, height: number) =>
         Effect.gen(function* () {
           const result = yield* broker
@@ -3172,7 +3114,6 @@ it.effect("a desktop tab reports the size the desktop draws after a resize", () 
           return (yield* Fiber.join(result)).viewport;
         });
 
-      // A size no read measured after the resize is unknown, never a default or the last one.
       expect(
         yield* resize({ mode: "freeform", width: 900, height: 600 }, 900, 600),
       ).toBeUndefined();
@@ -3187,14 +3128,12 @@ it.effect("a desktop tab reports the size the desktop draws after a resize", () 
         yield* resize({ mode: "freeform", width: 1000, height: 700 }, 1000, 700),
       ).toBeUndefined();
       desktopSizeAnswer = null;
-      // A page can keep another size than the fixed one asked for; both report the page's.
       expect(yield* resize({ mode: "freeform", width: 844, height: 390 }, 560, 760)).toEqual({
         width: 560,
         height: 760,
       });
       expect(yield* status).toEqual({ width: 560, height: 760 });
       expect(yield* resize({ mode: "fill" }, 1234, 700)).toEqual({ width: 1234, height: 700 });
-      // No page resize or load since that read, so status answers without reading again.
       let reads = 0;
       desktopSizeAnswer = async () => {
         reads += 1;
@@ -3202,7 +3141,6 @@ it.effect("a desktop tab reports the size the desktop draws after a resize", () 
       };
       expect(yield* status).toEqual({ width: 1234, height: 700 });
       expect(reads).toBe(0);
-      // A status during a read waits for it rather than answer the size before it.
       const pending = yield* Queue.unbounded<PromiseWithResolvers<Record<string, unknown>>>();
       const heldAnswer = () => {
         const read = Promise.withResolvers<Record<string, unknown>>();
@@ -3222,7 +3160,6 @@ it.effect("a desktop tab reports the size the desktop draws after a resize", () 
           Effect.map((result) => result.viewport),
           Effect.forkScoped,
         );
-      // Status reads the URL just before it picks the size.
       const url = context.page.url();
       using urlRead = vi.spyOn(context.page, "url");
       const startStatus = Effect.gen(function* () {
@@ -3241,8 +3178,6 @@ it.effect("a desktop tab reports the size the desktop draws after a resize", () 
       read.resolve(answer(1100, 650));
       expect(yield* Fiber.join(during)).toEqual({ width: 1100, height: 650 });
       expect(yield* Fiber.join(filled)).toEqual({ width: 1100, height: 650 });
-      // A page resize during that read makes its answer old: status reads again, and the
-      // resize result has no size.
       const outdated = yield* refill;
       const oldRead = yield* Queue.take(pending);
       const later = yield* startStatus;
@@ -3251,7 +3186,6 @@ it.effect("a desktop tab reports the size the desktop draws after a resize", () 
       oldRead.resolve(answer(1100, 650));
       expect(yield* Fiber.join(later)).toEqual({ width: 1000, height: 600 });
       expect(yield* Fiber.join(outdated)).toBeUndefined();
-      // So does a load during that read, which may have measured the page before it.
       desktopSizeAnswer = heldAnswer;
       const reloaded = yield* refill;
       const pageRead = yield* Queue.take(pending);
@@ -3271,7 +3205,6 @@ it.effect("a stalled desktop viewer still gets its size, control and reconnect",
       const { tabId, viewer, context, resize } = yield* openDesktopViewer;
       const output =
         viewer.output as unknown as Queue.Queue<ServerBrowser.ServerBrowserViewerOutput>;
-      // Ready once the sizes measured on attach and on a first resize both arrived.
       yield* resize(1920, 1080);
       expect(viewportSizes(yield* Queue.takeAll(viewer.output))).toEqual([
         "1920x1080",
@@ -3287,8 +3220,6 @@ it.effect("a stalled desktop viewer still gets its size, control and reconnect",
       let chooser = yield* Queue.take(viewer.output);
       while (chooser._tag !== "fileChooser") chooser = yield* Queue.take(viewer.output);
       yield* Queue.clear(viewer.output);
-      // A resize compacts a full backlog but keeps control, the open picker and
-      // one-time notifications in order.
       yield* viewer.input({ type: "takeControl" });
       const notifications: Array<ServerBrowser.ServerBrowserViewerOutput> = [
         { _tag: "fileChooserClosed", id: "chooser-0" },
@@ -3306,7 +3237,6 @@ it.effect("a stalled desktop viewer still gets its size, control and reconnect",
         { _tag: "viewport", width: 1000, height: 600 },
       ]);
       yield* acked;
-      // A control change keeps only the newest size.
       yield* resize(900, 500);
       yield* resize(1200, 700);
       acked = stallViewer(viewer);
@@ -3316,14 +3246,12 @@ it.effect("a stalled desktop viewer still gets its size, control and reconnect",
         { _tag: "viewport", width: 1200, height: 700 },
       ]);
       yield* acked;
-      // Notifications that no longer fit go oldest first, never the size.
       let copies = 0;
       while (Queue.offerUnsafe(output, { _tag: "clipboard", text: `copy ${copies}` })) copies++;
       yield* resize(1000, 600);
       const compacted = yield* Queue.takeAll(viewer.output);
       expect(compacted.at(0)).toEqual({ _tag: "clipboard", text: "copy 1" });
       expect(compacted.at(-1)).toEqual({ _tag: "viewport", width: 1000, height: 600 });
-      // The desktop takes the page back; a resize after it cannot bury the reconnect.
       acked = stallViewer(viewer);
       desktopDetaches.emit("detach", { threadId: scope.thread.threadId, tabId });
       yield* Effect.promise(() => desktopReleased.promise);
@@ -3354,7 +3282,6 @@ it.effect("the tab the desktop shows is visible and picked for agents without a 
       });
       const recentTab = yield* openDesktopTab("http://localhost:5173/recent");
       const shownTab = yield* openDesktopTab("http://localhost:5173/shown");
-      // Opened first and used last, so recency or insertion order alone picks it.
       yield* broker.invoke({ scope, tabId: recentTab, operation: "status", input: {} });
 
       shownDesktopTabs.add(shownTab);
@@ -3468,7 +3395,6 @@ it.effect("preview_open reports a tab it shows as visible once the client attach
       const manager = yield* Manager.PreviewManager;
       const events = yield* manager.subscribeEvents;
       yield* Effect.yieldNow;
-      // Like a real client, the stream attaches asynchronously after the reveal request arrives.
       yield* Effect.gen(function* () {
         let event;
         do event = yield* PubSub.take(events);
@@ -3569,7 +3495,6 @@ it.effect(
     ).pipe(Effect.provide(layer)),
 );
 
-// Holds the next profile save at its temp-file cleanup, after the rename, until released.
 const gateSaveCleanup = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
   const cleanupStarted = yield* Deferred.make<void>();
@@ -3604,7 +3529,6 @@ it.effect(
       const gate = yield* gateSaveCleanup;
       const persistent = (name: string) =>
         ({ id: `profile-${name.toLowerCase()}`, name, kind: "persistent" }) as const;
-      // Together the two clients report more profiles than one report may hold.
       const fromA = [
         persistent("Work"),
         ...Array.from({ length: 12 }, (_, n) => persistent(`A${n}`)),
@@ -3627,14 +3551,12 @@ it.effect(
           profiles: fromB,
           defaultProfileId: "profile-shared",
         }).pipe(Effect.forkScoped({ startImmediately: true }));
-        // A save that ends without reaching the gate fails the test instead of hanging it.
         yield* Effect.raceFirst(
           Deferred.await(gate.cleanupStarted),
           Fiber.join(savingB).pipe(
             Effect.andThen(Effect.die("save finished before the cleanup gate")),
           ),
         );
-        // C's save waits behind B's while the client that reported Work disconnects, as at shutdown.
         const savingC = yield* reportFromC({
           profiles: [],
           defaultProfileId: "profile-shared",
@@ -3731,7 +3653,6 @@ it.effect("a report interrupted while an earlier save holds the lock is still sa
           Effect.andThen(Effect.die("save finished before the cleanup gate")),
         ),
       );
-      // The client disconnects while its report waits for the save in progress.
       const waiting = yield* report({
         profiles: [work, late],
         defaultProfileId: "profile-late",
@@ -3863,7 +3784,6 @@ it.effect.each([
       contexts[0]!.page.emit("popup", popup.page);
       const last = yield* open().pipe(Effect.result, Effect.forkScoped);
       const overflow = yield* open().pipe(Effect.result, Effect.forkScoped);
-      // The host processes this after the opens, while manager creation is blocked.
       const reused = yield* broker.invoke<PreviewAutomationStatus>({
         scope,
         tabId,
@@ -3885,7 +3805,6 @@ it.effect.each([
           viewport: { _tag: "freeform", width: 900, height: 700 },
         });
       }
-      // The same slots must stay reserved after publication, while pages are still opening.
       const duringLaunch = yield* open().pipe(Effect.result, Effect.forkScoped);
       const rejectedPopup = makeContext();
       contexts[0]!.page.emit("popup", rejectedPopup.page);
@@ -3940,13 +3859,11 @@ it.effect("failed session and browser launches release capacity, as does closing
       expect(yield* open.pipe(Effect.result)).toMatchObject({ _tag: "Failure" });
       let failedSession = yield* PubSub.take(events);
       while (failedSession.type !== "opened") failedSession = yield* PubSub.take(events);
-      // A failed launch must not leave a session a viewer can relaunch past the budget.
       expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toHaveLength(7);
       contextFailure = null;
       pageSetupFailure = new Error("Target page, context or browser has been closed");
       expect(yield* open.pipe(Effect.result)).toMatchObject({ _tag: "Failure" });
       pageSetupFailure = null;
-      // Setup that fails after the page exists must not leave the page or its context open.
       expect(contexts.at(-1)!.close).toHaveBeenCalled();
       expect(contexts.at(-1)!.page.isClosed()).toBe(true);
       expect((yield* manager.list({ threadId: scope.thread.threadId })).sessions).toHaveLength(7);
@@ -4009,16 +3926,13 @@ it.effect("a full server takes back the slot of the longest idle agent tab nobod
         input: {},
       });
 
-      // Inside the idle window every desktop tab keeps its slot.
       now.mockReturnValue(29 * 60 * 1000);
       expect(yield* open("agent-new").pipe(Effect.flip)).toMatchObject({ reason: "tabLimit" });
       expect(releasedDesktopTabs).toEqual([]);
 
       now.mockReturnValue(31 * 60 * 1000);
-      // A session at its own limit couldn't use a freed slot, so nothing closes for it.
       expect(yield* open("agent-3").pipe(Effect.flip)).toMatchObject({ reason: "tabLimit" });
       expect(releasedDesktopTabs).toEqual([]);
-      // Tabs a desktop window shows keep their slots however long they sit idle.
       for (const tabId of opened) shownDesktopTabs.add(tabId);
       expect(yield* open("agent-new").pipe(Effect.flip)).toMatchObject({ reason: "tabLimit" });
       expect(releasedDesktopTabs).toEqual([]);
@@ -4050,7 +3964,6 @@ it.effect("a full server takes back the slot of the longest idle agent tab nobod
         [...opened.filter((tabId) => tabId !== opened[2]), fresh.tabId!].toSorted(),
       );
 
-      // A second open must reclaim a different tab while the first page is unloading.
       const closingPage = desktopConnections[3]!.context.page;
       closingPage.beforeUnload = "listen";
       closingPage.unloadGate = Promise.withResolvers<void>();
@@ -4155,7 +4068,6 @@ it.effect("reports why a page failed to load while the tab shows the error page"
         loadError: certificateError,
       });
 
-      // Clearing must happen before the next navigation replaces the error page.
       page.emit("request", { ...request, url: () => "https://device.local/login" });
       expect(yield* status()).not.toHaveProperty("loadError");
       expect(yield* snapshot()).not.toHaveProperty("loadError");
@@ -4252,7 +4164,6 @@ it.effect("reports a desktop tab's load failure from before the server connected
       });
       desktopLoadFailures.set(opened.tabId, { ...certificateError, url: dataUrl });
       expect((yield* status()).loadError?.url).toBe("data:text/html,…");
-      // A navigation the server sees supersedes it, even before the error page goes.
       page.emit("request", {
         url: () => "https://device.local/retry",
         isNavigationRequest: () => true,
@@ -4312,7 +4223,6 @@ it.live("a page's title change without navigation reaches its session", () =>
         ) {
           void send("Runtime.evaluate", { expression: "0" }).then(
             () => watched.resolve(),
-            // The browser can close while the last probe is pending.
             () => undefined,
           );
         }

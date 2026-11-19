@@ -167,12 +167,7 @@ const make = Effect.gen(function* () {
       const beforeBytes = Number((yield* fs.stat(databasePath)).size);
       const result = yield* Effect.gen(function* () {
         const sql = yield* SqlClient.SqlClient;
-        // Hold an exclusive lock through compaction and VACUUM. In WAL mode this
-        // is refused while any other connection has the file open, even an idle
-        // one, which is how a running server or desktop app is detected.
         yield* sql`PRAGMA busy_timeout = 0`;
-        // VACUUM and the truncating checkpoint sync through checkpoints, which
-        // need F_FULLFSYNC on macOS to reach the disk.
         yield* sql`PRAGMA checkpoint_fullfsync = ON`;
         yield* sql`PRAGMA locking_mode = EXCLUSIVE`;
         yield* sql`BEGIN EXCLUSIVE`.pipe(
@@ -193,8 +188,6 @@ const make = Effect.gen(function* () {
           return yield* new DatabaseProjectionsInvalidError({ path: databasePath });
         }
         yield* onStep("vacuum");
-        // VACUUM rebuilds the file, which is the only way to switch an existing
-        // database to incremental auto_vacuum; the server reclaims online after.
         yield* sql`PRAGMA auto_vacuum = INCREMENTAL`;
         yield* sql`VACUUM`;
         yield* onStep("rebuild-search");
@@ -242,12 +235,10 @@ export const runRequestedReclaim = Effect.fn("DatabaseMaintenance.runRequestedRe
     const fs = yield* FileSystem.FileSystem;
     const files = reclaimFiles(yield* Path.Path, databasePath);
     if (!(yield* fs.exists(files.request))) return;
-    // One attempt per request, so a repair killed midway (it rolls back) cannot delay later exits.
     yield* fs.remove(files.request, { force: true });
     yield* Effect.logInfo("Reclaiming database space before the restart. This can take minutes.");
     const maintenance = yield* DatabaseMaintenance;
     yield* maintenance.compact(databasePath).pipe(
-      // Worker threads and agent processes can hold the file for a moment after the server stops.
       Effect.retry({
         times: 10,
         while: (error) => error._tag === "DatabaseInUseError",
@@ -275,7 +266,6 @@ export const runRequestedReclaim = Effect.fn("DatabaseMaintenance.runRequestedRe
   Effect.catchCause((cause) => Effect.logWarning("Database space reclamation failed", { cause })),
 );
 
-// SQLite's search order for its temporary files (unixTempFileDir in os_unix.c).
 const sqliteTempDirectory = Effect.gen(function* () {
   if ((yield* HostProcess.Platform) === "win32") return NodeOS.tmpdir();
   const fs = yield* FileSystem.FileSystem;
@@ -284,7 +274,6 @@ const sqliteTempDirectory = Effect.gen(function* () {
     if (directory === undefined || directory === "") continue;
     const info = yield* fs.stat(directory).pipe(Effect.option);
     if (Option.isNone(info) || info.value.type !== "Directory") continue;
-    // SQLite skips directories it cannot write to and search: osAccess(zDir, 03).
     const usable = yield* Effect.tryPromise({
       try: () => NodeFSP.access(directory, NodeFSP.constants.W_OK | NodeFSP.constants.X_OK),
       catch: (cause) => new DiskSpaceCheckError({ path: directory, cause }),

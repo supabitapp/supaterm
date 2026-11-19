@@ -65,7 +65,6 @@ describe("nextThreadAnnouncement", () => {
         idle(thirdRun, "completed"),
       ]),
     ).toEqual(["Working", "Working", "Done"]);
-    // The last turn's run is still settling when the follow-up is sent.
     expect(
       speak([
         idle(firstRun, "running"),
@@ -94,7 +93,6 @@ describe("nextThreadAnnouncement", () => {
 
   it("treats a run that starts while the thread looks idle as the next turn", () => {
     const thirdRun = RunId.make("run-3");
-    // A resume or a turn started from another device.
     expect(
       speak([
         idle(firstRun, "completed"),
@@ -103,7 +101,6 @@ describe("nextThreadAnnouncement", () => {
         idle(secondRun, "completed"),
       ]),
     ).toEqual(["Working", "Done"]);
-    // A queued message waiting to start after the last turn.
     expect(
       speak([
         idle(firstRun, "completed"),
@@ -174,7 +171,6 @@ describe("nextThreadAnnouncement", () => {
         idle(secondRun, "completed"),
       ]),
     ).toEqual(["Working", "Working", "Done"]);
-    // The previous run finished while this client looked idle.
     expect(
       speak([
         idle(firstRun, "completed"),

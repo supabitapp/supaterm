@@ -1,7 +1,5 @@
 "use strict";
 
-// Expo replaces the empty signing team with appleTeamId. Reverse-ordered mods run after extension creation.
-
 const fs = require("fs");
 const path = require("path");
 const { withDangerousMod, withXcodeProject } = require("expo/config-plugins");

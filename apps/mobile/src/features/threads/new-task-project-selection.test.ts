@@ -73,7 +73,6 @@ describe("getProjectScopeSelectionTarget", () => {
     expect(target(["server"], "mac")).toBe(server);
     expect(target(["mac", "server"], "server")).toBe(server);
     expect(target(["mac", "server"])).toBe(mac);
-    // With nothing connected, the usual order still applies.
     expect(target([], "server")).toBe(server);
     expect(target([])).toBe(mac);
   });

@@ -53,8 +53,6 @@ export function filePreviewKind(
   if (mime === "text/markdown" || mime === "text/x-markdown") return "markdown";
   if (richDocuments && mime === "text/vnd.mermaid") return "mermaid";
   if (richDocuments && mime.startsWith("font/")) return "font";
-  // Linux's MIME database also assigns .otf to OpenDocument formula templates.
-  // FontFace validates the actual bytes before a specimen is shown.
   if (
     richDocuments &&
     extension === ".otf" &&

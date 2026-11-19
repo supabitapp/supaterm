@@ -67,23 +67,18 @@ layer("022_RepairStaleTitleRegeneration", (it) => {
         `;
       const marker = (requestId: string) => ({ requestId, startedAt: createdAt });
 
-      // A subagent copied its parent's marker, and only the parent had a title job.
       yield* insertThread("parent", null);
       yield* insertTitleJob("parent", "parent:initial-message", "succeeded");
       yield* insertThread("subagent", marker("parent:initial-message"), "parent");
-      // A subagent whose parent's title job is still queued has no job of its own either.
       yield* insertThread("queued-parent", marker("queued:initial-message"));
       yield* insertTitleJob("queued-parent", "queued:initial-message", "pending");
       yield* insertThread("queued-subagent", marker("queued:initial-message"), "queued-parent");
-      // Jobs that finished without clearing the marker will not run again.
       yield* insertThread("failed-job", marker("failed:regenerate"));
       yield* insertTitleJob("failed-job", "failed:regenerate", "failed");
       yield* insertThread("cancelled-job", marker("cancelled:regenerate"));
       yield* insertTitleJob("cancelled-job", "cancelled:regenerate", "cancelled");
-      // A live job for an older request cannot clear a newer marker.
       yield* insertThread("superseded-job", marker("new:regenerate"));
       yield* insertTitleJob("superseded-job", "old:regenerate", "running");
-      // Live jobs still complete their own marker.
       yield* insertThread("running-job", marker("running:regenerate"));
       yield* insertTitleJob("running-job", "running:regenerate", "running");
       yield* insertThread("absent", undefined);

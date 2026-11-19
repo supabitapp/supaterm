@@ -41,8 +41,6 @@ function refreshFailureMessage(cause: Cause.Cause<unknown>): string {
   return error instanceof Error ? error.message : "Failed to refresh git status.";
 }
 
-// Selecting a thread or reconnecting its environment refreshes the checkout's
-// status once, shared by every sheet that shows it.
 const selectedThreadStatusRevalidation = createVcsStatusRevalidationAtomFamily({
   refreshStatus: vcsEnvironment.refreshStatus,
   connected: environmentConnectedAtom,
@@ -236,9 +234,6 @@ export function useSelectedThreadGitActions() {
       readonly worktreePath?: string | null;
     };
   }): Promise<AtomCommandResult<void, unknown>> => {
-    // The Git mutation already landed; refresh what the worktree shows even
-    // when the thread metadata update is denied, so the sheet does not keep
-    // displaying the previous branch.
     const updateResult = input.nextThreadState
       ? await updateThreadGitContext(input.thread, input.nextThreadState)
       : AsyncResult.success(undefined);

@@ -97,7 +97,6 @@ interface ProviderTransferBudget {
   readonly measuredTurnWebSocketMessages: number;
 }
 
-// The measured turn decodes to about 22 KB; without live body dedupe its repeated answer makes it 26 KB.
 const TRANSFER_BUDGET = {
   totalWireBytes: 7_000,
   threadSnapshotWireBytes: 5_000,
@@ -111,61 +110,44 @@ const TRANSFER_BUDGETS: Readonly<Record<string, ProviderTransferBudget>> = {
   claudeAgent: TRANSFER_BUDGET,
 };
 
-// Decoded bytes, not wire bytes: phones parse and keep the decoded JSON. About 15% above the
-// observed 95 KB history page, so a page without the ID table (130 KB) or row budgets fails.
-// Kept apart from TRANSFER_BUDGET because the PR comment validates its keys.
 const LONG_TURN_PAGE_BUDGET = {
   decodedBytes: 110_000,
   rows: 75,
 };
 
-// About 7% above the observed 290 KB. The window holds 75 rows, but every message of a running
-// turn rides along with it: 196 KB here. Without body dedupe or the ID table it is 354 KB.
 const LONG_TURN_RUNNING_BUDGET = {
   decodedBytes: 310_000,
   rows: 75,
 };
 
-// About 7% above the observed 393 KB. A finished turn defers its 770 work rows and stays whole:
-// 151 rows of messages, checkpoints and subagents, on both transports.
 const LONG_TURN_FINISHED_BUDGET = {
   decodedBytes: 420_000,
   rows: 151,
 };
 
-// About 6% above the observed 193 KB: one older page of work, twice the cold-open row budget.
 const LONG_TURN_WORK_PAGE_BUDGET = {
   decodedBytes: 205_000,
   rows: 150,
 };
 
 const SOCKET_BUDGETS = {
-  // One ordinary turn replays in 11 KB. With its tool bodies it is over 900 KB.
   shortTurnResume: { decodedBytes: 13_000, messages: 2 },
   longTurnColdOpen: { decodedBytes: LONG_TURN_FINISHED_BUDGET.decodedBytes, messages: 2 },
-  // These three send no rows. A snapshot in their place is 393 KB for the thread, 42 KB for the shell.
   idleThreadResume: { decodedBytes: 200, messages: 1 },
-  // A subscribe that does not name the snapshot's project identities gets the project again: 851 B.
   fleetShellSubscribe: { decodedBytes: 200, messages: 1 },
   staleShellResume: { decodedBytes: 400, messages: 2 },
 };
 
-// About 30% above the observed 42 KB. Without the shell opt-ins it carries all 142 rows (217 KB).
 const FLEET_SHELL_BUDGET = {
   decodedBytes: 55_000,
   rows: 27,
 };
 
-// The answer is `{"resumable":true}`. A snapshot in its place is 42 KB.
 const FLEET_SHELL_RESUME_BUDGET = {
   decodedBytes: 100,
   rows: 0,
 };
 
-// About 14% above the observed 75 KB. The window holds the working run only: 2 nodes, 2 subagents,
-// 1 plan, 1 provider turn and the last finished turn's checkpoint. When finished runs ride along
-// it holds 82 nodes, 82 subagents, 41 plans, 41 provider turns, 40 checkpoints and 740 KB.
-// The working run's ready handoff ships without its 256 KB history; with it the open is 339 KB.
 const STALE_TODO_BUDGET = {
   decodedBytes: 85_000,
   rows: 75,
@@ -247,7 +229,6 @@ function row(
   return `| ${provider} | ${phase} | ${metric} | ${format(observed)} | ${format(maximum)} | ${status} |`;
 }
 
-// The 50 ms shell batching makes transfer, reconnect and SQL figures timing-dependent.
 function infoRow(
   provider: ProviderDriverKind,
   phase: string,
@@ -275,7 +256,6 @@ interface ScenarioRow {
   readonly metric: string;
   readonly unit: "bytes" | "count";
   readonly observed: number;
-  /** Absent on figures that only inform: wire bytes, and what an older client receives. */
   readonly maximum: number | undefined;
 }
 
@@ -333,11 +313,6 @@ function socketRows(
   ];
 }
 
-/**
- * Every scenario figure beyond the thread totals. The violations, the report table and the PR
- * comment's scenario file all read this list, so a row added here reaches all three. The PR
- * comment only accepts letters, digits, spaces, commas and hyphens in `phase` and `metric`.
- */
 function scenarioRows(run: TransferBudgetRun): ScenarioRow[] {
   return [
     ...socketRows("short turn resume", run.shortTurnResume, SOCKET_BUDGETS.shortTurnResume),

@@ -191,7 +191,6 @@ describe("AgentDevice startup", () => {
         undefined,
         environment,
       );
-      // The desktop shell snapshot updates the server's environment after the host exists.
       environment.ANDROID_HOME = profile;
       hub.running = false;
       runs.length = 0;
@@ -202,7 +201,6 @@ describe("AgentDevice startup", () => {
       const sdkRuns = runs.filter(
         (run) => run.command === emulator || run.args.includes("devices"),
       );
-      // Two hub camera probes, the agent-device launch, and the emulator command.
       expect(sdkRuns.map((run) => run.args[0])).toEqual([
         "-help-camera-front",
         "-help-camera-back",
@@ -367,7 +365,6 @@ describe("AgentDevice startup", () => {
     }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
   );
 
-  // regression: #33552 a daemon left by a previous server survived every later graceful quit
   it.effect("stops a previous server's daemon with the current pin when its version is gone", () =>
     Effect.gen(function* () {
       const path = yield* Path.Path;
@@ -398,7 +395,6 @@ describe("AgentDevice startup", () => {
 
   it.effect("drops a dead daemon's record without running agent-device when the host stops", () =>
     Effect.gen(function* () {
-      // Above the Linux and macOS PID limits, so never a live process.
       const deadPid = 4_194_305;
       const path = yield* Path.Path;
       const { host, fs, stateDir, runs } = yield* agentFixture(

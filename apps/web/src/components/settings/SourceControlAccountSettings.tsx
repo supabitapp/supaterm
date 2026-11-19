@@ -22,7 +22,6 @@ import {
 import { redactedPlaceholder } from "./RedactedSensitiveText";
 import { useEnvironmentScope } from "../../state/session";
 
-/** Sentinel select value for "follow the CLI's active login"; logins never contain spaces. */
 const ACTIVE_ACCOUNT = "active cli account";
 
 function RedactedLogin(props: {

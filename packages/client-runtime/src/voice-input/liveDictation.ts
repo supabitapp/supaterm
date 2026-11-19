@@ -44,7 +44,6 @@ const decodeServerMessage = Schema.decodeUnknownOption(
 );
 
 const RECONNECT_DELAYS_MS = [250, 1_000, 2_000];
-// More than this unsent means the link can't keep up; the recording goes up whole instead.
 const MAX_BUFFERED_BYTES = 512 * 1024;
 const FINISH_TIMEOUT_MS = 5_000;
 
@@ -60,7 +59,6 @@ export class LiveDictation {
   private recordedBytes = 0;
   private url: string | null = null;
   private socket: LiveDictationSocket | null = null;
-  /** Bytes the server holds or has been sent on the open socket; null until it says `ready`. */
   private sentBytes: number | null = null;
   private reconnects = 0;
   private state: "streaming" | "finishing" | "done" = "streaming";

@@ -67,7 +67,6 @@ function WatchedPullRequestChecks({
       if (!checksQuery.isPending()) checksQuery.refresh();
     },
     enabled: !settledWithoutChecks,
-    // The thread details PR row polls the same query under this key, so the two share a schedule.
     key: `workspace-pr-checks:${environmentId}:${reference.projectId}:${reference.host}:${reference.repository}:${reference.number}`,
     checks: checks ?? [],
   });
@@ -120,7 +119,6 @@ export function BackgroundTaskOutputPopover({ handle }: { handle: BackgroundTask
                 <ShellCommandBlock command={payload.command} />
               </div>
             ) : null}
-            {/* Fixed, so the popover keeps its place while output streams in. */}
             <div className="h-80 font-mono text-(length:--font-size-code,var(--text-2xs)) leading-relaxed whitespace-pre-wrap break-words select-text [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden">
               <CommandOutputPanel
                 output={orchestrationEnvironment.v2.backgroundTaskOutput({

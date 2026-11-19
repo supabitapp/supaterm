@@ -122,7 +122,6 @@ function quoteShellWord(word: string, platform: NodeJS.Platform): string {
 
 function quoteUpdateExecutable(executable: string, platform: NodeJS.Platform): string {
   const quoted = quoteShellWord(executable, platform);
-  // Windows terminals default to PowerShell, where a quoted executable needs &.
   return platform === "win32" && quoted !== executable ? `& ${quoted}` : quoted;
 }
 
@@ -229,11 +228,6 @@ export function normalizeCommandPath(commandPath: string): string {
   return commandPath.replaceAll("\\", "/").toLowerCase();
 }
 
-/**
- * Vite+ shims live in `<VP_HOME>/bin`: `~/.vite-plus` by default,
- * `~/.local/share/vite-plus` with the XDG layout, and `%LOCALAPPDATA%\vite-plus`
- * on Windows.
- */
 function isVitePlusGlobalCommandPath(commandPath: string): boolean {
   return /\/(?:\.vite-plus|\.local\/share\/vite-plus|appdata\/local\/vite-plus)\/bin\//.test(
     normalizeCommandPath(commandPath),
@@ -248,10 +242,6 @@ function isYarnGlobalCommandPath(commandPath: string): boolean {
   return /\/yarn\/(?:data\/)?global\/node_modules\//.test(normalizeCommandPath(commandPath));
 }
 
-/**
- * Paths mise owns. npm globals under mise's own Node belong to npm, which proves their prefix.
- * A command wrapper is a symlink to the `mise` binary, which dispatches on argv[0].
- */
 function isMiseCommandPath(commandPath: string): boolean {
   const normalized = normalizeCommandPath(commandPath);
   return (
@@ -261,7 +251,6 @@ function isMiseCommandPath(commandPath: string): boolean {
   );
 }
 
-/** A mise shim or command wrapper is a link to mise itself, wherever mise keeps its data. */
 function isMiseExecutablePath(commandPath: string): boolean {
   return /(?:^|\/)mise(?:\.exe)?$/.test(normalizeCommandPath(commandPath));
 }
@@ -280,7 +269,6 @@ function isWinGetClaudeCommandPath(commandPath: string): boolean {
 
 const CHOCOLATEY_CLAUDE_PACKAGE_ID = "claude-code";
 
-// Chocolatey's executable shim is not a symlink, so realpath cannot prove its owner.
 const chocolateyClaudeCommandPath = /\/chocolatey\/(?:bin|lib\/claude-code\/tools)\/claude\.exe$/;
 
 function isChocolateyClaudeCommandPath(commandPath: string, env: NodeJS.ProcessEnv): boolean {
@@ -326,8 +314,6 @@ export function npmGlobalPrefixFromCommandPath(
   if (packageIndex < 0 || normalized.slice(0, packageIndex).includes("/node_modules/")) {
     return null;
   }
-  // Mise's npm backend uses a global-looking layout inside a tool version.
-  // Globals under its Node installation still belong to npm.
   const miseTool = /\/mise\/installs\/([^/]+)\/[^/]+$/.exec(normalized.slice(0, packageIndex))?.[1];
   if (miseTool && miseTool !== "node") {
     return null;
@@ -474,13 +460,11 @@ const resolvePnpmGlobalLatestVersion = Effect.fn("resolvePnpmGlobalLatestVersion
   return nonEmptyString(listedEntries?.[0]?.dependencies?.[packageName]?.version);
 });
 
-// Unlike `npm view`, `outdated` applies min-release-age, before and their excludes.
 const resolveNpmGlobalLatestVersion = Effect.fn("resolveNpmGlobalLatestVersion")(function* (
   packageName: string,
   npmPrefix: string,
   env: NodeJS.ProcessEnv,
 ) {
-  // Match the updater's npm and environment.
   const npmPath = yield* resolveCommandPath("npm", {
     env: { ...(yield* HostProcess.Environment), ...env },
   });
@@ -489,27 +473,22 @@ const resolveNpmGlobalLatestVersion = Effect.fn("resolveNpmGlobalLatestVersion")
     npmPath,
     ["outdated", "-g", "--prefix", npmPrefix, "--json", packageName],
     env,
-    // npm outdated exits 1 when updates are available.
     [0, 1],
   );
   const outdatedEntries = outdated ? Option.getOrUndefined(decodeOutdated(outdated)) : undefined;
-  // npm prints failures such as an unreachable registry as `{"error": ...}`, also exiting 1.
   if (!outdatedEntries || "error" in outdatedEntries) return null;
   const latest = nonEmptyString(outdatedEntries[packageName]?.latest);
   if (latest) return latest;
-  // An empty result means the installed version is still the eligible release.
   const listed = yield* runProbe(
     npmPath,
     ["ls", "-g", "--prefix", npmPrefix, "--depth", "0", "--json", packageName],
     env,
-    // npm ls still prints the tree but exits 1 when other globals have problems.
     [0, 1],
   );
   const listedEntries = listed ? Option.getOrUndefined(decodeNpmList(listed)) : undefined;
   return nonEmptyString(listedEntries?.dependencies?.[packageName]?.version);
 });
 
-// npm names the tarball `${name}-${version}.tgz`, dropping a scope's `@` and its `/`.
 function parseNpmPackVersion(stdout: string, packageName: string): string | null {
   const prefix = `${packageName.replace(/^@/, "").replace("/", "-")}-`;
   const filename = stdout.trim();
@@ -530,10 +509,6 @@ const decodeVitePlusCurrentEnv = Schema.decodeUnknownOption(
   ),
 );
 
-// `vp i -g` installs through the npm beside Vite+'s managed Node, even under `vp env off`, and
-// `vp env current` names that Node unless it reports a system one, which install does not use.
-// Pack honours npm's min-release-age and `before`, which `npm view` ignores, and resolves
-// `@latest` the way install does. `--json=false` keeps its output to the tarball name.
 const resolveVitePlusInstallableLatestVersion = Effect.fn(
   "resolveVitePlusInstallableLatestVersion",
 )(function* (packageName: string, env: NodeJS.ProcessEnv, platform: NodeJS.Platform) {
@@ -552,8 +527,6 @@ const resolveVitePlusInstallableLatestVersion = Effect.fn(
   return packed ? parseNpmPackVersion(packed, packageName) : null;
 });
 
-// `bun outdated` has no JSON output; its `Latest` column is what `@latest` installs
-// under minimumReleaseAge (marked `*`). `Update` is only the global package.json range.
 function parseBunOutdatedLatestVersion(output: string, packageName: string): string | null {
   for (const line of output.split("\n")) {
     const cells = line.split("|").map((cell) => cell.trim());
@@ -564,22 +537,18 @@ function parseBunOutdatedLatestVersion(output: string, packageName: string): str
   return null;
 }
 
-// bun rejects an exact pin to a release inside minimumReleaseAge, so the update stays `@latest`.
 const resolveBunGlobalLatestVersion = Effect.fn("resolveBunGlobalLatestVersion")(function* (
   packageName: string,
   env: NodeJS.ProcessEnv,
 ) {
-  // Match the updater's bun and environment.
   const bunPath = yield* resolveCommandPath("bun", {
     env: { ...(yield* HostProcess.Environment), ...env },
   });
   if (!bunPath) return null;
-  // FORCE_COLOR=1 draws the table with box characters and splits versions with ANSI codes.
   const outdated = yield* runProbe(bunPath, ["outdated", "-g", packageName], {
     ...env,
     FORCE_COLOR: "0",
   });
-  // A missing row reads the same whether bun is current or its registry failed, so npm decides.
   return outdated ? parseBunOutdatedLatestVersion(outdated, packageName) : null;
 });
 
@@ -595,7 +564,6 @@ const decodeMiseInstalls = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Record(Schema.String, Schema.Array(MiseInstall))),
 );
 
-/** The installs `mise ls --json --installed <tool>` lists, refusing any other tool's. */
 function miseToolInstalls(
   listing: string,
   miseTool: string,
@@ -632,7 +600,6 @@ export const resolveMiseProviderMaintenance = Effect.fn("resolveMiseProviderMain
       ?.replace(/\.(?:exe|cmd|bat|ps1)$/, "");
     if (!mise) return notOwned(context.realCommandPath);
     const miseTool = mise.tool;
-    // A shim runs whatever mise resolves for its own name, which must be the mapped tool's.
     if (isShim && commandName !== miseTool) return manual(context.realCommandPath);
 
     const fileSystem = yield* FileSystem.FileSystem;
@@ -642,10 +609,8 @@ export const resolveMiseProviderMaintenance = Effect.fn("resolveMiseProviderMain
       (yield* resolveCommandPath("mise", { env: context.env })) ??
       (isShim ? context.realCommandPath : null);
     if (!misePath) return notOwned(context.realCommandPath);
-    // Asked even off mise's usual paths, since `MISE_DATA_DIR` can put installs anywhere.
     const which = nonEmptyString(yield* runProbe(misePath, ["which", miseTool], context.env));
     const resolvedPath = which ? yield* realPath(which) : null;
-    // Through a shim Supaterm runs whatever mise resolves; otherwise the configured binary.
     const binaryPath = isShim ? resolvedPath : context.realCommandPath;
     if (!binaryPath) return manual(context.realCommandPath);
     const binary = normalizeCommandPath(binaryPath);
@@ -658,13 +623,11 @@ export const resolveMiseProviderMaintenance = Effect.fn("resolveMiseProviderMain
     if (!listing) return runsBinary ? manual(binaryPath) : notOwned(binaryPath);
     const isUnder = (path: string, dir: string) =>
       path.startsWith(`${normalizeCommandPath(dir).replace(/\/+$/, "")}/`);
-    // An inactive or shadowed install is still mise's, even when `mise which` resolves another.
     const owning = yield* Effect.filter(miseToolInstalls(listing, miseTool), (install) =>
       realPath(install.install_path).pipe(
         Effect.map((installPath) => isUnder(binary, installPath)),
       ),
     );
-    // `mise which` also resolves binaries from other tools, such as npm globals under mise's Node.
     if (owning.length === 0) return notOwned(binaryPath);
     if (!runsBinary) return manual(binaryPath);
     const install = owning.find(
@@ -672,7 +635,6 @@ export const resolveMiseProviderMaintenance = Effect.fn("resolveMiseProviderMain
     );
     if (!install || mise.upgrade === false) return manual(binaryPath);
     if (!isShim) {
-      // Keep the path's case: `realPath` needs it on case-sensitive filesystems.
       const toolDir = install.install_path
         .replaceAll("\\", "/")
         .replace(/\/+$/, "")
@@ -681,7 +643,6 @@ export const resolveMiseProviderMaintenance = Effect.fn("resolveMiseProviderMain
       const resolved = normalizeCommandPath(context.resolvedCommandPath);
       if (!latestDirs.some((dir) => isUnder(resolved, dir))) return manual(binaryPath);
     }
-    // `mise upgrade <short name>` skips a tool configured by its backend name, like `npm:<pkg>`.
     const configured = Option.getOrUndefined(
       decodeMiseInstalls(yield* runProbe(misePath, ["ls", "--json", "--installed"], context.env)),
     );
@@ -698,10 +659,7 @@ export const resolveMiseProviderMaintenance = Effect.fn("resolveMiseProviderMain
       updateLockKey: "mise",
       updateCommand: ["mise", ...args].join(" "),
       platform: context.platform,
-      // Mise read its config from this environment, so the upgrade runs in it too.
       env: context.env,
-      // Settings such as `minimum_release_age` can hold mise behind the registry,
-      // so only mise can say what it installs. It may go to the network, so ask lazily.
       latestVersion: null,
       lookupLatestVersion: runProbe(misePath, ["latest", miseTool], context.env).pipe(
         Effect.map((latest) => {
@@ -724,7 +682,6 @@ const decodeVitePlusConfig = Schema.decodeUnknownOption(
   Schema.fromJsonString(Schema.Struct({ shimMode: Schema.optional(Schema.Unknown) })),
 );
 
-/** With `shimMode: "system_first"` (`vp env off`), a Vite+ shim runs the next same-named command on PATH. */
 const followVitePlusSystemFirstShim = Effect.fn("followVitePlusSystemFirstShim")(function* (
   context: ProviderMaintenanceResolutionContext,
 ) {
@@ -733,7 +690,6 @@ const followVitePlusSystemFirstShim = Effect.fn("followVitePlusSystemFirstShim")
   const path = yield* Path.Path;
   const shimDir = path.dirname(context.resolvedCommandPath);
   const dataDir = path.dirname(shimDir);
-  // Without VP_HOME, the XDG layout keeps shims in `~/.local/share/vite-plus` and config in `$XDG_CONFIG_HOME/vite-plus`.
   const home = context.env.VP_HOME
     ? undefined
     : /^(.*)\/\.local\/share\/vite-plus$/.exec(dataDir.replaceAll("\\", "/"))?.[1];
@@ -800,9 +756,6 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
   ) {
     return manual;
   }
-  // Chocolatey's package directory is writable only by administrators, so an
-  // unelevated server cannot run `choco upgrade`; `claude update` through the
-  // shim installs a native copy elsewhere and leaves the shim's version alone.
   if (
     definition.provider === "claudeAgent" &&
     context.platform === "win32" &&
@@ -833,7 +786,6 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
     context,
   );
   if (mise) return mise;
-  // After mise: a shim of a Nix-installed mise resolves into the store, yet its installs are writable.
   if (commandPaths.some(isNixStoreCommandPath)) {
     return manual;
   }
@@ -862,7 +814,6 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
           : {}),
       })
     : manual;
-  // A native-looking launcher can still delegate to an npm-owned install.
   if (
     nativeUpdate?.isCommandPath &&
     commandPaths.some(nativeUpdate.isCommandPath) &&
@@ -870,8 +821,6 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
   ) {
     return native;
   }
-  // A `node_modules` path not proven below belongs to another package or a
-  // project, so the provider's own updater could act on the wrong install.
   const fallback =
     nativeUpdate?.requiresCommandPath ||
     commandPaths.some((commandPath) => normalizeCommandPath(commandPath).includes("/node_modules/"))
@@ -956,15 +905,9 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
     });
   }
 
-  // npm proof names the package, so it outranks a keg the path merely passes
-  // through: a Homebrew-installed Node keeps its globals under
-  // `Cellar/node/<ver>/lib/node_modules/`, and that is npm's install, not brew's.
   const npmPrefix = yield* resolveNpmGlobalPrefix(context, packageName);
   if (npmPrefix) {
     const services = yield* Effect.context<ProviderMaintenanceResolverServices>();
-    // npm 12 blocks install scripts by default and still exits 0, leaving a package whose
-    // postinstall finishes the install (claude's native binary) broken while reporting
-    // success. Older npm warns about the unknown config and continues.
     const capabilities = makeProviderMaintenanceCapabilities({
       provider: definition.provider,
       packageName,
@@ -979,8 +922,6 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
       ],
       updateLockKey: `npm-global:${normalizeCommandPath(npmPrefix)}`,
       env: context.env,
-      // Inside min-release-age `@latest` installs an older release than the
-      // registry's tag, so only npm's own answer is worth advertising.
       latestVersion: null,
       lookupLatestVersion: resolveNpmGlobalLatestVersion(packageName, npmPrefix, context.env).pipe(
         Effect.provideContext(services),
@@ -1019,8 +960,6 @@ export const resolveHomebrewProviderMaintenance = Effect.fn("resolveHomebrewProv
   ) {
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    // The keg's own brew works even when a GUI-launched server has no
-    // Homebrew on PATH; the prefix check below still applies to it.
     const kegBrewPath = path.join(homebrew.prefix, "bin", "brew");
     const brewPath = (yield* fileSystem.exists(kegBrewPath).pipe(Effect.orElseSucceed(() => false)))
       ? kegBrewPath
@@ -1048,7 +987,6 @@ export const resolveHomebrewProviderMaintenance = Effect.fn("resolveHomebrewProv
       updateArgs: args,
       updateLockKey: "homebrew",
       updateCommand: ["brew", ...args].join(" "),
-      // Brew's release can lag npm; only its own channel can say what upgrade installs.
       latestVersion: null,
       lookupLatestVersion: runProbe(
         brewPath,
@@ -1062,7 +1000,6 @@ export const resolveHomebrewProviderMaintenance = Effect.fn("resolveHomebrewProv
   },
 );
 
-/** The command's text when it is small enough to be a wrapper script, else "". */
 const readWrapperScript = Effect.fn("readWrapperScript")(function* (commandPath: string) {
   const fileSystem = yield* FileSystem.FileSystem;
   const size = yield* fileSystem.stat(commandPath).pipe(
@@ -1080,11 +1017,6 @@ const isMiseWrapperScript = Effect.fn("isMiseWrapperScript")(function* (
   return script.startsWith("#!") && /\bmise\s+(?:x|exec)\b/.test(script);
 });
 
-/**
- * The port that installed the executable, "" when MacPorts owns it under an unusable name,
- * or null when it does not. MacPorts prefixes are root-owned and its Claude port disables
- * `claude update`, so neither npm nor the native updater can upgrade these installs.
- */
 const resolveMacPortsOwner = Effect.fn("resolveMacPortsOwner")(function* (
   context: ProviderMaintenanceResolutionContext,
 ) {
@@ -1104,8 +1036,6 @@ const resolveMacPortsOwner = Effect.fn("resolveMacPortsOwner")(function* (
   return /^[\w.+-]+$/.test(name) ? name : "";
 });
 
-// Volta bin entries only identify its shim; the package image proves ownership.
-// POSIX links point at `volta-shim`; Windows Volta 2 writes `volta run %~n0 %*` scripts.
 const isVoltaPackageInstall = Effect.fn("isVoltaPackageInstall")(function* (
   context: ProviderMaintenanceResolutionContext,
   packageName: string,
@@ -1149,9 +1079,6 @@ const resolveNpmGlobalPrefix = Effect.fn("resolveNpmGlobalPrefix")(function* (
     ...packageName.split("/"),
     "package.json",
   );
-  // npm writes both `<cmd>.cmd` and an extensionless sh script into the
-  // Windows prefix; either one sits directly beside `node_modules`. A POSIX
-  // project checkout has the same shape, which is why this is Windows-only.
   const hasManifest = yield* fileSystem
     .exists(manifestPath)
     .pipe(Effect.orElseSucceed(() => false));
@@ -1216,7 +1143,6 @@ const withConfiguredNpmVersionLookup = Effect.fn("withConfiguredNpmVersionLookup
   );
   return {
     ...capabilities,
-    // npm owns registry, scoped auth and proxy configuration; failure must not retry public npm.
     latestVersion: null,
     latestVersionCacheKey: [
       "configured-npm",
@@ -1360,7 +1286,6 @@ const fetchNpmLatestVersion = Effect.fn("fetchNpmLatestVersion")(function* (pack
   const request = HttpClientRequest.get(
     `https://registry.npmjs.org/${encodeURIComponent(packageName)}/latest`,
   ).pipe(HttpClientRequest.setHeader("accept", "application/json"));
-  // The deadline covers the body too: headers can arrive before the JSON stalls.
   const payload = yield* client.execute(request).pipe(
     Effect.flatMap(HttpClientResponse.filterStatusOk),
     Effect.flatMap(HttpClientResponse.schemaBodyJson(NpmLatestVersionResponse)),
@@ -1370,10 +1295,6 @@ const fetchNpmLatestVersion = Effect.fn("fetchNpmLatestVersion")(function* (pack
   return Option.isSome(payload) ? nonEmptyString(payload.value.version) : null;
 });
 
-/**
- * The installer's own answer is cached apart from the npm registry entry. A
- * manual-only install has no command to key on, so its executable stands in.
- */
 function installerLatestVersionKey(capabilities: ProviderMaintenanceCapabilities) {
   if (!capabilities.lookupLatestVersion) return null;
   if (capabilities.latestVersionCacheKey) return capabilities.latestVersionCacheKey;

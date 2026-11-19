@@ -53,9 +53,6 @@ export function threadUndoLabel(keybindings: Parameters<typeof shortcutLabelForC
 
 let announcedSummary: string | null = null;
 
-// A live region that mounts already filled is skipped by screen readers, and marking done
-// usually moves focus to the next thread at the same moment, so the notice is announced
-// separately from the alert that shows it.
 function setNotice(notice: UndoNotice | null) {
   useThreadUndoNotice.setState({ notice });
   const summary = notice ? threadUndoNoticeSummary(notice) : null;
@@ -71,8 +68,6 @@ function setNotice(notice: UndoNotice | null) {
 
 let liveUndos: UndoOptions[] = [];
 let expiry: ReturnType<typeof setTimeout> | undefined;
-// A new notice owns mod+z even inside a text field, until the user presses
-// another key or edits text. After that, mod+z is the field's own undo again.
 let shortcutClaimed = false;
 
 function refreshNotice() {
@@ -97,7 +92,6 @@ function refreshNotice() {
     undo: async () => {
       const current = group.filter((entry) => liveUndos.includes(entry) && entry.claim.isCurrent());
       liveUndos = liveUndos.filter((entry) => !group.includes(entry));
-      // Claim before awaiting to prevent repeated actions restoring a group twice.
       for (const entry of current) entry.claim.finish();
       refreshNotice();
       let undone = 0;
@@ -123,7 +117,6 @@ function refreshNotice() {
           }
         }),
       );
-      // Failures already raise a toast, so only what was actually restored is spoken.
       if (undone > 0) {
         announce(`Undid ${UNDONE_ACTION[latest.action]} of ${countLabel(latest.action, undone)}`);
       }

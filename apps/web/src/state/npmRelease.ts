@@ -29,7 +29,6 @@ export function npmReleaseFailureMessage(cause: Cause.Cause<unknown>): string {
     : "Could not check this environment's npm registry. Check the connection and registry settings.";
 }
 
-/** Servers released before `npmReleaseLookup` cannot read their own registry, so ask public npm. */
 const publicNpmReleaseAtom = Atom.family((spec: string) =>
   Atom.make(
     Effect.gen(function* () {
@@ -53,7 +52,6 @@ const publicNpmReleaseAtom = Atom.family((spec: string) =>
         databaseMigration: npmReleaseDatabaseMigration(body),
       } satisfies NpmRelease;
     }).pipe(
-      // Tracing headers would make the browser send a CORS preflight, which npm rejects.
       Effect.provideService(HttpClient.TracerPropagationEnabled, false),
       Effect.provide(FetchHttpClient.layer),
     ),
@@ -64,7 +62,6 @@ const publicNpmReleaseAtom = Atom.family((spec: string) =>
 export const npmReleaseAtom = Atom.family((spec: string) =>
   Atom.make((get) => {
     const primary = get(primaryEnvironmentIdAtom);
-    // With the desktop's local server turned off there is no primary, so a connected server answers.
     const candidates =
       primary === null ? get(environmentSummaries.connectedEnvironmentIdsAtom) : [primary];
     const environmentId =

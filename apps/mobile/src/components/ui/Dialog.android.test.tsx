@@ -2,8 +2,6 @@ import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, expect, it, vi } from "vite-plus/test";
 
-// Every click handler a button was rendered with, so a test can deliver a
-// native event that was dispatched against an older render.
 const renderedClicks = vi.hoisted(() => [] as Array<() => void>);
 
 vi.mock("@expo/ui/jetpack-compose", () => {
@@ -61,7 +59,6 @@ afterEach(() => {
 });
 
 it("keeps presenting dialogs after an older root's Host unmounts", () => {
-  // Android activity replacement mounts the new root before the old one stops.
   const previous = mountHost();
   const current = mountHost();
   roots.splice(roots.indexOf(previous.root), 1);

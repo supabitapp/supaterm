@@ -15,7 +15,6 @@ const packages: ReadonlyArray<WorkspacePackage> = [
 describe("affectedPackages", () => {
   it("adds dependents of a changed package until the graph is closed", () => {
     assert.deepStrictEqual(affectedPackages(["packages/contracts/src/a.ts"], packages), {
-      // The scripts tests read the apps' files without declaring them.
       affected: [
         "@supaterm/contracts",
         "@supaterm/mobile",

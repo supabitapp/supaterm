@@ -239,7 +239,6 @@ describe("ProjectSetupScriptRunner", () => {
       yield* TestClock.adjust("1 minute");
       expect(yield* Queue.size(writes)).toBe(0);
       yield* emit({ ...event, type: "restarted", snapshot: openSnapshot("") });
-      // The restart lands inside a quiet window, so the next full window decides.
       yield* TestClock.adjust("6 seconds");
       expect(yield* Queue.take(writes)).toContain("vp i");
     }),
@@ -292,8 +291,6 @@ const runObservedSetup = Effect.fnUntraced(function* (command: string) {
   const cwd = yield* HostProcess.WorkingDirectory;
   const env = yield* HostProcess.Environment;
 
-  // Enter becomes a newline at the terminal boundary; transport assertions below
-  // cover line-editor submissions and canonical TTY limits that bash -c bypasses.
   const child = yield* Effect.gen(function* () {
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const handle = yield* spawner.spawn(
@@ -366,7 +363,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("POSIX setup co
       assert.equal(result.exitCode, 0);
       assert.equal(result.submitted.at(-1), "\r");
       assert.notInclude(result.submitted, "\n");
-      // The runner can write before the shell switches the terminal out of canonical mode.
       for (const line of result.submitted.slice(0, -1).split("\r")) {
         assert.isBelow(utf8.encode(line).byteLength, 1_024);
       }
@@ -383,7 +379,6 @@ describe.skipIf(HostProcess.Platform.defaultValue() === "win32")("POSIX setup co
 
   it.live.each([
     { name: "an explicit exit", command: "exit 7", exitCode: 7 },
-    // macOS ships bash 3.2, whose eval reports a syntax error as 1.
     {
       name: "a syntax error",
       command: "if then",

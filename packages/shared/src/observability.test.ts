@@ -587,7 +587,6 @@ describe("observability", () => {
 
 describe("decodeOtlpTraceRecords", () => {
   it("decodes spans when OTLP/JSON omits unset and empty fields", () => {
-    // Protobuf JSON leaves out unset and empty fields, so this batch is valid.
     const payload = cast<unknown, OtlpTracer.TraceData>({
       resourceSpans: [
         {},

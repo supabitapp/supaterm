@@ -1,9 +1,5 @@
 import type { MessageId } from "@supaterm/contracts";
 
-// A palette message result opens its thread at that message. The thread
-// screen reads the request while it shows that thread, and finishes it once
-// the feed is there or the message cannot be found. A request whose thread
-// never showed lapses, so a later plain open does not jump, as on web.
 const PENDING_JUMP_MS = 30_000;
 export interface PendingThreadMessageJump {
   readonly threadKey: string;

@@ -81,8 +81,6 @@ export function captureSetupInitialStep(
 ): CaptureSetupStep {
   if (!captureSetupAccessReady(state)) return "access";
   if (requested === "resume") {
-    // Disabled backends have not checked permissions; pickers need an explanation, not an active-window
-    // access claim.
     if (
       (state.mode === "direct" && !state.shortcutRegistered) ||
       captureSetupBackend(state) === "picker"

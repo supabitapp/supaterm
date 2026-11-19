@@ -46,7 +46,6 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
     snoozedUntil,
     timestampFormat,
   } = props;
-  // The server refuses recovery changes while a request is pending.
   const canSchedule =
     !done && !requestPending && resetAt !== null && Date.parse(resetAt) > Date.parse(stoppedAt);
   const resumes =
@@ -75,7 +74,6 @@ export function usageLimitRecoveryBannerItem(props: RecoveryProps): ComposerBann
       actions: recoveryActions,
     };
   }
-  // OpenAI's partner guidelines specify this ChatGPT notice and its actions.
   return {
     id: `usage-limit-recovery:${runId}`,
     variant: "warning",
@@ -106,8 +104,6 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
 
   const scheduled =
     recovery?.runId === runId && recovery.resetAt === resetAt && recovery.autoResume;
-  // The server leaves snoozedUntil in place after the timer wakes the thread,
-  // so a snooze whose reset has passed is no longer active.
   const resetPassed = useDeadlinePassed(resetAt === null ? null : Date.parse(resetAt));
   const snoozed =
     limitRecoveryOwnsSnooze({ runId, resetAt, recovery, snoozedUntil }) && !resetPassed;
@@ -119,7 +115,6 @@ function RecoveryActions({ runId, resetAt, recovery, snoozedUntil, onChange }: R
         title: "Could not snooze thread",
         description: "The reset time has passed. Retry the thread manually.",
       });
-      // The deadline timer can lag after a throttled tab or sleep; disable now.
       deadlineStore(Date.parse(resetAt)).refresh();
       return;
     }

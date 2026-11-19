@@ -26,7 +26,6 @@ export function unsentManualContinuationSource(
     const source = runs.get(sourceId);
     if (source === undefined) return undefined;
     const accepted = latestAttempt(sourceId, (attempt) => acceptedAttempts.has(attempt.id));
-    // An accepted attempt delivered everything before it; only a later steering restart's message is unsent.
     const restarted = latestAttempt(sourceId, (attempt) => attempt.reason === "steering_restart");
     if (restarted > accepted) return source;
     if (accepted > 0) return undefined;
