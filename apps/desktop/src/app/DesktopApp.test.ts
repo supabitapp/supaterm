@@ -75,6 +75,7 @@ import * as ElectronTheme from "../electron/ElectronTheme.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as MacInputMonitoring from "../permissions/MacInputMonitoring.ts";
 import * as MacPermissions from "../permissions/MacPermissions.ts";
+import * as LoopbackTunnel from "../preview/LoopbackTunnel.ts";
 import * as PreviewManager from "../preview/Manager.ts";
 import * as SidePulse from "../sidePulse/SidePulse.ts";
 import * as SidePulseEjectGuard from "../sidePulse/SidePulseEjectGuard.ts";
@@ -235,6 +236,7 @@ const runStubbedDesktop = (stub: StubbedDesktop) =>
           Layer.mock(ElectronWindow.ElectronWindow, {}),
           Layer.mock(MacInputMonitoring.MacInputMonitoring, {}),
           Layer.mock(MacPermissions.MacPermissions, {}),
+          Layer.mock(LoopbackTunnel.LoopbackTunnel, {}),
           Layer.mock(PreviewManager.PreviewManager, {
             isBrowserPartition: () => {
               throw new Error("unexpected browser partition lookup");
