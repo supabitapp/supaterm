@@ -4,6 +4,7 @@ import { RunId, ThreadId, type OrchestrationV2ThreadProjection } from "@supaterm
 import {
   canForkProjectedAssistantItem,
   deriveThreadQueueWorkflowState,
+  getUserQueuedThreadRuns,
   resolveLatestMergeBackRun,
   resolveThreadForkSource,
   threadSupportsProviderHandoff,
@@ -37,6 +38,24 @@ const topLevelLineage = (threadId: ThreadId) => ({
 });
 
 describe("thread workflows", () => {
+  it("skips message history classification when no runs are queued", () => {
+    let metadataReads = 0;
+    const message = {
+      id: "message",
+      get delegatedCompletion() {
+        metadataReads++;
+        return undefined;
+      },
+    };
+    const projection = {
+      runs: [{ id: "active", status: "running", userMessageId: "message", ordinal: 1 }],
+      messages: [message],
+    } as never;
+
+    expect(getUserQueuedThreadRuns(projection)).toEqual([]);
+    expect(metadataReads).toBe(0);
+  });
+
   it("forks the newest finished run while newer work is running", () => {
     const threadId = ThreadId.make("thread:fork-source");
     const finishedRunId = RunId.make("run:fork-finished");
