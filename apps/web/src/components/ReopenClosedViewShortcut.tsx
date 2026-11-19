@@ -50,6 +50,7 @@ const PREVIEW_FORWARDED_COMMANDS = [
   "sidebar.toggle",
   "rightPanel.toggle",
   "rightPanel.toggleMaximized",
+  "rightPanel.close",
   "pane.focusNext",
   "pane.focusPrevious",
   ...PANE_FOCUS_KEYBINDING_COMMANDS,
