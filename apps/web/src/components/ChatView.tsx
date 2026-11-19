@@ -1016,6 +1016,9 @@ export default function ChatView(props: ChatViewProps) {
               },
             }
           : null;
+  // The header's breadcrumb opens a parent in this environment only.
+  const headerParentThreadLink =
+    parentThreadLink !== null && "remote" in parentThreadLink ? null : parentThreadLink;
   const threadError = isServerThread
     ? (localServerError ?? serverRuntime?.lastError ?? null)
     : localDraftError;
@@ -3537,7 +3540,7 @@ export default function ChatView(props: ChatViewProps) {
                   activeThreadTitle={activeThread.title}
                   activeThreadLinkOrigin={activeThread.linkOrigin?.label ?? null}
                   activeProject={activeProject ?? null}
-                  parentThreadLink={parentThreadLink}
+                  parentThreadLink={headerParentThreadLink}
                   onOpenThread={onOpenRelatedThreadStable}
                   singleTrailingControl={inlineRightPanelOwnsTitleBar || splitPaneId !== null}
                   pinnedMessages={pinnedMessages}
