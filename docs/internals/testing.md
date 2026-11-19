@@ -17,7 +17,7 @@ Rules for writing tests, and for asking for them in review. AGENTS.md carries th
 - The server is event-sourced, and side effects run after the command commits. In tests, drain the effect worker (`OrchestrationEffectWorkerV2.drain`) or await the specific persisted event or `Deferred` that marks the milestone. Never wait on sleeps or polling. A test that needs a timeout to pass is wrong. Concretely:
   - `it.effect` runs on a `TestClock`; `Effect.sleep` only advances through `TestClock.adjust`. `it.live` is wall-clock and only for subprocess or network fixtures.
   - No `yieldNow` or `sleep` polling loops. Await the `Deferred`, take from the `Queue`, or drain the worker.
-  - Wait on a spy or request recorder by resolving a `Promise.withResolvers()` deferred from it, not with `vi.waitFor` or `expect.poll` on its calls.
+  - Do not `vi.waitFor` or `expect.poll` on a spy, request recorder, or collection length. Await the operation itself, or resolve a `Promise.withResolvers()` deferred from the spy and await that.
   - No per-test timeout argument or `retry`. The project timeout is the ceiling, and flaky tests are fixed, not retried.
   - No `performance.now()` or `Date.now()` deltas. Assert on events and counts, not elapsed time.
   - Browser tests assert through `expect.element` or `vi.waitFor`, never `requestAnimationFrame` or `transitionend`.
