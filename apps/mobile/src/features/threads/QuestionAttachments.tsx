@@ -33,6 +33,11 @@ import {
   questionAttachmentDraftKey,
   questionAttachmentPreparationAtom,
 } from "../../state/question-attachments";
+import type { ComposerEditorSelection } from "../../components/ComposerEditor";
+import { ComposerDictationStartAction } from "../voice-input/ComposerDictationControl";
+import { TextFieldDictationToolbar } from "../voice-input/TextFieldDictationToolbar";
+import { useVoiceInputController } from "../voice-input/useVoiceInputController";
+import { resolveVoiceComposerPresentation } from "../voice-input/voiceInputPresentation";
 export function QuestionAttachments(props: {
   requestId: string;
   question: UserInputQuestion;
@@ -69,10 +74,44 @@ export function QuestionAttachments(props: {
   useEffect(() => () => releaseFocus(), []);
   // A controlled value makes Fabric rebuild the native text on every keystroke, which discards
   // iOS's pending autocorrection. The input owns its text; the only outside write is an option
-  // selection clearing the draft.
+  // selection clearing the draft, and dictation remounting it with the transcript.
   const inputRef = useRef<TextInputInstance>(null);
-  const [initialText] = useState(props.value);
+  const [seed, setSeed] = useState({ text: props.value, revision: 0 });
   const nativeText = useRef(props.value);
+  const [selection, setSelection] = useState<ComposerEditorSelection>({
+    start: props.value.length,
+    end: props.value.length,
+  });
+  const draftKey = selectedThread
+    ? questionAttachmentDraftKey(
+        selectedThread.environmentId,
+        selectedThread.id,
+        props.requestId,
+        props.question.id,
+      )
+    : null;
+  const voice = useVoiceInputController({
+    ownerKey: draftKey,
+    label: props.question.header,
+    selection,
+    readDraftMessage: () => nativeText.current,
+    onChangeSelection: setSelection,
+    onChangeDraftMessage: (text) => {
+      nativeText.current = text;
+      setSeed((current) => ({ text, revision: current.revision + 1 }));
+      props.onChangeText(text);
+    },
+    disabled: props.disabled,
+    environmentId: selectedThread?.environmentId ?? null,
+    ...(selectedThread ? { context: { threadId: selectedThread.id } } : {}),
+  });
+  const voiceBusy = voice.isBusy;
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds submit and paging, like a converting paste, while dictation records or transcribes into this answer
+  useEffect(() => {
+    if (!voiceBusy || draftKey === null) return;
+    changeQuestionAttachmentPreparation(draftKey, 1);
+    return () => changeQuestionAttachmentPreparation(draftKey, -1);
+  }, [voiceBusy, draftKey]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes an option selection's cleared draft into the uncontrolled native input
   useEffect(() => {
     if (props.value !== "" || nativeText.current === "") return;
@@ -131,16 +170,14 @@ export function QuestionAttachments(props: {
       )
       .finally(() => changeQuestionAttachmentPreparation(key, -1));
   });
-  if (!selectedThread || props.question.allowCustomAnswer === false) return null;
+  if (!selectedThread || draftKey === null || props.question.allowCustomAnswer === false)
+    return null;
   const { environmentId, id: threadId } = selectedThread;
   const capabilities = configs.get(environmentId)?.environment.capabilities;
   const canAttach = capabilities !== undefined;
-  const key = questionAttachmentDraftKey(
-    environmentId,
-    threadId,
-    props.requestId,
-    props.question.id,
-  );
+  const key = draftKey;
+  const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds);
+  const showsDictation = presentation.statusLabel !== null;
   const attachments = drafts[key]?.attachments ?? [];
   const pick = async (kind: "media" | "files") => {
     const scope = pickerScope.current;
@@ -217,29 +254,49 @@ export function QuestionAttachments(props: {
       ) : null}
       <FilePreviewModal source={previewFile} onRequestClose={() => setPreviewFile(null)} />
       <VideoPreviewModal source={previewVideo} onRequestClose={() => setPreviewVideo(null)} />
-      <TextInputWrapper onPaste={paste}>
-        <TextInput
-          ref={inputRef}
-          defaultValue={initialText}
-          multiline={props.question.initialAnswer !== undefined}
-          submitBehavior={props.question.initialAnswer !== undefined ? "newline" : undefined}
-          editable={!props.disabled}
-          onChangeText={(text) => {
-            nativeText.current = text;
-            props.onChangeText(text);
-          }}
-          onFocus={() => {
-            focusedRef.current = true;
-            onInputFocusChange?.(true);
-          }}
-          onBlur={() => {
-            focusedRef.current = false;
-            onInputFocusChange?.(false);
-          }}
-          placeholder="Or type a custom answer"
-          className="min-h-[54px] rounded-2xl border border-input-border bg-input px-3.5 py-3 font-sans text-base text-foreground"
+      <View className="flex-row items-center gap-1">
+        <TextInputWrapper onPaste={paste} style={{ flex: 1 }}>
+          <TextInput
+            key={seed.revision}
+            ref={inputRef}
+            defaultValue={seed.text}
+            multiline={props.question.initialAnswer !== undefined}
+            submitBehavior={props.question.initialAnswer !== undefined ? "newline" : undefined}
+            editable={!props.disabled && !voice.freezesEditor}
+            onSelectionChange={({ nativeEvent }) => setSelection(nativeEvent.selection)}
+            onChangeText={(text) => {
+              nativeText.current = text;
+              props.onChangeText(text);
+            }}
+            onFocus={() => {
+              focusedRef.current = true;
+              onInputFocusChange?.(true);
+            }}
+            onBlur={() => {
+              focusedRef.current = false;
+              onInputFocusChange?.(false);
+            }}
+            placeholder="Or type a custom answer"
+            className="min-h-[54px] rounded-2xl border border-input-border bg-input px-3.5 py-3 font-sans text-base text-foreground"
+          />
+        </TextInputWrapper>
+        {showsDictation ? null : (
+          <ComposerDictationStartAction
+            state={voice.state}
+            isAvailable={voice.isAvailable}
+            disabled={props.disabled}
+            onStart={voice.start}
+            onCancel={voice.cancel}
+          />
+        )}
+      </View>
+      {showsDictation ? (
+        <TextFieldDictationToolbar
+          voiceInput={voice}
+          presentation={presentation}
+          disabled={props.disabled}
         />
-      </TextInputWrapper>
+      ) : null}
     </View>
   );
 }
