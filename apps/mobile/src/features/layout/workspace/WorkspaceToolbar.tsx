@@ -18,7 +18,11 @@ import { useHardwareKeyboardCommand } from "../../keyboard/hardwareKeyboardComma
 import { useAdaptiveWorkspaceLayout, useWorkspacePaneState } from "../AdaptiveWorkspaceLayout";
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { shouldRestoreNativeSearch } from "./workspace-tabs-state";
-import { useFloatingWorkspaceTabs, useSidebarWorkspaceTabs } from "./useSystemWorkspaceTabBar";
+import {
+  useFloatingWorkspaceTabs,
+  useSidebarSearchCompose,
+  useSidebarWorkspaceTabs,
+} from "./useSystemWorkspaceTabBar";
 import { WorkspaceTabToolbarButtons } from "./WorkspaceSectionToolbar";
 import { useThreadListFilter } from "../../home/useThreadListFilter";
 import { workspaceFilterToolbarMenu } from "./WorkspaceFilterToolbarMenu.ios";
@@ -39,6 +43,7 @@ export function WorkspaceToolbar(props: {
   const deviceType = useDeviceType();
   const sidebarTabs = useSidebarWorkspaceTabs();
   const floatingTabs = useFloatingWorkspaceTabs();
+  const searchCompose = useSidebarSearchCompose();
   const duoSearch = NATIVE_LIQUID_GLASS_SUPPORTED && isDuoDevice(deviceType);
   const bottomSearch = duoSearch && sidebarTabs !== "picker";
   // On the Duo, compose belongs to the threads tab, in the detail column's bar when unfolded.
@@ -232,6 +237,14 @@ export function WorkspaceToolbar(props: {
       <Toolbar placement="bottom">
         {sidebarTabs === "toolbar" ? <WorkspaceTabToolbarButtons /> : null}
         {bottomSearch && searchVisible ? <Toolbar.SearchBarSlot /> : null}
+        {searchCompose ? (
+          <Toolbar.Button
+            identifier="workspace-compose"
+            accessibilityLabel="New chat"
+            icon="square.and.pencil"
+            onPress={props.onNewTask}
+          />
+        ) : null}
       </Toolbar>
     </>
   );

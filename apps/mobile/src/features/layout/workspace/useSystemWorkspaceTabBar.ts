@@ -44,3 +44,18 @@ export function useSystemWorkspaceTabBar() {
     sidebarTabs === null
   );
 }
+
+/** Landscape unfolded Duo puts compose beside the sidebar's bottom search, as Mail does. */
+export function useSidebarSearchCompose() {
+  const deviceType = useDeviceType();
+  const sidebarTabs = useSidebarWorkspaceTabs();
+  const workspace = useWorkspaceTabs();
+  return (
+    NATIVE_LIQUID_GLASS_SUPPORTED &&
+    deviceType === "duo-unfolded" &&
+    sidebarTabs !== "picker" &&
+    workspace !== null &&
+    !workspace.settingsOpen &&
+    workspace.state.selectedTab === "threads"
+  );
+}
