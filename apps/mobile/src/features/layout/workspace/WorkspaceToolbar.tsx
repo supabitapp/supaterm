@@ -20,8 +20,8 @@ import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { shouldRestoreNativeSearch } from "./workspace-tabs-state";
 import {
   useFloatingWorkspaceTabs,
-  useSidebarSearchCompose,
   useSidebarWorkspaceTabs,
+  useUnfoldedDuoCompose,
 } from "./useSystemWorkspaceTabBar";
 import { WorkspaceTabToolbarButtons } from "./WorkspaceSectionToolbar";
 import { useThreadListFilter } from "../../home/useThreadListFilter";
@@ -43,10 +43,10 @@ export function WorkspaceToolbar(props: {
   const deviceType = useDeviceType();
   const sidebarTabs = useSidebarWorkspaceTabs();
   const floatingTabs = useFloatingWorkspaceTabs();
-  const searchCompose = useSidebarSearchCompose();
+  const searchCompose = useUnfoldedDuoCompose() === "sidebar" && activeNewTask === null;
   const duoSearch = NATIVE_LIQUID_GLASS_SUPPORTED && isDuoDevice(deviceType);
   const bottomSearch = duoSearch && sidebarTabs !== "picker";
-  // On the Duo, compose belongs to the threads tab; unfolded, it sits beside search or in the detail bar.
+  // On the Duo, compose belongs to the threads tab.
   const nativeToolbarCompose =
     deviceType === "duo-folded" &&
     !workspace.settingsOpen &&

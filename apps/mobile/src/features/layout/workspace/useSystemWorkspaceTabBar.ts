@@ -1,6 +1,6 @@
 import { Platform } from "react-native";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../../native/native-glass";
-import { useAdaptiveWorkspaceLayout } from "../adaptive-workspace-context";
+import { useAdaptiveWorkspaceLayout, useWorkspacePaneState } from "../adaptive-workspace-context";
 import { useDeviceType, useNativeLayoutMetrics } from "../../../native/native-layout-metrics";
 import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { workspaceUsesColumns } from "./workspace-tabs-state";
@@ -45,17 +45,19 @@ export function useSystemWorkspaceTabBar() {
   );
 }
 
-/** Landscape unfolded Duo puts compose beside the sidebar's bottom search, as Mail does. */
-export function useSidebarSearchCompose() {
+/** Unfolded Duo shows compose beside the sidebar's bottom search, as Mail does, or in the detail bar. */
+export function useUnfoldedDuoCompose(): "sidebar" | "detail" | null {
   const deviceType = useDeviceType();
   const sidebarTabs = useSidebarWorkspaceTabs();
   const workspace = useWorkspaceTabs();
-  return (
-    NATIVE_LIQUID_GLASS_SUPPORTED &&
-    deviceType === "duo-unfolded" &&
+  const { panes } = useWorkspacePaneState();
+  if (deviceType !== "duo-unfolded" || workspace?.settingsOpen) return null;
+  const selectedTab = workspace?.state.selectedTab;
+  if (selectedTab === "pullRequests") return null;
+  return NATIVE_LIQUID_GLASS_SUPPORTED &&
     sidebarTabs !== "picker" &&
-    workspace !== null &&
-    !workspace.settingsOpen &&
-    workspace.state.selectedTab === "threads"
-  );
+    selectedTab === "threads" &&
+    panes.primarySidebarVisible
+    ? "sidebar"
+    : "detail";
 }

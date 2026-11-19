@@ -53,7 +53,7 @@ import { setNativelyPoppingWorkspaceRoute } from "./workspace/workspace-detail-s
 import { useDeviceType, useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 
 import { useAdaptiveWorkspaceLayout, useWorkspacePaneState } from "./AdaptiveWorkspaceLayout";
-import { useSidebarSearchCompose } from "./workspace/useSystemWorkspaceTabBar";
+import { useUnfoldedDuoCompose } from "./workspace/useSystemWorkspaceTabBar";
 import { WorkspacePaneDivider } from "./workspace-pane-divider";
 import { WorkspaceEmptyDetail } from "./WorkspaceEmptyDetail";
 import { NativeColumnContent as ColumnContent } from "../../native/NativeColumnContent.ios";
@@ -229,7 +229,7 @@ function WorkspaceColumns(
   } = useAdaptiveWorkspaceLayout();
   const { panes, sidebarByOrientation } = useWorkspacePaneState();
   const deviceType = useDeviceType();
-  const searchCompose = useSidebarSearchCompose();
+  const duoCompose = useUnfoldedDuoCompose();
   const inspectorWidth = nativeInspectorWidth;
   const resizeStartWidth = useRef(inspectorWidth);
   const settingsDetailIn = (detail: readonly Route[]) =>
@@ -271,14 +271,7 @@ function WorkspaceColumns(
   const settingsOpen = workspaceTabs?.settingsOpen ?? false;
   const openNewTask = startNewTask;
   // The cover detail rail needs room for thread tools above the fixed tabs.
-  // The unfolded Duo keeps compose in its detail bar unless the sidebar shows it beside search.
-  const detailCompose =
-    deviceType === "duo-unfolded" &&
-    selectedTab !== "pullRequests" &&
-    !settingsOpen &&
-    !(searchCompose && panes.primarySidebarVisible)
-      ? openNewTask
-      : undefined;
+  const detailCompose = duoCompose === "detail" ? openNewTask : undefined;
   // Pages a hidden tab opens as it's shown belong to the tab, so they appear in place.
   const headerOnly = use(NativeWorkspaceTabActivityContext)?.headerOnly === true;
   const [shownPages, setShownPages] = useState({ headerOnly, keys: new Set<string>() });
@@ -462,8 +455,8 @@ function WorkspaceColumns(
               <WorkspaceEmptyDetail
                 tab={settingsOpen ? "settings" : selectedTab}
                 onStartNewTask={
-                  // Duo provides compose in the detail bar; iPad uses the empty-state action.
-                  detailCompose ? undefined : openNewTask
+                  // Duo provides compose in a bar; iPad uses the empty-state action.
+                  duoCompose ? undefined : openNewTask
                 }
               />
             </ColumnContent>
