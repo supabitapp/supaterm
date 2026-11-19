@@ -1,4 +1,9 @@
-import { AuthAccessWriteScope, AuthSessionId, AuthStandardClientScopes } from "@supaterm/contracts";
+import {
+  AuthAccessWriteScope,
+  AuthRevokePairingLinkInput,
+  AuthSessionId,
+  AuthStandardClientScopes,
+} from "@supaterm/contracts";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -151,13 +156,23 @@ const pairingListCommand = Command.make("list", {
 
 const pairingRevokeCommand = Command.make("revoke", {
   ...authLocationFlags,
-  id: Argument.String("id").pipe(Argument.withDescription("Pairing credential id to revoke.")),
+  id: Argument.String("id").pipe(
+    Argument.withDescription("Pairing credential id to revoke."),
+    // Same schema the server applies, so both paths revoke the same id.
+    Argument.withSchema(AuthRevokePairingLinkInput.fields.id),
+  ),
 }).pipe(
   Command.withDescription("Revoke an active client pairing token."),
   Command.withHandler((flags) =>
     runWithEnvironmentAuth(flags, (environmentAuth) =>
       Effect.gen(function* () {
-        const revoked = yield* environmentAuth.revokePairingLink(flags.id);
+        const revoked = yield* changeAccess({
+          viaServer: (client) =>
+            client.auth
+              .revokePairingLink({ headers: {}, payload: { id: flags.id } })
+              .pipe(Effect.map((result) => result.revoked)),
+          locally: environmentAuth.revokePairingLink(flags.id),
+        });
         yield* Console.log(
           revoked
             ? `Revoked pairing credential ${flags.id}.\n`
