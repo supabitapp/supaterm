@@ -997,6 +997,11 @@ export const OrchestrationV2RemoteTaskChild = Schema.Struct({
    * one owed, so each reaches the thread there once however often it is sent.
    */
   stopCount: Schema.optional(NonNegativeInt),
+  /**
+   * The parent's Mark Done or Reopen still to be passed on to the thread there. One task per
+   * thread there carries it, so each reaches that thread once and in order.
+   */
+  doneOwed: Schema.optional(Schema.Literals(["mark_done", "reopen"])),
 });
 export type OrchestrationV2RemoteTaskChild = typeof OrchestrationV2RemoteTaskChild.Type;
 
@@ -3849,6 +3854,17 @@ const OrchestrationV2InternalCommand = Schema.Union([
     commandId: CommandId,
     parentThreadId: ThreadId,
     taskId: NodeId,
+  }),
+  /**
+   * The parent's Mark Done or Reopen reached the task's thread there, or never will. A newer
+   * one owed since stays owed.
+   */
+  Schema.Struct({
+    type: Schema.Literal("delegated_task.remote.done"),
+    commandId: CommandId,
+    parentThreadId: ThreadId,
+    taskId: NodeId,
+    passedOn: Schema.Literals(["mark_done", "reopen"]),
   }),
   Schema.Struct({
     type: Schema.Literal("checkpoint.rollback.fail"),

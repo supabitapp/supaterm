@@ -662,6 +662,10 @@ export interface ProjectionStoreV2Shape {
     ReadonlyArray<{ readonly parentThreadId: ThreadId; readonly taskId: NodeId }>,
     ProjectionStoreV2Error
   >;
+  /** A thread's tasks in linked environments, oldest first; none costs one index probe. */
+  readonly getRemoteDelegatedTasks: (
+    threadId: ThreadId,
+  ) => Effect.Effect<ReadonlyArray<OrchestrationV2Subagent>, ProjectionStoreV2Error>;
   readonly getTurnStartContext: (
     threadId: ThreadId,
     runId: RunId,
@@ -8493,6 +8497,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               AND json_type(payload_json, '$.remoteChild.stoppedThere') IS NOT 'true'
             )
             OR json_type(payload_json, '$.remoteChild.stoppedThere') = 'false'
+            OR json_type(payload_json, '$.remoteChild.doneOwed') = 'text'
           )
           -- A launch with no thread named yet is sent again, unless nothing was started.
           ELSE json_type(payload_json, '$.remoteLaunch.abandoned') IS NOT 'true'
@@ -8506,6 +8511,23 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       ),
       Effect.mapError((cause) => new ProjectionStoreSetupError({ cause })),
     );
+
+    const getRemoteDelegatedTasks: ProjectionStoreV2Shape["getRemoteDelegatedTasks"] = (threadId) =>
+      sql<PayloadRow>`
+        SELECT payload_json
+        FROM orchestration_v2_projection_subagents ${REMOTE_TASKS_INDEX}
+        WHERE thread_id = ${threadId}
+          AND origin = 'app_owned'
+          AND child_thread_id IS NULL
+          AND (
+            json_type(payload_json, '$.remoteChild') = 'object'
+            OR json_type(payload_json, '$.remoteLaunch') = 'object'
+          )
+        ORDER BY rowid ASC
+      `.pipe(
+        Effect.flatMap(decodeRows(decodeSubagentPayload, threadId)),
+        Effect.mapError((cause) => new ProjectionStoreSetupError({ cause })),
+      );
 
     const getThreadsWithPullRequests: ProjectionStoreV2Shape["getThreadsWithPullRequests"] =
       Effect.fn("ProjectionStore.getThreadsWithPullRequests")(
@@ -9260,6 +9282,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       getAutoMarkDoneCandidates: readOnReader(getAutoMarkDoneCandidates),
       getThreadsWithPullRequests: readOnReader(getThreadsWithPullRequests),
       getOpenRemoteDelegatedTasks: getOpenRemoteDelegatedTasks.pipe(NodeSqliteClient.readOnly),
+      getRemoteDelegatedTasks: readOnReader(getRemoteDelegatedTasks),
       getThreadTitles: readOnReader(getThreadTitles),
       getThreadLinkMetadata: readOnReader(getThreadLinkMetadata),
       getThreadWorktreePaths: readOnReader(getThreadWorktreePaths),

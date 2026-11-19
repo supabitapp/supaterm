@@ -141,6 +141,11 @@ interface BoxThread {
   readonly sent: Ref.Ref<ReadonlyArray<string>>;
   /** Runs as the launch there is answered, before the laptop hears back. */
   readonly afterLaunch: Ref.Ref<Effect.Effect<void>>;
+  /** Each Mark Done and Reopen the thread there took, in order. */
+  readonly organized: Queue.Queue<"mark_done" | "reopen">;
+  /** Why the thread there refuses Mark Done, as one still in use there does. */
+  readonly doneRefusal: Ref.Ref<string | null>;
+  readonly doneRefused: Ref.Ref<number>;
 }
 
 const makeBoxThread = Effect.gen(function* () {
@@ -179,6 +184,9 @@ const makeBoxThread = Effect.gen(function* () {
     releaseStop: yield* Deferred.make<void>(),
     sent: yield* Ref.make<ReadonlyArray<string>>([]),
     afterLaunch: yield* Ref.make<Effect.Effect<void>>(Effect.void),
+    organized: yield* Queue.unbounded<"mark_done" | "reopen">(),
+    doneRefusal: yield* Ref.make<string | null>(null),
+    doneRefused: yield* Ref.make(0),
   } satisfies BoxThread;
 });
 
@@ -491,7 +499,25 @@ const boxToolkitLayer = (thread: BoxThread) => {
             ),
             Effect.as({ sequence: 0, storedEvents: [] } as never),
           )
-        : Effect.die(`The box does not expect ${command.type}`),
+        : command.type === "thread.reopen"
+          ? Queue.offer(thread.organized, "reopen").pipe(
+              Effect.as({ sequence: 0, storedEvents: [] } as never),
+            )
+          : Effect.die(`The box does not expect ${command.type}`),
+    markThreadDone: (input) =>
+      Effect.gen(function* () {
+        const refusal = yield* Ref.get(thread.doneRefusal);
+        if (refusal !== null) {
+          yield* Ref.update(thread.doneRefused, (count) => count + 1);
+          return yield* new Orchestrator.OrchestratorDispatchError({
+            commandId: input.commandId,
+            commandType: "thread.mark-done",
+            cause: refusal,
+          });
+        }
+        yield* Queue.offer(thread.organized, "mark_done");
+        return { sequence: 0 };
+      }),
     stopDelegatedTasks: (input) => recordStop(input.commandId, "delegated-tasks"),
     sendToThread: (input) =>
       Ref.update(thread.sent, (seen) => [...seen, input.text]).pipe(
@@ -544,8 +570,9 @@ const boxToolkitLayer = (thread: BoxThread) => {
         ),
       ),
   });
-  return Layer.merge(
+  return Layer.mergeAll(
     McpHttpServer.layerOrchestratorToolkit,
+    McpHttpServer.layerThreadToolkit,
     McpHttpServer.layerProjectRegistration,
   ).pipe(
     Layer.provide(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
@@ -2669,6 +2696,162 @@ it.effect("a task cancelled while the box is unreachable is stopped there after 
       expect(yield* Ref.get(thread.stops)).toEqual(["thread.stop", "delegated-tasks"]);
       // The result here is still the cancel's.
       expect(yield* taskResult(after, delegated.taskId)).toMatchObject({ status: "cancelled" });
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+/** Ends the parent's own run, as its turn finishing does; only then can it be marked Done. */
+const endParentRun = (laptopEnv: Effect.Success<ReturnType<typeof makeLaptop>>) =>
+  Effect.gen(function* () {
+    const now = yield* DateTime.now;
+    const projection = yield* laptopEnv.orchestrator.getThreadProjection(parentThreadId);
+    const run = projection.runs.find((candidate) => candidate.id === parentRunId)!;
+    yield* laptopEnv.sink.write({
+      commandId: CommandId.make("command:seed:laptop-parent-run-ended"),
+      events: [
+        {
+          id: EventId.make("event:seed-run-ended:laptop-parent"),
+          type: "run.updated",
+          threadId: parentThreadId,
+          runId: parentRunId,
+          nodeId: parentRootNode,
+          providerInstanceId: instanceId,
+          occurredAt: now,
+          payload: { ...run, status: "completed", completedAt: now },
+        },
+      ],
+    });
+  });
+
+/** Waits until nothing of the parent's Mark Done or Reopen is owed to the task's thread there. */
+const nothingOwedThere = (
+  laptopEnv: Effect.Success<ReturnType<typeof makeLaptop>>,
+  taskId: NodeId,
+  afterSequence: number,
+) =>
+  laptopEnv.orchestrator
+    .streamStoredEventsFrom({
+      threadId: parentThreadId,
+      afterSequence,
+      eventType: "subagent.updated",
+    })
+    .pipe(
+      Stream.filter(
+        (stored) =>
+          stored.event.type === "subagent.updated" &&
+          stored.event.payload.id === taskId &&
+          stored.event.payload.remoteChild?.doneOwed === undefined,
+      ),
+      Stream.runHead,
+    );
+
+it.effect("a parent marked Done marks its task's thread there Done after a restart", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const linking = yield* layerLinkingEnvironment(laptop).pipe(Layer.build);
+      // The parent is marked Done while the box sleeps, and the laptop restarts before it wakes.
+      const delegated = yield* Effect.scoped(
+        Effect.gen(function* () {
+          const before = yield* makeLaptop(database, offers, linking);
+          yield* before.remote.start();
+          yield* linkTo(before.links, b, "full-access");
+          yield* seedParent(before);
+          const task = yield* delegateToBox(before);
+          yield* Ref.set(thread.status, "completed");
+          yield* Deferred.succeed(thread.finished, undefined);
+          yield* taskResult(before, task.taskId);
+          yield* endParentRun(before);
+          yield* Ref.set(b.descriptor, descriptorOf("environment-elsewhere", "Elsewhere"));
+          yield* before.threads.markThreadDone({
+            threadId: parentThreadId,
+            commandId: CommandId.make("command:mark-done:laptop-parent"),
+            byOwnAgent: false,
+          });
+          return task;
+        }),
+      );
+      expect(yield* Queue.size(thread.organized)).toBe(0);
+
+      yield* Ref.set(b.descriptor, box);
+      const after = yield* makeLaptop(database, offers, linking);
+      expect(yield* after.projections.getOpenRemoteDelegatedTasks).toEqual([
+        { parentThreadId, taskId: delegated.taskId },
+      ]);
+      yield* after.remote.start();
+      expect(yield* Queue.take(thread.organized)).toBe("mark_done");
+
+      // Reopening the parent here reopens the thread there.
+      const reopened = yield* after.orchestrator.dispatch({
+        type: "thread.reopen",
+        commandId: CommandId.make("command:reopen:laptop-parent"),
+        threadId: parentThreadId,
+        reason: "user",
+      });
+      expect(yield* Queue.take(thread.organized)).toBe("reopen");
+      yield* nothingOwedThere(after, delegated.taskId, reopened.sequence);
+      expect(yield* after.projections.getOpenRemoteDelegatedTasks).toEqual([]);
+      expect(yield* Queue.size(thread.organized)).toBe(0);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect.each([
+  {
+    name: "the thread there refuses because it is in use",
+    undo: false,
+    refusal: "Thread thread:box is still running. Stop it before marking it as Done.",
+  },
+  { name: "the parent took new work before it was sent", undo: true, refusal: null },
+])("a Done is dropped instead of retried when $name", ({ undo, refusal }) =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const retries = yield* steppedRetries;
+      const a = yield* makeLaptop(database, offers).pipe(
+        Effect.provideService(RemoteDelegation.FollowRetrySchedule, retries.schedule),
+      );
+      yield* a.remote.start();
+      yield* linkTo(a.links, b, "full-access");
+      yield* seedParent(a);
+      const delegated = yield* delegateToBox(a);
+      yield* Ref.set(thread.status, "completed");
+      yield* Deferred.succeed(thread.finished, undefined);
+      yield* taskResult(a, delegated.taskId);
+      yield* endParentRun(a);
+      yield* Ref.set(thread.doneRefusal, refusal);
+      // The box sleeps through the first attempt only when the parent is to change meanwhile.
+      if (undo) yield* Ref.set(b.descriptor, descriptorOf("environment-elsewhere", "Elsewhere"));
+      const marked = yield* a.threads.markThreadDone({
+        threadId: parentThreadId,
+        commandId: CommandId.make("command:mark-done:laptop-parent"),
+        byOwnAgent: false,
+      });
+      if (undo) {
+        yield* Queue.take(retries.failed);
+        // Pinning promotes the parent out of Done without anyone pressing Reopen.
+        yield* a.orchestrator.dispatch({
+          type: "thread.pin",
+          commandId: CommandId.make("command:pin:laptop-parent"),
+          threadId: parentThreadId,
+        });
+        yield* Ref.set(b.descriptor, box);
+        yield* Queue.offer(retries.retry, undefined);
+      }
+      yield* nothingOwedThere(a, delegated.taskId, "sequence" in marked ? marked.sequence : 0);
+      expect(yield* a.projections.getOpenRemoteDelegatedTasks).toEqual([]);
+      expect(yield* Queue.size(thread.organized)).toBe(0);
+      expect(yield* Ref.get(thread.doneRefused)).toBe(undo ? 0 : 1);
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );

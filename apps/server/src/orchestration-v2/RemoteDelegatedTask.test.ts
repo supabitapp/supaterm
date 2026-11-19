@@ -576,4 +576,113 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
       assert.equal(attach._tag, "OrchestratorDispatchError");
     }),
   );
+
+  it.effect("owes its parent's Mark Done and Reopen to each thread there once, newest last", () =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const sink = yield* EventSink.EventSinkV2;
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const parent = yield* seedLiveParent("done-owed");
+      const elsewhere = { ...remoteChild, threadId: ThreadId.make("thread:also-on-the-box") };
+      // A follow-up shares its task's thread there; a third task has a thread of its own.
+      for (const [name, there] of [
+        ["first", remoteChild],
+        ["follow-up", remoteChild],
+        ["other", elsewhere],
+      ] as const) {
+        yield* orchestrator.dispatch({
+          type: "delegated_task.remote.request",
+          commandId: CommandId.make(`command:remote-delegate:done-owed:${name}`),
+          parentThreadId: parent.threadId,
+          parentRunId: parent.runId,
+          parentNodeId: parent.rootNodeId,
+          task: "Run a check.",
+          driver: ProviderDriverKind.make("remote"),
+          modelSelection,
+          remote: { remoteChild: there },
+        });
+      }
+      const tasks = (yield* projections.getRemoteDelegatedTasks(parent.threadId)).map(
+        (task) => task.id,
+      );
+      for (const taskId of tasks) {
+        yield* orchestrator.dispatch({
+          type: "delegated_task.remote.complete",
+          commandId: CommandId.make(`command:result:done-owed:${taskId}`),
+          parentThreadId: parent.threadId,
+          taskId,
+          status: "completed",
+          result: "All green.",
+          stoppedThere: "ran-out",
+        });
+      }
+      const now = yield* DateTime.now;
+      const run = (yield* orchestrator.getThreadProjection(parent.threadId)).runs[0]!;
+      yield* sink.write({
+        commandId: CommandId.make("command:seed:done-owed:run-ended"),
+        events: [
+          {
+            id: EventId.make("event:seed-run-ended:done-owed"),
+            type: "run.updated",
+            threadId: parent.threadId,
+            runId: parent.runId,
+            nodeId: parent.rootNodeId,
+            providerInstanceId: instanceId,
+            occurredAt: now,
+            payload: { ...run, status: "completed", completedAt: now },
+          },
+        ],
+      });
+      const owed = projections
+        .getRemoteDelegatedTasks(parent.threadId)
+        .pipe(Effect.map((all) => all.map((task) => task.remoteChild?.doneOwed)));
+      const openFor = projections.getOpenRemoteDelegatedTasks.pipe(
+        Effect.map((open) =>
+          open.flatMap((entry) => (entry.parentThreadId === parent.threadId ? [entry.taskId] : [])),
+        ),
+      );
+      assert.deepEqual(yield* openFor, []);
+
+      yield* orchestrator.dispatch({
+        type: "thread.mark-done",
+        commandId: CommandId.make("command:mark-done:done-owed"),
+        threadId: parent.threadId,
+      });
+      assert.deepEqual(yield* owed, [undefined, "mark_done", "mark_done"]);
+      assert.sameMembers(yield* openFor, [tasks[1]!, tasks[2]!]);
+
+      yield* orchestrator.dispatch({
+        type: "thread.reopen",
+        commandId: CommandId.make("command:reopen:done-owed"),
+        threadId: parent.threadId,
+        reason: "user",
+      });
+      assert.deepEqual(yield* owed, [undefined, "reopen", "reopen"]);
+      const passOn = (taskId: NodeId, passedOn: "mark_done" | "reopen") =>
+        orchestrator.dispatch({
+          type: "delegated_task.remote.done",
+          commandId: CommandId.make(`command:done-owed:${taskId}:${passedOn}`),
+          parentThreadId: parent.threadId,
+          taskId,
+          passedOn,
+        });
+      // The Done sent before the Reopen answers late and leaves the Reopen owed.
+      const stale = yield* passOn(tasks[1]!, "mark_done").pipe(Effect.flip);
+      assert.equal(stale._tag, "OrchestratorDispatchError");
+      assert.deepEqual(yield* owed, [undefined, "reopen", "reopen"]);
+      yield* passOn(tasks[1]!, "reopen");
+      yield* passOn(tasks[2]!, "reopen");
+      assert.deepEqual(yield* owed, [undefined, undefined, undefined]);
+      assert.deepEqual(yield* openFor, []);
+
+      // Reopening a thread that was not Done owes nothing there.
+      yield* orchestrator.dispatch({
+        type: "thread.reopen",
+        commandId: CommandId.make("command:reopen-again:done-owed"),
+        threadId: parent.threadId,
+        reason: "user",
+      });
+      assert.deepEqual(yield* owed, [undefined, undefined, undefined]);
+    }),
+  );
 });

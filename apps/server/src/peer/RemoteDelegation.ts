@@ -11,6 +11,7 @@ import {
   type OrchestratorMcpThreadSendInput,
   type OrchestratorMcpThreadSendResult,
   type OrchestratorMcpThreadTimelineItem,
+  type OrchestrationV2AppThread,
   type OrchestrationV2RemoteTaskChild,
   type OrchestrationV2RemoteTaskLaunch,
   type OrchestrationV2Subagent,
@@ -954,7 +955,10 @@ const make = Effect.gen(function* () {
         );
         return yield* settled(parentThreadId, taskId);
       }
-      return true;
+      if (remote.doneOwed === undefined) return true;
+      yield* passOnDone(thread, taskId, remote, remote.doneOwed);
+      // The next look sends one owed since.
+      return false;
     }
     const endedHere = threads
       .streamStoredEventsFrom({
@@ -1048,8 +1052,71 @@ const make = Effect.gen(function* () {
    */
   const settled = (parentThreadId: ThreadId, taskId: NodeId) =>
     readTask(parentThreadId, taskId).pipe(
-      Effect.map(({ task }) => task?.remoteChild?.stoppedThere === true),
+      Effect.map(
+        ({ task }) =>
+          task?.remoteChild?.stoppedThere === true && task.remoteChild.doneOwed === undefined,
+      ),
     );
+
+  /**
+   * Passes the parent's Mark Done or Reopen on to the task's thread there, once the task has
+   * its result. A Done that new work here undid since is dropped. So is one the thread there
+   * refuses while it still answers reads: it is in use there and stays as its users left it.
+   * An environment that does not answer is asked again, across restarts.
+   */
+  const passOnDone = Effect.fn("RemoteDelegation.passOnDone")(function* (
+    parent: OrchestrationV2AppThread,
+    taskId: NodeId,
+    remote: OrchestrationV2RemoteTaskChild,
+    owed: "mark_done" | "reopen",
+  ) {
+    if (owed === "reopen" || parent.doneOverride === "done") {
+      const scope = followScope(
+        { threadId: parent.id, providerInstanceId: parent.providerInstanceId },
+        remote,
+      );
+      yield* forwarding
+        .setThreadDone(scope, remote.environmentId, { threadId: remote.threadId, action: owed })
+        .pipe(
+          Effect.catch(
+            Effect.fn("RemoteDelegation.doneRefused")(function* (error) {
+              const final =
+                isModeRefusal(error) ||
+                (yield* finalReason(parent.id, taskId, error)) !== undefined;
+              if (!final) {
+                yield* forwarding
+                  .readThread(scope, remote.environmentId, { threadId: remote.threadId, limit: 1 })
+                  .pipe(Effect.mapError(() => error));
+              }
+              yield* Effect.logInfo("A linked environment kept a delegated thread as it was", {
+                taskId,
+                owed,
+                reason: error.message,
+              });
+            }),
+          ),
+        );
+    }
+    const attempt = yield* random.uuidV4();
+    yield* threads
+      .dispatch({
+        type: "delegated_task.remote.done",
+        commandId: CommandId.make(`command:remote-task-done:${taskId}:${attempt}`),
+        parentThreadId: parent.id,
+        taskId,
+        passedOn: owed,
+      })
+      .pipe(
+        // Refused when a newer one replaced it, which the next look sends.
+        Effect.catch((error) =>
+          readTask(parent.id, taskId).pipe(
+            Effect.flatMap(({ task }) =>
+              task?.remoteChild?.doneOwed === owed ? Effect.fail(error) : Effect.void,
+            ),
+          ),
+        ),
+      );
+  });
 
   const following = new Map<NodeId, { again: boolean }>();
 
@@ -1223,6 +1290,7 @@ const make = Effect.gen(function* () {
         yield* Stream.runForEach(threads.streamDomainEvents, (event) =>
           event.type === "subagent.updated" &&
           (event.payload.remoteChild?.stoppedThere === false ||
+            event.payload.remoteChild?.doneOwed !== undefined ||
             // Ended here before its launch was answered: the thread there is still to stop.
             (event.payload.remoteChild === undefined &&
               event.payload.remoteLaunch !== undefined &&

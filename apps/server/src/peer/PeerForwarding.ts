@@ -10,6 +10,7 @@ import {
   OrchestratorMcpThreadWaitResult,
   type PeerLinkError,
   RuntimeMode,
+  ThreadId,
 } from "@supaterm/contracts";
 import * as Context from "effect/Context";
 import * as Digest from "effect/crypto/Digest";
@@ -66,6 +67,12 @@ export class PeerForwarding extends Context.Service<
       environmentId: EnvironmentId,
       input: OrchestratorMcpThreadInterruptInput,
     ) => Effect.Effect<OrchestratorMcpThreadInterruptResult, OrchestratorMcpFailure>;
+    /** Marks a thread there Done, or reopens it, as `supaterm_thread_organize` does. */
+    readonly setThreadDone: (
+      scope: Scope,
+      environmentId: EnvironmentId,
+      input: { readonly threadId: ThreadId; readonly action: "mark_done" | "reopen" },
+    ) => Effect.Effect<void, OrchestratorMcpFailure>;
     /** `supaterm_thread_wait` there, bounded like a local wait. */
     readonly waitForThread: (
       scope: Scope,
@@ -87,6 +94,11 @@ export const linkedEnvironmentsOff = new OrchestratorMcpFailure({
 });
 
 const isRuntimeMode = Schema.is(RuntimeMode);
+
+const ThreadDoneInput = Schema.Struct({
+  threadId: ThreadId,
+  action: Schema.Literals(["mark_done", "reopen"]),
+});
 
 const linkStorageFailure = (error: PeerLinkError) =>
   new OrchestratorMcpFailure({ code: "orchestration_error", message: error.message });
@@ -215,6 +227,16 @@ const make = Effect.gen(function* () {
       input,
     );
 
+  const setThreadDone: PeerForwarding["Service"]["setThreadDone"] = (scope, environmentId, input) =>
+    forward<unknown>(
+      scope,
+      "supaterm_thread_organize",
+      ThreadDoneInput,
+      Schema.Unknown,
+      environmentId,
+      input,
+    ).pipe(Effect.asVoid);
+
   const waitForThread: PeerForwarding["Service"]["waitForThread"] = (scope, environmentId, input) =>
     forward<OrchestratorMcpThreadWaitResult>(
       scope,
@@ -282,6 +304,7 @@ const make = Effect.gen(function* () {
     call,
     readThread,
     interruptThread,
+    setThreadDone,
     waitForThread,
     links: listLinks,
   });

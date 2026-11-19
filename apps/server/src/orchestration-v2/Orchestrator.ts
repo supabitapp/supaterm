@@ -664,6 +664,7 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "delegated_task.remote.attach":
     case "delegated_task.remote.complete":
     case "delegated_task.remote.stop":
+    case "delegated_task.remote.done":
     case "delegated_task.wake-policy":
     case "delegated_task.completion-delivery.acknowledge":
     case "delegated_task.completion-delivery.dispose":
@@ -5118,6 +5119,12 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       occurredAt: now,
       payload: updatedThread,
     });
+    if (
+      command.type === "thread.mark-done" ||
+      (command.type === "thread.reopen" && thread.doneOverride === "done")
+    ) {
+      yield* emitRemoteDoneOwed(events, command, now);
+    }
 
     if (
       command.type === "thread.model-selection.set" &&
@@ -10153,6 +10160,97 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     });
   });
 
+  /**
+   * A thread marked Done or reopened passes that on to the threads its tasks ran on in linked
+   * environments, where the task's follower sends it. The latest task of each thread there
+   * carries it and the others drop theirs, so one follower sends them in order.
+   */
+  const emitRemoteDoneOwed = Effect.fn("orchestrationV2.dispatch.remoteDoneOwed")(function* (
+    events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
+    command: Extract<
+      OrchestrationV2ServerCommand,
+      { readonly type: "thread.mark-done" | "thread.reopen" }
+    >,
+    now: DateTime.Utc,
+  ) {
+    const tasks = yield* projectionStore
+      .getRemoteDelegatedTasks(command.threadId)
+      .pipe(
+        Effect.mapError(
+          (cause) => new OrchestratorProjectionError({ threadId: command.threadId, cause }),
+        ),
+      );
+    const thereOf = (remote: OrchestrationV2RemoteTaskChild) =>
+      `${remote.environmentId}\n${remote.threadId}`;
+    const carriers = new Map<string, NodeId>();
+    for (const task of tasks) {
+      if (task.remoteChild !== undefined) carriers.set(thereOf(task.remoteChild), task.id);
+    }
+    const owed = command.type === "thread.mark-done" ? "mark_done" : "reopen";
+    for (const task of tasks) {
+      if (task.remoteChild === undefined) continue;
+      const { doneOwed, ...remoteChild } = task.remoteChild;
+      const next = carriers.get(thereOf(remoteChild)) === task.id ? owed : undefined;
+      if (doneOwed === next) continue;
+      yield* emit(
+        events,
+        command,
+      )({
+        type: "subagent.updated",
+        threadId: command.threadId,
+        ...(task.runId === null ? {} : { runId: task.runId }),
+        nodeId: task.id,
+        driver: task.driver,
+        occurredAt: now,
+        payload: {
+          ...task,
+          remoteChild: next === undefined ? remoteChild : { ...remoteChild, doneOwed: next },
+          updatedAt: now,
+        },
+      });
+    }
+  });
+
+  const dispatchRemoteDelegatedTaskDone = Effect.fn(
+    "orchestrationV2.dispatch.remoteDelegatedTaskDone",
+  )(function* (
+    command: Extract<
+      OrchestrationV2InternalCommand,
+      { readonly type: "delegated_task.remote.done" }
+    >,
+    events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
+  ) {
+    const { subagents } = yield* projectionStore
+      .getThreadRecords(command.parentThreadId, ["subagents"], { subagentIds: [command.taskId] })
+      .pipe(
+        Effect.mapError(
+          (cause) => new OrchestratorProjectionError({ threadId: command.parentThreadId, cause }),
+        ),
+      );
+    const task = subagents.find((candidate) => candidate.id === command.taskId);
+    if (task?.remoteChild?.doneOwed !== command.passedOn) {
+      return yield* new OrchestratorDispatchError({
+        commandId: command.commandId,
+        commandType: command.type,
+        cause: `Delegated task ${command.taskId} of thread ${command.parentThreadId} no longer owes ${command.passedOn} to its thread there.`,
+      });
+    }
+    const { doneOwed: _, ...remoteChild } = task.remoteChild;
+    const now = yield* DateTime.now;
+    yield* emit(
+      events,
+      command,
+    )({
+      type: "subagent.updated",
+      threadId: command.parentThreadId,
+      ...(task.runId === null ? {} : { runId: task.runId }),
+      nodeId: task.id,
+      driver: task.driver,
+      occurredAt: now,
+      payload: { ...task, remoteChild, updatedAt: now },
+    });
+  });
+
   // After blocking waits time out, enable later completions to wake the parent.
   // Hold the parent dispatch lock shared with finalization to serialize full-row writes.
   const dispatchDelegatedTaskWakePolicy = Effect.fn(
@@ -15051,6 +15149,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         break;
       case "delegated_task.remote.stop":
         yield* dispatchRemoteDelegatedTaskStop(command, events);
+        break;
+      case "delegated_task.remote.done":
+        yield* dispatchRemoteDelegatedTaskDone(command, events);
         break;
       case "delegated_task.wake-policy":
         updateDelegatedCompletionOnlyRunId = yield* dispatchDelegatedTaskWakePolicy(
