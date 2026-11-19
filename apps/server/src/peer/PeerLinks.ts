@@ -86,7 +86,7 @@ export interface ResolvedPeerLink {
 }
 
 export const LINKED_ENVIRONMENTS_OFF =
-  "Linked environments is off on this machine. Turn it on in Settings → Connections.";
+  "Linked environments is off on this machine. Turn it on in Settings → Environments.";
 
 /** One owner holds every link's relay tunnel, so a tunnel outlives the client that asked for the link. */
 const RELAY_LEASE_OWNER = "peer-links";
@@ -111,7 +111,7 @@ const isRelayAddress = (address: string) => relayAddressOf(address) !== null;
 export class PeerLinks extends Context.Service<
   PeerLinks,
   {
-    /** Whether the Linked environments beta (Settings → Connections) is on here. */
+    /** Whether the Linked environments beta (Settings → Environments) is on here. */
     readonly enabled: Effect.Effect<boolean>;
     readonly link: (input: PeerLinkCreateInput) => Effect.Effect<PeerLink, PeerLinkError>;
     readonly list: Effect.Effect<ReadonlyArray<PeerLinkSummary>, PeerLinkError>;

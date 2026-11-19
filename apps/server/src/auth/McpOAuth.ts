@@ -341,7 +341,7 @@ const make = Effect.gen(function* () {
         return yield* new AuthMcpRegistrationError({
           error: "invalid_client_metadata",
           error_description:
-            "Linked environments is off on that machine. Turn it on in its Settings → Connections.",
+            "Linked environments is off on that machine. Turn it on in its Settings → Environments.",
         });
       }
       const clientId = yield* signClientId(name, redirectUris, peerLink);

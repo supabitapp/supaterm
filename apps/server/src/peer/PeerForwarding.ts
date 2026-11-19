@@ -90,7 +90,7 @@ export class PeerForwarding extends Context.Service<
 export const linkedEnvironmentsOff = new OrchestratorMcpFailure({
   code: "capability_denied",
   message:
-    "Linked environments is off on this machine, so no tool can act on another machine. Leave out environmentId to work here; the user can turn it on in Settings → Connections.",
+    "Linked environments is off on this machine, so no tool can act on another machine. Leave out environmentId to work here; the user can turn it on in Settings → Environments.",
 });
 
 const isRuntimeMode = Schema.is(RuntimeMode);

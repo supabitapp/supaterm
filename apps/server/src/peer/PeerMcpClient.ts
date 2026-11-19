@@ -87,7 +87,7 @@ const fromLinkError = (error: PeerLinkError) =>
 const linkedEnvironmentsOffThere = new OrchestratorMcpFailure({
   code: "orchestration_error",
   message:
-    "The linked environment has Linked environments turned off. Turn it on in its Settings → Connections.",
+    "The linked environment has Linked environments turned off. Turn it on in its Settings → Environments.",
 });
 
 const stoppedAnswering = new OrchestratorMcpFailure({
