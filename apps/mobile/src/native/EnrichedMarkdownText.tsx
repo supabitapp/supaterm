@@ -11,6 +11,7 @@ import {
   markdownForNativeParsing,
   markdownWithInlineFileLinks,
   markdownWithTableBreaks,
+  markdownWithTextDirection,
 } from "../lib/markdownDocument";
 import { markdownMermaidMedia } from "../lib/markdownMermaidMedia";
 import { NativeMermaidBlock } from "./NativeMermaidBlock";
@@ -185,7 +186,9 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     if (!fileEmbedLabel) {
       return {
         ...markdownMermaidMedia(
-          markdownForNativeRendering(props.markdown, ENRICHED_INLINE_FILE_LINK_REGEX),
+          markdownWithTextDirection(
+            markdownForNativeRendering(props.markdown, ENRICHED_INLINE_FILE_LINK_REGEX),
+          ),
         ),
         fileHrefs: new Set<string>(),
       };
@@ -196,7 +199,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
     );
     const files = markdownWithFileEmbeds(content, fileEmbedLabel);
     return {
-      ...markdownMermaidMedia(markdownWithTableBreaks(files.markdown)),
+      ...markdownMermaidMedia(markdownWithTextDirection(markdownWithTableBreaks(files.markdown))),
       fileHrefs: files.fileHrefs,
     };
   }, [props.markdown, fileEmbedLabel]);
