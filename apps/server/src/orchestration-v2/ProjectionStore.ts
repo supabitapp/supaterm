@@ -1160,6 +1160,7 @@ type ShellThreadRow = {
   readonly blocking_failure_payload_json: string | null;
   readonly pending_request_payload_json: string | null;
   readonly pending_secret_request_payload_json: string | null;
+  readonly pending_link_request_payload_json: string | null;
   readonly latest_user_message_at: string | null;
   readonly latest_user_authored_message_at: string | null;
   readonly has_actionable_proposed_plan: number;
@@ -1700,7 +1701,8 @@ function pendingRuntimeRequestSummary(
 function secretRequestAsPendingInput(
   item: OrchestrationV2TurnItem | null,
 ): OrchestrationV2PendingRuntimeRequestSummary | null {
-  if (item?.type !== "secret_request" || item.nodeId === null) return null;
+  if ((item?.type !== "secret_request" && item?.type !== "link_request") || item.nodeId === null)
+    return null;
   return {
     id: RuntimeRequestId.make(item.id),
     kind: "user_input",
@@ -1710,9 +1712,25 @@ function secretRequestAsPendingInput(
   };
 }
 
-/** A secret card is answered while its agent waits in the run. */
-const waitsOnUser = (item: OrchestrationV2TurnItem, liveRunIds: ReadonlySet<RunId>) =>
-  item.type === "secret_request" && item.runId !== null && liveRunIds.has(item.runId);
+/**
+ * A secret card is answered while its agent waits in the run. A link card's
+ * agent asked without waiting, so the card waits on the user after its run,
+ * until the user writes in the thread again and so has moved past it.
+ */
+const waitsOnUser = (
+  item: OrchestrationV2TurnItem,
+  liveRunIds: ReadonlySet<RunId>,
+  latestUserAuthoredMessageAt: DateTime.Utc | null,
+) =>
+  (item.type === "link_request" && linkCardStillAsks(item, latestUserAuthoredMessageAt)) ||
+  (item.type === "secret_request" && item.runId !== null && liveRunIds.has(item.runId));
+
+const linkCardStillAsks = (
+  item: OrchestrationV2TurnItem,
+  latestUserAuthoredMessageAt: DateTime.Utc | null,
+) =>
+  latestUserAuthoredMessageAt === null ||
+  !DateTime.isGreaterThan(latestUserAuthoredMessageAt, item.startedAt ?? item.updatedAt);
 
 export function threadShellFromProjection(
   projection: OrchestrationV2ThreadProjection,
@@ -1750,10 +1768,21 @@ export function threadShellFromProjection(
           DateTime.toEpochMillis(right.createdAt) - DateTime.toEpochMillis(left.createdAt),
       )[0] ?? null,
   );
+  const userMessages = projection.messages
+    .filter((message) => message.role === "user")
+    .toSorted(
+      (left, right) =>
+        DateTime.toEpochMillis(right.updatedAt) - DateTime.toEpochMillis(left.updatedAt),
+    );
+  const latestUserAuthoredMessageAt =
+    userMessages.find((message) => message.createdBy === "user")?.updatedAt ?? null;
   if (pendingRuntimeRequest === null || pendingRuntimeRequest.kind === "user_input") {
     const waitingCard = secretRequestAsPendingInput(
       projection.turnItems
-        .filter((item) => item.status === "waiting" && waitsOnUser(item, liveRunIds))
+        .filter(
+          (item) =>
+            item.status === "waiting" && waitsOnUser(item, liveRunIds, latestUserAuthoredMessageAt),
+        )
         .toSorted(
           (left, right) =>
             DateTime.toEpochMillis(right.updatedAt) - DateTime.toEpochMillis(left.updatedAt),
@@ -1768,12 +1797,6 @@ export function threadShellFromProjection(
       pendingRuntimeRequest = waitingCard;
     }
   }
-  const userMessages = projection.messages
-    .filter((message) => message.role === "user")
-    .toSorted(
-      (left, right) =>
-        DateTime.toEpochMillis(right.updatedAt) - DateTime.toEpochMillis(left.updatedAt),
-    );
   const latestUserMessage = userMessages[0] ?? null;
   const pendingBackgroundTasks = derivePendingBackgroundWork({
     latestRun,
@@ -8036,6 +8059,15 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 LIMIT 1
               ) AS pending_secret_request_payload_json,
               (
+                SELECT link.payload_json
+                FROM orchestration_v2_projection_turn_items link
+                  INDEXED BY orchestration_v2_projection_turn_items_waiting_link_idx
+                WHERE link.thread_id = t.thread_id
+                  AND link.type = 'link_request' AND link.status = 'waiting'
+                ORDER BY link.updated_at DESC, link.turn_item_id DESC
+                LIMIT 1
+              ) AS pending_link_request_payload_json,
+              (
                 SELECT message.updated_at
                 FROM orchestration_v2_projection_messages message
                 WHERE message.thread_id = t.thread_id
@@ -8412,6 +8444,21 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 SELECT 1 FROM orchestration_v2_projection_runtime_requests request
                 WHERE request.thread_id = t.thread_id AND request.status = 'pending'
               )
+              AND NOT EXISTS (
+                SELECT 1 FROM orchestration_v2_projection_turn_items link
+                  INDEXED BY orchestration_v2_projection_turn_items_waiting_link_idx
+                WHERE link.thread_id = t.thread_id
+                  AND link.type = 'link_request' AND link.status = 'waiting'
+                  -- linkCardStillAsks: once the user writes after the card, it stops asking.
+                  AND NOT EXISTS (
+                    SELECT 1 FROM orchestration_v2_projection_messages message
+                    WHERE message.thread_id = t.thread_id AND message.role = 'user'
+                      AND json_extract(message.payload_json, '$.createdBy') = 'user'
+                      AND message.updated_at > COALESCE(
+                        json_extract(link.payload_json, '$.startedAt'), link.updated_at
+                      )
+                  )
+              )
             ORDER BY t.updated_at ASC, t.thread_id ASC
           `;
             if (rows.length === 0) return [];
@@ -8603,18 +8650,39 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           pendingTurnItemsByThreadId,
         } = input;
         const thread = yield* decodeThreadPayload(row.payload_json);
-        const waitingSecret =
+        const latestUserAuthoredMessageAt =
+          row.latest_user_authored_message_at === null
+            ? null
+            : DateTime.makeUnsafe(row.latest_user_authored_message_at);
+        const waitingCards = [
           row.pending_secret_request_payload_json === null
             ? null
-            : yield* decodeTurnItemPayload(row.pending_secret_request_payload_json);
+            : yield* decodeTurnItemPayload(row.pending_secret_request_payload_json),
+          row.pending_link_request_payload_json === null
+            ? null
+            : yield* decodeTurnItemPayload(row.pending_link_request_payload_json),
+        ]
+          .filter((item) => item !== null)
+          .filter(
+            (item) =>
+              item.type !== "link_request" || linkCardStillAsks(item, latestUserAuthoredMessageAt),
+          );
         let pendingRuntimeRequest =
           row.pending_request_payload_json !== null
             ? pendingRuntimeRequestSummary(
                 yield* decodeRuntimeRequestPayload(row.pending_request_payload_json),
               )
             : null;
-        if (pendingRuntimeRequest === null || pendingRuntimeRequest.kind === "user_input") {
-          const waitingCard = secretRequestAsPendingInput(waitingSecret);
+        if (
+          (pendingRuntimeRequest === null || pendingRuntimeRequest.kind === "user_input") &&
+          waitingCards.length > 0
+        ) {
+          const waitingCard = secretRequestAsPendingInput(
+            waitingCards.toSorted(
+              (left, right) =>
+                DateTime.toEpochMillis(right.updatedAt) - DateTime.toEpochMillis(left.updatedAt),
+            )[0] ?? null,
+          );
           if (
             waitingCard !== null &&
             (pendingRuntimeRequest === null ||
@@ -8989,6 +9057,12 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               WHERE item.thread_id = t.thread_id
                 AND item.type IN ('command_execution', 'dynamic_tool', 'subagent')
                 AND item.status NOT IN ('completed', 'interrupted', 'failed', 'cancelled')
+            )
+            OR EXISTS (
+              SELECT 1 FROM orchestration_v2_projection_turn_items link_request
+                INDEXED BY orchestration_v2_projection_turn_items_waiting_link_idx
+              WHERE link_request.thread_id = t.thread_id
+                AND link_request.type = 'link_request' AND link_request.status = 'waiting'
             )
             OR EXISTS (
               SELECT 1 FROM orchestration_v2_projection_provider_threads provider_thread

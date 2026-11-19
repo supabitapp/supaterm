@@ -49,6 +49,8 @@ import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as PeerForwarding from "../peer/PeerForwarding.ts";
+import * as PeerLinkRequests from "../peer/PeerLinkRequests.ts";
+import * as PeerLinks from "../peer/PeerLinks.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
 
@@ -240,6 +242,8 @@ describe("orchestrator MCP toolkit", () => {
         Layer.provide(ServerSettings.layerTest()),
         Layer.provide(layerUnusedScheduledTaskStub),
         Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
+        Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
+        Layer.provide(Layer.mock(PeerLinks.PeerLinks)({})),
         Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
         Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
         Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
