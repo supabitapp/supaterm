@@ -53,7 +53,16 @@ Running `vp run dev` through an agent's own shell tool does not attach it to thi
 ### State and ports
 
 Linked worktrees default to their own `.supaterm/userdata`, even when `SUPATERM_HOME` is set.
-The main checkout defaults to `~/.supaterm/dev/userdata`. An explicit `--home-dir` wins in both cases.
+Any other checkout, including the main checkout and every plain `git clone`, uses
+`SUPATERM_HOME` when it is set and otherwise `~/.supaterm/dev`, with default ports. Checkouts on
+`~/.supaterm/dev` share one database, settings, and secrets, and only one of their servers can run
+at a time. An explicit `--home-dir` wins in both cases. It and `SUPATERM_HOME` store state in
+`<home>/userdata`.
+A home of `~/.supaterm`, from either source, still selects `~/.supaterm/dev`, because `~/.supaterm/userdata` is
+the live install.
+Seeding targets only a worktree's own `.supaterm`, so a plain clone or a `--home-dir` outside the
+worktree starts empty. To give a clone its own seeded state, run
+`vp run migrate-dev-db --base-dir <clone>/.supaterm` and then `vp run dev --home-dir <clone>/.supaterm`.
 The first start in any checkout also builds the native resource monitor with Cargo when
 `native/resource-monitor/target` has no binary. Without Rust, dev starts with a warning
 and no process telemetry; install Rust and run `vp run build:resource-monitor`.
