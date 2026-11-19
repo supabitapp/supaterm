@@ -46,7 +46,7 @@ export function WorkspaceToolbar(props: {
   const searchCompose = useSidebarSearchCompose();
   const duoSearch = NATIVE_LIQUID_GLASS_SUPPORTED && isDuoDevice(deviceType);
   const bottomSearch = duoSearch && sidebarTabs !== "picker";
-  // On the Duo, compose belongs to the threads tab, in the detail column's bar when unfolded.
+  // On the Duo, compose belongs to the threads tab; unfolded, it sits beside search or in the detail bar.
   const nativeToolbarCompose =
     deviceType === "duo-folded" &&
     !workspace.settingsOpen &&
