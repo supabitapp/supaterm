@@ -536,6 +536,35 @@ export function summarizeSupatermToolCalls(
               : `Merged ${quantity(merged, "pull request")}, queued ${queued}`;
       break;
     }
+    case "ci-logs":
+      label = phrase("Read", "read", `CI logs ${times}`);
+      break;
+    case "ci-rerun": {
+      // A host can refuse a check it cannot re-run, such as one outside its CI.
+      const outcomes = selected.flatMap((call) =>
+        Array.isArray(call.output?.checks)
+          ? call.output.checks.map((check) => asRecord(check)?.rerun === true)
+          : [],
+      );
+      const rerun = outcomes.filter(Boolean).length;
+      const refused = outcomes.length - rerun;
+      failedCount += refused;
+      if (completed.length === 0) {
+        label = `Tried to re-run CI ${times}`;
+      } else if (outcomes.length === 0) {
+        // An empty list means no check had failed, so nothing was asked of the host.
+        label = selected.some((call) => Array.isArray(call.output?.checks))
+          ? "Found no failed checks to re-run"
+          : `Re-ran CI ${times}`;
+      } else if (rerun === 0) {
+        label = `Could not re-run ${quantity(refused, "check")}`;
+      } else if (refused === 0) {
+        label = `Re-ran ${quantity(rerun, "check")}`;
+      } else {
+        label = `Re-ran ${quantity(rerun, "check")}, ${refused} refused`;
+      }
+      break;
+    }
     case "review-pr":
       label = phrase("Reviewed", "review", quantity(selected.length, "pull request"));
       break;

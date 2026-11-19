@@ -74,6 +74,8 @@ export type SupatermMcpToolSummaryAction =
   | "respond-pr"
   | "merge-pr"
   | "review-pr"
+  | "ci-logs"
+  | "ci-rerun"
   | "browser"
   | "device"
   | "html-preview"
@@ -171,6 +173,8 @@ const SUPATERM_MCP_TOOLS: Readonly<Record<string, SupatermMcpToolDefinition>> = 
     "review-pr",
     "pull-request",
   ),
+  ci_logs: tool(["Read", "Reading", "Read", "CI logs"], "ci-logs", "pull-request"),
+  ci_rerun: tool(["Re-run", "Re-running", "Re-ran", "CI"], "ci-rerun", "pull-request"),
   pull_request_merge: tool(
     ["Merge", "Merging", "Merged", "a pull request"],
     "merge-pr",
