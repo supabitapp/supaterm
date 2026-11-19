@@ -590,6 +590,12 @@ const REMOTE_MANAGED_SERVER_RUNNING_SCRIPT = `managed_server_running() {
   ! ps -ww -o args= -p "$$" >/dev/null 2>&1
 }`;
 
+// NFS-shared homes can link ~/.supaterm to a directory that does not exist yet, and
+// mkdir -p fails with EEXIST on a dangling symlink, so create its target first.
+const REMOTE_ENSURE_SUPATERM_HOME_SCRIPT = `if [ -L "$HOME/.supaterm" ] && [ ! -e "$HOME/.supaterm" ]; then
+  (cd "$HOME" && mkdir -p "$(readlink .supaterm)")
+fi`;
+
 const REMOTE_LAUNCH_SCRIPT = `set -eu
 @@SUPATERM_NODE_ENV_SCRIPT@@
 STATE_KEY="$1"
@@ -605,6 +611,7 @@ RUNNER_FILE="$STATE_DIR/run-supaterm.sh"
 RUNNER_NEXT="$STATE_DIR/run-supaterm.next.$$"
 LAUNCH_LOCK="$DEFAULT_SERVER_HOME/ssh-launch/.launch.lock"
 LAUNCH_BREAK_LOCK="$LAUNCH_LOCK.break"
+@@SUPATERM_ENSURE_SUPATERM_HOME_SCRIPT@@
 mkdir -p "$STATE_DIR"
 cleanup_launch() {
   rm -f "$RUNNER_NEXT"
@@ -1027,6 +1034,7 @@ const REMOTE_PAIRING_SCRIPT = `set -eu
 STATE_DIR="$HOME/.supaterm/ssh-launch/@@SUPATERM_STATE_KEY@@"
 DEFAULT_SERVER_HOME="$HOME/.supaterm"
 RUNNER_FILE="$STATE_DIR/run-supaterm.sh"
+@@SUPATERM_ENSURE_SUPATERM_HOME_SCRIPT@@
 mkdir -p "$STATE_DIR"
 cat >"$RUNNER_FILE" <<'SH'
 @@SUPATERM_RUNNER_SCRIPT@@
@@ -1138,6 +1146,7 @@ export function buildRemoteLaunchScript(input?: RemoteSupatermRunnerOptions): st
     SUPATERM_PICK_PORT_SCRIPT: stripTrailingNewlines(REMOTE_PICK_PORT_SCRIPT),
     SUPATERM_WAIT_READY_SCRIPT: stripTrailingNewlines(REMOTE_WAIT_READY_SCRIPT),
     SUPATERM_MANAGED_SERVER_RUNNING_SCRIPT: REMOTE_MANAGED_SERVER_RUNNING_SCRIPT,
+    SUPATERM_ENSURE_SUPATERM_HOME_SCRIPT: REMOTE_ENSURE_SUPATERM_HOME_SCRIPT,
     SUPATERM_DEFAULT_REMOTE_PORT: String(NetService.DEFAULT_SERVER_PORT),
     SUPATERM_REMOTE_PORT_SCAN_WINDOW: String(REMOTE_PORT_SCAN_WINDOW),
     SUPATERM_READY_TIMEOUT_MS: String(REMOTE_READY_TIMEOUT_MS),
@@ -1153,6 +1162,7 @@ export function buildRemoteLaunchScript(input?: RemoteSupatermRunnerOptions): st
 function buildRemotePairingScript(stateKey: string, input?: RemoteSupatermRunnerOptions): string {
   return applyScriptPlaceholders(REMOTE_PAIRING_SCRIPT, {
     SUPATERM_STATE_KEY: stateKey,
+    SUPATERM_ENSURE_SUPATERM_HOME_SCRIPT: REMOTE_ENSURE_SUPATERM_HOME_SCRIPT,
     SUPATERM_RUNNER_SCRIPT: stripTrailingNewlines(buildRemoteSupatermRunnerScript(input)),
   });
 }

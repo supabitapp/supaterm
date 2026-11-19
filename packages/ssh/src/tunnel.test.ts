@@ -1667,6 +1667,31 @@ const canBind = (port) =>
       }).pipe(Effect.provide(NodeServices.layer)),
   );
 
+  // An NFS home can carry a ~/.supaterm symlink whose target exists only on another host.
+  it.live.skipIf(windowsHost)(
+    "launches through a ~/.supaterm symlink whose target is missing",
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const root = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-dangling-home-" });
+        const home = `${root}/home`;
+        const target = `${root}/shared/supaterm`;
+        yield* fs.makeDirectory(home, { recursive: true });
+        yield* fs.symlink(target, `${home}/.supaterm`);
+        const launch = `${root}/launch.sh`;
+        yield* fs.writeFileString(
+          launch,
+          SshTunnel.buildRemoteLaunchScript({
+            archiveVersion: "0.1.6",
+            releaseBaseUrl: "http://127.0.0.1:9",
+          }),
+        );
+        const result = yield* runScript(home, [launch, "test-state"]);
+        assert.notInclude(result.stderr, "File exists");
+        assert.isTrue(yield* fs.exists(`${target}/ssh-launch/test-state`), result.stderr);
+      }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
   it.live.skipIf(windowsHost)("a newer client still replaces an older managed server", () =>
     Effect.gen(function* () {
       const { connect, readServerVersion } = yield* prepareLaunch(["0.1.5", "0.1.6"]);
