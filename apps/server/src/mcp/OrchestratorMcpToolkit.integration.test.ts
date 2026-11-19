@@ -48,6 +48,7 @@ import * as ProjectService from "../project/ProjectService.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
+import * as PeerForwarding from "../peer/PeerForwarding.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 
 const layerOrchestratorToolkit = McpHttpServer.layerOrchestratorToolkit.pipe(
@@ -231,6 +232,7 @@ describe("orchestrator MCP toolkit", () => {
         Layer.provide(layerProviderRegistry),
         Layer.provide(ServerSettings.layerTest()),
         Layer.provide(layerUnusedScheduledTaskStub),
+        Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
         Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
         Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
         Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),

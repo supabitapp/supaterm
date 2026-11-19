@@ -4618,6 +4618,7 @@ describe("OrchestratorMcpService thread lookup", () => {
   const client: McpInvocationScope = {
     environmentId: EnvironmentId.make("environment:thread-lookup"),
     requestNamespace: "client:thread-lookup",
+    linkedEnvironments: false,
     thread: undefined,
     client: { sessionId: "thread-lookup", label: "Claude Code", access: "full-access" },
     capabilities: new Set(["orchestration"]),
