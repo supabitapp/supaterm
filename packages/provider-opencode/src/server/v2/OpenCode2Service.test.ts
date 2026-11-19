@@ -7,10 +7,13 @@ import * as Path from "effect/Path";
 import { expect, vi } from "vite-plus/test";
 
 import * as OpenCodeRuntime from "../OpenCodeRuntime.ts";
-import { replaceOutdatedService } from "./OpenCode2Service.ts";
+import {
+  OpenCodeServiceControl,
+  type OpenCodeServiceControlShape,
+  replaceOutdatedService,
+} from "./OpenCode2Service.ts";
 
-const service = vi.hoisted(() => ({ discover: vi.fn(), stop: vi.fn(), ensure: vi.fn() }));
-vi.mock("@opencode/client/effect/service", () => ({ Service: service }));
+type Discovered = { readonly url: string } | undefined;
 
 const runtimeWithBinaryVersion = (stdout: string) =>
   ({
@@ -50,15 +53,27 @@ it.layer(NodeServices.layer)("replaceOutdatedService", (it) => {
               OpenCodeRuntime.OpenCodeRuntime,
               runtimeWithBinaryVersion(binary),
             ),
+            Effect.provideService(OpenCodeServiceControl, fake),
           );
-        service.stop.mockReturnValue(Effect.void);
-        service.ensure.mockReturnValue(Effect.void);
-        const outdated = (options: { readonly version?: string }) =>
-          Effect.succeed(
-            options.version === undefined ? { url: "http://0.0.0.0:49374" } : undefined,
-          );
+        const outdated = (options: { readonly version?: unknown }) =>
+          options.version === undefined ? { url: "http://0.0.0.0:49374" } : undefined;
+        let discover: (options: { readonly version?: unknown }) => Discovered = outdated;
+        const fake: OpenCodeServiceControlShape = {
+          discover: (options = {}) => {
+            const discovered = discover(options);
+            return Effect.succeed(
+              discovered === undefined ? undefined : { url: discovered.url, auth: undefined },
+            );
+          },
+          stop: () => Effect.void,
+          ensure: () => Effect.succeed({ url: "", auth: undefined }),
+        };
+        const service = {
+          discover: vi.spyOn(fake, "discover"),
+          stop: vi.spyOn(fake, "stop"),
+          ensure: vi.spyOn(fake, "ensure"),
+        };
 
-        service.discover.mockImplementation(outdated);
         yield* run("opencode v1.18.32");
         expect(service.discover).not.toHaveBeenCalled();
 
@@ -71,19 +86,19 @@ it.layer(NodeServices.layer)("replaceOutdatedService", (it) => {
           yield* run("opencode v2.2.5", elsewhere);
         }
         expect(service.discover).toHaveBeenCalledWith({ file });
-        service.discover.mockReturnValue(Effect.succeed({ url: "http://0.0.0.0" }));
+        discover = () => ({ url: "http://0.0.0.0" });
         yield* run("opencode v2.2.5", "https://127.0.0.1");
         expect(service.ensure).not.toHaveBeenCalled();
 
-        service.discover.mockReturnValue(Effect.undefined);
+        discover = () => undefined;
         yield* run("opencode v2.2.5");
         expect(service.ensure).not.toHaveBeenCalled();
 
-        service.discover.mockReturnValue(Effect.succeed({ url: "http://0.0.0.0:49374" }));
+        discover = () => ({ url: "http://0.0.0.0:49374" });
         yield* run("opencode v2.2.5");
         expect(service.stop).not.toHaveBeenCalled();
 
-        service.discover.mockImplementation(outdated);
+        discover = outdated;
         yield* run("opencode v2.2.5");
         expect(service.stop).toHaveBeenCalledWith({ file, pty: "handoff" });
         expect(service.ensure).toHaveBeenCalledWith({

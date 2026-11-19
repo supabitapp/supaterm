@@ -5,10 +5,41 @@ import { Cause } from "effect";
 import { expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const mocks = vi.hoisted(() => ({
   update:
-    vi.fn<(input: unknown) => Promise<{ _tag: "Success" } | { _tag: "Failure"; cause: unknown }>>(),
-  notify: vi.fn(),
+    fake<(input: unknown) => Promise<{ _tag: "Success" } | { _tag: "Failure"; cause: unknown }>>(),
+  notify: fake(),
 }));
 vi.mock(
   import("~/state/pullRequests"),
@@ -68,8 +99,8 @@ const openDetail: Detail = {
 };
 
 function setup() {
-  mocks.update.mockReset().mockResolvedValue({ _tag: "Success" });
-  mocks.notify.mockReset();
+  mocks.update.reset(async () => ({ _tag: "Success" }));
+  mocks.notify.reset();
   return (detail: Detail = openDetail) => (
     <PullRequestActionsMenu
       environmentId={environmentId}
@@ -131,10 +162,11 @@ it("saves maintainer edits, locks while saving, and restores the saved value whe
   });
 
   let settle!: (value: { _tag: "Failure"; cause: unknown }) => void;
-  mocks.update.mockReturnValueOnce(
-    new Promise((resolve) => {
-      settle = resolve;
-    }),
+  mocks.update.implementOnce(
+    () =>
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
   );
   await checkbox.click();
   await expect.element(checkbox).toBeChecked();
@@ -160,10 +192,11 @@ it("keeps a saved choice through a stale refresh, then follows the host", async 
   await screen.getByRole("button", { name: "More pull request actions" }).click();
   const checkbox = page.getByRole("menuitemcheckbox", { name: "Allow edits from maintainers" });
   let settle!: (value: { _tag: "Success" }) => void;
-  mocks.update.mockReturnValueOnce(
-    new Promise((resolve) => {
-      settle = resolve;
-    }),
+  mocks.update.implementOnce(
+    () =>
+      new Promise((resolve) => {
+        settle = resolve;
+      }),
   );
   await checkbox.click();
   await screen.rerender(control({ ...openDetail, observedAt: 2 }));

@@ -9,6 +9,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
+import * as Predicate from "effect/Predicate";
 import * as SqlClient from "effect/sql/SqlClient";
 import { vi } from "vite-plus/test";
 
@@ -147,31 +148,27 @@ describe("readOpenCodeUsage", () => {
       );
       let changed = false;
       let largestRawResult = 0;
-      const originalAll = NodeSqlite.StatementSync.prototype.all;
-      yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          vi.spyOn(NodeSqlite.StatementSync.prototype, "all").mockImplementation(function (
-            this: NodeSqlite.StatementSync,
-            ...params
-          ) {
-            const rows = originalAll.apply(this, params);
-            const rawSize = rows.reduce(
-              (size, row) => size + (typeof row.data === "string" ? row.data.length : 0),
-              0,
-            );
-            largestRawResult = Math.max(largestRawResult, rawSize);
-            if (!changed && rawSize > 0) {
-              changed = true;
-              writer
-                .prepare("UPDATE message SET data = ? WHERE id = ?")
-                .run(JSON.stringify({ ...message, tokens: { input: 900, output: 20 } }), "msg-129");
-            }
-            return rows;
-          }),
-        ),
-        (spy) => Effect.sync(() => spy.mockRestore()),
+      const observe = Effect.provideService(
+        NodeSqliteClient.StatementObserver,
+        (_statement: NodeSqlite.StatementSync, rows: ReadonlyArray<unknown>) => {
+          const rawSize = rows.reduce<number>(
+            (size, row) =>
+              size +
+              (Predicate.hasProperty(row, "data") && typeof row.data === "string"
+                ? row.data.length
+                : 0),
+            0,
+          );
+          largestRawResult = Math.max(largestRawResult, rawSize);
+          if (!changed && rawSize > 0) {
+            changed = true;
+            writer
+              .prepare("UPDATE message SET data = ? WHERE id = ?")
+              .run(JSON.stringify({ ...message, tokens: { input: 900, output: 20 } }), "msg-129");
+          }
+        },
       );
-      const result = yield* readOpenCodeUsage(dir, sinceMs);
+      const result = yield* readOpenCodeUsage(dir, sinceMs).pipe(observe);
       assert.isFalse(result.error);
       const records = result.files.flatMap((file) => file.records);
       assert.deepStrictEqual(
@@ -183,7 +180,7 @@ describe("readOpenCodeUsage", () => {
         13000,
       );
       assert.strictEqual(
-        (yield* readOpenCodeUsage(dir, sinceMs)).files
+        (yield* readOpenCodeUsage(dir, sinceMs).pipe(observe)).files
           .flatMap((file) => file.records)
           .find((record) => record.dedupeKey === "opencode:msg-129")?.totals.uncachedInputTokens,
         900,
@@ -222,21 +219,14 @@ describe("readOpenCodeUsage", () => {
       }
       let statements = 0;
       let bodyReads = 0;
-      const originalAll = NodeSqlite.StatementSync.prototype.all;
-      yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          vi.spyOn(NodeSqlite.StatementSync.prototype, "all").mockImplementation(function (
-            this: NodeSqlite.StatementSync,
-            ...params
-          ) {
-            statements++;
-            if (this.sourceSQL.includes("data ->")) bodyReads++;
-            return originalAll.apply(this, params);
-          }),
-        ),
-        (spy) => Effect.sync(() => spy.mockRestore()),
+      const observe = Effect.provideService(
+        NodeSqliteClient.StatementObserver,
+        (statement: NodeSqlite.StatementSync) => {
+          statements++;
+          if (statement.sourceSQL.includes("data ->")) bodyReads++;
+        },
       );
-      const result = yield* readOpenCodeUsage(dir, sinceMs);
+      const result = yield* readOpenCodeUsage(dir, sinceMs).pipe(observe);
       assert.isFalse(result.error);
       assert.deepStrictEqual(
         result.files.flatMap((file) => file.records).map((record) => record.dedupeKey),
@@ -245,7 +235,7 @@ describe("readOpenCodeUsage", () => {
       assert.isBelow(statements, 10);
 
       bodyReads = 0;
-      const repeated = yield* readOpenCodeUsage(dir, sinceMs);
+      const repeated = yield* readOpenCodeUsage(dir, sinceMs).pipe(observe);
       assert.deepStrictEqual(
         repeated.files.flatMap((file) => file.records).map((record) => record.dedupeKey),
         ["opencode:a", "opencode:b", "opencode:c"],
@@ -321,20 +311,13 @@ describe("readOpenCodeUsage", () => {
         () => Effect.sync(() => (readerWorkers.enabled = false)),
       );
       let mainThreadBodyReads = 0;
-      const originalAll = NodeSqlite.StatementSync.prototype.all;
-      yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          vi.spyOn(NodeSqlite.StatementSync.prototype, "all").mockImplementation(function (
-            this: NodeSqlite.StatementSync,
-            ...params
-          ) {
-            if (this.sourceSQL.includes("data ->")) mainThreadBodyReads++;
-            return originalAll.apply(this, params);
-          }),
-        ),
-        (spy) => Effect.sync(() => spy.mockRestore()),
+      const observe = Effect.provideService(
+        NodeSqliteClient.StatementObserver,
+        (statement: NodeSqlite.StatementSync) => {
+          if (statement.sourceSQL.includes("data ->")) mainThreadBodyReads++;
+        },
       );
-      const first = yield* readOpenCodeUsage(dir, 0);
+      const first = yield* readOpenCodeUsage(dir, 0).pipe(observe);
       assert.isFalse(first.error);
       const records = first.files.flatMap((file) => file.records);
       assert.strictEqual(records.length, 1);
@@ -351,7 +334,7 @@ describe("readOpenCodeUsage", () => {
         message.sessionID,
         JSON.stringify({ ...message, id: "msg-2", time: { created: 1780000001000 } }),
       );
-      const next = yield* readOpenCodeUsage(dir, 1780000001000);
+      const next = yield* readOpenCodeUsage(dir, 1780000001000).pipe(observe);
       assert.isFalse(next.error);
       assert.deepStrictEqual(
         next.files.flatMap((file) => file.records).map((record) => record.dedupeKey),

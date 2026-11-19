@@ -39,11 +39,42 @@ interface RunStatus {
   readonly activeAttemptId?: string;
 }
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const mocks = await vi.hoisted(async () => {
   const { Atom } = await import("effect/reactivity");
   return {
-    editQueuedRun: vi.fn<(value: unknown) => Promise<{ readonly _tag: "Success" | "Failure" }>>(),
-    promoteQueuedRun: vi.fn<(value: unknown) => Promise<{ readonly _tag: "Success" }>>(),
+    editQueuedRun: fake<(value: unknown) => Promise<{ readonly _tag: "Success" | "Failure" }>>(),
+    promoteQueuedRun: fake<(value: unknown) => Promise<{ readonly _tag: "Success" }>>(),
     promoteCommand: {},
     threadRuns: Atom.family((_key: string) =>
       Atom.make<ReadonlyArray<RunStatus> | null>(null).pipe(Atom.keepAlive),
@@ -182,8 +213,8 @@ function view(
 }
 
 function setup() {
-  mocks.editQueuedRun.mockReset();
-  mocks.promoteQueuedRun.mockReset();
+  mocks.editQueuedRun.reset();
+  mocks.promoteQueuedRun.reset();
   useAttachmentUploadStore.setState({ uploadsByImageId: {} });
   useComposerDraftStore.setState({ draftsByThreadKey: {}, draftThreadsByThreadKey: {} });
   setRuns(THREAD_A, "queued");
@@ -228,7 +259,7 @@ describe("useQueuedRunEdit", () => {
     "opens attachment-only edits without the placeholder and preserves effort on save (%j)",
     async (prefix) => {
       const { hook } = setup();
-      mocks.editQueuedRun.mockResolvedValue({ _tag: "Success" });
+      mocks.editQueuedRun.implement(async () => ({ _tag: "Success" }));
       await using screen = await render(view(THREAD_A, "queued", hook));
       using toast = vi.spyOn(toastManager, "add");
       const attachments = [
@@ -287,8 +318,8 @@ describe("useQueuedRunEdit", () => {
     "a saved edit sent as $submissionIntent/$dispatchMode steers: $steers",
     async (submission) => {
       const { hook } = setup();
-      mocks.editQueuedRun.mockResolvedValue({ _tag: "Success" });
-      mocks.promoteQueuedRun.mockResolvedValue({ _tag: "Success" });
+      mocks.editQueuedRun.implement(async () => ({ _tag: "Success" }));
+      mocks.promoteQueuedRun.implement(async () => ({ _tag: "Success" }));
       const activeRun = RunId.make("run-active");
       appAtomRegistry.set(mocks.threadRuns(runsKey(THREAD_A)), [
         { id: activeRun, status: "running", activeAttemptId: "attempt-1" },
@@ -314,7 +345,7 @@ describe("useQueuedRunEdit", () => {
 
   it("saves an effort-only prompt without claiming removed attachments remain", async () => {
     const { hook } = setup();
-    mocks.editQueuedRun.mockResolvedValue({ _tag: "Success" });
+    mocks.editQueuedRun.implement(async () => ({ _tag: "Success" }));
     await using screen = await render(view(THREAD_A, "queued", hook));
     await act(() =>
       requireHook(hook).beginEdit({
@@ -372,7 +403,7 @@ describe("useQueuedRunEdit", () => {
 
   it("saves only the thread mentions still in the edited message", async () => {
     const { hook } = setup();
-    mocks.editQueuedRun.mockResolvedValue({ _tag: "Success" });
+    mocks.editQueuedRun.implement(async () => ({ _tag: "Success" }));
     const kept = threadContextRecord(THREAD_B, "Kept");
     const removed = threadContextRecord(THREAD_A, "Removed");
     const messageId = MessageId.make("message-1");
@@ -459,10 +490,11 @@ describe("useQueuedRunEdit", () => {
   it("does not copy a saved edit into the thread draft when the run starts mid-save", async () => {
     const { hook } = setup();
     let finishSave: (result: { readonly _tag: "Success" }) => void = () => {};
-    mocks.editQueuedRun.mockReturnValue(
-      new Promise((resolve) => {
-        finishSave = resolve;
-      }),
+    mocks.editQueuedRun.implement(
+      () =>
+        new Promise((resolve) => {
+          finishSave = resolve;
+        }),
     );
     await using screen = await render(view(THREAD_A, "queued", hook));
     await beginChangedEdit(hook);
@@ -494,7 +526,7 @@ describe("useQueuedRunEdit", () => {
       const requested = new Promise<void>((resolve) => {
         started = resolve;
       });
-      mocks.editQueuedRun.mockImplementation(() => {
+      mocks.editQueuedRun.implement(() => {
         started();
         return saving;
       });
@@ -509,7 +541,7 @@ describe("useQueuedRunEdit", () => {
         file: new File(["image"], "image.png", { type: "image/png" }),
         previewUrl: "blob:saved-image",
       };
-      using revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+      using revoke = vi.spyOn(URL, "revokeObjectURL");
       await act(() =>
         useComposerDraftStore.getState().addImage(requireHook(hook).draftTarget, image),
       );
@@ -553,10 +585,11 @@ describe("useQueuedRunEdit", () => {
   it("leaves a newer edit alone when a save from before navigation finishes", async () => {
     const { hook } = setup();
     let finishSave: (result: { readonly _tag: "Success" }) => void = () => {};
-    mocks.editQueuedRun.mockReturnValue(
-      new Promise((resolve) => {
-        finishSave = resolve;
-      }),
+    mocks.editQueuedRun.implement(
+      () =>
+        new Promise((resolve) => {
+          finishSave = resolve;
+        }),
     );
     await using screen = await render(view(THREAD_A, "queued", hook));
     await beginChangedEdit(hook);

@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "@effect/vitest";
+import { afterEach, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -9,8 +9,9 @@ import type * as SourceControlHost from "@supaterm/source-control-core/server/So
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
 import * as GitLabCli from "./GitLabCli.ts";
 import * as GitLabPullRequestCli from "./GitLabPullRequestCli.ts";
+import { scriptedFunction } from "@supaterm/source-control-testing/scriptedFunction";
 
-const run = vi.fn<SourceControlHost.SourceControlHost["Service"]["process"]["run"]>();
+const run = scriptedFunction<SourceControlHost.SourceControlHost["Service"]["process"]["run"]>();
 const layer = it.layer(
   GitLabPullRequestCli.layer.pipe(
     Layer.provide(GitLabCli.layer),
@@ -52,13 +53,13 @@ function failure(failureKind: "not-found" | "authentication" | "rate-limited" | 
     }),
   );
 }
-afterEach(() => run.mockReset());
+afterEach(() => run.reset());
 
 layer("legacy GitLab diff requests through GitLabCli", (it) => {
   it.effect.each([0, 1, 100, 247])("returns %s legacy changes as one terminal slice", (count) =>
     Effect.gen(function* () {
-      run.mockReturnValueOnce(failure("not-found"));
-      run.mockReturnValueOnce(
+      run.returnsOnce(failure("not-found"));
+      run.returnsOnce(
         output({
           changes: Array.from({ length: count }, () => file),
           overflow: false,
@@ -75,11 +76,11 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
         expect(result.patch).toContain("@@ -1 +1 @@\n-before\n+after\n");
         expect(result.patch.endsWith("\n")).toBe(true);
       }
-      expect(run.mock.calls.map(([call]) => call.args)).toEqual([
+      expect(run.calls.map(([call]) => call.args)).toEqual([
         ["api", "projects/acme%2Fnested%2Fweb/merge_requests/7/diffs?per_page=30&page=1"],
         ["api", "projects/acme%2Fnested%2Fweb/merge_requests/7/changes?access_raw_diffs=true"],
       ]);
-      expect(run.mock.calls[1]?.[0]).toMatchObject({
+      expect(run.calls[1]?.[0]).toMatchObject({
         cwd: "/repo",
         maxOutputBytes: 8 * 1024 * 1024,
         timeoutMs: 60_000,
@@ -88,8 +89,8 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
   );
   it.effect.each([false, true])("accepts an unavailable legacy count (overflow: %s)", (overflow) =>
     Effect.gen(function* () {
-      run.mockReturnValueOnce(failure("not-found"));
-      run.mockReturnValueOnce(output({ changes: [file], changes_count: null, overflow }));
+      run.returnsOnce(failure("not-found"));
+      run.returnsOnce(output({ changes: [file], changes_count: null, overflow }));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const result = yield* cli.getMergeRequestDiff(input);
       expect(result.truncated).toBe(overflow);
@@ -101,8 +102,8 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
     "marks legacy limits %j truncated",
     (metadata) =>
       Effect.gen(function* () {
-        run.mockReturnValueOnce(failure("not-found"));
-        run.mockReturnValueOnce(output({ changes: [file], ...metadata }));
+        run.returnsOnce(failure("not-found"));
+        run.returnsOnce(output({ changes: [file], ...metadata }));
         const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
         expect(yield* cli.getMergeRequestDiff(input)).toMatchObject({
           truncated: true,
@@ -113,8 +114,8 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
   it.effect.each([false, true])("marks skipped file entries truncated (legacy: %s)", (legacy) =>
     Effect.gen(function* () {
       const entries = [file, { new_path: "missing-old-path.ts" }];
-      if (legacy) run.mockReturnValueOnce(failure("not-found"));
-      run.mockReturnValueOnce(output(legacy ? { changes: entries } : entries));
+      if (legacy) run.returnsOnce(failure("not-found"));
+      run.returnsOnce(output(legacy ? { changes: entries } : entries));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const result = yield* cli.getMergeRequestDiff(input);
       expect(result.truncated).toBe(true);
@@ -125,8 +126,8 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
   );
   it.effect("rejects a byte-truncated legacy response", () =>
     Effect.gen(function* () {
-      run.mockReturnValueOnce(failure("not-found"));
-      run.mockReturnValueOnce(output({ changes: [file] }, true));
+      run.returnsOnce(failure("not-found"));
+      run.returnsOnce(output({ changes: [file] }, true));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       expect((yield* cli.getMergeRequestDiff(input).pipe(Effect.flip))._tag).toBe(
         "GitLabMergeRequestReadError",
@@ -137,10 +138,10 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
     "does not fall back on %s",
     (kind) =>
       Effect.gen(function* () {
-        run.mockReturnValueOnce(failure(kind));
+        run.returnsOnce(failure(kind));
         const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
         yield* cli.getMergeRequestDiff(input).pipe(Effect.flip);
-        expect(run).toHaveBeenCalledTimes(1);
+        expect(run.calls).toHaveLength(1);
       }),
   );
   it.effect("does not fall back for a missing commit or later MR page", () =>
@@ -150,45 +151,45 @@ layer("legacy GitLab diff requests through GitLabCli", (it) => {
         { ...input, commit: "abc1234" },
         { ...input, cursor: "2" },
       ]) {
-        run.mockReturnValueOnce(failure("not-found"));
+        run.returnsOnce(failure("not-found"));
         yield* cli.getMergeRequestDiff(target).pipe(Effect.flip);
       }
-      expect(run).toHaveBeenCalledTimes(2);
+      expect(run.calls).toHaveLength(2);
     }),
   );
   it.effect("propagates failure of the legacy endpoint", () =>
     Effect.gen(function* () {
-      run.mockReturnValueOnce(failure("not-found"));
-      run.mockReturnValueOnce(failure("not-found"));
+      run.returnsOnce(failure("not-found"));
+      run.returnsOnce(failure("not-found"));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       expect((yield* cli.getMergeRequestDiff(input).pipe(Effect.flip))._tag).toBe(
         "GitLabCliCommandError",
       );
-      expect(run).toHaveBeenCalledTimes(2);
+      expect(run.calls).toHaveLength(2);
     }),
   );
   it.effect("does not fall back on an unreadable successful modern response", () =>
     Effect.gen(function* () {
-      run.mockReturnValueOnce(output({ changes: [file] }));
+      run.returnsOnce(output({ changes: [file] }));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       expect((yield* cli.getMergeRequestDiff(input).pipe(Effect.flip))._tag).toBe(
         "GitLabMergeRequestReadError",
       );
-      expect(run).toHaveBeenCalledTimes(1);
+      expect(run.calls).toHaveLength(1);
     }),
   );
   it.effect("keeps modern pagination without requesting legacy changes", () =>
     Effect.gen(function* () {
-      run.mockReturnValueOnce(output(Array.from({ length: 30 }, () => file)));
-      run.mockReturnValueOnce(output([file]));
+      run.returnsOnce(output(Array.from({ length: 30 }, () => file)));
+      run.returnsOnce(output([file]));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const first = yield* cli.getMergeRequestDiff(input);
       expect(first.nextCursor).toBe("2");
       expect(
         (yield* cli.getMergeRequestDiff({ ...input, cursor: first.nextCursor! })).nextCursor,
       ).toBeNull();
-      expect(run).toHaveBeenCalledTimes(2);
-      expect(run.mock.calls[1]?.[0].args).toContain(
+      expect(run.calls).toHaveLength(2);
+      expect(run.calls[1]?.[0].args).toContain(
         "projects/acme%2Fnested%2Fweb/merge_requests/7/diffs?per_page=30&page=2",
       );
     }),

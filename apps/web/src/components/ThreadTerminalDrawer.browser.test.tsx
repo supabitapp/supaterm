@@ -12,6 +12,7 @@ import {
 import { Cause } from "effect";
 import {
   compileResolvedKeybindingsConfig,
+  isMacPlatform,
   DEFAULT_KEYBINDINGS,
 } from "@supaterm/shared/keybindings";
 import { Atom, AsyncResult } from "effect/reactivity";
@@ -343,7 +344,7 @@ it("marks the pointer idle after it rests on the terminal, and active again when
 
 it("hands thread navigation shortcuts from a focused terminal back to the app", async () => {
   const { other: threadRef } = setup();
-  using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+  const mac = isMacPlatform(navigator.platform);
   useRightPanelStore.getState().openBrowser(threadRef, null);
   await using _screen = await render(
     <Drawer
@@ -359,15 +360,21 @@ it("hands thread navigation shortcuts from a focused terminal back to the app", 
   await act(async () => {
     fixture.pendingSurfaces.shift()?.();
   });
-  const terminalHandles = (key: string, code: string, shiftKey = true) =>
-    fixture.surfaceOptions
-      .at(-1)!
-      .beforeKey(new KeyboardEvent("keydown", { key, code, ctrlKey: true, shiftKey }));
+  const terminalHandles = (key: string, code: string, shiftKey = true, mod = false) =>
+    fixture.surfaceOptions.at(-1)!.beforeKey(
+      new KeyboardEvent("keydown", {
+        key,
+        code,
+        ctrlKey: !(mod && mac),
+        metaKey: mod && mac,
+        shiftKey,
+      }),
+    );
 
-  expect([terminalHandles("{", "BracketLeft"), terminalHandles("}", "BracketRight")]).toEqual([
-    false,
-    false,
-  ]);
+  expect([
+    terminalHandles("{", "BracketLeft", true, true),
+    terminalHandles("}", "BracketRight", true, true),
+  ]).toEqual([false, false]);
   expect(terminalHandles("C", "KeyC")).toBe(true);
   expect([terminalHandles("r", "KeyR", false), terminalHandles("g", "KeyG", false)]).toEqual([
     true,

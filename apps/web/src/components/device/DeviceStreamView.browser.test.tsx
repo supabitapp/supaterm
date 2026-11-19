@@ -19,7 +19,6 @@ const access = { httpBase: "http://test", wsBase: "ws://test", query: {}, creden
 function setup() {
   const registry = AtomRegistry.make();
   const touches: unknown[] = [];
-  const image = vi.spyOn(HTMLImageElement.prototype, "src", "set").mockImplementation(() => {});
   const decoder = stubGlobal("VideoDecoder", undefined);
   Reflect.deleteProperty(globalThis, "VideoDecoder");
   const fetch = stubGlobal("fetch", () => Promise.resolve(new Response("prime")));
@@ -55,7 +54,6 @@ function setup() {
     ),
     [Symbol.dispose]() {
       registry.dispose();
-      image.mockRestore();
       socket[Symbol.dispose]();
       fetch[Symbol.dispose]();
       decoder[Symbol.dispose]();

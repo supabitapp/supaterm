@@ -61,31 +61,44 @@ export class ElectronShell extends Context.Service<
   }
 >()("@supaterm/desktop/electron/ElectronShell") {}
 
-/** @public */
-export const make = ElectronShell.of({
-  openExternal: Effect.fn("ElectronShell.openExternal")(function (rawUrl) {
-    return Option.match(parseSafeExternalUrl(rawUrl), {
-      onNone: () => Effect.succeed(false),
-      onSome: (externalUrl) =>
-        Effect.promise(() =>
-          Electron.shell.openExternal(externalUrl).then(
-            () => true,
-            () => false,
+export type ElectronShellNative = {
+  readonly openExternal: (url: string) => Promise<void>;
+  readonly writeText: (text: string) => Promise<void>;
+};
+
+const electronShellNative: ElectronShellNative = {
+  openExternal: (url) => Electron.shell.openExternal(url),
+  writeText: (text) => Electron.clipboard.writeText(text),
+};
+
+export const makeWith = (native: ElectronShellNative) =>
+  ElectronShell.of({
+    openExternal: Effect.fn("ElectronShell.openExternal")(function (rawUrl) {
+      return Option.match(parseSafeExternalUrl(rawUrl), {
+        onNone: () => Effect.succeed(false),
+        onSome: (externalUrl) =>
+          Effect.promise(() =>
+            native.openExternal(externalUrl).then(
+              () => true,
+              () => false,
+            ),
           ),
+      });
+    }),
+    openSystemSettings: Effect.fn("ElectronShell.openSystemSettings")(function (pane) {
+      return Effect.promise(() =>
+        native.openExternal(MAC_PERMISSION_SETTINGS_URLS[pane]).then(
+          () => true,
+          () => false,
         ),
-    });
-  }),
-  openSystemSettings: Effect.fn("ElectronShell.openSystemSettings")(function (pane) {
-    return Effect.promise(() =>
-      Electron.shell.openExternal(MAC_PERMISSION_SETTINGS_URLS[pane]).then(
-        () => true,
-        () => false,
-      ),
-    );
-  }),
-  copyText: Effect.fn("ElectronShell.copyText")(function (text) {
-    return Effect.promise(() => Electron.clipboard.writeText(text).catch(() => undefined));
-  }),
-});
+      );
+    }),
+    copyText: Effect.fn("ElectronShell.copyText")(function (text) {
+      return Effect.promise(() => native.writeText(text).catch(() => undefined));
+    }),
+  });
+
+/** @public */
+export const make = makeWith(electronShellNative);
 
 export const layer = Layer.succeed(ElectronShell, make);

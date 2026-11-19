@@ -822,16 +822,15 @@ describe("GhosttyTerminalSurface visibility", () => {
       const release = new Promise<void>((resolve) => {
         finishLoading = resolve;
       });
-      const create = GhosttyTerminalCore.create;
-      vi.spyOn(GhosttyTerminalCore, "create").mockImplementation(async (...args) => {
-        const core = await create(...args);
-        markCreated();
-        await release;
-        return core;
-      });
       let currentVisible = !visible;
       const onReply = vi.fn();
       const pending = harness.create({
+        createCore: async (...args) => {
+          const core = await GhosttyTerminalCore.create(...args);
+          markCreated();
+          await release;
+          return core;
+        },
         onReply,
         get visible() {
           return currentVisible;

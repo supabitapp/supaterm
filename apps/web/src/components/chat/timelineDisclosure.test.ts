@@ -7,6 +7,7 @@ let now = 0;
 
 function runFrame(elapsedMs = 16) {
   now += elapsedMs;
+  vi.advanceTimersByTime(elapsedMs);
   const pending = frames;
   frames = [];
   for (const callback of pending) callback(now);
@@ -29,10 +30,11 @@ beforeEach(() => {
   vi.stubGlobal("cancelAnimationFrame", () => {
     frames = [];
   });
-  vi.spyOn(performance, "now").mockImplementation(() => now);
+  vi.useFakeTimers({ toFake: ["performance"], now: 0 });
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });

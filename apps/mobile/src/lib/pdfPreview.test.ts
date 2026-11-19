@@ -4,13 +4,25 @@ const mocks = vi.hoisted(() => ({
   download: vi.fn(),
   dispose: vi.fn(),
   read: vi.fn(),
+  header: async () => new TextEncoder().encode("%PDF-"),
   close: vi.fn(),
 }));
-vi.mock("./attachmentDownload", () => ({ downloadAttachmentForPreview: mocks.download }));
+vi.mock("./attachmentDownload", () => ({
+  downloadAttachmentForPreview: async (...args: ReadonlyArray<unknown>) => {
+    mocks.download(...args);
+    return { uri: "file:///cache/preview.pdf", dispose: mocks.dispose };
+  },
+}));
 vi.mock("expo-file-system", () => ({
   File: class {
     open() {
-      return { readBytes: mocks.read, close: mocks.close };
+      return {
+        readBytes: (...args: ReadonlyArray<unknown>) => {
+          mocks.read(...args);
+          return mocks.header();
+        },
+        close: mocks.close,
+      };
     }
   },
   FileMode: { ReadOnly: "r" },
@@ -20,8 +32,7 @@ import { isPdfPreviewUri, pdfLinkUrl, preparePdfPreview } from "./pdfPreview";
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.download.mockResolvedValue({ uri: "file:///cache/preview.pdf", dispose: mocks.dispose });
-  mocks.read.mockResolvedValue(new TextEncoder().encode("%PDF-"));
+  mocks.header = async () => new TextEncoder().encode("%PDF-");
 });
 
 describe("PDF navigation", () => {
@@ -72,7 +83,7 @@ describe("preparing native PDFs", () => {
   });
 
   it("rejects an HTML response and removes the download", async () => {
-    mocks.read.mockResolvedValue(new TextEncoder().encode("<html"));
+    mocks.header = async () => new TextEncoder().encode("<html");
     await expect(
       preparePdfPreview("https://remote.test/a.pdf", new AbortController().signal),
     ).rejects.toThrow("did not return a PDF");
@@ -93,10 +104,10 @@ describe("preparing native PDFs", () => {
 
   it("removes a download if the preview is dismissed during validation", async () => {
     const controller = new AbortController();
-    mocks.read.mockImplementation(async () => {
+    mocks.header = async () => {
       controller.abort();
       return new TextEncoder().encode("%PDF-");
-    });
+    };
     expect(await preparePdfPreview("https://remote.test/a.pdf", controller.signal)).toBeNull();
     expect(mocks.dispose).toHaveBeenCalledOnce();
   });

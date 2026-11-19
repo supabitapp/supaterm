@@ -17,12 +17,43 @@ import "~/index.css";
 type CommandResult =
   | { _tag: "Success"; value: { hostId: string; deviceId: string } }
   | { _tag: "Failure"; cause: unknown };
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const mocks = vi.hoisted(() => ({
-  open: vi.fn<(request: unknown) => Promise<CommandResult>>(),
-  close: vi.fn<(request: unknown) => Promise<CommandResult>>(),
-  list: vi.fn<(request: unknown) => Promise<CommandResult>>(),
-  openDevice: vi.fn(),
-  closeSurface: vi.fn(),
+  open: fake<(request: unknown) => Promise<CommandResult>>(),
+  close: fake<(request: unknown) => Promise<CommandResult>>(),
+  list: fake<(request: unknown) => Promise<CommandResult>>(),
+  openDevice: fake(),
+  closeSurface: fake(),
 }));
 const phone = {
   hostId: "local",
@@ -152,7 +183,7 @@ const errors = () => container.querySelectorAll('[role="alert"]');
 
 function setup() {
   vi.resetAllMocks();
-  mocks.list.mockResolvedValue({ _tag: "Success", value: { hostId: "local", deviceId: "" } });
+  mocks.list.implement(async () => ({ _tag: "Success", value: { hostId: "local", deviceId: "" } }));
   currentState = deviceState;
   container = document.createElement("div");
   container.style.width = "480px";
@@ -166,9 +197,9 @@ describe("DevicePanel thread switches", () => {
     const second = deferred();
     const latest = deferred();
     mocks.open
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(second.promise)
-      .mockReturnValueOnce(latest.promise);
+      .implementOnce(() => first.promise)
+      .implementOnce(() => second.promise)
+      .implementOnce(() => latest.promise);
     await using screen = await render(devicePanel(threadA), { container });
     await click(startButton());
     await screen.rerender(devicePanel(threadB));

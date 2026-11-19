@@ -1,7 +1,7 @@
 import { expect, it, vi } from "vite-plus/test";
 
 import { createNativeReviewDiffSourceLoader } from "./nativeReviewDiffSource";
-import * as DiffHighlightTrace from "./nativeReviewDiffTrace";
+import type { traceDiffHighlight } from "./nativeReviewDiffTrace";
 import type { NativeReviewDiffSource } from "./nativeReviewDiffTypes";
 
 const SOURCE = { oldContents: "const before = true;", newContents: "const after = false;" };
@@ -39,6 +39,15 @@ it("evicts source text by aggregate size and returns an over-budget response unc
   expect(fetch).toHaveBeenCalledTimes(5);
 });
 
+function scriptedFetch(responses: Array<() => Promise<NativeReviewDiffSource>>) {
+  const requests: Array<unknown> = [];
+  const fetch = (key: unknown) => {
+    requests.push(key);
+    return responses.shift()?.() ?? Promise.resolve(SOURCE);
+  };
+  return { fetch, requests };
+}
+
 const failureKeys = [
   ["string", () => "retry.ts"],
   ["number", () => 1],
@@ -55,18 +64,17 @@ it.each(failureKeys)(
   "recovers after two transient failures on a later load for a %s key",
   async (_name, createKey) => {
     const key = createKey();
-    const fetch = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Offline"))
-      .mockRejectedValueOnce(new Error("Still offline"))
-      .mockResolvedValue(SOURCE);
+    const { fetch, requests } = scriptedFetch([
+      () => Promise.reject(new Error("Offline")),
+      () => Promise.reject(new Error("Still offline")),
+    ]);
     const load = createNativeReviewDiffSourceLoader(fetch);
     await expect(load(key)).rejects.toThrow("Offline");
     await expect(load(key)).rejects.toThrow("Still offline");
-    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(requests).toHaveLength(2);
     expect(await load(key)).toBe(SOURCE);
     expect(await load(key)).toBe(SOURCE);
-    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(requests).toHaveLength(3);
   },
 );
 
@@ -88,20 +96,20 @@ it.each(failureKeys)(
   "resets retries after success and eviction for a %s key",
   async (_name, createKey) => {
     const key = createKey();
-    const fetch = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Offline"))
-      .mockResolvedValueOnce(SOURCE)
-      .mockResolvedValueOnce({ oldContents: "", newContents: "x".repeat(8_000_000) })
-      .mockRejectedValueOnce(new Error("Offline again"))
-      .mockResolvedValueOnce(SOURCE);
+    const { fetch, requests } = scriptedFetch([
+      () => Promise.reject(new Error("Offline")),
+      async () => SOURCE,
+      async () => ({ oldContents: "", newContents: "x".repeat(8_000_000) }),
+      () => Promise.reject(new Error("Offline again")),
+      async () => SOURCE,
+    ]);
     const load = createNativeReviewDiffSourceLoader(fetch);
     await expect(load(key)).rejects.toThrow("Offline");
     expect(await load(key)).toBe(SOURCE);
     await load({ id: "evict" });
     await expect(load(key)).rejects.toThrow("Offline again");
     expect(await load(key)).toBe(SOURCE);
-    expect(fetch).toHaveBeenCalledTimes(5);
+    expect(requests).toHaveLength(5);
   },
 );
 
@@ -157,9 +165,9 @@ it("starts a shared fresh request for a file whose cancelled request was dropped
   const dropped = Promise.withResolvers<void>();
   const replacementStarted = Promise.withResolvers<void>();
   const replacementResponse = Promise.withResolvers<NativeReviewDiffSource>();
-  using _trace = vi.spyOn(DiffHighlightTrace, "traceDiffHighlight").mockImplementation((event) => {
+  const trace: typeof traceDiffHighlight = (event) => {
     if (event === "source-dropped") dropped.resolve();
-  });
+  };
   const fetch = vi.fn((file: string) => {
     if (file === "active.ts") {
       started.resolve();
@@ -168,7 +176,7 @@ it("starts a shared fresh request for a file whose cancelled request was dropped
     replacementStarted.resolve();
     return replacementResponse.promise;
   });
-  const load = createNativeReviewDiffSourceLoader(fetch);
+  const load = createNativeReviewDiffSourceLoader(fetch, trace);
   const active = load("active.ts");
   await started.promise;
   const controller = new AbortController();

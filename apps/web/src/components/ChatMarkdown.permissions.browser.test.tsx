@@ -9,23 +9,55 @@ import {
   type ThreadPullRequestLink,
 } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
-import { expect, it, vi } from "vite-plus/test";
+import { expect, it, vi, type MockInstance } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../test/render";
 import { useRightPanelStore } from "../rightPanelStore";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   allowed: true,
   listeners: new Set<() => void>(),
-  openEditor: vi.fn(),
-  link: vi.fn(),
-  unlink: vi.fn(),
-  search: vi.fn(),
-  choose: vi.fn(),
+  openEditor: fake(),
+  link: fake(),
+  unlink: fake(),
+  search: fake(),
+  choose: fake<(items: Array<{ id: string }>, ...rest: Array<unknown>) => Promise<unknown>>(),
   openFile: vi.fn(),
-  openExternal: vi.fn(),
-  copy: vi.fn(),
+  openExternal: fake(),
+  write: undefined as undefined | MockInstance<Clipboard["write"]>,
+  writeText: undefined as undefined | MockInstance<Clipboard["writeText"]>,
   linked: false,
 }));
 
@@ -141,24 +173,18 @@ function setup() {
   state.allowed = true;
   state.listeners.clear();
   state.linked = false;
-  state.openEditor.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.link.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.unlink.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.search.mockReset().mockResolvedValue(AsyncResult.success({ entries: [] }));
-  state.choose.mockReset().mockResolvedValue(null);
+  state.openEditor.reset(async () => AsyncResult.success(undefined));
+  state.link.reset(async () => AsyncResult.success(undefined));
+  state.unlink.reset(async () => AsyncResult.success(undefined));
+  state.search.reset(async () => AsyncResult.success({ entries: [] }));
+  state.choose.reset(async () => null);
   state.openFile.mockReset();
-  state.openExternal.mockReset().mockResolvedValue(undefined);
-  state.copy.mockReset().mockResolvedValue(undefined);
+  state.openExternal.reset(async () => undefined);
   const { openFile } = useRightPanelStore.getState();
   useRightPanelStore.setState({ openFile: state.openFile });
   stack.defer(() => useRightPanelStore.setState({ openFile }));
-  stack.use(vi.spyOn(navigator.clipboard, "writeText").mockImplementation(state.copy));
-  stack.use(
-    vi.spyOn(navigator.clipboard, "write").mockImplementation(async (items) => {
-      const item = items[0]!;
-      await state.copy(await (await item.getType("text/plain")).text());
-    }),
-  );
+  state.writeText = stack.use(vi.spyOn(navigator.clipboard, "writeText"));
+  state.write = stack.use(vi.spyOn(navigator.clipboard, "write"));
   return stack.move();
 }
 
@@ -181,6 +207,15 @@ async function renderMarkdown(text: string) {
   });
 }
 
+async function copiedTexts() {
+  const written = await Promise.all(
+    (state.write?.mock.calls ?? []).map(async ([items]) =>
+      (await items[0]!.getType("text/plain")).text(),
+    ),
+  );
+  return [...written, ...(state.writeText?.mock.calls ?? []).map(([text]) => text)];
+}
+
 function offeredActions() {
   return state.choose.mock.lastCall![0].map((item: { id: string }) => item.id);
 }
@@ -198,10 +233,10 @@ it("removes host actions after revocation while keeping file preview and copying
   await screen.openContextMenu();
   expect(offeredActions()).toEqual(["open", "reveal", "copy-relative", "copy-full"]);
   await setAllowed(false);
-  state.choose.mockResolvedValue("copy-full");
+  state.choose.implement(async () => "copy-full");
   await screen.openContextMenu();
   expect(offeredActions()).toEqual(["copy-relative", "copy-full"]);
-  await vi.waitFor(() => expect(state.copy).toHaveBeenCalledWith("/work/docs/readme.md"));
+  await vi.waitFor(async () => expect(await copiedTexts()).toContain("/work/docs/readme.md"));
   await act(async () => screen.anchor().click());
   expect(state.openFile).toHaveBeenCalledWith(threadRef, "docs/readme.md", undefined);
   expect(state.openEditor).not.toHaveBeenCalled();
@@ -225,7 +260,7 @@ it("does not launch an editor after revocation during a native context menu", as
   let choose: (action: string) => void = () => {
     throw new Error("Menu not opened");
   };
-  state.choose.mockImplementationOnce(
+  state.choose.implementOnce(
     () =>
       new Promise<string>((resolve) => {
         choose = resolve;
@@ -246,13 +281,13 @@ it("does not reveal a file after revocation during its workspace lookup", async 
   let finishLookup: () => void = () => {
     throw new Error("Lookup not started");
   };
-  state.search.mockImplementationOnce(
+  state.search.implementOnce(
     () =>
       new Promise((resolve) => {
         finishLookup = () => resolve(AsyncResult.success({ entries: [] }));
       }),
   );
-  state.choose.mockResolvedValue("reveal");
+  state.choose.implement(async () => "reveal");
   await using screen = await renderMarkdown("[Readme](readme.md)");
   await screen.openContextMenu();
   expect(state.search).toHaveBeenCalledOnce();
@@ -272,7 +307,7 @@ it.each(["link-to-thread", "unlink-from-thread"])(
     let choose: (action: string) => void = () => {
       throw new Error("Menu not opened");
     };
-    state.choose.mockImplementationOnce(
+    state.choose.implementOnce(
       () =>
         new Promise<string>((resolve) => {
           choose = resolve;
@@ -288,7 +323,7 @@ it.each(["link-to-thread", "unlink-from-thread"])(
     expect(command).not.toHaveBeenCalled();
 
     await setAllowed(true);
-    state.choose.mockResolvedValue(action);
+    state.choose.implement(async () => action);
     await screen.openContextMenu();
     await vi.waitFor(() =>
       expect(command).toHaveBeenCalledExactlyOnceWith({

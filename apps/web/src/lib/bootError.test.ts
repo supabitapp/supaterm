@@ -3,7 +3,7 @@ import type {
   DesktopCliCommandState,
   DesktopUpdateState,
 } from "@supaterm/contracts";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   type BootErrorEnvironment,
@@ -52,7 +52,6 @@ describe("resolveTriageCommand", () => {
   });
 
   it("falls back to npx without a usable desktop launcher", async () => {
-    using _warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     await expect(resolveTriageCommand(undefined)).resolves.toBe("npx supaterm triage");
     await expect(resolveTriageCommand({} as DesktopBridge)).resolves.toBe("npx supaterm triage");
     await expect(resolveTriageCommand(desktopWith(async () => notOnPath(null)))).resolves.toBe(

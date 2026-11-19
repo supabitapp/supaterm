@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 const harness = vi.hoisted(() => ({
   cleanup: vi.fn(),
   clearDraft: vi.fn<typeof import("./use-composer-drafts").clearComposerDraft>(),
-  flushDrafts: vi.fn<typeof import("./use-composer-drafts").flushComposerDrafts>(async () => {}),
-  waitForDrafts: vi.fn<typeof import("./use-composer-drafts").waitForComposerDraftsLoaded>(
-    async () => {},
-  ),
+  flushDrafts: vi.fn(),
+  flushFailures: [] as Array<Error>,
+  waitForDrafts: vi.fn(),
+  hydrations: [] as Array<() => Promise<void>>,
   manager: null as unknown as ReturnType<
     typeof import("./thread-outbox-manager").createThreadOutboxManager
   >,
@@ -32,9 +32,16 @@ vi.mock("./use-composer-drafts", async (importOriginal) => {
   return {
     ...original,
     clearComposerDraft: harness.clearDraft,
-    flushComposerDrafts: harness.flushDrafts,
+    flushComposerDrafts: async () => {
+      harness.flushDrafts();
+      const failure = harness.flushFailures.shift();
+      if (failure) throw failure;
+    },
     scheduleUnusedComposerAttachmentCleanup: harness.cleanup,
-    waitForComposerDraftsLoaded: harness.waitForDrafts,
+    waitForComposerDraftsLoaded: async () => {
+      harness.waitForDrafts();
+      await harness.hydrations.shift()?.();
+    },
   };
 });
 
@@ -85,9 +92,9 @@ afterEach(() => {
   harness.cleanup.mockClear();
   harness.clearDraft.mockClear();
   harness.flushDrafts.mockReset();
-  harness.flushDrafts.mockResolvedValue(undefined);
+  harness.flushFailures.length = 0;
   harness.waitForDrafts.mockReset();
-  harness.waitForDrafts.mockResolvedValue(undefined);
+  harness.hydrations.length = 0;
 });
 
 describe("thread outbox removal", () => {
@@ -236,7 +243,7 @@ describe("thread outbox removal", () => {
     };
     const hydrationStarted = Promise.withResolvers<void>();
     const hydrationBarrier = Promise.withResolvers<void>();
-    harness.waitForDrafts.mockImplementationOnce(async () => {
+    harness.hydrations.push(async () => {
       hydrationStarted.resolve();
       await hydrationBarrier.promise;
     });
@@ -281,8 +288,8 @@ describe("thread outbox removal", () => {
       creation: true,
     });
     const flushError = new Error("composer storage unavailable");
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
-    harness.flushDrafts.mockRejectedValueOnce(flushError);
+    const warning = vi.spyOn(console, "warn");
+    harness.flushFailures.push(flushError);
     appAtomRegistry.set(composerDraftsAtom, {
       [`pending-task:${message.messageId}`]: { text: "edited", attachments: [] },
     });

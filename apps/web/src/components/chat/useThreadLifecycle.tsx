@@ -123,6 +123,7 @@ interface ThreadLifecycleInput {
   readonly clearUsageLimitsFor: (threadKey: string) => void;
   readonly focusComposer: () => void;
   readonly scrollToEnd: (animated?: boolean) => void;
+  readonly requestFrame?: (callback: () => void) => void;
 }
 
 /**
@@ -163,6 +164,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     clearUsageLimitsFor,
     focusComposer,
     scrollToEnd,
+    requestFrame = (callback) => window.requestAnimationFrame(callback),
   } = input;
   const navigate = useNavigate();
   const router = useRouter();
@@ -376,7 +378,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     gitStatusQuery.refresh();
     finishRestore();
     if (currentRouteThreadKeyRef.current === routeThreadKey) {
-      window.requestAnimationFrame(() => {
+      requestFrame(() => {
         if (currentRouteThreadKeyRef.current === routeThreadKey) focusComposer();
       });
     }

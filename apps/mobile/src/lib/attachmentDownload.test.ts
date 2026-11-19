@@ -1,6 +1,33 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+type Behavior = { run(...args: ReadonlyArray<unknown>): unknown }["run"];
+type BehaviorName = "download" | "copy" | "share" | "shareFromSource" | "available";
+
+const defaultBehavior = () =>
+  ({
+    download: async (_url: string, file: { uri: string }) => file,
+    copy: async () => {},
+    share: async () => {},
+    shareFromSource: async () => {},
+    available: async () => true,
+  }) satisfies Record<BehaviorName, Behavior>;
+
 const mocks = vi.hoisted(() => ({
+  next: {
+    download: [] as Array<Behavior>,
+    copy: [] as Array<Behavior>,
+    share: [] as Array<Behavior>,
+    shareFromSource: [] as Array<Behavior>,
+    available: [] as Array<Behavior>,
+  },
+  fallback: {} as Record<BehaviorName, Behavior>,
+  respond(name: BehaviorName, observe: (...args: ReadonlyArray<unknown>) => unknown) {
+    return (...args: ReadonlyArray<unknown>) => {
+      observe(...args);
+      return (mocks.next[name].shift() ?? mocks.fallback[name])(...args);
+    };
+  },
+  sequence: 0,
   directories: new Set<string>(),
   deleted: vi.fn(),
   download: vi.fn(),
@@ -48,7 +75,7 @@ vi.mock("expo-file-system", () => {
   }
 
   class File {
-    static downloadFileAsync = mocks.download;
+    static downloadFileAsync = mocks.respond("download", mocks.download);
     readonly uri: string;
 
     constructor(source: Directory | string, name?: string) {
@@ -56,22 +83,35 @@ vi.mock("expo-file-system", () => {
     }
 
     async copy(destination: File) {
-      await mocks.copy(this.uri, destination.uri);
+      await mocks.respond("copy", mocks.copy)(this.uri, destination.uri);
     }
   }
 
   return { Directory, File, Paths: { cache: "file:///cache" } };
 });
 
-vi.mock("expo", () => ({ requireNativeModule: () => ({ openFile: mocks.open }) }));
-
-vi.mock("expo-sharing", () => ({
-  isAvailableAsync: mocks.available,
-  shareAsync: mocks.share,
+vi.mock("expo", () => ({
+  requireNativeModule: () => ({
+    openFile: async (...args: ReadonlyArray<unknown>) => {
+      mocks.open(...args);
+    },
+  }),
 }));
 
-vi.mock("./uuid", () => ({ uuidv4: mocks.uuid }));
-vi.mock("./shareFileFromSource", () => ({ shareFileFromSource: mocks.shareFromSource }));
+vi.mock("expo-sharing", () => ({
+  isAvailableAsync: mocks.respond("available", mocks.available),
+  shareAsync: mocks.respond("share", mocks.share),
+}));
+
+vi.mock("./uuid", () => ({
+  uuidv4: () => {
+    mocks.uuid();
+    return `00000000-0000-4000-8000-${String(++mocks.sequence).padStart(12, "0")}`;
+  },
+}));
+vi.mock("./shareFileFromSource", () => ({
+  shareFileFromSource: mocks.respond("shareFromSource", mocks.shareFromSource),
+}));
 
 import {
   downloadAndShareAttachment,
@@ -89,7 +129,6 @@ const input = {
 
 beforeEach(() => {
   mocks.open.mockReset();
-  mocks.open.mockResolvedValue(undefined);
   mocks.directories.clear();
   mocks.deleted.mockReset();
   mocks.download.mockReset();
@@ -98,19 +137,15 @@ beforeEach(() => {
   mocks.shareFromSource.mockReset();
   mocks.available.mockReset();
   mocks.uuid.mockReset();
-  mocks.download.mockImplementation(async (_url: string, file: { uri: string }) => file);
-  mocks.copy.mockResolvedValue(undefined);
-  mocks.share.mockResolvedValue(undefined);
-  mocks.shareFromSource.mockResolvedValue(undefined);
-  mocks.available.mockResolvedValue(true);
-  let sequence = 0;
-  mocks.uuid.mockImplementation(
-    () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}`,
-  );
-  vi.spyOn(Date, "now").mockReturnValue(NOW);
+  for (const queue of Object.values(mocks.next)) queue.length = 0;
+  mocks.fallback = defaultBehavior();
+  mocks.sequence = 0;
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(NOW);
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   expect(isForegroundHandoffActive()).toBe(false);
 });
@@ -163,7 +198,7 @@ describe("downloadAndShareAttachment", () => {
   });
 
   it("reports unavailable sharing before downloading or creating files", async () => {
-    mocks.available.mockResolvedValue(false);
+    mocks.fallback.available = async () => false;
     await expect(
       downloadAndShareAttachment({ ...input, signal: new AbortController().signal }),
     ).rejects.toThrow("Saving and sharing files is unavailable on this device.");
@@ -174,10 +209,10 @@ describe("downloadAndShareAttachment", () => {
   it("cleans an interrupted download only after the native request settles", async () => {
     const started = Promise.withResolvers<void>();
     const download = Promise.withResolvers<{ uri: string }>();
-    mocks.download.mockImplementation(() => {
+    mocks.fallback.download = () => {
       started.resolve();
       return download.promise;
-    });
+    };
     const controller = new AbortController();
     const task = downloadAndShareAttachment({ ...input, signal: controller.signal });
     await started.promise;
@@ -192,11 +227,11 @@ describe("downloadAndShareAttachment", () => {
   it("retains an export when its row unmounts during the native handoff", async () => {
     const opened = Promise.withResolvers<void>();
     const share = Promise.withResolvers<void>();
-    mocks.share.mockImplementation(() => {
+    mocks.fallback.share = () => {
       expect(isForegroundHandoffActive()).toBe(true);
       opened.resolve();
       return share.promise;
-    });
+    };
     const controller = new AbortController();
     const task = downloadAndShareAttachment({ ...input, signal: controller.signal });
     await opened.promise;
@@ -207,7 +242,7 @@ describe("downloadAndShareAttachment", () => {
   });
 
   it("cleans failed exports and releases the foreground handoff", async () => {
-    mocks.share.mockRejectedValue(new Error("No activity can open this file"));
+    mocks.fallback.share = () => Promise.reject(new Error("No activity can open this file"));
     await expect(
       downloadAndShareAttachment({ ...input, signal: new AbortController().signal }),
     ).rejects.toThrow("Could not open the share sheet. Try again.");
@@ -217,13 +252,13 @@ describe("downloadAndShareAttachment", () => {
   it("does not prune an active export even if it passes the cache expiry", async () => {
     const opened = Promise.withResolvers<void>();
     const share = Promise.withResolvers<void>();
-    mocks.share.mockImplementationOnce(() => {
+    mocks.next.share.push(() => {
       opened.resolve();
       return share.promise;
     });
     const first = downloadAndShareAttachment({ ...input, signal: new AbortController().signal });
     await opened.promise;
-    vi.mocked(Date.now).mockReturnValue(NOW + DAY_MS + 1);
+    vi.setSystemTime(NOW + DAY_MS + 1);
 
     await downloadAndShareAttachment({ ...input, signal: new AbortController().signal });
     expect(mocks.deleted).not.toHaveBeenCalled();
@@ -243,7 +278,7 @@ describe("attachment preview files", () => {
   });
 
   it("downloads for playback without requiring a share sheet and removes the file on close", async () => {
-    mocks.available.mockResolvedValue(false);
+    mocks.fallback.available = async () => false;
     const file = await downloadAttachmentForPreview({
       ...input,
       signal: new AbortController().signal,
@@ -261,8 +296,8 @@ describe("attachment preview files", () => {
     async (sourceIdentifier) => {
       const opened = Promise.withResolvers<void>();
       const sharing = Promise.withResolvers<void>();
-      const nativeShare = sourceIdentifier ? mocks.shareFromSource : mocks.share;
-      nativeShare.mockImplementationOnce(() => {
+      const nativeShare = mocks.next[sourceIdentifier ? "shareFromSource" : "share"];
+      nativeShare.push(() => {
         opened.resolve();
         return sharing.promise;
       });
@@ -289,10 +324,10 @@ describe("attachment preview files", () => {
     async (sourceIdentifier) => {
       const checking = Promise.withResolvers<void>();
       const available = Promise.withResolvers<boolean>();
-      mocks.available.mockImplementation(() => {
+      mocks.fallback.available = () => {
         checking.resolve();
         return available.promise;
-      });
+      };
       const file = await downloadAttachmentForPreview({
         ...input,
         signal: new AbortController().signal,
@@ -327,10 +362,10 @@ describe("attachment preview files", () => {
   it("waits for a local copy to finish before cleaning up a canceled share", async () => {
     const copying = Promise.withResolvers<void>();
     const copied = Promise.withResolvers<void>();
-    mocks.copy.mockImplementation(() => {
+    mocks.fallback.copy = () => {
       copying.resolve();
       return copied.promise;
-    });
+    };
     const controller = new AbortController();
     const task = shareLocalAttachment({
       uri: "file:///documents/draft/report.pdf",

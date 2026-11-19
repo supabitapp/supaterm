@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 const {
   captureScreenshot,
   clientSettings,
+  displayMedia,
   events,
   getDisplayMedia,
   registrySet,
@@ -18,12 +19,26 @@ const {
   stopScreencast,
 } = vi.hoisted(() => {
   const events: string[] = [];
+  const displayMedia: Array<() => Promise<unknown>> = [];
   return {
     captureScreenshot: vi.fn<DesktopPreviewBridge["captureScreenshot"]>(),
     clientSettings: { browserRecordingFrameRate: 30 as 30 | 60 },
     events,
-    getDisplayMedia: vi.fn(),
-    requestDisplayMediaCapture: vi.fn((_tabId: string) => undefined),
+    displayMedia,
+    getDisplayMedia: () =>
+      (
+        displayMedia.shift() ??
+        (async () => ({
+          getVideoTracks: () => [],
+          getTracks: () => [{ stop: () => {} }],
+        }))
+      )(),
+    requestDisplayMediaCapture: (tabId: string) => {
+      const trigger = Reflect.get(globalThis, DESKTOP_PREVIEW_RECORDING_CAPTURE_TRIGGER);
+      if (typeof trigger !== "function" || trigger(tabId) !== true) {
+        throw new Error(`No pending display-media capture for ${tabId}.`);
+      }
+    },
     registrySet: vi.fn((_atom: unknown, value: { readonly tabIds: ReadonlySet<string> }) => {
       events.push(
         value.tabIds.size === 0 ? "clear" : `publish:${Array.from(value.tabIds).join(",")}`,
@@ -156,16 +171,7 @@ describe("browser recording", () => {
     });
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
     vi.stubGlobal("MediaRecorder", FakeMediaRecorder as unknown as typeof MediaRecorder);
-    getDisplayMedia.mockResolvedValue({
-      getVideoTracks: () => [],
-      getTracks: () => [{ stop: vi.fn() }],
-    });
-    requestDisplayMediaCapture.mockImplementation((tabId: string) => {
-      const trigger = Reflect.get(globalThis, DESKTOP_PREVIEW_RECORDING_CAPTURE_TRIGGER);
-      if (typeof trigger !== "function" || trigger(tabId) !== true) {
-        throw new Error(`No pending display-media capture for ${tabId}.`);
-      }
-    });
+    displayMedia.length = 0;
     vi.stubGlobal("navigator", { mediaDevices: { getDisplayMedia } });
     useBrowserSurfaceStore.setState({ activityByTabId: {}, byTabId: {} });
   });
@@ -177,10 +183,10 @@ describe("browser recording", () => {
 
   it("stops the native stream when MediaRecorder cleanup fails", async () => {
     const stopTrack = vi.fn();
-    getDisplayMedia.mockResolvedValueOnce({
+    displayMedia.push(async () => ({
       getVideoTracks: () => [],
       getTracks: () => [{ stop: stopTrack }],
-    });
+    }));
 
     await startBrowserRecording("recording-tab");
     const cleanupCause = new DOMException("Could not start video source", "NotReadableError");
@@ -197,7 +203,7 @@ describe("browser recording", () => {
   it("releases the native capture lease when stream acquisition fails", async () => {
     const cause = new Error("capture failed");
     cause.name = "NotReadableError";
-    getDisplayMedia.mockRejectedValueOnce(cause);
+    displayMedia.push(() => Promise.reject(cause));
 
     await expect(startBrowserRecording("recording-tab")).rejects.toMatchObject({
       operation: "capture-media-stream",

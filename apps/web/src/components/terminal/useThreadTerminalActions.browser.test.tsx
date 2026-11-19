@@ -5,10 +5,41 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { render } from "../../../test/render";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const commands = vi.hoisted(() => ({
-  open: vi.fn(),
-  write: vi.fn(),
-  close: vi.fn(),
+  open: fake(),
+  write: fake(),
+  close: fake(),
 }));
 
 vi.mock(import("../../state/session"), async (original) => ({
@@ -54,8 +85,8 @@ const threadRef = (threadId: string) => ({
 
 describe("useThreadTerminalActions", () => {
   it("writes to the thread a terminal was launched in after the user switches threads", async () => {
-    commands.open.mockResolvedValue(AsyncResult.success(undefined));
-    commands.write.mockResolvedValue(AsyncResult.success(undefined));
+    commands.open.implement(async () => AsyncResult.success(undefined));
+    commands.write.implement(async () => AsyncResult.success(undefined));
     const actions: { current?: ReturnType<typeof useThreadTerminalActions> } = {};
     function Harness({ thread }: { thread: ScopedThreadRef }) {
       const threadActions = useThreadTerminalActions(thread);

@@ -10,6 +10,10 @@
     "./TestSourceControlHost": {
       "types": "./src/TestSourceControlHost.ts",
       "import": "./src/TestSourceControlHost.ts"
+    },
+    "./scriptedFunction": {
+      "types": "./src/scriptedFunction.ts",
+      "import": "./src/scriptedFunction.ts"
     }
   },
   "scripts": {

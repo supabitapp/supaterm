@@ -10,7 +10,7 @@ import { Atom } from "effect/reactivity";
 import { compileResolvedKeybindingsConfig } from "@supaterm/shared/keybindings";
 import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
-import { page, userEvent } from "vite-plus/test/browser";
+import { cdp, page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 
@@ -54,6 +54,15 @@ const provider: ServerProvider = {
   slashCommands: [],
   skills: [],
 };
+
+async function emulateTouchScreen() {
+  await cdp().send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+  return {
+    [Symbol.asyncDispose]: async () => {
+      await cdp().send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    },
+  };
+}
 
 it("names the full model for screen readers when the trigger shows its short name", async () => {
   await using screen = await render(
@@ -266,10 +275,7 @@ it("opens on the active provider when every favorite belongs to a disabled provi
 });
 
 it("on a touch tablet, picking a model leaves the editor unfocused", async () => {
-  const realMatchMedia = window.matchMedia.bind(window);
-  using _touch = vi
-    .spyOn(window, "matchMedia")
-    .mockImplementation((query) => realMatchMedia(query === "(pointer: coarse)" ? "all" : query));
+  await using _touch = await emulateTouchScreen();
   const handle = { focusAtEnd: vi.fn() };
   const composerRef = { current: handle } as unknown as ComposerHandleRef;
   await using screen = await render(
@@ -314,21 +320,7 @@ it("keeps the touch keyboard down while choosing a provider", async () => {
     })),
   );
   const [codex] = entries;
-  const matchMedia = window.matchMedia.bind(window);
-  using _touch = vi.spyOn(window, "matchMedia").mockImplementation((query) =>
-    query === "(pointer: coarse)"
-      ? ({
-          matches: true,
-          media: query,
-          onchange: null,
-          addEventListener: () => {},
-          removeEventListener: () => {},
-          addListener: () => {},
-          removeListener: () => {},
-          dispatchEvent: () => false,
-        } as MediaQueryList)
-      : matchMedia(query),
-  );
+  await using _touch = await emulateTouchScreen();
 
   await using screen = await render(
     <ProviderModelPicker

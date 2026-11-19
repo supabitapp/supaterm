@@ -87,6 +87,7 @@ import { type DeviceShapeProfile } from "./shapeProfile.ts";
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
   gpu.instances.length = 0;
   models.pending.length = 0;
 });
@@ -94,8 +95,7 @@ afterEach(() => {
 function fixture(profile?: DeviceShapeProfile) {
   const pending = new Map<number, FrameRequestCallback>();
   let id = 0;
-  let now = 0;
-  vi.spyOn(performance, "now").mockImplementation(() => now);
+  vi.useFakeTimers({ toFake: ["performance"] });
   vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
     pending.set(++id, callback);
     return id;
@@ -112,8 +112,7 @@ function fixture(profile?: DeviceShapeProfile) {
     onFramingAspect,
     ...(profile ? { profile } : {}),
   });
-  const draw = (time = now) => {
-    now = time;
+  const draw = () => {
     const callbacks = [...pending.values()];
     pending.clear();
     callbacks.forEach((callback) => callback(0));

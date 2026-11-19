@@ -12,8 +12,39 @@ import {
 import { expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
-  update: vi.fn(),
+  update: fake(),
   canUpdate: true,
   timestampFormat: "locale" as "locale" | "12-hour" | "24-hour",
 }));
@@ -52,8 +83,8 @@ vi.mock(import("~/state/pullRequests"), async (original) => {
 });
 
 function setup() {
-  state.update.mockReset();
-  state.update.mockResolvedValue({ _tag: "Success", value: undefined });
+  state.update.reset();
+  state.update.implement(async () => ({ _tag: "Success", value: undefined }));
   state.canUpdate = true;
   state.timestampFormat = "locale";
 }
@@ -145,7 +176,7 @@ async function render(value = detail) {
 
 it("keeps an unsaved description when collapsed and reopened, and after a failed save", async () => {
   setup();
-  state.update.mockResolvedValue({ _tag: "Failure", cause: new Error("offline") });
+  state.update.implement(async () => ({ _tag: "Failure", cause: new Error("offline") }));
   await using screen = await render();
   await act(async () =>
     screen.container.querySelector<HTMLButtonElement>('[aria-label="Edit description"]')!.click(),
@@ -167,7 +198,7 @@ it("keeps an unsaved description when collapsed and reopened, and after a failed
 it("ticks a description checkbox placed after an attachment and edits from the ticked body", async () => {
   setup();
   let finishSave = (_result: unknown) => {};
-  state.update.mockReturnValueOnce(new Promise((resolve) => (finishSave = resolve)));
+  state.update.implementOnce(() => new Promise((resolve) => (finishSave = resolve)));
   const body = "Intro\n\nhttps://example.com/shot.png\n\n## Test plan\n- [ ] First\n- [ ] Second";
   const ticked = body.replace("- [ ] Second", "- [x] Second");
   await using screen = await render({ ...detail, body, observedAt: 1 });
@@ -219,10 +250,11 @@ const comment = (id: string, body: string) =>
 it("keeps a comment draft through a failed save when another comment's edit is clicked", async () => {
   setup();
   let failSave!: () => void;
-  state.update.mockReturnValue(
-    new Promise<{ readonly _tag: "Failure" }>((resolve) => {
-      failSave = () => resolve({ _tag: "Failure" });
-    }),
+  state.update.implement(
+    () =>
+      new Promise<{ readonly _tag: "Failure" }>((resolve) => {
+        failSave = () => resolve({ _tag: "Failure" });
+      }),
   );
   await using screen = await render({
     ...detail,

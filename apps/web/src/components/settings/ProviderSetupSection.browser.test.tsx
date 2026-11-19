@@ -11,20 +11,51 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../../test/render";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const setup = vi.hoisted(() => ({
   auth: null as ProviderAuthState | null,
   installation: null as ProviderInstallState | null,
-  authState: vi.fn(() => "auth"),
-  installState: vi.fn(() => "installation"),
-  startAuth: vi.fn(),
-  completeAuth: vi.fn(),
-  respondAuth: vi.fn(),
-  cancelAuth: vi.fn(),
-  logoutAuth: vi.fn(),
-  startInstall: vi.fn(),
-  cancelInstall: vi.fn(),
-  removeInstall: vi.fn(),
-  confirm: vi.fn(),
+  authState: fake(() => "auth"),
+  installState: fake(() => "installation"),
+  startAuth: fake(),
+  completeAuth: fake(),
+  respondAuth: fake(),
+  cancelAuth: fake(),
+  logoutAuth: fake(),
+  startInstall: fake(),
+  cancelInstall: fake(),
+  removeInstall: fake(),
+  confirm: fake(),
 }));
 
 vi.mock(import("../../state/server"), async (original) => {
@@ -176,9 +207,9 @@ function resetSetup() {
     setup.cancelInstall,
     setup.removeInstall,
   ]) {
-    command.mockReset().mockResolvedValue({ _tag: "Success", value: undefined });
+    command.reset(async () => ({ _tag: "Success", value: undefined }));
   }
-  setup.confirm.mockReset().mockResolvedValue(false);
+  setup.confirm.reset(async () => false);
 }
 
 describe("Antigravity setup", () => {
@@ -191,7 +222,7 @@ describe("Antigravity setup", () => {
     const command = new Promise<{ _tag: "Success"; value: undefined }>((resolve) => {
       resolveStart = () => resolve({ _tag: "Success", value: undefined });
     });
-    setup.startInstall.mockReturnValueOnce(command);
+    setup.startInstall.implementOnce(() => command);
     await using screen = await renderSetup({ provider: { ...provider, installed: false } });
 
     await screen.click("Install Antigravity");

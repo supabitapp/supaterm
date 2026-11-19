@@ -3,6 +3,7 @@ import type { RightPanelSurface } from "../rightPanelStore";
 import {
   confirmClose,
   confirmTerminalClose,
+  type CloseConfirmationHost,
   type TerminalCloseTarget,
 } from "./terminalCloseConfirm";
 
@@ -38,15 +39,17 @@ export async function confirmRightPanelSurfacesClose(
   context: {
     readonly desktopByTabId: BrowserControllersByTabId;
     readonly terminalCloseTarget: (terminalId: string) => TerminalCloseTarget;
+    readonly host?: CloseConfirmationHost;
   },
 ) {
   const browserMessage = agentControlledBrowserCloseConfirmation(surfaces, context.desktopByTabId);
-  if (browserMessage && !(await confirmClose(browserMessage))) return false;
+  if (browserMessage && !(await confirmClose(browserMessage, context.host))) return false;
   return confirmTerminalClose(
     surfaces.flatMap((surface) =>
       surface.kind === "terminal"
         ? surface.terminalIds.map((terminalId) => context.terminalCloseTarget(terminalId))
         : [],
     ),
+    context.host,
   );
 }

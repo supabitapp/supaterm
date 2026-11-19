@@ -4,21 +4,23 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
-const execute = vi.hoisted(() => vi.fn());
-const startEffects = vi.hoisted(() => vi.fn());
-vi.mock("node:child_process", () => ({ execFile: execute }));
-vi.mock("./NativeCaptureFeedback.ts", () => ({ startNativeCaptureFeedback: startEffects }));
 vi.mock("electron", () => ({
   nativeImage: {
     createFromBuffer: () => ({ isEmpty: () => false, getSize: () => ({ width: 2, height: 1 }) }),
   },
 }));
 import { KdeCaptureSetup, captureKdeWindow, kdeCapturePaths } from "./KdeSnapShot.ts";
+import type { CaptureHelperExecFile, CaptureHelperNative } from "./NativeCaptureFeedback.ts";
+
+type Feedback = Awaited<ReturnType<CaptureHelperNative["startFeedback"]>>;
 
 let directory: string;
 let paths: { bundle: string; dataHome: string };
 let setup: KdeCaptureSetup;
 let denial = false;
+let executions: Array<[string, ReadonlyArray<string>]> = [];
+let executeOverride: CaptureHelperExecFile | undefined;
+let startEffects: () => Promise<Feedback | undefined> = async () => undefined;
 const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0]);
 const window = {
   title: "Document",
@@ -36,33 +38,33 @@ beforeEach(async () => {
     dataHome: NodePath.join(directory, "user data"),
   };
   await NodeFSP.writeFile(paths.bundle, "bundled executable");
-  setup = new KdeCaptureSetup(paths);
+  setup = new KdeCaptureSetup(paths, native);
   denial = false;
-  startEffects.mockReset();
-  startEffects.mockResolvedValue(undefined);
-  execute.mockReset();
-  execute.mockImplementation(
-    (
-      executable: string,
-      args: string[],
-      _options: unknown,
-      callback: (error: Error | null, stdout: string, stderr: string) => void,
-    ) => {
-      if (args[0] === "capture") {
-        void NodeFSP.writeFile(NodePath.join(args[1]!, "capture.png"), png).then(() =>
-          callback(null, JSON.stringify({ window }), ""),
-        );
-      } else if (args[0] === "check" && denial)
-        callback(new Error("Denied"), "", "org.kde.KWin.ScreenShot2.Error.NoAuthorized");
-      else
-        callback(
-          null,
-          executable === "kbuildsycoca6" ? "" : '{"ready":true,"feedbackAvailable":true}',
-          "",
-        );
-    },
-  );
+  executions = [];
+  executeOverride = undefined;
+  startEffects = async () => undefined;
 });
+const executeNormally: CaptureHelperExecFile = (executable, args, _options, callback) => {
+  if (args[0] === "capture") {
+    void NodeFSP.writeFile(NodePath.join(args[1]!, "capture.png"), png).then(() =>
+      callback(null, JSON.stringify({ window }), ""),
+    );
+  } else if (args[0] === "check" && denial)
+    callback(new Error("Denied"), "", "org.kde.KWin.ScreenShot2.Error.NoAuthorized");
+  else
+    callback(
+      null,
+      executable === "kbuildsycoca6" ? "" : '{"ready":true,"feedbackAvailable":true}',
+      "",
+    );
+};
+const native: CaptureHelperNative = {
+  execFile: (executable, args, options, callback) => {
+    executions.push([executable, args]);
+    (executeOverride ?? executeNormally)(executable, args, options, callback);
+  },
+  startFeedback: () => startEffects() as ReturnType<CaptureHelperNative["startFeedback"]>,
+};
 afterEach(async () => {
   await NodeFSP.rm(directory, { recursive: true, force: true });
 });
@@ -74,8 +76,8 @@ it("does not mistake installed files for KDE authorization, or fall back to a pi
     status: "error",
     message: expect.stringContaining("Reinstall"),
   });
-  await expect(captureKdeWindow(paths)).rejects.toThrow("Settings → SnapShots");
-  expect(execute.mock.calls.some(([, args]) => args[0] === "capture")).toBe(false);
+  await expect(captureKdeWindow(paths, undefined, native)).rejects.toThrow("Settings → SnapShots");
+  expect(executions.some(([, args]) => args[0] === "capture")).toBe(false);
 });
 
 it("detects a bundled update, updates explicitly, and removes only capture's registration", async () => {
@@ -98,9 +100,9 @@ it("repairs the old semicolon permission entry without replacing unrelated regis
   const permission = "X-KDE-DBUS-Restricted-Interfaces=org.kde.KWin.ScreenShot2";
   expect(installed.split("\n")).toContain(permission);
   await NodeFSP.writeFile(desktop, installed.replace(`${permission}\n`, `${permission};\n`));
-  execute.mockClear();
+  executions = [];
   expect((await setup.state()).status).toBe("update-required");
-  expect(execute).not.toHaveBeenCalled();
+  expect(executions).toEqual([]);
   await setup.perform("install-kde-helper");
   expect((await setup.state()).status).toBe("ready");
   expect((await NodeFSP.readFile(desktop, "utf8")).split("\n")).toContain(permission);
@@ -108,11 +110,10 @@ it("repairs the old semicolon permission entry without replacing unrelated regis
 });
 
 it("still verifies capture access when a systemd user manager is unavailable", async () => {
-  const executeNormally = execute.getMockImplementation()!;
-  execute.mockImplementation((file, args, options, callback) => {
+  executeOverride = (file, args, options, callback) => {
     if (file === "systemd-run") callback(new Error("ENOENT"), "", "");
     else executeNormally(file, args, options, callback);
-  });
+  };
   await setup.perform("install-kde-helper");
   expect((await setup.state()).status).toBe("ready");
   denial = true;
@@ -120,9 +121,8 @@ it("still verifies capture access when a systemd user manager is unavailable", a
 });
 
 it("does not report a successful install when the registry cannot be refreshed", async () => {
-  execute.mockImplementation((_file, _args, _options, callback) =>
-    callback(new Error("Failed"), "", "Failed to rebuild registry"),
-  );
+  executeOverride = (_file, _args, _options, callback) =>
+    callback(new Error("Failed"), "", "Failed to rebuild registry");
   await expect(setup.perform("install-kde-helper")).rejects.toThrow("KDE couldn't register");
 });
 
@@ -140,51 +140,52 @@ it("refuses symlink destinations and unrelated desktop entries", async () => {
 
 it("captures with verified identity, cleans private files, and activates only the owning Supaterm PID/title", async () => {
   await setup.perform("install-kde-helper");
-  const capture = await captureKdeWindow(paths);
+  const capture = await captureKdeWindow(paths, undefined, native);
   expect(capture.png).toEqual(png);
   expect(capture.window).toEqual(window);
   expect(capture.feedback?.animationStarted).toBe(false);
-  const [, args] = execute.mock.calls.find(([, args]) => args[0] === "capture")!;
-  await expect(NodeFSP.stat(args[1])).rejects.toMatchObject({ code: "ENOENT" });
+  const [, args] = executions.find(([, args]) => args[0] === "capture")!;
+  await expect(NodeFSP.stat(args[1]!)).rejects.toMatchObject({ code: "ENOENT" });
   await capture.feedback?.activate('My "Draft"');
-  const [, activation] = execute.mock.calls.find(([, args]) => args[0] === "activate")!;
+  const [, activation] = executions.find(([, args]) => args[0] === "activate")!;
   expect(activation.slice(2)).toEqual([String(process.pid), 'My "Draft"']);
-  await expect(NodeFSP.stat(activation[1])).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(NodeFSP.stat(activation[1]!)).rejects.toMatchObject({ code: "ENOENT" });
   capture.feedback?.close();
 });
 
 it("retains the frozen screenshot for feedback and removes it after the renderer acknowledges landing", async () => {
   await setup.perform("install-kde-helper");
   const closed = Promise.withResolvers<void>();
-  const animateTo = vi.fn().mockResolvedValue(undefined);
-  startEffects.mockResolvedValue({
+  const effects = {
     animationStarted: true,
     closed: closed.promise,
-    animateTo,
+    animateTo: async (_title: string, _frame: unknown) => undefined,
     complete: async () => {
       closed.resolve();
     },
     close: () => closed.resolve(),
-  });
-  const capture = await captureKdeWindow(paths, { flash: true, animate: true });
-  const [, args] = execute.mock.calls.find(([, args]) => args[0] === "capture")!;
-  expect(await NodeFSP.readFile(NodePath.join(args[1], "capture.png"))).toEqual(png);
+  };
+  const animateTo = vi.spyOn(effects, "animateTo");
+  startEffects = async () => effects as unknown as Feedback;
+  const capture = await captureKdeWindow(paths, { flash: true, animate: true }, native);
+  const [, args] = executions.find(([, args]) => args[0] === "capture")!;
+  expect(await NodeFSP.readFile(NodePath.join(args[1]!, "capture.png"))).toEqual(png);
   expect(capture.feedback?.animationStarted).toBe(true);
   await capture.feedback?.activate("Draft");
   const frame = { x: 0.2, y: 0.5, width: 0.1, height: 0.2 };
   await capture.feedback?.animateTo(frame);
   expect(animateTo).toHaveBeenCalledWith("Draft", frame);
   await capture.feedback?.complete();
-  await expect(NodeFSP.stat(args[1])).rejects.toMatchObject({ code: "ENOENT" });
+  await expect(NodeFSP.stat(args[1]!)).rejects.toMatchObject({ code: "ENOENT" });
 });
 
 it("keeps a successfully captured image when optional KDE effects fail", async () => {
   await setup.perform("install-kde-helper");
-  startEffects.mockRejectedValue(new Error("QML unavailable"));
-  const capture = await captureKdeWindow(paths, { flash: true, animate: true });
+  startEffects = () => Promise.reject(new Error("QML unavailable"));
+  const capture = await captureKdeWindow(paths, { flash: true, animate: true }, native);
   expect(capture.png).toEqual(png);
   expect(capture.feedback?.animationStarted).toBe(false);
-  const [, args] = execute.mock.calls.find(([, args]) => args[0] === "capture")!;
-  await expect(NodeFSP.stat(args[1])).rejects.toMatchObject({ code: "ENOENT" });
+  const [, args] = executions.find(([, args]) => args[0] === "capture")!;
+  await expect(NodeFSP.stat(args[1]!)).rejects.toMatchObject({ code: "ENOENT" });
   capture.feedback?.close();
 });

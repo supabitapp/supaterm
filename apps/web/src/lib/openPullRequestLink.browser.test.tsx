@@ -6,9 +6,23 @@ import { page } from "vite-plus/test/browser";
 
 import { act, render, stubGlobal } from "../../test/render";
 
-const state = vi.hoisted(() => ({ preview: vi.fn(), openLink: vi.fn() }));
-vi.mock("../state/use-atom-query-runner", () => ({ useAtomQueryRunner: () => state.preview }));
-vi.mock("../browser/useOpenLink", () => ({ useOpenLink: () => state.openLink }));
+const state = vi.hoisted(() => {
+  const state = {
+    preview: vi.fn<(input: unknown) => void>(),
+    previewResult: null as unknown,
+    openLink: vi.fn<(url: string, options: unknown) => void>(),
+    runPreview: async (input: unknown) => {
+      state.preview(input);
+      return state.previewResult;
+    },
+    runOpenLink: async (url: string, options: unknown) => {
+      state.openLink(url, options);
+    },
+  };
+  return state;
+});
+vi.mock("../state/use-atom-query-runner", () => ({ useAtomQueryRunner: () => state.runPreview }));
+vi.mock("../browser/useOpenLink", () => ({ useOpenLink: () => state.runOpenLink }));
 vi.mock(import("../state/environments"), async (original) => ({
   ...(await original()),
   usePrimaryEnvironmentId: () => EnvironmentId.make("local"),
@@ -56,8 +70,18 @@ const project = {
 const commitUrl = `https://github.com/Effect-TS/effect/commit/${"a".repeat(40)}?plain=1#diff-original`;
 const pullRequestCommitUrl = `https://github.com/Effect-TS/effect/pull/1/commits/${"a".repeat(40)}`;
 
-function CommitLink({ url = commitUrl }: { url?: string }) {
-  const open = useOpenChangeRequestLink(threadRef);
+function CommitLink({
+  url = commitUrl,
+  openWindow,
+}: {
+  url?: string;
+  openWindow?: (url: string, target: string, features: string) => void;
+}) {
+  const open = useOpenChangeRequestLink(
+    threadRef,
+    undefined,
+    openWindow === undefined ? undefined : { openWindow },
+  );
   return (
     <a href={url} onClick={(event) => open(event, url)}>
       Commit
@@ -66,8 +90,9 @@ function CommitLink({ url = commitUrl }: { url?: string }) {
 }
 
 function setup() {
-  state.preview.mockReset().mockResolvedValue(AsyncResult.success({ sources: [] }));
-  state.openLink.mockReset().mockResolvedValue(undefined);
+  state.preview.mockReset();
+  state.previewResult = AsyncResult.success({ sources: [] });
+  state.openLink.mockReset();
   __setClientSettingsForTests({
     ...DEFAULT_CLIENT_SETTINGS,
     pullRequestLinksOpenInApp: true,
@@ -119,14 +144,14 @@ it.each(["system", "app"] as const)(
       browserLinkTarget,
     });
     using _desktop = stubGlobal("desktopBridge", undefined);
+    const open = vi.fn<(url: string, target: string, features: string) => void>();
     await using screen = await render(
       <AppAtomRegistryProvider>
         <ToastProvider>
-          <CommitLink />
+          <CommitLink openWindow={open} />
         </ToastProvider>
       </AppAtomRegistryProvider>,
     );
-    using open = vi.spyOn(window, "open").mockReturnValue(null);
     await screen.getByRole("link", { name: "Commit" }).click();
     await expect
       .element(page.getByRole("button", { name: "Open link", exact: true }))
@@ -141,9 +166,7 @@ it.each(["system", "app"] as const)(
 it("opens an available commit in the closed Diff pane without the pane resetting it", async () => {
   setup();
   const sha = "a".repeat(40);
-  state.preview.mockResolvedValue(
-    AsyncResult.success({ sources: [{ kind: "commit", headRef: sha }] }),
-  );
+  state.previewResult = AsyncResult.success({ sources: [{ kind: "commit", headRef: sha }] });
   await using screen = await render(
     <AppAtomRegistryProvider>
       <CommitLink />

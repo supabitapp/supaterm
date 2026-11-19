@@ -599,12 +599,7 @@ describe("buildThreadActionItems", () => {
   });
 
   it("normalizes case independently of the host locale", () => {
-    const toLocaleLowerCase = String.prototype.toLocaleLowerCase;
-    const localeLowerCase = vi
-      .spyOn(String.prototype, "toLocaleLowerCase")
-      .mockImplementation(function (this: string) {
-        return toLocaleLowerCase.call(this, "tr");
-      });
+    const localeLowerCase = vi.spyOn(String.prototype, "toLocaleLowerCase");
     try {
       const groups = filterCommandPaletteGroups({
         activeGroups: [],
@@ -626,6 +621,7 @@ describe("buildThreadActionItems", () => {
       expect(groups.flatMap((group) => group.items.map((item) => item.value))).toEqual([
         "setting:version-control",
       ]);
+      expect(localeLowerCase).not.toHaveBeenCalled();
     } finally {
       localeLowerCase.mockRestore();
     }

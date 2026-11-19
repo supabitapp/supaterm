@@ -6,15 +6,25 @@ import type { AppStateStatus } from "react-native";
 import { expect, it, vi } from "vite-plus/test";
 import { EnvironmentId } from "@supaterm/contracts";
 
-const mocks = vi.hoisted(() => ({
-  focused: true,
-  appState: "active" as AppStateStatus,
-  appStateListeners: new Set<(state: AppStateStatus) => void>(),
-  players: [] as ReturnType<typeof createPlayer>[],
-  refresh: vi.fn<() => Promise<string | null>>(),
-  replace: vi.fn<() => Promise<void>>(),
-  thumbnail: vi.fn<(key: string, source: unknown, signal: AbortSignal) => Promise<null>>(),
-}));
+const mocks = vi.hoisted(() => {
+  const state = {
+    focused: true,
+    appState: "active" as AppStateStatus,
+    appStateListeners: new Set<(state: AppStateStatus) => void>(),
+    players: [] as ReturnType<typeof createPlayer>[],
+    signedUrl: Promise.resolve<string | null>(null),
+    replacement: Promise.resolve(),
+    thumbnailResult: Promise.resolve(null),
+    refresh: () => state.signedUrl,
+    replace: () => state.replacement,
+    thumbnail: (_key: string, _source: unknown, _signal: AbortSignal) => state.thumbnailResult,
+  };
+  return Object.assign(state, {
+    refresh: vi.spyOn(state, "refresh"),
+    replace: vi.spyOn(state, "replace"),
+    thumbnail: vi.spyOn(state, "thumbnail"),
+  });
+});
 vi.mock("@react-navigation/native", () => ({ useIsFocused: () => mocks.focused }));
 vi.mock("react-native", () => ({
   Platform: { OS: "ios" },
@@ -76,8 +86,8 @@ vi.mock("expo-video", async () => {
 });
 vi.mock("expo-audio", () => ({
   AudioModule: { setAudioSessionOwner: vi.fn() },
-  setAudioModeAsync: vi.fn().mockResolvedValue(undefined),
-  setIsAudioActiveAsync: vi.fn().mockResolvedValue(undefined),
+  setAudioModeAsync: async () => {},
+  setIsAudioActiveAsync: async () => {},
 }));
 vi.mock("expo-image", () => ({ Image: () => null }));
 vi.mock("../components/ui/AppActivityIndicator", () => ({ AppActivityIndicator: () => null }));
@@ -156,9 +166,12 @@ function setup(kind: "thread" | "PR" | "files", compact = false) {
   mocks.appState = "active";
   mocks.players = [];
   mocks.appStateListeners.clear();
-  mocks.refresh.mockReset().mockResolvedValue("https://media.example/clip.mp4");
-  mocks.replace.mockReset().mockResolvedValue();
-  mocks.thumbnail.mockReset().mockResolvedValue(null);
+  mocks.refresh.mockClear();
+  mocks.replace.mockClear();
+  mocks.thumbnail.mockClear();
+  mocks.signedUrl = Promise.resolve("https://media.example/clip.mp4");
+  mocks.replacement = Promise.resolve();
+  mocks.thumbnailResult = Promise.resolve(null);
   const container = document.createElement("div");
   const root = createRoot(container);
   const registry = AtomRegistry.make();
@@ -260,8 +273,8 @@ it.each(["thread", "PR"] as const)(
     using screen = setup(kind);
     const signed = Promise.withResolvers<string | null>();
     const replaced = Promise.withResolvers<void>();
-    mocks.refresh.mockReturnValue(signed.promise);
-    mocks.replace.mockReturnValue(replaced.promise);
+    mocks.signedUrl = signed.promise;
+    mocks.replacement = replaced.promise;
     screen.render();
     const player = await screen.open();
     screen.render(false);
@@ -284,7 +297,7 @@ it.each([
   "stops inactive %s thumbnail requests (compact: %s) and restarts on return",
   async (kind, compact) => {
     using screen = setup(kind, compact);
-    mocks.thumbnail.mockReturnValue(new Promise(() => {}));
+    mocks.thumbnailResult = new Promise(() => {});
     screen.render(false);
     expect(mocks.thumbnail).not.toHaveBeenCalled();
     await act(async () => screen.render(true));
@@ -331,8 +344,8 @@ it.each(["thread", "PR"] as const)(
     using screen = setup(kind);
     const signed = Promise.withResolvers<string | null>();
     const replaced = Promise.withResolvers<void>();
-    mocks.refresh.mockReturnValue(signed.promise);
-    mocks.replace.mockReturnValue(replaced.promise);
+    mocks.signedUrl = signed.promise;
+    mocks.replacement = replaced.promise;
     screen.render();
     const player = await screen.open();
     screen.render(false);

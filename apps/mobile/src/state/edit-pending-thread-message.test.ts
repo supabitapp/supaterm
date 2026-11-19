@@ -6,9 +6,11 @@ const state = vi.hoisted(() => ({
   dispatching: {} as Record<string, true>,
   held: {} as Record<string, true>,
   draft: { text: "Existing draft", attachments: [] as { id: string }[] },
-  confirm: vi.fn(async () => true),
-  remove: vi.fn(async () => true),
-  flush: vi.fn(async () => {}),
+  confirm: vi.fn(),
+  confirmOnce: [] as Array<() => Promise<boolean>>,
+  remove: vi.fn(),
+  removeOnce: [] as Array<() => Promise<boolean>>,
+  flush: vi.fn(),
 }));
 vi.mock("./atom-registry", () => ({
   appAtomRegistry: {
@@ -26,10 +28,18 @@ vi.mock("./use-thread-outbox", () => ({
   },
 }));
 vi.mock("./thread-outbox", () => ({
-  confirmThreadOutboxMessageQueued: state.confirm,
+  confirmThreadOutboxMessageQueued: async (queued: QueuedThreadMessage) => {
+    state.confirm(queued);
+    return (await state.confirmOnce.shift()?.()) ?? true;
+  },
   threadOutboxRevision: () => 1,
 }));
-vi.mock("./thread-outbox-removal", () => ({ removeThreadOutboxMessage: state.remove }));
+vi.mock("./thread-outbox-removal", () => ({
+  removeThreadOutboxMessage: async (...args: ReadonlyArray<unknown>) => {
+    state.remove(...args);
+    return (await state.removeOnce.shift()?.()) ?? true;
+  },
+}));
 vi.mock("./use-composer-drafts", () => ({
   waitForComposerDraftsLoaded: async () => {},
   getComposerDraftSnapshot: () => state.draft,
@@ -45,7 +55,9 @@ vi.mock("./use-composer-drafts", () => ({
     return { snapshot, merged: state.draft };
   },
   updateComposerDraftSettings: () => {},
-  flushComposerDrafts: state.flush,
+  flushComposerDrafts: async () => {
+    state.flush();
+  },
   undoComposerDraftMerge: async (_key: string, snapshot: typeof state.draft) => {
     state.draft = snapshot;
   },
@@ -75,17 +87,16 @@ beforeEach(() => {
   state.dispatching = {};
   state.held = {};
   state.draft = { text: "Existing draft", attachments: [] };
-  state.confirm.mockResolvedValue(true);
-  state.remove.mockResolvedValue(true);
-  state.flush.mockResolvedValue(undefined);
+  state.confirmOnce.length = 0;
+  state.removeOnce.length = 0;
 });
 describe("editing a pending message", () => {
   it("locks delivery and persists text and attachments before removing the queued copy", async () => {
-    state.confirm.mockImplementationOnce(async () => {
+    state.confirmOnce.push(async () => {
       expect(state.held[message.messageId]).toBe(true);
       return true;
     });
-    state.remove.mockImplementationOnce(async () => {
+    state.removeOnce.push(async () => {
       expect(state.flush).toHaveBeenCalled();
       expect(state.draft.text).toBe("Existing draft\n\nQueued task");
       expect(state.draft.attachments).toEqual(message.attachments);
@@ -101,13 +112,13 @@ describe("editing a pending message", () => {
     expect(state.draft.text).toBe("Existing draft");
   });
   it("rolls back the draft if removing the queued message fails", async () => {
-    state.remove.mockRejectedValueOnce(new Error("disk error"));
+    state.removeOnce.push(() => Promise.reject(new Error("disk error")));
     await expect(editPendingThreadMessage(message)).rejects.toThrow("disk error");
     expect(state.draft).toEqual({ text: "Existing draft", attachments: [] });
     expect(state.held).toEqual({});
   });
   it("rolls back when a newer queue revision wins", async () => {
-    state.remove.mockResolvedValueOnce(false);
+    state.removeOnce.push(async () => false);
     expect(await editPendingThreadMessage(message)).toBe(false);
     expect(state.draft.text).toBe("Existing draft");
   });

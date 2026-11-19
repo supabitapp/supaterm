@@ -369,7 +369,10 @@ describe("incoming share imports", () => {
   it("a route switching drafts abandons the in-flight import", async () => {
     const reserved = Promise.withResolvers<void>();
     const { deps, imports, watch } = setup({
-      reserve: vi.fn().mockReturnValueOnce(reserved.promise).mockResolvedValue(undefined),
+      reserve: (() => {
+        const reservations = [reserved.promise];
+        return () => reservations.shift() ?? Promise.resolve();
+      })(),
     });
     watch(importTarget()).unmount();
     const secondTarget = importTarget({ draftKey: "draft-b" });

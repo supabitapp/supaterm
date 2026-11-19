@@ -272,7 +272,7 @@ describe("composerDraftStore copied attachments", () => {
     const target = scopeThreadRef(TEST_ENVIRONMENT_ID, ThreadId.make("copy-target"));
     const image = makeImage({ id: "uploading-image", previewUrl: "blob:source" });
     const file = makeFile("uploading-file");
-    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const revoke = vi.spyOn(URL, "revokeObjectURL");
     const store = useComposerDraftStore.getState();
     store.addImages(source, [image]);
     store.addFiles(source, [file]);

@@ -40,14 +40,21 @@ function document_() {
 
 it("draws list numbers with the document's faces, and text no bundled face covers with the system's", async () => {
   const opened = await openWordDocument(await document_(), document.fonts);
-  const drawn: { text: string; font: string }[] = [];
-  using _fillText = vi
-    .spyOn(OffscreenCanvasRenderingContext2D.prototype, "fillText")
-    .mockImplementation(function (this: OffscreenCanvasRenderingContext2D, text) {
-      drawn.push({ text, font: this.font });
-    });
+  using fillText = vi.spyOn(OffscreenCanvasRenderingContext2D.prototype, "fillText");
+  using fontSet = vi.spyOn(OffscreenCanvasRenderingContext2D.prototype, "font", "set");
 
   await opened.paint(0, 1, 1, new AbortController().signal);
+
+  const drawn = fillText.mock.calls.map(([text], index) => {
+    const order = fillText.mock.invocationCallOrder[index]!;
+    const context = fillText.mock.contexts[index];
+    const fonts = fontSet.mock.calls.flatMap(([font], set) =>
+      fontSet.mock.contexts[set] === context && fontSet.mock.invocationCallOrder[set]! < order
+        ? [font]
+        : [],
+    );
+    return { text, font: fonts.at(-1) ?? "" };
+  });
 
   expect(drawn.map((call) => call.text)).toEqual(expect.arrayContaining(["1.", "ภาษาไทย"]));
   expect(drawn.find((call) => call.text === "1.")?.font).toContain("Calibri");

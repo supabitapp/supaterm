@@ -17,10 +17,11 @@ const device: DeviceSummary = {
 };
 
 it("keeps a typed URL until opening it succeeds", async () => {
-  const run = vi
-    .fn<DeviceControls["act"]>()
-    .mockResolvedValueOnce(false)
-    .mockResolvedValueOnce(true);
+  const outcomes = [false, true];
+  const run = vi.spyOn(
+    { act: (async () => outcomes.shift() ?? false) as DeviceControls["act"] },
+    "act",
+  );
   const controls: DeviceControls = {
     detail: null,
     pending: false,

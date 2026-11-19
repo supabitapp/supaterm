@@ -8,12 +8,13 @@ import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
-import { olderDoneThreads } from "../../state/threads";
 import { makeRawThreadShell } from "../../thread.fixture";
 import { useThreadListV2 } from "./useThreadListV2";
 
+const shelf = vi.hoisted(() => ({ atom: undefined as unknown }));
+
 vi.mock("../../state/threads", () => ({
-  olderDoneThreads: { shelfAtom: vi.fn() },
+  olderDoneThreads: { shelfAtom: () => shelf.atom },
   threadFamilies: { mountRows: () => () => {} },
 }));
 vi.mock("../../state/atom-registry", () => ({ appAtomRegistry: undefined }));
@@ -33,7 +34,7 @@ it("reuses a large thread list across tab renders and updates when its inputs ch
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   using _globals = { [Symbol.dispose]: () => vi.unstubAllGlobals() };
   const shelfAtom = Atom.make<ReadonlyMap<EnvironmentId, OlderDoneShelfEnvironment>>(new Map());
-  vi.mocked(olderDoneThreads.shelfAtom).mockReturnValue(shelfAtom);
+  shelf.atom = shelfAtom;
   const registry = AtomRegistry.make();
   using _registry = { [Symbol.dispose]: () => registry.dispose() };
   const environmentId = EnvironmentId.make("environment-1");

@@ -9,7 +9,6 @@ import * as TestConsole from "effect/testing/TestConsole";
 import { Command } from "effect/cli";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as NetService from "@supaterm/shared/Net";
-import { afterEach, vi } from "vite-plus/test";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../service/bootService.ts";
@@ -21,8 +20,6 @@ import {
   uninstallCommand,
 } from "./uninstall.ts";
 
-afterEach(() => vi.restoreAllMocks());
-
 it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))(
   "supaterm uninstall command",
   (it) => {
@@ -33,28 +30,23 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))(
           prefix: "supaterm-uninstall-cli-test-",
         });
         const uninstalls: Array<true> = [];
-        vi.spyOn(BootService, "layer").mockReturnValue(
-          Layer.succeed(
-            BootService.BootService,
-            BootService.BootService.of({
-              status: Effect.succeed({
-                supported: true,
-                installed: true,
-                current: true,
-                installedBaseDir: "/home/me/.supaterm",
-                unitPath: "/home/me/.config/systemd/user/supaterm.service",
-                logPath: "/home/me/.supaterm/userdata/logs/boot-service.log",
-              }),
-              withStopped: (operation) => operation,
-              restart: Effect.die("unexpected restart"),
-              install: () => Effect.die("unexpected install"),
-              uninstall: Effect.sync(() => {
-                uninstalls.push(true);
-                return true;
-              }),
-            }),
-          ),
-        );
+        const bootService = BootService.BootService.of({
+          status: Effect.succeed({
+            supported: true,
+            installed: true,
+            current: true,
+            installedBaseDir: "/home/me/.supaterm",
+            unitPath: "/home/me/.config/systemd/user/supaterm.service",
+            logPath: "/home/me/.supaterm/userdata/logs/boot-service.log",
+          }),
+          withStopped: (operation) => operation,
+          restart: Effect.die("unexpected restart"),
+          install: () => Effect.die("unexpected install"),
+          uninstall: Effect.sync(() => {
+            uninstalls.push(true);
+            return true;
+          }),
+        });
 
         const output = yield* Command.runWith(uninstallCommand, { version: packageJson.version })([
           "--base-dir",
@@ -64,6 +56,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))(
           Effect.andThen(TestConsole.logLines),
           Effect.map((lines) => lines.join("\n")),
           Effect.provideService(HostProcess.Environment, {}),
+          Effect.provideService(BootService.ProvidedBootService, bootService),
           Effect.provideService(HostProcess.IsExecutable, false),
           Effect.provide(
             Layer.mergeAll(

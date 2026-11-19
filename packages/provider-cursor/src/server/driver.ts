@@ -34,7 +34,7 @@ import {
   type ProviderSnapshotSettings,
 } from "@supaterm/provider-core/server/snapshotSettings";
 import { probeCursorSkills } from "./skills.ts";
-import { makeCursorAuth } from "./auth.ts";
+import { CursorLogin, makeCursorAuth } from "./auth.ts";
 import * as CursorCredentialStore from "./credentialStore.ts";
 import * as CursorAgentSdk from "./CursorAgentSdk.ts";
 import * as CursorSdk from "./CursorSdk.ts";
@@ -138,7 +138,9 @@ export const CursorDriver: ProviderDriver<
               ),
         ),
       );
+    const login = yield* CursorLogin;
     const auth = yield* makeCursorAuth({
+      ...(login ? { login } : {}),
       instanceId,
       displayName: displayName ?? "Cursor",
       enabled,

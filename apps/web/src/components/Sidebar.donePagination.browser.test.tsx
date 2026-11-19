@@ -8,7 +8,6 @@ import { AppRoot } from "~/AppRoot";
 import "~/components/ChatView";
 import { __setClientSettingsForTests } from "~/hooks/useSettings";
 import { getRouter } from "~/router";
-import * as shelfHooks from "~/state/olderDoneShelf";
 import {
   ENVIRONMENT_ID,
   installFakeEnvironment,
@@ -31,9 +30,14 @@ vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
   trackRpcRequestSent: () => {},
 }));
 
+type Shelf = ReturnType<typeof import("~/state/olderDoneShelf").useOlderDoneShelf>;
+const shelf = vi.hoisted(() => ({ overrides: null as Partial<Shelf> | null }));
 vi.mock(import("~/state/olderDoneShelf"), async (original) => {
   const actual = await original();
-  return { ...actual, useOlderDoneShelf: vi.fn(actual.useOlderDoneShelf) };
+  return {
+    ...actual,
+    useOlderDoneShelf: (input) => ({ ...actual.useOlderDoneShelf(input), ...shelf.overrides }),
+  };
 });
 
 it("keeps Show more focused while older done threads load", async () => {
@@ -44,16 +48,23 @@ it("keeps Show more focused while older done threads load", async () => {
     onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
   });
   let loading = false;
-  const retry = vi.fn(() => {
-    loading = true;
-  });
-  const actualShelf = vi.mocked(shelfHooks.useOlderDoneShelf).getMockImplementation()!;
-  using _shelf = vi.spyOn(shelfHooks, "useOlderDoneShelf").mockImplementation((input) => ({
-    ...actualShelf(input),
+  const retry = vi.spyOn(
+    {
+      retry: () => {
+        loading = true;
+      },
+    },
+    "retry",
+  );
+  const overrides = {
     unloadedCount: () => 60,
-    loading,
+    get loading() {
+      return loading;
+    },
     retry,
-  }));
+  };
+  shelf.overrides = overrides;
+  using _shelf = { [Symbol.dispose]: () => void (shelf.overrides = null) };
   await page.viewport(1400, 900);
   const router = getRouter(
     createMemoryHistory({ initialEntries: [`/${ENVIRONMENT_ID}/${thread.id}`] }),

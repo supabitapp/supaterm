@@ -19,18 +19,32 @@ import {
 } from "./threadOutboxEditing";
 
 const transport = vi.hoisted(() => ({
-  pause: vi.fn(),
-  replace: vi.fn(),
+  pause: vi.fn<(id: string, paused: boolean) => void>(),
+  replace: vi.fn<(...args: ReadonlyArray<unknown>) => void>(),
   release: vi.fn(),
-  uploaded: vi.fn(),
+  uploaded: vi.fn<(input: unknown) => void>(),
+  pauses: [] as Array<() => Promise<boolean>>,
+  replacements: [] as Array<() => Promise<null>>,
+  uploads: [] as Array<unknown>,
 }));
 vi.mock("./threadOutbox", () => ({
-  webThreadOutbox: { pause: transport.pause },
-  replaceThreadOutboxTurn: transport.replace,
+  webThreadOutbox: {
+    pause: (id: string, paused: boolean) => {
+      transport.pause(id, paused);
+      return (transport.pauses.shift() ?? (() => Promise.resolve(true)))();
+    },
+  },
+  replaceThreadOutboxTurn: (...args: ReadonlyArray<unknown>) => {
+    transport.replace(...args);
+    return (transport.replacements.shift() ?? (() => Promise.resolve(null)))();
+  },
 }));
 vi.mock("../lib/attachmentUploadQueue", () => ({
   releaseDraftAttachments: transport.release,
-  getUploadedAttachments: transport.uploaded,
+  getUploadedAttachments: (input: unknown) => {
+    transport.uploaded(input);
+    return transport.uploads.shift();
+  },
 }));
 
 const environmentId = EnvironmentId.make("environment");
@@ -97,8 +111,9 @@ function entry() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  transport.pause.mockResolvedValue(true);
-  transport.replace.mockResolvedValue(null);
+  transport.pauses.length = 0;
+  transport.replacements.length = 0;
+  transport.uploads.length = 0;
   useComposerDraftStore.setState({ draftsByThreadKey: {}, draftThreadsByThreadKey: {} });
 });
 
@@ -165,7 +180,7 @@ describe("outbox editing in the composer", () => {
     await editor.begin(entry());
     const editing = editor.getSnapshot()!;
     useComposerDraftStore.getState().setPrompt(editing.draftTarget, "Keep this edit");
-    transport.replace.mockRejectedValueOnce(new Error("quota exceeded"));
+    transport.replacements.push(() => Promise.reject(new Error("quota exceeded")));
     await expect(editor.save(editing.entry.payload)).rejects.toThrow("quota exceeded");
     expect(editor.getSnapshot()).toBe(editing);
     expect(useComposerDraftStore.getState().getComposerDraft(editing.draftTarget)?.prompt).toBe(
@@ -176,14 +191,14 @@ describe("outbox editing in the composer", () => {
 
   it("does not replace the composer when delivery has already started", async () => {
     const editor = createThreadOutboxEditor("route");
-    transport.pause.mockResolvedValueOnce(false);
+    transport.pauses.push(() => Promise.resolve(false));
     await expect(editor.begin(entry())).rejects.toThrow("Delivery has already started");
     expect(editor.getSnapshot()).toBeNull();
   });
 
   it("ignores an edit that finishes pausing after the route has closed", async () => {
     let release = (_value: boolean) => {};
-    transport.pause.mockImplementationOnce(
+    transport.pauses.push(
       () =>
         new Promise<boolean>((resolve) => {
           release = resolve;
@@ -253,7 +268,7 @@ describe("outbox attachment capture", () => {
 
   it("references the upload of an attachment recovered without bytes", () => {
     const uploaded = { ...file, id: "server-attachment" };
-    transport.uploaded.mockReturnValueOnce([uploaded]);
+    transport.uploads.push([uploaded]);
     expect(captureOutboxAttachments(environmentId, [recovered])).toEqual([
       expect.objectContaining({ id: recovered.id, bytes: null, uploaded }),
     ]);
@@ -261,7 +276,7 @@ describe("outbox attachment capture", () => {
   });
 
   it("asks for the attachment again when neither bytes nor an upload remain", () => {
-    transport.uploaded.mockReturnValueOnce(null);
+    transport.uploads.push(null);
     expect(() => captureOutboxAttachments(environmentId, [recovered])).toThrow(
       "Attach 'notes.txt' again before sending.",
     );

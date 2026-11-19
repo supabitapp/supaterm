@@ -32,18 +32,20 @@ async function setup(
 ) {
   let draft = initial;
   const release = vi.fn();
+  const answers = { canStart: true, opening: false };
   const handlers = {
-    canStart: vi.fn(() => true),
+    canStart: () => answers.canStart,
     readDraft: () => draft,
     restoreDraft: vi.fn((restored: ComposerDraft) => {
       draft = restored;
     }),
-    opening: vi.fn(() => false),
+    opening: () => answers.opening,
     start: vi.fn(),
     finish: release,
     cancel: vi.fn(),
     followPress: followKeyHold,
   };
+  vi.spyOn(handlers, "canStart");
   const screen = await render(
     <Composer holdKey={holdKey} editor={editorKind} handlers={handlers} />,
     {
@@ -64,7 +66,7 @@ async function setup(
   const type = (text: string) => {
     draft = { text, selection: { start: text.length, end: text.length } };
   };
-  return { screen, editor, handlers, release, key, type, draft: () => draft };
+  return { screen, editor, handlers, answers, release, key, type, draft: () => draft };
 }
 
 const EMPTY_DRAFT: ComposerDraft = { text: "", selection: { start: 0, end: 0 } };
@@ -144,7 +146,10 @@ describe("useHoldToTalk", () => {
   });
 
   it("treats Space as typing when another key follows it, while composing, or when voice can't start", async () => {
-    const { screen, handlers, key } = await setup({ text: "", selection: { start: 0, end: 0 } });
+    const { screen, handlers, answers, key } = await setup({
+      text: "",
+      selection: { start: 0, end: 0 },
+    });
     await using _screen = screen;
     using _timers = fakeTimers();
 
@@ -156,7 +161,7 @@ describe("useHoldToTalk", () => {
     key("keydown", { isComposing: true });
     expect(handlers.canStart).toHaveBeenCalledOnce();
 
-    handlers.canStart.mockReturnValue(false);
+    answers.canStart = false;
     key("keydown");
     expect(key("keydown", { repeat: true })).toBe(true);
     vi.advanceTimersByTime(KEY_HOLD_MS);
@@ -183,10 +188,10 @@ describe("useHoldToTalk", () => {
   });
 
   it("takes back a held Alt let go before the microphone opens", async () => {
-    const { screen, handlers, release, key } = await setup(EMPTY_DRAFT, "alt");
+    const { screen, handlers, answers, release, key } = await setup(EMPTY_DRAFT, "alt");
     await using _screen = screen;
     using _timers = fakeTimers();
-    handlers.opening.mockReturnValue(true);
+    answers.opening = true;
 
     key("keydown", ALT);
     vi.advanceTimersByTime(KEY_HOLD_MS);

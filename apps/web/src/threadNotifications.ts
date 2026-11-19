@@ -79,53 +79,69 @@ export function setNotificationBadge(count: number) {
   void bridge?.setNotificationBadge({ count, image }).catch(() => undefined);
 }
 
-let audioContext: AudioContext | undefined;
-const buffers = new Map<string, Promise<AudioBuffer>>();
+export function createNotificationAudio(options: {
+  readonly createContext: () => AudioContext;
+  readonly load: (url: string) => Promise<ArrayBuffer>;
+}) {
+  let audioContext: AudioContext | undefined;
+  const buffers = new Map<string, Promise<AudioBuffer>>();
+  const playingUntil = new Map<string, number>();
 
-const playingUntil = new Map<string, number>();
-
-function loadNotificationBuffer(context: AudioContext, url: string) {
-  let buffer = buffers.get(url);
-  if (!buffer) {
-    buffer = fetch(url)
-      .then((response) => response.arrayBuffer())
-      .then((data) => context.decodeAudioData(data))
-      .catch((error: unknown) => {
-        buffers.delete(url);
-        throw error;
-      });
-    buffers.set(url, buffer);
+  function loadNotificationBuffer(context: AudioContext, url: string) {
+    let buffer = buffers.get(url);
+    if (!buffer) {
+      buffer = options
+        .load(url)
+        .then((data) => context.decodeAudioData(data))
+        .catch((error: unknown) => {
+          buffers.delete(url);
+          throw error;
+        });
+      buffers.set(url, buffer);
+    }
+    return buffer;
   }
-  return buffer;
+
+  function unlock() {
+    const firstUnlock = audioContext === undefined;
+    audioContext ??= options.createContext();
+    void audioContext.resume().catch(() => undefined);
+    if (!firstUnlock) return;
+    for (const url of [completionUrl, inputUrl]) {
+      void loadNotificationBuffer(audioContext, url).catch(() => undefined);
+    }
+  }
+
+  async function play(kind: "completion" | "input", shouldPlay: () => boolean) {
+    if (!audioContext || audioContext.state !== "running") return;
+    const context = audioContext;
+    const url = kind === "completion" ? completionUrl : inputUrl;
+    try {
+      const decoded = await loadNotificationBuffer(context, url);
+      if (!shouldPlay() || context.state !== "running") return;
+
+      if (context.currentTime < (playingUntil.get(url) ?? 0)) return;
+      const source = context.createBufferSource();
+      source.buffer = decoded;
+      source.connect(context.destination);
+      source.start();
+      playingUntil.set(url, context.currentTime + decoded.duration);
+    } catch {}
+  }
+
+  return { unlock, play };
 }
+
+const notificationAudio = createNotificationAudio({
+  createContext: () => new AudioContext(),
+  load: (url) => fetch(url).then((response) => response.arrayBuffer()),
+});
 
 /** Called from a gesture so browsers allow later background playback. */
 export function unlockNotificationAudio() {
-  const firstUnlock = audioContext === undefined;
-  audioContext ??= new AudioContext();
-  void audioContext.resume().catch(() => undefined);
-  if (!firstUnlock) return;
-  for (const url of [completionUrl, inputUrl]) {
-    void loadNotificationBuffer(audioContext, url).catch(() => undefined);
-  }
+  notificationAudio.unlock();
 }
 
-export async function playNotificationSound(
-  kind: "completion" | "input",
-  shouldPlay: () => boolean,
-) {
-  if (!audioContext || audioContext.state !== "running") return;
-  const context = audioContext;
-  const url = kind === "completion" ? completionUrl : inputUrl;
-  try {
-    const decoded = await loadNotificationBuffer(context, url);
-    if (!shouldPlay() || context.state !== "running") return;
-
-    if (context.currentTime < (playingUntil.get(url) ?? 0)) return;
-    const source = context.createBufferSource();
-    source.buffer = decoded;
-    source.connect(context.destination);
-    source.start();
-    playingUntil.set(url, context.currentTime + decoded.duration);
-  } catch {}
+export function playNotificationSound(kind: "completion" | "input", shouldPlay: () => boolean) {
+  return notificationAudio.play(kind, shouldPlay);
 }

@@ -66,6 +66,7 @@ function Composer({
   onCommandKeyDown = () => false,
   importContextFragment,
   literalText = false,
+  platform,
 }: {
   value: string;
   richTextEnabled: boolean;
@@ -74,6 +75,7 @@ function Composer({
   onCommandKeyDown?: ComposerPromptEditorProps["onCommandKeyDown"] | undefined;
   importContextFragment?: ComposerPromptEditorProps["importContextFragment"];
   literalText?: boolean;
+  platform?: string;
 }) {
   const [prompt, setPrompt] = useState({ value, cursor: value.length });
   return (
@@ -94,6 +96,7 @@ function Composer({
       onCommandKeyDown={onCommandKeyDown}
       importContextFragment={importContextFragment}
       literalText={literalText}
+      {...(platform === undefined ? {} : { platform })}
     />
   );
 }
@@ -300,9 +303,10 @@ it.each([
 );
 
 it("leaves Command-arrow thread navigation bindings to the app on macOS", async () => {
-  using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
-  await using screen = await mountEditor("first\nsecond");
-  const { editor } = screen;
+  await using screen = await render(
+    <Composer value={"first\nsecond"} richTextEnabled skills={[]} platform="MacIntel" />,
+  );
+  const editor = editorIn(screen.container);
   await act(async () => {
     editor.commands.focus("end");
   });

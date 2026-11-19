@@ -27,7 +27,7 @@ const toggleOverlay = (command: Parameters<typeof overlayModeForCommand>[0]) => 
  */
 export function installCommandPaletteCommands(
   router: AnyRouter,
-  options: Pick<CommandScopeOptions, "keybindings"> = {},
+  options: Pick<CommandScopeOptions, "keybindings" | "platform"> = {},
 ) {
   const readRouteThreadRef = () => {
     const target = resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});

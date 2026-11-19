@@ -4,10 +4,13 @@ import { createPhoneInteraction, phoneWheelNavigation } from "./phoneInteraction
 it("keeps a captured screen gesture separate from orbit and ends it once on cancellation", () => {
   const touch = vi.fn();
   const orbit = vi.fn();
-  const screenPoint = vi
-    .fn()
-    .mockReturnValueOnce({ x: 0.2, y: 0.3 })
-    .mockReturnValueOnce({ x: 1, y: 0.6 });
+  const points = [
+    { x: 0.2, y: 0.3 },
+    { x: 1, y: 0.6 },
+  ];
+  const screenPoint = vi.fn(
+    (_point: { x: number; y: number }, _captured: boolean) => points.shift() ?? null,
+  );
   const input = createPhoneInteraction({ screenPoint, touch, orbit, zoomBy: vi.fn() });
   expect(input.begin(1, { x: 0.4, y: 0.3 })).toBe(true);
   expect(input.begin(2, { x: 0.2, y: 0.2 })).toBe(false);

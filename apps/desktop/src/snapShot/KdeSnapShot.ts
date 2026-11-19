@@ -1,6 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off -- KDE authorizes a dedicated, installed native executable.
 import * as NodeCrypto from "node:crypto";
-import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -11,7 +10,7 @@ import type { DesktopCaptureHelperState } from "@supaterm/contracts";
 import { escapeDesktopEntryExecArgument } from "../app/DesktopLinuxUrlHandler.ts";
 import type { LinuxWindowSnapshot } from "./LinuxSnapShot.ts";
 import { CaptureSetupRequiredError, readPortalPng } from "./linuxCaptureSession.ts";
-import { startNativeCaptureFeedback } from "./NativeCaptureFeedback.ts";
+import { nodeCaptureHelperNative, type CaptureHelperNative } from "./NativeCaptureFeedback.ts";
 export { isKdeCaptureSession } from "./linuxCaptureSession.ts";
 
 export const KDE_CAPTURE_EXECUTABLE = "supaterm-kde-snap-shot";
@@ -42,10 +41,20 @@ function kdeCaptureDesktopEntry(executable: string) {
   ].join("\n");
 }
 
-function run(executable: string, args: string[], signal?: AbortSignal): Promise<string>;
-function run(executable: string, args: string[], signal?: AbortSignal) {
+function run(
+  native: CaptureHelperNative,
+  executable: string,
+  args: string[],
+  signal?: AbortSignal,
+): Promise<string>;
+function run(
+  native: CaptureHelperNative,
+  executable: string,
+  args: string[],
+  signal?: AbortSignal,
+) {
   return new Promise((resolve, reject) => {
-    NodeChildProcess.execFile(
+    native.execFile(
       executable,
       args,
       {
@@ -97,8 +106,10 @@ async function regularFile(path: string) {
 
 export class KdeCaptureSetup {
   private readonly paths: KdeCapturePaths;
-  constructor(paths: KdeCapturePaths) {
+  private readonly native: CaptureHelperNative;
+  constructor(paths: KdeCapturePaths, native: CaptureHelperNative = nodeCaptureHelperNative) {
     this.paths = paths;
+    this.native = native;
   }
 
   state(): Promise<DesktopCaptureHelperState>;
@@ -123,7 +134,7 @@ export class KdeCaptureSetup {
           status: "update-required",
           message: "Update the bundled capture helper to continue.",
         } satisfies DesktopCaptureHelperState;
-      const capabilities = decodeCapabilities(await run(executable, ["check"]));
+      const capabilities = decodeCapabilities(await run(this.native, executable, ["check"]));
       return {
         status: "ready",
         message: "KDE capture access is ready. Next, choose your shortcut.",
@@ -181,8 +192,8 @@ export class KdeCaptureSetup {
         await NodeFSP.rm(staging, { recursive: true, force: true });
       }
     }
-    await run("kbuildsycoca6", ["--noincremental"]);
-    await run("systemd-run", [
+    await run(this.native, "kbuildsycoca6", ["--noincremental"]);
+    await run(this.native, "systemd-run", [
       "--user",
       "--quiet",
       "--wait",
@@ -212,30 +223,34 @@ const decodeCapture = Schema.decodeUnknownSync(
 export function captureKdeWindow(
   paths: KdeCapturePaths,
   options?: { readonly flash: boolean; readonly animate: boolean },
+  native?: CaptureHelperNative,
 ): Promise<LinuxWindowSnapshot>;
 export async function captureKdeWindow(
   paths: KdeCapturePaths,
   options?: { readonly flash: boolean; readonly animate: boolean },
+  native: CaptureHelperNative = nodeCaptureHelperNative,
 ) {
-  const state = await new KdeCaptureSetup(paths).state();
+  const state = await new KdeCaptureSetup(paths, native).state();
   if (state.status !== "ready") throw new CaptureSetupRequiredError(state.message);
   const { executable } = kdeCapturePaths(paths);
   const directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-kde-capture-"));
   let retained = false;
   const cleanup = () => NodeFSP.rm(directory, { recursive: true, force: true });
   try {
-    const result = decodeCapture(await run(executable, ["capture", directory]));
+    const result = decodeCapture(await run(native, executable, ["capture", directory]));
     const png = await readPortalPng(
       NodeURL.pathToFileURL(NodePath.join(directory, "capture.png")).href,
     );
     const feedback = new AbortController();
     const effects =
       state.feedbackAvailable && result.window && options && (options.flash || options.animate)
-        ? await startNativeCaptureFeedback(executable, directory, {
-            bounds: result.window.bounds,
-            pid: process.pid,
-            ...options,
-          }).catch(() => undefined)
+        ? await native
+            .startFeedback(executable, directory, {
+              bounds: result.window.bounds,
+              pid: process.pid,
+              ...options,
+            })
+            .catch(() => undefined)
         : undefined;
     if (effects) {
       retained = true;
@@ -258,6 +273,7 @@ export async function captureKdeWindow(
           );
           try {
             await run(
+              native,
               executable,
               ["activate", activation, String(process.pid), title],
               feedback.signal,

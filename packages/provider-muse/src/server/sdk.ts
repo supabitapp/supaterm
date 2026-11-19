@@ -12,6 +12,7 @@ import type { RuntimeMode } from "@supaterm/contracts";
 import { envTrampoline, supportsEnvChdir } from "@supaterm/shared/envTrampoline";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { SpawnExecutableResolution } from "@supaterm/shared/shell";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 
 export interface MuseSdkHost {
@@ -70,10 +71,14 @@ export function museVerbatimPath(path: string) {
   return path.startsWith("\\\\") ? `\\\\?\\UNC\\${path.slice(2)}` : `\\\\?\\${path}`;
 }
 
+export const NativeRealPath = Context.Reference<(path: string) => Promise<string>>(
+  "@supaterm/provider-muse/server/sdk/NativeRealPath",
+  { defaultValue: () => NodeFSP.realpath },
+);
+
 export const museCanonicalPath = Effect.fn("museCanonicalPath")(function* (path: string) {
-  return yield* Effect.tryPromise(() => NodeFSP.realpath(path)).pipe(
-    Effect.orElseSucceed(() => path),
-  );
+  const realpath = yield* NativeRealPath;
+  return yield* Effect.tryPromise(() => realpath(path)).pipe(Effect.orElseSucceed(() => path));
 });
 
 /**
@@ -83,7 +88,8 @@ export const museCanonicalPath = Effect.fn("museCanonicalPath")(function* (path:
  */
 export const museWorkspaceRoot = Effect.fn("museWorkspaceRoot")(function* (path: string) {
   if ((yield* HostProcess.Platform) !== "win32") return yield* museCanonicalPath(path);
-  const canonical = yield* Effect.tryPromise(() => NodeFSP.realpath(path)).pipe(
+  const realpath = yield* NativeRealPath;
+  const canonical = yield* Effect.tryPromise(() => realpath(path)).pipe(
     Effect.orElseSucceed(() => path.replaceAll("/", "\\")),
   );
   return museVerbatimPath(canonical);
@@ -215,10 +221,16 @@ export async function createMuseSdkHost(
   }
 }
 
+export const MuseSdkHostFactory = Context.Reference<typeof createMuseSdkHost>(
+  "@supaterm/provider-muse/server/sdk/MuseSdkHostFactory",
+  { defaultValue: () => createMuseSdkHost },
+);
+
 export const createMuseSdkHostEffect = Effect.fn("createMuseSdkHostEffect")(function* (
   options: Omit<MuseSdkHostOptions, "signal">,
-  createHost: typeof createMuseSdkHost = createMuseSdkHost,
+  createHostOverride?: typeof createMuseSdkHost,
 ) {
+  const createHost = createHostOverride ?? (yield* MuseSdkHostFactory);
   const native = options.launch ?? (yield* museLaunch(options.binaryPath, options.environment));
   const throughEnv =
     (yield* HostProcess.Platform) === "linux" && (yield* Effect.promise(supportsEnvChdir))

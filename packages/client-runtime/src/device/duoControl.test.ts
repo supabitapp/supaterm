@@ -9,7 +9,10 @@ import {
 afterEach(() => vi.useRealTimers());
 
 it("keeps a failed send visible, including a disconnect while draining queued motion", () => {
-  const send = vi.fn((_request: { requestId: number; command: DuoCommand }) => false);
+  const accepted: Array<boolean> = [];
+  const send = vi.fn(
+    (_request: { requestId: number; command: DuoCommand }) => accepted.shift() ?? false,
+  );
   const onChange = vi.fn();
   const queue = createDuoControl({ send, onChange });
   queue.enqueue({ control: "angle", value: 40 });
@@ -18,7 +21,7 @@ it("keeps a failed send visible, including a disconnect while draining queued mo
     requested: null,
     error: "Device is disconnected.",
   });
-  send.mockReturnValueOnce(true);
+  accepted.push(true);
   queue.enqueue({ control: "pose", value: "book" });
   queue.enqueue({ control: "angle", value: 60 });
   queue.receive({ requestId: 2, ok: true });

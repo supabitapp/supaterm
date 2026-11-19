@@ -211,6 +211,7 @@ export interface ComposerPromptEditorProps {
    * `savedValue`, so the owner of `replacedValue` can keep it.
    */
   onCitationDraftSave?: (replacedValue: string, savedValue: string) => void;
+  platform?: string;
   onPaste: React.ClipboardEventHandler<HTMLElement>;
   editorRef: React.RefObject<ComposerPromptEditorHandle | null>;
 }
@@ -919,6 +920,7 @@ function ComposerPromptEditorTiptapInner(
     onPaste,
     editorRef,
     restoreFocusRef,
+    platform = navigator.platform,
   } = props;
   const richText = !literalText && (richTextEnabled ?? false);
   const clampEditorCursor = (text: string, position: number) =>
@@ -1094,7 +1096,7 @@ function ComposerPromptEditorTiptapInner(
               ? "lineboundary"
               : null;
           if (
-            isMacPlatform(navigator.platform) &&
+            isMacPlatform(platform) &&
             boundary &&
             !event.altKey &&
             !event.ctrlKey &&
@@ -1102,6 +1104,7 @@ function ComposerPromptEditorTiptapInner(
           ) {
             if (
               isThreadNavigationShortcut(event, appAtomRegistry.get(primaryServerKeybindingsAtom), {
+                platform,
                 context: { editableFocus: true },
               })
             ) {

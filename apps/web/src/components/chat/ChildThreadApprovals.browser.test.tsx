@@ -6,7 +6,38 @@ import { expect, it, vi } from "vite-plus/test";
 
 import { render } from "../../../test/render";
 
-const state = vi.hoisted(() => ({ respond: vi.fn(), approvalsAtom: null as unknown }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const state = vi.hoisted(() => ({ respond: fake(), approvalsAtom: null as unknown }));
 
 vi.mock("../../state/session", () => ({ useEnvironmentScope: () => true }));
 vi.mock("../../state/use-atom-command", () => ({ useAtomCommand: () => state.respond }));
@@ -18,10 +49,12 @@ vi.mock("../../state/threads", () => ({
 import { ChildThreadApprovals } from "./ChildThreadApprovals";
 
 function setup() {
-  state.respond.mockReset();
+  state.respond.reset();
   state.respond
-    .mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("Child environment offline"))))
-    .mockResolvedValueOnce(AsyncResult.success(undefined));
+    .implementOnce(async () =>
+      AsyncResult.failure(Cause.fail(new Error("Child environment offline"))),
+    )
+    .implementOnce(async () => AsyncResult.success(undefined));
   const thread = {
     environmentId: EnvironmentId.make("child-env"),
     threadId: ThreadId.make("child"),

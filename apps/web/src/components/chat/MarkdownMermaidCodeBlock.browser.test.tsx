@@ -1,17 +1,36 @@
 import type { Diagram } from "@supaterm/mermaid/diagram";
-import { stubDiagramGeometry } from "../../../test/diagramGeometry";
 import { act, render as renderUi, stubGlobal, type Screen } from "../../../test/render";
 import { describe, expect, it, vi } from "vite-plus/test";
+import "~/index.css";
 
+const mermaid = vi.hoisted(() => {
+  const state = {
+    queue: [] as Array<Diagram | null | Promise<Diagram | null>>,
+    result: null as Diagram | null,
+    peeked: undefined as Diagram | undefined,
+    renders: 0,
+    render: async (..._args: Array<unknown>) => {
+      state.renders += 1;
+      return state.queue.length > 0 ? state.queue.shift()! : state.result;
+    },
+    peek: (..._args: Array<unknown>) => state.peeked,
+    reset: () => {
+      state.queue = [];
+      state.result = null;
+      state.peeked = undefined;
+      state.renders = 0;
+    },
+  };
+  return state;
+});
 vi.mock(import("../../diagrams/mermaidRenderer"), async (original) => ({
   ...(await original()),
-  renderMermaidDiagram: vi.fn(),
-  peekMermaidDiagram: vi.fn(),
+  renderMermaidDiagram: mermaid.render,
+  peekMermaidDiagram: mermaid.peek,
 }));
 vi.mock("../../lib/observeResize", () => ({ observeResize: vi.fn(() => () => {}) }));
 
 import { MarkdownMermaidCodeBlock } from "./MarkdownMermaidCodeBlock";
-import { peekMermaidDiagram, renderMermaidDiagram } from "../../diagrams/mermaidRenderer";
 import { observeResize } from "../../lib/observeResize";
 
 class TestIntersectionObserver {
@@ -49,9 +68,7 @@ async function setupTest() {
 
   TestIntersectionObserver.instances = [];
   resources.use(stubGlobal("IntersectionObserver", TestIntersectionObserver));
-  resources.use(stubDiagramGeometry());
-  vi.mocked(renderMermaidDiagram).mockReset();
-  vi.mocked(peekMermaidDiagram).mockReset();
+  mermaid.reset();
   vi.mocked(observeResize).mockClear();
   screen = resources.use(await renderUi(null, { router: false }));
 
@@ -100,34 +117,31 @@ function deferredResult() {
 describe("MarkdownMermaidCodeBlock", () => {
   it("renders the diagram only once the fence is complete and visible", async () => {
     await using _test = await setupTest();
-    vi.mocked(renderMermaidDiagram).mockResolvedValue(diagram("diagram"));
+    mermaid.result = diagram("diagram");
     await screen.rerender(block("graph TD\n A-->B", true));
     expect(displayedText()).toBe("graph TD\n A-->B");
     await screen.rerender(block("graph TD\n A-->B"));
-    expect(renderMermaidDiagram).not.toHaveBeenCalled();
+    expect(mermaid.renders).toBe(0);
     await showVisible();
     expect(displayedText()).toBe("diagram");
-    expect(renderMermaidDiagram).toHaveBeenCalledTimes(1);
+    expect(mermaid.renders).toBe(1);
   });
 
   it("keeps a working diagram when a resize fails and replaces it after recovery", async () => {
     await using _test = await setupTest();
-    vi.mocked(renderMermaidDiagram)
-      .mockResolvedValueOnce(diagram("wide diagram"))
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(diagram("narrow diagram"));
+    mermaid.queue = [diagram("wide diagram"), null, diagram("narrow diagram")];
     await screen.rerender(block("flowchart LR\nA-->B"));
     await showVisible();
     expect(displayedText()).toBe("wide diagram");
     const [element, measure] = vi.mocked(observeResize).mock.calls.at(-1)!;
-    const width = vi.spyOn(element as HTMLElement, "clientWidth", "get");
+    const resized = element as HTMLElement;
     await act(async () => {
-      width.mockReturnValue(320);
+      resized.style.width = "320px";
       measure([]);
     });
     expect(displayedText()).toBe("wide diagram");
     await act(async () => {
-      width.mockReturnValue(240);
+      resized.style.width = "240px";
       measure([]);
     });
     expect(displayedText()).toBe("narrow diagram");
@@ -137,9 +151,7 @@ describe("MarkdownMermaidCodeBlock", () => {
     await using _test = await setupTest();
     const first = deferredResult();
     const second = deferredResult();
-    vi.mocked(renderMermaidDiagram)
-      .mockReturnValueOnce(first.promise)
-      .mockReturnValueOnce(second.promise);
+    mermaid.queue = [first.promise, second.promise];
     await screen.rerender(block("first"));
     await showVisible();
     await screen.rerender(block("second"));
@@ -153,9 +165,7 @@ describe("MarkdownMermaidCodeBlock", () => {
   it("shows a changed source instead of the previous diagram while it lays out", async () => {
     await using _test = await setupTest();
     const changed = deferredResult();
-    vi.mocked(renderMermaidDiagram)
-      .mockResolvedValueOnce(diagram("first diagram"))
-      .mockReturnValueOnce(changed.promise);
+    mermaid.queue = [diagram("first diagram"), changed.promise];
     await screen.rerender(block("graph TD\n A-->B"));
     await showVisible();
     expect(displayedText()).toBe("first diagram");
@@ -169,7 +179,7 @@ describe("MarkdownMermaidCodeBlock", () => {
 
   it("shows the source with an error when the diagram cannot be rendered", async () => {
     await using _test = await setupTest();
-    vi.mocked(renderMermaidDiagram).mockResolvedValue(null);
+    mermaid.result = null;
     await screen.rerender(block("unsupported"));
     await showVisible();
     expect(screen.container.textContent).toContain("Unable to render diagram");
@@ -178,9 +188,7 @@ describe("MarkdownMermaidCodeBlock", () => {
 
   it("renders a corrected source after a failed one", async () => {
     await using _test = await setupTest();
-    vi.mocked(renderMermaidDiagram)
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(diagram("fixed diagram"));
+    mermaid.queue = [null, diagram("fixed diagram")];
     await screen.rerender(block("graph TD\n A--"));
     await showVisible();
     expect(screen.container.textContent).toContain("Unable to render diagram");
@@ -198,7 +206,7 @@ describe("MarkdownMermaidCodeBlock", () => {
       copiedText = (document.activeElement as HTMLTextAreaElement | null)?.value;
       return true;
     });
-    vi.mocked(renderMermaidDiagram).mockResolvedValue(diagram("diagram"));
+    mermaid.result = diagram("diagram");
     await screen.rerender(block("graph TD\n A"));
     await showVisible();
     await press("Copy code");
@@ -213,14 +221,14 @@ describe("MarkdownMermaidCodeBlock", () => {
 
   it("switches between the diagram and its code, redrawing a finished diagram at once", async () => {
     await using _test = await setupTest();
-    vi.mocked(renderMermaidDiagram).mockResolvedValue(diagram("diagram"));
+    mermaid.result = diagram("diagram");
     await screen.rerender(block("graph TD\n A"));
     await showVisible();
     await press("Show code");
     expect(displayedText()).toBe("graph TD\n A");
-    vi.mocked(peekMermaidDiagram).mockReturnValue(diagram("diagram"));
+    mermaid.peeked = diagram("diagram");
     await press("Show diagram");
     expect(displayedText()).toBe("diagram");
-    expect(renderMermaidDiagram).toHaveBeenCalledTimes(1);
+    expect(mermaid.renders).toBe(1);
   });
 });

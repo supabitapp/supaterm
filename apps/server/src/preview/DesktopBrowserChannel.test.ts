@@ -1,26 +1,16 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import * as NodeStream from "@effect/platform-node/NodeStream";
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
-import { vi } from "vite-plus/test";
 
 import * as ServerConfig from "../config.ts";
 import * as DesktopBrowserChannel from "./DesktopBrowserChannel.ts";
 
-vi.mock("@effect/platform-node/NodeStream", () => ({ fromReadable: vi.fn() }));
-vi.mock("node:net", () => ({
-  Socket: class {
-    destroy() {}
-  },
-}));
-
 it.effect("protects unknown desktop visibility until an explicit hidden report arrives", () =>
   Effect.gen(function* () {
     const input = yield* Queue.unbounded<Uint8Array>();
-    vi.mocked(NodeStream.fromReadable).mockReturnValue(Stream.fromQueue(input));
     const config = yield* ServerConfig.ServerConfig;
     yield* Effect.gen(function* () {
       const channel = yield* DesktopBrowserChannel.DesktopBrowserChannel;
@@ -56,6 +46,9 @@ it.effect("protects unknown desktop visibility until an explicit hidden report a
           ),
         ),
       ),
+      Effect.provideService(DesktopBrowserChannel.DesktopBrowserInput, () =>
+        Effect.succeed(Stream.fromQueue(input)),
+      ),
     );
   }).pipe(
     Effect.provide(
@@ -69,7 +62,6 @@ it.effect("protects unknown desktop visibility until an explicit hidden report a
 it.live("closes a tab's relay connection when the desktop detaches the tab", () =>
   Effect.gen(function* () {
     const input = yield* Queue.unbounded<Uint8Array>();
-    vi.mocked(NodeStream.fromReadable).mockReturnValue(Stream.fromQueue(input));
     const config = yield* ServerConfig.ServerConfig;
     yield* Effect.gen(function* () {
       const channel = yield* DesktopBrowserChannel.DesktopBrowserChannel;
@@ -99,6 +91,9 @@ it.live("closes a tab's relay connection when the desktop detaches the tab", () 
             ServerConfig.layer({ ...config, desktopBrowserFd: 41, desktopBrowserControlFd: 42 }),
           ),
         ),
+      ),
+      Effect.provideService(DesktopBrowserChannel.DesktopBrowserInput, () =>
+        Effect.succeed(Stream.fromQueue(input)),
       ),
     );
   }).pipe(

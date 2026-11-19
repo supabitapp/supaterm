@@ -11,7 +11,6 @@ import * as Queue from "effect/Queue";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as TestClock from "effect/testing/TestClock";
-import { vi } from "vite-plus/test";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as ServerConfig from "../config.ts";
 import * as DocumentText from "./DocumentText.ts";
@@ -23,8 +22,6 @@ import * as PreviewManager from "../preview/Manager.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as NodeZlib from "node:zlib";
 import { appendUserInputAttachmentPaths } from "./userInputAttachments.ts";
-
-vi.mock("node:child_process", { spy: true });
 
 const layer = Layer.merge(
   ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-answer-paths-" }),
@@ -197,21 +194,27 @@ describe("question answer paths", () => {
     }).pipe(Effect.provide(layer)),
   );
 
-  it.effect.each(["spawn", "read"])("retries after a transient %s failure expires", (failure) =>
-    Effect.acquireUseRelease(
-      Effect.promise(async () => {
-        const { execFile } = await vi.importActual<typeof NodeChildProcess>("node:child_process");
-        const worker = vi.spyOn(NodeChildProcess, "execFile");
-        worker.mockImplementationOnce(((
-          file: string,
-          args: readonly string[],
-          options: NodeChildProcess.ExecFileOptionsWithStringEncoding,
-          callback: (
-            error: NodeChildProcess.ExecFileException | null,
-            stdout: string,
-            stderr: string,
-          ) => void,
-        ) => {
+  it.effect.each(["spawn", "read"])("retries after a transient %s failure expires", (failure) => {
+    let workers = 0;
+    return Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const path = NodePath.join(config.attachmentsDir, "retry.rtf");
+      NodeFS.writeFileSync(path, String.raw`{\rtf1 Available}`);
+      const documents = yield* DocumentText.DocumentText;
+      expect(yield* documents.ensure(path)).toBeUndefined();
+      expect(yield* documents.ensure(path)).toBeUndefined();
+      expect(workers).toBe(1);
+      expect(NodeFS.existsSync(path + ".txt")).toBe(false);
+      yield* TestClock.adjust("1 second");
+      expect(yield* documents.ensure(path)).toBe(path + ".txt");
+      expect(NodeFS.readFileSync(path + ".txt", "utf8")).toBe("Available");
+      expect(workers).toBe(2);
+      expect(yield* documents.ensure(path)).toBe(path + ".txt");
+      expect(workers).toBe(2);
+    }).pipe(
+      Effect.provide(layer),
+      Effect.provideService(DocumentText.DocumentTextExecFile, (file, args, options, callback) => {
+        if (++workers === 1) {
           if (failure === "spawn") {
             throw Object.assign(new Error("spawn EAGAIN"), { code: "EAGAIN" });
           }
@@ -219,60 +222,45 @@ describe("question answer paths", () => {
             import { syncBuiltinESMExports } from 'node:module';
             fs.readFile = async () => { throw Object.assign(new Error('read EAGAIN'), { code: 'EAGAIN' }); };
             syncBuiltinESMExports();`;
-          return execFile(
+          NodeChildProcess.execFile(
             file,
             ["--import", `data:text/javascript,${encodeURIComponent(preload)}`, ...args],
             options,
             callback,
           );
-        }) as typeof NodeChildProcess.execFile);
-        return worker;
+          return;
+        }
+        NodeChildProcess.execFile(file, args, options, callback);
       }),
-      (worker) =>
-        Effect.gen(function* () {
-          const config = yield* ServerConfig.ServerConfig;
-          const path = NodePath.join(config.attachmentsDir, "retry.rtf");
-          NodeFS.writeFileSync(path, String.raw`{\rtf1 Available}`);
-          const documents = yield* DocumentText.DocumentText;
-          expect(yield* documents.ensure(path)).toBeUndefined();
-          expect(yield* documents.ensure(path)).toBeUndefined();
-          expect(worker).toHaveBeenCalledTimes(1);
-          expect(NodeFS.existsSync(path + ".txt")).toBe(false);
-          yield* TestClock.adjust("1 second");
-          expect(yield* documents.ensure(path)).toBe(path + ".txt");
-          expect(NodeFS.readFileSync(path + ".txt", "utf8")).toBe("Available");
-          expect(worker).toHaveBeenCalledTimes(2);
-          expect(yield* documents.ensure(path)).toBe(path + ".txt");
-          expect(worker).toHaveBeenCalledTimes(2);
-        }).pipe(Effect.provide(layer)),
-      (worker) => Effect.sync(() => worker.mockRestore()),
-    ),
-  );
+    );
+  });
 
   it.effect.each([
     ["ipynb", "{"],
     ["rtf", "invalid document"],
     ["rtf", String.raw`{\rtf1}`],
     ["rtf", String.raw`{\rtf1\ansi\ansicpg99999 Unsupported}`],
-  ] as const)("caches unchanged document rejections: %s %s", ([extension, source]) =>
-    Effect.acquireUseRelease(
-      Effect.sync(() => vi.spyOn(NodeChildProcess, "execFile")),
-      (worker) =>
-        Effect.gen(function* () {
-          const config = yield* ServerConfig.ServerConfig;
-          const path = NodePath.join(config.attachmentsDir, `invalid.${extension}`);
-          NodeFS.writeFileSync(path, source);
-          const documents = yield* DocumentText.DocumentText;
-          for (const seconds of [0, 1, 60]) {
-            yield* TestClock.adjust(`${seconds} seconds`);
-            expect(yield* documents.ensure(path)).toBeUndefined();
-            expect(worker).toHaveBeenCalledTimes(1);
-            expect(NodeFS.existsSync(path + ".txt")).toBe(false);
-          }
-        }).pipe(Effect.provide(layer)),
-      (worker) => Effect.sync(() => worker.mockRestore()),
-    ),
-  );
+  ] as const)("caches unchanged document rejections: %s %s", ([extension, source]) => {
+    let workers = 0;
+    return Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const path = NodePath.join(config.attachmentsDir, `invalid.${extension}`);
+      NodeFS.writeFileSync(path, source);
+      const documents = yield* DocumentText.DocumentText;
+      for (const seconds of [0, 1, 60]) {
+        yield* TestClock.adjust(`${seconds} seconds`);
+        expect(yield* documents.ensure(path)).toBeUndefined();
+        expect(workers).toBe(1);
+        expect(NodeFS.existsSync(path + ".txt")).toBe(false);
+      }
+    }).pipe(
+      Effect.provide(layer),
+      Effect.provideService(DocumentText.DocumentTextExecFile, (file, args, options, callback) => {
+        workers++;
+        NodeChildProcess.execFile(file, args, options, callback);
+      }),
+    );
+  });
 
   it.effect.each([
     [
@@ -320,53 +308,39 @@ describe("question answer paths", () => {
   );
 
   it.effect.each([false, true])("limits the child heap for standalone=%s", (standalone) =>
-    Effect.acquireUseRelease(
-      Effect.promise(async () => {
-        const { execFile } = await vi.importActual<typeof NodeChildProcess>("node:child_process");
-        const probe = vi.spyOn(NodeChildProcess, "execFile");
-        probe.mockImplementation(((
-          file: string,
-          _args: readonly string[],
-          options: NodeChildProcess.ExecFileOptionsWithStringEncoding,
-          callback: (
-            error: NodeChildProcess.ExecFileException | null,
-            stdout: string,
-            stderr: string,
-          ) => void,
-        ) =>
-          execFile(
-            file,
-            [
-              "-e",
-              'process.stdout.write(String(require("node:v8").getHeapStatistics().heap_size_limit))',
-            ],
-            options,
-            callback,
-          )) as typeof NodeChildProcess.execFile);
-        return probe;
-      }),
-      () =>
-        Effect.gen(function* () {
-          const config = yield* ServerConfig.ServerConfig;
-          const path = NodePath.join(config.attachmentsDir, "heap.rtf");
-          NodeFS.writeFileSync(path, String.raw`{\rtf1 hello}`);
-          const extracted = yield* Effect.gen(function* () {
-            return yield* (yield* DocumentText.DocumentText).ensure(path);
-          }).pipe(
-            Effect.provide(Layer.fresh(DocumentText.layer)),
-            Effect.provideService(HostProcess.IsExecutable, standalone),
-            Effect.provideService(HostProcess.Environment, {
-              ...process.env,
-              NODE_OPTIONS: "--max-old-space-size=1024",
-            }),
-          );
-          expect(extracted).toBe(path + ".txt");
-          const heapLimit = Number(NodeFS.readFileSync(path + ".txt", "utf8"));
-          expect(heapLimit).toBeGreaterThan(192 * 1024 * 1024);
-          expect(heapLimit).toBeLessThanOrEqual(384 * 1024 * 1024);
-        }).pipe(Effect.provide(layer)),
-      (probe) => Effect.sync(() => probe.mockRestore()),
-    ),
+    Effect.gen(function* () {
+      const config = yield* ServerConfig.ServerConfig;
+      const path = NodePath.join(config.attachmentsDir, "heap.rtf");
+      NodeFS.writeFileSync(path, String.raw`{\rtf1 hello}`);
+      const extracted = yield* Effect.gen(function* () {
+        return yield* (yield* DocumentText.DocumentText).ensure(path);
+      }).pipe(
+        Effect.provide(Layer.fresh(DocumentText.layer)),
+        Effect.provideService(HostProcess.IsExecutable, standalone),
+        Effect.provideService(HostProcess.Environment, {
+          ...process.env,
+          NODE_OPTIONS: "--max-old-space-size=1024",
+        }),
+        Effect.provideService(
+          DocumentText.DocumentTextExecFile,
+          (file, _args, options, callback) => {
+            NodeChildProcess.execFile(
+              file,
+              [
+                "-e",
+                'process.stdout.write(String(require("node:v8").getHeapStatistics().heap_size_limit))',
+              ],
+              options,
+              callback,
+            );
+          },
+        ),
+      );
+      expect(extracted).toBe(path + ".txt");
+      const heapLimit = Number(NodeFS.readFileSync(path + ".txt", "utf8"));
+      expect(heapLimit).toBeGreaterThan(192 * 1024 * 1024);
+      expect(heapLimit).toBeLessThanOrEqual(384 * 1024 * 1024);
+    }).pipe(Effect.provide(layer)),
   );
 
   it.effect("extracts notebook cells and outputs once and keeps both readable paths", () =>

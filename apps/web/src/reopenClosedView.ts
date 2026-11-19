@@ -1,4 +1,4 @@
-import type { EnvironmentId, ProjectId } from "@supaterm/contracts";
+import type { EnvironmentId, PreviewRuntime, ProjectId } from "@supaterm/contracts";
 
 import type { OpenPreviewMutation } from "./browser/openFileInPreview";
 import type { ClosedView, ClosedViewEntry } from "./closedViewStore";
@@ -97,6 +97,7 @@ export async function reopenClosedView(
   options: {
     openPreview: OpenPreviewMutation;
     workspaceAvailable: boolean;
+    runtime?: PreviewRuntime;
   },
 ) {
   const panels = useRightPanelStore.getState();
@@ -107,6 +108,7 @@ export async function reopenClosedView(
     const result = await openPreviewSession({
       openPreview: options.openPreview,
       threadRef: ref,
+      ...(options.runtime === undefined ? {} : { runtime: options.runtime }),
       ...(url === undefined ? {} : { url }),
       ...(view.snapshot.viewport === undefined ? {} : { viewport: view.snapshot.viewport }),
       ...(view.snapshot.profileId === undefined ? {} : { profileId: view.snapshot.profileId }),

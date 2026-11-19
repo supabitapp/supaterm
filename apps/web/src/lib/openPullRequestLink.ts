@@ -66,9 +66,18 @@ function shouldOpenPullRequestExternally(
   return event.metaKey || event.ctrlKey || event.button === 1;
 }
 
+interface OpenChangeRequestLinkOptions {
+  readonly openWindow?: (url: string, target: string, features: string) => void;
+}
+
+const openWindow = (url: string, target: string, features: string) => {
+  window.open(url, target, features);
+};
+
 export function useOpenChangeRequestLink(
   threadRef?: ScopedThreadRef,
   panelRef?: ScopedThreadRef,
+  options?: OpenChangeRequestLinkOptions,
 ): (
   event: Pick<
     MouseEvent<HTMLElement>,
@@ -80,7 +89,11 @@ export function useOpenChangeRequestLink(
   targetEnvironmentId?: EnvironmentId,
   onCommitUnavailable?: () => void,
 ) => boolean;
-export function useOpenChangeRequestLink(threadRef?: ScopedThreadRef, panelRef?: ScopedThreadRef) {
+export function useOpenChangeRequestLink(
+  threadRef?: ScopedThreadRef,
+  panelRef?: ScopedThreadRef,
+  options?: OpenChangeRequestLinkOptions,
+) {
   const navigate = useNavigate();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const openInApp = useClientSettings((settings) => settings.pullRequestLinksOpenInApp);
@@ -228,7 +241,7 @@ export function useOpenChangeRequestLink(threadRef?: ScopedThreadRef, panelRef?:
                   children: "Open link",
                   onClick: () => {
                     toastManager.close(toastId);
-                    window.open(targetUrl, "_blank", "noopener,noreferrer");
+                    (options?.openWindow ?? openWindow)(targetUrl, "_blank", "noopener,noreferrer");
                   },
                 },
               }),

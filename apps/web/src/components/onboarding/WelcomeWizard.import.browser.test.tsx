@@ -24,6 +24,37 @@ type CreateProjectInput = {
   environmentId: EnvironmentId;
   input: { projectId: ProjectId; workspaceRoot: string };
 };
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   selectedEnvironment: "primary",
   addedEnvironments: [] as string[],
@@ -32,19 +63,20 @@ const state = vi.hoisted(() => ({
   providers: null as unknown,
   config: null as unknown,
   candidates: [] as AgentSessionProjectCandidate[],
-  createProject: vi.fn(),
-  importThreads: vi.fn(),
-  refreshProviders: vi.fn(),
-  connectPairing: vi.fn(),
-  completeOnboarding: vi.fn(),
-  onDone: vi.fn(),
-  scan: vi.fn(),
-  refreshScan: vi.fn(),
-  waitForProject: vi.fn(),
+  createProject: fake<(input: CreateProjectInput) => Promise<unknown>>(),
+  importThreads: fake(),
+  refreshProviders: fake(),
+  connectPairing: fake(),
+  completeOnboarding: fake<typeof import("../../onboarding/firstRun").completeOnboarding>(),
+  onDone: fake<(projectRef?: { environmentId: EnvironmentId; projectId: ProjectId }) => void>(),
+  scan: fake(),
+  refreshScan: fake(),
+  waitForProject:
+    fake<(ref: { environmentId: EnvironmentId; projectId: string }) => Promise<unknown>>(),
   runningTerminalIds: null as unknown,
-  openTerminal: vi.fn(),
-  writeTerminal: vi.fn(),
-  closeTerminal: vi.fn(),
+  openTerminal: fake<(request: { input: { terminalId: string } }) => Promise<unknown>>(),
+  writeTerminal: fake(),
+  closeTerminal: fake(),
 }));
 
 vi.mock(import("@supaterm/client-runtime/state/session"), async (original) => {
@@ -95,7 +127,7 @@ vi.mock(import("../../state/entities"), async (original) => {
     ...(await original()),
     useProjects: (() => useAtomValue(state.projects as Atom.Atom<Project[]>)) as never,
     readProjects: (() => appAtomRegistry.get(state.projects as Atom.Atom<Project[]>)) as never,
-    waitForProject: ((ref: unknown) => state.waitForProject(ref)) as never,
+    waitForProject: state.waitForProject as never,
   };
 });
 vi.mock(import("../../state/projects"), async (original) => ({
@@ -291,7 +323,8 @@ async function mountImport(remote = false) {
 }
 
 function setup() {
-  const now = vi.spyOn(Date, "now").mockReturnValue(NOW);
+  vi.setSystemTime(NOW);
+  const now = { [Symbol.dispose]: () => void vi.useRealTimers() };
   state.addedEnvironments = [];
   state.sessions.clear();
   for (const id of [primaryId, remoteId]) {
@@ -306,22 +339,18 @@ function setup() {
   state.providers = Atom.make<ReadonlyArray<never>>([]).pipe(Atom.keepAlive);
   state.config = Atom.make(null).pipe(Atom.keepAlive);
   state.candidates = [candidate("/projects/first"), candidate("/projects/second")];
-  state.createProject
-    .mockReset()
-    .mockImplementation(async (input: CreateProjectInput) => recordProject(input));
-  state.importThreads
-    .mockReset()
-    .mockResolvedValue(AsyncResult.success({ importedCount: 1, skippedCount: 0 }));
-  state.refreshProviders.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.connectPairing.mockReset().mockResolvedValue(AsyncResult.success(remoteId));
-  state.completeOnboarding.mockReset().mockResolvedValue(undefined);
-  state.onDone.mockReset();
-  state.scan.mockReset();
-  state.refreshScan.mockReset();
-  state.waitForProject.mockReset().mockImplementation(waitForRecordedProject);
+  state.createProject.reset(async (input: CreateProjectInput) => recordProject(input));
+  state.importThreads.reset(async () => AsyncResult.success({ importedCount: 1, skippedCount: 0 }));
+  state.refreshProviders.reset(async () => AsyncResult.success(undefined));
+  state.connectPairing.reset(async () => AsyncResult.success(remoteId));
+  state.completeOnboarding.reset(async () => undefined);
+  state.onDone.reset();
+  state.scan.reset();
+  state.refreshScan.reset();
+  state.waitForProject.reset(waitForRecordedProject);
   state.runningTerminalIds = Atom.make<ReadonlyArray<string>>([]).pipe(Atom.keepAlive);
   for (const command of [state.openTerminal, state.writeTerminal, state.closeTerminal]) {
-    command.mockReset().mockResolvedValue(AsyncResult.success(undefined));
+    command.reset(async () => AsyncResult.success(undefined));
   }
   return now;
 }
@@ -357,7 +386,7 @@ it("ticks the recent projects of a computer added after the selection changed", 
 it("rechecks after project creation and can retry its history without recreating the project", async () => {
   using _now = setup();
   const creation = deferred<void>();
-  state.createProject.mockImplementationOnce(async (input: CreateProjectInput) => {
+  state.createProject.implementOnce(async (input: CreateProjectInput) => {
     await creation.promise;
     return recordProject(input);
   });
@@ -385,9 +414,7 @@ it("completes accepted imports when permission is revoked after the final server
   using _now = setup();
   state.candidates = state.candidates.slice(0, 1);
   const imported = deferred<{ importedCount: number; skippedCount: number }>();
-  state.importThreads.mockImplementationOnce(async () =>
-    AsyncResult.success(await imported.promise),
-  );
+  state.importThreads.implementOnce(async () => AsyncResult.success(await imported.promise));
   await using _screen = await mountImport();
   await click("Import 1 project");
   await act(async () => {
@@ -404,9 +431,11 @@ it("completes accepted imports when permission is revoked after the final server
 it("finishes setup without landing when the imported project never reaches the client", async () => {
   using _now = setup();
   state.candidates = state.candidates.slice(0, 1);
-  state.createProject.mockResolvedValue(AsyncResult.success(undefined));
-  state.waitForProject.mockRejectedValue(new Error("The project did not appear."));
-  state.completeOnboarding.mockRejectedValueOnce(new Error("offline"));
+  state.createProject.implement(async () => AsyncResult.success(undefined));
+  state.waitForProject.implement(async () =>
+    Promise.reject(new Error("The project did not appear.")),
+  );
+  state.completeOnboarding.implementOnce(async () => Promise.reject(new Error("offline")));
   await using _screen = await mountImport();
 
   await click("Import 1 project");

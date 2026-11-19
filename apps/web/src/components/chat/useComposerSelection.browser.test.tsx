@@ -15,6 +15,37 @@ import { AsyncResult, Atom } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const mocks = vi.hoisted(() => ({
   setModelSelection: null as ((value: unknown) => Promise<AtomCommandResult<void, unknown>>) | null,
 }));
@@ -43,7 +74,7 @@ import { useComposerSelection } from "./useComposerSelection";
 const shellAtom = Atom.family((_threadId: string) => Atom.make<unknown>(null).pipe(Atom.keepAlive));
 
 function setup() {
-  const setModelSelection = vi.fn<(value: unknown) => Promise<AtomCommandResult<void, unknown>>>();
+  const setModelSelection = fake<(value: unknown) => Promise<AtomCommandResult<void, unknown>>>();
   mocks.setModelSelection = setModelSelection;
   return { setModelSelection };
 }
@@ -149,8 +180,8 @@ it("switches back to the thread's stored model while the session runs on another
 it("saves a re-picked model again when its first save failed", async () => {
   const { setModelSelection } = setup();
   setModelSelection
-    .mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("offline"))))
-    .mockResolvedValue(AsyncResult.success(undefined));
+    .implementOnce(async () => AsyncResult.failure(Cause.fail(new Error("offline"))))
+    .implement(async () => AsyncResult.success(undefined));
   const thread = cursorThread("thread-cursor-retry");
   appAtomRegistry.set(shellAtom(thread.id), thread);
   await using _screen = await render(
@@ -174,7 +205,7 @@ it("saves a re-picked model again when its first save failed", async () => {
 
 it("saves a pick of a seeded model the started thread does not show", async () => {
   const { setModelSelection } = setup();
-  setModelSelection.mockResolvedValue(AsyncResult.success(undefined));
+  setModelSelection.implement(async () => AsyncResult.success(undefined));
   const thread = cursorThread("thread-cursor-seeded");
   appAtomRegistry.set(shellAtom(thread.id), thread);
   useComposerDraftStore

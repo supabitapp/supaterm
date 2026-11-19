@@ -30,10 +30,10 @@ function withPrimaryBearerToken(client: HttpClient.HttpClient) {
   );
 }
 
-export function layerForCurrentOrigin() {
+export function layerForCurrentOrigin(fetchImpl?: typeof globalThis.fetch) {
   return Layer.unwrap(
     Effect.sync(() => {
-      const layerBase = layerRemoteHttpClient(globalThis.fetch);
+      const layerBase = layerRemoteHttpClient(fetchImpl ?? globalThis.fetch);
       if (isSameOriginBrowserPrimary()) {
         return Layer.merge(
           layerBase,

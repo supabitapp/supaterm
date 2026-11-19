@@ -4,22 +4,54 @@ import { userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../../test/render";
 
-const state = vi.hoisted(() => ({ send: vi.fn() }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const state = vi.hoisted(() => ({ send: fake() }));
 vi.mock("~/state/use-atom-command", () => ({ useAtomCommand: () => state.send }));
 vi.mock("~/state/pullRequests", () => ({ pullRequestEnvironment: { setReaction: {} } }));
 
 import { PullRequestReactionBar } from "./PullRequestReactions";
 
 it("keeps the latest reaction choice when an older toggle fails", async () => {
-  state.send.mockReset();
+  state.send.reset();
   let failFirst = () => {};
   let finishLater = () => {};
   state.send
-    .mockReturnValueOnce(new Promise((resolve) => (failFirst = () => resolve({ _tag: "Failure" }))))
-    .mockReturnValue(
-      new Promise(
-        (resolve) => (finishLater = () => resolve({ _tag: "Success", value: undefined })),
-      ),
+    .implementOnce(() => new Promise((resolve) => (failFirst = () => resolve({ _tag: "Failure" }))))
+    .implement(
+      () =>
+        new Promise(
+          (resolve) => (finishLater = () => resolve({ _tag: "Success", value: undefined })),
+        ),
     );
   await using screen = await render(
     <PullRequestReactionBar

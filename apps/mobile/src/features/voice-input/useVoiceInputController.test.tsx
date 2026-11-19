@@ -62,10 +62,10 @@ import { useVoiceInputController } from "./useVoiceInputController";
 let state: VoiceInputState;
 let session: VoiceInputSession;
 let transcriber: VoiceTranscriber;
-const voiceSends =
-  vi.fn<
-    (uri: string, language: string, handOff: VoiceRecordingHandOff | undefined) => Promise<void>
-  >();
+const voiceMessages = {
+  send: async (_uri: string, _language: string, _handOff: VoiceRecordingHandOff | undefined) => {},
+};
+const voiceSends = vi.spyOn(voiceMessages, "send");
 let control: ReturnType<typeof useVoiceInputController>;
 let root: Root;
 let ownerKey: string;
@@ -99,7 +99,7 @@ function Probe() {
     environmentId: EnvironmentId.make("environment-1"),
     voiceMessage: {
       accepts: () => (drafts.get(key) ?? "") === "",
-      send: voiceSends,
+      send: voiceMessages.send,
     },
   });
   useLayoutEffect(() => {
@@ -145,8 +145,7 @@ beforeEach(() => {
   transcribing = Promise.withResolvers<void>();
   settled = Promise.withResolvers<void>();
   transcript = Promise.withResolvers<string>();
-  voiceSends.mockReset();
-  voiceSends.mockResolvedValue(undefined);
+  voiceSends.mockClear();
   transcriber = {
     prepare: async () => ({
       locale: "en-US",

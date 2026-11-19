@@ -58,14 +58,23 @@ import { MuseUsageHome } from "@supaterm/provider-muse/server";
 import { makeScanCacheWriter, SCAN_CACHE_FILE_NAME } from "./usageScanCache.ts";
 
 vi.mock("node:fs/promises", { spy: true });
-vi.mock("../../../../packages/provider-muse/src/server/sdk.ts", async (importOriginal) => ({
-  ...(await importOriginal<typeof MuseSdk>()),
-  createMuseSdkHostEffect: vi.fn(() =>
-    Effect.try(() => {
-      throw new Error("Muse is not installed in this test");
-    }),
-  ),
-}));
+
+const museNotInstalled = () =>
+  Effect.try(() => {
+    throw new Error("Muse is not installed in this test");
+  });
+let createMuseHost: (
+  options: Parameters<typeof MuseSdk.createMuseSdkHostEffect>[0],
+) => Effect.Effect<MuseSdk.MuseSdkHost, Effect.Error<ReturnType<typeof museNotInstalled>>> =
+  museNotInstalled;
+const useMuseHost = (create: typeof createMuseHost) => {
+  createMuseHost = create;
+  return {
+    [Symbol.dispose]: () => {
+      createMuseHost = museNotInstalled;
+    },
+  };
+};
 
 const encodeUnknownJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 const encodeUnknownJsonString = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
@@ -191,7 +200,7 @@ const layerService = (input: {
 }) =>
   layerCursorUsageAccounts(CursorAccountReader.layer).pipe(
     Layer.provideMerge(AntigravityUsage.layer),
-    Layer.provideMerge(MuseUsageHome.layer),
+    Layer.provideMerge(MuseUsageHome.layerWith((options) => createMuseHost(options))),
     Layer.provideMerge(ProviderHostLive.layer),
     Layer.provideMerge(CodexUsageHistory.layer.pipe(Layer.provideMerge(Sqlite.layerMemory))),
     Layer.provideMerge(Layer.mock(BackgroundPolicy.BackgroundPolicy)({})),
@@ -1371,7 +1380,7 @@ describe("UsageService", () => {
             encodeUnknownJsonString(entry("not-a-session")) + "\n",
           );
         });
-        using _create = vi.spyOn(MuseSdk, "createMuseSdkHostEffect").mockImplementation((options) =>
+        using _create = useMuseHost((options) =>
           Effect.succeed({
             initializeResult: {
               grantedCapabilities: [],
@@ -1515,11 +1524,9 @@ describe("UsageService", () => {
       yield* Effect.promise(() =>
         NodeFSP.mkdir(NodePath.join(museHome, "sessions"), { recursive: true }),
       );
-      using _create = vi
-        .spyOn(MuseSdk, "createMuseSdkHostEffect")
-        .mockImplementation(() =>
-          Deferred.succeed(museStarted, undefined).pipe(Effect.andThen(Deferred.await(museReady))),
-        );
+      using _create = useMuseHost(() =>
+        Deferred.succeed(museStarted, undefined).pipe(Effect.andThen(Deferred.await(museReady))),
+      );
       const museSources = (summary: UsageSummary) =>
         summary.sources
           .filter((source) => source.fingerprint.provider === "muse")

@@ -12,7 +12,7 @@ it("copies the version without a notification", async () => {
       <AboutVersionTitle />
     </AnchoredToastProvider>,
   );
-  using write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+  using write = vi.spyOn(navigator.clipboard, "writeText");
 
   await screen.getByRole("button", { name: `Copy version ${APP_VERSION}` }).click();
 

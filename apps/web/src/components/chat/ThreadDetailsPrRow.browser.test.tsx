@@ -10,17 +10,48 @@ import { DraftId, useComposerDraftStore } from "~/composerDraftStore";
 import { AsyncResult } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   prState: "open" as "open" | "closed" | "merged",
   status: "success" as PullRequestCheck["status"],
   extraStatus: null as PullRequestCheck["status"] | null,
   mergeMethods: ["merge"] as Array<"merge" | "squash" | "rebase">,
-  perform: vi.fn(),
-  newThread: vi.fn(),
-  prepareThread: vi.fn(),
+  perform: fake(),
+  newThread: fake(),
+  prepareThread: fake(),
   checkoutError: null as Error | null,
-  addToast: vi.fn(),
-  updateToast: vi.fn(),
+  addToast: fake(),
+  updateToast: fake(),
   projects: [] as unknown[],
   pullRequests: [] as unknown[],
   projectMergeMethods: {} as Record<string, "merge" | "squash" | "rebase">,
@@ -89,7 +120,7 @@ vi.mock(import("../pullRequest/usePullRequestActions"), async (importOriginal) =
   usePullRequestActionRunner: () => ({
     actionPending: false,
     pendingAction: null,
-    perform: state.perform,
+    perform: state.perform as never,
   }),
   usePullRequestDefaultMergeMethod: ((_environmentId: unknown, projectId: unknown) =>
     state.projectMergeMethods[String(projectId)]) as never,
@@ -269,15 +300,15 @@ it.each<[PullRequestCheck["status"], PullRequestCheck["status"]]>([
 });
 
 async function setup() {
-  state.perform.mockReset();
+  state.perform.reset();
   state.checkoutError = null;
-  state.newThread.mockReset().mockResolvedValue({
+  state.newThread.reset(async () => ({
     draftId: DraftId.make("new-draft"),
     threadId: ThreadId.make("new-thread"),
-  });
-  state.prepareThread.mockReset();
-  state.addToast.mockReset().mockReturnValue("checkout-toast");
-  state.updateToast.mockReset();
+  }));
+  state.prepareThread.reset();
+  state.addToast.reset(() => "checkout-toast");
+  state.updateToast.reset();
 
   state.prState = "open";
   state.status = "success";

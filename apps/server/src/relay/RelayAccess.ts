@@ -34,7 +34,13 @@ export class RelayAccess extends Context.Service<
   }
 >()("supaterm/relay/RelayAccess") {}
 
+export const RelayTransportStarter = Context.Reference<typeof startRelayTransport>(
+  "supaterm/relay/RelayAccess/RelayTransportStarter",
+  { defaultValue: () => startRelayTransport },
+);
+
 const make = Effect.gen(function* () {
+  const startTransport = yield* RelayTransportStarter;
   const identity = yield* RelayIdentity.RelayIdentity;
   const ingress = yield* RelayIngress;
   const settings = yield* ServerSettingsService.ServerSettingsService;
@@ -86,7 +92,7 @@ const make = Effect.gen(function* () {
       running = {
         relayUrl,
         generation,
-        stop: startRelayTransport({
+        stop: startTransport({
           secret,
           relayUrl,
           acceptStream: (stream) => ingress.accept(stream, { transport: "relay" }),

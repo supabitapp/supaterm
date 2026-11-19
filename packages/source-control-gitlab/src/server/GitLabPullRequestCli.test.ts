@@ -1,4 +1,4 @@
-import { afterEach, assert, describe, expect, it, vi } from "@effect/vitest";
+import { afterEach, assert, describe, expect, it } from "@effect/vitest";
 import { VcsProcessExitError } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -6,14 +6,15 @@ import { ChildProcessSpawner } from "effect/process";
 
 import * as GitLabCli from "./GitLabCli.ts";
 import * as GitLabPullRequestCli from "./GitLabPullRequestCli.ts";
+import { scriptedFunction } from "@supaterm/source-control-testing/scriptedFunction";
 
-const mockedExecute = vi.fn<GitLabCli.GitLabCli["Service"]["execute"]>();
+const fakeExecute = scriptedFunction<GitLabCli.GitLabCli["Service"]["execute"]>();
 
 const layer = it.layer(
   GitLabPullRequestCli.layer.pipe(
     Layer.provide(
       Layer.mock(GitLabCli.GitLabCli)({
-        execute: mockedExecute,
+        execute: fakeExecute,
       }),
     ),
   ),
@@ -113,7 +114,7 @@ function argsOfCall(index: number) {
 }
 
 function callAt(index: number) {
-  const call = mockedExecute.mock.calls[index];
+  const call = fakeExecute.calls[index];
   assert.isDefined(call);
   return call[0];
 }
@@ -153,13 +154,13 @@ function graphqlRequestOf(index: number) {
 }
 
 afterEach(() => {
-  mockedExecute.mockReset();
+  fakeExecute.reset();
 });
 
 layer("GitLabPullRequestCli.layer", (it) => {
   it.effect("batches approval reads at GitLab's page limit and skips an empty list", () =>
     Effect.gen(function* () {
-      mockedExecute.mockImplementation(({ stdin }) => {
+      fakeExecute.implement(({ stdin }) => {
         const { variables } = JSON.parse(stdin ?? "{}");
         return Effect.succeed(
           output(
@@ -183,7 +184,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const reference = { cwd: "/w", repository: "acme/web", host: "gitlab.internal" };
       expect(yield* cli.getListStates({ ...reference, numbers: [] })).toEqual(new Map());
-      expect(mockedExecute).not.toHaveBeenCalled();
+      expect(fakeExecute.calls).toHaveLength(0);
       const decisions = yield* cli.getListStates({
         ...reference,
         numbers: Array.from({ length: 101 }, (_, index) => index + 1),
@@ -192,7 +193,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
       expect(callAt(1).host).toBe(reference.host);
       expect(decisions.size).toBe(101);
       expect(decisions.get(101)).toEqual({ reviewDecision: "approved", checksState: null });
-      expect(mockedExecute).toHaveBeenCalledTimes(2);
+      expect(fakeExecute.calls).toHaveLength(2);
       expect(
         [0, 1].map((index) => JSON.parse(callAt(index).stdin ?? "{}").variables.iids.length),
       ).toEqual([100, 1]);
@@ -211,7 +212,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("asks GitLab for one row more than the page, to probe for a next page", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(mergeRequests(3, 1))));
+      fakeExecute.returnsOnce(Effect.succeed(output(mergeRequests(3, 1))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const batch = yield* cli.listMergeRequests({
@@ -235,9 +236,9 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("walks pages at a fixed size, because GitLab pages by offset", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequests(100, 1))))
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequests(100, 101))));
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(mergeRequests(100, 1))))
+        .returnsOnce(Effect.succeed(output(mergeRequests(100, 101))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const batch = yield* cli.listMergeRequests({
@@ -261,7 +262,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("asks GitLab for the labels, author and draft state it can filter on", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(mergeRequests(1, 1))));
+      fakeExecute.returnsOnce(Effect.succeed(output(mergeRequests(1, 1))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.listMergeRequests({
@@ -294,7 +295,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const reviews = ["none", "review-required", "changes-requested"] as const;
       for (const review of reviews) {
-        mockedExecute.mockReturnValueOnce(Effect.succeed(output(mergeRequests(1, 1))));
+        fakeExecute.returnsOnce(Effect.succeed(output(mergeRequests(1, 1))));
         yield* cli.listMergeRequests({
           cwd: "/w",
           repository: "acme/web",
@@ -322,7 +323,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
     "lists through GraphQL with the filters GitLab narrows there, declaring only those",
     () =>
       Effect.gen(function* () {
-        mockedExecute.mockReturnValue(
+        fakeExecute.returns(
           Effect.succeed(output(graphqlListPage([1], { hasNextPage: false, endCursor: null }))),
         );
         const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
@@ -384,11 +385,11 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("walks GraphQL pages by GitLab's cursor and hands the last one back", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(output(graphqlListPage([1, 2], { hasNextPage: true, endCursor: "c1" }))),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(output(graphqlListPage([3], { hasNextPage: true, endCursor: "c2" }))),
         );
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
@@ -416,16 +417,16 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("reads REST for a REST cursor, and when a first GraphQL read or command fails", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequests(1, 1))))
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(mergeRequests(1, 1))))
+        .returnsOnce(
           Effect.succeed(
             output(JSON.stringify({ errors: [{ message: "Field 'search' doesn't exist" }] })),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequests(1, 1))))
-        .mockReturnValueOnce(Effect.succeed(output(JSON.stringify({ errors: [] }))))
-        .mockReturnValueOnce(
+        .returnsOnce(Effect.succeed(output(mergeRequests(1, 1))))
+        .returnsOnce(Effect.succeed(output(JSON.stringify({ errors: [] }))))
+        .returnsOnce(
           Effect.fail(
             new GitLabCli.GitLabCliCommandError({
               operation: "execute",
@@ -435,7 +436,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
             }),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequests(1, 2))));
+        .returnsOnce(Effect.succeed(output(mergeRequests(1, 2))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const list = (cursor?: { updatedBefore: string; delivered: number; resumeAfter?: string }) =>
         cli.listMergeRequests({
@@ -458,7 +459,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
       expect(fellBack.items.map((item) => item.number)).toEqual([1]);
       expect(fellBack).not.toHaveProperty("resumeAfter");
-      expect(mockedExecute.mock.calls.map(([request]) => request.args[1]?.split("?")[0])).toEqual([
+      expect(fakeExecute.calls.map(([request]) => request.args[1]?.split("?")[0])).toEqual([
         "projects/acme%2Fweb/merge_requests",
         "graphql",
         "projects/acme%2Fweb/merge_requests",
@@ -476,7 +477,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("carries on from the number of rows already delivered", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(mergeRequests(3, 1))));
+      fakeExecute.returnsOnce(Effect.succeed(output(mergeRequests(3, 1))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.listMergeRequests({
@@ -499,9 +500,9 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("advances beyond several pages sharing the cursor timestamp", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequests(11, 144))))
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequests(11, 155))));
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(mergeRequests(11, 144))))
+        .returnsOnce(Effect.succeed(output(mergeRequests(11, 155))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const batch = yield* cli.listMergeRequests({
@@ -527,7 +528,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
   it.effect("advances the cursor through malformed raw rows", () =>
     Effect.gen(function* () {
       const rows = JSON.parse(mergeRequests(2, 1)) as ReadonlyArray<unknown>;
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(output(JSON.stringify([{ iid: "malformed" }, ...rows]))),
       );
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
@@ -549,7 +550,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("URL-encodes a search, so it cannot add a parameter of its own", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output("[]")));
+      fakeExecute.returnsOnce(Effect.succeed(output("[]")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.listMergeRequests({
@@ -570,7 +571,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("stops walking on a short page", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(mergeRequests(40, 1))));
+      fakeExecute.returnsOnce(Effect.succeed(output(mergeRequests(40, 1))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const batch = yield* cli.listMergeRequests({
@@ -584,7 +585,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
       assert.strictEqual(batch.items.length, 40);
       assert.isFalse(batch.truncated);
-      assert.strictEqual(mockedExecute.mock.calls.length, 1);
+      assert.strictEqual(fakeExecute.calls.length, 1);
     }),
   );
 
@@ -597,7 +598,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
       }));
       const response = JSON.stringify(rows);
       expect(Buffer.byteLength(response)).toBeGreaterThan(vcsDefaultMaxOutputBytes);
-      mockedExecute.mockImplementationOnce(({ maxOutputBytes = vcsDefaultMaxOutputBytes }) =>
+      fakeExecute.implementOnce(({ maxOutputBytes = vcsDefaultMaxOutputBytes }) =>
         Effect.succeed(
           maxOutputBytes >= Buffer.byteLength(response)
             ? output(response)
@@ -623,7 +624,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
   it.effect("stops walking when every row on a page fails to decode", () =>
     Effect.gen(function* () {
       const unusable = JSON.stringify(Array.from({ length: 100 }, () => ({ iid: "nope" })));
-      mockedExecute.mockReturnValue(Effect.succeed(output(unusable)));
+      fakeExecute.returns(Effect.succeed(output(unusable)));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const batch = yield* cli.listMergeRequests({
@@ -636,7 +637,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
       });
 
       assert.strictEqual(batch.items.length, 0);
-      assert.strictEqual(mockedExecute.mock.calls.length, 2);
+      assert.strictEqual(fakeExecute.calls.length, 2);
     }),
   );
 
@@ -652,7 +653,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
         for (const headSha of ["first-head", "updated-head"]) {
           let currentHeadSha = headSha;
-          mockedExecute.mockImplementation(({ cwd, args }) => {
+          fakeExecute.implement(({ cwd, args }) => {
             if (args[0] === "mr" && args[1] === "rebase") {
               return Effect.sync(() => {
                 currentHeadSha = `${headSha}-rebased`;
@@ -694,9 +695,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           });
 
           const callsPerAction = mergeMethod === "rebase" ? 3 : 2;
-          expect(
-            mockedExecute.mock.calls.slice(-callsPerAction).map(([input]) => input.args),
-          ).toEqual([
+          expect(fakeExecute.calls.slice(-callsPerAction).map(([input]) => input.args)).toEqual([
             ...(mergeMethod === "rebase" ? [["mr", "rebase", "7", "--repo", "acme/web"]] : []),
             ["api", "projects/acme%2Fweb/merge_requests/7"],
             [
@@ -713,7 +712,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
             ],
           ]);
         }
-        expect(mockedExecute).toHaveBeenCalledTimes(mergeMethod === "rebase" ? 6 : 4);
+        expect(fakeExecute.calls).toHaveLength(mergeMethod === "rebase" ? 6 : 4);
       }),
   );
 
@@ -777,7 +776,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
       Effect.gen(function* () {
         const credits =
           "Co-authored-by: Ada <ada@example.com>\nCo-authored-by: Claude <noreply@anthropic.com>";
-        mockedExecute.mockImplementation(({ args }) =>
+        fakeExecute.implement(({ args }) =>
           Effect.succeed(
             output(
               args[1] === "graphql"
@@ -812,7 +811,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           removeAgentCreditsOnMerge: true,
         });
 
-        expect(mockedExecute.mock.calls.at(-1)?.[0].args).toEqual([
+        expect(fakeExecute.calls.at(-1)?.[0].args).toEqual([
           "mr",
           "merge",
           "7",
@@ -827,7 +826,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("keeps GitLab's merge messages when they carry no agent credits", () =>
     Effect.gen(function* () {
-      mockedExecute.mockImplementation(({ args }) =>
+      fakeExecute.implement(({ args }) =>
         Effect.succeed(
           output(
             args[1] === "graphql"
@@ -860,7 +859,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         removeAgentCreditsOnMerge: true,
       });
 
-      expect(mockedExecute.mock.calls.at(-1)?.[0].args).toEqual([
+      expect(fakeExecute.calls.at(-1)?.[0].args).toEqual([
         "mr",
         "merge",
         "7",
@@ -879,9 +878,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
     "does not run %s when GitLab has no diff revisions",
     (action) =>
       Effect.gen(function* () {
-        mockedExecute.mockReturnValue(
-          Effect.succeed(output(mergeRequestJson({ diff_refs: null }))),
-        );
+        fakeExecute.returns(Effect.succeed(output(mergeRequestJson({ diff_refs: null }))));
         const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
         const result = yield* Effect.result(
@@ -894,7 +891,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           }),
         );
 
-        expect(mockedExecute.mock.calls.map(([input]) => input.args)).toEqual([
+        expect(fakeExecute.calls.map(([input]) => input.args)).toEqual([
           ["api", "projects/acme%2Fweb/merge_requests/7"],
         ]);
         expect(result).toMatchObject({
@@ -907,8 +904,8 @@ layer("GitLabPullRequestCli.layer", (it) => {
   it.effect("reverts a merged merge request onto a new branch and opens a merge request", () =>
     Effect.gen(function* () {
       const mergeCommit = "dac72fa101758a44b0068a23666559920a74478f";
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               mergeRequestJson({
@@ -919,7 +916,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValue(Effect.succeed(output("{}")));
+        .returns(Effect.succeed(output("{}")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.runMergeRequestAction({
@@ -930,10 +927,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
       });
 
       expect(
-        mockedExecute.mock.calls.map(([input]) => [
-          input.args[1],
-          input.stdin && JSON.parse(input.stdin),
-        ]),
+        fakeExecute.calls.map(([input]) => [input.args[1], input.stdin && JSON.parse(input.stdin)]),
       ).toEqual([
         ["projects/acme%2Fweb/merge_requests/7", undefined],
         ["projects/acme%2Fweb/repository/branches", { branch: "revert-dac72fa1", ref: "main" }],
@@ -961,7 +955,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
     ["the request is interrupted", "/revert", "Interrupt"],
   ] as const)("deletes the revert branch when %s", ([, failingPath, outcome]) =>
     Effect.gen(function* () {
-      mockedExecute.mockImplementation(({ args, cwd }) =>
+      fakeExecute.implement(({ args, cwd }) =>
         args[1]?.endsWith(failingPath) && args.includes("POST")
           ? outcome === "Interrupt"
             ? Effect.interrupt
@@ -995,7 +989,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
       );
 
       expect(exit._tag).toBe("Failure");
-      expect(mockedExecute.mock.calls.at(-1)?.[0].args.slice(1, 4)).toEqual([
+      expect(fakeExecute.calls.at(-1)?.[0].args.slice(1, 4)).toEqual([
         "projects/acme%2Fweb/repository/branches/revert-abc12345",
         "--method",
         "DELETE",
@@ -1012,8 +1006,8 @@ layer("GitLabPullRequestCli.layer", (it) => {
     ],
   ] as const)("%s a fast-forward merge without squash", ([, commits, expected]) =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               mergeRequestJson({
@@ -1024,8 +1018,8 @@ layer("GitLabPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output(JSON.stringify(commits))))
-        .mockReturnValue(Effect.succeed(output("{}")));
+        .returnsOnce(Effect.succeed(output(JSON.stringify(commits))))
+        .returns(Effect.succeed(output("{}")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const result = yield* Effect.result(
@@ -1048,8 +1042,8 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("refuses to revert a merge request that is not merged before any write", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               mergeRequestJson({
@@ -1060,7 +1054,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValue(Effect.succeed(output(JSON.stringify([commitJson("1111111122")]))));
+        .returns(Effect.succeed(output(JSON.stringify([commitJson("1111111122")]))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const result = yield* Effect.result(
@@ -1076,13 +1070,13 @@ layer("GitLabPullRequestCli.layer", (it) => {
         _tag: "Failure",
         failure: { _tag: "GitLabRevertUnavailableError", reason: "not-merged" },
       });
-      expect(mockedExecute).toHaveBeenCalledTimes(1);
+      expect(fakeExecute.calls).toHaveLength(1);
     }),
   );
 
   it.effect("sends a comment body over stdin, never in argv", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output("")));
+      fakeExecute.returnsOnce(Effect.succeed(output("")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.commentOnMergeRequest({
@@ -1092,7 +1086,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         body: "true",
       });
 
-      const call = mockedExecute.mock.calls[0];
+      const call = fakeExecute.calls[0];
       assert.isDefined(call);
       expect(call[0].args).toEqual([
         "api",
@@ -1110,7 +1104,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("reads one diff page and hands back the cursor for the next", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(diffPage(0))));
+      fakeExecute.returnsOnce(Effect.succeed(output(diffPage(0))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const diff = yield* cli.getMergeRequestDiff({
@@ -1119,7 +1113,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         number: 7,
       });
 
-      assert.strictEqual(mockedExecute.mock.calls.length, 1);
+      assert.strictEqual(fakeExecute.calls.length, 1);
       assert.isNotNull(diff.nextCursor);
       assert.isFalse(diff.truncated);
       expect(argsOfCall(0)[1]).toContain("merge_requests/7/diffs?per_page=30&page=1");
@@ -1128,8 +1122,8 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("counts a file GitLab withheld as too large and offers to read it alone", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify([
@@ -1139,7 +1133,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify({
@@ -1171,7 +1165,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("reads one withheld file's section from the merge request's raw diff", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             [
@@ -1214,10 +1208,10 @@ layer("GitLabPullRequestCli.layer", (it) => {
     "pages a merge request diff 30 files at a time, which GitLab 15.7 to 17.10 accept",
     () =>
       Effect.gen(function* () {
-        mockedExecute
-          .mockReturnValueOnce(Effect.succeed(output(diffPage(0, 30))))
-          .mockReturnValueOnce(Effect.succeed(output(diffPage(30, 30))))
-          .mockReturnValueOnce(Effect.succeed(output(diffPage(60, 5))));
+        fakeExecute
+          .returnsOnce(Effect.succeed(output(diffPage(0, 30))))
+          .returnsOnce(Effect.succeed(output(diffPage(30, 30))))
+          .returnsOnce(Effect.succeed(output(diffPage(60, 5))));
         const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
         const target = { cwd: "/w", repository: "acme/web", number: 7 };
 
@@ -1229,7 +1223,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           cursor = slice.nextCursor ?? undefined;
         } while (cursor !== undefined);
 
-        expect(mockedExecute.mock.calls.map(([call]) => call.args[1])).toEqual([
+        expect(fakeExecute.calls.map(([call]) => call.args[1])).toEqual([
           "projects/acme%2Fweb/merge_requests/7/diffs?per_page=30&page=1",
           "projects/acme%2Fweb/merge_requests/7/diffs?per_page=30&page=2",
           "projects/acme%2Fweb/merge_requests/7/diffs?per_page=30&page=3",
@@ -1253,15 +1247,15 @@ layer("GitLabPullRequestCli.layer", (it) => {
       );
 
       assert.strictEqual(error._tag, "GitLabDiffCursorError");
-      assert.strictEqual(mockedExecute.mock.calls.length, 0);
+      assert.strictEqual(fakeExecute.calls.length, 0);
     }),
   );
 
   it.effect("reads a named commit from its own diff, and pages inside it", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(diffPage(0))))
-        .mockReturnValueOnce(Effect.succeed(output(diffPage(100, 3))));
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(diffPage(0))))
+        .returnsOnce(Effect.succeed(output(diffPage(100, 3))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const target = {
         cwd: "/w",
@@ -1296,13 +1290,13 @@ layer("GitLabPullRequestCli.layer", (it) => {
       );
 
       assert.strictEqual(error._tag, "GitLabDiffCommitError");
-      assert.strictEqual(mockedExecute.mock.calls.length, 0);
+      assert.strictEqual(fakeExecute.calls.length, 0);
     }),
   );
 
   it.effect("reports a commit with no parent as a structured error", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(output(JSON.stringify({ id: "a1b2c3d", parent_ids: [] }))),
       );
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
@@ -1328,10 +1322,10 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("expands a new file from a root commit without requiring a parent", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(output(JSON.stringify({ id: "a1b2c3d", parent_ids: [] }))),
       );
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output("first contents\n")));
+      fakeExecute.returnsOnce(Effect.succeed(output("first contents\n")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const contents = yield* cli.getMergeRequestDiffFileContents({
@@ -1351,7 +1345,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("reports undecodable diff file contents as binary", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify({
@@ -1364,9 +1358,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           ),
         ),
       );
-      mockedExecute.mockReturnValueOnce(
-        Effect.succeed(output("binary\uFFFDcontents", false, true)),
-      );
+      fakeExecute.returnsOnce(Effect.succeed(output("binary\uFFFDcontents", false, true)));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const error = yield* Effect.flip(
@@ -1390,7 +1382,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("returns valid text containing a literal replacement character", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify({
@@ -1403,7 +1395,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           ),
         ),
       );
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output("before\uFFFDafter")));
+      fakeExecute.returnsOnce(Effect.succeed(output("before\uFFFDafter")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const contents = yield* cli.getMergeRequestDiffFileContents({
@@ -1421,7 +1413,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("ends the diff on a page with no files rather than asking for it again", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output("[]")));
+      fakeExecute.returnsOnce(Effect.succeed(output("[]")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const diff = yield* cli.getMergeRequestDiff({
@@ -1438,7 +1430,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("fails a diff page cut off mid-JSON rather than calling the diff whole", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed({ ...output('[{"old_path":"src/x.ts","new_p'), stdoutTruncated: true }),
       );
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
@@ -1453,9 +1445,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("offers no squash when the project does not say it allows one", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
-        Effect.succeed(output(JSON.stringify({ merge_method: "merge" }))),
-      );
+      fakeExecute.returnsOnce(Effect.succeed(output(JSON.stringify({ merge_method: "merge" }))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const capabilities = yield* cli.getProjectMergeCapabilities({
@@ -1469,7 +1459,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("reads the project's merge settings as its merge capabilities", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(output(JSON.stringify({ merge_method: "ff", squash_option: "never" }))),
       );
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
@@ -1485,7 +1475,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("fails when the authenticated account has no username", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(JSON.stringify({ username: "" }))));
+      fakeExecute.returnsOnce(Effect.succeed(output(JSON.stringify({ username: "" }))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const error = yield* Effect.flip(cli.getViewerUsername({ cwd: "/w" }));
@@ -1496,8 +1486,8 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("walks the notes until GitLab answers with a short page", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(notes(100, 1))));
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(notes(2, 101))));
+      fakeExecute.returnsOnce(Effect.succeed(output(notes(100, 1))));
+      fakeExecute.returnsOnce(Effect.succeed(output(notes(2, 101))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const { comments, truncated } = yield* cli.listNotes({
@@ -1515,7 +1505,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("stops the note walk at its bound and says the conversation was cut short", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValue(Effect.succeed(output(notes(100, 1))));
+      fakeExecute.returns(Effect.succeed(output(notes(100, 1))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const { truncated } = yield* cli.listNotes({
@@ -1524,7 +1514,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         number: 7,
       });
 
-      assert.strictEqual(mockedExecute.mock.calls.length, 10);
+      assert.strictEqual(fakeExecute.calls.length, 10);
       assert.isTrue(truncated);
     }),
   );
@@ -1533,7 +1523,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
     "reads a positioned discussion at its line and an overview discussion as a thread and a finding",
     () =>
       Effect.gen(function* () {
-        mockedExecute.mockReturnValueOnce(
+        fakeExecute.returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify([
@@ -1665,7 +1655,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("sends a review as its comments, then its summary, then the verdict", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify({
@@ -1681,7 +1671,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           ),
         ),
       );
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify([
@@ -1695,7 +1685,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           ),
         ),
       );
-      mockedExecute.mockReturnValue(Effect.succeed(output("{}")));
+      fakeExecute.returns(Effect.succeed(output("{}")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.submitReview({
@@ -1758,14 +1748,14 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("requests changes as a reviewer and reports what GitLab refused", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(JSON.stringify({ username: "bilal" }))))
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(JSON.stringify({ username: "bilal" }))))
+        .returnsOnce(
           Effect.succeed(
             output(JSON.stringify({ data: { mergeRequestSetReviewers: { errors: [] } } })),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify({
@@ -1787,7 +1777,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         }),
       );
 
-      expect(mockedExecute).toHaveBeenCalledTimes(3);
+      expect(fakeExecute.calls).toHaveLength(3);
       const target = { projectPath: "acme/web", iid: "7" };
       const setReviewers = JSON.parse(callAt(1).stdin ?? "");
       expect(setReviewers.query).toContain("operationMode: APPEND");
@@ -1807,19 +1797,13 @@ layer("GitLabPullRequestCli.layer", (it) => {
       );
       const page = (awards: ReadonlyArray<unknown>) =>
         Effect.succeed(output(JSON.stringify(awards)));
-      mockedExecute.mockReturnValueOnce(
-        Effect.succeed(output(JSON.stringify({ username: "bilal" }))),
-      );
-      mockedExecute.mockReturnValueOnce(page(others));
-      mockedExecute.mockReturnValueOnce(
-        page([{ id: 500, name: "thumbsup", user: { username: "bilal" } }]),
-      );
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output("{}")));
-      mockedExecute.mockReturnValueOnce(
-        Effect.succeed(output(JSON.stringify({ username: "bilal" }))),
-      );
-      mockedExecute.mockReturnValueOnce(page(others));
-      mockedExecute.mockReturnValueOnce(page([]));
+      fakeExecute.returnsOnce(Effect.succeed(output(JSON.stringify({ username: "bilal" }))));
+      fakeExecute.returnsOnce(page(others));
+      fakeExecute.returnsOnce(page([{ id: 500, name: "thumbsup", user: { username: "bilal" } }]));
+      fakeExecute.returnsOnce(Effect.succeed(output("{}")));
+      fakeExecute.returnsOnce(Effect.succeed(output(JSON.stringify({ username: "bilal" }))));
+      fakeExecute.returnsOnce(page(others));
+      fakeExecute.returnsOnce(page([]));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const remove = {
         cwd: "/w",
@@ -1833,7 +1817,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
       yield* cli.setReaction(remove);
 
       const awards = "projects/acme%2Fweb/merge_requests/7/award_emoji";
-      expect(mockedExecute.mock.calls.map((_, index) => argsOfCall(index)[1])).toEqual([
+      expect(fakeExecute.calls.map((_, index) => argsOfCall(index)[1])).toEqual([
         "user",
         `${awards}?per_page=100&page=1`,
         `${awards}?per_page=100&page=2`,
@@ -1848,7 +1832,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("names a merge request with no diff revisions rather than calling it unreadable", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify({
@@ -1883,7 +1867,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("shows a failed child pipeline that left the head pipeline green", () =>
     Effect.gen(function* () {
-      mockedExecute.mockImplementation((request) => {
+      fakeExecute.implement((request) => {
         switch (request.args[1]) {
           case "graphql":
             return Effect.succeed(output("{}"));
@@ -1958,7 +1942,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           Effect.succeed(output(JSON.stringify(Array.from({ length: 100 }, () => failedChild)))),
         ],
       ] as const) {
-        mockedExecute.mockImplementation((request) =>
+        fakeExecute.implement((request) =>
           request.args[1] === "graphql"
             ? Effect.succeed(output("{}"))
             : request.args[1]?.includes("/bridges")
@@ -1990,7 +1974,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
     "reads merge and label permissions without reading the trigger jobs or fork settings",
     ({ answer, expected }) =>
       Effect.gen(function* () {
-        mockedExecute.mockImplementation(({ args }) =>
+        fakeExecute.implement(({ args }) =>
           Effect.succeed(
             output(
               args[1] === "graphql"
@@ -2017,7 +2001,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         expect(detail.viewerCanMerge).toBe(false);
         expect(detail.maintainerCanModify).toBeUndefined();
         expect(detail.viewerCanEditLabels).toBe(expected);
-        expect(mockedExecute).toHaveBeenCalledTimes(2);
+        expect(fakeExecute.calls).toHaveLength(2);
       }),
   );
 
@@ -2025,7 +2009,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
     "offers the project's and its groups' labels, marking those already applied, and keeps an applied label past the page",
     () =>
       Effect.gen(function* () {
-        mockedExecute.mockImplementation(({ args }) =>
+        fakeExecute.implement(({ args }) =>
           Effect.succeed(
             output(
               args[1]?.includes("/labels?")
@@ -2048,7 +2032,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         });
 
         expect(
-          mockedExecute.mock.calls
+          fakeExecute.calls
             .map(([call]) => call.args[1])
             .find((path) => path?.includes("/labels?")),
         ).toBe("projects/acme%2Fweb/labels?per_page=100&include_ancestor_groups=true");
@@ -2066,7 +2050,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("adds labels the project has in one write", () =>
     Effect.gen(function* () {
-      mockedExecute.mockImplementation(({ args }) =>
+      fakeExecute.implement(({ args }) =>
         Effect.succeed(
           output(
             args.includes("PUT")
@@ -2088,7 +2072,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         applied: true,
       });
 
-      const write = mockedExecute.mock.calls.find(([call]) => call.args.includes("PUT"))?.[0];
+      const write = fakeExecute.calls.find(([call]) => call.args.includes("PUT"))?.[0];
       assert.isDefined(write);
       expect(write.args[1]).toBe("projects/acme%2Fweb/merge_requests/7");
       expect(JSON.parse(write.stdin ?? "")).toEqual({ add_labels: "bug,docs" });
@@ -2098,7 +2082,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("refuses to add a label the project lacks, since GitLab would create it", () =>
     Effect.gen(function* () {
-      mockedExecute.mockImplementation(() =>
+      fakeExecute.implement(() =>
         Effect.fail(
           new GitLabCli.GitLabCliCommandError({
             operation: "execute",
@@ -2123,13 +2107,13 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
       expect(result).toMatchObject({ _tag: "GitLabUnknownLabelError", labels: ["bug"] });
       expect(argsOfCall(0)[1]).toBe("projects/acme%2Fweb/labels/bug?include_ancestor_groups=true");
-      expect(mockedExecute.mock.calls.some(([call]) => call.args.includes("PUT"))).toBe(false);
+      expect(fakeExecute.calls.some(([call]) => call.args.includes("PUT"))).toBe(false);
     }),
   );
 
   it.effect("removes labels without looking them up", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output("{}")));
+      fakeExecute.returnsOnce(Effect.succeed(output("{}")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.setLabels({
@@ -2140,7 +2124,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         applied: false,
       });
 
-      expect(mockedExecute).toHaveBeenCalledTimes(1);
+      expect(fakeExecute.calls).toHaveLength(1);
       expect(JSON.parse(callAt(0).stdin ?? "")).toEqual({ remove_labels: "bug" });
     }),
   );
@@ -2150,10 +2134,10 @@ layer("GitLabPullRequestCli.layer", (it) => {
     { answer: "not json", expected: false },
   ])("asks GitLab whether a merged merge request's branch can be deleted", ({ answer, expected }) =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequestJson({ state: "merged" }))))
-        .mockReturnValueOnce(Effect.succeed(labelPermission))
-        .mockReturnValueOnce(Effect.succeed(output(answer)));
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(mergeRequestJson({ state: "merged" }))))
+        .returnsOnce(Effect.succeed(labelPermission))
+        .returnsOnce(Effect.succeed(output(answer)));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const detail = yield* cli.getMergeRequestDetail({
@@ -2169,11 +2153,11 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("deletes the source branch in the source project once its head is the merged one", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(output(sourceBranchJson({ sourceProject: { fullPath: "fork/web" } }))),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify({
@@ -2183,7 +2167,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output("")));
+        .returnsOnce(Effect.succeed(output("")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.runMergeRequestAction({
@@ -2217,9 +2201,9 @@ layer("GitLabPullRequestCli.layer", (it) => {
     { reason: "head-changed", source: {}, branch: { default: false, commit: { id: "newer" } } },
   ])("refuses to delete the source branch when it is $reason", ({ reason, source, branch }) =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(sourceBranchJson(source))));
+      fakeExecute.returnsOnce(Effect.succeed(output(sourceBranchJson(source))));
       if (branch !== undefined) {
-        mockedExecute.mockReturnValueOnce(Effect.succeed(output(JSON.stringify(branch))));
+        fakeExecute.returnsOnce(Effect.succeed(output(JSON.stringify(branch))));
       }
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
@@ -2233,7 +2217,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         .pipe(Effect.flip);
 
       expect(error).toMatchObject({ _tag: "GitLabBranchDeletionRefusedError", reason });
-      expect(mockedExecute).toHaveBeenCalledTimes(branch === undefined ? 1 : 2);
+      expect(fakeExecute.calls).toHaveLength(branch === undefined ? 1 : 2);
     }),
   );
 
@@ -2279,7 +2263,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
   ])("reads a fork's maintainer edits and lets $viewer change them", (row) =>
     Effect.gen(function* () {
       const allowCollaboration = row.allowCollaboration ?? true;
-      mockedExecute.mockImplementation(({ args }) =>
+      fakeExecute.implement(({ args }) =>
         Effect.succeed(
           output(
             args[1] === "graphql"
@@ -2328,8 +2312,8 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("skips a fork's maintainer edits permission read when the caller opts out", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               mergeRequestJson({
@@ -2340,7 +2324,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(labelPermission));
+        .returnsOnce(Effect.succeed(labelPermission));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const detail = yield* cli.getMergeRequestDetail({
@@ -2353,13 +2337,13 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
       expect(detail.maintainerCanModify).toBe(true);
       expect(detail.viewerCanEditMaintainerEdits).toBeUndefined();
-      expect(mockedExecute).toHaveBeenCalledTimes(2);
+      expect(fakeExecute.calls).toHaveLength(2);
     }),
   );
 
   it.effect("sends maintainer edits as allow_collaboration", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output("{}")));
+      fakeExecute.returnsOnce(Effect.succeed(output("{}")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.updateMergeRequest({
@@ -2379,7 +2363,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
     ["tho", "projects/acme%2Fweb/users?per_page=100&search=tho"],
   ] as const)("searches project users only from three characters (%s)", ([search, path]) =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(JSON.stringify([author]))));
+      fakeExecute.returnsOnce(Effect.succeed(output(JSON.stringify([author]))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.listProjectUsers({ cwd: "/w", repository: "acme/web", search });
@@ -2390,9 +2374,9 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("reads who has access to the project and who is already on the merge request", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequestJson({ reviewers: [reviewer] }))))
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(mergeRequestJson({ reviewers: [reviewer] }))))
+        .returnsOnce(
           Effect.succeed(output(JSON.stringify([author, reviewer, { id: 9, username: "hubot" }]))),
         );
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
@@ -2416,11 +2400,11 @@ layer("GitLabPullRequestCli.layer", (it) => {
     "lists the requested reviewers first, even when the users page does not reach them",
     () =>
       Effect.gen(function* () {
-        mockedExecute
-          .mockReturnValueOnce(
+        fakeExecute
+          .returnsOnce(
             Effect.succeed(output(mergeRequestJson({ reviewers: [{ id: 42, username: "late" }] }))),
           )
-          .mockReturnValueOnce(Effect.succeed(output(JSON.stringify([author, reviewer]))));
+          .returnsOnce(Effect.succeed(output(JSON.stringify([author, reviewer]))));
         const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
         const list = yield* cli.listReviewerCandidates({
@@ -2444,11 +2428,11 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("marks a reviewer GitLab sent without a username as requested on the users page", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(output(mergeRequestJson({ reviewers: [{ id: 5, username: "" }] }))),
         )
-        .mockReturnValueOnce(Effect.succeed(output(JSON.stringify([author, reviewer]))));
+        .returnsOnce(Effect.succeed(output(JSON.stringify([author, reviewer]))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const list = yield* cli.listReviewerCandidates({
@@ -2465,13 +2449,13 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("asks GitLab to search the project's users when the menu has a query", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(mergeRequestJson({ reviewers: [reviewer, { id: 42, username: "unrelated" }] })),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output(JSON.stringify([reviewer]))));
+        .returnsOnce(Effect.succeed(output(JSON.stringify([reviewer]))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const list = yield* cli.listReviewerCandidates({
@@ -2490,9 +2474,9 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("writes the reviewer set back with the one being asked added to it", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequestJson({ reviewers: [reviewer] }))))
-        .mockReturnValueOnce(Effect.succeed(output("{}")));
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(mergeRequestJson({ reviewers: [reviewer] }))))
+        .returnsOnce(Effect.succeed(output("{}")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.setReviewerRequest({
@@ -2510,11 +2494,11 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("keeps a reviewer it cannot show when writing the set back", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(output(mergeRequestJson({ reviewers: [{ id: 3, username: "" }] }))),
         )
-        .mockReturnValueOnce(Effect.succeed(output("{}")));
+        .returnsOnce(Effect.succeed(output("{}")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.setReviewerRequest({
@@ -2531,13 +2515,13 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("takes a reviewer out of the set rather than clearing it", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(mergeRequestJson({ reviewers: [reviewer, { id: 9, username: "hubot" }] })),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output("{}")));
+        .returnsOnce(Effect.succeed(output("{}")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.setReviewerRequest({
@@ -2554,9 +2538,9 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("ignores an id GitLab could not have handed out, which names nobody", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(mergeRequestJson({ reviewers: [reviewer] }))))
-        .mockReturnValueOnce(Effect.succeed(output("{}")));
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(mergeRequestJson({ reviewers: [reviewer] }))))
+        .returnsOnce(Effect.succeed(output("{}")));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       yield* cli.setReviewerRequest({
@@ -2573,7 +2557,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("reads blob ids for the marked paths at the merge request's head", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify({
@@ -2589,7 +2573,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           ),
         ),
       );
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify({
@@ -2622,7 +2606,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("leaves the paths out when GitLab did not answer the blobs query", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify({
@@ -2638,9 +2622,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           ),
         ),
       );
-      mockedExecute.mockReturnValueOnce(
-        Effect.succeed(output(JSON.stringify({ data: { project: null } }))),
-      );
+      fakeExecute.returnsOnce(Effect.succeed(output(JSON.stringify({ data: { project: null } }))));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
 
       const revisions = yield* cli.getFileRevisions({
@@ -2657,7 +2639,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
   it.effect("splits the paths across requests, because GitLab charges the query by how many", () =>
     Effect.gen(function* () {
       const paths = Array.from({ length: 150 }, (_, index) => `src/${index}.ts`);
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify({
@@ -2673,7 +2655,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           ),
         ),
       );
-      mockedExecute.mockImplementation((request) => {
+      fakeExecute.implement((request) => {
         const body = JSON.parse(request.stdin ?? "{}") as {
           readonly variables: { readonly paths: ReadonlyArray<string> };
         };
@@ -2704,7 +2686,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
       assert.strictEqual(revisions.size, 150);
       assert.strictEqual(revisions.get("src/149.ts"), "oid-src/149.ts");
-      assert.strictEqual(mockedExecute.mock.calls.length, 3);
+      assert.strictEqual(fakeExecute.calls.length, 3);
     }),
   );
 
@@ -2721,7 +2703,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
               };
             }
           ).variables;
-        mockedExecute.mockImplementation((request) => {
+        fakeExecute.implement((request) => {
           const { fullPath, iids } = variablesOf(request.stdin);
           const nodes = iids
             .filter((iid) => iid !== "3")
@@ -2760,7 +2742,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
           false,
         );
         expect(
-          mockedExecute.mock.calls.map(([request]) => {
+          fakeExecute.calls.map(([request]) => {
             const { fullPath, iids } = variablesOf(request.stdin);
             return [fullPath, iids.length];
           }),
@@ -2783,7 +2765,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
         cwd: "/w",
         cause: null,
       });
-      mockedExecute.mockReturnValueOnce(Effect.fail(error));
+      fakeExecute.returnsOnce(Effect.fail(error));
       const cli = yield* GitLabPullRequestCli.GitLabPullRequestCli;
       const result = yield* Effect.result(
         cli.listMergeRequestStats({
@@ -2797,7 +2779,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
   it.effect("keeps merge request references when the issue search fails", () =>
     Effect.gen(function* () {
-      mockedExecute.mockImplementation((input) =>
+      fakeExecute.implement((input) =>
         JSON.stringify(input).includes("/issues?")
           ? Effect.fail(
               new GitLabCli.GitLabCliCommandError({
@@ -2865,7 +2847,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
     });
 
     function answer(graphql: Effect.Effect<ReturnType<typeof output>, GitLabCli.GitLabCliError>) {
-      mockedExecute.mockImplementation((request) =>
+      fakeExecute.implement((request) =>
         request.args[1] === "graphql"
           ? request.stdin?.includes("adminMergeRequest")
             ? Effect.succeed(labelPermission)
@@ -2907,7 +2889,7 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
         const detail = yield* read(true);
 
-        const graphql = mockedExecute.mock.calls.find(([call]) => call.stdin?.includes("stages"));
+        const graphql = fakeExecute.calls.find(([call]) => call.stdin?.includes("stages"));
         assert.isDefined(graphql);
         expect(JSON.parse(graphql[0].stdin ?? "").variables).toEqual({
           fullPath: "group/acme/web",
@@ -2974,9 +2956,9 @@ layer("GitLabPullRequestCli.layer", (it) => {
 
         const detail = yield* read(false);
 
-        expect(
-          mockedExecute.mock.calls.filter(([call]) => call.stdin?.includes("stages")),
-        ).toHaveLength(0);
+        expect(fakeExecute.calls.filter(([call]) => call.stdin?.includes("stages"))).toHaveLength(
+          0,
+        );
         expect(detail.checks.map((check) => check.name)).toEqual(["Pipeline"]);
       }),
     );

@@ -65,6 +65,7 @@ function RestoreBranchHarness(props: {
   readonly currentRouteThreadKeyRef: { readonly current: string | null };
   readonly refreshGitStatus: () => void;
   readonly focusComposer: () => void;
+  readonly requestFrame?: (callback: () => void) => void;
 }) {
   const lifecycle = useThreadLifecycle({
     ...props.thread,
@@ -92,6 +93,7 @@ function RestoreBranchHarness(props: {
     clearUsageLimitsFor: () => undefined,
     focusComposer: props.focusComposer,
     scrollToEnd: () => undefined,
+    ...(props.requestFrame ? { requestFrame: props.requestFrame } : {}),
   });
   return (
     <>
@@ -120,20 +122,17 @@ it.each(["a", "b", "navigation"] as const)(
     const currentRouteThreadKeyRef = { current: threadA.routeThreadKey };
     const refreshGitStatus = vi.fn();
     const focusComposer = vi.fn();
+    const focusFrames: Array<() => void> = [];
     const harness = (thread: ThreadInput) => (
       <RestoreBranchHarness
         thread={thread}
         currentRouteThreadKeyRef={currentRouteThreadKeyRef}
         refreshGitStatus={refreshGitStatus}
         focusComposer={focusComposer}
+        requestFrame={(callback) => focusFrames.push(callback)}
       />
     );
     await using screen = await render(harness(threadA));
-    const focusFrames: FrameRequestCallback[] = [];
-    using _frame = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      focusFrames.push(callback);
-      return 0;
-    });
 
     await page.getByRole("button", { name: "Restore branch" }).click();
     await expect.element(page.getByRole("button", { name: "Restoring..." })).toBeDisabled();
@@ -177,7 +176,7 @@ it.each(["a", "b", "navigation"] as const)(
       currentRouteThreadKeyRef.current = completed.routeThreadKey;
       await screen.rerender(harness(completed));
     }
-    focusFrames[0]!(0);
+    focusFrames[0]!();
     expect(focusComposer).toHaveBeenCalledTimes(scenario === "navigation" ? 0 : 1);
   },
 );

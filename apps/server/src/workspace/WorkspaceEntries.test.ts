@@ -14,14 +14,41 @@ import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as WorkspaceEntries from "./WorkspaceEntries.ts";
 import * as WorkspacePaths from "./WorkspacePaths.ts";
+import * as WorkspaceSearchIndex from "./WorkspaceSearchIndex.ts";
 
 vi.mock("node:fs/promises", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs/promises")>();
   return { ...actual, readdir: vi.fn(actual.readdir) };
 });
 
+const realpathCalls = { inFlight: 0, maxInFlight: 0 };
+const defaultCreateFileFinder: typeof FileFinder.create = (options) => FileFinder.create(options);
+let createFileFinder = defaultCreateFileFinder;
+
 const layerTest = Layer.empty.pipe(
-  Layer.provideMerge(WorkspaceEntries.layer.pipe(Layer.provide(WorkspacePaths.layer))),
+  Layer.provideMerge(
+    WorkspaceEntries.layer.pipe(
+      Layer.provide(WorkspacePaths.layer),
+      Layer.provide(
+        Layer.mergeAll(
+          Layer.succeed(WorkspaceEntries.ResolveRealPath, async (target) => {
+            realpathCalls.maxInFlight = Math.max(
+              realpathCalls.maxInFlight,
+              ++realpathCalls.inFlight,
+            );
+            try {
+              return await NodeFSP.realpath(target);
+            } finally {
+              realpathCalls.inFlight--;
+            }
+          }),
+          Layer.succeed(WorkspaceSearchIndex.CreateFileFinder, (options) =>
+            createFileFinder(options),
+          ),
+        ),
+      ),
+    ),
+  ),
   Layer.provideMerge(WorkspacePaths.layer),
   Layer.provideMerge(VcsProcess.layer),
   Layer.provide(
@@ -87,6 +114,7 @@ const appendSeparator = (input: string) =>
 
 it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
   afterEach(() => {
+    createFileFinder = defaultCreateFileFinder;
     vi.restoreAllMocks();
   });
 
@@ -223,17 +251,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
             }),
           { concurrency: 32, discard: true },
         );
-        const realpath = NodeFSP.realpath;
-        let inFlight = 0;
-        let maxInFlight = 0;
-        vi.spyOn(NodeFSP, "realpath").mockImplementation((async (target: string) => {
-          maxInFlight = Math.max(maxInFlight, ++inFlight);
-          try {
-            return await realpath(target);
-          } finally {
-            inFlight--;
-          }
-        }) as typeof NodeFSP.realpath);
+        realpathCalls.maxInFlight = 0;
 
         const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
         const { entries } = yield* workspaceEntries.list({ cwd, directoryPath });
@@ -244,7 +262,8 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
           ].toSorted(),
         );
         expect(entries.every((entry) => entry.kind === "directory")).toBe(true);
-        expect(maxInFlight).toBeLessThanOrEqual(64);
+        expect(realpathCalls.maxInFlight).toBeGreaterThan(0);
+        expect(realpathCalls.maxInFlight).toBeLessThanOrEqual(64);
       }),
     );
 
@@ -947,9 +966,8 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         let scansOutlastWait = false;
         let finders = 0;
         let rescans = 0;
-        const createFinder = FileFinder.create.bind(FileFinder);
-        vi.spyOn(FileFinder, "create").mockImplementation((options) => {
-          const created = createFinder(options);
+        createFileFinder = (options) => {
+          const created = defaultCreateFileFinder(options);
           if (created.ok) {
             const finder = created.value;
             finders += 1;
@@ -971,7 +989,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
                 : waitForIndexReady(timeoutMs);
           }
           return created;
-        });
+        };
         const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
         const searchNeedle = workspaceEntries.searchContents({
           cwd,
@@ -999,9 +1017,8 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         let scanning = true;
         let finders = 0;
         let settle: () => Promise<unknown> = () => Promise.resolve();
-        const createFinder = FileFinder.create.bind(FileFinder);
-        vi.spyOn(FileFinder, "create").mockImplementation((options) => {
-          const created = createFinder(options);
+        createFileFinder = (options) => {
+          const created = defaultCreateFileFinder(options);
           if (!created.ok) return created;
           const finder = created.value;
           finders += 1;
@@ -1020,7 +1037,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
               : progress;
           };
           return created;
-        });
+        };
         const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
         const searchNeedle = workspaceEntries
           .searchContents({

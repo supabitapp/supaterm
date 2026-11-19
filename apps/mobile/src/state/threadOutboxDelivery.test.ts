@@ -18,6 +18,9 @@ import { AsyncResult } from "effect/reactivity";
 
 import type { PreparedTurnAttachments } from "../lib/attachmentUpload";
 
+type PrepareTurnAttachments = typeof import("../lib/attachmentUpload").prepareTurnAttachments;
+type UploadVoice = typeof import("./transcription").uploadEnvironmentVoiceRecording;
+
 const harness = vi.hoisted(() => ({
   canOperate: true,
   threadState: null as unknown as import("effect/reactivity").Atom.Writable<{
@@ -30,10 +33,16 @@ const harness = vi.hoisted(() => ({
     typeof import("./thread-outbox-manager").createThreadOutboxManager
   >,
   removePersistedFile: vi.fn(async () => undefined),
-  removeOutboxMessage: vi.fn(async (_message: QueuedThreadMessage) => undefined),
-  writeOutboxMessage: vi.fn(async (_message: QueuedThreadMessage) => undefined),
-  prepareTurnAttachments: vi.fn<typeof import("../lib/attachmentUpload").prepareTurnAttachments>(),
-  uploadVoice: vi.fn<typeof import("./transcription").uploadEnvironmentVoiceRecording>(),
+  removeOutboxMessage: vi.fn<(message: QueuedThreadMessage) => void>(),
+  removeOnce: [] as Array<(message: QueuedThreadMessage) => Promise<void>>,
+  removeFallback: async (_message: QueuedThreadMessage) => {},
+  writeOutboxMessage: vi.fn<(message: QueuedThreadMessage) => void>(),
+  writeOnce: [] as Array<(message: QueuedThreadMessage) => Promise<void>>,
+  prepareTurnAttachments: vi.fn<(...args: Parameters<PrepareTurnAttachments>) => void>(),
+  prepareOnce: [] as Array<PrepareTurnAttachments>,
+  uploadVoice: vi.fn<(...args: Parameters<UploadVoice>) => void>(),
+  voiceUpload: (() => Promise.resolve(undefined)) as unknown as UploadVoice,
+  onDraftWrite: null as (() => Promise<void>) | null,
   audioExists: true,
   draftFile: (() => {
     let document = "";
@@ -65,6 +74,7 @@ const harness = vi.hoisted(() => ({
             throw writeError;
           }
           document = value;
+          return harness.onDraftWrite?.();
         }
       },
     };
@@ -89,11 +99,21 @@ vi.mock("../lib/uuid", () => ({
 }));
 
 vi.mock("../lib/attachmentUpload", () => ({
-  prepareTurnAttachments: harness.prepareTurnAttachments,
+  prepareTurnAttachments: (...args: Parameters<PrepareTurnAttachments>) => {
+    harness.prepareTurnAttachments(...args);
+    const prepare = harness.prepareOnce.shift();
+    if (!prepare) throw new Error("Unexpected attachment preparation");
+    return prepare(...args);
+  },
 }));
 vi.mock("./composer-attachment-uploads", () => ({ uploadComposerAttachmentShared: vi.fn() }));
 
-vi.mock("./transcription", () => ({ uploadEnvironmentVoiceRecording: harness.uploadVoice }));
+vi.mock("./transcription", () => ({
+  uploadEnvironmentVoiceRecording: (...args: Parameters<UploadVoice>) => {
+    harness.uploadVoice(...args);
+    return harness.voiceUpload(...args);
+  },
+}));
 
 vi.mock("./thread-outbox-audio", () => ({
   queuedVoiceRecordingFile: async (messageId: string) => ({
@@ -154,8 +174,14 @@ vi.mock("./thread-outbox", async () => {
     registry: appAtomRegistry,
     storage: {
       load: async () => ({ messages: [], errors: [] }),
-      write: (message) => harness.writeOutboxMessage(message),
-      remove: (message) => harness.removeOutboxMessage(message),
+      write: async (message) => {
+        harness.writeOutboxMessage(message);
+        await harness.writeOnce.shift()?.(message);
+      },
+      remove: async (message) => {
+        harness.removeOutboxMessage(message);
+        await (harness.removeOnce.shift() ?? harness.removeFallback)(message);
+      },
     },
   });
   const manager = harness.manager;
@@ -260,9 +286,14 @@ afterEach(() => {
   harness.draftFile.setWriteError(null);
   harness.removePersistedFile.mockClear();
   harness.removeOutboxMessage.mockClear();
+  harness.removeOnce.length = 0;
+  harness.removeFallback = async () => {};
   harness.writeOutboxMessage.mockReset();
+  harness.writeOnce.length = 0;
   harness.prepareTurnAttachments.mockReset();
+  harness.prepareOnce.length = 0;
   harness.uploadVoice.mockReset();
+  harness.onDraftWrite = null;
   harness.audioExists = true;
 });
 
@@ -407,7 +438,7 @@ describe("queued worktree branch resolution", () => {
     const message = task();
     await harness.manager.enqueue(message);
     const revision = harness.manager.revisionOf(message.messageId);
-    harness.writeOutboxMessage.mockImplementationOnce(async () => {
+    harness.writeOnce.push(async () => {
       appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
     });
 
@@ -424,7 +455,7 @@ describe("queued worktree branch resolution", () => {
   it("retains default-base intent when the resolved branch cannot be saved", async () => {
     const message = task();
     await harness.manager.enqueue(message);
-    harness.writeOutboxMessage.mockRejectedValueOnce(new Error("Storage unavailable"));
+    harness.writeOnce.push(() => Promise.reject(new Error("Storage unavailable")));
 
     await expect(
       prepareQueuedThreadCreation(message, "/repo", async () => AsyncResult.success(refs)),
@@ -436,11 +467,12 @@ describe("queued worktree branch resolution", () => {
   it("reports a failed durable restore after the editor takes ownership", async () => {
     const message = task();
     await harness.manager.enqueue(message);
-    harness.writeOutboxMessage
-      .mockImplementationOnce(async () => {
+    harness.writeOnce.push(
+      async () => {
         appAtomRegistry.set(editingQueuedMessageIdsAtom, { [message.messageId]: "editing" });
-      })
-      .mockRejectedValueOnce(new Error("Storage unavailable"));
+      },
+      () => Promise.reject(new Error("Storage unavailable")),
+    );
 
     await expect(
       prepareQueuedThreadCreation(message, "/repo", async () => AsyncResult.success(refs)),
@@ -459,7 +491,7 @@ describe("thread outbox attachment preparation", () => {
         fileUri: "file:///documents/keep.pdf",
       });
       yield* Effect.promise(() => harness.manager.enqueue(message));
-      harness.prepareTurnAttachments.mockReturnValueOnce(
+      harness.prepareOnce.push(() =>
         Effect.succeed({
           status: "ready",
           attachments: [],
@@ -488,7 +520,7 @@ describe("thread outbox attachment preparation", () => {
       );
       const preparationStarted = Promise.withResolvers<void>();
       const preparationBarrier = Promise.withResolvers<PreparedTurnAttachments>();
-      harness.prepareTurnAttachments.mockImplementationOnce(() =>
+      harness.prepareOnce.push(() =>
         Effect.promise(() => {
           preparationStarted.resolve();
           return preparationBarrier.promise;
@@ -526,7 +558,7 @@ describe("thread outbox attachment preparation", () => {
         }),
         "pending-reused-upload",
       );
-      harness.prepareTurnAttachments.mockReturnValueOnce(
+      harness.prepareOnce.push(() =>
         Effect.succeed({
           status: "ready",
           attachments: [],
@@ -562,7 +594,7 @@ describe("thread outbox attachment preparation", () => {
             }
           : attachment,
       );
-      harness.prepareTurnAttachments.mockImplementationOnce((input) =>
+      harness.prepareOnce.push((input) =>
         Effect.gen(function* () {
           expect(yield* input.persistUploadedReferences!(uploadedAttachments)).toBe("persisted");
           return {
@@ -611,7 +643,7 @@ describe("thread outbox drain delivery cleanup", () => {
     Effect.gen(function* () {
       const message = queuedMessage({ messageId: "message-acknowledged", text: "delivered" });
       const acknowledged = new Set([message.messageId]);
-      harness.removeOutboxMessage.mockRejectedValueOnce(new Error("storage unavailable"));
+      harness.removeOnce.push(() => Promise.reject(new Error("storage unavailable")));
       yield* Effect.promise(() => harness.manager.enqueue(message));
 
       expect(yield* handled(removeAcknowledgedExistingThreadMessage(message, acknowledged))).toBe(
@@ -702,7 +734,7 @@ describe("thread outbox drain delivery cleanup", () => {
       });
       const removeStarted = Promise.withResolvers<void>();
       const removeBarrier = Promise.withResolvers<void>();
-      harness.removeOutboxMessage.mockImplementationOnce(async () => {
+      harness.removeOnce.push(async () => {
         removeStarted.resolve();
         await removeBarrier.promise;
       });
@@ -732,17 +764,13 @@ describe("thread outbox delivered creation recovery", () => {
         text: "original queued text",
         fileUri: "file:///documents/supaterm-composer-attachments/report.pdf",
       });
-      const originalMergeComposerDraftContent = composerDrafts.mergeComposerDraftContent;
       const mergeCompleted = Promise.withResolvers<void>();
       const releaseRecovery = Promise.withResolvers<void>();
-      const mergeSpy = vi
-        .spyOn(composerDrafts, "mergeComposerDraftContent")
-        .mockImplementation(async (draftKey, content) => {
-          const result = await originalMergeComposerDraftContent(draftKey, content);
-          mergeCompleted.resolve();
-          await releaseRecovery.promise;
-          return result;
-        });
+      harness.onDraftWrite = async () => {
+        harness.onDraftWrite = null;
+        mergeCompleted.resolve();
+        await releaseRecovery.promise;
+      };
 
       try {
         yield* Effect.promise(() => harness.manager.enqueue(message));
@@ -765,7 +793,6 @@ describe("thread outbox delivered creation recovery", () => {
         expect(harness.removePersistedFile).not.toHaveBeenCalled();
       } finally {
         releaseRecovery.resolve();
-        mergeSpy.mockRestore();
       }
     }),
   );
@@ -777,17 +804,13 @@ describe("thread outbox delivered creation recovery", () => {
         text: "recover this text",
         fileUri: "file:///documents/supaterm-composer-attachments/editor.pdf",
       });
-      const originalMergeComposerDraftContent = composerDrafts.mergeComposerDraftContent;
       const mergeCompleted = Promise.withResolvers<void>();
       const releaseRecovery = Promise.withResolvers<void>();
-      const mergeSpy = vi
-        .spyOn(composerDrafts, "mergeComposerDraftContent")
-        .mockImplementation(async (draftKey, content) => {
-          const result = await originalMergeComposerDraftContent(draftKey, content);
-          mergeCompleted.resolve();
-          await releaseRecovery.promise;
-          return result;
-        });
+      harness.onDraftWrite = async () => {
+        harness.onDraftWrite = null;
+        mergeCompleted.resolve();
+        await releaseRecovery.promise;
+      };
 
       try {
         yield* Effect.promise(() => harness.manager.enqueue(message));
@@ -808,7 +831,6 @@ describe("thread outbox delivered creation recovery", () => {
         expect(harness.removePersistedFile).not.toHaveBeenCalled();
       } finally {
         releaseRecovery.resolve();
-        mergeSpy.mockRestore();
       }
     }),
   );
@@ -821,26 +843,20 @@ describe("thread outbox delivered creation recovery", () => {
         fileUri: "file:///documents/supaterm-composer-attachments/retry.pdf",
       });
       const draftKey = `${message.environmentId}:${message.threadId}`;
-      const removeSpy = vi
-        .spyOn(harness.manager, "remove")
-        .mockRejectedValueOnce(new Error("storage unavailable"));
+      harness.removeOnce.push(() => Promise.reject(new Error("storage unavailable")));
 
-      try {
-        yield* Effect.promise(() => harness.manager.enqueue(message));
+      yield* Effect.promise(() => harness.manager.enqueue(message));
 
-        expect(yield* handled(recoverEditedCreationAfterDelivery(message))).toBe(false);
-        expect(remainingMessages()).toEqual([message]);
+      expect(yield* handled(recoverEditedCreationAfterDelivery(message))).toBe(false);
+      expect(remainingMessages()).toEqual([message]);
 
-        expect(yield* handled(recoverEditedCreationAfterDelivery(message))).toBe(true);
+      expect(yield* handled(recoverEditedCreationAfterDelivery(message))).toBe(true);
 
-        const draft = composerDrafts.getComposerDraftSnapshot(draftKey);
-        expect(draft.text).toBe(message.text);
-        expect(draft.attachments).toEqual(message.attachments);
-        expect(remainingMessages()).toEqual([]);
-        expect(harness.removePersistedFile).not.toHaveBeenCalled();
-      } finally {
-        removeSpy.mockRestore();
-      }
+      const draft = composerDrafts.getComposerDraftSnapshot(draftKey);
+      expect(draft.text).toBe(message.text);
+      expect(draft.attachments).toEqual(message.attachments);
+      expect(remainingMessages()).toEqual([]);
+      expect(harness.removePersistedFile).not.toHaveBeenCalled();
     }),
   );
 
@@ -915,28 +931,20 @@ describe("thread outbox follow-ups behind a rejected creation", () => {
       };
       yield* Effect.promise(() => harness.manager.enqueue(creation));
       yield* Effect.promise(() => harness.manager.enqueue(followUp));
-      const removeSpy = vi
-        .spyOn(harness.manager, "remove")
-        .mockRejectedValueOnce(new Error("storage unavailable"));
+      harness.removeOnce.push(() => Promise.reject(new Error("storage unavailable")));
 
-      try {
-        expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe("retry");
-        expect(remainingMessages().map((message) => message.messageId)).toEqual([
-          creation.messageId,
-          followUp.messageId,
-        ]);
-        expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)).toEqual({});
+      expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe("retry");
+      expect(remainingMessages().map((message) => message.messageId)).toEqual([
+        creation.messageId,
+        followUp.messageId,
+      ]);
+      expect(appAtomRegistry.get(pendingThreadCreationOutcomesAtom)).toEqual({});
 
-        expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe(
-          "restored",
-        );
-        expect(
-          composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-retry").text,
-        ).toBe("Original prompt\n\nAlso cover the empty state");
-        expect(remainingMessages()).toEqual([]);
-      } finally {
-        removeSpy.mockRestore();
-      }
+      expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe("restored");
+      expect(
+        composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-retry").text,
+      ).toBe("Original prompt\n\nAlso cover the empty state");
+      expect(remainingMessages()).toEqual([]);
     }),
   );
 
@@ -957,28 +965,15 @@ describe("thread outbox follow-ups behind a rejected creation", () => {
       };
       yield* Effect.promise(() => harness.manager.enqueue(creation));
       yield* Effect.promise(() => harness.manager.enqueue(followUp));
-      const remove = harness.manager.remove.bind(harness.manager);
-      const removeSpy = vi
-        .spyOn(harness.manager, "remove")
-        .mockImplementation((message, ...rest) =>
-          message.messageId === followUp.messageId
-            ? Promise.reject(new Error("storage unavailable"))
-            : remove(message, ...rest),
-        );
+      harness.removeFallback = async (message) => {
+        if (message.messageId === followUp.messageId) throw new Error("storage unavailable");
+      };
 
-      try {
-        expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe(
-          "restored",
-        );
-        expect(
-          composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-stuck").text,
-        ).toBe("Original prompt\n\nAlso cover the empty state");
-        expect(remainingMessages().map((message) => message.messageId)).toEqual([
-          followUp.messageId,
-        ]);
-      } finally {
-        removeSpy.mockRestore();
-      }
+      expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe("restored");
+      expect(
+        composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-stuck").text,
+      ).toBe("Original prompt\n\nAlso cover the empty state");
+      expect(remainingMessages().map((message) => message.messageId)).toEqual([followUp.messageId]);
     }),
   );
   it.effect("folds a follow-up queued while the restore runs", () =>
@@ -1002,25 +997,15 @@ describe("thread outbox follow-ups behind a rejected creation", () => {
       };
       yield* Effect.promise(() => harness.manager.enqueue(creation));
       yield* Effect.promise(() => harness.manager.enqueue(followUp));
-      const remove = harness.manager.remove.bind(harness.manager);
-      const removeSpy = vi
-        .spyOn(harness.manager, "remove")
-        .mockImplementation(async (message, ...rest) => {
-          if (message.messageId === creation.messageId) await harness.manager.enqueue(lateFollowUp);
-          return remove(message, ...rest);
-        });
+      harness.removeFallback = async (message) => {
+        if (message.messageId === creation.messageId) void harness.manager.enqueue(lateFollowUp);
+      };
 
-      try {
-        expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe(
-          "restored",
-        );
-        expect(
-          composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-late").text,
-        ).toBe("Original prompt\n\nAlso cover the empty state\n\nAnd the error state");
-        expect(remainingMessages()).toEqual([]);
-      } finally {
-        removeSpy.mockRestore();
-      }
+      expect(yield* restoreRejectedQueuedMessage(creation, "rejected by server")).toBe("restored");
+      expect(
+        composerDrafts.getComposerDraftSnapshot("new-task:restored-rejected-creation-late").text,
+      ).toBe("Original prompt\n\nAlso cover the empty state\n\nAnd the error state");
+      expect(remainingMessages()).toEqual([]);
     }),
   );
 });
@@ -1316,7 +1301,7 @@ describe("queued voice message delivery", () => {
   it.effect("has the environment send the recording under the message's own ids", () =>
     Effect.gen(function* () {
       const message = yield* Effect.promise(() => enqueue(voiceMessage()));
-      harness.uploadVoice.mockResolvedValue({
+      harness.voiceUpload = async () => ({
         text: "ship it",
         submission: { status: "sent", sequence: 3 },
       });
@@ -1352,7 +1337,7 @@ describe("queued voice message delivery", () => {
     "collects a streamed recording without its audio only under the id it streamed with",
     () =>
       Effect.gen(function* () {
-        harness.uploadVoice.mockResolvedValue({
+        harness.voiceUpload = async () => ({
           text: "ship it",
           submission: { status: "sent", sequence: 3 },
         });

@@ -36,10 +36,17 @@ function readDataUrlBlob(src: string) {
   }
 }
 
-async function fetchMediaBlob(src: string) {
-  const response = await fetch(src).catch(() => null);
+const browserMediaSources = {
+  fetch: (src: string) => fetch(src),
+  desktopBridge: () => (typeof window === "undefined" ? undefined : window.desktopBridge),
+};
+
+export type MediaSources = typeof browserMediaSources;
+
+async function fetchMediaBlob(src: string, sources: MediaSources) {
+  const response = await sources.fetch(src).catch(() => null);
   if (response?.ok) return response.blob();
-  const desktop = typeof window === "undefined" ? undefined : window.desktopBridge;
+  const desktop = sources.desktopBridge();
   const native =
     desktop && /^https?:/i.test(src) ? await desktop.readMedia(src).catch(() => null) : null;
   if (native && native.status >= 200 && native.status < 300) {
@@ -54,9 +61,9 @@ async function fetchMediaBlob(src: string) {
   );
 }
 
-async function readMediaBlob(src: string) {
+async function readMediaBlob(src: string, sources: MediaSources) {
   if (/^data:/i.test(src)) return readDataUrlBlob(src);
-  const blob = await fetchMediaBlob(src);
+  const blob = await fetchMediaBlob(src, sources);
   if (blob.type.split(";", 1)[0] === "text/html") {
     throw new Error("This link returned a web page instead of media. Open the original URL.");
   }
@@ -64,7 +71,7 @@ async function readMediaBlob(src: string) {
 }
 
 export async function downloadMedia(src: string, name: string) {
-  const url = URL.createObjectURL(await readMediaBlob(src));
+  const url = URL.createObjectURL(await readMediaBlob(src, browserMediaSources));
   try {
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -75,8 +82,8 @@ export async function downloadMedia(src: string, name: string) {
   }
 }
 
-export async function readMediaPng(src: string) {
-  const blob = await readMediaBlob(src);
+export async function readMediaPng(src: string, sources: MediaSources = browserMediaSources) {
+  const blob = await readMediaBlob(src, sources);
   if (blob.type.split(";", 1)[0] === "image/png") return blob;
 
   const url = URL.createObjectURL(blob);

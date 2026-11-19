@@ -7,7 +7,14 @@ import {
 import { expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
-vi.mock(import("./guide/useReviewGuideWriter"), () => ({ useReviewGuideWriter: vi.fn() }));
+const guideWriter = vi.hoisted(() => ({
+  current: undefined as
+    | ReturnType<typeof import("./guide/useReviewGuideWriter").useReviewGuideWriter>
+    | undefined,
+}));
+vi.mock(import("./guide/useReviewGuideWriter"), () => ({
+  useReviewGuideWriter: () => guideWriter.current!,
+}));
 vi.mock(import("./guide/useGuideDiffFiles"), () => ({
   useGuideDiffFiles: () => ({ files: new Map(), loading: false, error: null, retry: () => {} }),
 }));
@@ -15,7 +22,6 @@ vi.mock(import("./guide/useGuideDiffFiles"), () => ({
 import { render } from "../../../test/render";
 import type { ChatComposerHandle } from "../chat/ChatComposer";
 import { useChatShortcuts } from "../chat/useChatShortcuts";
-import { useReviewGuideWriter } from "./guide/useReviewGuideWriter";
 import { PullRequestGuideTab } from "./PullRequestGuideTab";
 
 const reference: PullRequestRef = {
@@ -32,7 +38,7 @@ const verboseFailure = [
 
 it("keeps Try again inside a short panel when a failed guide has long diagnostics", async () => {
   const write = vi.fn(async () => {});
-  vi.mocked(useReviewGuideWriter).mockReturnValue({
+  guideWriter.current = {
     query: { isPending: false, error: null } as never,
     data: {
       guide: null,
@@ -47,7 +53,7 @@ it("keeps Try again inside a short panel when a failed guide has long diagnostic
     running: false,
     canWrite: true,
     write,
-  });
+  };
   const panel = document.createElement("div");
   panel.style.cssText = "position: relative; width: 480px; height: 360px; overflow: hidden";
   const tab = document.createElement("div");
@@ -140,13 +146,13 @@ function ChatBeside({
 }
 
 it("steps with J and K beside a chat, also after a stop button or while the chat is maximized away", async () => {
-  vi.mocked(useReviewGuideWriter).mockReturnValue({
+  guideWriter.current = {
     query: { isPending: false, error: null } as never,
     data: { guide: threeStopGuide, run: null, currentHeadSha: "head" },
     running: false,
     canWrite: false,
     write: async () => {},
-  });
+  };
   const composerKeys: string[] = [];
 
   const tree = (maximizedAway: boolean) => (

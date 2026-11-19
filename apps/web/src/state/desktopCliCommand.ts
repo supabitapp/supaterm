@@ -1,3 +1,4 @@
+import type { DesktopCliCommandState } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { Atom } from "effect/reactivity";
@@ -26,8 +27,14 @@ export function getDesktopCliCommandBridge() {
   return typeof window === "undefined" ? undefined : window.desktopBridge?.cliCommand;
 }
 
-const loadDesktopCliCommandState = Effect.fn("loadDesktopCliCommandState")(function* () {
-  const bridge = getDesktopCliCommandBridge();
+type ReadDesktopCliCommandBridge = () =>
+  | { readonly getState: () => Promise<DesktopCliCommandState> }
+  | undefined;
+
+const loadDesktopCliCommandState = Effect.fn("loadDesktopCliCommandState")(function* (
+  readBridge: ReadDesktopCliCommandBridge,
+) {
+  const bridge = readBridge();
   if (!bridge) {
     return yield* new DesktopCliCommandUnavailableError();
   }
@@ -37,11 +44,17 @@ const loadDesktopCliCommandState = Effect.fn("loadDesktopCliCommandState")(funct
   });
 });
 
-export const desktopCliCommandStateAtom = Atom.make(loadDesktopCliCommandState()).pipe(
-  Atom.keepAlive,
-  Atom.swr({ staleTime: 30_000, revalidateOnMount: true }),
-  Atom.withLabel("desktop:cli-command:load"),
-);
+export function createDesktopCliCommandStateAtom(
+  readBridge: ReadDesktopCliCommandBridge = getDesktopCliCommandBridge,
+) {
+  return Atom.make(loadDesktopCliCommandState(readBridge)).pipe(
+    Atom.keepAlive,
+    Atom.swr({ staleTime: 30_000, revalidateOnMount: true }),
+    Atom.withLabel("desktop:cli-command:load"),
+  );
+}
+
+export const desktopCliCommandStateAtom = createDesktopCliCommandStateAtom();
 
 export function refreshDesktopCliCommandState() {
   appAtomRegistry.refresh(desktopCliCommandStateAtom);

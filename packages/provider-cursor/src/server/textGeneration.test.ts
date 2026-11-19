@@ -8,74 +8,82 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import { createModelSelection } from "@supaterm/shared/model";
-import { beforeEach, vi } from "vite-plus/test";
+import { beforeEach } from "vite-plus/test";
 
 import { makeCursorTextGeneration } from "./textGeneration.ts";
 import * as CursorSdk from "./CursorSdk.ts";
 
-const cursorSdkMock = vi.hoisted(() => ({
-  create: vi.fn<(options: unknown) => Promise<unknown>>(),
-  send: vi.fn<(prompt: string) => Promise<unknown>>(),
-  close: vi.fn(),
-  cancel: vi.fn(async () => {}),
-  storeOpen: vi.fn<(options: unknown) => Promise<unknown>>(),
-  storeDispose: vi.fn(async () => {}),
-  prompt: vi.fn<(prompt: string, options: unknown) => Promise<RunResult>>(async () => ({
-    id: "run-cursor-text-generation-test",
-    status: "finished",
-    result:
-      '{"subject":"Add generated commit message","body":"- verify cursor sdk text generation"}',
-  })),
-}));
+const defaultResult = {
+  id: "run-cursor-text-generation-test",
+  status: "finished",
+  result: '{"subject":"Add generated commit message","body":"- verify cursor sdk text generation"}',
+} satisfies RunResult;
 
-vi.mock("./sdk.ts", () => ({
-  loadCursorSdk: () => ({
-    Agent: { create: cursorSdkMock.create },
-    createAgentPlatform: vi.fn(),
+interface FakeAgent {
+  readonly close: () => void;
+  readonly [Symbol.asyncDispose]: () => Promise<void>;
+  readonly send: (prompt: string) => Promise<unknown>;
+}
+
+const store = { dispose: async () => {} };
+const sdkState = {
+  created: new Array<unknown>(),
+  prompts: 0,
+  closes: 0,
+  results: new Array<RunResult>(),
+  agents: new Array<() => FakeAgent>(),
+};
+
+const close = () => {
+  sdkState.closes += 1;
+};
+
+const runningAgent = () => ({
+  close,
+  [Symbol.asyncDispose]: async () => close(),
+  send: async () => ({
+    status: "running",
+    cancel: async () => {},
+    wait: async () => {
+      sdkState.prompts += 1;
+      return sdkState.results.shift() ?? defaultResult;
+    },
   }),
-  loadCursorSqlite: () => ({ SqliteLocalAgentStore: { open: cursorSdkMock.storeOpen } }),
-}));
+});
+
+const fakeSdk = {
+  Agent: {
+    create: async (options: unknown) => {
+      sdkState.created.push(options);
+      return (sdkState.agents.shift() ?? runningAgent)();
+    },
+  },
+} as unknown as ReturnType<CursorSdk.CursorSdk["Service"]["load"]>;
+
+const fakeSqlite = {
+  SqliteLocalAgentStore: { open: async () => store },
+} as unknown as ReturnType<CursorSdk.CursorSdk["Service"]["loadSqlite"]>;
 
 let hasCustomPolicy = false;
 const layerFs = FileSystem.layerNoop({
   exists: () => Effect.succeed(hasCustomPolicy),
   makeTempDirectoryScoped: () => Effect.succeed("/isolated-text-generation"),
 });
-const layerTest = CursorSdk.layer.pipe(Layer.provideMerge(Layer.merge(layerFs, Path.layer)));
+const layerTest = Layer.succeed(
+  CursorSdk.CursorSdk,
+  CursorSdk.CursorSdk.of({ load: () => fakeSdk, loadSqlite: () => fakeSqlite }),
+).pipe(Layer.provideMerge(Layer.merge(layerFs, Path.layer)));
 
 const decodeCursorSettings = Schema.decodeSync(CursorSettings);
 const cursorSettings = decodeCursorSettings({ enabled: true });
 
 beforeEach(() => {
   hasCustomPolicy = false;
-  cursorSdkMock.create.mockReset();
-  cursorSdkMock.send.mockReset();
-  cursorSdkMock.create.mockImplementation(async (options) => {
-    cursorSdkMock.send.mockImplementation(async (prompt) => ({
-      status: "running",
-      cancel: cursorSdkMock.cancel,
-      wait: () => cursorSdkMock.prompt(prompt, options),
-    }));
-    return {
-      close: cursorSdkMock.close,
-      [Symbol.asyncDispose]: async () => {
-        cursorSdkMock.close();
-      },
-      send: cursorSdkMock.send,
-    };
-  });
-  cursorSdkMock.close.mockClear();
-  cursorSdkMock.cancel.mockClear();
-  cursorSdkMock.storeDispose.mockClear();
-  cursorSdkMock.storeOpen.mockReset();
-  cursorSdkMock.storeOpen.mockResolvedValue({ dispose: cursorSdkMock.storeDispose });
-  cursorSdkMock.prompt.mockReset();
-  cursorSdkMock.prompt.mockResolvedValue({
-    id: "run-cursor-text-generation-test",
-    status: "finished",
-    result:
-      '{"subject":"Add generated commit message","body":"- verify cursor sdk text generation"}',
-  });
+  sdkState.created.length = 0;
+  sdkState.prompts = 0;
+  sdkState.closes = 0;
+  sdkState.results.length = 0;
+  sdkState.agents.length = 0;
 });
 
 describe("CursorTextGeneration", () => {
@@ -95,24 +103,18 @@ describe("CursorTextGeneration", () => {
         modelSelection: createModelSelection(ProviderInstanceId.make("cursor"), "auto"),
       };
       yield* generation.generateCommitMessage(input);
-      expect(cursorSdkMock.create).toHaveBeenLastCalledWith(
-        expect.objectContaining({ apiKey: "first-browser-key" }),
-      );
+      expect(sdkState.created.at(-1)).toMatchObject({ apiKey: "first-browser-key" });
       apiKey = "second-browser-key";
       yield* generation.generateCommitMessage(input);
-      expect(cursorSdkMock.create).toHaveBeenLastCalledWith(
-        expect.objectContaining({ apiKey: "second-browser-key" }),
-      );
+      expect(sdkState.created.at(-1)).toMatchObject({ apiKey: "second-browser-key" });
     }).pipe(Effect.provide(layerTest)),
   );
 
   it.effect("continues in the temp directory when the SDK cannot sandbox", () =>
     Effect.gen(function* () {
-      cursorSdkMock.create.mockImplementationOnce(async () => ({
-        close: cursorSdkMock.close,
-        [Symbol.asyncDispose]: async () => {
-          cursorSdkMock.close();
-        },
+      sdkState.agents.push(() => ({
+        close,
+        [Symbol.asyncDispose]: async () => close(),
         send: async () => {
           throw new Error(
             "Local SDK sandboxing was requested, but sandboxing is not supported in this environment. Disable local.sandboxOptions.enabled or remove ~/.cursor/sandbox.json to run without sandboxing.",
@@ -132,14 +134,14 @@ describe("CursorTextGeneration", () => {
       });
 
       expect(generated.subject).toBe("Add generated commit message");
-      expect(cursorSdkMock.create).toHaveBeenCalledTimes(2);
-      expect(cursorSdkMock.create.mock.calls[0]?.[0]).toMatchObject({
+      expect(sdkState.created).toHaveLength(2);
+      expect(sdkState.created[0]).toMatchObject({
         local: { sandboxOptions: { enabled: true } },
       });
-      expect(cursorSdkMock.create.mock.calls[1]?.[0]).toMatchObject({
+      expect(sdkState.created[1]).toMatchObject({
         local: {
           cwd: "/isolated-text-generation",
-          store: { dispose: cursorSdkMock.storeDispose },
+          store,
           autoReview: false,
           sandboxOptions: { enabled: false },
           settingSources: [],
@@ -151,7 +153,7 @@ describe("CursorTextGeneration", () => {
 
   it.effect("accepts json objects with extra assistant text around them", () =>
     Effect.gen(function* () {
-      cursorSdkMock.prompt.mockResolvedValueOnce({
+      sdkState.results.push({
         id: "run-cursor-text-generation-test",
         status: "finished",
         result:
@@ -179,7 +181,7 @@ describe("CursorTextGeneration", () => {
 
   it.effect("generates thread titles through Cursor SDK text generation", () =>
     Effect.gen(function* () {
-      cursorSdkMock.prompt.mockResolvedValueOnce({
+      sdkState.results.push({
         id: "run-cursor-title-generation-test",
         status: "finished",
         result: '{"title":"\\"Trim reconnect spinner status after resume.\\""}',
@@ -224,7 +226,7 @@ describe("CursorTextGeneration", () => {
           result: '{"title":"Partial title from a failed run."}',
           ...(error ? { error } : {}),
         } satisfies RunResult;
-        cursorSdkMock.prompt.mockResolvedValueOnce(promptResult);
+        sdkState.results.push(promptResult);
         const generation = yield* makeCursorTextGeneration(cursorSettings, {
           CURSOR_API_KEY: "test-cursor-key",
         });
@@ -243,7 +245,7 @@ describe("CursorTextGeneration", () => {
         expect(failure.detail).toBe(detail);
         expect(failure.message).not.toContain("Raw Cursor");
         expect(failure.cause).toBe(error);
-        expect(cursorSdkMock.close).toHaveBeenCalledOnce();
+        expect(sdkState.closes).toBe(1);
       }).pipe(Effect.provide(layerTest)),
   );
 
@@ -259,7 +261,7 @@ describe("CursorTextGeneration", () => {
         }),
       );
       expect(failure.detail).toContain("custom ~/.cursor/sandbox.json");
-      expect(cursorSdkMock.prompt).not.toHaveBeenCalled();
+      expect(sdkState.prompts).toBe(0);
     }).pipe(Effect.provide(layerTest)),
   );
 
@@ -281,7 +283,7 @@ describe("CursorTextGeneration", () => {
       );
 
       expect(error.detail).toBe("Sign in with Cursor or add CURSOR_API_KEY in provider settings.");
-      expect(cursorSdkMock.prompt).not.toHaveBeenCalled();
+      expect(sdkState.prompts).toBe(0);
     }).pipe(Effect.provide(layerTest)),
   );
 });

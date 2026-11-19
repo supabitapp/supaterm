@@ -1,7 +1,38 @@
 import { EnvironmentId, ThreadId, ScheduledTaskId, type ScheduledTask } from "@supaterm/contracts";
 import { expect, it, vi } from "vite-plus/test";
 
-const state = vi.hoisted(() => ({ allowed: true, toggle: vi.fn(), run: vi.fn() }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const state = vi.hoisted(() => ({ allowed: true, toggle: fake(), run: fake() }));
 vi.mock(import("../../state/session"), async (importOriginal) => ({
   ...(await importOriginal()),
   useEnvironmentScope: () => state.allowed,
@@ -47,8 +78,8 @@ const task = {
 
 async function setup() {
   state.allowed = true;
-  state.toggle.mockReset().mockResolvedValue({ _tag: "Success" });
-  state.run.mockReset().mockResolvedValue({ _tag: "Success" });
+  state.toggle.reset(async () => ({ _tag: "Success" }));
+  state.run.reset(async () => ({ _tag: "Success" }));
 
   await using stack = new AsyncDisposableStack();
   const screen = stack.use(await renderUi(null));

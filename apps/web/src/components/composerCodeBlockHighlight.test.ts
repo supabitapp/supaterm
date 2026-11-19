@@ -6,11 +6,8 @@ import { afterEach, describe, expect, it, onTestFinished, vi } from "vite-plus/t
 
 import { ComposerCodeBlockExtension } from "~/composer-rich-text-extensions";
 import type { DiffThemeName } from "~/lib/diffRendering";
-import { getSyntaxHighlighterPromise } from "~/lib/syntaxHighlighting";
 
 import { composerCodeBlockHighlight, tokenizeBlock } from "./composerCodeBlockHighlight";
-
-vi.mock("~/lib/syntaxHighlighting", () => ({ getSyntaxHighlighterPromise: vi.fn() }));
 
 const THEME = "pierre-dark" as DiffThemeName;
 
@@ -51,12 +48,12 @@ describe("highlighting edited fences", () => {
       content.startsWith("x") ? "#ff0000" : undefined,
     );
     const tokenize = vi.spyOn(highlighter, "codeToTokens");
-    vi.mocked(getSyntaxHighlighterPromise).mockResolvedValue(highlighter);
+    const loadHighlighter = vi.spyOn({ load: async (_language: string) => highlighter }, "load");
     const editor = new Editor({
       extensions: [
         StarterKit.configure({ codeBlock: false, trailingNode: false }),
         ComposerCodeBlockExtension,
-        composerCodeBlockHighlight({ resolveTheme }),
+        composerCodeBlockHighlight({ resolveTheme, loadHighlighter }),
       ],
       content: {
         type: "doc",
@@ -94,6 +91,7 @@ describe("highlighting edited fences", () => {
     await vi.advanceTimersByTimeAsync(0);
     return {
       tokenize,
+      loadHighlighter,
       ranges: () =>
         plugin
           .getState(state)!
@@ -132,8 +130,8 @@ describe("highlighting edited fences", () => {
   });
 
   it("highlights a gitignore fence with the ini grammar, as chat does", async () => {
-    await mountFence("*.log\n!keep.log", () => THEME, 'gitignore title=".gitignore"');
+    const fence = await mountFence("*.log\n!keep.log", () => THEME, 'gitignore title=".gitignore"');
 
-    expect(vi.mocked(getSyntaxHighlighterPromise)).toHaveBeenLastCalledWith("ini");
+    expect(fence.loadHighlighter).toHaveBeenLastCalledWith("ini");
   });
 });

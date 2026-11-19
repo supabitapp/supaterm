@@ -15,7 +15,7 @@ beforeEach(() => {
     },
   };
   vi.stubGlobal("window", { localStorage: storage });
-  vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "error");
 });
 
 afterEach(() => {

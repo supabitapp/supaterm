@@ -39,12 +39,12 @@ it("cancels pending playback without reporting a failed popout", async () => {
 it("still reports playback failures for an active popout", async () => {
   using _cleanup = setup();
   const error = new Error("Playback failed");
-  using _play = vi.spyOn(HTMLMediaElement.prototype, "play").mockRejectedValue(error);
   const opening = openServerPictureInPicture({
     environmentId: EnvironmentId.make("environment"),
     threadId: ThreadId.make("thread"),
     tabId: "tab",
     seed: null,
+    play: () => Promise.reject(error),
   });
   const video = document.querySelector("video")!;
   const tracks = (video.srcObject as MediaStream).getTracks();

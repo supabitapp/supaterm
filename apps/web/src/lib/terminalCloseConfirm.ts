@@ -3,6 +3,25 @@ import { readLocalApi } from "~/localApi";
 
 let pendingConfirmations = 0;
 
+export interface CloseConfirmationHost {
+  readonly dialogs: () =>
+    | {
+        readonly confirm: (
+          message: string,
+          options: { readonly variant: "destructive" },
+        ) => Promise<boolean>;
+      }
+    | undefined;
+  readonly hydrateSettings: () => Promise<unknown>;
+  readonly confirmTerminalCloseEnabled: () => boolean;
+}
+
+const appCloseConfirmationHost: CloseConfirmationHost = {
+  dialogs: () => readLocalApi()?.dialogs,
+  hydrateSettings: ensureClientSettingsHydrated,
+  confirmTerminalCloseEnabled: () => getClientSettings().confirmTerminalClose,
+};
+
 export interface TerminalCloseTarget {
   readonly label: string;
   readonly hasRunningSubprocess: boolean;
@@ -13,12 +32,15 @@ export function isTerminalCloseConfirmPending() {
   return pendingConfirmations > 0;
 }
 
-export async function confirmClose(message: string) {
-  const localApi = readLocalApi();
-  if (!localApi) return true;
+export async function confirmClose(
+  message: string,
+  host: CloseConfirmationHost = appCloseConfirmationHost,
+) {
+  const dialogs = host.dialogs();
+  if (!dialogs) return true;
   pendingConfirmations += 1;
   try {
-    return await localApi.dialogs.confirm(message, { variant: "destructive" });
+    return await dialogs.confirm(message, { variant: "destructive" });
   } catch {
     return false;
   } finally {
@@ -26,11 +48,11 @@ export async function confirmClose(message: string) {
   }
 }
 
-async function terminalCloseConfirmationEnabled() {
+async function terminalCloseConfirmationEnabled(host: CloseConfirmationHost) {
   pendingConfirmations += 1;
   try {
-    await ensureClientSettingsHydrated();
-    return getClientSettings().confirmTerminalClose;
+    await host.hydrateSettings();
+    return host.confirmTerminalCloseEnabled();
   } catch {
     return true;
   } finally {
@@ -44,10 +66,13 @@ async function terminalCloseConfirmationEnabled() {
  * one at a time or in bulk. Auto-exit cleanup skips this path and closes
  * directly.
  */
-export async function confirmTerminalClose(targets: readonly TerminalCloseTarget[]) {
+export async function confirmTerminalClose(
+  targets: readonly TerminalCloseTarget[],
+  host: CloseConfirmationHost = appCloseConfirmationHost,
+) {
   const runningTargets = targets.filter((target) => target.hasRunningSubprocess);
   if (runningTargets.length === 0) return true;
-  if (!(await terminalCloseConfirmationEnabled())) return true;
+  if (!(await terminalCloseConfirmationEnabled(host))) return true;
 
   return confirmClose(
     runningTargets.length === 1
@@ -61,5 +86,6 @@ export async function confirmTerminalClose(targets: readonly TerminalCloseTarget
             .map((target) => `"${target.label}"`)
             .join(", ")}.`,
         ].join("\n"),
+    host,
   );
 }

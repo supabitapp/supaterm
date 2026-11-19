@@ -5,7 +5,7 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodeModule from "node:module";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
-import type { Browser, BrowserContext, CDPSession } from "playwright-core";
+import type { Browser, BrowserContext, BrowserType, CDPSession } from "playwright-core";
 
 import { sandboxDisabled } from "./PreviewBrowserHost.ts";
 
@@ -62,6 +62,14 @@ interface Options {
   /** Closes the shared browser once it has held no context for this long. */
   readonly idleBrowserMs?: number;
   readonly onContextClose?: (context: BrowserContext) => void;
+  readonly browserType?: Pick<BrowserType, "launch" | "launchPersistentContext">;
+  readonly profileFiles?: {
+    readonly mkdir: (path: string, options: { readonly recursive: true }) => Promise<unknown>;
+    readonly rm: (
+      path: string,
+      options: { readonly recursive: true; readonly force: true },
+    ) => Promise<unknown>;
+  };
 }
 
 const UA_PLATFORMS: Partial<Record<NodeJS.Platform, string>> = {
@@ -156,7 +164,7 @@ export class ServerBrowserContexts {
   private sharedBrowser() {
     if (!this.browser) {
       const launched = this.launchOptions().then(async ({ executable, ...options }) => {
-        const { chromium } = loadPlaywright();
+        const chromium = this.options.browserType ?? loadPlaywright().chromium;
         const browser = await this.launch(executable, (executablePath) =>
           chromium.launch({ ...options, executablePath }),
         );
@@ -237,9 +245,9 @@ export class ServerBrowserContexts {
       return this.sharedContext(contextOptions);
     }
     const directory = this.profileDirectory(profileId);
-    await NodeFSP.mkdir(directory, { recursive: true });
+    await (this.options.profileFiles ?? NodeFSP).mkdir(directory, { recursive: true });
     const { executable, ...options } = await this.launchOptions();
-    const { chromium } = loadPlaywright();
+    const chromium = this.options.browserType ?? loadPlaywright().chromium;
     const context = await this.launch(executable, (executablePath) =>
       chromium.launchPersistentContext(directory, {
         ...options,
@@ -295,7 +303,10 @@ export class ServerBrowserContexts {
         const context = await pending.catch(() => undefined);
         await context?.close();
       }
-      await NodeFSP.rm(this.profileDirectory(profileId), { recursive: true, force: true });
+      await (this.options.profileFiles ?? NodeFSP).rm(this.profileDirectory(profileId), {
+        recursive: true,
+        force: true,
+      });
     })();
     this.clearing.set(key, clearing);
     try {

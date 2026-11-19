@@ -62,8 +62,27 @@ export class DesktopBrowserChannel extends Context.Service<
   }
 >()("supaterm/preview/DesktopBrowserChannel") {}
 
+export const DesktopBrowserInput = Context.Reference<
+  (fd: number) => Effect.Effect<Stream.Stream<Uint8Array, Error>, never, Scope.Scope>
+>("supaterm/preview/DesktopBrowserChannel/DesktopBrowserInput", {
+  defaultValue: () => (fd) =>
+    Effect.acquireRelease(
+      Effect.sync(() => new NodeNet.Socket({ fd, readable: true, writable: false })),
+      (stream) => Effect.sync(() => stream.destroy()),
+    ).pipe(
+      Effect.map((readable) =>
+        NodeStream.fromReadable<Uint8Array, Error>({
+          evaluate: () => readable,
+          closeOnDone: true,
+          onError: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
+        }),
+      ),
+    ),
+});
+
 const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
+  const openInput = yield* DesktopBrowserInput;
   const inputFd = config.desktopBrowserFd;
   const controlFd = config.desktopBrowserControlFd;
   const changes = yield* PubSub.unbounded<{ key: DesktopTabKey; attached: boolean }>();
@@ -108,15 +127,8 @@ const make = Effect.gen(function* () {
       ),
     );
 
-  const readable = yield* Effect.acquireRelease(
-    Effect.sync(() => new NodeNet.Socket({ fd: inputFd, readable: true, writable: false })),
-    (stream) => Effect.sync(() => stream.destroy()),
-  );
-  yield* NodeStream.fromReadable<Uint8Array, Error>({
-    evaluate: () => readable,
-    closeOnDone: true,
-    onError: (cause) => (cause instanceof Error ? cause : new Error(String(cause))),
-  }).pipe(
+  const input = yield* openInput(inputFd);
+  yield* input.pipe(
     Stream.pipeThroughChannel(Ndjson.decode({ ignoreEmptyLines: true })),
     Stream.mapEffect((value) => decodeEvent(value).pipe(Effect.option)),
     Stream.runForEach((decoded) => {

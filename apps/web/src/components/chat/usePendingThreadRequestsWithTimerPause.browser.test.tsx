@@ -20,7 +20,38 @@ import { makeThreadProjectionFixture } from "../../thread.fixture";
 import { usePendingUserInputDraft } from "./usePendingThreadRequests";
 import { usePendingThreadRequestsWithTimerPause } from "./usePendingThreadRequestsWithTimerPause";
 
-const state = vi.hoisted(() => ({ pause: vi.fn(), command: vi.fn() }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const state = vi.hoisted(() => ({ pause: fake(), command: fake() }));
 vi.mock(import("../../state/use-atom-command"), async (original) => {
   const { threadEnvironment } = await import("../../state/threads");
   return {
@@ -169,7 +200,7 @@ async function setupTest() {
 
   vi.clearAllMocks();
   requestId = RuntimeRequestId.make(`question-${requestSequence++}`);
-  state.pause.mockResolvedValue(AsyncResult.success(undefined));
+  state.pause.implement(async () => AsyncResult.success(undefined));
   screen = resources.use(await renderUi(null, { router: false }));
 
   return resources.move();
@@ -229,7 +260,7 @@ describe("question countdown pause", () => {
 
   it("shows a failed pause on the thread and tries again on the next answer", async () => {
     await using _test = await setupTest();
-    state.pause.mockResolvedValue(AsyncResult.failure(Cause.fail(new Error("Pause rejected"))));
+    state.pause.implement(async () => AsyncResult.failure(Cause.fail(new Error("Pause rejected"))));
     await render(projection());
     await typeAnswer("scope", "src");
     await flushPause();

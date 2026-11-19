@@ -5,7 +5,7 @@ import * as NodePath from "node:path";
 import * as NodeStream from "node:stream";
 
 import * as ClaudeSdk from "@anthropic-ai/claude-agent-sdk";
-import { beforeEach, vi } from "vite-plus/test";
+import { vi } from "vite-plus/test";
 
 import type {
   ElicitationRequest,
@@ -127,19 +127,6 @@ import {
   materializeFixtureInput,
   projectionFor,
 } from "../testkit/fixtures/shared.ts";
-
-vi.mock("@anthropic-ai/claude-agent-sdk", async (importOriginal) => ({
-  ...(await importOriginal<typeof ClaudeSdk>()),
-  resolveSettings: vi.fn(),
-}));
-
-beforeEach(() => {
-  vi.mocked(ClaudeSdk.resolveSettings).mockReset().mockResolvedValue({
-    effective: {},
-    provenance: {},
-    sources: [],
-  });
-});
 
 const DEFAULT_CLAUDE_SETTINGS = Schema.decodeSync(ClaudeSettings)({});
 const AUTO_COMPACT_CLAUDE_SETTINGS = Schema.decodeSync(ClaudeSettings)({
@@ -732,7 +719,7 @@ describe("ClaudeAdapterV2 MCP query overrides", () => {
 
 describe("ClaudeAdapterV2 SDK warnings", () => {
   it("drops only the SDK's canUseTool shadowing warning while opening a query", async () => {
-    using emitWarning = vi.spyOn(process, "emitWarning").mockImplementation(() => {});
+    using emitWarning = vi.spyOn(process, "emitWarning");
     for (const options of [
       {
         permissionMode: "default",
@@ -6458,10 +6445,6 @@ describe("ClaudeAdapterV2 background wake turns", () => {
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
-        const sdk = yield* Effect.promise(() =>
-          vi.importActual<typeof ClaudeSdk>("@anthropic-ai/claude-agent-sdk"),
-        );
-        vi.mocked(ClaudeSdk.resolveSettings).mockImplementation(sdk.resolveSettings);
         const probeCwd = yield* fileSystem.makeTempDirectoryScoped({
           prefix: "supaterm-claude-probe-",
         });

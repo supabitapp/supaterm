@@ -1,26 +1,27 @@
 import type { DesktopCliCommandState } from "@supaterm/contracts";
 import { AtomRegistry } from "effect/reactivity";
 import * as AsyncResult from "effect/reactivity/AsyncResult";
-import { afterAll, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
-import { desktopCliCommandStateAtom } from "./desktopCliCommand";
-
-const getState = vi.fn<() => Promise<DesktopCliCommandState>>();
-vi.stubGlobal("window", { desktopBridge: { cliCommand: { getState } } });
+import { createDesktopCliCommandStateAtom } from "./desktopCliCommand";
 
 describe("desktopCliCommandStateAtom", () => {
-  afterAll(() => {
-    vi.unstubAllGlobals();
-  });
-
   it("reloads stale state when Settings mounts it again", async () => {
-    getState.mockResolvedValue({
-      supported: true,
-      installedPath: null,
-      onPath: false,
-      launcherPath: null,
-    });
-    using now = vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    const reads: Array<DesktopCliCommandState> = [];
+    const getState = async () => {
+      const state: DesktopCliCommandState = {
+        supported: true,
+        installedPath: null,
+        onPath: false,
+        launcherPath: null,
+      };
+      reads.push(state);
+      return state;
+    };
+    const desktopCliCommandStateAtom = createDesktopCliCommandStateAtom(() => ({ getState }));
+    vi.useFakeTimers({ toFake: ["Date"] });
+    using _clock = { [Symbol.dispose]: () => vi.useRealTimers() };
+    vi.setSystemTime(1_000_000);
     const registry = AtomRegistry.make();
 
     const unmountFirst = registry.mount(desktopCliCommandStateAtom);
@@ -31,9 +32,9 @@ describe("desktopCliCommandStateAtom", () => {
     unmountFirst();
     await vi.waitFor(() => expect(registry.getNodes().size).toBe(1));
 
-    now.mockReturnValue(1_060_000);
+    vi.setSystemTime(1_060_000);
     const unmountSecond = registry.mount(desktopCliCommandStateAtom);
-    await vi.waitFor(() => expect(getState).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(reads).toHaveLength(2));
     unmountSecond();
     registry.dispose();
   });

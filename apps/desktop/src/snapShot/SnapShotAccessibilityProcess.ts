@@ -47,19 +47,37 @@ const unavailableProcess = () => ({
   close: () => undefined,
 });
 
-export function startSnapShotAccessibilityProcess(workerPath: string): AccessibilityProcess;
-export function startSnapShotAccessibilityProcess(workerPath: string) {
-  let worker: NodeChildProcess.ChildProcess;
+export type AccessibilityWorker = {
+  send(message: SnapShotAccessibilityRequest, callback: (error: Error | null) => void): unknown;
+  kill(): unknown;
+  on(event: "message", listener: (message: unknown) => void): unknown;
+  once(event: "error" | "exit", listener: () => void): unknown;
+};
+
+export type ForkAccessibilityWorker = (workerPath: string) => AccessibilityWorker;
+
+const forkAccessibilityWorker: ForkAccessibilityWorker = (workerPath) =>
+  NodeChildProcess.fork(workerPath, ["read"], {
+    execPath: process.execPath,
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: "1",
+    },
+    execArgv: [],
+    stdio: ["ignore", "ignore", "inherit", "ipc"],
+  });
+
+export function startSnapShotAccessibilityProcess(
+  workerPath: string,
+  fork?: ForkAccessibilityWorker,
+): AccessibilityProcess;
+export function startSnapShotAccessibilityProcess(
+  workerPath: string,
+  fork = forkAccessibilityWorker,
+) {
+  let worker: AccessibilityWorker;
   try {
-    worker = NodeChildProcess.fork(workerPath, ["read"], {
-      execPath: process.execPath,
-      env: {
-        ...process.env,
-        ELECTRON_RUN_AS_NODE: "1",
-      },
-      execArgv: [],
-      stdio: ["ignore", "ignore", "inherit", "ipc"],
-    });
+    worker = fork(workerPath);
   } catch {
     return unavailableProcess() satisfies AccessibilityProcess;
   }
@@ -134,15 +152,21 @@ export function startSnapShotAccessibilityProcess(workerPath: string) {
   } satisfies AccessibilityProcess;
 }
 
-export function makeSnapShotAccessibilityProcessPool(workerPath: string): AccessibilityProcessPool;
-export function makeSnapShotAccessibilityProcessPool(workerPath: string) {
+export function makeSnapShotAccessibilityProcessPool(
+  workerPath: string,
+  fork?: ForkAccessibilityWorker,
+): AccessibilityProcessPool;
+export function makeSnapShotAccessibilityProcessPool(
+  workerPath: string,
+  fork = forkAccessibilityWorker,
+) {
   let standby: AccessibilityProcess | undefined;
   const active = new Set<AccessibilityProcess>();
   let closed = false;
 
   const warm = () => {
     if (closed || standby?.alive) return;
-    standby = startSnapShotAccessibilityProcess(workerPath);
+    standby = startSnapShotAccessibilityProcess(workerPath, fork);
   };
   const cool = () => {
     standby?.close();
@@ -156,7 +180,7 @@ export function makeSnapShotAccessibilityProcessPool(workerPath: string) {
       if (closed) return completedRead();
       const workerProcess = standby?.alive
         ? standby
-        : startSnapShotAccessibilityProcess(workerPath);
+        : startSnapShotAccessibilityProcess(workerPath, fork);
       standby = undefined;
       warm();
       active.add(workerProcess);

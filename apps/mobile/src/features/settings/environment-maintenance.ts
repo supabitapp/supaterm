@@ -53,15 +53,30 @@ const Release = Schema.Struct({
 const decodeRelease = Schema.decodeUnknownSync(Release);
 const decodeReleases = Schema.decodeUnknownSync(Schema.Array(Release));
 
-async function fetchReleases(url: string, accept: string, signal: AbortSignal) {
-  const response = await fetch(url, { signal, headers: { Accept: accept } });
+type ReleaseFetch = (
+  url: string,
+  init: { readonly signal: AbortSignal; readonly headers: Record<string, string> },
+) => Promise<Response>;
+
+async function fetchReleases(
+  request: ReleaseFetch,
+  url: string,
+  accept: string,
+  signal: AbortSignal,
+) {
+  const response = await request(url, { signal, headers: { Accept: accept } });
   if (!response.ok) throw new Error(`Could not check releases (${response.status}). Try again.`);
   return response;
 }
 
-export async function findEnvironmentUpdate(currentVersion: string, signal: AbortSignal) {
+export async function findEnvironmentUpdate(
+  currentVersion: string,
+  signal: AbortSignal,
+  request: ReleaseFetch = (url, init) => fetch(url, init),
+) {
   const channel = cliReleaseChannelOf(currentVersion);
   const response = await fetchReleases(
+    request,
     channel === "stable" ? `${CLI_RELEASES_PAGE_URL}/latest` : `${CLI_RELEASES_PAGE_URL}.atom`,
     channel === "stable" ? "application/json" : "application/atom+xml",
     signal,
@@ -79,6 +94,7 @@ export async function findEnvironmentUpdate(currentVersion: string, signal: Abor
 
   for (let page = 1; version === undefined; page++) {
     const response = await fetchReleases(
+      request,
       cliReleaseIndexPageUrl(page),
       "application/vnd.github+json",
       signal,

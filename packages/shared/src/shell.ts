@@ -382,33 +382,40 @@ export const CommandAvailability = Context.Reference<CommandAvailabilityChecker>
   },
 );
 
-const execWindowsEnvironmentProbe = (
+export type WindowsEnvironmentProbeSpawn = (
   file: string,
   args: ReadonlyArray<string>,
-  options: { encoding: "utf8"; timeout: number },
-) =>
-  Effect.callback<Option.Option<string>>((resume) => {
-    let child: NodeChildProcess.ChildProcess;
-    try {
-      child = NodeChildProcess.execFile(
-        file,
-        args,
-        { ...options, windowsHide: true },
-        (error, stdout) => {
+  options: { encoding: "utf8"; timeout: number; windowsHide: boolean },
+  callback: (error: Error | null, stdout: string) => void,
+) => {
+  kill(): boolean;
+  unref(): void;
+  readonly stdout?: { destroy(): void } | null;
+  readonly stderr?: { destroy(): void } | null;
+};
+
+export const makeWindowsEnvironmentProbe =
+  (spawn: WindowsEnvironmentProbeSpawn = NodeChildProcess.execFile) =>
+  (file: string, args: ReadonlyArray<string>, options: { encoding: "utf8"; timeout: number }) =>
+    Effect.callback<Option.Option<string>>((resume) => {
+      let child: ReturnType<WindowsEnvironmentProbeSpawn>;
+      try {
+        child = spawn(file, args, { ...options, windowsHide: true }, (error, stdout) => {
           resume(Effect.succeed(error ? Option.none() : Option.some(stdout)));
-        },
-      );
-    } catch {
-      resume(Effect.succeedNone);
-      return;
-    }
-    return Effect.sync(() => {
-      child.kill();
-      child.stdout?.destroy();
-      child.stderr?.destroy();
-      child.unref();
+        });
+      } catch {
+        resume(Effect.succeedNone);
+        return;
+      }
+      return Effect.sync(() => {
+        child.kill();
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        child.unref();
+      });
     });
-  });
+
+const execWindowsEnvironmentProbe = makeWindowsEnvironmentProbe();
 
 export const readEnvironmentFromWindowsShell = Effect.fn("shell.readEnvironmentFromWindowsShell")(
   function* (

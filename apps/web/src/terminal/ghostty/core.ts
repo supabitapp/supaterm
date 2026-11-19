@@ -552,7 +552,11 @@ export class GhosttyTerminalCore {
     return this.modeEnabled(1);
   }
 
-  encodeKey(event: KeyboardEvent, action: "press" | "release" = "press") {
+  encodeKey(
+    event: KeyboardEvent,
+    action: "press" | "release" = "press",
+    platform = navigator.platform,
+  ) {
     this.ensureActive();
     this.runtime.call("ghostty_key_encoder_setopt_from_terminal", this.keyEncoder, this.terminal);
     this.runtime.call(
@@ -572,7 +576,7 @@ export class GhosttyTerminalCore {
     this.runtime.call(
       "ghostty_key_event_set_consumed_mods",
       this.keyEvent,
-      ghosttyConsumedMods(event),
+      ghosttyConsumedMods(event, platform),
     );
     this.runtime.call("ghostty_key_event_set_composing", this.keyEvent, event.isComposing ? 1 : 0);
     this.runtime.call(

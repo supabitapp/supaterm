@@ -40,6 +40,7 @@ interface ShellEnvironmentConfig {
   readonly env: NodeJS.ProcessEnv;
   readonly platform: NodeJS.Platform;
   readonly budget: ProbeBudget;
+  readonly userShell: string | undefined;
 }
 
 interface WindowsProbeOptions {
@@ -449,9 +450,11 @@ const installWindowsEnvironment = Effect.fn("desktop.shellEnvironment.installWin
   },
 );
 
-const listUserShells: (env: NodeJS.ProcessEnv) => ReadonlyArray<string> = (
+const listUserShells: (
   env: NodeJS.ProcessEnv,
-) => [env.SHELL?.trim(), readUserLoginShell()].filter((shell): shell is string => Boolean(shell));
+  userShell: string | undefined,
+) => ReadonlyArray<string> = (env, userShell) =>
+  [env.SHELL?.trim(), userShell].filter((shell): shell is string => Boolean(shell));
 
 const installPosixEnvironment: (
   config: ShellEnvironmentConfig,
@@ -464,11 +467,15 @@ const installPosixEnvironment: (
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
   const shellEnvironment: EnvironmentPatch = {};
-  const userShells = listUserShells(config.env);
+  const userShells = listUserShells(config.env, config.userShell);
 
   let answeredBy: string | undefined;
   let waitedForSlowShell = false;
-  for (const shell of listLoginShellCandidates(config.platform, config.env.SHELL)) {
+  for (const shell of listLoginShellCandidates(
+    config.platform,
+    config.env.SHELL,
+    config.userShell ?? "",
+  )) {
     const read = (timeout: Duration.Duration) =>
       readLoginShellEnvironment(
         shell,
@@ -643,8 +650,9 @@ const CACHED_ENV_NAMES = [
   "NODE_EXTRA_CA_CERTS",
 ] as const;
 
-/** @public */
-export const make = Effect.gen(function* () {
+export const makeWith = Effect.fn("DesktopShellEnvironment.make")(function* (
+  readUserShell: () => string | undefined,
+) {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -684,6 +692,7 @@ export const make = Effect.gen(function* () {
         env: fresh,
         platform: environment.platform,
         budget,
+        userShell: readUserShell(),
       });
       const { prepared } = discovery;
       const patch = Object.fromEntries(
@@ -709,7 +718,7 @@ export const make = Effect.gen(function* () {
     Effect.provideService(FileSystem.FileSystem, fileSystem),
     Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
   );
-  const awaitsUserShell = listUserShells(inherited).length > 0;
+  const awaitsUserShell = listUserShells(inherited, readUserShell()).length > 0;
   const settled = ({ prepared, fromUserShell }: ShellDiscovery) =>
     fromUserShell || (prepared && !awaitsUserShell);
   const refresh = probe(STARTUP_PROBE).pipe(
@@ -786,5 +795,8 @@ export const make = Effect.gen(function* () {
     updates,
   });
 });
+
+/** @public */
+export const make = makeWith(readUserLoginShell);
 
 export const layer = Layer.effect(DesktopShellEnvironment, make);

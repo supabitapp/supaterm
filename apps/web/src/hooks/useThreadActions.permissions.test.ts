@@ -49,7 +49,8 @@ const state = vi.hoisted(() => ({
   }[],
   requests: [] as { action: string; environmentId: string; input: { threadId?: string } }[],
   localEffects: [] as string[],
-  confirm: vi.fn<(message: string) => Promise<boolean>>(),
+  confirm: vi.fn<(message: string) => void>(),
+  confirmAnswer: Promise.resolve(true),
   toasts: [] as string[],
   afterRequest: undefined as ((action: string) => void) | undefined,
   sessionLookupFails: false,
@@ -177,7 +178,14 @@ vi.mock("../lib/composerDraftUploads", () => ({
     state.localEffects.push(`release-uploads:${ref.threadId}`),
 }));
 vi.mock("../localApi", () => ({
-  readLocalApi: () => ({ dialogs: { confirm: state.confirm } }),
+  readLocalApi: () => ({
+    dialogs: {
+      confirm: (message: string) => {
+        state.confirm(message);
+        return state.confirmAnswer;
+      },
+    },
+  }),
 }));
 vi.mock("../threadRoutes", () => ({
   resolveThreadRouteRef: () => null,
@@ -283,7 +291,8 @@ beforeEach(() => {
   ];
   state.requests = [];
   state.localEffects = [];
-  state.confirm.mockReset().mockResolvedValue(true);
+  state.confirm.mockReset();
+  state.confirmAnswer = Promise.resolve(true);
   state.toasts = [];
   state.afterRequest = undefined;
   state.sessionLookupFails = false;
@@ -335,7 +344,7 @@ describe("thread action permissions", () => {
     async (action) => {
       state.scopes.get(secondary)!.add(AuthOrchestrationOperateScope);
       const confirmation = deferred<boolean>();
-      state.confirm.mockReturnValue(confirmation.promise);
+      state.confirmAnswer = confirmation.promise;
       const result = useThreadActions()[action](target);
       expect(state.confirm).toHaveBeenCalledOnce();
       state.scopes.get(secondary)!.clear();
@@ -485,15 +494,10 @@ describe("thread action permissions", () => {
       .add(AuthSourceControlWriteScope);
     state.threads[0]!.worktreePath = "/worktrees/thread";
     state.afterRequest = () => state.scopes.get(secondary)!.delete(AuthSourceControlWriteScope);
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const result = await useThreadActions().deleteThread(target);
-      expect(result._tag).toBe("Success");
-      expect(state.requests.map((request) => request.action)).toEqual(["stopSession", "delete"]);
-      expect(state.toasts).toContain("Failed to delete worktree");
-      expect(state.localEffects).toContain("clear-terminal-ui");
-    } finally {
-      consoleError.mockRestore();
-    }
+    const result = await useThreadActions().deleteThread(target);
+    expect(result._tag).toBe("Success");
+    expect(state.requests.map((request) => request.action)).toEqual(["stopSession", "delete"]);
+    expect(state.toasts).toContain("Failed to delete worktree");
+    expect(state.localEffects).toContain("clear-terminal-ui");
   });
 });

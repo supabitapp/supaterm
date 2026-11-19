@@ -1,6 +1,8 @@
 import {
+  createContext,
   createElement,
   useCallback,
+  useContext,
   useEffect,
   useImperativeHandle,
   useRef,
@@ -194,6 +196,16 @@ let nativeReviewDiffViewResolutionFailed = false;
 
 type NativeReviewDiffPayloadMethod = "setRowsJson" | "setTokensJson" | "setTokensPatchJson";
 
+export interface NativeReviewDiffFrameScheduler {
+  readonly request: (callback: FrameRequestCallback) => number;
+  readonly cancel: (frame: number) => void;
+}
+
+export const NativeReviewDiffFrameSchedulerContext = createContext<NativeReviewDiffFrameScheduler>({
+  request: (callback) => requestAnimationFrame(callback),
+  cancel: (frame) => cancelAnimationFrame(frame),
+});
+
 export function isPendingNativeViewRegistration(error: unknown): boolean;
 export function isPendingNativeViewRegistration(error: unknown) {
   if (!(error instanceof Error)) return false satisfies boolean;
@@ -210,6 +222,7 @@ function useNativeReviewDiffPayload(
   onFailure?: () => void,
   onDelivered?: (payload: string) => void,
 ) {
+  const frames = useContext(NativeReviewDiffFrameSchedulerContext);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- sends the payload to the native diff view's imperative method, retrying per frame until it mounts
   useEffect(() => {
     if (payload === undefined) {
@@ -229,7 +242,7 @@ function useNativeReviewDiffPayload(
       if (!view?.[method]) {
         if (attempts < NATIVE_REVIEW_DIFF_PAYLOAD_RETRY_FRAMES) {
           attempts += 1;
-          frame = requestAnimationFrame(dispatch);
+          frame = frames.request(dispatch);
         } else {
           console.error(`[native-review-diff] ${method} unavailable`);
           onFailure?.();
@@ -260,7 +273,7 @@ function useNativeReviewDiffPayload(
             isPendingNativeViewRegistration(error)
           ) {
             attempts += 1;
-            frame = requestAnimationFrame(dispatch);
+            frame = frames.request(dispatch);
             return;
           }
           console.error(`[native-review-diff] ${method} failed`, error);
@@ -268,15 +281,15 @@ function useNativeReviewDiffPayload(
         });
     };
 
-    frame = requestAnimationFrame(dispatch);
+    frame = frames.request(dispatch);
 
     return () => {
       cancelled = true;
       if (frame !== null) {
-        cancelAnimationFrame(frame);
+        frames.cancel(frame);
       }
     };
-  }, [method, nativeView, payload, resetKey, onFailure, onDelivered]);
+  }, [frames, method, nativeView, payload, resetKey, onFailure, onDelivered]);
 }
 
 function getExpoViewConfig(moduleName: string) {

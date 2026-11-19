@@ -11,11 +11,19 @@ const it = process.platform === "linux" ? test : test.skip;
 let directory: string;
 let path: string;
 let setup: CaptureShortcutConfig;
+type HyprlandBinding = { modmask: number; key: string; dispatcher: string; arg: string };
+const behavior: {
+  validateNiri: (path: string) => Promise<void>;
+  bindings: HyprlandBinding[];
+} = { validateNiri: async () => undefined, bindings: [] };
+const fakeTools = {
+  validateNiri: (file: string) => behavior.validateNiri(file),
+  hyprlandBindings: async () => behavior.bindings,
+  reloadHyprland: async () => undefined,
+};
 const tools = {
-  validateNiri: vi.fn<(path: string) => Promise<void>>(),
-  hyprlandBindings:
-    vi.fn<() => Promise<{ modmask: number; key: string; dispatcher: string; arg: string }[]>>(),
-  reloadHyprland: vi.fn<() => Promise<void>>(),
+  validateNiri: vi.spyOn(fakeTools, "validateNiri"),
+  reloadHyprland: vi.spyOn(fakeTools, "reloadHyprland"),
 };
 const appId = "com.supaterm.desktop";
 const install = { operation: "install", chooseFile: false } as const;
@@ -24,10 +32,11 @@ beforeEach(async () => {
   directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-capture-config-"));
   path = NodePath.join(directory, "config.kdl");
   await NodeFSP.writeFile(path, "binds {\n    Mod+Q { quit; }\n}\n", { mode: 0o640 });
-  tools.validateNiri.mockReset().mockResolvedValue(undefined);
-  tools.hyprlandBindings.mockReset().mockResolvedValue([]);
-  tools.reloadHyprland.mockReset().mockResolvedValue(undefined);
-  setup = new CaptureShortcutConfig(NodeOS.homedir(), tools);
+  behavior.validateNiri = async () => undefined;
+  behavior.bindings = [];
+  tools.validateNiri.mockClear();
+  tools.reloadHyprland.mockClear();
+  setup = new CaptureShortcutConfig(NodeOS.homedir(), fakeTools);
 });
 afterEach(async () => {
   await NodeFSP.rm(directory, { recursive: true, force: true });
@@ -56,9 +65,7 @@ it("rechecks Hyprland conflicts before writing", async () => {
   };
   await NodeFSP.writeFile(hypr.path, "# unchanged\n");
   const preview = await setup.preview(hypr, install);
-  tools.hyprlandBindings.mockResolvedValue([
-    { modmask: 5, key: "2", dispatcher: "exec", arg: "kitty" },
-  ]);
+  behavior.bindings = [{ modmask: 5, key: "2", dispatcher: "exec", arg: "kitty" }];
   await expect(setup.apply(preview.id, "hyprland")).rejects.toThrow("already used");
   expect(await NodeFSP.readFile(hypr.path, "utf8")).toBe(preview.before);
 });
@@ -81,9 +88,9 @@ it("does not overwrite edits made after preview", async () => {
 });
 it("rechecks after validation and cleans the staged file on concurrent edits", async () => {
   const preview = await setup.preview(target(), install);
-  tools.validateNiri.mockImplementation(async () => {
+  behavior.validateNiri = async () => {
     await NodeFSP.appendFile(path, "// keep this\n");
-  });
+  };
   await expect(setup.apply(preview.id, "niri")).rejects.toThrow("changed since");
   expect(await NodeFSP.readdir(directory)).toEqual(["config.kdl"]);
   expect(await NodeFSP.readFile(path, "utf8")).toContain("keep this");
@@ -116,13 +123,13 @@ it("validates symlinked configs from their original directory so relative includ
   await NodeFSP.symlink(path, link);
   await NodeFSP.appendFile(path, 'include "keys.kdl"\n');
   await NodeFSP.writeFile(NodePath.join(active, "keys.kdl"), "binds {}\n");
-  tools.validateNiri.mockImplementation(async (file) => {
+  behavior.validateNiri = async (file) => {
     expect(NodePath.dirname(file)).toBe(active);
     expect(await NodeFSP.readFile(file, "utf8")).toContain("Ctrl+Shift+2");
     expect(await NodeFSP.readFile(NodePath.join(NodePath.dirname(file), "keys.kdl"), "utf8")).toBe(
       "binds {}\n",
     );
-  });
+  };
   const preview = await setup.preview({ ...target(), path: link }, install);
   await setup.apply(preview.id, "niri");
   expect((await NodeFSP.readdir(active)).sort()).toEqual(["config.kdl", "keys.kdl"]);
@@ -130,7 +137,9 @@ it("validates symlinked configs from their original directory so relative includ
 });
 it("does not apply invalid Niri configs", async () => {
   const preview = await setup.preview(target(), install);
-  tools.validateNiri.mockRejectedValue(new Error("Invalid config"));
+  behavior.validateNiri = async () => {
+    throw new Error("Invalid config");
+  };
   await expect(setup.apply(preview.id, "niri")).rejects.toThrow("Invalid config");
   expect(await NodeFSP.readFile(path, "utf8")).toBe(preview.before);
   expect(await NodeFSP.readdir(directory)).toEqual(["config.kdl"]);
@@ -151,9 +160,7 @@ it("accepts an unchanged capture shortcut reported as a Lua callback", async () 
   };
   const before = `${captureConfigBinding("hyprland-lua", appId, "Ctrl+Shift+2")}\n`;
   await NodeFSP.writeFile(hypr.path, before);
-  tools.hyprlandBindings.mockResolvedValue([
-    { modmask: 5, key: "2", dispatcher: "__lua", arg: "92" },
-  ]);
+  behavior.bindings = [{ modmask: 5, key: "2", dispatcher: "__lua", arg: "92" }];
 
   const preview = await setup.preview(hypr, install);
   expect(preview.after).toBe(before);
@@ -184,7 +191,7 @@ it.each(["preview", "apply"] as const)(
       dispatcher: "global",
       arg: `${appId}:capture-window`,
     };
-    tools.hyprlandBindings.mockResolvedValue([ownBinding]);
+    behavior.bindings = [ownBinding];
     const unchanged = await setup.preview(hypr, install);
     expect(unchanged.after).toBe(before);
     expect(await setup.apply(unchanged.id, "hyprland")).toEqual({
@@ -193,10 +200,7 @@ it.each(["preview", "apply"] as const)(
     });
 
     const preview = stage === "apply" ? await setup.preview(hypr, install) : undefined;
-    tools.hyprlandBindings.mockResolvedValue([
-      ownBinding,
-      { modmask: 5, key: "2", dispatcher: "exec", arg: "kitty" },
-    ]);
+    behavior.bindings = [ownBinding, { modmask: 5, key: "2", dispatcher: "exec", arg: "kitty" }];
     await expect(
       preview ? setup.apply(preview.id, "hyprland") : setup.preview(hypr, install),
     ).rejects.toThrow("already used");
@@ -215,12 +219,12 @@ it("rejects changing an existing capture shortcut to keys used by another Lua ca
   await NodeFSP.writeFile(hypr.path, before);
   const request = { ...install, shortcut: "Ctrl+Shift+2" };
   const occupied = [{ modmask: 5, key: "2", dispatcher: "__lua", arg: "93" }];
-  tools.hyprlandBindings.mockResolvedValue(occupied);
+  behavior.bindings = occupied;
   await expect(setup.preview(hypr, request)).rejects.toThrow("already used");
 
-  tools.hyprlandBindings.mockResolvedValue([]);
+  behavior.bindings = [];
   const preview = await setup.preview(hypr, request);
-  tools.hyprlandBindings.mockResolvedValue(occupied);
+  behavior.bindings = occupied;
   await expect(setup.apply(preview.id, "hyprland")).rejects.toThrow("already used");
   expect(await NodeFSP.readFile(hypr.path, "utf8")).toBe(before);
 });

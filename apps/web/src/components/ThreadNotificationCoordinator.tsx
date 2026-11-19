@@ -61,6 +61,13 @@ interface WatchedEnvironment {
   readonly gate: ReturnType<typeof createThreadNotificationGate<ThreadId>>;
 }
 
+const browserWindow = {
+  isForeground: () => document.visibilityState === "visible" && document.hasFocus(),
+  focus: () => window.focus(),
+};
+
+export type NotificationWindow = typeof browserWindow;
+
 /**
  * Turns thread status transitions in every connected environment into sounds, in-app toasts,
  * and desktop notifications, and keeps the dock badge in step with the unread ones.
@@ -68,8 +75,13 @@ interface WatchedEnvironment {
 export function startThreadNotifications(
   registry: AtomRegistry.AtomRegistry,
   router: AnyRouter,
+  appWindow?: NotificationWindow,
 ): () => void;
-export function startThreadNotifications(registry: AtomRegistry.AtomRegistry, router: AnyRouter) {
+export function startThreadNotifications(
+  registry: AtomRegistry.AtomRegistry,
+  router: AnyRouter,
+  appWindow = browserWindow,
+) {
   const pending = new Map<string, { environmentId: EnvironmentId; notification: Notification }>();
   const watched = new Map<EnvironmentId, WatchedEnvironment>();
 
@@ -133,8 +145,7 @@ export function startThreadNotifications(registry: AtomRegistry.AtomRegistry, ro
     }
     if (
       inAppNotificationsEnabled &&
-      document.visibilityState === "visible" &&
-      document.hasFocus() &&
+      appWindow.isForeground() &&
       (active.environmentId !== environmentId || active.threadId !== thread.id)
     ) {
       const toastKey = threadKey({ environmentId, threadId: thread.id });
@@ -174,7 +185,7 @@ export function startThreadNotifications(registry: AtomRegistry.AtomRegistry, ro
     }
     if (
       !hasDesktopNotifications(mode) ||
-      (document.visibilityState === "visible" && document.hasFocus()) ||
+      appWindow.isForeground() ||
       typeof Notification === "undefined" ||
       Notification.permission !== "granted"
     )
@@ -189,7 +200,7 @@ export function startThreadNotifications(registry: AtomRegistry.AtomRegistry, ro
       trackNotification(environmentId, notification);
       notification.addEventListener("click", () => {
         notification.close();
-        window.focus();
+        appWindow.focus();
         void window.desktopBridge?.revealWindow().catch(() => undefined);
         void router.navigate({
           to: "/$environmentId/$threadId",

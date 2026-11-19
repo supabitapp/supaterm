@@ -6,20 +6,51 @@ import { expect, it, vi } from "vite-plus/test";
 
 import "~/index.css";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   stopWorkflowLabel: "environment-data:orchestration:stop-workflow",
   projection: null as unknown,
   projections: null as Map<string, unknown> | null,
-  navigate: vi.fn(),
-  openSideChatBeside: vi.fn(() => true),
+  navigate: fake(),
+  openSideChatBeside: fake(() => true),
   shells: [] as unknown[],
   projects: [] as unknown[],
   configs: new Map<string, unknown>(),
   showTooltips: false,
   canOperateThread: true,
-  command: vi.fn().mockResolvedValue({ _tag: "Success" }),
-  workflowCommand: vi.fn().mockResolvedValue({ _tag: "Success" }),
-  toast: vi.fn(),
+  command: fake().implement(async () => ({ _tag: "Success" })),
+  workflowCommand: fake().implement(async () => ({ _tag: "Success" })),
+  toast: fake(),
 }));
 
 vi.mock(import("@tanstack/react-router"), async (original) => ({
@@ -113,7 +144,7 @@ async function setup() {
   state.navigate.mockClear();
   state.openSideChatBeside.mockClear();
   state.command.mockClear();
-  state.workflowCommand.mockReset().mockResolvedValue({ _tag: "Success" });
+  state.workflowCommand.reset(async () => ({ _tag: "Success" }));
   state.toast.mockClear();
   state.projection = null;
   state.projections = null;

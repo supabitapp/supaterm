@@ -15,6 +15,37 @@ const target: FileSaveTarget = {
   relativePath: "file.txt",
 };
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 function setup() {
   vi.useFakeTimers();
   const state = {
@@ -22,7 +53,7 @@ function setup() {
     unsaved: null as string | null,
     onWritable: [] as Array<() => void>,
   };
-  const persist = vi.fn<FileSaveSessionDeps["persist"]>(async () => AsyncResult.success(undefined));
+  const persist = fake<FileSaveSessionDeps["persist"]>(async () => AsyncResult.success(undefined));
   const confirm = vi.fn((_target: FileSaveTarget, _contents: string) => true);
   const onPendingChange = vi.fn();
   const sessions = createFileSaveSessions({
@@ -104,7 +135,7 @@ describe("file save sessions", () => {
   it("does not queue a draft that a retired session is still writing", async () => {
     using h = setup();
     let finishWrite = () => {};
-    h.persist.mockImplementationOnce(
+    h.persist.implementOnce(
       () =>
         new Promise((resolve) => {
           finishWrite = () => resolve(AsyncResult.success(undefined));
@@ -123,7 +154,7 @@ describe("file save sessions", () => {
   it("writes a rejoining surface's edit last, over the released session's queued draft", async () => {
     using h = setup();
     let finishWrite = () => {};
-    h.persist.mockImplementationOnce(
+    h.persist.implementOnce(
       () =>
         new Promise((resolve) => {
           finishWrite = () => resolve(AsyncResult.success(undefined));
@@ -169,7 +200,7 @@ describe("file save sessions", () => {
   it("recovers a draft that a retired session gave up on when write access dropped", async () => {
     using h = setup();
     let finishWrite = () => {};
-    h.persist.mockImplementationOnce(
+    h.persist.implementOnce(
       () =>
         new Promise((resolve) => {
           finishWrite = () => resolve(AsyncResult.success(undefined));
@@ -209,7 +240,7 @@ describe("file save sessions", () => {
   it("requeues a draft whose retired flush failed on the live session", async () => {
     using h = setup();
     let failWrite = () => {};
-    h.persist.mockImplementationOnce(
+    h.persist.implementOnce(
       () =>
         new Promise((resolve) => {
           failWrite = () => resolve(AsyncResult.failure(Cause.fail("offline")));

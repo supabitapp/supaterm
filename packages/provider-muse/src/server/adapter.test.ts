@@ -1,6 +1,3 @@
-// @effect-diagnostics-next-line nodeBuiltinImport:off -- Mock native realpath to exercise macOS case correction on every platform.
-import * as NodeFSP from "node:fs/promises";
-import { vi } from "vite-plus/test";
 import { assert, describe, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { MspError } from "@muse-code/sdk";
@@ -37,7 +34,7 @@ import * as Stream from "effect/Stream";
 import * as TestProviderHost from "@supaterm/provider-testing/TestProviderHost";
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import type { MuseItem, MuseSubscriptionUsage } from "./protocol.ts";
-import type { MuseSdkHost } from "./sdk.ts";
+import { NativeRealPath, type MuseSdkHost } from "./sdk.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import type { ProviderUsageLimitsReport } from "@supaterm/provider-core/server/snapshot";
@@ -377,8 +374,6 @@ const approval = (turnId: string) => ({
   subject: { kind: "shell", command: "touch result.txt" },
 });
 
-vi.mock("node:fs/promises", { spy: true });
-
 describe("MuseAdapterV2", () => {
   it.effect("connects the thread's MCP credential on native start and resume", () =>
     Effect.gen(function* () {
@@ -569,7 +564,6 @@ describe("MuseAdapterV2", () => {
 
   it.effect("pins sessions and turns to native canonical case", () =>
     Effect.gen(function* () {
-      using _realpath = vi.spyOn(NodeFSP, "realpath").mockResolvedValue("/workspace/eevee");
       const fake = yield* makeFakeMuse();
       const policy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
         ...runtimePolicy,
@@ -594,6 +588,7 @@ describe("MuseAdapterV2", () => {
       Effect.scoped,
       Effect.provide(testLayer),
       Effect.provideService(HostProcess.Platform, "darwin"),
+      Effect.provideService(NativeRealPath, async () => "/workspace/eevee"),
     ),
   );
 

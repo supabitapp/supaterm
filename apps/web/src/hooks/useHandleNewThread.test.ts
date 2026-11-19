@@ -11,12 +11,14 @@ const testState = vi.hoisted(() => {
     defaultModelSelection: null,
     defaultRuntimeMode: "full-access" as RuntimeMode,
   };
-  let storedDraft: {
+  type StoredDraft = {
     readonly draftId: string;
     readonly environmentId: string;
     readonly promotedTo: null;
     readonly threadId: string;
-  } | null = null;
+  } | null;
+  let storedDraft: StoredDraft = null;
+  const upcomingDrafts: Array<StoredDraft> = [];
   let openDraftRoute: { readonly kind: "draft"; readonly draftId: string } | null = null;
   let draftsWithUserText = new Set<string>();
   const router = {
@@ -30,7 +32,9 @@ const testState = vi.hoisted(() => {
   };
   const draftStore = {
     getComposerDraft: vi.fn((draftId: string) => ({ draftId })),
-    getDraftSessionByLogicalProjectKey: vi.fn(() => storedDraft),
+    getDraftSessionByLogicalProjectKey: vi.fn(() =>
+      upcomingDrafts.length > 0 ? (upcomingDrafts.shift() ?? null) : storedDraft,
+    ),
     getDraftSession: vi.fn(() =>
       openDraftRoute === null
         ? null
@@ -65,6 +69,9 @@ const testState = vi.hoisted(() => {
     },
     hasUserText: (draft: { readonly draftId?: string } | null | undefined) =>
       draft?.draftId !== undefined && draftsWithUserText.has(draft.draftId),
+    queueStoredDrafts(...drafts: Array<StoredDraft>) {
+      upcomingDrafts.push(...drafts);
+    },
     giveUserText(draftId: string) {
       draftsWithUserText = new Set([...draftsWithUserText, draftId]);
     },
@@ -85,6 +92,7 @@ const testState = vi.hoisted(() => {
       },
     ) {
       storedDraft = nextStoredDraft;
+      upcomingDrafts.length = 0;
       openDraftRoute = null;
       draftsWithUserText = new Set();
       projectRemoved = false;
@@ -317,9 +325,7 @@ describe("useNewThreadHandler", () => {
       promotedTo: null,
       threadId: "thread-raced",
     };
-    testState.draftStore.getDraftSessionByLogicalProjectKey
-      .mockReturnValueOnce(null)
-      .mockReturnValueOnce(raced as never);
+    testState.queueStoredDrafts(null, raced);
     testState.giveUserText("draft-raced");
 
     const opened = await useNewThreadHandler()(

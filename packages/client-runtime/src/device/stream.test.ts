@@ -311,8 +311,11 @@ function recoveryFixture(platform: "ios" | "android" = "ios", preferMjpeg = true
   }
   vi.stubGlobal("WebSocket", Socket);
   const decoders: Decoder[] = [];
+  const decoderSupport: Array<() => Promise<{ supported: boolean }>> = [];
   class Decoder {
-    static isConfigSupported = vi.fn(async () => ({ supported: true }));
+    static isConfigSupported = vi.fn(
+      () => decoderSupport.shift()?.() ?? Promise.resolve({ supported: true }),
+    );
     state = "unconfigured";
     decodeQueueSize = 0;
     configure() {
@@ -336,7 +339,10 @@ function recoveryFixture(platform: "ios" | "android" = "ios", preferMjpeg = true
   vi.stubGlobal("EncodedVideoChunk", vi.fn());
   const videoBodies: ReadableStreamDefaultController<Uint8Array>[] = [];
   const signals: AbortSignal[] = [];
+  const responses: Array<() => Promise<Response>> = [];
   const fetch = vi.fn((url: string, init: RequestInit) => {
+    const queued = responses.shift();
+    if (queued) return queued();
     const signal = init.signal!;
     signals.push(signal);
     if (url.includes("/api?")) return Promise.resolve(Response.json({}));
@@ -403,8 +409,10 @@ function recoveryFixture(platform: "ios" | "android" = "ios", preferMjpeg = true
     sockets,
     signals,
     fetch,
+    responses,
     videoBodies,
     decoders,
+    decoderSupport,
     Decoder,
     drawImage,
     decodedFrame,
@@ -448,10 +456,10 @@ describe("shared device stream readiness and recovery", () => {
   });
 
   it("discards decoder support results and output from a previous Android socket", async () => {
-    const { client, sockets, sps, events, Decoder, decoders, decodedFrame, drawImage } =
+    const { client, sockets, sps, events, decoderSupport, decoders, decodedFrame, drawImage } =
       recoveryFixture("android");
     let resolveSupport!: (support: { supported: boolean }) => void;
-    Decoder.isConfigSupported.mockImplementationOnce(
+    decoderSupport.push(
       () =>
         new Promise((resolve) => {
           resolveSupport = resolve;
@@ -478,10 +486,10 @@ describe("shared device stream readiness and recovery", () => {
   });
 
   it("ignores an old AVCC response rejected after a new attempt is connected", async () => {
-    const { client, fetch, events } = recoveryFixture("ios", false);
+    const { client, responses, events } = recoveryFixture("ios", false);
     let resolveResponse!: (response: Response) => void;
-    fetch.mockImplementationOnce(() => Promise.resolve(new Response("prime")));
-    fetch.mockImplementationOnce(
+    responses.push(
+      () => Promise.resolve(new Response("prime")),
       () =>
         new Promise((resolve) => {
           resolveResponse = resolve;

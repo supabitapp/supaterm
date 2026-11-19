@@ -22,7 +22,7 @@ import { readEnvironmentScope } from "../state/session";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
-import { type CommandHandlers, registerCommands } from "./dispatcher";
+import { type CommandHandlers, type CommandScopeOptions, registerCommands } from "./dispatcher";
 
 const CHAT_ROUTE_ID = "/_chat";
 
@@ -38,7 +38,10 @@ function leavePullRequestsPage(router: AnyRouter) {
  * without a modal page over it. Everything is read at event time, so the scope
  * registers once; the route and the focused-pane DOM name the split pane to act on.
  */
-export function installChatRouteCommands(router: AnyRouter) {
+export function installChatRouteCommands(
+  router: AnyRouter,
+  options: Pick<CommandScopeOptions, "platform"> = {},
+) {
   const handleNewThread = createNewThreadHandler(router);
   const primaryEnvironmentId = () => appAtomRegistry.get(primaryEnvironmentIdAtom);
   const scratch = createScratchProjectActions({
@@ -139,6 +142,7 @@ export function installChatRouteCommands(router: AnyRouter) {
     !isCommandPaletteOpen();
 
   return registerCommands(commands, {
+    ...options,
     when,
     context: () => {
       const threadRef = readRouteThreadRef();

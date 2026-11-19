@@ -8,7 +8,7 @@ import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as ChildProcess from "effect/process/ChildProcess";
 
-import { createMuseSdkHost, makeMuseEnvironment } from "./sdk.ts";
+import { type createMuseSdkHost, makeMuseEnvironment } from "./sdk.ts";
 import { parseMuseVersion } from "./maintenance.ts";
 import {
   discoverMuseModels,
@@ -62,7 +62,7 @@ export const checkMuseProviderStatus = Effect.fn("checkMuseProviderStatus")(func
   settings: MuseSettings,
   environment?: NodeJS.ProcessEnv,
   cwd?: string,
-  createHost: typeof createMuseSdkHost = createMuseSdkHost,
+  createHost?: typeof createMuseSdkHost,
 ) {
   if (!settings.enabled) return yield* makePendingMuseProvider(settings);
   const checkedAt = DateTime.formatIso(yield* DateTime.now);

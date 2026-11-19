@@ -8,76 +8,100 @@ import * as Layer from "effect/Layer";
 import * as NodeEvents from "node:events";
 import { beforeEach, vi } from "vite-plus/test";
 
-const { fromPartition, sessions } = vi.hoisted(() => ({
-  fromPartition: vi.fn(),
-  sessions: new Map<
-    string,
-    {
-      readonly clearCache: ReturnType<typeof vi.fn>;
-      readonly clearStorageData: ReturnType<typeof vi.fn>;
-      readonly closeAllConnections: ReturnType<typeof vi.fn>;
-      readonly storagePath: string | null;
-      readonly getUserAgent: ReturnType<typeof vi.fn<() => string>>;
-      readonly setPermissionRequestHandler: ReturnType<typeof vi.fn>;
-      readonly setPermissionCheckHandler: ReturnType<typeof vi.fn>;
-      readonly setUserAgent: ReturnType<typeof vi.fn>;
-      readonly webRequest: { readonly onBeforeSendHeaders: ReturnType<typeof vi.fn> };
-    }
-  >(),
-}));
-
-const storage = vi.hoisted(() => ({ root: "" }));
-
-const { fromWebContents } = vi.hoisted(() => ({
-  fromWebContents: vi.fn<(webContents: unknown) => unknown>(() => null),
-}));
-
-const { appListeners } = vi.hoisted(() => ({
-  appListeners: new Map<string, (...args: unknown[]) => void>(),
-}));
-
-vi.mock("electron", () => ({
-  app: {
-    on: (eventName: string, listener: (...args: unknown[]) => void) => {
-      appListeners.set(eventName, listener);
-    },
-    removeListener: (eventName: string) => {
-      appListeners.delete(eventName);
-    },
-  },
-  BrowserWindow: { fromWebContents },
-  session: {
-    fromPartition,
-  },
-}));
-
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as BrowserSession from "./BrowserSession.ts";
 
-const { showMessageBox, showErrorBox } = vi.hoisted(() => ({
-  showMessageBox: vi.fn<
-    (
-      options: Electron.MessageBoxOptions,
-      owner?: Electron.BrowserWindow,
-    ) => number | Promise<number>
-  >(() => 1),
-  showErrorBox: vi.fn<(title: string, content: string) => void>(),
-}));
+const DEFAULT_USER_AGENT = "Mozilla/5.0 Electron/41.5.0 Supaterm/0.0.27";
+const storage = { root: "", userAgent: DEFAULT_USER_AGENT };
+const appListeners = new Map<string, (...args: unknown[]) => void>();
+const partitionsOpened: Array<string> = [];
+
+function makeFakeSession(partition: string) {
+  const state = { userAgent: storage.userAgent, clearStorageFailures: [] as Array<Error> };
+  const clearStorageDataCalls: Array<unknown> = [];
+  return {
+    state,
+    clearStorageDataCalls,
+    clearCache: () => Promise.resolve(),
+    clearStorageData: (options?: unknown) => {
+      clearStorageDataCalls.push(options);
+      const failure = state.clearStorageFailures.shift();
+      return failure ? Promise.reject(failure) : Promise.resolve();
+    },
+    closeAllConnections: () => Promise.resolve(),
+    storagePath:
+      storage.root !== "" && partition.startsWith("persist:")
+        ? `${storage.root}/Partitions/${partition}`
+        : null,
+    getUserAgent: () => state.userAgent,
+    setPermissionRequestHandler: vi.fn(),
+    setPermissionCheckHandler: vi.fn(),
+    setUserAgent: (next: string) => {
+      state.userAgent = next;
+    },
+    webRequest: { onBeforeSendHeaders: vi.fn() },
+  };
+}
+
+const sessions = new Map<string, ReturnType<typeof makeFakeSession>>();
+
+const native: BrowserSession.BrowserSessionNative = {
+  fromPartition: (partition) => {
+    partitionsOpened.push(partition);
+    const browserSession = makeFakeSession(partition);
+    sessions.set(partition, browserSession);
+    return browserSession as unknown as Electron.Session;
+  },
+  fromWebContents: () => null,
+};
+
+type MessageBoxResponder = (
+  options: Electron.MessageBoxOptions,
+  owner?: Electron.BrowserWindow,
+) => number | Promise<number>;
+const dialogResponder: { respond: MessageBoxResponder } = { respond: () => 1 };
+const dialogFake = {
+  showMessageBox: (options: Electron.MessageBoxOptions, owner?: Electron.BrowserWindow) =>
+    dialogResponder.respond(options, owner),
+};
+const showMessageBox = vi.spyOn(dialogFake, "showMessageBox");
+const showErrorBox = vi.fn<(title: string, content: string) => void>();
+const respondWith = (respond: MessageBoxResponder) => {
+  showMessageBox.mockClear();
+  dialogResponder.respond = respond;
+};
+const respondInOrder = (...responses: Array<number>) =>
+  respondWith(() => {
+    const response = responses.shift();
+    if (response === undefined) throw new Error("unexpected message box");
+    return response;
+  });
+
 const layerDialog = Layer.succeed(ElectronDialog.ElectronDialog, {
   pickFolder: () => Effect.die("unused"),
   pickFiles: () => Effect.die("unused"),
   showMessageBox: (options, owner) =>
     Effect.promise(async () => ({
-      response: await showMessageBox(options, owner),
+      response: await dialogFake.showMessageBox(options, owner),
       checkboxChecked: false,
     })),
   showErrorBox: (title, content) => Effect.sync(() => showErrorBox(title, content)),
 });
-const layer = BrowserSession.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, layerDialog, ElectronApp.layer),
-  ),
+const layerApp = Layer.mock(ElectronApp.ElectronApp)({
+  on: (eventName, listener) =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        appListeners.set(eventName, listener as unknown as (...args: unknown[]) => void);
+      }),
+      () =>
+        Effect.sync(() => {
+          appListeners.delete(eventName);
+        }),
+    ),
+});
+const layer = BrowserSession.layerWith(native).pipe(
+  Layer.provide(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, layerDialog, layerApp)),
 );
 
 const selfSignedCertificate = {
@@ -130,27 +154,10 @@ describe("BrowserSession", () => {
   beforeEach(() => {
     sessions.clear();
     appListeners.clear();
+    partitionsOpened.length = 0;
     storage.root = "";
-    showErrorBox.mockReset();
-    fromPartition.mockReset();
-    fromPartition.mockImplementation((partition: string) => {
-      const browserSession = {
-        clearCache: vi.fn(() => Promise.resolve()),
-        clearStorageData: vi.fn(() => Promise.resolve()),
-        closeAllConnections: vi.fn(() => Promise.resolve()),
-        storagePath:
-          storage.root !== "" && partition.startsWith("persist:")
-            ? `${storage.root}/Partitions/${partition}`
-            : null,
-        getUserAgent: vi.fn(() => "Mozilla/5.0 Electron/41.5.0 Supaterm/0.0.27"),
-        setPermissionRequestHandler: vi.fn(),
-        setPermissionCheckHandler: vi.fn(),
-        setUserAgent: vi.fn(),
-        webRequest: { onBeforeSendHeaders: vi.fn() },
-      };
-      sessions.set(partition, browserSession);
-      return browserSession;
-    });
+    storage.userAgent = DEFAULT_USER_AGENT;
+    showErrorBox.mockClear();
   });
 
   it.effect("derives deterministic partitions and memoizes sessions", () =>
@@ -163,7 +170,7 @@ describe("BrowserSession", () => {
 
       assert.strictEqual(partition, "persist:supaterm-preview-f051bb2c68cb7b2fe969");
       assert.strictEqual(first, second);
-      assert.strictEqual(fromPartition.mock.calls.length, 1);
+      assert.strictEqual(partitionsOpened.length, 1);
     }).pipe(Effect.provide(layer)),
   );
 
@@ -209,25 +216,7 @@ describe("BrowserSession", () => {
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Supaterm(Alpha)/0.0.33 Chrome/146.0.7680.216 Electron/41.5.0 Safari/537.36";
       const teamsUserAgent =
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Supaterm(Alpha)/0.0.33 Chrome/146.0.7680.216 Safari/537.36";
-      fromPartition.mockReset();
-      fromPartition.mockImplementation((partition: string) => {
-        let userAgent = nativeUserAgent;
-        const browserSession = {
-          clearCache: vi.fn(() => Promise.resolve()),
-          clearStorageData: vi.fn(() => Promise.resolve()),
-          closeAllConnections: vi.fn(() => Promise.resolve()),
-          storagePath: null,
-          getUserAgent: vi.fn(() => userAgent),
-          setPermissionRequestHandler: vi.fn(),
-          setPermissionCheckHandler: vi.fn(),
-          setUserAgent: vi.fn((next: string) => {
-            userAgent = next;
-          }),
-          webRequest: { onBeforeSendHeaders: vi.fn() },
-        };
-        sessions.set(partition, browserSession);
-        return browserSession;
-      });
+      storage.userAgent = nativeUserAgent;
 
       const browserSessions = yield* BrowserSession.BrowserSession;
       const partition = yield* browserSessions.getPartition("scope-a");
@@ -333,8 +322,7 @@ describe("BrowserSession", () => {
           );
         });
 
-      showMessageBox.mockReset();
-      showMessageBox.mockReturnValueOnce(0).mockReturnValueOnce(1);
+      respondInOrder(0, 1);
       assert.isTrue(yield* request("slack://open?team=T1"));
       assert.isFalse(yield* request("zoommtg://zoom.us/join"));
       assert.strictEqual(showMessageBox.mock.calls.length, 2);
@@ -370,8 +358,7 @@ describe("BrowserSession", () => {
       const checkClipboard = (origin: string) =>
         checkHandler(null, "clipboard-read", origin, {}) as boolean;
 
-      showMessageBox.mockReset();
-      showMessageBox.mockReturnValueOnce(0).mockReturnValueOnce(1);
+      respondInOrder(0, 1);
 
       assert.isFalse(checkClipboard("https://allowed.test"));
       assert.isTrue(yield* readClipboard("https://allowed.test/page"));
@@ -404,16 +391,17 @@ describe("BrowserSession", () => {
       assert.isUndefined(sessions.get(partition));
 
       yield* browserSessions.getSession("scope-untouched");
-      const other = yield* browserSessions.getSession("scope-other");
+      yield* browserSessions.getSession("scope-other");
+      const otherPartition = yield* browserSessions.getPartition("scope-other");
       yield* browserSessions.clearCookies([partition]);
 
       const created = sessions.get(partition);
       assert.isDefined(created);
-      assert.strictEqual(created.clearStorageData.mock.calls.length, 1);
-      assert.deepStrictEqual(created.clearStorageData.mock.calls[0]?.[0], {
+      assert.strictEqual(created.clearStorageDataCalls.length, 1);
+      assert.deepStrictEqual(created.clearStorageDataCalls[0], {
         storages: ["cookies", "localstorage", "indexdb", "serviceworkers", "cachestorage"],
       });
-      assert.strictEqual(vi.mocked(other.clearStorageData).mock.calls.length, 0);
+      assert.strictEqual(sessions.get(otherPartition)?.clearStorageDataCalls.length, 0);
     }).pipe(Effect.provide(layer)),
   );
 
@@ -424,8 +412,7 @@ describe("BrowserSession", () => {
       yield* browserSessions.getSession("scope-a");
       const browserSession = sessions.get(partition);
 
-      showMessageBox.mockReset();
-      showMessageBox.mockImplementation(trustCertificateButton);
+      respondWith(trustCertificateButton);
       const first = certificateError(browserSession, { url: "https://localhost:18443/" });
       assert.strictEqual(first.event.preventDefault.mock.calls.length, 1);
       assert.isTrue(yield* first.trusted);
@@ -446,8 +433,7 @@ describe("BrowserSession", () => {
       assert.isFalse(yield* otherSocket.trusted);
       assert.strictEqual(showMessageBox.mock.calls.length, 1);
 
-      showMessageBox.mockReset();
-      showMessageBox.mockReturnValue(1);
+      respondWith(() => 1);
       const otherPort = certificateError(browserSession, { url: "https://localhost:18444/" });
       assert.isFalse(yield* otherPort.trusted);
       const renewed = certificateError(browserSession, {
@@ -471,19 +457,17 @@ describe("BrowserSession", () => {
       const browserSession = sessions.get(partition);
       const url = "https://localhost:18443/";
 
-      showMessageBox.mockReset();
-      showMessageBox.mockImplementation(trustCertificateButton);
+      respondWith(trustCertificateButton);
       assert.isTrue(yield* certificateError(browserSession, { url }).trusted);
 
       yield* browserSessions.clearCache([partition]);
       assert.isTrue(yield* certificateError(browserSession, { url }).trusted);
       assert.strictEqual(showMessageBox.mock.calls.length, 1);
 
-      browserSession!.clearStorageData.mockRejectedValueOnce(new Error("disk busy"));
+      browserSession!.state.clearStorageFailures.push(new Error("disk busy"));
       const failure = yield* browserSessions.clearCookies([partition]).pipe(Effect.flip);
       assert.strictEqual(failure._tag, "BrowserSessionStorageClearError");
-      showMessageBox.mockReset();
-      showMessageBox.mockReturnValue(1);
+      respondWith(() => 1);
       assert.isFalse(yield* certificateError(browserSession, { url }).trusted);
       assert.strictEqual(showMessageBox.mock.calls.length, 1);
     }).pipe(Effect.provide(layer)),
@@ -499,8 +483,7 @@ describe("BrowserSession", () => {
         const incognito = yield* browserSessions.getPartition("scope-a", false);
         yield* browserSessions.getSession("scope-a");
         yield* browserSessions.getSession("scope-a", false);
-        showMessageBox.mockReset();
-        showMessageBox.mockImplementation(trustCertificateButton);
+        respondWith(trustCertificateButton);
         assert.isTrue(yield* certificateError(sessions.get(persistent), { url }).trusted);
         assert.isTrue(yield* certificateError(sessions.get(incognito), { url }).trusted);
         return { persistent, incognito };
@@ -513,8 +496,7 @@ describe("BrowserSession", () => {
         const browserSessions = yield* BrowserSession.BrowserSession;
         yield* browserSessions.getSession("scope-a");
         yield* browserSessions.getSession("scope-a", false);
-        showMessageBox.mockReset();
-        showMessageBox.mockReturnValue(1);
+        respondWith(() => 1);
         assert.isTrue(yield* certificateError(sessions.get(persistent), { url }).trusted);
         assert.strictEqual(showMessageBox.mock.calls.length, 0);
         assert.isFalse(yield* certificateError(sessions.get(incognito), { url }).trusted);
@@ -537,8 +519,7 @@ describe("BrowserSession", () => {
       const answered = new Promise<void>((resolve) => {
         answer = resolve;
       });
-      showMessageBox.mockReset();
-      showMessageBox.mockImplementation((options) => {
+      respondWith((options) => {
         Deferred.doneUnsafe(asked, Effect.void);
         return answered.then(() => trustCertificateButton(options));
       });
@@ -548,8 +529,7 @@ describe("BrowserSession", () => {
       answer();
       assert.isFalse(yield* pending.trusted);
 
-      showMessageBox.mockReset();
-      showMessageBox.mockReturnValue(1);
+      respondWith(() => 1);
       assert.isFalse(yield* certificateError(browserSession, { url }).trusted);
       assert.strictEqual(showMessageBox.mock.calls.length, 1);
       assert.isFalse(
@@ -573,8 +553,7 @@ describe("BrowserSession", () => {
           guest.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false }),
         (guest: NodeEvents.EventEmitter) => guest.emit("destroyed"),
       ]) {
-        showMessageBox.mockReset();
-        showMessageBox.mockImplementation(
+        respondWith(
           (options) =>
             new Promise((resolve) =>
               options.signal?.addEventListener("abort", () =>
@@ -603,12 +582,10 @@ describe("BrowserSession", () => {
       const browserSession = sessions.get(partition);
       const url = "https://localhost:18443/";
 
-      showMessageBox.mockReset();
-      showMessageBox.mockImplementation(trustCertificateButton);
+      respondWith(trustCertificateButton);
       assert.isFalse(yield* certificateError(browserSession, { url }).trusted);
       assert.strictEqual(showErrorBox.mock.calls.length, 1);
-      showMessageBox.mockReset();
-      showMessageBox.mockReturnValue(1);
+      respondWith(() => 1);
       assert.isFalse(yield* certificateError(browserSession, { url }).trusted);
       assert.strictEqual(showMessageBox.mock.calls.length, 1);
     }).pipe(Effect.scoped, Effect.provide(Layer.merge(layer, NodeServices.layer))),

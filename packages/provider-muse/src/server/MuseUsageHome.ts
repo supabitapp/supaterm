@@ -9,7 +9,7 @@ import * as Option from "effect/Option";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { SpawnExecutableResolution } from "@supaterm/shared/shell";
 
-import { createMuseSdkHostEffect } from "./sdk.ts";
+import { createMuseSdkHostEffect, type MuseSdkHost } from "./sdk.ts";
 
 export class MuseUsageHome extends Context.Service<
   MuseUsageHome,
@@ -23,50 +23,60 @@ export class MuseUsageHome extends Context.Service<
   }
 >()("@supaterm/provider-muse/server/MuseUsageHome") {}
 
-const make = Effect.gen(function* () {
-  const scope = yield* Effect.scope;
-  const cache = yield* Cache.makeWith(
-    Effect.fn("MuseUsageHome.initialize")(function* (input: {
-      readonly binaryPath: string;
-      readonly environment: NodeJS.ProcessEnv;
-    }) {
-      return yield* Effect.scoped(
-        Effect.gen(function* () {
-          const host = yield* Effect.acquireRelease(
-            createMuseSdkHostEffect({ ...input, readOnly: true, startupTimeoutMs: 5_000 }),
-            (host) => Effect.tryPromise(() => host.close()).pipe(Effect.ignore),
-            { interruptible: true },
-          );
-          return host.initializeResult.museHome;
+export const layerWith = <E, R>(
+  createHost: (
+    options: Parameters<typeof createMuseSdkHostEffect>[0],
+  ) => Effect.Effect<MuseSdkHost, E, R>,
+) =>
+  Layer.effect(
+    MuseUsageHome,
+    Effect.gen(function* () {
+      const scope = yield* Effect.scope;
+      const cache = yield* Cache.makeWith(
+        Effect.fn("MuseUsageHome.initialize")(function* (input: {
+          readonly binaryPath: string;
+          readonly environment: NodeJS.ProcessEnv;
+        }) {
+          return yield* Effect.scoped(
+            Effect.gen(function* () {
+              const host = yield* Effect.acquireRelease(
+                createHost({ ...input, readOnly: true, startupTimeoutMs: 5_000 }),
+                (host) => Effect.tryPromise(() => host.close()).pipe(Effect.ignore),
+                { interruptible: true },
+              );
+              return host.initializeResult.museHome;
+            }),
+          ).pipe(Effect.orElseSucceed(() => undefined));
         }),
-      ).pipe(Effect.orElseSucceed(() => undefined));
+        {
+          capacity: 32,
+          timeToLive: (exit) =>
+            Exit.isSuccess(exit) && exit.value ? Duration.infinity : Duration.seconds(30),
+        },
+      );
+      const resolve: MuseUsageHome["Service"]["resolve"] = Effect.fn("MuseUsageHome.resolve")(
+        function* ({ binaryPath, environment, awaitRefresh }) {
+          const key = {
+            binaryPath,
+            environment: Object.fromEntries(
+              Object.entries(environment).filter(([, value]) => value !== undefined),
+            ),
+          };
+          const settled = yield* Cache.getSuccess(cache, key);
+          if (Option.isSome(settled)) return settled;
+          const resolveExecutable = yield* SpawnExecutableResolution;
+          if (
+            resolveExecutable(binaryPath, yield* HostProcess.Platform, environment) === undefined
+          ) {
+            return Option.some(undefined);
+          }
+          if (awaitRefresh) return Option.some(yield* Cache.get(cache, key));
+          yield* Effect.forkIn(Cache.get(cache, key), scope, { startImmediately: true });
+          return yield* Cache.getSuccess(cache, key);
+        },
+      );
+      return MuseUsageHome.of({ resolve });
     }),
-    {
-      capacity: 32,
-      timeToLive: (exit) =>
-        Exit.isSuccess(exit) && exit.value ? Duration.infinity : Duration.seconds(30),
-    },
   );
-  const resolve: MuseUsageHome["Service"]["resolve"] = Effect.fn("MuseUsageHome.resolve")(
-    function* ({ binaryPath, environment, awaitRefresh }) {
-      const key = {
-        binaryPath,
-        environment: Object.fromEntries(
-          Object.entries(environment).filter(([, value]) => value !== undefined),
-        ),
-      };
-      const settled = yield* Cache.getSuccess(cache, key);
-      if (Option.isSome(settled)) return settled;
-      const resolveExecutable = yield* SpawnExecutableResolution;
-      if (resolveExecutable(binaryPath, yield* HostProcess.Platform, environment) === undefined) {
-        return Option.some(undefined);
-      }
-      if (awaitRefresh) return Option.some(yield* Cache.get(cache, key));
-      yield* Effect.forkIn(Cache.get(cache, key), scope, { startImmediately: true });
-      return yield* Cache.getSuccess(cache, key);
-    },
-  );
-  return MuseUsageHome.of({ resolve });
-});
 
-export const layer = Layer.effect(MuseUsageHome, make);
+export const layer = layerWith(createMuseSdkHostEffect);

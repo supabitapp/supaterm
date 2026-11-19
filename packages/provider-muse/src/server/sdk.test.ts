@@ -1,9 +1,7 @@
-// @effect-diagnostics-next-line nodeBuiltinImport:off -- Mock native realpath to exercise macOS case correction on every platform.
-import * as NodeFSP from "node:fs/promises";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- The Muse SDK spawns with Node's child_process, so the launch test quotes arguments the same way.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { spawnMspConnection, type MspHandshake, type SpawnedMspConnection } from "@muse-code/sdk";
+import type { MspHandshake, SpawnedMspConnection, spawnMspConnection } from "@muse-code/sdk";
 import { it } from "@effect/vitest";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { SpawnExecutableResolution } from "@supaterm/shared/shell";
@@ -20,12 +18,9 @@ import {
   museLaunch,
   museVerbatimPath,
   museWorkspaceRoot,
+  NativeRealPath,
   type MuseSdkHost,
 } from "./sdk.ts";
-
-vi.mock("node:fs/promises", { spy: true });
-
-vi.mock("@muse-code/sdk", () => ({ spawnMspConnection: vi.fn() }));
 
 function pending<A>() {
   let resolve = (_value: A) => {};
@@ -51,14 +46,18 @@ function mockSpawn() {
     return shutdown.promise;
   });
   const handshake = { initialize, close } as unknown as MspHandshake;
-  vi.mocked(spawnMspConnection).mockReturnValue(handshake);
+  const spawned: Array<Parameters<typeof spawnMspConnection>[0]> = [];
+  const spawn = (options: Parameters<typeof spawnMspConnection>[0]) => {
+    spawned.push(options);
+    return handshake;
+  };
   const ready = {
     connection: {},
     initializeResult: { grantedCapabilities: [], schema: { version: 1 } },
     exited: shutdown.promise,
     fingerprintWarning: { warning: "additive optional" },
   } as unknown as SpawnedMspConnection;
-  return { startup, shutdown, closing, initializing, initialize, close, ready };
+  return { startup, shutdown, closing, initializing, initialize, close, ready, spawn, spawned };
 }
 
 afterEach(() => {
@@ -88,13 +87,16 @@ describe("Muse SDK host", () => {
   it("selects full access explicitly and keeps other runtime modes sandboxed", async () => {
     for (const mode of ["approval-required", "auto-accept-edits", "auto", "full-access"] as const) {
       const fake = mockSpawn();
-      const running = createMuseSdkHost({
-        binaryPath: "/custom/muse",
-        cwd: "/workspace",
-        runtimeMode: mode,
-        environment: { PATH: "/bin" },
-      });
-      expect(vi.mocked(spawnMspConnection).mock.lastCall?.[0]).toMatchObject({
+      const running = createMuseSdkHost(
+        {
+          binaryPath: "/custom/muse",
+          cwd: "/workspace",
+          runtimeMode: mode,
+          environment: { PATH: "/bin" },
+        },
+        fake.spawn,
+      );
+      expect(fake.spawned.at(-1)).toMatchObject({
         command: "/custom/muse",
         cwd: "/workspace",
         args:
@@ -116,7 +118,7 @@ describe("Muse SDK host", () => {
     "rejects unsupported envelope version %s and awaits shutdown",
     async (version) => {
       const fake = mockSpawn();
-      const started = createMuseSdkHost({ binaryPath: "muse" });
+      const started = createMuseSdkHost({ binaryPath: "muse" }, fake.spawn);
       let settled = false;
       const outcome = started.catch((error: unknown) => {
         settled = true;
@@ -258,9 +260,11 @@ describe("Muse launch", () => {
 describe("Muse workspace root", () => {
   it.effect("uses native canonical case off Windows", () =>
     Effect.gen(function* () {
-      using _realpath = vi.spyOn(NodeFSP, "realpath").mockResolvedValue("/workspace/eevee");
       expect(yield* museWorkspaceRoot("/workspace/EEVEE")).toBe("/workspace/eevee");
-    }).pipe(Effect.provideService(HostProcess.Platform, "darwin")),
+    }).pipe(
+      Effect.provideService(HostProcess.Platform, "darwin"),
+      Effect.provideService(NativeRealPath, async () => "/workspace/eevee"),
+    ),
   );
 
   it("writes Windows paths in their verbatim form", () => {

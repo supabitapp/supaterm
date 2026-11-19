@@ -2,6 +2,7 @@ import * as OtelEnvironment from "@supaterm/shared/otelEnvironment";
 import { DEFAULT_SIGNAL_EXPORT } from "@supaterm/shared/observability";
 // @effect-diagnostics nodeBuiltinImport:off - CLI integration uses temporary Node paths.
 import * as NodeFS from "node:fs";
+import * as NodeHttp from "node:http";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
@@ -25,7 +26,6 @@ import * as Layer from "effect/Layer";
 import * as References from "effect/References";
 import * as Stream from "effect/Stream";
 import { Command } from "effect/cli";
-import { FetchHttpClient } from "effect/http";
 import * as TestClock from "effect/testing/TestClock";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
@@ -52,6 +52,31 @@ import { ProjectHasThreadsError } from "./project.ts";
 const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NodeCrypto.layer, NetService.layer);
 const runCli = (args: ReadonlyArray<string>) =>
   Command.runWith(cli, { version: "0.0.0" })(args).pipe(Effect.provide(layerCliRuntime));
+
+const serveLiveServer = (respond: (method: string | undefined) => Promise<unknown>) =>
+  Effect.acquireRelease(
+    Effect.callback<NodeHttp.Server>((resume) => {
+      const server = NodeHttp.createServer((request, response) => {
+        void respond(request.method).then((body) => {
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(JSON.stringify(body));
+        });
+      });
+      server.listen(0, "127.0.0.1", () => resume(Effect.succeed(server)));
+    }),
+    (server) =>
+      Effect.callback<void>((resume) => {
+        server.closeAllConnections();
+        server.close(() => resume(Effect.void));
+      }),
+  ).pipe(
+    Effect.flatMap((server) => {
+      const address = server.address();
+      return address === null || typeof address === "string"
+        ? Effect.die(new Error("Expected a TCP address"))
+        : Effect.succeed(address.port);
+    }),
+  );
 
 const makeConfig = (baseDir: string) =>
   Effect.gen(function* () {
@@ -142,44 +167,41 @@ it.effect.each(["snapshot", "mutation"] as const)(
       const baseDir = NodePath.join(root, "state");
       const workspaceRoot = NodePath.join(root, "workspace");
       yield* fs.makeDirectory(workspaceRoot);
-      yield* persistServerRuntimeState({
-        path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
-        state: yield* makePersistedServerRuntimeState({
-          config: { host: "127.0.0.1", devUrl: undefined },
-          port: 3_773,
-        }),
-      });
       const now = "2026-01-01T00:00:00.000Z";
       const requestReceived = Promise.withResolvers<void>();
       const releaseResponse = Promise.withResolvers<void>();
       let snapshotRequests = 0;
       let mutations = 0;
-      const fetch: typeof globalThis.fetch = async (_input, init) => {
-        const isMutation = init?.method === "POST";
+      const port = yield* serveLiveServer(async (method) => {
+        const isMutation = method === "POST";
         if (isMutation) mutations++;
         else snapshotRequests++;
         if (slowRequest === "mutation" ? isMutation : !isMutation && snapshotRequests === 2) {
           requestReceived.resolve();
           await releaseResponse.promise;
         }
-        return Response.json(
-          isMutation
-            ? {
-                id: "live-project",
-                title: NodePath.basename(workspaceRoot),
-                workspaceRoot,
-                defaultModelSelection: null,
-                scripts: [],
-                createdAt: now,
-                updatedAt: now,
-                deletedAt: null,
-              }
-            : { projects: [], updatedAt: now },
-        );
-      };
+        return isMutation
+          ? {
+              id: "live-project",
+              title: NodePath.basename(workspaceRoot),
+              workspaceRoot,
+              defaultModelSelection: null,
+              scripts: [],
+              createdAt: now,
+              updatedAt: now,
+              deletedAt: null,
+            }
+          : { projects: [], updatedAt: now };
+      });
+      yield* persistServerRuntimeState({
+        path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
+        state: yield* makePersistedServerRuntimeState({
+          config: { host: "127.0.0.1", devUrl: undefined },
+          port,
+        }),
+      });
 
       const add = yield* runCli(["project", "add", workspaceRoot, "--base-dir", baseDir]).pipe(
-        Effect.provideService(FetchHttpClient.Fetch, fetch),
         Effect.forkChild,
       );
       yield* Effect.promise(() => requestReceived.promise);
@@ -200,23 +222,21 @@ it.effect("does not send a token to whatever took over a dead server's port", ()
     const baseDir = NodePath.join(root, "state");
     const workspaceRoot = NodePath.join(root, "workspace");
     yield* fs.makeDirectory(workspaceRoot);
+    let requests = 0;
+    const port = yield* serveLiveServer(async () => {
+      requests++;
+      return { projects: [], updatedAt: "2026-01-01T00:00:00.000Z" };
+    });
     const state = yield* makePersistedServerRuntimeState({
       config: { host: "127.0.0.1", devUrl: undefined },
-      port: 3_773,
+      port,
     });
     yield* persistServerRuntimeState({
       path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
       state: { ...state, pid: 4_194_305 },
     });
-    let requests = 0;
-    const fetch: typeof globalThis.fetch = async () => {
-      requests++;
-      return Response.json({ projects: [], updatedAt: "2026-01-01T00:00:00.000Z" });
-    };
 
-    yield* runCli(["project", "add", workspaceRoot, "--base-dir", baseDir]).pipe(
-      Effect.provideService(FetchHttpClient.Fetch, fetch),
-    );
+    yield* runCli(["project", "add", workspaceRoot, "--base-dir", baseDir]);
 
     assert.equal(requests, 0);
     assert.equal((yield* readProjects(baseDir)).projects[0]?.workspaceRoot, workspaceRoot);

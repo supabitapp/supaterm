@@ -30,7 +30,10 @@ class TestRow {
   attributes: { name: string; value: string }[] = [];
   children: TestRow[] = [];
   clones: TestRow[] = [];
-  remove = vi.fn();
+  detach: (() => void) | null = null;
+  remove() {
+    this.detach?.();
+  }
   animations: TestAnimation[] = [];
   constructor(
     readonly name: string,
@@ -87,9 +90,9 @@ function fixture(rows: TestRow[], viewportHeight?: number) {
     getClientRects: () => [parent.getBoundingClientRect()],
     append(node: TestRow) {
       parent.children.push(node);
-      node.remove.mockImplementation(() => {
+      node.detach = () => {
         parent.children = parent.children.filter((child) => child !== node);
-      });
+      };
     },
   };
   function layout(next: TestRow[]) {

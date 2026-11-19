@@ -16,15 +16,46 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   sessions: new Map<string, Pick<AuthSessionState, "authenticated" | "scopes">>(),
-  mint: vi.fn(),
-  download: vi.fn(),
-  png: vi.fn(),
-  showMenu: vi.fn(),
-  openFile: vi.fn(),
-  clipboard: vi.fn(),
-  copyText: vi.fn(),
+  mint: fake(),
+  download: fake(),
+  png: fake(),
+  showMenu: fake(),
+  openFile: fake(),
+  clipboard: fake(),
+  copyText: fake(),
   menuFinished: null as (() => void) | null,
 }));
 
@@ -122,19 +153,19 @@ function openMenu(source: MediaActionSource) {
 beforeEach(() => {
   state.sessions.clear();
   state.sessions.set(environmentId, denied);
-  state.mint
-    .mockReset()
-    .mockResolvedValue(AsyncResult.success({ relativeUrl: "/api/assets/image.png", expiresAt: 1 }));
-  state.download.mockReset().mockResolvedValue(undefined);
-  state.png.mockReset().mockResolvedValue(new Blob(["png"], { type: "image/png" }));
-  state.showMenu.mockReset().mockResolvedValue(null);
-  state.openFile.mockReset();
-  state.copyText.mockReset().mockResolvedValue(true);
+  state.mint.reset(async () =>
+    AsyncResult.success({ relativeUrl: "/api/assets/image.png", expiresAt: 1 }),
+  );
+  state.download.reset(async () => undefined);
+  state.png.reset(async () => new Blob(["png"], { type: "image/png" }));
+  state.showMenu.reset(async () => null);
+  state.openFile.reset();
+  state.copyText.reset(async () => true);
   state.menuFinished = null;
   class TestClipboardItem {
     constructor(readonly items: Record<string, Promise<Blob>>) {}
   }
-  state.clipboard.mockReset().mockImplementation(async (items: TestClipboardItem[]) => {
+  state.clipboard.reset(async (items: TestClipboardItem[]) => {
     await Promise.all(items.flatMap((item) => Object.values(item.items)));
   });
   vi.stubGlobal("ClipboardItem", TestClipboardItem);
@@ -170,9 +201,9 @@ it.each(["save", "copy-image", "open-file"])(
     state.sessions.set(environmentId, granted);
     const choice = deferred<string>();
     const completed = deferred<void>();
-    state.showMenu.mockReturnValue(choice.promise);
+    state.showMenu.implement(() => choice.promise);
     state.menuFinished = () => completed.resolve();
-    state.openFile.mockImplementation(() => completed.resolve());
+    state.openFile.implement(() => completed.resolve());
     openMenu(hostSource());
 
     state.sessions.set(environmentId, denied);

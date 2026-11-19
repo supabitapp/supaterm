@@ -23,6 +23,7 @@ const state = vi.hoisted(() => ({
   afterGitAction: undefined as (() => void) | undefined,
   statusRefreshes: 0,
   readRefs: vi.fn(),
+  refsResult: Promise.resolve<unknown>(undefined),
   cachedRefs: [] as VcsListRefsResult["refs"],
 }));
 
@@ -83,7 +84,10 @@ vi.mock("./threads", () => ({
 }));
 vi.mock("./vcs", () => ({
   vcsEnvironment: {
-    readRefs: state.readRefs,
+    readRefs: (...args: ReadonlyArray<unknown>) => {
+      state.readRefs(...args);
+      return state.refsResult;
+    },
     refreshStatus: async () => {
       state.statusRefreshes += 1;
       return AsyncResult.success({ refName: state.branch });
@@ -259,7 +263,7 @@ describe("automatic feature branch refs", () => {
           },
         ]
       : [];
-    state.readRefs.mockReturnValue(request.promise.then(AsyncResult.success));
+    state.refsResult = request.promise.then(AsyncResult.success);
     let settled = false;
     const refresh = useSelectedThreadGitActions()
       .refreshSelectedThreadBranches()
@@ -295,7 +299,7 @@ describe("automatic feature branch refs", () => {
 
   it("reports lookup failure instead of returning empty refs", async () => {
     state.results = [];
-    state.readRefs.mockResolvedValue(
+    state.refsResult = Promise.resolve(
       AsyncResult.failure(Cause.fail(new Error("Cannot list refs"))),
     );
     expect(await useSelectedThreadGitActions().refreshSelectedThreadBranches()).toBeNull();

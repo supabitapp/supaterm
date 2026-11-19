@@ -8,14 +8,45 @@ import { page, userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../../test/render";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   result: null as { readonly agents: ReadonlyArray<AcpRegistrySearchAgent> } | null,
   error: null as string | null,
   isPending: false,
   canManage: true,
-  refresh: vi.fn(),
-  search: vi.fn(),
-  prepare: vi.fn(),
+  refresh: fake(),
+  search: fake(),
+  prepare: fake(),
 }));
 
 vi.mock(import("../../state/server"), async (original) => {
@@ -100,12 +131,12 @@ function setup() {
   state.result = null;
   state.error = null;
   state.isPending = false;
-  state.refresh.mockReset();
-  state.search.mockReset();
-  state.prepare.mockReset().mockResolvedValue({
+  state.refresh.reset();
+  state.search.reset();
+  state.prepare.reset(async () => ({
     _tag: "Success",
     value: { agentId: "gemini", version: "1.2.3", distribution: "npx", prepared: true },
-  });
+  }));
 }
 
 it("rechecks the grant before preparing an agent", async () => {

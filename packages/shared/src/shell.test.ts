@@ -25,6 +25,7 @@ import {
   type CommandAvailabilityChecker,
   isCommandAvailable,
   listLoginShellCandidates,
+  makeWindowsEnvironmentProbe,
   mergePathEntries,
   mergePathValues,
   npmShimExecutable,
@@ -39,22 +40,21 @@ import {
   SpawnExecutableResolution,
   WindowsShellEnvironment,
   withPathDirectoryListings,
+  type WindowsEnvironmentProbeSpawn,
   type WindowsShellEnvironmentReader,
   XcodeGitLocation,
 } from "./shell.ts";
 
 const decodeDesktopHostMessage = Schema.decodeUnknownSync(DesktopHostTelemetryMessage);
 
-const nativeProbe = vi.hoisted(() => ({
-  execFile: vi.fn<typeof import("node:child_process").execFile>(),
-  original: undefined as unknown as typeof import("node:child_process").execFile,
-}));
-
-vi.mock("node:child_process", async (importOriginal) => {
-  const original = await importOriginal<typeof import("node:child_process")>();
-  nativeProbe.original = original.execFile;
-  return { ...original, execFile: nativeProbe.execFile.mockImplementation(original.execFile) };
-});
+const recordingSpawn = (spawn: (file: string) => ReturnType<WindowsEnvironmentProbeSpawn>) => {
+  const files: Array<string> = [];
+  const probe = makeWindowsEnvironmentProbe((file) => {
+    files.push(file);
+    return spawn(file);
+  });
+  return { files, probe };
+};
 
 const withWindowsEnvironmentMocks = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
@@ -292,26 +292,21 @@ describe("readEnvironmentFromWindowsShell", () => {
   effectIt.layer(NodeServices.layer)("synchronous spawn failures", (it) => {
     it.effect("tries both shells and preserves baseline PATH repair", () =>
       Effect.gen(function* () {
-        const execFile = nativeProbe.execFile;
-        execFile.mockImplementationOnce(() => {
-          throw new Error("spawn EPERM");
+        const errors = [new Error("spawn EPERM"), new Error("spawn EINVAL")];
+        const { files, probe } = recordingSpawn(() => {
+          throw errors.shift() ?? new Error("Unexpected spawn");
         });
-        execFile.mockImplementationOnce(() => {
-          throw new Error("spawn EINVAL");
-        });
-        try {
-          const patch = yield* resolveWindowsEnvironment({
-            PATH: "C:\\Windows",
-            APPDATA: "C:\\Roaming",
-          }).pipe(Effect.provideService(CommandAvailability, () => Effect.succeed(true)));
-          expect(patch).toEqual({ PATH: "C:\\Windows;C:\\Roaming\\npm" });
-          expect(execFile.mock.calls.slice(-2).map(([file]) => file)).toEqual([
-            "pwsh.exe",
-            "powershell.exe",
-          ]);
-        } finally {
-          execFile.mockClear();
-        }
+        const patch = yield* resolveWindowsEnvironment({
+          PATH: "C:\\Windows",
+          APPDATA: "C:\\Roaming",
+        }).pipe(
+          Effect.provideService(WindowsShellEnvironment, (names, options) =>
+            readEnvironmentFromWindowsShell(names, options, probe),
+          ),
+          Effect.provideService(CommandAvailability, () => Effect.succeed(true)),
+        );
+        expect(patch).toEqual({ PATH: "C:\\Windows;C:\\Roaming\\npm" });
+        expect(files).toEqual(["pwsh.exe", "powershell.exe"]);
       }),
     );
   });
@@ -338,25 +333,17 @@ describe("readEnvironmentFromWindowsShell", () => {
       Effect.gen(function* () {
         const started = Promise.withResolvers<void>();
         const kill = vi.fn(() => true);
-        const child = { kill, unref: vi.fn() } as unknown as ReturnType<
-          typeof import("node:child_process").execFile
-        >;
-        const execFile = nativeProbe.execFile;
-        execFile.mockClear();
-        execFile.mockImplementationOnce(() => {
+        const { files, probe } = recordingSpawn(() => {
           started.resolve();
-          return child;
+          return { kill, unref: () => {} };
         });
-        try {
-          const fiber = yield* readEnvironmentFromWindowsShell(["PATH"]).pipe(Effect.forkChild);
-          yield* Effect.promise(() => started.promise);
-          yield* Fiber.interrupt(fiber);
-          expect(kill).toHaveBeenCalledTimes(1);
-          expect(execFile).toHaveBeenCalledTimes(1);
-          expect(execFile.mock.calls[0]?.[0]).toBe("pwsh.exe");
-        } finally {
-          execFile.mockClear();
-        }
+        const fiber = yield* readEnvironmentFromWindowsShell(["PATH"], {}, probe).pipe(
+          Effect.forkChild,
+        );
+        yield* Effect.promise(() => started.promise);
+        yield* Fiber.interrupt(fiber);
+        expect(kill).toHaveBeenCalledTimes(1);
+        expect(files).toEqual(["pwsh.exe"]);
       }),
   );
 
@@ -364,25 +351,17 @@ describe("readEnvironmentFromWindowsShell", () => {
     Effect.gen(function* () {
       const stdout = { destroy: vi.fn() };
       const unref = vi.fn();
-      const child = { kill: vi.fn(() => true), stdout, unref } as unknown as ReturnType<
-        typeof import("node:child_process").execFile
-      >;
-      const execFile = nativeProbe.execFile;
-      execFile.mockClear();
-      execFile.mockImplementation(() => child);
-      try {
-        const fiber = yield* readEnvironmentFromWindowsShell(["PATH"]).pipe(Effect.forkChild);
-        yield* Effect.yieldNow;
-        yield* TestClock.adjust("6 seconds");
-        expect(execFile.mock.calls.map(([file]) => file)).toEqual(["pwsh.exe", "powershell.exe"]);
-        yield* TestClock.adjust("6 seconds");
-        expect(yield* Fiber.join(fiber)).toEqual({});
-        expect(stdout.destroy).toHaveBeenCalledTimes(2);
-        expect(unref).toHaveBeenCalledTimes(2);
-      } finally {
-        execFile.mockReset();
-        execFile.mockImplementation(nativeProbe.original);
-      }
+      const { files, probe } = recordingSpawn(() => ({ kill: () => true, stdout, unref }));
+      const fiber = yield* readEnvironmentFromWindowsShell(["PATH"], {}, probe).pipe(
+        Effect.forkChild,
+      );
+      yield* Effect.yieldNow;
+      yield* TestClock.adjust("6 seconds");
+      expect(files).toEqual(["pwsh.exe", "powershell.exe"]);
+      yield* TestClock.adjust("6 seconds");
+      expect(yield* Fiber.join(fiber)).toEqual({});
+      expect(stdout.destroy).toHaveBeenCalledTimes(2);
+      expect(unref).toHaveBeenCalledTimes(2);
     }),
   );
 

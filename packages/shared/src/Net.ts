@@ -45,7 +45,11 @@ export class NetService extends Context.Service<NetService, NetServiceShape>()(
 ) {}
 
 /** @public */
-export const make = () => {
+export const make = ({
+  listen = (server: NodeNet.Server, options: NodeNet.ListenOptions) => {
+    server.listen(options);
+  },
+} = {}) => {
   const canListenOnHost: (port: number, host: string) => Effect.Effect<boolean> = (
     port: number,
     host: string,
@@ -79,7 +83,7 @@ export const make = () => {
         });
       });
 
-      server.listen({ host, port });
+      listen(server, { host, port });
 
       return Effect.sync(() => {
         closeServer(server);

@@ -11,34 +11,13 @@ import { copySnapshot } from "./copySnapshot";
 it.each([false, true])(
   "preserves image bytes and snapshot metadata, custom format rejected: %s",
   async (rejectCustom) => {
-    class Item {
-      constructor(readonly data: Record<string, Blob | Promise<Blob>>) {}
-    }
-    let clipboard: Item | undefined;
-    const write = async ([item]: Item[]) => {
-      if (rejectCustom && item?.data[COMPOSER_CONTEXT_CLIPBOARD_MIME])
+    let clipboard: { data: Record<string, Blob | Promise<Blob>> } | undefined;
+    const write = async (data: Record<string, Blob | Promise<Blob>>) => {
+      if (rejectCustom && data[COMPOSER_CONTEXT_CLIPBOARD_MIME])
         throw new Error("Unsupported format");
-      clipboard = item;
-      await Promise.all(Object.values(item!.data));
+      clipboard = { data };
+      await Promise.all(Object.values(data));
     };
-    const originals = {
-      navigator: Object.getOwnPropertyDescriptor(globalThis, "navigator"),
-      ClipboardItem: Object.getOwnPropertyDescriptor(globalThis, "ClipboardItem"),
-    };
-    using _globals = {
-      [Symbol.dispose]() {
-        for (const key of ["navigator", "ClipboardItem"] as const) {
-          const descriptor = originals[key];
-          if (descriptor) Object.defineProperty(globalThis, key, descriptor);
-          else Reflect.deleteProperty(globalThis, key);
-        }
-      },
-    };
-    Object.defineProperty(globalThis, "navigator", {
-      configurable: true,
-      value: { clipboard: { write } },
-    });
-    Object.defineProperty(globalThis, "ClipboardItem", { configurable: true, value: Item });
     const fragment = encodeComposerContextFragment({
       version: 1,
       source: { environmentId: EnvironmentId.make("snapshot-source") },
@@ -63,7 +42,7 @@ it.each([false, true])(
       ],
     })!;
     const image = "data:image/png;base64,AQID";
-    await copySnapshot(image, "Snapshot", fragment);
+    await copySnapshot(image, "Snapshot", fragment, { write });
     const png = await clipboard!.data["image/png"]!;
     expect(png.type).toBe("image/png");
     expect([...new Uint8Array(await png.arrayBuffer())]).toEqual([1, 2, 3]);

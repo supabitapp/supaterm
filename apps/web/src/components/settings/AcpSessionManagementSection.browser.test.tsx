@@ -13,17 +13,48 @@ import { userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../../test/render";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const commands = vi.hoisted(() => ({
-  list: vi.fn(),
-  import: vi.fn(),
-  delete: vi.fn(),
-  listProviders: vi.fn(),
-  setProvider: vi.fn(),
-  disableProvider: vi.fn(),
-  logout: vi.fn(),
+  list: fake(),
+  import: fake(),
+  delete: fake(),
+  listProviders: fake(),
+  setProvider: fake(),
+  disableProvider: fake(),
+  logout: fake(),
 }));
 const grants = vi.hoisted(() => ({ scopes: new Set<string>() }));
-const dialogs = vi.hoisted(() => ({ confirm: vi.fn() }));
+const dialogs = vi.hoisted(() => ({ confirm: fake() }));
 
 vi.mock(import("~/state/session"), async (original) => ({
   ...(await original()),
@@ -128,7 +159,7 @@ async function renderSection(options: { canList?: boolean; projects?: Projects }
 
 function setup() {
   grants.scopes = new Set(["orchestration:read", "orchestration:operate", "providers:manage"]);
-  commands.list.mockReset().mockResolvedValue({
+  commands.list.reset(async () => ({
     _tag: "Success",
     value: {
       sessions: [session],
@@ -137,16 +168,16 @@ function setup() {
       canResume: true,
       canDelete: true,
     },
-  });
-  commands.import.mockReset().mockResolvedValue({
+  }));
+  commands.import.reset(async () => ({
     _tag: "Success",
     value: { threadId: ThreadId.make("thread-imported"), imported: true },
-  });
-  commands.delete.mockReset().mockResolvedValue({
+  }));
+  commands.delete.reset(async () => ({
     _tag: "Success",
     value: { deleted: true },
-  });
-  commands.listProviders.mockReset().mockResolvedValue({
+  }));
+  commands.listProviders.reset(async () => ({
     _tag: "Success",
     value: {
       providers: [
@@ -158,20 +189,20 @@ function setup() {
         },
       ],
     },
-  });
-  commands.setProvider.mockReset().mockResolvedValue({
+  }));
+  commands.setProvider.reset(async () => ({
     _tag: "Success",
     value: { configured: true },
-  });
-  commands.disableProvider.mockReset().mockResolvedValue({
+  }));
+  commands.disableProvider.reset(async () => ({
     _tag: "Success",
     value: { disabled: true },
-  });
-  commands.logout.mockReset().mockResolvedValue({
+  }));
+  commands.logout.reset(async () => ({
     _tag: "Success",
     value: { loggedOut: true },
-  });
-  dialogs.confirm.mockReset().mockResolvedValue(true);
+  }));
+  dialogs.confirm.reset(async () => true);
 }
 
 describe("AcpSessionManagementSection", () => {
@@ -189,7 +220,7 @@ describe("AcpSessionManagementSection", () => {
 
   it("keeps the sign-in when log out is declined", async () => {
     setup();
-    dialogs.confirm.mockResolvedValueOnce(false);
+    dialogs.confirm.implementOnce(async () => false);
     await using screen = await renderSection();
     await screen.click("Log out");
 
@@ -241,7 +272,7 @@ it.each([
   "does not $blocked a session while its $running is still running",
   async ({ running, blocked }) => {
     setup();
-    commands[running].mockReturnValueOnce(new Promise(() => {}));
+    commands[running].implementOnce(() => new Promise(() => {}));
     await using screen = await renderSection();
     await screen.click("List sessions");
     const target = {
@@ -270,7 +301,7 @@ it.each(["Save", "Disable"])("keeps other provider edits through a %s refetch", 
     current: { apiType: "openai", baseUrl: "https://api.example.test/v1" },
   }));
   const response = { _tag: "Success" as const, value: { providers } };
-  commands.listProviders.mockResolvedValue(response);
+  commands.listProviders.implement(async () => response);
   await using screen = await renderSection();
   await screen.click("List providers");
   const input = (label: string) =>
@@ -283,13 +314,13 @@ it.each(["Save", "Disable"])("keeps other provider edits through a %s refetch", 
   const reload = new Promise<typeof response>((resolve) => {
     resolveReload = resolve;
   });
-  commands.listProviders.mockReturnValueOnce(reload);
+  commands.listProviders.implementOnce(() => reload);
   let resolveMutation!: () => void;
   const mutation = new Promise<void>((resolve) => {
     resolveMutation = resolve;
   });
   const command = action === "Save" ? commands.setProvider : commands.disableProvider;
-  command.mockReturnValueOnce(
+  command.implementOnce(() =>
     mutation.then(() => ({
       _tag: "Success",
       value: action === "Save" ? { configured: true } : { disabled: true },
@@ -351,10 +382,10 @@ it.each([true, false])(
   async (canList) => {
     setup();
     const second = { id: ProjectId.make("second"), title: "Second", workspaceRoot: "/second" };
-    commands.list.mockResolvedValue({
+    commands.list.implement(async () => ({
       _tag: "Success",
       value: { sessions: [session], nextCursor: "page-2" },
-    });
+    }));
     await using screen = await renderSection({ canList, projects: [project, second] });
     await screen.getByRole("combobox").click();
     if (canList) {
@@ -442,10 +473,11 @@ it.each([true, false])(
 it("ignores a late listing after project replacement", async () => {
   setup();
   let finish!: (value: unknown) => void;
-  commands.list.mockReturnValueOnce(
-    new Promise((resolve) => {
-      finish = resolve;
-    }),
+  commands.list.implementOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
   );
   await using screen = await renderSection();
   await screen.click("List sessions");
@@ -462,7 +494,7 @@ it.each(["Save", "Disable"])("does not refetch the old project after a late %s",
   setup();
   const command = action === "Save" ? commands.setProvider : commands.disableProvider;
   let finish!: () => void;
-  command.mockReturnValueOnce(
+  command.implementOnce(() =>
     new Promise<void>((resolve) => {
       finish = resolve;
     }).then(() => ({
@@ -483,7 +515,7 @@ it.each(["Save", "Disable"])("does not refetch the old project after a late %s",
 it("keeps logout pending across project replacement and clears replacement sessions", async () => {
   setup();
   let finish!: () => void;
-  commands.logout.mockReturnValueOnce(
+  commands.logout.implementOnce(() =>
     new Promise<void>((resolve) => {
       finish = resolve;
     }).then(() => ({

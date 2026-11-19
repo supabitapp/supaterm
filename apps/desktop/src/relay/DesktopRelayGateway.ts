@@ -36,7 +36,9 @@ export class DesktopRelayGateway extends Context.Service<
 
 const OWNER = "desktop";
 
-const make = Effect.gen(function* () {
+export const makeWith = Effect.fn("DesktopRelayGateway.make")(function* (
+  openRelay: typeof openLoopbackRelay,
+) {
   const runFork = Effect.runForkWith(yield* Effect.context<never>());
   const listeners = new Set<(change: DesktopRelayViaChange) => Effect.Effect<void>>();
   const publish = (address: string, via: TunnelVia | undefined) => {
@@ -45,7 +47,7 @@ const make = Effect.gen(function* () {
   const pool = createLoopbackRelayPool({
     limit: 64,
     open: (address, relayUrl, directUrls, report) =>
-      openLoopbackRelay(address, {
+      openRelay(address, {
         relayUrl,
         directUrls,
         onVia: report,
@@ -85,4 +87,7 @@ const make = Effect.gen(function* () {
   return DesktopRelayGateway.of({ start, stop, subscribe });
 });
 
-export const layer = Layer.effect(DesktopRelayGateway, make);
+export const layerWith = (openRelay: typeof openLoopbackRelay) =>
+  Layer.effect(DesktopRelayGateway, makeWith(openRelay));
+
+export const layer = layerWith(openLoopbackRelay);

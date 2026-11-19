@@ -483,9 +483,15 @@ const isNoSuchProcess = (cause: unknown) =>
 const isCommandNotFound = (error: ProcessRunner.ProcessSpawnError) =>
   PlatformError.isPlatformError(error.cause) && error.cause.reason._tag === "NotFound";
 
+export const SignalProcessGroup = Context.Reference<typeof signalProcessGroup>(
+  "supaterm/preview/PortScanner/SignalProcessGroup",
+  { defaultValue: () => signalProcessGroup },
+);
+
 /** @public */
 export const make = Effect.gen(function* PortDiscoveryMake() {
   const processRunner = yield* ProcessRunner.ProcessRunner;
+  const signalGroupProcesses = yield* SignalProcessGroup;
   const fileSystem = yield* FileSystem.FileSystem;
   const hostPlatform = yield* HostProcess.Platform;
   const listenerDiscovery = (yield* HostProcess.Environment)[PORT_DISCOVERY_ENV] !== "0";
@@ -1140,7 +1146,7 @@ export const make = Effect.gen(function* PortDiscoveryMake() {
     const signalGroup = (signal: "SIGTERM" | "SIGKILL") =>
       Effect.suspend(() => {
         try {
-          signalProcessGroup(group, signal);
+          signalGroupProcesses(group, signal);
           return Effect.succeed(true);
         } catch (cause) {
           return isNoSuchProcess(cause)

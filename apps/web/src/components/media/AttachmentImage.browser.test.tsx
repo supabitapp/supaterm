@@ -1,18 +1,59 @@
 import { act, render, type Screen } from "../../../test/render";
 import { expect, it, vi } from "vite-plus/test";
 import { AttachmentImage } from "./AttachmentImage";
-import { decodeImagePreview } from "../files/decodeImagePreview";
 
-vi.mock("../files/decodeImagePreview", () => ({
-  decodeImagePreview: vi.fn(),
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
 }));
+const decodeImagePreview = vi.hoisted(() =>
+  fake<(src: string, heif: boolean, signal: AbortSignal) => Promise<Blob>>(),
+);
+vi.mock("../files/decodeImagePreview", () => ({ decodeImagePreview }));
 
-const revokeUrl = vi.fn();
 const bitmap = new Blob(["png"], { type: "image/png" });
 
 function setup() {
-  revokeUrl.mockReset();
-  vi.mocked(decodeImagePreview).mockReset().mockResolvedValue(bitmap);
+  decodeImagePreview.reset(async () => bitmap);
+  const createUrl = vi.spyOn(URL, "createObjectURL");
+  const revokeUrl = vi.spyOn(URL, "revokeObjectURL");
+  return {
+    createUrl,
+    revokeUrl,
+    created: () => createUrl.mock.results[0]?.value as string | undefined,
+    [Symbol.dispose]: () => {
+      for (const url of createUrl.mock.results) URL.revokeObjectURL(url.value as string);
+      createUrl.mockRestore();
+      revokeUrl.mockRestore();
+    },
+  };
 }
 
 function image(screen: Screen) {
@@ -43,29 +84,26 @@ it.each([
 ])(
   "converts $name after native decoding fails and releases its preview",
   async ({ name, mimeType, heif }) => {
-    setup();
-    using _createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:jpeg");
-    using _revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(revokeUrl);
+    using urls = setup();
     await using screen = await render(
       <AttachmentImage src="https://environment.test/photo" name={name} mimeType={mimeType} />,
     );
     expect(decodeImagePreview).not.toHaveBeenCalled();
     await failDecode(screen);
-    expect(image(screen).getAttribute("src")).toBe("blob:jpeg");
+    expect(urls.created()).toMatch(/^blob:/);
+    expect(image(screen).getAttribute("src")).toBe(urls.created());
     expect(decodeImagePreview).toHaveBeenCalledWith(
       "https://environment.test/photo",
       heif,
       expect.any(AbortSignal),
     );
     await screen.unmount();
-    expect(revokeUrl).toHaveBeenCalledWith("blob:jpeg");
+    expect(urls.revokeUrl).toHaveBeenCalledWith(urls.created());
   },
 );
 
 it("leaves PNG errors to the caller without fetching or converting", async () => {
-  setup();
-  using _createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:jpeg");
-  using _revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(revokeUrl);
+  using _urls = setup();
   const onError = vi.fn();
   await using screen = await render(
     <AttachmentImage src="blob:png" name="photo.png" onError={onError} />,
@@ -75,27 +113,24 @@ it("leaves PNG errors to the caller without fetching or converting", async () =>
 });
 
 it("reports failed HEIC conversion through the existing error handler", async () => {
-  setup();
-  using _createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:jpeg");
-  using _revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(revokeUrl);
+  using urls = setup();
   const onError = vi.fn();
-  vi.mocked(decodeImagePreview).mockRejectedValue(new Error("unreadable"));
+  decodeImagePreview.implement(async () => Promise.reject(new Error("unreadable")));
   await using screen = await render(
     <AttachmentImage src="blob:heic" name="photo.heif" onError={onError} />,
   );
   expectDecodeErrorFor(onError, await failDecode(screen));
-  expect(URL.createObjectURL).not.toHaveBeenCalled();
+  expect(urls.createUrl).not.toHaveBeenCalled();
 });
 
 it("discards an old decode when navigating to a different source", async () => {
-  setup();
-  using _createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:jpeg");
-  using _revokeUrl = vi.spyOn(URL, "revokeObjectURL").mockImplementation(revokeUrl);
+  using urls = setup();
   let finishDecode!: (result: Blob) => void;
-  vi.mocked(decodeImagePreview).mockReturnValue(
-    new Promise((resolve) => {
-      finishDecode = resolve;
-    }),
+  decodeImagePreview.implement(
+    () =>
+      new Promise((resolve) => {
+        finishDecode = resolve;
+      }),
   );
   await using screen = await render(<AttachmentImage src="blob:first" name="photo.heic" />);
   await failDecode(screen);
@@ -103,6 +138,6 @@ it("discards an old decode when navigating to a different source", async () => {
   await screen.rerender(<AttachmentImage src={secondSource} name="photo.heic" />);
   await act(() => finishDecode(bitmap));
   expect(image(screen).getAttribute("src")).toBe(secondSource);
-  expect(URL.createObjectURL).not.toHaveBeenCalled();
-  expect(vi.mocked(decodeImagePreview).mock.calls[0]?.[2].aborted).toBe(true);
+  expect(urls.createUrl).not.toHaveBeenCalled();
+  expect(decodeImagePreview.mock.calls[0]?.[2].aborted).toBe(true);
 });

@@ -5,9 +5,40 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../../test/render";
 
-const state = vi.hoisted(() => ({ test: vi.fn() }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const state = vi.hoisted(() => ({ test: fake() }));
 function setup() {
-  state.test.mockReset();
+  state.test.reset();
 }
 
 vi.mock(import("../../state/use-atom-command"), async (original) => ({
@@ -36,7 +67,7 @@ function Harness({
 describe("useHostConnectionChecks", () => {
   it("reports a failed check by its message, without a stack trace", async () => {
     setup();
-    state.test.mockResolvedValue(
+    state.test.implement(async () =>
       AsyncResult.failure(
         Cause.fail(
           new DeviceHostUnavailableError({

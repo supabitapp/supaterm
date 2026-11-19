@@ -119,12 +119,21 @@ vi.mock("./threads", async () => {
       pendingRequestsAtom: () => Atom.make(state.pendingRequests),
     },
     threadEnvironment: {
-      respondToApproval: state.approve,
-      respondToUserInput: state.answer,
+      respondToApproval: async (...args: ReadonlyArray<unknown>) => {
+        state.approve(...args);
+        return AsyncResult.success(undefined);
+      },
+      respondToUserInput: async (...args: ReadonlyArray<unknown>) => {
+        state.answer(...args);
+        return AsyncResult.success(undefined);
+      },
       pauseUserInputAutoDismiss: {
         permissionAtom: () => Atom.make(false),
       },
-      uploadFeedback: state.feedback,
+      uploadFeedback: async (...args: ReadonlyArray<unknown>) => {
+        state.feedback(...args);
+        return AsyncResult.success({ feedbackId: "feedback" });
+      },
     },
   };
 });
@@ -207,9 +216,6 @@ beforeEach(() => {
     userInputs: [],
   };
   vi.clearAllMocks();
-  state.approve.mockResolvedValue(AsyncResult.success(undefined));
-  state.answer.mockResolvedValue(AsyncResult.success(undefined));
-  state.feedback.mockResolvedValue(AsyncResult.success({ feedbackId: "feedback" }));
 });
 
 describe("mobile task permissions", () => {

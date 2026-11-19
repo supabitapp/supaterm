@@ -1209,9 +1209,21 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
   return BootService.of({ install, restart, withStopped, uninstall, status });
 });
 
+export class ProvidedBootService extends Context.Reference<BootService["Service"] | undefined>(
+  "supaterm/service/ProvidedBootService",
+  { defaultValue: () => undefined },
+) {}
+
 export const layer = (input: {
   readonly baseDir: string;
   readonly logsDir: string;
   readonly cliVersion: string;
   readonly host?: BootServiceHost;
-}) => Layer.effect(BootService, make(input));
+}) =>
+  Layer.effect(
+    BootService,
+    Effect.gen(function* () {
+      const provided = yield* ProvidedBootService;
+      return provided ?? (yield* make(input));
+    }),
+  );

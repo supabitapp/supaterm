@@ -18,6 +18,37 @@ import { page, userEvent } from "vite-plus/test/browser";
 import "~/index.css";
 import { act, render } from "../../../test/render";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   providers: null as unknown as Atom.Writable<ReadonlyArray<ServerProvider>>,
   providerAuthQuery: null as unknown,
@@ -29,14 +60,22 @@ const state = vi.hoisted(() => ({
   readEnvironmentIds: [] as string[],
   updateEnvironmentIds: [] as string[],
   mutationEnvironmentIds: [] as string[],
-  refresh: vi.fn(),
-  updateProvider: vi.fn(),
-  uninstall: vi.fn(),
-  acceptUrlAuth: vi.fn(),
-  updateSettings: vi.fn(),
-  updateModelPreferences: vi.fn(),
-  toggleFavorite: vi.fn(),
-  mutateProviderInstance: vi.fn(),
+  refresh: fake(),
+  updateProvider: fake(),
+  uninstall: fake(),
+  acceptUrlAuth: fake(),
+  updateSettings: fake<
+    (
+      patch: {
+        backgroundActivity: { overrides: { providerHealthRefreshInterval: Duration.Duration } };
+      },
+      options?: { onFailed?: () => void },
+    ) => void
+  >(),
+  updateModelPreferences: fake(),
+  toggleFavorite: fake(),
+  mutateProviderInstance:
+    fake<(request: { instance: { config: { customModels: unknown } } }) => Promise<unknown>>(),
 }));
 
 vi.mock(import("../../state/server"), async (original) => {
@@ -222,14 +261,14 @@ async function setup() {
   state.readEnvironmentIds = [];
   state.updateEnvironmentIds = [];
   state.mutationEnvironmentIds = [];
-  state.updateSettings.mockReset();
-  state.updateModelPreferences.mockReset();
-  state.toggleFavorite.mockReset();
-  state.mutateProviderInstance.mockReset().mockResolvedValue(AsyncResult.success({}));
-  state.refresh.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.updateProvider.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.uninstall.mockReset().mockResolvedValue(AsyncResult.success({}));
-  state.acceptUrlAuth.mockReset().mockResolvedValue(AsyncResult.success({ accepted: true }));
+  state.updateSettings.reset();
+  state.updateModelPreferences.reset();
+  state.toggleFavorite.reset();
+  state.mutateProviderInstance.reset(async () => AsyncResult.success({}));
+  state.refresh.reset(async () => AsyncResult.success(undefined));
+  state.updateProvider.reset(async () => AsyncResult.success(undefined));
+  state.uninstall.reset(async () => AsyncResult.success({}));
+  state.acceptUrlAuth.reset(async () => AsyncResult.success({ accepted: true }));
   await setProviders([]);
 }
 
@@ -283,7 +322,7 @@ describe("EnvironmentProviderSettings routing", () => {
       });
       state.settings = stored([first, second]);
       const replies: Array<() => void> = [];
-      state.mutateProviderInstance.mockImplementation(
+      state.mutateProviderInstance.implement(
         () => new Promise((resolve) => replies.push(() => resolve(AsyncResult.success({})))),
       );
       await using screen = await render(panel({ targetInstanceId: customId }));
@@ -339,8 +378,8 @@ describe("EnvironmentProviderSettings routing", () => {
       },
     };
     state.mutateProviderInstance
-      .mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("Save failed"))))
-      .mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("Still offline"))));
+      .implementOnce(async () => AsyncResult.failure(Cause.fail(new Error("Save failed"))))
+      .implementOnce(async () => AsyncResult.failure(Cause.fail(new Error("Still offline"))));
     await using screen = await render(panel({ targetInstanceId: customId }));
     await screen.getByRole("button", { name: "Edit model-a", exact: true }).click();
     const displayName = screen.getByRole("textbox", { name: "Display name", exact: true });

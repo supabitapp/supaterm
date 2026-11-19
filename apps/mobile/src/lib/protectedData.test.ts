@@ -7,14 +7,19 @@ const mocks = vi.hoisted(() => ({
   platform: "ios",
   subscribed: Promise.withResolvers<void>(),
   listeners: new Set<(state: string) => void>(),
-  isProtectedDataAvailable: vi.fn<() => Promise<boolean>>(),
-  readStorage: vi.fn<() => Promise<void>>(),
+  isProtectedDataAvailable: vi.fn<() => void>(),
+  protectedDataCheck: async () => false,
+  readStorage: vi.fn<() => void>(),
+  storageRead: async () => {},
 }));
 
 vi.mock("expo", () => ({
   requireOptionalNativeModule: () => ({
     ...(mocks.nativeCheckSupported && {
-      isProtectedDataAvailable: mocks.isProtectedDataAvailable,
+      isProtectedDataAvailable: () => {
+        mocks.isProtectedDataAvailable();
+        return mocks.protectedDataCheck();
+      },
     }),
   }),
 }));
@@ -39,7 +44,14 @@ vi.mock("react-native", () => ({
 vi.mock("../persistence/layer", async () => {
   const Effect = await import("effect/Effect");
   const Layer = await import("effect/Layer");
-  return { layer: Layer.effectDiscard(Effect.promise(mocks.readStorage)) };
+  return {
+    layer: Layer.effectDiscard(
+      Effect.promise(() => {
+        mocks.readStorage();
+        return mocks.storageRead();
+      }),
+    ),
+  };
 });
 vi.mock("./crypto", async () => ({
   cryptoLayer: (await import("effect/Layer")).empty,
@@ -74,7 +86,9 @@ beforeEach(() => {
   mocks.subscribed = Promise.withResolvers<void>();
   mocks.listeners.clear();
   mocks.isProtectedDataAvailable.mockReset();
-  mocks.readStorage.mockReset().mockResolvedValue(undefined);
+  mocks.protectedDataCheck = async () => false;
+  mocks.readStorage.mockReset();
+  mocks.storageRead = async () => {};
 });
 
 afterEach(async () => {
@@ -92,13 +106,13 @@ describe("protected storage startup", () => {
     async (scenario) => {
       mocks.appState = scenario.state;
       mocks.nativeCheckSupported = scenario.nativeCheckSupported ?? true;
-      mocks.isProtectedDataAvailable.mockImplementation(async () => {
+      mocks.protectedDataCheck = async () => {
         if (scenario.checkRejects) throw new Error("Protected data check unavailable.");
         return false;
-      });
-      mocks.readStorage.mockImplementation(async () => {
+      };
+      mocks.storageRead = async () => {
         if (mocks.appState !== "active") throw new Error("User interaction is not allowed.");
-      });
+      };
       ({ runtime } = await import("./runtime"));
       const startup = runtime.runPromiseExit(Effect.succeed("ready"));
 

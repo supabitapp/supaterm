@@ -32,6 +32,7 @@ interface OpenTerminalLinkInPreviewInput<E> {
   readonly openPreview: OpenPreviewMutation<E>;
   readonly fallbackToBrowser: () => void;
   readonly forceBrowser: boolean;
+  readonly runtime?: ReturnType<typeof previewRuntimeFor>;
 }
 
 export async function openTerminalLinkInPreview<E>(input: OpenTerminalLinkInPreviewInput<E>) {
@@ -54,7 +55,7 @@ export async function openTerminalLinkInPreview<E>(input: OpenTerminalLinkInPrev
   };
 
   const defaults = await resolveBrowserDefaults();
-  const runtime = previewRuntimeFor(input.threadRef.environmentId);
+  const runtime = input.runtime ?? previewRuntimeFor(input.threadRef.environmentId);
   const result = await input.openPreview({
     environmentId: input.threadRef.environmentId,
     input: {

@@ -15,8 +15,10 @@ const state = vi.hoisted(() => ({
   phase: "connected" as "connected" | "offline",
   assetAtom: {},
   mint: vi.fn(),
+  minted: Promise.resolve<unknown>(undefined),
   assetQuery: vi.fn(),
   executeQuery: vi.fn(),
+  queried: Promise.resolve<unknown>(undefined),
   preparedConnectionAtom: null as unknown,
 }));
 
@@ -47,13 +49,27 @@ vi.mock("./projectClones", () => ({ environmentProjectCloneListAtom: () => null 
 vi.mock("../connection/runtime", () => ({ connectionAtomRuntime: {} }));
 vi.mock("@supaterm/client-runtime/state/assets", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@supaterm/client-runtime/state/assets")>()),
-  createAssetEnvironmentAtoms: () => ({ createUrl: state.assetQuery }),
+  createAssetEnvironmentAtoms: () => ({
+    createUrl: (...args: ReadonlyArray<unknown>) => {
+      state.assetQuery(...args);
+      return state.assetAtom;
+    },
+  }),
 }));
 vi.mock("@supaterm/client-runtime/state/runtime", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@supaterm/client-runtime/state/runtime")>()),
-  executeAtomQuery: state.executeQuery,
+  executeAtomQuery: (...args: ReadonlyArray<unknown>) => {
+    state.executeQuery(...args);
+    return state.queried;
+  },
 }));
-vi.mock("./use-atom-query-runner", () => ({ useAtomQueryRunner: () => state.mint }));
+vi.mock("./use-atom-query-runner", () => {
+  const mint = (...args: ReadonlyArray<unknown>) => {
+    state.mint(...args);
+    return state.minted;
+  };
+  return { useAtomQueryRunner: () => mint };
+});
 
 import { refreshAssetUrl, useRefreshAssetUrl, useAssetUrlState } from "./assets";
 
@@ -64,10 +80,11 @@ const resource = { _tag: "media-file", threadId, path: "/repo/image.png" } as co
 beforeEach(() => {
   state.session = null;
   state.phase = "connected";
-  state.assetQuery.mockReset().mockReturnValue(state.assetAtom);
-  state.mint
-    .mockReset()
-    .mockResolvedValue(AsyncResult.success({ relativeUrl: "/api/assets/image.png", expiresAt: 1 }));
+  state.assetQuery.mockReset();
+  state.mint.mockReset();
+  state.minted = Promise.resolve(
+    AsyncResult.success({ relativeUrl: "/api/assets/image.png", expiresAt: 1 }),
+  );
 });
 
 it.each(["workspace-file", "media-file"] as const)(
@@ -109,7 +126,7 @@ it("lets the server authorize an explicit refresh before the client grant loads"
     message: "This connection cannot read host files.",
     requiredScope: AuthFilesystemReadScope,
   });
-  state.mint.mockResolvedValue(AsyncResult.failure(Cause.fail(denied)));
+  state.minted = Promise.resolve(AsyncResult.failure(Cause.fail(denied)));
   await expect(useRefreshAssetUrl(environmentId, resource)()).resolves.toBeNull();
 });
 
@@ -118,7 +135,7 @@ it("rejects with the server's error and resolves null only without a connection"
     resource,
     checkedPath: "/repo/missing.png",
   });
-  state.executeQuery.mockResolvedValue(AsyncResult.failure(Cause.fail(missing)));
+  state.queried = Promise.resolve(AsyncResult.failure(Cause.fail(missing)));
   state.preparedConnectionAtom = Atom.make({
     _tag: "Some",
     value: { httpBaseUrl: "https://host.test" },

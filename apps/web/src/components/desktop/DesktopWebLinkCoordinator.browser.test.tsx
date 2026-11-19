@@ -6,15 +6,46 @@ import { expect, it, vi } from "vite-plus/test";
 
 import { act, render, stubGlobal } from "../../../test/render";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   projects: [] as EnvironmentProject[],
   routeParams: {} as Record<string, string>,
-  preview: vi.fn(),
-  openLink: vi.fn(async () => undefined),
-  navigate: vi.fn<() => Promise<void>>(async () => undefined),
-  openScratchProject: vi.fn(async () => null),
-  confirm: vi.fn(async (_message: string) => true),
-  connectPairing: vi.fn(async (_input: { pairingUrl: string }) => ({ _tag: "Success" })),
+  preview: fake(),
+  openLink: fake(async () => undefined),
+  navigate: fake<() => Promise<void>>(async () => undefined),
+  openScratchProject: fake(async () => null),
+  confirm: fake(async (_message: string) => true),
+  connectPairing: fake(async (_input: { pairingUrl: string }) => ({ _tag: "Success" })),
   localEnvironmentDisabled: false,
 }));
 
@@ -143,13 +174,13 @@ const pairLink = `supaterm://pair?pairingUrl=${encodeURIComponent(pairingUrl)}`;
 
 function setup() {
   vi.clearAllMocks();
-  state.confirm.mockResolvedValue(true);
+  state.confirm.implement(async () => true);
   state.localEnvironmentDisabled = false;
   state.projects = [];
   state.routeParams = {};
-  state.preview
-    .mockReset()
-    .mockResolvedValue(AsyncResult.success({ sources: [{ kind: "commit", headRef: sha }] }));
+  state.preview.reset(async () =>
+    AsyncResult.success({ sources: [{ kind: "commit", headRef: sha }] }),
+  );
   useDiffPanelStore.setState({ byThreadKey: {}, branchBaseRefByThreadKey: {} });
   useRightPanelStore.setState({ byThreadKey: {}, userActionRevisionByThreadKey: {} });
   appAtomRegistry.set(discoverySettled, false);
@@ -190,7 +221,7 @@ it("holds a launch PR link until project discovery settles, then opens the PR vi
 
   state.projects = [project];
   const navigated = new Promise<void>((resolve) => {
-    state.navigate.mockImplementationOnce(async () => resolve());
+    state.navigate.implementOnce(async () => resolve());
   });
   await act(async () => {
     appAtomRegistry.set(discoverySettled, true);
@@ -247,7 +278,7 @@ it("opens a PR commit the workspace lacks in the thread's PR panel", async () =>
   setup();
   state.routeParams = { environmentId: "local", threadId: "thread" };
   state.projects = [project];
-  state.preview.mockResolvedValueOnce(AsyncResult.success({ sources: [] }));
+  state.preview.implementOnce(async () => AsyncResult.success({ sources: [] }));
   appAtomRegistry.set(discoverySettled, true);
   await using _coordinator = await mount(commitUrl);
   await vi.waitFor(() =>
@@ -263,7 +294,7 @@ it("opens a plain commit the workspace lacks like any other delivered link", asy
   setup();
   state.routeParams = { environmentId: "local", threadId: "thread" };
   state.projects = [project];
-  state.preview.mockResolvedValueOnce(AsyncResult.success({ sources: [] }));
+  state.preview.implementOnce(async () => AsyncResult.success({ sources: [] }));
   appAtomRegistry.set(discoverySettled, true);
   const plainCommitUrl = `https://github.com/Effect-TS/effect/commit/${sha}`;
   await using _coordinator = await mount(plainCommitUrl);
@@ -288,7 +319,7 @@ it("adds the backend from a pairing link after the user confirms its host", asyn
 it("does not spend the pairing token when the user declines", async () => {
   setup();
   const otherPairingUrl = "https://other.example.com/pair#token=XYZ789";
-  state.confirm.mockResolvedValueOnce(false);
+  state.confirm.implementOnce(async () => false);
   await using _coordinator = await mount(
     pairLink,
     `supaterm://pair?pairingUrl=${encodeURIComponent(otherPairingUrl)}`,
@@ -334,7 +365,7 @@ it("holds a launch PR link with Local environment disabled until discovery settl
 
   state.projects = [project];
   const navigated = new Promise<void>((resolve) => {
-    state.navigate.mockImplementationOnce(async () => resolve());
+    state.navigate.implementOnce(async () => resolve());
   });
   await act(async () => {
     appAtomRegistry.set(discoverySettled, true);

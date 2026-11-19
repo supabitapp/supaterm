@@ -4,7 +4,6 @@ import {
   EnvironmentId,
   ThreadId,
   type ClientSettings,
-  type DesktopPreviewBridge,
   type PreviewSessionSnapshot,
 } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -12,12 +11,16 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { act, fakeTimers, render } from "../../test/render";
 
 const mocks = vi.hoisted(() => ({
-  getClientSettings: vi.fn<() => Promise<ClientSettings | null>>(),
-  setClientSettings: vi.fn<(settings: ClientSettings) => Promise<void>>(),
-  createTab: vi.fn<DesktopPreviewBridge["createTab"]>(),
-  closeTab: vi.fn<DesktopPreviewBridge["closeTab"]>(),
-  registerWebview: vi.fn<DesktopPreviewBridge["registerWebview"]>(),
-  getPreviewConfig: vi.fn<DesktopPreviewBridge["getPreviewConfig"]>(),
+  getClientSettings: async () => DEFAULT_CLIENT_SETTINGS,
+  setClientSettings: async (_settings: ClientSettings) => {},
+  createTab: async () => {},
+  closeTab: async () => {},
+  registerWebview: async () => {},
+  getPreviewConfig: async () => ({
+    partition: "persist:supaterm-preview-default",
+    webPreferences: "contextIsolation=yes",
+    preloadUrl: null,
+  }),
 }));
 
 vi.mock(import("~/env"), async (original) => ({ ...(await original()), isElectron: true }));
@@ -75,16 +78,6 @@ const snapshot = (tabId: string, updatedAt: string) =>
 
 function setup() {
   __resetClientSettingsPersistenceForTests();
-  mocks.getClientSettings.mockReset().mockResolvedValue(DEFAULT_CLIENT_SETTINGS);
-  mocks.setClientSettings.mockReset().mockResolvedValue(undefined);
-  mocks.createTab.mockReset().mockResolvedValue(undefined);
-  mocks.closeTab.mockReset().mockResolvedValue(undefined);
-  mocks.registerWebview.mockReset().mockResolvedValue(undefined);
-  mocks.getPreviewConfig.mockReset().mockResolvedValue({
-    partition: "persist:supaterm-preview-default",
-    webPreferences: "contextIsolation=yes",
-    preloadUrl: null,
-  });
   return {
     [Symbol.dispose]() {
       resetPreviewStateForTests();

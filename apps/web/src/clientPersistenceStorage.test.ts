@@ -1,11 +1,15 @@
 import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-function createLocalStorageStub(): Storage;
-function createLocalStorageStub() {
+function createLocalStorageStub(readFailures: Array<Error>): Storage;
+function createLocalStorageStub(readFailures: Array<Error>) {
   const store = new Map<string, string>();
   return {
-    getItem: (key) => store.get(key) ?? null,
+    getItem: (key) => {
+      const failure = readFailures.shift();
+      if (failure) throw failure;
+      return store.get(key) ?? null;
+    },
     setItem: (key, value) => {
       store.set(key, value);
     },
@@ -22,8 +26,8 @@ function createLocalStorageStub() {
   } satisfies Storage;
 }
 
-function getTestWindow() {
-  const localStorage = createLocalStorageStub();
+function getTestWindow(readFailures: Array<Error> = []) {
+  const localStorage = createLocalStorageStub(readFailures);
   const testWindow = {
     localStorage,
   } as Window & typeof globalThis;
@@ -58,14 +62,13 @@ describe("clientPersistenceStorage", () => {
   );
 
   it("preserves saved settings across a transient read failure", async () => {
-    const testWindow = getTestWindow();
+    const readFailures: Array<Error> = [];
+    const testWindow = getTestWindow(readFailures);
     const settings = { ...DEFAULT_CLIENT_SETTINGS, timestampFormat: "12-hour" as const };
     testWindow.localStorage.setItem("supaterm:client-settings:v1", JSON.stringify(settings));
     const write = vi.spyOn(testWindow.localStorage, "setItem");
     const failure = new Error("storage unavailable");
-    vi.spyOn(testWindow.localStorage, "getItem").mockImplementationOnce(() => {
-      throw failure;
-    });
+    readFailures.push(failure);
     const { readBrowserClientSettings } = await import("./clientPersistenceStorage");
 
     expect(() => readBrowserClientSettings()).toThrow(

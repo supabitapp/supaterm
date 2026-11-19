@@ -6,7 +6,38 @@ import { page, userEvent } from "vite-plus/test/browser";
 import { act, render } from "../../test/render";
 import { PublishRepositoryDialog } from "./GitActionsControl";
 
-const publish = vi.hoisted(() => ({ run: vi.fn() }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const publish = vi.hoisted(() => ({ run: fake() }));
 
 vi.mock("~/state/query", () => ({
   useEnvironmentQuery: () => ({
@@ -45,8 +76,8 @@ vi.mock("~/state/sourceControlActions", () => ({
 }));
 
 function setup() {
-  publish.run.mockReset();
-  publish.run.mockReturnValue(new Promise(() => {}));
+  publish.run.reset();
+  publish.run.implement(() => new Promise(() => {}));
 }
 
 it("keeps composition Enter in the repository path from publishing", async () => {

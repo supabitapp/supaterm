@@ -9,10 +9,41 @@ import { AppAtomRegistryProvider } from "../rpc/atomRegistry";
 import { makeThreadFixture } from "../thread.fixture";
 import { InlineButton } from "./ui/button";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   queries: [] as string[],
-  showContextMenu: vi.fn(),
-  openExternal: vi.fn(),
+  showContextMenu: fake(),
+  openExternal: fake(),
 }));
 
 vi.mock(import("../localApi"), async (original) => ({
@@ -117,7 +148,7 @@ const linkedPullRequest = (number: number, state: "open" | "merged") =>
   }) satisfies ThreadPullRequestLink;
 
 it("right-clicking the PR badge opens the pull request's menu instead of the row's", async () => {
-  state.showContextMenu.mockReset().mockResolvedValue("show-linked");
+  state.showContextMenu.reset(async () => "show-linked");
   const onRowContextMenu = vi.fn();
   const onOpenList = vi.fn();
   const pullRequests = [linkedPullRequest(7, "open"), linkedPullRequest(8, "merged")];

@@ -16,8 +16,6 @@ import * as MuseSdk from "./sdk.ts";
 import * as MuseUsageHome from "./MuseUsageHome.ts";
 import { museUsageFormat, museUsageReader } from "./usage.ts";
 
-vi.mock("./sdk.ts", { spy: true });
-
 const entry = () => ({
   schema_version: 1,
   record_type: "event",
@@ -192,21 +190,33 @@ it("handles malformed and partial data and rejects unsupported timestamps or sch
 });
 
 const AWAIT_REFRESH = { awaitRefresh: true };
+
+const hostFactory = <E, R>(
+  create: (
+    options: Parameters<typeof MuseSdk.createMuseSdkHostEffect>[0],
+  ) => Effect.Effect<MuseSdk.MuseSdkHost, E, R>,
+) => {
+  const factory = { create };
+  return vi.spyOn(factory, "create");
+};
+
+const nativeHome = (museHome: string | undefined, close = async () => {}) =>
+  ({ initializeResult: { museHome }, close }) as unknown as MuseSdk.MuseSdkHost;
 const onPath = Effect.provideService(SpawnExecutableResolution, (command: string) => command);
 
 describe("Muse history discovery", () => {
   it.effect.each([undefined, "/custom/xdg-data"])(
     "uses the initialized home with XDG_DATA_HOME=%s and closes without starting a session",
-    (xdg) =>
-      Effect.gen(function* () {
+    (xdg) => {
+      const close = vi.fn(async () => {});
+      const create = hostFactory(() =>
+        Effect.succeed({
+          initializeResult: { grantedCapabilities: [], museHome: "/native/configured-home" },
+          close,
+        } as unknown as MuseSdk.MuseSdkHost),
+      );
+      return Effect.gen(function* () {
         const path = yield* Path.Path;
-        const close = vi.fn(async () => {});
-        using create = vi.spyOn(MuseSdk, "createMuseSdkHostEffect").mockReturnValue(
-          Effect.succeed({
-            initializeResult: { grantedCapabilities: [], museHome: "/native/configured-home" },
-            close,
-          } as unknown as MuseSdk.MuseSdkHost),
-        );
         if (museUsageReader.kind !== "transcripts") throw new Error("Expected a transcript reader");
         const directories = yield* museUsageReader.directories(
           {
@@ -232,19 +242,20 @@ describe("Muse history discovery", () => {
         });
         expect(close).toHaveBeenCalledOnce();
       }).pipe(
-        Effect.provide([NodeServices.layer, MuseUsageHome.layer]),
+        Effect.provide([NodeServices.layer, MuseUsageHome.layerWith(create)]),
         onPath,
         Effect.provideService(HostProcess.HomeDirectory, "/test-home"),
         Effect.provideService(HostProcess.Environment, {
           PATH: "/host/bin",
           XDG_DATA_HOME: "/host/data",
         }),
-      ),
+      );
+    },
   );
 
-  it.effect("reports no history without starting Muse when its CLI is not installed", () =>
-    Effect.gen(function* () {
-      using create = vi.spyOn(MuseSdk, "createMuseSdkHostEffect");
+  it.effect("reports no history without starting Muse when its CLI is not installed", () => {
+    const create = hostFactory(MuseSdk.createMuseSdkHostEffect);
+    return Effect.gen(function* () {
       if (museUsageReader.kind !== "transcripts") throw new Error("Expected a transcript reader");
       const directories = yield* museUsageReader.directories(
         {
@@ -258,18 +269,18 @@ describe("Muse history discovery", () => {
       expect(directories).toEqual([]);
       expect(create).not.toHaveBeenCalled();
     }).pipe(
-      Effect.provide([NodeServices.layer, MuseUsageHome.layer]),
+      Effect.provide([NodeServices.layer, MuseUsageHome.layerWith(create)]),
       Effect.provideService(SpawnExecutableResolution, () => undefined),
-    ),
-  );
+    );
+  });
 
-  it.effect("does not guess a directory when initialization fails", () =>
-    Effect.gen(function* () {
-      using _create = vi.spyOn(MuseSdk, "createMuseSdkHostEffect").mockReturnValue(
-        Effect.try(() => {
-          throw new Error("not installed");
-        }),
-      );
+  it.effect("does not guess a directory when initialization fails", () => {
+    const create = hostFactory(() =>
+      Effect.try(() => {
+        throw new Error("not installed");
+      }),
+    );
+    return Effect.gen(function* () {
       if (museUsageReader.kind !== "transcripts") throw new Error("Expected a transcript reader");
       const directories = yield* museUsageReader.directories(
         {
@@ -281,21 +292,16 @@ describe("Muse history discovery", () => {
         AWAIT_REFRESH,
       );
       expect(directories).toEqual([]);
-    }).pipe(Effect.provide([NodeServices.layer, MuseUsageHome.layer]), onPath),
-  );
+    }).pipe(Effect.provide([NodeServices.layer, MuseUsageHome.layerWith(create)]), onPath);
+  });
 
   it.effect(
     "reuses discovery across accounts, date scans, and equivalent effective environments",
-    () =>
-      Effect.gen(function* () {
+    () => {
+      const close = vi.fn(async () => {});
+      const create = hostFactory(() => Effect.succeed(nativeHome("/native/home", close)));
+      return Effect.gen(function* () {
         const path = yield* Path.Path;
-        const close = vi.fn(async () => {});
-        using create = vi.spyOn(MuseSdk, "createMuseSdkHostEffect").mockReturnValue(
-          Effect.succeed({
-            initializeResult: { museHome: "/native/home" },
-            close,
-          } as unknown as MuseSdk.MuseSdkHost),
-        );
         if (museUsageReader.kind !== "transcripts") throw new Error("Expected a transcript reader");
         const instance = {
           instanceId: ProviderInstanceId.make("disabled-muse"),
@@ -328,23 +334,21 @@ describe("Muse history discovery", () => {
         expect(create).toHaveBeenCalledOnce();
         expect(close).toHaveBeenCalledOnce();
       }).pipe(
-        Effect.provide([NodeServices.layer, MuseUsageHome.layer]),
+        Effect.provide([NodeServices.layer, MuseUsageHome.layerWith(create)]),
         onPath,
         Effect.provideService(HostProcess.HomeDirectory, "/test-home"),
         Effect.provideService(HostProcess.Environment, {}),
-      ),
+      );
+    },
   );
 
   it.effect(
     "rediscovers when the binary, instance environment, or inherited environment changes",
-    () =>
-      Effect.gen(function* () {
-        using create = vi.spyOn(MuseSdk, "createMuseSdkHostEffect").mockImplementation((options) =>
-          Effect.succeed({
-            initializeResult: { museHome: options.environment?.XDG_DATA_HOME },
-            close: async () => {},
-          } as unknown as MuseSdk.MuseSdkHost),
-        );
+    () => {
+      const create = hostFactory((options) =>
+        Effect.succeed(nativeHome(options.environment?.XDG_DATA_HOME)),
+      );
+      return Effect.gen(function* () {
         if (museUsageReader.kind !== "transcripts") throw new Error("Expected a transcript reader");
         const instance = {
           instanceId: ProviderInstanceId.make("muse"),
@@ -379,21 +383,20 @@ describe("Muse history discovery", () => {
         expect(inherited).not.toEqual(changed);
         expect(create).toHaveBeenCalledTimes(4);
       }).pipe(
-        Effect.provide([NodeServices.layer, MuseUsageHome.layer]),
+        Effect.provide([NodeServices.layer, MuseUsageHome.layerWith(create)]),
         onPath,
         Effect.provideService(HostProcess.Environment, { XDG_DATA_HOME: "/host-data" }),
-      ),
+      );
+    },
   );
 
-  it.effect("reports pending discovery without waiting and shares it with awaiting reads", () =>
-    Effect.gen(function* () {
-      const started = yield* Deferred.make<void>();
-      const ready = yield* Deferred.make<MuseSdk.MuseSdkHost>();
-      using create = vi
-        .spyOn(MuseSdk, "createMuseSdkHostEffect")
-        .mockImplementation(() =>
-          Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(ready))),
-        );
+  it.effect("reports pending discovery without waiting and shares it with awaiting reads", () => {
+    const started = Deferred.makeUnsafe<void>();
+    const ready = Deferred.makeUnsafe<MuseSdk.MuseSdkHost>();
+    const create = hostFactory(() =>
+      Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(ready))),
+    );
+    return Effect.gen(function* () {
       const close = vi.fn(async () => {});
       if (museUsageReader.kind !== "transcripts") throw new Error("Expected a transcript reader");
       const instance = {
@@ -434,24 +437,19 @@ describe("Muse history discovery", () => {
       );
       expect(create).toHaveBeenCalledOnce();
       expect(close).toHaveBeenCalledOnce();
-    }).pipe(Effect.provide([NodeServices.layer, MuseUsageHome.layer]), onPath),
-  );
+    }).pipe(Effect.provide([NodeServices.layer, MuseUsageHome.layerWith(create)]), onPath);
+  });
 
-  it.effect("briefly caches failed discovery and retries after installation recovers", () =>
-    Effect.gen(function* () {
-      using create = vi
-        .spyOn(MuseSdk, "createMuseSdkHostEffect")
-        .mockReturnValueOnce(
-          Effect.try(() => {
-            throw new Error("not installed");
-          }),
-        )
-        .mockReturnValue(
-          Effect.succeed({
-            initializeResult: { museHome: "/installed/home" },
-            close: async () => {},
-          } as unknown as MuseSdk.MuseSdkHost),
-        );
+  it.effect("briefly caches failed discovery and retries after installation recovers", () => {
+    let installed = false;
+    const create = hostFactory(() => {
+      if (installed) return Effect.succeed(nativeHome("/installed/home"));
+      installed = true;
+      return Effect.try(() => {
+        throw new Error("not installed");
+      });
+    });
+    return Effect.gen(function* () {
       if (museUsageReader.kind !== "transcripts") throw new Error("Expected a transcript reader");
       const instance = {
         instanceId: ProviderInstanceId.make("muse"),
@@ -465,6 +463,6 @@ describe("Muse history discovery", () => {
       yield* TestClock.adjust("30 seconds");
       expect(yield* museUsageReader.directories(instance, AWAIT_REFRESH)).toHaveLength(1);
       expect(create).toHaveBeenCalledTimes(2);
-    }).pipe(Effect.provide([NodeServices.layer, MuseUsageHome.layer]), onPath),
-  );
+    }).pipe(Effect.provide([NodeServices.layer, MuseUsageHome.layerWith(create)]), onPath);
+  });
 });

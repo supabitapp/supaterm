@@ -6,11 +6,20 @@ import { AsyncResult } from "effect/reactivity";
 import { FileSaveCoordinator } from "./fileSaveCoordinator";
 
 function deferred() {
-  let resolve!: (result: AtomCommandResult<void, never>) => void;
-  const promise = new Promise<AtomCommandResult<void, never>>((resolvePromise) => {
+  let resolve!: (result: AtomCommandResult<void, unknown>) => void;
+  const promise = new Promise<AtomCommandResult<void, unknown>>((resolvePromise) => {
     resolve = resolvePromise;
   });
   return { promise, resolve };
+}
+
+type PersistResult = AtomCommandResult<void, unknown>;
+
+function persister(...results: Array<PersistResult | Promise<PersistResult>>) {
+  const target = {
+    persist: async (_contents: string) => (results.length > 1 ? results.shift()! : results[0]!),
+  };
+  return vi.spyOn(target, "persist");
 }
 
 describe("FileSaveCoordinator", () => {
@@ -21,10 +30,7 @@ describe("FileSaveCoordinator", () => {
   it("keeps pending state until an edit made during a write is also saved", async () => {
     vi.useFakeTimers();
     const firstWrite = deferred();
-    const persist = vi
-      .fn<(contents: string) => Promise<AtomCommandResult<void, never>>>()
-      .mockReturnValueOnce(firstWrite.promise)
-      .mockResolvedValueOnce(AsyncResult.success(undefined));
+    const persist = persister(firstWrite.promise, AsyncResult.success(undefined));
     const onPendingChange = vi.fn();
     const coordinator = new FileSaveCoordinator({
       debounceMs: 500,
@@ -48,9 +54,7 @@ describe("FileSaveCoordinator", () => {
 
   it("saves an edit made inside the debounce window when the editor closes", async () => {
     vi.useFakeTimers();
-    const persist = vi
-      .fn<(contents: string) => Promise<AtomCommandResult<void, never>>>()
-      .mockResolvedValue(AsyncResult.success(undefined));
+    const persist = persister(AsyncResult.success(undefined));
     const coordinator = new FileSaveCoordinator({
       debounceMs: 500,
       persist,
@@ -71,7 +75,7 @@ describe("FileSaveCoordinator", () => {
     async (closeEditor) => {
       vi.useFakeTimers();
       let canWrite = true;
-      const persist = vi.fn().mockResolvedValue(AsyncResult.success(undefined));
+      const persist = persister(AsyncResult.success(undefined));
       const onPendingChange = vi.fn();
       const coordinator = new FileSaveCoordinator({
         debounceMs: 500,
@@ -94,10 +98,7 @@ describe("FileSaveCoordinator", () => {
   it("flushes an edit made while a write was in flight when the editor closes", async () => {
     vi.useFakeTimers();
     const inFlight = deferred();
-    const persist = vi
-      .fn<(contents: string) => Promise<AtomCommandResult<void, never>>>()
-      .mockReturnValueOnce(inFlight.promise)
-      .mockResolvedValue(AsyncResult.success(undefined));
+    const persist = persister(inFlight.promise, AsyncResult.success(undefined));
     const coordinator = new FileSaveCoordinator({
       debounceMs: 500,
       persist,
@@ -118,10 +119,10 @@ describe("FileSaveCoordinator", () => {
 
   it("retries a failed write when the editor closes", async () => {
     vi.useFakeTimers();
-    const persist = vi
-      .fn()
-      .mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("write failed"))))
-      .mockResolvedValue(AsyncResult.success(undefined));
+    const persist = persister(
+      AsyncResult.failure(Cause.fail(new Error("write failed"))),
+      AsyncResult.success(undefined),
+    );
     const coordinator = new FileSaveCoordinator({
       debounceMs: 500,
       persist,
@@ -145,9 +146,7 @@ describe("FileSaveCoordinator", () => {
     const onPendingChange = vi.fn();
     const coordinator = new FileSaveCoordinator({
       debounceMs: 500,
-      persist: vi
-        .fn()
-        .mockResolvedValue(AsyncResult.failure(Cause.fail(new Error("write failed")))),
+      persist: persister(AsyncResult.failure(Cause.fail(new Error("write failed")))),
       onPendingChange,
       onConfirmed: vi.fn(),
     });
@@ -161,9 +160,7 @@ describe("FileSaveCoordinator", () => {
 
   it("ignores editor changes emitted after disposal", async () => {
     vi.useFakeTimers();
-    const persist = vi
-      .fn<(contents: string) => Promise<AtomCommandResult<void, never>>>()
-      .mockResolvedValue(AsyncResult.success(undefined));
+    const persist = persister(AsyncResult.success(undefined));
     const onPendingChange = vi.fn();
     const coordinator = new FileSaveCoordinator({
       debounceMs: 500,

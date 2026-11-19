@@ -1306,6 +1306,11 @@ export function withoutClaudeCanUseToolShadowedWarning<A>(run: () => A) {
   }
 }
 
+export const ClaudeSdkQuery = Context.Reference<typeof query>(
+  "supaterm/orchestration/ClaudeAdapterV2/ClaudeSdkQuery",
+  { defaultValue: () => query },
+);
+
 export const layerQueryRunner: Layer.Layer<
   ClaudeAgentSdkQueryRunner,
   never,
@@ -1317,6 +1322,7 @@ export const layerQueryRunner: Layer.Layer<
 > = Layer.effect(
   ClaudeAgentSdkQueryRunner,
   Effect.gen(function* () {
+    const sdkQuery = yield* ClaudeSdkQuery;
     const random = yield* SecureRandom.SecureRandom;
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     const path = yield* Path.Path;
@@ -1493,7 +1499,7 @@ export const layerQueryRunner: Layer.Layer<
         Effect.try({
           try: () =>
             withoutClaudeCanUseToolShadowedWarning(() =>
-              query({
+              sdkQuery({
                 prompt,
                 options: { ...options, spawnClaudeCodeProcess },
               }),

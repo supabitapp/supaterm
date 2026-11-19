@@ -94,16 +94,21 @@ describe("desktop update restart", () => {
   it("allows another restart after a rejected request", async () => {
     const controller = createDesktopUpdateRestartController();
     const error = new Error("IPC unavailable");
-    const installUpdate = vi
-      .fn<() => Promise<DesktopUpdateActionResult>>()
-      .mockRejectedValueOnce(error)
-      .mockResolvedValueOnce(acceptedInstall);
+    const outcomes: Array<() => Promise<DesktopUpdateActionResult>> = [
+      () => Promise.reject(error),
+      () => Promise.resolve(acceptedInstall),
+    ];
+    let installs = 0;
+    const installUpdate = () => {
+      installs += 1;
+      return outcomes.shift()!();
+    };
 
     await expect(controller.install({ installUpdate })).rejects.toBe(error);
     expect(controller.store.getState().isRestarting).toBe(false);
 
     await controller.install({ installUpdate });
     expect(controller.store.getState().isRestarting).toBe(true);
-    expect(installUpdate).toHaveBeenCalledTimes(2);
+    expect(installs).toBe(2);
   });
 });

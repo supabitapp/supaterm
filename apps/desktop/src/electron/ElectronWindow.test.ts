@@ -5,166 +5,137 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import type * as Electron from "electron";
-import { beforeEach, vi } from "vite-plus/test";
+import { vi } from "vite-plus/test";
 
-const {
-  activateWindowsForegroundMock,
-  appFocusMock,
-  browserWindowMock,
-  foregroundWindowMock,
-  getAllWindowsMock,
-  getFocusedWindowMock,
-  loadWindowsForegroundApiMock,
-  shellHostedForegroundMock,
-  startWindowsForegroundFocusThreadMock,
-  windowsForegroundFocusMock,
-  windowsForegroundPrepareMock,
-  windowsForegroundCloseMock,
-} = vi.hoisted(() => ({
-  activateWindowsForegroundMock: vi.fn(),
-  appFocusMock: vi.fn(),
-  browserWindowMock: vi.fn(function BrowserWindowMock() {}),
-  foregroundWindowMock: vi.fn<() => bigint>(),
-  getAllWindowsMock: vi.fn(),
-  getFocusedWindowMock: vi.fn(),
-  loadWindowsForegroundApiMock: vi.fn<() => Promise<{ getForegroundWindow: () => bigint }>>(),
-  shellHostedForegroundMock: vi.fn(),
-  startWindowsForegroundFocusThreadMock: vi.fn(),
-  windowsForegroundFocusMock: vi.fn(),
-  windowsForegroundPrepareMock: vi.fn(),
-  windowsForegroundCloseMock: vi.fn(),
-}));
+import * as ElectronWindow from "./ElectronWindow.ts";
+import type { WindowsForegroundFocusTarget } from "./WindowsForegroundFocusThread.ts";
 
-vi.mock("./WindowsForeground.ts", () => ({
-  activateWindowsForeground: activateWindowsForegroundMock,
-  isWindowsShellHostedForeground: shellHostedForegroundMock,
-  loadWindowsForegroundApi: loadWindowsForegroundApiMock,
-}));
+type ForegroundApi = { readonly getForegroundWindow: () => bigint };
 
-vi.mock("./WindowsForegroundFocusThread.ts", () => ({
-  startWindowsForegroundFocusThread: startWindowsForegroundFocusThreadMock,
-}));
-
-vi.mock("electron", () => ({
-  app: {
-    focus: appFocusMock,
-  },
-  BrowserWindow: Object.assign(browserWindowMock, {
-    getAllWindows: getAllWindowsMock,
-    getFocusedWindow: getFocusedWindowMock,
-  }),
-  screen: {
-    dipToScreenRect: (_window: unknown, rect: Electron.Rectangle) => ({
+function makeNative() {
+  const initialForegroundApi: () => Promise<ForegroundApi> = () =>
+    Promise.resolve({ getForegroundWindow: () => 0n });
+  const state = {
+    allWindows: [] as ReadonlyArray<unknown>,
+    createdWindows: [] as Array<unknown>,
+    activateFailures: [] as Array<Error>,
+    loadForegroundApi: initialForegroundApi,
+  };
+  const prepared: Array<WindowsForegroundFocusTarget> = [];
+  const focused: Array<WindowsForegroundFocusTarget> = [];
+  const native: ElectronWindow.ElectronWindowNative = {
+    createWindow: () => state.createdWindows.shift() as Electron.BrowserWindow,
+    getAllWindows: () => state.allWindows as ReadonlyArray<Electron.BrowserWindow>,
+    getFocusedWindow: () => null,
+    focusApp: () => undefined,
+    dipToScreenRect: (_window, rect) => ({
       x: rect.x * 2,
       y: rect.y * 2,
       width: rect.width * 2,
       height: rect.height * 2,
     }),
-  },
-}));
+    activateWindowsForeground: async () => {
+      const failure = state.activateFailures.shift();
+      if (failure) throw failure;
+    },
+    isWindowsShellHostedForeground: async () => false,
+    loadWindowsForegroundApi: () => state.loadForegroundApi(),
+    startWindowsForegroundFocusThread: () => ({
+      prepare: async (target) => {
+        prepared.push(target);
+        return false;
+      },
+      focus: async (target) => {
+        focused.push(target);
+        return false;
+      },
+      close: () => undefined,
+    }),
+  };
+  return { native, state, prepared, focused };
+}
 
-import * as ElectronWindow from "./ElectronWindow.ts";
-
-const layerTestFor = (platform: NodeJS.Platform) =>
-  ElectronWindow.layer.pipe(Layer.provide(Layer.succeed(HostProcess.Platform, platform)));
-
-const layerTest = layerTestFor("linux");
+const layerTestFor = (native: ElectronWindow.ElectronWindowNative, platform: NodeJS.Platform) =>
+  Layer.effect(ElectronWindow.ElectronWindow, ElectronWindow.makeWith(native)).pipe(
+    Layer.provide(Layer.succeed(HostProcess.Platform, platform)),
+  );
 
 function makeWindowsRevealWindow() {
-  return {
+  const state = { destroyed: false };
+  const window = {
     id: 41,
-    isDestroyed: vi.fn(() => false),
-    isFocused: vi.fn(() => false),
-    isMinimized: vi.fn(() => false),
-    isVisible: vi.fn(() => true),
-    show: vi.fn(),
-    moveTop: vi.fn(),
-    focus: vi.fn(),
-    getTitle: vi.fn(() => "Supaterm (Dev)"),
-    getBounds: vi.fn(() => ({ x: 100, y: 50, width: 1_200, height: 800 })),
-    getContentBounds: vi.fn(() => ({ x: 108, y: 50, width: 1_184, height: 792 })),
-    getNativeWindowHandle: vi.fn(() => Buffer.from([41, 0, 0, 0])),
-    restore: vi.fn(),
+    isDestroyed: () => state.destroyed,
+    isFocused: () => false,
+    isMinimized: () => false,
+    isVisible: () => true,
+    show: () => undefined,
+    moveTop: () => undefined,
+    focus: () => undefined,
+    getTitle: () => "Supaterm (Dev)",
+    getBounds: () => ({ x: 100, y: 50, width: 1_200, height: 800 }),
+    getContentBounds: () => ({ x: 108, y: 50, width: 1_184, height: 792 }),
+    getNativeWindowHandle: () => Buffer.from([41, 0, 0, 0]),
+    restore: () => undefined,
+  };
+  return {
+    state,
+    window,
+    getTitle: vi.spyOn(window, "getTitle"),
+    getNativeWindowHandle: vi.spyOn(window, "getNativeWindowHandle"),
   };
 }
 
 describe("ElectronWindow", () => {
-  beforeEach(() => {
-    activateWindowsForegroundMock.mockReset().mockResolvedValue(undefined);
-    appFocusMock.mockReset();
-    browserWindowMock.mockReset();
-    foregroundWindowMock.mockReset().mockReturnValue(0n);
-    getAllWindowsMock.mockReset();
-    getFocusedWindowMock.mockReset();
-    loadWindowsForegroundApiMock
-      .mockReset()
-      .mockImplementation(() => Promise.resolve({ getForegroundWindow: foregroundWindowMock }));
-    shellHostedForegroundMock.mockReset().mockResolvedValue(false);
-    startWindowsForegroundFocusThreadMock.mockReset().mockReturnValue({
-      prepare: windowsForegroundPrepareMock,
-      focus: windowsForegroundFocusMock,
-      close: windowsForegroundCloseMock,
-    });
-    windowsForegroundFocusMock.mockReset().mockResolvedValue(false);
-    windowsForegroundPrepareMock.mockReset().mockResolvedValue(false);
-    windowsForegroundCloseMock.mockReset();
-  });
-
-  it.effect("cancels native focus when destroyed during the foreground query", () =>
-    Effect.gen(function* () {
-      const window = makeWindowsRevealWindow();
-      activateWindowsForegroundMock.mockRejectedValueOnce(
-        new Error("Windows initially refused foreground activation"),
-      );
+  it.effect("cancels native focus when destroyed during the foreground query", () => {
+    const { native, state, prepared, focused } = makeNative();
+    return Effect.gen(function* () {
+      const reveal = makeWindowsRevealWindow();
+      const window = reveal.window as unknown as Electron.BrowserWindow;
+      state.activateFailures.push(new Error("Windows initially refused foreground activation"));
       const queryStarted = Promise.withResolvers<void>();
-      const foreground = Promise.withResolvers<{ getForegroundWindow: () => bigint }>();
-      loadWindowsForegroundApiMock.mockImplementation(() => {
+      const foreground = Promise.withResolvers<ForegroundApi>();
+      state.loadForegroundApi = () => {
         queryStarted.resolve();
         return foreground.promise;
-      });
+      };
       const electronWindow = yield* ElectronWindow.ElectronWindow;
-      yield* electronWindow.prepareReveal(window as unknown as Electron.BrowserWindow);
-      assert.deepEqual(windowsForegroundPrepareMock.mock.calls[0]?.[0], {
+      yield* electronWindow.prepareReveal(window);
+      assert.deepEqual(prepared[0], {
         windowId: 41,
         processId: process.pid,
         title: "Supaterm (Dev)",
         bounds: { x: 200, y: 100, width: 2_400, height: 1_600 },
         contentBounds: { x: 216, y: 100, width: 2_368, height: 1_584 },
       });
-      window.getTitle.mockClear();
+      reveal.getTitle.mockClear();
 
       const revealFiber = yield* electronWindow
-        .reveal(window as unknown as Electron.BrowserWindow)
+        .reveal(window)
         .pipe(Effect.forkChild({ startImmediately: true }));
       yield* Effect.promise(() => queryStarted.promise);
-      window.isDestroyed.mockReturnValue(true);
-      foreground.resolve({ getForegroundWindow: foregroundWindowMock });
+      reveal.state.destroyed = true;
+      foreground.resolve({ getForegroundWindow: () => 0n });
       yield* Fiber.join(revealFiber);
 
-      assert.lengthOf(windowsForegroundFocusMock.mock.calls, 0);
-      assert.lengthOf(window.getNativeWindowHandle.mock.calls, 1);
-      assert.lengthOf(window.getTitle.mock.calls, 0);
-    }).pipe(Effect.provide(layerTestFor("win32"))),
-  );
+      assert.lengthOf(focused, 0);
+      assert.lengthOf(reveal.getNativeWindowHandle.mock.calls, 1);
+      assert.lengthOf(reveal.getTitle.mock.calls, 0);
+    }).pipe(Effect.provide(layerTestFor(native, "win32")));
+  });
 
-  it.effect("reports which windows were created with a title bar overlay", () =>
-    Effect.gen(function* () {
+  it.effect("reports which windows were created with a title bar overlay", () => {
+    const { native, state } = makeNative();
+    return Effect.gen(function* () {
       const framed = { isDestroyed: () => false };
       const overlay = { isDestroyed: () => false };
-      browserWindowMock
-        .mockImplementationOnce(function FramedWindowMock() {
-          return framed;
-        })
-        .mockImplementationOnce(function OverlayWindowMock() {
-          return overlay;
-        });
+      state.createdWindows.push(framed, overlay);
       const electronWindow = yield* ElectronWindow.ElectronWindow;
       yield* electronWindow.create({});
       yield* electronWindow.create({
         titleBarStyle: "hidden",
         titleBarOverlay: { color: "#01000000", height: 40 },
       });
-      getAllWindowsMock.mockReturnValue([framed, overlay, { isDestroyed: () => false }]);
+      state.allWindows = [framed, overlay, { isDestroyed: () => false }];
 
       const seen: Array<boolean> = [];
       yield* electronWindow.syncAllAppearance((_window, { titleBarOverlay }) =>
@@ -172,23 +143,22 @@ describe("ElectronWindow", () => {
       );
 
       assert.deepEqual(seen, [false, true, false]);
-    }).pipe(Effect.provide(layerTestFor("win32"))),
-  );
+    }).pipe(Effect.provide(layerTestFor(native, "win32")));
+  });
 
-  it.effect("preserves destroy failures and continues with later windows", () =>
-    Effect.gen(function* () {
+  it.effect("preserves destroy failures and continues with later windows", () => {
+    const { native, state } = makeNative();
+    return Effect.gen(function* () {
       const cause = new Error("window destroy failed");
       const window = {
         id: 43,
-        destroy: vi.fn(() => {
+        destroy: () => {
           throw cause;
-        }),
-      } as unknown as Electron.BrowserWindow;
-      const laterWindow = {
-        id: 44,
-        destroy: vi.fn(),
-      } as unknown as Electron.BrowserWindow;
-      getAllWindowsMock.mockReturnValueOnce([window, laterWindow]);
+        },
+      };
+      const laterWindow = { id: 44, destroy: () => undefined };
+      const laterDestroy = vi.spyOn(laterWindow, "destroy");
+      state.allWindows = [window, laterWindow];
 
       const electronWindow = yield* ElectronWindow.ElectronWindow;
       const exit = yield* Effect.exit(electronWindow.destroyAll);
@@ -202,23 +172,25 @@ describe("ElectronWindow", () => {
         assert.isNull(error.channel);
         assert.strictEqual(error.cause, cause);
       }
-      assert.equal(vi.mocked(laterWindow.destroy).mock.calls.length, 1);
-    }).pipe(Effect.provide(layerTest)),
-  );
+      assert.equal(laterDestroy.mock.calls.length, 1);
+    }).pipe(Effect.provide(layerTestFor(native, "linux")));
+  });
 
-  it.effect("never falls back to an auxiliary window as the main window", () =>
-    Effect.gen(function* () {
+  it.effect("never falls back to an auxiliary window as the main window", () => {
+    const { native, state } = makeNative();
+    return Effect.gen(function* () {
+      const auxiliaryWindow = { isDestroyed: () => false };
+      state.createdWindows.push(auxiliaryWindow);
       const electronWindow = yield* ElectronWindow.ElectronWindow;
       const auxiliary = yield* electronWindow.create({}, { auxiliary: true });
       const ordinary = { isDestroyed: () => false } as unknown as Electron.BrowserWindow;
-      Object.assign(auxiliary, { isDestroyed: () => false });
 
-      getAllWindowsMock.mockReturnValue([auxiliary]);
+      state.allWindows = [auxiliary];
       assert.isTrue((yield* electronWindow.currentMainOrFirst)._tag === "None");
 
-      getAllWindowsMock.mockReturnValue([auxiliary, ordinary]);
+      state.allWindows = [auxiliary, ordinary];
       const current = yield* electronWindow.currentMainOrFirst;
       assert.isTrue(current._tag === "Some" && current.value === ordinary);
-    }).pipe(Effect.provide(layerTest)),
-  );
+    }).pipe(Effect.provide(layerTestFor(native, "linux")));
+  });
 });

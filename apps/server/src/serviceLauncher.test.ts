@@ -285,36 +285,33 @@ setInterval(() => {}, 1_000);
       const ready = Promise.withResolvers<void>();
       const probing = Promise.withResolvers<void>();
       const capacityResult = Promise.withResolvers<void>();
-      const actualStatfs = NodeFSP.statfs;
-      const stats = yield* Effect.promise(() => actualStatfs(root));
+      const readFreeBytes = async (directory: string) => {
+        if (scenario === "stop" && directory === root) {
+          probing.resolve();
+          await capacityResult.promise;
+        }
+        if (
+          (scenario === "home probe error" && directory === root) ||
+          (scenario === "database probe error" && directory === path.dirname(databasePath))
+        ) {
+          throw new Error("statfs unavailable");
+        }
+        if (scenario === "failed trial start" && !recovered && NodeFS.existsSync(backupPath))
+          low = true;
+        return low ? 0 : 1024 ** 4;
+      };
+      const writeLog = (line: string) => {
+        if (line.includes("Waiting for free space")) {
+          blocked.resolve();
+          if (scenario === "log write fails") {
+            throw Object.assign(new Error("no space left"), { code: "ENOSPC" });
+          }
+        }
+      };
       yield* Effect.acquireRelease(
         Effect.sync(() => {
           vi.useFakeTimers({
             toFake: ["setInterval", "clearInterval", "setTimeout", "clearTimeout"],
-          });
-          const capacity = vi.spyOn(NodeFSP, "statfs").mockImplementation(async (directory) => {
-            if (scenario === "stop" && directory === root) {
-              probing.resolve();
-              await capacityResult.promise;
-            }
-            if (
-              (scenario === "home probe error" && directory === root) ||
-              (scenario === "database probe error" && directory === path.dirname(databasePath))
-            ) {
-              throw new Error("statfs unavailable");
-            }
-            if (scenario === "failed trial start" && !recovered && NodeFS.existsSync(backupPath))
-              low = true;
-            return { ...stats, bavail: low ? 0 : 1024 ** 4, bsize: 1 };
-          });
-          const log = vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-            if (String(chunk).includes("Waiting for free space")) {
-              blocked.resolve();
-              if (scenario === "log write fails") {
-                throw Object.assign(new Error("no space left"), { code: "ENOSPC" });
-              }
-            }
-            return true;
           });
           spawnHook.current = (child) =>
             child.on("message", (message) => {
@@ -324,18 +321,23 @@ setInterval(() => {}, 1_000);
                 child.send("exit");
               }
             });
-          return { capacity, log };
         }),
-        ({ capacity, log }) =>
+        () =>
           Effect.sync(() => {
-            capacity.mockRestore();
-            log.mockRestore();
             spawnHook.current = undefined;
             vi.useRealTimers();
           }),
       );
       const beforeSpawns = spawnedChildren.length;
-      const launcher = new Launcher(root, yield* Effect.promise(() => readServiceState(statePath)));
+      const launcher = new Launcher(
+        root,
+        yield* Effect.promise(() => readServiceState(statePath)),
+        {
+          readStartFreeBytes: readFreeBytes,
+          backupSpaceProbe: { readFreeBytes },
+          writeLog,
+        },
+      );
       const running = launcher.run();
       yield* Effect.addFinalizer(() =>
         Effect.promise(async () => {
@@ -857,15 +859,9 @@ process.exit(0);
         otherOwner.exec("BEGIN EXCLUSIVE;");
         const refused = Promise.withResolvers<void>();
         const owned = Promise.withResolvers<void>();
-        yield* Effect.acquireRelease(
-          Effect.sync(() =>
-            vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-              if (String(chunk).includes("owns this Supaterm home")) refused.resolve();
-              return true;
-            }),
-          ),
-          (spy) => Effect.sync(() => spy.mockRestore()),
-        );
+        const writeLog = (line: string) => {
+          if (line.includes("owns this Supaterm home")) refused.resolve();
+        };
         yield* Effect.acquireRelease(
           Effect.sync(() => {
             spawnHook.current = (child) => child.once("message", () => owned.resolve());
@@ -879,7 +875,7 @@ process.exit(0);
         const launcher = new Launcher(
           root,
           yield* Effect.promise(() => readServiceState(statePath)),
-          { stateDirOwnerPollMs: 10 },
+          { stateDirOwnerPollMs: 10, writeLog },
         );
         let completed = false;
         const running = launcher.run().finally(() => {
@@ -949,15 +945,9 @@ process.exit(0);
         otherOwner.exec("BEGIN EXCLUSIVE;");
         const refused = Promise.withResolvers<void>();
         const active = Promise.withResolvers<void>();
-        yield* Effect.acquireRelease(
-          Effect.sync(() =>
-            vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-              if (String(chunk).includes("owns this Supaterm home")) refused.resolve();
-              return true;
-            }),
-          ),
-          (spy) => Effect.sync(() => spy.mockRestore()),
-        );
+        const writeLog = (line: string) => {
+          if (line.includes("owns this Supaterm home")) refused.resolve();
+        };
         yield* Effect.acquireRelease(
           Effect.sync(() => {
             spawnHook.current = (child) =>
@@ -971,7 +961,7 @@ process.exit(0);
         const launcher = new Launcher(
           root,
           yield* Effect.promise(() => readServiceState(statePath)),
-          { stateDirOwnerPollMs: 10 },
+          { stateDirOwnerPollMs: 10, writeLog },
         );
         const running = launcher.run();
         yield* Effect.promise(() => refused.promise);
@@ -1024,15 +1014,9 @@ process.exit(0);
         }),
       );
       const refused = Promise.withResolvers<void>();
-      yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          vi.spyOn(process.stderr, "write").mockImplementation((chunk) => {
-            if (String(chunk).includes("owns this Supaterm home")) refused.resolve();
-            return true;
-          }),
-        ),
-        (spy) => Effect.sync(() => spy.mockRestore()),
-      );
+      const writeLog = (line: string) => {
+        if (line.includes("owns this Supaterm home")) refused.resolve();
+      };
       yield* Effect.acquireRelease(
         Effect.sync(() => {
           failRm.path = path.join(root, "runtime", "db-backup", "update-1");
@@ -1042,7 +1026,13 @@ process.exit(0);
             failRm.path = undefined;
           }),
       );
-      const launcher = new Launcher(root, yield* Effect.promise(() => readServiceState(statePath)));
+      const launcher = new Launcher(
+        root,
+        yield* Effect.promise(() => readServiceState(statePath)),
+        {
+          writeLog,
+        },
+      );
       const running = launcher.run();
       yield* Effect.promise(() => refused.promise);
       yield* Effect.promise(() => launcher.stop("SIGTERM"));

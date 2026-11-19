@@ -47,7 +47,11 @@ it("delivers borrowed decoded frames, reports presentation failure, and discards
         ),
     ),
   );
-  const present = vi.fn(() => true);
+  const presentations: Array<() => boolean> = [];
+  const present = vi.fn(
+    (_frame: CanvasImageSource, _width: number, _height: number) =>
+      presentations.shift()?.() ?? true,
+  );
   const events = {
     onStatus: vi.fn(),
     onScreen: vi.fn(),
@@ -79,12 +83,12 @@ it("delivers borrowed decoded frames, reports presentation failure, and discards
   decoderOutput?.(frame);
   expect(present).toHaveBeenCalledExactlyOnceWith(frame, 1170, 2532);
   expect(frame.close).toHaveBeenCalledOnce();
-  present.mockImplementationOnce(() => {
+  presentations.push(() => {
     throw new Error("renderer failed");
   });
   expect(() => decoderOutput?.(frame)).toThrow("renderer failed");
   expect(frame.close).toHaveBeenCalledTimes(2);
-  present.mockReturnValueOnce(false);
+  presentations.push(() => false);
   decoderOutput?.(frame);
   expect(events.onStatus).toHaveBeenLastCalledWith(
     "error",

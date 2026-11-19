@@ -3,47 +3,56 @@ import * as Effect from "effect/Effect";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
-import { beforeEach, vi } from "vite-plus/test";
-
-const { handleMock, netFetchMock, unhandleMock } = vi.hoisted(() => ({
-  handleMock: vi.fn(),
-  netFetchMock: vi.fn(),
-  unhandleMock: vi.fn(),
-}));
-
-vi.mock("electron", () => ({
-  net: { fetch: netFetchMock },
-  protocol: { handle: handleMock, unhandle: unhandleMock },
-}));
 
 import * as ElectronProtocol from "./ElectronProtocol.ts";
 
-const layerProtocol = ElectronProtocol.layer.pipe(Layer.provide(NodeServices.layer));
+type Handler = (request: Request) => Promise<Response>;
+
+function makeNative() {
+  const state: { handler: Handler | undefined } = { handler: undefined };
+  const handled: Array<string> = [];
+  const unhandled: Array<string> = [];
+  const fetches: Array<[string, RequestInit]> = [];
+  const native: ElectronProtocol.ElectronProtocolNative = {
+    handle: (scheme, handler) => {
+      handled.push(scheme);
+      state.handler = handler;
+    },
+    unhandle: (scheme) => {
+      unhandled.push(scheme);
+    },
+    fetch: async (url, init) => {
+      fetches.push([url, init]);
+      return new Response("ok");
+    },
+  };
+  const layer = Layer.effect(
+    ElectronProtocol.ElectronProtocol,
+    ElectronProtocol.makeWith(native),
+  ).pipe(Layer.provide(NodeServices.layer));
+  const handler: Handler = (request) => {
+    if (!state.handler) throw new Error("protocol handler was not registered");
+    return state.handler(request);
+  };
+  return { layer, handler, handled, unhandled, fetches };
+}
 
 describe("ElectronProtocol", () => {
-  beforeEach(() => {
-    handleMock.mockReset();
-    netFetchMock.mockReset();
-    unhandleMock.mockReset();
-  });
-
-  it.effect("serves the bundled client from disk without a backend", () =>
-    Effect.gen(function* () {
+  it.effect("serves the bundled client from disk without a backend", () => {
+    const fake = makeNative();
+    const handler = fake.handler;
+    return Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const directory = yield* fileSystem.makeTempDirectoryScoped();
       yield* fileSystem.writeFileString(`${directory}/index.html`, "<html>app</html>");
       yield* fileSystem.writeFileString(`${directory}/app.js`, "export default 1;");
-      let handler: ((request: Request) => Promise<Response>) | undefined;
-      handleMock.mockImplementation((_scheme, nextHandler) => {
-        handler = nextHandler;
-      });
       const protocol = yield* ElectronProtocol.ElectronProtocol;
       yield* protocol.registerDesktopProtocol({
         scheme: "supaterm",
         assetDirectory: directory,
       });
       const request = (pathname: string, init?: RequestInit) =>
-        Effect.promise(() => handler!(new Request(`supaterm://app${pathname}`, init)));
+        Effect.promise(() => handler(new Request(`supaterm://app${pathname}`, init)));
 
       const page = yield* request("/settings/connections");
       assert.equal(yield* Effect.promise(() => page.text()), "<html>app</html>");
@@ -61,18 +70,14 @@ describe("ElectronProtocol", () => {
       assert.equal((yield* request("/%2e%2e%2fsecret.txt")).status, 404);
       assert.equal((yield* request("/%invalid")).status, 400);
       assert.equal((yield* request("/", { method: "POST" })).status, 405);
-      assert.equal(netFetchMock.mock.calls.length, 0);
-    }).pipe(Effect.provide(Layer.merge(layerProtocol, NodeServices.layer))),
-  );
+      assert.equal(fake.fetches.length, 0);
+    }).pipe(Effect.provide(Layer.merge(fake.layer, NodeServices.layer)));
+  });
 
-  it.effect("proxies the stable renderer origin to the current app server", () =>
-    Effect.gen(function* () {
-      let handler: ((request: Request) => Promise<Response>) | undefined;
-      handleMock.mockImplementation((_scheme, nextHandler) => {
-        handler = nextHandler;
-      });
-      netFetchMock.mockResolvedValue(new Response("ok"));
-
+  it.effect("proxies the stable renderer origin to the current app server", () => {
+    const fake = makeNative();
+    const handler = fake.handler;
+    return Effect.gen(function* () {
       yield* Effect.scoped(
         Effect.gen(function* () {
           const protocol = yield* ElectronProtocol.ElectronProtocol;
@@ -80,10 +85,9 @@ describe("ElectronProtocol", () => {
             scheme: "supaterm-dev",
             targetOrigin: new URL("http://127.0.0.1:3773/"),
           });
-          assert.isDefined(handler);
 
           const response = yield* Effect.promise(() =>
-            handler!(
+            handler(
               new Request("supaterm-dev://app/api/health?verbose=1", {
                 headers: {
                   accept: "application/json",
@@ -114,28 +118,21 @@ describe("ElectronProtocol", () => {
         }),
       );
 
-      assert.deepEqual(
-        handleMock.mock.calls.map((call) => call[0]),
-        ["supaterm-dev"],
-      );
-      assert.equal(netFetchMock.mock.calls[0]?.[0], "http://127.0.0.1:3773/api/health?verbose=1");
-      const forwardedHeaders = new Headers(netFetchMock.mock.calls[0]?.[1]?.headers);
+      assert.deepEqual(fake.handled, ["supaterm-dev"]);
+      assert.equal(fake.fetches[0]?.[0], "http://127.0.0.1:3773/api/health?verbose=1");
+      const forwardedHeaders = new Headers(fake.fetches[0]?.[1].headers);
       assert.equal(forwardedHeaders.get("accept"), "application/json");
       assert.isNull(forwardedHeaders.get("origin"));
       assert.isNull(forwardedHeaders.get("referer"));
       assert.isNull(forwardedHeaders.get("sec-fetch-site"));
-      assert.deepEqual(unhandleMock.mock.calls, [["supaterm-dev"]]);
-    }).pipe(Effect.provide(layerProtocol)),
-  );
+      assert.deepEqual(fake.unhandled, ["supaterm-dev"]);
+    }).pipe(Effect.provide(fake.layer));
+  });
 
-  it.effect("keeps proxied paths on the configured server", () =>
-    Effect.gen(function* () {
-      let handler: ((request: Request) => Promise<Response>) | undefined;
-      handleMock.mockImplementation((_scheme, nextHandler) => {
-        handler = nextHandler;
-      });
-      netFetchMock.mockImplementation(async () => new Response("ok"));
-
+  it.effect("keeps proxied paths on the configured server", () => {
+    const fake = makeNative();
+    const handler = fake.handler;
+    return Effect.gen(function* () {
       yield* Effect.scoped(
         Effect.gen(function* () {
           const protocol = yield* ElectronProtocol.ElectronProtocol;
@@ -144,29 +141,26 @@ describe("ElectronProtocol", () => {
             targetOrigin: new URL("http://127.0.0.1:5733/"),
           });
           yield* Effect.promise(() =>
-            handler!(new Request("supaterm-dev://app//example.com/src/main.tsx?t=1")),
+            handler(new Request("supaterm-dev://app//example.com/src/main.tsx?t=1")),
           );
-          yield* Effect.promise(() => handler!(new Request("supaterm-dev://app/\\example.com/")));
+          yield* Effect.promise(() => handler(new Request("supaterm-dev://app/\\example.com/")));
         }),
       );
 
       assert.deepEqual(
-        netFetchMock.mock.calls.map((call) => call[0]),
+        fake.fetches.map((call) => call[0]),
         [
           "http://127.0.0.1:5733//example.com/src/main.tsx?t=1",
           "http://127.0.0.1:5733//example.com/",
         ],
       );
-    }).pipe(Effect.provide(layerProtocol)),
-  );
+    }).pipe(Effect.provide(fake.layer));
+  });
 
-  it.effect("rejects custom protocol requests for another host", () =>
-    Effect.gen(function* () {
-      let handler: ((request: Request) => Promise<Response>) | undefined;
-      handleMock.mockImplementation((_scheme, nextHandler) => {
-        handler = nextHandler;
-      });
-
+  it.effect("rejects custom protocol requests for another host", () => {
+    const fake = makeNative();
+    const handler = fake.handler;
+    return Effect.gen(function* () {
       const response = yield* Effect.scoped(
         Effect.gen(function* () {
           const protocol = yield* ElectronProtocol.ElectronProtocol;
@@ -174,12 +168,12 @@ describe("ElectronProtocol", () => {
             scheme: "supaterm",
             targetOrigin: new URL("http://127.0.0.1:3773/"),
           });
-          return yield* Effect.promise(() => handler!(new Request("supaterm://other/")));
+          return yield* Effect.promise(() => handler(new Request("supaterm://other/")));
         }),
       );
 
       assert.equal(response.status, 404);
-      assert.equal(netFetchMock.mock.calls.length, 0);
-    }).pipe(Effect.provide(layerProtocol)),
-  );
+      assert.equal(fake.fetches.length, 0);
+    }).pipe(Effect.provide(fake.layer));
+  });
 });

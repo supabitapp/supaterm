@@ -1,18 +1,38 @@
+// @effect-diagnostics nodeBuiltinImport:off globalFetch:off - The real loopback servers receive the gateway-rewritten requests.
 import { expect, it } from "@effect/vitest";
+import * as NodeHttp from "node:http";
+import type * as NodeNet from "node:net";
 import * as Effect from "effect/Effect";
 import { relayHttpBaseUrl, relayPublicKey } from "@supaterm/shared/relay/protocol";
 import { layer, RelayGateway, type RelayTransport } from "./gateway.ts";
 
 const address = relayHttpBaseUrl(relayPublicKey(new Uint8Array(32).fill(19)));
+
+const localServer = Effect.acquireRelease(
+  Effect.promise(async () => {
+    const received: string[] = [];
+    const server = NodeHttp.createServer((request, response) => {
+      received.push(request.url ?? "");
+      response.end("okay");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as NodeNet.AddressInfo;
+    return { server, received, origin: `http://127.0.0.1:${port}` };
+  }),
+  ({ server }) =>
+    Effect.promise(() => new Promise<void>((resolve) => server.close(() => resolve()))),
+);
 it.effect("reuses one endpoint, refreshes preparation and closes on runtime disposal", () =>
   Effect.gen(function* () {
     let opens = 0;
     let closes = 0;
-    let port = 1000;
+    const first = yield* localServer;
+    const second = yield* localServer;
+    let origin = first.origin;
     const requests: string[] = [];
-    const fetcher: typeof fetch = async (input) => {
+    const fetcher: typeof fetch = (input, init) => {
       requests.push(String(input));
-      return new Response("okay");
+      return fetch(input, init);
     };
     yield* Effect.scoped(
       Effect.gen(function* () {
@@ -20,12 +40,15 @@ it.effect("reuses one endpoint, refreshes preparation and closes on runtime disp
         const values = yield* Effect.promise(() =>
           Promise.all([gateway.resolve(address), gateway.resolve(address)]),
         );
-        expect(values).toEqual(["http://127.0.0.1:1000", "http://127.0.0.1:1000"]);
+        expect(values).toEqual([first.origin, first.origin]);
         expect(opens).toBe(1);
-        port = 2000;
-        expect(yield* Effect.promise(() => gateway.resolve(address))).toBe("http://127.0.0.1:2000");
-        yield* Effect.promise(() => gateway.fetch(address + "api/test?range=2"));
-        expect(requests).toEqual(["http://127.0.0.1:2000/api/test?range=2"]);
+        origin = second.origin;
+        expect(yield* Effect.promise(() => gateway.resolve(address))).toBe(second.origin);
+        const response = yield* Effect.promise(() => gateway.fetch(address + "api/test?range=2"));
+        expect(yield* Effect.promise(() => response.text())).toBe("okay");
+        expect(requests).toEqual([`${second.origin}/api/test?range=2`]);
+        expect(second.received).toEqual(["/api/test?range=2"]);
+        expect(first.received).toEqual([]);
       }).pipe(
         Effect.provide(
           layer({
@@ -33,7 +56,7 @@ it.effect("reuses one endpoint, refreshes preparation and closes on runtime disp
             open: async () => {
               opens++;
               return {
-                prepare: async () => `http://127.0.0.1:${port}`,
+                prepare: async () => origin,
                 close: async () => {
                   closes++;
                 },

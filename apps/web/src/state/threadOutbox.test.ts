@@ -13,11 +13,22 @@ import type { ThreadOutboxEntry } from "./threadOutboxDelivery";
 import { DraftId } from "../composerDraftStore";
 import type { OutboxTurn } from "./threadOutboxSchema";
 
+type RunCommand = (
+  registry: unknown,
+  operation: { readonly label: string },
+  ...rest: ReadonlyArray<unknown>
+) => Promise<unknown>;
+
 const harness = vi.hoisted(() => ({
   records: new Map<string, ThreadOutboxEntry<OutboxTurn>>(),
   run: vi.fn(),
+  runImpl: null as RunCommand | null,
+  runQueue: [] as Array<RunCommand>,
   verify: vi.fn(),
+  verifyImpl: null as (() => Promise<unknown>) | null,
   voice: vi.fn(),
+  voiceImpl: null as (() => Promise<unknown>) | null,
+  voiceQueue: [] as Array<() => Promise<unknown>>,
   marked: vi.fn(),
   finalized: vi.fn(),
   online: false,
@@ -89,7 +100,10 @@ vi.mock("./attachments", () => ({
 vi.mock("./assets", () => ({ assetEnvironment: { createUrl: { label: "verify" } } }));
 vi.mock("./vcs", () => ({ fetchVcsRefs: { label: "refs" } }));
 vi.mock("./transcription", () => ({
-  uploadVoiceAudio: (...args: unknown[]) => harness.voice(...args),
+  uploadVoiceAudio: (...args: unknown[]) => {
+    harness.voice(...args);
+    return (harness.voiceQueue.shift() ?? harness.voiceImpl)?.();
+  },
 }));
 vi.mock("./session", () => ({
   readPreparedConnection: () => ({ httpBaseUrl: "https://environment.example" }),
@@ -108,11 +122,21 @@ vi.mock("../lib/imageCompression", () => ({
 }));
 vi.mock("@supaterm/client-runtime/state/runtime", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@supaterm/client-runtime/state/runtime")>()),
-  runAtomCommand: (...args: unknown[]) => harness.run(...args),
+  runAtomCommand: (
+    registry: unknown,
+    operation: { readonly label: string },
+    ...rest: unknown[]
+  ) => {
+    harness.run(registry, operation, ...rest);
+    return (harness.runQueue.shift() ?? harness.runImpl)?.(registry, operation, ...rest);
+  },
 }));
 vi.mock("@supaterm/client-runtime/state/attachments", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@supaterm/client-runtime/state/attachments")>()),
-  verifyPersistedAttachmentUpload: (...args: unknown[]) => harness.verify(...args),
+  verifyPersistedAttachmentUpload: (...args: unknown[]) => {
+    harness.verify(...args);
+    return harness.verifyImpl?.();
+  },
 }));
 vi.mock("./threadOutboxStorage", () => ({
   browserThreadOutboxStorage: {
@@ -221,8 +245,11 @@ beforeEach(() => {
   harness.online = false;
   harness.existingThread = false;
   harness.archivedThread = false;
-  harness.run.mockResolvedValue(AsyncResult.success({ sequence: 1 }));
-  harness.verify.mockResolvedValue({ status: "verified" });
+  harness.runQueue.length = 0;
+  harness.voiceQueue.length = 0;
+  harness.voiceImpl = null;
+  harness.runImpl = async () => AsyncResult.success({ sequence: 1 });
+  harness.verifyImpl = async () => ({ status: "verified" });
 });
 
 describe("web thread outbox delivery", () => {
@@ -236,7 +263,7 @@ describe("web thread outbox delivery", () => {
       vi.resetModules();
       harness.online = true;
       const expectedBranch = branchKind === "default" ? "origin/main" : "feature/current";
-      harness.run.mockImplementation(async (_registry, operation) => {
+      harness.runImpl = async (_registry, operation) => {
         if (operation.label === "refs")
           return AsyncResult.success({
             isRepo: true,
@@ -254,7 +281,7 @@ describe("web thread outbox delivery", () => {
           prepareWorktree: { baseBranch: expectedBranch },
         });
         return AsyncResult.success({ sequence: 1 });
-      });
+      };
       await (await import("./threadOutbox")).webThreadOutbox.drain();
       expect(harness.run.mock.calls.map((call) => call[1].label)).toEqual(["refs", "send"]);
       expect(harness.run.mock.calls[0]![2]).toEqual({
@@ -306,20 +333,20 @@ describe("web thread outbox delivery", () => {
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
     await enqueueThreadOutboxTurn(worktreeTarget());
     harness.online = true;
-    harness.run.mockResolvedValueOnce(AsyncResult.fail({ _tag: "RpcClientError" }));
+    harness.runQueue.push(async () => AsyncResult.fail({ _tag: "RpcClientError" }));
     await webThreadOutbox.drain();
     let saved = harness.records.get("message")!;
     expect(saved.status).toBe("pending");
     expect(saved.payload.pendingWorktree?.projectCwd).toBe("/project");
     harness.records.set("message", { ...saved, retryAt: 0 });
-    harness.run
-      .mockResolvedValueOnce(
+    harness.runQueue.push(
+      async () =>
         AsyncResult.success({
           isRepo: true,
           refs: [{ name: "main", isDefault: true, current: false, isRemote: false }],
         }),
-      )
-      .mockResolvedValueOnce(AsyncResult.fail({ _tag: "RpcClientError" }));
+      async () => AsyncResult.fail({ _tag: "RpcClientError" }),
+    );
     await webThreadOutbox.drain();
     saved = harness.records.get("message")!;
     expect(saved.status).toBe("pending");
@@ -343,7 +370,7 @@ describe("web thread outbox delivery", () => {
       const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
       await enqueueThreadOutboxTurn(worktreeTarget());
       harness.online = true;
-      harness.run.mockResolvedValueOnce(AsyncResult.success({ isRepo, refs: [] }));
+      harness.runQueue.push(async () => AsyncResult.success({ isRepo, refs: [] }));
       await webThreadOutbox.drain();
       expect(harness.run.mock.calls.map((call) => call[1].label)).toEqual(["refs"]);
       expect(harness.records.get("message")).toMatchObject({
@@ -387,7 +414,7 @@ describe("web thread outbox delivery", () => {
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
     await enqueueThreadOutboxTurn(target());
     harness.online = true;
-    harness.run.mockResolvedValueOnce(AsyncResult.fail({ _tag: "RpcClientError" }));
+    harness.runQueue.push(async () => AsyncResult.fail({ _tag: "RpcClientError" }));
     await webThreadOutbox.drain();
     expect(harness.run).toHaveBeenCalledTimes(1);
     const saved = harness.records.get("message")!;
@@ -521,14 +548,13 @@ describe("web thread outbox delivery", () => {
   });
 
   it("links a checked-out pull request after creating its thread, and a failed link still delivers", async () => {
-    using _warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const url = "https://github.com/acme/widgets/pull/42";
     const { pendingWorktree: _, ...creation } = worktreeTarget();
     harness.online = true;
-    harness.run.mockImplementation(async (_registry, operation) => {
+    harness.runImpl = async (_registry, operation) => {
       if (operation.label === "link") throw new Error("Link rejected.");
       return AsyncResult.success({ sequence: 1 });
-    });
+    };
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
     await enqueueThreadOutboxTurn({ ...creation, linkPullRequestUrl: url });
     await webThreadOutbox.drain();
@@ -545,11 +571,10 @@ describe("web thread outbox delivery", () => {
     harness.online = true;
     const transfer = vi.fn(async () => new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", transfer);
-    harness.run.mockImplementation(async (_registry: unknown, operation: { label: string }) =>
+    harness.runImpl = async (_registry: unknown, operation: { label: string }) =>
       operation.label === "upload"
         ? AsyncResult.success({ attachmentId: "uploaded-file", relativeUrl: "/signed-upload" })
-        : AsyncResult.fail({ _tag: "RpcClientError" }),
-    );
+        : AsyncResult.fail({ _tag: "RpcClientError" });
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
     await enqueueThreadOutboxTurn({
       ...target(),
@@ -572,7 +597,7 @@ describe("web thread outbox delivery", () => {
       expect.objectContaining({ method: "POST", body: expect.any(Blob) }),
     );
     vi.resetModules();
-    harness.run.mockResolvedValue(AsyncResult.success({ sequence: 1 }));
+    harness.runImpl = async () => AsyncResult.success({ sequence: 1 });
     if (!saved) throw new Error("Expected the retained pending message");
     harness.records.set("message", { ...saved, retryAt: 0 });
     await (await import("./threadOutbox")).webThreadOutbox.drain();
@@ -699,7 +724,7 @@ describe("web thread outbox delivery", () => {
       },
     });
     harness.online = true;
-    harness.run.mockResolvedValueOnce(
+    harness.runQueue.push(async () =>
       AsyncResult.fail({ _tag: "OrchestrationDispatchCommandError", message: "Rejected." }),
     );
     await webThreadOutbox.drain();
@@ -724,7 +749,7 @@ describe("web thread outbox delivery", () => {
     const { enqueueThreadOutboxTurns, webThreadOutbox } = await import("./threadOutbox");
     await enqueueThreadOutboxTurns(pendingTaskWithFollowUp());
     harness.online = true;
-    harness.run.mockResolvedValueOnce(
+    harness.runQueue.push(async () =>
       AsyncResult.fail({ _tag: "OrchestrationDispatchCommandError", message: "Rejected." }),
     );
     await webThreadOutbox.drain();
@@ -876,7 +901,7 @@ describe("web thread outbox voice messages", () => {
       const turn = voiceTarget();
       await enqueueThreadOutboxTurn({ ...turn, input: { ...turn.input, ...fresh } });
       harness.online = true;
-      harness.voice.mockResolvedValue({
+      harness.voiceImpl = async () => ({
         text: "fix the build",
         submission: { status: "sent", sequence: 3 },
       });
@@ -909,7 +934,7 @@ describe("web thread outbox voice messages", () => {
     await enqueueThreadOutboxTurn({ ...voiceTarget(), branch: "main" });
     harness.existingThread = true;
     harness.online = true;
-    harness.voice.mockResolvedValue({
+    harness.voiceImpl = async () => ({
       text: "fix the build",
       submission: { status: "sent", sequence: 3 },
     });
@@ -927,7 +952,7 @@ describe("web thread outbox voice messages", () => {
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
     await enqueueThreadOutboxTurn(voiceTarget());
     harness.online = true;
-    harness.voice.mockResolvedValueOnce({ text: "", submission: { status: "noSpeech" } });
+    harness.voiceQueue.push(async () => ({ text: "", submission: { status: "noSpeech" } }));
     await webThreadOutbox.drain();
     expect(harness.records.get("message")).toMatchObject({
       status: "failed",
@@ -939,7 +964,7 @@ describe("web thread outbox voice messages", () => {
     vi.resetModules();
     const reloaded = await import("./threadOutbox");
     await reloaded.enqueueThreadOutboxTurn(voiceTarget());
-    harness.voice.mockResolvedValueOnce({ text: "deploy", submission: { status: "failed" } });
+    harness.voiceQueue.push(async () => ({ text: "deploy", submission: { status: "failed" } }));
     await reloaded.webThreadOutbox.drain();
     const refused = harness.records.get("message")!;
     expect(refused.status).toBe("failed");
@@ -954,8 +979,10 @@ describe("web thread outbox voice messages", () => {
     const { enqueueThreadOutboxTurn, webThreadOutbox } = await import("./threadOutbox");
     await enqueueThreadOutboxTurn(voiceTarget());
     harness.online = true;
-    harness.voice.mockRejectedValueOnce(
-      new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true),
+    harness.voiceQueue.push(() =>
+      Promise.reject(
+        new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true),
+      ),
     );
     await webThreadOutbox.drain();
     expect(harness.records.get("message")).toMatchObject({

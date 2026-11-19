@@ -3,8 +3,6 @@ import * as NodeEvents from "node:events";
 import * as NodeStream from "node:stream";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
-const spawn = vi.hoisted(() => vi.fn());
-vi.mock("node:child_process", () => ({ spawn }));
 import { startNativeCaptureFeedback } from "./NativeCaptureFeedback.ts";
 
 const options = {
@@ -16,7 +14,7 @@ const options = {
 let child: NodeEvents.EventEmitter & {
   stdin: NodeStream.PassThrough;
   stdout: NodeStream.PassThrough;
-  kill: ReturnType<typeof vi.fn>;
+  kill: ReturnType<typeof vi.fn<() => void>>;
 };
 let commands: string[];
 beforeEach(() => {
@@ -25,11 +23,11 @@ beforeEach(() => {
   child = Object.assign(new NodeEvents.EventEmitter(), {
     stdin: new NodeStream.PassThrough(),
     stdout: new NodeStream.PassThrough(),
-    kill: vi.fn(),
+    kill: vi.fn<() => void>(),
   });
   child.stdin.on("data", (value: Buffer) => commands.push(value.toString()));
-  spawn.mockReturnValue(child);
 });
+const spawn = () => child;
 afterEach(() => {
   child.emit("close");
   vi.useRealTimers();
@@ -39,7 +37,7 @@ function event(value: unknown) {
 }
 
 it("waits for compositor readiness and landing, then waits for cleanup on acknowledgement", async () => {
-  const starting = startNativeCaptureFeedback("/helper", "/private", options);
+  const starting = startNativeCaptureFeedback("/helper", "/private", options, spawn);
   let ready = false;
   void starting.then(() => {
     ready = true;
@@ -70,7 +68,7 @@ it("waits for compositor readiness and landing, then waits for cleanup on acknow
 });
 
 it("releases waiters if the overlay closes during flight", async () => {
-  const starting = startNativeCaptureFeedback("/helper", "/private", options);
+  const starting = startNativeCaptureFeedback("/helper", "/private", options, spawn);
   event({ event: "ready", animate: true });
   const feedback = (await starting)!;
   const flight = feedback.animateTo("Draft", { x: 0, y: 0, width: 1, height: 1 });

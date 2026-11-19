@@ -1,6 +1,7 @@
 import { OrchestratorMcpFailure, ProjectId } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Console from "effect/Console";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -13,7 +14,11 @@ import { GlobalFlag } from "effect/cli";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
-import { mcpToolSession, type McpToolSession } from "../mcp/AcpMcpStdioBridge.ts";
+import {
+  mcpToolSession,
+  type McpToolSession,
+  type McpToolSessionOptions,
+} from "../mcp/AcpMcpStdioBridge.ts";
 import { expandHomePath } from "../os-jank.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { readLiveServerRuntimeState } from "../serverRuntimeState.ts";
@@ -146,6 +151,10 @@ export const makeServerTools = (session: McpToolSession, origin: string) => {
 };
 export type ServerTools = ReturnType<typeof makeServerTools>;
 
+export const CliMcpToolSession = Context.Reference<
+  (options: McpToolSessionOptions) => ReturnType<typeof mcpToolSession>
+>("supaterm/cli/CliMcpToolSession", { defaultValue: () => mcpToolSession });
+
 /**
  * Signs in as a short-lived MCP client of the running server, the same way an
  * outside agent does, and revokes that session when the command ends.
@@ -184,7 +193,8 @@ export const withServerTools = Effect.fn("cli.serverTools.withServerTools")(func
       (session) =>
         environmentAuth.revokeSession(session.sessionId).pipe(Effect.ignore({ log: true })),
     );
-    const session = yield* mcpToolSession({
+    const openSession = yield* CliMcpToolSession;
+    const session = yield* openSession({
       endpoint: new URL("/mcp", origin).href,
       authorization: `Bearer ${issued.token}`,
       clientName: client.name,

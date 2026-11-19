@@ -77,7 +77,7 @@ describe("FileBrowserPanel", () => {
       />,
     );
     using _menu = { [Symbol.dispose]: () => dismissContextMenu() };
-    using clipboard = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+    using clipboard = vi.spyOn(navigator.clipboard, "writeText");
     await vi.waitFor(() => expect(findTreeRow("README.md")).not.toBeNull());
     findTreeRow("README.md")!.dispatchEvent(
       new MouseEvent("contextmenu", {

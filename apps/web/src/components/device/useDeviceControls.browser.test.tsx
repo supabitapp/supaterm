@@ -10,11 +10,42 @@ import { expect, it, vi } from "vite-plus/test";
 import { act, render } from "../../../test/render";
 
 type Result = { _tag: "Success"; value: DeviceDetail } | { _tag: "Failure"; cause: unknown };
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const { read, action, subscribe } = vi.hoisted(() => ({
-  read: vi.fn<() => Promise<Result>>(),
-  action: vi.fn<() => Promise<Result>>(),
+  read: fake<() => Promise<Result>>(),
+  action: fake<() => Promise<Result>>(),
   subscribe:
-    vi.fn<(_target: unknown, onChange: (app: { id: string } | null) => void) => () => void>(),
+    fake<(_target: unknown, onChange: (app: { id: string } | null) => void) => () => void>(),
 }));
 vi.mock(import("@supaterm/client-runtime/state/runtime"), async (original) => {
   const runtime = await original();
@@ -90,11 +121,11 @@ function Probe({ visible, access = null }: { visible: boolean; access?: DeviceHu
   return null;
 }
 function setup() {
-  read.mockReset();
-  action.mockReset();
-  subscribe.mockReset();
-  subscribe.mockReturnValue(() => {});
-  read.mockResolvedValue(snapshot("light"));
+  read.reset();
+  action.reset();
+  subscribe.reset();
+  subscribe.implement(() => () => {});
+  read.implement(async () => snapshot("light"));
   const registry = AtomRegistry.make();
   const view = (visible: boolean) => (
     <RegistryContext.Provider value={registry}>
@@ -114,7 +145,7 @@ it("serializes rapid actions and retains confirmed settings while pending or aft
   await using _screen = await render(view(true));
   await vi.waitFor(() => expect(controls.detail?.settings.appearance).toBe("light"));
   const response = deferred();
-  action.mockReturnValueOnce(response.promise);
+  action.implementOnce(() => response.promise);
   let pending!: Promise<boolean>;
   await act(async () => {
     pending = controls.act({ type: "setAppearance", value: "dark" });
@@ -128,7 +159,7 @@ it("serializes rapid actions and retains confirmed settings while pending or aft
     expect(await pending).toBe(true);
   });
   expect(controls.detail?.settings.appearance).toBe("dark");
-  action.mockResolvedValueOnce({ _tag: "Failure", cause: offline });
+  action.implementOnce(async () => ({ _tag: "Failure", cause: offline }));
   await act(async () => {
     expect(await controls.act({ type: "setAppearance", value: "light" })).toBe(false);
   });
@@ -142,13 +173,13 @@ it("confirms settings again after a command sent before the panel reopened", asy
   await using screen = await render(view(true));
   await vi.waitFor(() => expect(controls.detail).not.toBeNull());
   const response = deferred();
-  action.mockReturnValueOnce(response.promise);
+  action.implementOnce(() => response.promise);
   let pending!: Promise<boolean>;
   await act(async () => {
     pending = controls.act({ type: "setAppearance", value: "dark" });
   });
   await hide(screen);
-  read.mockResolvedValueOnce({ _tag: "Failure", cause: offline });
+  read.implementOnce(async () => ({ _tag: "Failure", cause: offline }));
   await screen.rerender(view(true));
   await act(async () => {
     response.resolve(snapshot("dark"));
@@ -171,10 +202,10 @@ it("does not let a read sent before an action overwrite the action's answer", as
   await vi.waitFor(() => expect(controls.detail).not.toBeNull());
   await hide(screen);
   const refresh = deferred();
-  read.mockReturnValueOnce(refresh.promise);
+  read.implementOnce(() => refresh.promise);
   await screen.rerender(view(true));
   await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2));
-  action.mockResolvedValueOnce(snapshot("dark"));
+  action.implementOnce(async () => snapshot("dark"));
   let pending!: Promise<boolean>;
   await act(async () => {
     pending = controls.act({ type: "setAppearance", value: "dark" });

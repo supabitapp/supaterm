@@ -7,7 +7,6 @@ import {
   hydrateImagesFromPersisted,
   useComposerDraftStore,
 } from "../../composerDraftStore";
-import * as imageCompression from "../../lib/imageCompression";
 import {
   questionAttachmentDraftId,
   trackOpenQuestionAttachmentDraft,
@@ -32,11 +31,45 @@ vi.mock(import("../../hooks/useHandleNewThread"), { spy: true });
 vi.mock(import("../../lib/snapShotSound"), { spy: true });
 vi.mock(import("../../lib/imageCompression"), { spy: true });
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const storage = vi.hoisted(() => {
   const values = new Map<string, string>();
   const storage = {
     getItem: (key: string) => values.get(key) ?? null,
-    setItem: vi.fn((key: string, value: string) => {
+    write: (key: string, value: string) => {
+      values.set(key, value);
+    },
+    setItem: fake((key: string, value: string) => {
       values.set(key, value);
     }),
     removeItem: (key: string) => {
@@ -158,28 +191,25 @@ describe("open question delivery", () => {
     const pins = new Map();
     const untrackFirst = trackOpenQuestionAttachmentDraft(threadRef, request);
     let untrackSecond = () => {};
-    const compression = vi
-      .spyOn(imageCompression, "compressImageToByteLimit")
-      .mockImplementationOnce(async (file) => {
-        untrackSecond = trackOpenQuestionAttachmentDraft(threadRef, {
-          ...request,
-          draftId: second,
-        });
-        untrackFirst();
-        return { ok: true, file, recompressed: false };
+    const compressImage = async (file: File) => {
+      untrackSecond = trackOpenQuestionAttachmentDraft(threadRef, {
+        ...request,
+        draftId: second,
       });
+      untrackFirst();
+      return { ok: true as const, file, recompressed: false };
+    };
     try {
       const { bridge, acknowledgeSnapShot } = makeBridge();
       const resolveTarget = () => resolveSnapShotAttachmentTarget(pins, capture.id, threadRef);
       expect(resolveTarget()).toBe(first);
-      await deliverSnapShot(bridge, capture, resolveTarget);
+      await deliverSnapShot(bridge, capture, resolveTarget, compressImage);
       const store = useComposerDraftStore.getState();
       expect(store.getComposerDraft(first)?.images ?? []).toHaveLength(0);
       expect(store.getComposerDraft(second)?.images ?? []).toHaveLength(0);
       expect(store.getComposerDraft(threadRef)?.images.map(({ id }) => id)).toEqual([capture.id]);
       expect(acknowledgeSnapShot).toHaveBeenCalledExactlyOnceWith(capture.id);
     } finally {
-      compression.mockRestore();
       untrackFirst();
       untrackSecond();
     }
@@ -231,8 +261,8 @@ describe("durable snapshot delivery", () => {
         readSnapShot: async () => capture,
         acknowledgeSnapShot,
       } as unknown as DesktopBridge;
-      const write = storage.setItem.getMockImplementation()!;
-      storage.setItem.mockImplementation(() => {
+      const write = storage.write;
+      storage.setItem.implement(() => {
         throw new Error("QuotaExceededError");
       });
       try {
@@ -253,7 +283,7 @@ describe("durable snapshot delivery", () => {
         expect(
           useComposerDraftStore.getState().getComposerDraft(target)?.nonPersistedImageIds,
         ).toContain(capture.id);
-        storage.setItem.mockImplementation(write);
+        storage.setItem.implement(write);
         await deliverSnapShot(bridge, capture, () => target);
         expect(acknowledgeSnapShot).toHaveBeenCalledExactlyOnceWith(capture.id);
         expect(useComposerDraftStore.getState().getComposerDraft(target)?.images).toHaveLength(1);
@@ -261,7 +291,7 @@ describe("durable snapshot delivery", () => {
           useComposerDraftStore.getState().getComposerDraft(target)?.persistedAttachments,
         ).toHaveLength(1);
       } finally {
-        storage.setItem.mockImplementation(write);
+        storage.setItem.implement(write);
       }
     },
   );

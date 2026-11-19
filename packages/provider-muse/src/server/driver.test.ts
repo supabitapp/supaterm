@@ -23,8 +23,6 @@ import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter
 import * as sdk from "./sdk.ts";
 import { MuseDriver } from "./driver.ts";
 
-vi.mock("./sdk.ts", { spy: true });
-
 const layerTest = TestProviderHost.layer({
   runBackgroundWork: false,
   settings: { ...DEFAULT_SERVER_SETTINGS, enableProviderUpdateChecks: false },
@@ -105,111 +103,116 @@ it.layer(layerTest)("MuseDriver usage", (it) => {
     () =>
       Effect.gen(function* () {
         const hosts: ReturnType<typeof nativeHost>[] = [];
-        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-        using spawn = vi.spyOn(spawner, "spawn").mockImplementation(() =>
-          Effect.succeed(
-            ChildProcessSpawner.makeHandle({
-              pid: ChildProcessSpawner.ProcessId(1),
-              exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
-              isRunning: Effect.succeed(false),
-              kill: () => Effect.void,
-              unref: Effect.succeed(Effect.void),
-              stdin: Sink.drain,
-              stdout: Stream.encodeText(Stream.make("muse 1.0.3-R2198.1")),
-              stderr: Stream.empty,
-              all: Stream.empty,
-              getInputFd: () => Sink.drain,
-              getOutputFd: () => Stream.empty,
-            }),
-          ),
-        );
+        const versionProcess = {
+          spawn: (
+            _command: Parameters<ChildProcessSpawner.ChildProcessSpawner["Service"]["spawn"]>[0],
+          ) =>
+            Effect.succeed(
+              ChildProcessSpawner.makeHandle({
+                pid: ChildProcessSpawner.ProcessId(1),
+                exitCode: Effect.succeed(ChildProcessSpawner.ExitCode(0)),
+                isRunning: Effect.succeed(false),
+                kill: () => Effect.void,
+                unref: Effect.succeed(Effect.void),
+                stdin: Sink.drain,
+                stdout: Stream.encodeText(Stream.make("muse 1.0.3-R2198.1")),
+                stderr: Stream.empty,
+                all: Stream.empty,
+                getInputFd: () => Sink.drain,
+                getOutputFd: () => Stream.empty,
+              }),
+            ),
+        };
+        const spawn = vi.spyOn(versionProcess, "spawn");
         const createHost: typeof sdk.createMuseSdkHost = async () => {
           const fake = nativeHost();
           hosts.push(fake);
           return fake.host;
         };
-        const original = (yield* Effect.promise(() => vi.importActual<typeof sdk>("./sdk.ts")))
-          .createMuseSdkHostEffect;
-        using _hostEffect = vi
-          .spyOn(sdk, "createMuseSdkHostEffect")
-          .mockImplementation((options) => original(options, createHost));
-        using _host = vi.spyOn(sdk, "createMuseSdkHost").mockImplementation(createHost);
-        const instanceId = ProviderInstanceId.make("muse-test");
-        const instance = yield* MuseDriver.create({
-          instanceId,
-          displayName: "Muse test",
-          enabled: true,
-          environment: [],
-          config: { ...MuseDriver.defaultConfig(), binaryPath: process.execPath },
-        });
-        yield* Stream.take(instance.snapshot.streamChanges, 1).pipe(Stream.runDrain);
-        expect((yield* instance.snapshot.getSnapshot).status).toBe("ready");
-        expect((yield* instance.snapshot.getSnapshot).usageLimits).toBeUndefined();
-        const policy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
-          runtimeMode: "full-access",
-          interactionMode: "default",
-          cwd: null,
-        });
-        const sessions = yield* Effect.forEach(
-          ["one", "two"],
-          Effect.fnUntraced(function* (id) {
-            const runtime = yield* instance.orchestrationAdapter.openSession({
-              threadId: ThreadId.make(id),
-              providerSessionId: ProviderSessionId.make(id),
-              modelSelection: { instanceId, model: "muse-wonder-1.0", options: [] },
-              runtimePolicy: policy,
+        yield* Effect.provideService(
+          Effect.gen(function* () {
+            const instanceId = ProviderInstanceId.make("muse-test");
+            const instance = yield* MuseDriver.create({
+              instanceId,
+              displayName: "Muse test",
+              enabled: true,
+              environment: [],
+              config: { ...MuseDriver.defaultConfig(), binaryPath: process.execPath },
             });
-            const events = yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event>();
-            yield* runtime.events.pipe(
-              Stream.runForEach((event) => Queue.offer(events, event)),
-              Effect.forkScoped,
+            yield* Stream.take(instance.snapshot.streamChanges, 1).pipe(Stream.runDrain);
+            expect((yield* instance.snapshot.getSnapshot).status).toBe("ready");
+            expect((yield* instance.snapshot.getSnapshot).usageLimits).toBeUndefined();
+            const policy = ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+              runtimeMode: "full-access",
+              interactionMode: "default",
+              cwd: null,
+            });
+            const sessions = yield* Effect.forEach(
+              ["one", "two"],
+              Effect.fnUntraced(function* (id) {
+                const runtime = yield* instance.orchestrationAdapter.openSession({
+                  threadId: ThreadId.make(id),
+                  providerSessionId: ProviderSessionId.make(id),
+                  modelSelection: { instanceId, model: "muse-wonder-1.0", options: [] },
+                  runtimePolicy: policy,
+                });
+                const events = yield* Queue.unbounded<ProviderAdapter.ProviderAdapterV2Event>();
+                yield* runtime.events.pipe(
+                  Stream.runForEach((event) => Queue.offer(events, event)),
+                  Effect.forkScoped,
+                );
+                yield* runtime.ensureThread({
+                  threadId: ThreadId.make(id),
+                  modelSelection: { instanceId, model: "muse-wonder-1.0", options: [] },
+                  runtimePolicy: policy,
+                });
+                return { fake: hosts.at(-1)!, events };
+              }),
             );
-            yield* runtime.ensureThread({
-              threadId: ThreadId.make(id),
-              modelSelection: { instanceId, model: "muse-wonder-1.0", options: [] },
-              runtimePolicy: policy,
+            const reading = (observedAtMs: number, usedPercent: number, tier: string) => ({
+              window: { usedPercent, windowDurationMins: 300, resetsAtMs: 1791465557000 },
+              weekly: { usedPercent: 50, resetsAtMs: 1791763200000 },
+              observedAtMs,
+              tier,
             });
-            return { fake: hosts.at(-1)!, events };
+            const publish = Effect.fnUntraced(function* (
+              index: number,
+              report: ReturnType<typeof reading>,
+            ) {
+              const session = sessions[index]!;
+              session.fake.emit("usage/changed", report);
+              session.fake.emit("session/contextUsage", {
+                sessionId: "command",
+                usedTokens: report.observedAtMs,
+              });
+              yield* Queue.take(session.events).pipe(
+                Effect.repeat({
+                  until: (event) =>
+                    event.type === "provider_thread.updated" &&
+                    event.providerThread.contextUsage?.usedTokens === report.observedAtMs,
+                }),
+              );
+            });
+            yield* publish(1, reading(1791447762610, 70, "tier-2"));
+            const latest = yield* instance.snapshot.getSnapshot;
+            expect(latest.usageLimits?.unavailable).toBeUndefined();
+            expect(latest.usageLimits?.windows.map((window) => window.usedPercent)).toEqual([
+              70, 50,
+            ]);
+            expect(latest.auth.label).toBe("tier-2");
+            yield* publish(0, reading(1791447761610, 10, "tier-1"));
+            expect((yield* instance.snapshot.getSnapshot).usageLimits).toEqual(latest.usageLimits);
+            expect((yield* instance.snapshot.getSnapshot).auth.label).toBe("tier-2");
+            const callsBeforeUsageRefresh = spawn.mock.calls.length;
+            yield* instance.snapshot.refreshUsage!;
+            expect(spawn.mock.calls.length).toBe(callsBeforeUsageRefresh);
+            const refreshed = yield* instance.snapshot.refresh;
+            expect(refreshed.usageLimits).toEqual(latest.usageLimits);
+            expect(refreshed.auth.label).toBe("tier-2");
           }),
-        );
-        const reading = (observedAtMs: number, usedPercent: number, tier: string) => ({
-          window: { usedPercent, windowDurationMins: 300, resetsAtMs: 1791465557000 },
-          weekly: { usedPercent: 50, resetsAtMs: 1791763200000 },
-          observedAtMs,
-          tier,
-        });
-        const publish = Effect.fnUntraced(function* (
-          index: number,
-          report: ReturnType<typeof reading>,
-        ) {
-          const session = sessions[index]!;
-          session.fake.emit("usage/changed", report);
-          session.fake.emit("session/contextUsage", {
-            sessionId: "command",
-            usedTokens: report.observedAtMs,
-          });
-          yield* Queue.take(session.events).pipe(
-            Effect.repeat({
-              until: (event) =>
-                event.type === "provider_thread.updated" &&
-                event.providerThread.contextUsage?.usedTokens === report.observedAtMs,
-            }),
-          );
-        });
-        yield* publish(1, reading(1791447762610, 70, "tier-2"));
-        const latest = yield* instance.snapshot.getSnapshot;
-        expect(latest.usageLimits?.unavailable).toBeUndefined();
-        expect(latest.usageLimits?.windows.map((window) => window.usedPercent)).toEqual([70, 50]);
-        expect(latest.auth.label).toBe("tier-2");
-        yield* publish(0, reading(1791447761610, 10, "tier-1"));
-        expect((yield* instance.snapshot.getSnapshot).usageLimits).toEqual(latest.usageLimits);
-        expect((yield* instance.snapshot.getSnapshot).auth.label).toBe("tier-2");
-        const callsBeforeUsageRefresh = spawn.mock.calls.length;
-        yield* instance.snapshot.refreshUsage!;
-        expect(spawn.mock.calls.length).toBe(callsBeforeUsageRefresh);
-        const refreshed = yield* instance.snapshot.refresh;
-        expect(refreshed.usageLimits).toEqual(latest.usageLimits);
-        expect(refreshed.auth.label).toBe("tier-2");
+          ChildProcessSpawner.ChildProcessSpawner,
+          ChildProcessSpawner.make(spawn),
+        ).pipe(Effect.provideService(sdk.MuseSdkHostFactory, createHost));
       }),
   );
 });

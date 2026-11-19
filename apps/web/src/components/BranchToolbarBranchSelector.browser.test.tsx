@@ -4,9 +4,40 @@ import { type ComponentProps } from "react";
 import { act, render as renderUi, type Screen } from "../../test/render";
 import { describe, expect, it, vi } from "vite-plus/test";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const commands = vi.hoisted(() => ({
-  switchRef: vi.fn(),
-  createRef: vi.fn(),
+  switchRef: fake(),
+  createRef: fake(),
 }));
 
 vi.mock(import("../hooks/useShortcutLabel"), async (original) => ({
@@ -140,8 +171,8 @@ async function setupTest() {
     useComposerDraftStore.getState().clearDraftThread(draftId);
   });
 
-  commands.switchRef.mockReset();
-  commands.createRef.mockReset();
+  commands.switchRef.reset();
+  commands.createRef.reset();
   useComposerDraftStore
     .getState()
     .setProjectDraftThreadId(scopeProjectRef(environmentId, projectId), draftId, {
@@ -190,7 +221,7 @@ describe.each(["switch", "create"] as const)("%s branch host routing", (action) 
     await using _test = await setupTest();
     const checkout = deferredCheckout();
     const command = action === "switch" ? commands.switchRef : commands.createRef;
-    command.mockReturnValue(checkout.promise);
+    command.implement(() => checkout.promise);
 
     await chooseBranch(action);
 
@@ -212,7 +243,7 @@ describe.each(["switch", "create"] as const)("%s branch host routing", (action) 
     await using _test = await setupTest();
     const checkout = deferredCheckout();
     const command = action === "switch" ? commands.switchRef : commands.createRef;
-    command.mockReturnValue(checkout.promise);
+    command.implement(() => checkout.promise);
     await chooseBranch(action);
 
     await act(() => {

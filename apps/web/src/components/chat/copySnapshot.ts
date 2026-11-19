@@ -5,8 +5,23 @@ import {
 
 import { readMediaPng } from "../media/mediaContent";
 
-export async function copySnapshot(src: string, text: string, fragment: string) {
-  if (!navigator.clipboard?.write || typeof ClipboardItem === "undefined") {
+type ClipboardFormats = Record<string, Blob | Promise<Blob>>;
+
+const browserClipboard = () =>
+  typeof navigator.clipboard?.write === "function" && typeof ClipboardItem !== "undefined"
+    ? {
+        write: (formats: ClipboardFormats) =>
+          navigator.clipboard.write([new ClipboardItem(formats)]),
+      }
+    : null;
+
+export async function copySnapshot(
+  src: string,
+  text: string,
+  fragment: string,
+  clipboard = browserClipboard(),
+) {
+  if (!clipboard) {
     throw new Error("Snapshot copying requires a secure browser connection.");
   }
   const formats = {
@@ -17,15 +32,13 @@ export async function copySnapshot(src: string, text: string, fragment: string) 
     }),
   };
   try {
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        ...formats,
-        [COMPOSER_CONTEXT_CLIPBOARD_MIME]: new Blob([fragment], {
-          type: COMPOSER_CONTEXT_CLIPBOARD_MIME,
-        }),
+    await clipboard.write({
+      ...formats,
+      [COMPOSER_CONTEXT_CLIPBOARD_MIME]: new Blob([fragment], {
+        type: COMPOSER_CONTEXT_CLIPBOARD_MIME,
       }),
-    ]);
+    });
   } catch {
-    await navigator.clipboard.write([new ClipboardItem(formats)]);
+    await clipboard.write(formats);
   }
 }

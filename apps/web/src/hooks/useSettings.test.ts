@@ -2,14 +2,39 @@ import { DEFAULT_SERVER_SETTINGS, ProviderInstanceId } from "@supaterm/contracts
 import { DEFAULT_CLIENT_SETTINGS, type ClientSettings } from "@supaterm/contracts/settings";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const persistenceMocks = vi.hoisted(() => ({
-  getClientSettings: vi.fn<() => Promise<ClientSettings | null>>(),
-  setClientSettings: vi.fn<(settings: ClientSettings) => Promise<void>>(),
-}));
+const persistenceMocks = vi.hoisted(() => {
+  const state = {
+    pendingReads: [] as Array<() => Promise<ClientSettings | null>>,
+    pendingWrites: [] as Array<(settings: ClientSettings) => Promise<void>>,
+    read: () => Promise.resolve<ClientSettings | null>(null),
+    getClientSettings: vi.fn<() => void>(),
+    setClientSettings: vi.fn<(settings: ClientSettings) => void>(),
+    persistence: {
+      getClientSettings: () => {
+        state.getClientSettings();
+        return (state.pendingReads.shift() ?? state.read)();
+      },
+      setClientSettings: (settings: ClientSettings) => {
+        state.setClientSettings(settings);
+        return (state.pendingWrites.shift() ?? (() => Promise.resolve()))(settings);
+      },
+    },
+  };
+  return state;
+});
 
 vi.mock("~/localApi", () => ({
-  ensureLocalApi: () => ({ persistence: persistenceMocks }),
+  ensureLocalApi: () => ({ persistence: persistenceMocks.persistence }),
 }));
+
+function recordingPersist(...outcomes: Array<(settings: ClientSettings) => Promise<void>>) {
+  const calls: Array<ClientSettings> = [];
+  const persist = (settings: ClientSettings) => {
+    calls.push(settings);
+    return (outcomes.length > 1 ? outcomes.shift()! : outcomes[0]!)(settings);
+  };
+  return { calls, persist };
+}
 
 import {
   __resetClientSettingsPersistenceForTests,
@@ -22,8 +47,11 @@ import {
 } from "./useSettings";
 
 beforeEach(() => {
-  persistenceMocks.getClientSettings.mockReset().mockResolvedValue(null);
-  persistenceMocks.setClientSettings.mockReset().mockResolvedValue(undefined);
+  persistenceMocks.getClientSettings.mockReset();
+  persistenceMocks.setClientSettings.mockReset();
+  persistenceMocks.pendingReads.length = 0;
+  persistenceMocks.pendingWrites.length = 0;
+  persistenceMocks.read = () => Promise.resolve(null);
   __resetClientSettingsPersistenceForTests();
 });
 
@@ -41,10 +69,8 @@ describe("client settings hydration", () => {
 
   it("rejects completion after a failed read and preserves saved preferences on retry", async () => {
     const failure = new Error("storage unavailable");
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    persistenceMocks.getClientSettings
-      .mockRejectedValueOnce(failure)
-      .mockResolvedValue(savedSettings);
+    persistenceMocks.pendingReads.push(() => Promise.reject(failure));
+    persistenceMocks.read = () => Promise.resolve(savedSettings);
 
     await expect(persistClientSettingsUpdate(complete)).rejects.toBe(failure);
     expect(persistenceMocks.setClientSettings).not.toHaveBeenCalled();
@@ -58,14 +84,14 @@ describe("client settings hydration", () => {
 
   it("holds patches until a pending read supplies the saved preferences", async () => {
     let finishRead!: (settings: ClientSettings) => void;
-    persistenceMocks.getClientSettings.mockImplementationOnce(
+    persistenceMocks.pendingReads.push(
       () =>
         new Promise((resolve) => {
           finishRead = resolve;
         }),
     );
     const persisted = new Promise<ClientSettings>((resolve) => {
-      persistenceMocks.setClientSettings.mockImplementationOnce(async (settings) => {
+      persistenceMocks.pendingWrites.push(async (settings) => {
         resolve(settings);
       });
     });
@@ -86,9 +112,9 @@ describe("client settings hydration", () => {
       ...DEFAULT_CLIENT_SETTINGS,
       codexMicro: { ...DEFAULT_CLIENT_SETTINGS.codexMicro, enabled: true },
     };
-    persistenceMocks.getClientSettings.mockResolvedValue(saved);
+    persistenceMocks.read = () => Promise.resolve(saved);
     const persisted = new Promise<ClientSettings>((resolve) => {
-      persistenceMocks.setClientSettings.mockImplementationOnce(async (settings) => {
+      persistenceMocks.pendingWrites.push(async (settings) => {
         resolve(settings);
       });
     });
@@ -108,7 +134,7 @@ describe("client settings hydration", () => {
     const read = new Promise<ClientSettings>((resolve) => {
       finishRead = resolve;
     });
-    persistenceMocks.getClientSettings.mockReturnValue(read);
+    persistenceMocks.read = () => read;
     let finishCompletionWrite!: () => void;
     const blockedWrite = new Promise<void>((resolve) => {
       finishCompletionWrite = resolve;
@@ -118,16 +144,16 @@ describe("client settings hydration", () => {
       signalCompletionWrite = resolve;
     });
     let durableSettings: ClientSettings = savedSettings;
-    const persist = vi
-      .fn<(settings: ClientSettings) => Promise<void>>()
-      .mockImplementationOnce(async (settings) => {
+    const { persist } = recordingPersist(
+      async (settings) => {
         signalCompletionWrite();
         await blockedWrite;
         durableSettings = settings;
-      })
-      .mockImplementation(async (settings) => {
+      },
+      async (settings) => {
         durableSettings = settings;
-      });
+      },
+    );
 
     const completion = persistClientSettingsUpdate(complete, persist);
     persistClientSettingsPatch({ wordWrap: false }, persist);
@@ -154,7 +180,7 @@ describe("persistClientSettingsPatch", () => {
     const firstStarted = new Promise<void>((resolve) => {
       markFirstStarted = resolve;
     });
-    persistenceMocks.setClientSettings.mockImplementationOnce(() => {
+    persistenceMocks.pendingWrites.push(() => {
       markFirstStarted();
       return new Promise<void>((resolve) => {
         finishFirst = resolve;
@@ -181,7 +207,7 @@ describe("persistClientSettingsPatch", () => {
     try {
       await ensureClientSettingsHydrated();
       const otherTabSettings = { ...DEFAULT_CLIENT_SETTINGS, timestampFormat: "12-hour" as const };
-      persistenceMocks.getClientSettings.mockResolvedValue(otherTabSettings);
+      persistenceMocks.read = () => Promise.resolve(otherTabSettings);
       window.dispatchEvent(
         Object.assign(new Event("storage"), { key: "supaterm:client-settings:v1" }),
       );
@@ -204,7 +230,7 @@ describe("persistClientSettingsUpdate", () => {
     const persistence = new Promise<void>((resolve) => {
       finishPersistence = resolve;
     });
-    const setClientSettings = vi.fn(() => persistence);
+    const setClientSettings = () => persistence;
     __setClientSettingsForTests(DEFAULT_CLIENT_SETTINGS);
 
     const pending = persistClientSettingsUpdate(
@@ -227,16 +253,15 @@ describe("persistClientSettingsUpdate", () => {
     const firstPersistence = new Promise<void>((resolve) => {
       finishFirstPersistence = resolve;
     });
-    const persist = vi
-      .fn<(settings: typeof DEFAULT_CLIENT_SETTINGS) => Promise<void>>()
-      .mockImplementationOnce((settings) =>
+    const { calls, persist } = recordingPersist(
+      (settings) =>
         firstPersistence.then(() => {
           durableSettings = settings;
         }),
-      )
-      .mockImplementation(async (settings) => {
+      async (settings) => {
         durableSettings = settings;
-      });
+      },
+    );
     __setClientSettingsForTests(DEFAULT_CLIENT_SETTINGS);
     const importedProfile = { id: "profile-import", name: "Imported", kind: "persistent" as const };
 
@@ -252,11 +277,11 @@ describe("persistClientSettingsUpdate", () => {
     finishFirstPersistence();
     await Promise.all([pending, patch]);
 
-    expect(persist).toHaveBeenCalledTimes(3);
-    expect(persist.mock.calls[1]?.[0]).toMatchObject({
+    expect(calls).toHaveLength(3);
+    expect(calls[1]).toMatchObject({
       wordWrap: false,
     });
-    expect(persist.mock.calls[1]?.[0].browserProfiles).toContainEqual(importedProfile);
+    expect(calls[1]?.browserProfiles).toContainEqual(importedProfile);
     expect(durableSettings.wordWrap).toBe(false);
     expect(durableSettings.browserProfiles).toContainEqual(importedProfile);
     expect(getClientSettings().wordWrap).toBe(false);
@@ -287,10 +312,10 @@ describe("mergeEnvironmentSettings", () => {
 describe("onboarding completion persistence", () => {
   it("keeps onboarding incomplete after a failed save and preserves preferences on retry", async () => {
     const failure = new Error("disk full");
-    const persist = vi
-      .fn<(settings: typeof DEFAULT_CLIENT_SETTINGS) => Promise<void>>()
-      .mockRejectedValueOnce(failure)
-      .mockResolvedValue(undefined);
+    const { calls, persist } = recordingPersist(
+      () => Promise.reject(failure),
+      () => Promise.resolve(),
+    );
     const existingSettings = {
       ...DEFAULT_CLIENT_SETTINGS,
       timestampFormat: "12-hour" as const,
@@ -317,6 +342,6 @@ describe("onboarding completion persistence", () => {
       completedSettings,
     );
     expect(getClientSettings()).toEqual(completedSettings);
-    expect(persist).toHaveBeenLastCalledWith(completedSettings);
+    expect(calls.at(-1)).toEqual(completedSettings);
   });
 });

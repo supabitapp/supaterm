@@ -1644,6 +1644,7 @@ interface TerminalManagerOptions {
   subprocessPollIntervalMs?: number;
   processKillGraceMs?: number;
   maxRetainedInactiveSessions?: number;
+  inspectState?: (readState: Effect.Effect<unknown>) => void;
   registerTerminalProcesses?: (input: {
     readonly threadId: string;
     readonly terminalId: string;
@@ -1884,6 +1885,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     sessions: new Map(),
     killFibers: new Map(),
   });
+  options.inspectState?.(SynchronizedRef.get(managerStateRef));
 
   const closedSessionKeys = new Set<string>();
   const threadLocks = yield* KeyedLock.make<string>();

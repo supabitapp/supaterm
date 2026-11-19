@@ -24,10 +24,41 @@ import { useDraftEnvironmentRouting } from "./useDraftEnvironmentRouting";
 import { appAtomRegistry, AppAtomRegistryProvider } from "../../rpc/atomRegistry";
 import { draftFanoutSelectionsAtom } from "./chatViewSend";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const resources = vi.hoisted(() => ({
   projects: [] as EnvironmentProject[],
   pickedEnvironmentId: null as EnvironmentId | null,
-  refreshSelection: vi.fn<(ids: readonly EnvironmentId[]) => Promise<EnvironmentId | null>>(),
+  refreshSelection: fake<(ids: readonly EnvironmentId[]) => Promise<EnvironmentId | null>>(),
 }));
 vi.mock("../../hooks/useLoadBalancedEnvironment", () => ({
   useLoadBalancedEnvironment: () => ({
@@ -48,7 +79,7 @@ vi.mock("../../state/entities", () => ({
 vi.mock("../../hooks/useScratchProject", () => ({ useScratchProject: () => ({}) }));
 
 function setup() {
-  resources.refreshSelection.mockReset();
+  resources.refreshSelection.reset();
   resources.projects = [];
   resources.pickedEnvironmentId = null;
   const a = EnvironmentId.make("machine-a");
@@ -122,7 +153,7 @@ function setup() {
     projectGroupingSettings: DEFAULT_UNIFIED_SETTINGS,
     sendInFlightRef: { current: false },
   };
-  resources.refreshSelection.mockImplementation(async (ids) => (ids.includes(b) ? b : null));
+  resources.refreshSelection.implement(async (ids) => (ids.includes(b) ? b : null));
   return { a, b, draftId, input, store };
 }
 
@@ -234,7 +265,7 @@ it.each(["manual", "attachments", "promoted"] as const)(
 
 it("does not reuse a stored choice when refreshed resources have no winner", async () => {
   const { a, input } = setup();
-  resources.refreshSelection.mockResolvedValue(null);
+  resources.refreshSelection.implement(async () => null);
   const onPrepared = vi.fn();
   await using screen = await render(<Harness input={input} onPrepared={onPrepared} />);
   await screen.getByRole("button", { name: "Send" }).click();
@@ -245,10 +276,11 @@ it("does not reuse a stored choice when refreshed resources have no winner", asy
 it("abandons a refresh when the draft changes while resources are in flight", async () => {
   const { a, b, draftId, input, store } = setup();
   let resolve!: (environmentId: EnvironmentId) => void;
-  resources.refreshSelection.mockReturnValue(
-    new Promise<EnvironmentId>((done) => {
-      resolve = done;
-    }),
+  resources.refreshSelection.implement(
+    () =>
+      new Promise<EnvironmentId>((done) => {
+        resolve = done;
+      }),
   );
   await using screen = await render(<Harness input={input} />);
   await screen.getByRole("button", { name: "Send" }).click();

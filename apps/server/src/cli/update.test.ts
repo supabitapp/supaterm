@@ -13,7 +13,6 @@ import * as TestConsole from "effect/testing/TestConsole";
 import { HttpClient, HttpClientResponse } from "effect/http";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
-import { afterEach, vi } from "vite-plus/test";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../service/bootService.ts";
@@ -41,8 +40,6 @@ const unrelatedLsof = ProcessRunner.ProcessRunner.of({
       stderrInvalidUtf8: false,
     }),
 });
-
-afterEach(() => vi.restoreAllMocks());
 
 it.effect("authenticates each release page until the requested channel is found", () =>
   Effect.gen(function* () {
@@ -418,7 +415,7 @@ it.layer(NodeServices.layer)("supaterm update with a background service", (it) =
         }),
         install: () => Effect.succeed({ program: [runtime.entryPath], baseDir, unitPath, logPath }),
       });
-      vi.spyOn(BootService, "layer").mockReturnValue(service);
+      const bootService = yield* BootService.BootService.pipe(Effect.provide(service));
       const runner = ProcessRunner.ProcessRunner.of({
         run: (input) =>
           input.args?.includes("__service-preflight") === true
@@ -458,6 +455,7 @@ it.layer(NodeServices.layer)("supaterm update with a background service", (it) =
             Layer.fresh(TestConsole.layer),
           ),
         ),
+        Effect.provideService(BootService.ProvidedBootService, bootService),
       );
 
       assert.include(

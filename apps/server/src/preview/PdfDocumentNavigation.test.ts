@@ -5,7 +5,7 @@ import { installPdfDocumentNavigation } from "./PdfDocumentNavigation.ts";
 
 const source = "https://environment.test/api/assets/signed-token/files/Study%20guide.PDF";
 
-function fixture(nativePdfViewer = false) {
+function fixture(nativePdfViewer = false, failingMethod?: string) {
   const completed = Promise.withResolvers<{ method: string; params: Record<string, unknown> }>();
   let paused: (event: {
     requestId: string;
@@ -17,6 +17,7 @@ function fixture(nativePdfViewer = false) {
     throw new Error("Navigation handler was not installed");
   };
   const send = vi.fn(async (method: string, params: Record<string, unknown> = {}) => {
+    if (method === failingMethod) throw new Error("Tab closed");
     if (method === "Runtime.evaluate") return { result: { value: nativePdfViewer } };
     if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "main" } } };
     if (
@@ -69,9 +70,8 @@ describe("PDF document navigation", () => {
   });
 
   it("resumes navigation when committing the document fails", async () => {
-    const test = fixture();
+    const test = fixture(false, "Fetch.fulfillRequest");
     await installPdfDocumentNavigation(test.cdp);
-    test.send.mockRejectedValueOnce(new Error("Tab closed"));
     expect(await test.navigate()).toEqual({
       method: "Fetch.continueRequest",
       params: { requestId: "request-1" },

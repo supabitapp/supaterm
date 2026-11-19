@@ -20,11 +20,13 @@ const directoryTails = new Map<string, Promise<unknown>>();
 const waiting: Array<() => void> = [];
 let running = 0;
 
-const access = async (path: string, mode: number) => {
+type AccessPath = (path: string, mode: number) => Promise<void>;
+
+const access = async (accessPath: AccessPath, path: string, mode: number) => {
   if (running < CHECK_LIMIT) running++;
   else await new Promise<void>((resume) => waiting.push(resume));
   try {
-    await NodeFSP.access(path, mode);
+    await accessPath(path, mode);
     return undefined;
   } catch (error) {
     return error as NodeJS.ErrnoException;
@@ -35,9 +37,9 @@ const access = async (path: string, mode: number) => {
   }
 };
 
-const check = (directory: string, path: string, mode: number) => {
+const check = (accessPath: AccessPath, directory: string, path: string, mode: number) => {
   const result = (directoryTails.get(directory) ?? Promise.resolve()).then(() =>
-    access(path, mode),
+    access(accessPath, path, mode),
   );
   directoryTails.set(directory, result);
   void result.then(() => {
@@ -89,6 +91,7 @@ const cwdFailure = (cwd: string, cause: NodeJS.ErrnoException) =>
   });
 
 const findExecutable = Effect.fnUntraced(function* (
+  accessPath: AccessPath,
   command: ChildProcess.StandardCommand,
   cwd: string | undefined,
 ) {
@@ -102,6 +105,7 @@ const findExecutable = Effect.fnUntraced(function* (
   let denied = false;
   for (const candidate of candidates) {
     const error = yield* check(
+      accessPath,
       candidate.slice(0, candidate.lastIndexOf("/")) || "/",
       candidate,
       NodeFS.constants.X_OK,
@@ -112,7 +116,7 @@ const findExecutable = Effect.fnUntraced(function* (
   return yield* spawnFailure(command, denied ? "EACCES" : "ENOENT");
 });
 
-const make = Effect.gen(function* () {
+const make = Effect.fn("NonBlockingSpawner.make")(function* (accessPath: AccessPath) {
   const native = yield* ChildProcessSpawner.ChildProcessSpawner;
   if ((yield* HostProcess.Platform) !== "linux") return native;
   if (!(yield* Effect.promise(supportsEnvChdir))) return native;
@@ -128,10 +132,14 @@ const make = Effect.gen(function* () {
     const trampoline = envTrampoline(command.command, command.args, cwd);
     if (trampoline === undefined) return input;
     if (givenCwd !== undefined && cwd !== undefined) {
-      const error = yield* check(cwd, givenCwd, NodeFS.constants.F_OK);
+      const error = yield* check(accessPath, cwd, givenCwd, NodeFS.constants.F_OK);
       if (error !== undefined) return yield* cwdFailure(givenCwd, error);
     }
-    yield* findExecutable(ChildProcess.make(command.command, command.args, options), cwd);
+    yield* findExecutable(
+      accessPath,
+      ChildProcess.make(command.command, command.args, options),
+      cwd,
+    );
     return ChildProcess.make(trampoline.command, trampoline.args, options);
   });
 
@@ -157,4 +165,7 @@ const make = Effect.gen(function* () {
  * On Linux with GNU `env`, replaces the provided `ChildProcessSpawner` with one that never
  * hands libuv a cwd or a PATH search; elsewhere it passes the provided one through.
  */
-export const layer = Layer.effect(ChildProcessSpawner.ChildProcessSpawner, make);
+export const layer = Layer.effect(ChildProcessSpawner.ChildProcessSpawner, make(NodeFSP.access));
+
+export const layerWithAccess = (accessPath: AccessPath) =>
+  Layer.effect(ChildProcessSpawner.ChildProcessSpawner, make(accessPath));

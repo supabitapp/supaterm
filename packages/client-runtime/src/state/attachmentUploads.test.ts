@@ -23,12 +23,27 @@ function request(id: string, environment = environmentId) {
   return { environmentId: environment, attachment: { id, fileUri: `file:///documents/${id}.pdf` } };
 }
 
+type Upload = (
+  request: UploadRequest,
+  signal: AbortSignal,
+  onProgress: (progress: number) => void,
+) => Promise<string>;
+
+function scriptedUpload(...steps: Array<Upload>) {
+  const calls: Array<UploadRequest> = [];
+  const upload: Upload = (input, signal, onProgress) => {
+    calls.push(input);
+    const step = steps.length > 1 ? steps.shift() : steps[0];
+    if (!step) throw new Error("No scripted upload");
+    return step(input, signal, onProgress);
+  };
+  return { upload, calls };
+}
+
+const rejectWith = (message: string) => () => Promise.reject(new Error(message));
+
 function createQueue(options: {
-  readonly upload: (
-    request: UploadRequest,
-    signal: AbortSignal,
-    onProgress: (progress: number) => void,
-  ) => Promise<string>;
+  readonly upload: Upload;
   readonly onUploaded?: (
     request: UploadRequest,
     uploadedId: string,
@@ -91,13 +106,16 @@ describe("attachment upload registry", () => {
     const started = Promise.withResolvers<void>();
     let states: Readonly<Record<string, AttachmentUploadStatus>> = {};
     let signal: AbortSignal | undefined;
-    const upload = vi.fn(async (_request: UploadRequest, currentSignal: AbortSignal) => {
-      signal = currentSignal;
-      started.resolve();
-      return new Promise<string>((resolve) =>
-        currentSignal.addEventListener("abort", () => resolve("aborted"), { once: true }),
-      );
-    });
+    const { upload, calls } = scriptedUpload(
+      async (_request, currentSignal) => {
+        signal = currentSignal;
+        started.resolve();
+        return new Promise<string>((resolve) =>
+          currentSignal.addEventListener("abort", () => resolve("aborted"), { once: true }),
+        );
+      },
+      async () => "uploaded",
+    );
     const queue = createQueue({
       upload,
       onChange: (next) => {
@@ -111,10 +129,9 @@ describe("attachment upload registry", () => {
     await queue.settled();
     expect(signal?.aborted).toBe(true);
     expect(states).toEqual({});
-    upload.mockResolvedValueOnce("uploaded");
     queue.sync([local]);
     await queue.settled();
-    expect(upload.mock.calls[1]?.[0]).toBe(local);
+    expect(calls[1]).toBe(local);
     expect(states[uploadKey(environmentId, local.attachment.id)]).toEqual({
       status: "ready",
     });
@@ -124,10 +141,7 @@ describe("attachment upload registry", () => {
 
   it("retries a failed attachment when the worker restores requests after reconnect", async () => {
     let states: Readonly<Record<string, AttachmentUploadStatus>> = {};
-    const upload = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Disconnected"))
-      .mockResolvedValue("uploaded");
+    const { upload, calls } = scriptedUpload(rejectWith("Disconnected"), async () => "uploaded");
     const queue = createQueue({
       upload,
       onChange: (next) => {
@@ -141,11 +155,11 @@ describe("attachment upload registry", () => {
     expect(states[key]?.status).toBe("failed");
     queue.sync([local]);
     await queue.settled();
-    expect(upload).toHaveBeenCalledTimes(1);
+    expect(calls).toHaveLength(1);
     queue.sync([]);
     queue.sync([local]);
     await queue.settled();
-    expect(upload).toHaveBeenCalledTimes(2);
+    expect(calls).toHaveLength(2);
     expect(states[key]?.status).toBe("ready");
     queue.dispose();
   });
@@ -154,10 +168,13 @@ describe("attachment upload registry", () => {
     const gate = Promise.withResolvers<string>();
     const started = Promise.withResolvers<void>();
     let states: Readonly<Record<string, AttachmentUploadStatus>> = {};
-    const upload = vi.fn(async () => {
-      started.resolve();
-      return gate.promise;
-    });
+    const { upload } = scriptedUpload(
+      async () => {
+        started.resolve();
+        return gate.promise;
+      },
+      async () => "uploaded",
+    );
     const queue = createQueue({
       upload,
       onChange: (next) => {
@@ -166,7 +183,6 @@ describe("attachment upload registry", () => {
     });
     queue.sync([request("photo")]);
     await started.promise;
-    upload.mockResolvedValueOnce("uploaded");
     const other = EnvironmentId.make("environment-2");
     queue.sync([request("photo", other)]);
     gate.resolve("uploaded");
@@ -180,18 +196,15 @@ describe("attachment upload registry", () => {
   it("keeps failures stable until retry and reports bounded progress", async () => {
     let states: Readonly<Record<string, AttachmentUploadStatus>> = {};
     const progress: number[] = [];
-    const upload = vi.fn<
-      (
-        request: UploadRequest,
-        signal: AbortSignal,
-        report: (value: number) => void,
-      ) => Promise<string>
-    >(async (_request, _signal, report) => {
-      report(0.12);
-      report(0.13);
-      report(1.1);
-      throw new Error("Server unavailable");
-    });
+    const { upload, calls } = scriptedUpload(
+      async (_request, _signal, report) => {
+        report(0.12);
+        report(0.13);
+        report(1.1);
+        throw new Error("Server unavailable");
+      },
+      async () => "uploaded",
+    );
     const queue = createQueue({
       upload,
       onChange: (next) => {
@@ -203,13 +216,12 @@ describe("attachment upload registry", () => {
     queue.sync([request("file")]);
     await queue.settled();
     queue.sync([request("file")]);
-    expect(upload).toHaveBeenCalledOnce();
+    expect(calls).toHaveLength(1);
     expect(states[uploadKey(environmentId, "file")]).toEqual({
       status: "failed",
       reason: "Server unavailable",
     });
     expect(progress).toEqual([0, 0.1, 1]);
-    upload.mockImplementationOnce(async () => "uploaded");
     queue.retry(uploadKey(environmentId, "file"));
     await queue.settled();
     expect(states[uploadKey(environmentId, "file")]).toEqual({ status: "ready" });
@@ -249,10 +261,10 @@ describe("attachment upload registry", () => {
   );
   it.effect("restarts a failed upload when a send joins it instead of rejoining the failure", () =>
     Effect.gen(function* () {
-      const upload = vi
-        .fn()
-        .mockRejectedValueOnce(new Error("Server unavailable"))
-        .mockResolvedValue("uploaded-2");
+      const { upload, calls } = scriptedUpload(
+        rejectWith("Server unavailable"),
+        async () => "uploaded-2",
+      );
       const queue = createQueue({ upload, onChange: () => {} });
       const local = request("photo");
       queue.sync([local]);
@@ -260,7 +272,7 @@ describe("attachment upload registry", () => {
       expect(queue.status(uploadKey(environmentId, "photo"))?.status).toBe("failed");
 
       expect(yield* queue.upload(local)).toBe("uploaded-2");
-      expect(upload).toHaveBeenCalledTimes(2);
+      expect(calls).toHaveLength(2);
       queue.dispose();
     }),
   );
@@ -268,10 +280,10 @@ describe("attachment upload registry", () => {
   it.effect("keeps a replacement upload's status when the upload it replaced is released", () =>
     Effect.gen(function* () {
       const replacement = Promise.withResolvers<string>();
-      const upload = vi
-        .fn()
-        .mockRejectedValueOnce(new Error("Server unavailable"))
-        .mockImplementationOnce(() => replacement.promise);
+      const { upload } = scriptedUpload(
+        rejectWith("Server unavailable"),
+        () => replacement.promise,
+      );
       let statuses: Readonly<Record<string, AttachmentUploadStatus>> = {};
       const queue = createQueue({
         upload,

@@ -4,21 +4,14 @@ import * as NodeHttp from "node:http";
 import * as NodeNet from "node:net";
 import type * as NodeStream from "node:stream";
 import * as NodeStreamPromises from "node:stream/promises";
-import { afterEach, expect, it, vi } from "vite-plus/test";
+import { afterEach, expect, it } from "vite-plus/test";
 import { acceptClientHandshake, createClientHandshake, relayPublicKey } from "./protocol.ts";
 import { createTunnelSession, type TunnelStream } from "./tunnel.ts";
 import { openLoopbackRelay, TunnelSocket } from "./tunnelNode.ts";
 
-const { open } = vi.hoisted(() => ({ open: vi.fn<() => Promise<TunnelStream>>() }));
-vi.mock("./tunnel.ts", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./tunnel.ts")>()),
-  createTunnelConnector: () => ({ open, close: () => {} }),
-}));
-
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
-  open.mockReset();
 });
 
 it("keeps large socket batches pending through the final nonempty write", async () => {
@@ -111,7 +104,9 @@ async function fixture(upgrade = false) {
     for (const socket of upgraded) socket.destroy();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
-  open.mockImplementation(async () => {
+  const tunnel = { opened: 0 };
+  const open = async () => {
+    tunnel.opened += 1;
     const socket = NodeNet.connect(address.port, "127.0.0.1");
     await new Promise<void>((resolve, reject) => {
       socket.once("connect", resolve);
@@ -131,13 +126,17 @@ async function fixture(upgrade = false) {
     socket.once("end", () => stream.onEnd());
     socket.once("error", (error) => stream.onClose(error));
     return stream;
-  });
-  const gateway = await openLoopbackRelay("https://relay.supaterm.alt", {
-    randomBytes: (length) => new Uint8Array(length),
-    createSocket: () => {
-      throw new Error("Unexpected relay dial");
+  };
+  const gateway = await openLoopbackRelay(
+    "https://relay.supaterm.alt",
+    {
+      randomBytes: (length) => new Uint8Array(length),
+      createSocket: () => {
+        throw new Error("Unexpected relay dial");
+      },
     },
-  });
+    () => ({ open, close: () => {} }),
+  );
   cleanups.push(gateway.close);
   const authority = new URL(gateway.origin).host;
   const socket = NodeNet.connect(Number(new URL(gateway.origin).port), "127.0.0.1");
@@ -150,7 +149,7 @@ async function fixture(upgrade = false) {
   cleanups.push(async () => {
     socket.destroy();
   });
-  return { socket, authority, requests, upgradeBytes, trailers };
+  return { socket, authority, requests, upgradeBytes, trailers, tunnel };
 }
 
 it.each(["foreign host", "duplicate host", "absolute target"])(
@@ -209,11 +208,11 @@ it("preserves a fixed-length body containing request-like bytes before a pipelin
 });
 
 it("closes an idle half-closed client without opening a tunnel", async () => {
-  const { socket } = await fixture();
+  const { socket, tunnel } = await fixture();
   const closed = new Promise<void>((resolve) => socket.once("close", () => resolve()));
   socket.end();
   await closed;
-  expect(open).not.toHaveBeenCalled();
+  expect(tunnel.opened).toBe(0);
 });
 
 it.each([true, false])(
@@ -239,10 +238,10 @@ it.each([true, false])(
 );
 
 it("rejects a complete oversized first header before dialing a tunnel", async () => {
-  const { socket, authority, requests } = await fixture();
+  const { socket, authority, requests, tunnel } = await fixture();
   const closed = new Promise<void>((resolve) => socket.once("close", () => resolve()));
   socket.end(`GET / HTTP/1.1\r\nHost: ${authority}\r\nX-Large: ${"a".repeat(16384)}\r\n\r\n`);
   await closed;
-  expect(open).not.toHaveBeenCalled();
+  expect(tunnel.opened).toBe(0);
   expect(requests).toEqual([]);
 });

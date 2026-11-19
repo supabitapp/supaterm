@@ -9,8 +9,17 @@ import { userEvent } from "vite-plus/test/browser";
 
 import { act, render } from "../../test/render";
 
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 const mocks = vi.hoisted(() => ({
-  createClient: vi.fn<(target: unknown, handlers: PreviewStreamEvents) => unknown>(),
+  created: { promise: Promise.resolve(), resolve: () => {} },
+  handlers: null as PreviewStreamEvents | null,
   sent: [] as PreviewStreamInput[],
   access: { url: "ws://preview.test", token: "test" },
   painted: null as (() => void) | null,
@@ -18,7 +27,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock(import("@supaterm/client-runtime/preview/server-browser-stream"), async (original) => ({
   ...(await original()),
-  createPreviewStreamClient: mocks.createClient as never,
+  createPreviewStreamClient: ((_target: unknown, handlers: PreviewStreamEvents) => {
+    mocks.handlers = handlers;
+    mocks.created.resolve();
+    return {
+      send: (input: PreviewStreamInput) => mocks.sent.push(input),
+      stop: () => undefined,
+    };
+  }) as never,
   createPreviewFramePainter: (_canvas, onPainted) => {
     mocks.painted = onPainted ?? null;
     return { paint: () => undefined, stop: () => undefined };
@@ -35,10 +51,8 @@ import { ServerBrowserSurface } from "./ServerBrowserSurface";
 function setup() {
   mocks.sent.length = 0;
   mocks.painted = null;
-  mocks.createClient.mockReset().mockImplementation(() => ({
-    send: (input: PreviewStreamInput) => mocks.sent.push(input),
-    stop: () => undefined,
-  }));
+  mocks.handlers = null;
+  mocks.created = deferred();
 }
 
 async function renderSurface(controller: PreviewStreamControl["controller"]) {
@@ -58,8 +72,8 @@ async function renderSurface(controller: PreviewStreamControl["controller"]) {
       { container },
     ),
   );
-  await vi.waitFor(() => expect(mocks.createClient).toHaveBeenCalled());
-  const handlers = mocks.createClient.mock.calls.at(-1)![1];
+  await mocks.created.promise;
+  const handlers = mocks.handlers!;
   await act(() =>
     handlers.onControl?.({ canOperate: true, controller, generation: 1, dialog: null }),
   );
@@ -186,7 +200,7 @@ describe("ServerBrowserSurface history", () => {
     canvas.width = 400;
     canvas.height = 300;
     canvas.setPointerCapture = () => undefined;
-    const handlers = mocks.createClient.mock.calls.at(-1)![1];
+    const handlers = mocks.handlers!;
     await act(() => {
       mocks.painted?.();
       handlers.onViewport({ width: 400, height: 300 });

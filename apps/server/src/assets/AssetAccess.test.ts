@@ -1,4 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off - tests inject swaps at the native open boundary.
+// @effect-diagnostics nodeBuiltinImport:off - tests set file times and create junctions natively.
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeHttpPlatform from "@effect/platform-node/NodeHttpPlatform";
@@ -23,7 +23,6 @@ import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 import { HttpClientRequest, HttpClientResponse, HttpServerResponse } from "effect/http";
-import { vi } from "vite-plus/test";
 
 import * as AssetSigner from "./AssetSigner.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
@@ -43,11 +42,6 @@ import * as BuiltInDrivers from "../sourceControl/builtInDrivers.ts";
 import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import { sourceControlMediaResponse } from "./sourceControlMediaResponse.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
-
-vi.mock("node:fs/promises", async (importOriginal) => {
-  const actual = await importOriginal<typeof NodeFSP>();
-  return { ...actual, open: vi.fn(actual.open), realpath: vi.fn(actual.realpath) };
-});
 
 const encodeAssetAccessErrorJson = Schema.encodeEffect(Schema.fromJsonString(AssetAccessError));
 const decodeAssetCreateUrlInput = Schema.decodeUnknownEffect(AssetCreateUrlInput);
@@ -903,21 +897,7 @@ describe("AssetAccess", () => {
         });
         const suffix = result.relativeUrl.slice(`${ASSET_ROUTE_PREFIX}/`.length);
         const separator = suffix.indexOf("/");
-        const native = yield* Effect.promise(() =>
-          vi.importActual<typeof NodeFSP>("node:fs/promises"),
-        );
         const savedDirectory = path.join(root, "saved");
-        const realpathSpy = vi.mocked(NodeFSP.realpath).mockImplementationOnce(async () => {
-          await native.unlink(publicDirectory);
-          await native.rename(savedDirectory, publicDirectory);
-          const canonical = await native.realpath(canonicalPath);
-          await native.rename(publicDirectory, savedDirectory);
-          await native.symlink(privateDirectory, publicDirectory, "junction");
-          return canonical;
-        });
-        yield* Effect.addFinalizer(() =>
-          Effect.sync(() => realpathSpy.mockReset().mockImplementation(native.realpath)),
-        );
         const swappingFileSystem = FileSystem.FileSystem.of({
           ...fs,
           realPath: Effect.fn(function* (requestedPath) {

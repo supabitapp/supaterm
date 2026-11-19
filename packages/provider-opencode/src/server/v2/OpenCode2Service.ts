@@ -2,6 +2,7 @@ import { Service } from "@opencode/client/effect/service";
 import { AgentScope } from "@supaterm/shared/AgentScope";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { resolveCommandPath, resolveSpawnCommand } from "@supaterm/shared/shell";
+import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
@@ -14,6 +15,15 @@ const decodeServiceConfig = Schema.decodeUnknownOption(
   Schema.fromJsonString(
     Schema.Struct({ env: Schema.optional(Schema.Record(Schema.String, Schema.String)) }),
   ),
+);
+
+export type OpenCodeServiceControlShape = Pick<typeof Service, "discover" | "stop" | "ensure">;
+
+export const OpenCodeServiceControl = Context.Reference<OpenCodeServiceControlShape>(
+  "@supaterm/provider-opencode/server/v2/OpenCode2Service/OpenCodeServiceControl",
+  {
+    defaultValue: () => Service,
+  },
 );
 
 function isRegisteredService(registeredUrl: string, serverUrl: string) {
@@ -55,7 +65,8 @@ export const replaceOutdatedService = Effect.fn("OpenCode2Service.replaceOutdate
       "opencode",
       "service.json",
     );
-    const service = yield* Service.discover({ file });
+    const control = yield* OpenCodeServiceControl;
+    const service = yield* control.discover({ file });
     if (service === undefined || !isRegisteredService(service.url, input.serverUrl)) return;
 
     const executable = yield* resolveCommandPath(input.binaryPath, { env: input.environment });
@@ -92,11 +103,11 @@ export const replaceOutdatedService = Effect.fn("OpenCode2Service.replaceOutdate
       if (value !== undefined) env[name] = value;
     }
 
-    if ((yield* Service.discover({ file, version })) !== undefined) return;
+    if ((yield* control.discover({ file, version })) !== undefined) return;
 
-    yield* Service.stop({ file, pty: "handoff" }).pipe(
+    yield* control.stop({ file, pty: "handoff" }).pipe(
       Effect.andThen(
-        Service.ensure({
+        control.ensure({
           file,
           command: [command.command, ...command.args],
           env: { ...env, ELECTRON_RUN_AS_NODE: undefined } as unknown as Record<string, string>,

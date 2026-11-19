@@ -34,9 +34,18 @@ function deferred<T>() {
 
 class TestRecorder implements VoiceRecorder {
   uri: string | null = "file:///voice.m4a";
-  readonly prepareToRecordAsync = vi.fn(async () => undefined);
+  readonly prepareFailures: Array<Error> = [];
+  readonly stopFailures: Array<Error> = [];
+  stopping: Promise<undefined> = Promise.resolve(undefined);
+  readonly prepareToRecordAsync = vi.fn(async () => {
+    const failure = this.prepareFailures.shift();
+    if (failure) throw failure;
+  });
   readonly record = vi.fn();
-  readonly stop = vi.fn(async () => undefined);
+  readonly stop = vi.fn(() => {
+    const failure = this.stopFailures.shift();
+    return failure ? Promise.reject(failure) : this.stopping;
+  });
 }
 
 function preparedTranscription(
@@ -248,7 +257,7 @@ describe("VoiceInputController", () => {
   it("delivers to the destination bound when Send was pressed, after the draft moves on", async () => {
     const stopping = deferred<undefined>();
     const harness = createHarness();
-    harness.recorder.stop.mockImplementation(() => stopping.promise);
+    harness.recorder.stopping = stopping.promise;
     await harness.controller.start();
     const delivered: string[] = [];
     const sending = harness.controller.send(async () => {
@@ -383,7 +392,7 @@ describe("VoiceInputController", () => {
 
     const abandoned = streaming(() => new Promise(() => undefined));
     const failing = createHarness({ getTranscriber: () => abandoned.transcriber });
-    failing.recorder.prepareToRecordAsync.mockRejectedValueOnce(new Error("no input"));
+    failing.recorder.prepareFailures.push(new Error("no input"));
     await failing.controller.start();
     expect(failing.controller.currentState.phase).toBe("error");
     expect(abandoned.calls).toEqual({ subscribed: 1, unsubscribed: 1, cancelled: 1 });
@@ -521,13 +530,14 @@ describe("VoiceInputController", () => {
       const transcriptionEntered = deferred<AbortSignal>();
       const audioRelease = deferred<void>();
       const audioReleaseEntered = deferred<void>();
-      const releaseRecording = vi
-        .fn<() => Promise<void>>()
-        .mockRejectedValueOnce(new Error("busy"))
-        .mockImplementationOnce(() => {
+      const releases = [
+        () => Promise.reject(new Error("busy")),
+        () => {
           audioReleaseEntered.resolve(undefined);
           return audioRelease.promise;
-        });
+        },
+      ];
+      const releaseRecording = () => releases.shift()?.() ?? Promise.resolve();
       const harness = createHarness({
         releaseRecording,
         getTranscriber: () => ({
@@ -696,7 +706,7 @@ describe("VoiceInputController", () => {
   it("releases an abandoned recording even if its native recorder was already disposed", async () => {
     const harness = createHarness();
     await harness.controller.start();
-    harness.recorder.stop.mockRejectedValueOnce(new Error("recorder released"));
+    harness.recorder.stopFailures.push(new Error("recorder released"));
     Object.defineProperty(harness.recorder, "uri", {
       get() {
         throw new Error("recorder released");
@@ -714,15 +724,13 @@ describe("VoiceInputController", () => {
   it("keeps the new abort controller when restarting the same composer after cancellation", async () => {
     const transcription = deferred<string>();
     const transcriptionEntered = deferred<void>();
-    const prepare = vi
-      .fn<VoiceTranscriber["prepare"]>()
-      .mockResolvedValueOnce(
-        preparedTranscription(() => {
-          transcriptionEntered.resolve(undefined);
-          return transcription.promise;
-        }),
-      )
-      .mockResolvedValue(preparedTranscription());
+    const prepared = [
+      preparedTranscription(() => {
+        transcriptionEntered.resolve(undefined);
+        return transcription.promise;
+      }),
+    ];
+    const prepare = async () => prepared.shift() ?? preparedTranscription();
     const harness = createHarness({ getTranscriber: () => ({ prepare }) });
     await harness.controller.start();
     const stopping = harness.controller.stop();

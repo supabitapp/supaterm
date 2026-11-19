@@ -17,13 +17,9 @@ import * as Option from "effect/Option";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as TestClock from "effect/testing/TestClock";
-import * as NodeOS from "node:os";
-import { vi } from "vite-plus/test";
 
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as DesktopShellEnvironment from "./DesktopShellEnvironment.ts";
-
-vi.mock("node:os", { spy: true });
 
 const textEncoder = new TextEncoder();
 const cacheCodec = Schema.fromJsonString(
@@ -159,22 +155,14 @@ function runShellEnvironment(input: {
     return prepared;
   }).pipe(
     Effect.provide(
-      DesktopShellEnvironment.layer.pipe(
-        Layer.provide(Layer.mergeAll(layerEnvironment, NodeServices.layer, layerSpawner)),
-      ),
+      Layer.effect(
+        DesktopShellEnvironment.DesktopShellEnvironment,
+        DesktopShellEnvironment.makeWith(() => input.userShell),
+      ).pipe(Layer.provide(Layer.mergeAll(layerEnvironment, NodeServices.layer, layerSpawner))),
     ),
   );
 
-  return Effect.acquireUseRelease(
-    Effect.sync(() =>
-      vi.spyOn(NodeOS, "userInfo").mockReturnValue({
-        ...NodeOS.userInfo(),
-        shell: input.userShell ?? null,
-      }),
-    ),
-    () => withProcessEnv(input.env, program),
-    (spy) => Effect.sync(() => spy.mockRestore()),
-  );
+  return withProcessEnv(input.env, program);
 }
 
 describe("DesktopShellEnvironment", () => {

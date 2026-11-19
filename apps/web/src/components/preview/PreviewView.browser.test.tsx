@@ -16,18 +16,49 @@ import { act, render } from "../../../test/render";
 
 import type { PreviewableServer } from "./useDiscoveredLocalServers";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const mocks = vi.hoisted(() => ({
-  navigate: vi.fn(async (_tabId: string, _url: string) => undefined),
-  rememberPreviewUrl: vi.fn(),
-  readPreparedConnection: vi.fn(() => ({ httpBaseUrl: "http://172.25.85.75:3773" })),
-  readEnvironmentScope: vi.fn((_environmentId?: unknown, _scope?: unknown) => true),
-  setAnnotationSendEnabled: vi.fn(async (_tabId: string, _enabled: boolean) => {}),
-  cancelPickElement: vi.fn(async (_tabId: string) => undefined),
-  openPictureInPicture: vi.fn(async (_tabId: string) => undefined),
-  closePictureInPicture: vi.fn(async (_tabId: string) => undefined),
-  pickElement: vi.fn(),
-  addPreviewAnnotation: vi.fn(),
-  addImage: vi.fn(),
+  navigate: fake(async (_tabId: string, _url: string) => undefined),
+  rememberPreviewUrl: fake(),
+  readPreparedConnection: fake(() => ({ httpBaseUrl: "http://172.25.85.75:3773" })),
+  readEnvironmentScope: fake((_environmentId?: unknown, _scope?: unknown) => true),
+  setAnnotationSendEnabled: fake(async (_tabId: string, _enabled: boolean) => {}),
+  cancelPickElement: fake(async (_tabId: string) => undefined),
+  openPictureInPicture: fake(async (_tabId: string) => undefined),
+  closePictureInPicture: fake(async (_tabId: string) => undefined),
+  pickElement: fake(),
+  addPreviewAnnotation: fake(),
+  addImage: fake(),
   pictureInPicture: false,
   showEmptyState: false,
   idleServerTab: false,
@@ -40,7 +71,7 @@ const mocks = vi.hoisted(() => ({
   servers: [] as PreviewableServer[],
   recordingTabIds: new Set<string>(),
   recordingRuntimeTabId: null as string | null,
-  recordVisitForThread: vi.fn(),
+  recordVisitForThread: fake(),
 }));
 
 const STUB_BROWSER_DEFAULTS = {
@@ -221,9 +252,9 @@ function annotation(id: string, screenshot: unknown = null) {
 
 function setup() {
   vi.clearAllMocks();
-  mocks.readEnvironmentScope.mockReset().mockReturnValue(true);
-  mocks.setAnnotationSendEnabled.mockReset().mockResolvedValue(undefined);
-  mocks.pickElement.mockReset();
+  mocks.readEnvironmentScope.reset(() => true);
+  mocks.setAnnotationSendEnabled.reset(async () => undefined);
+  mocks.pickElement.reset();
   mocks.pictureInPicture = false;
   mocks.showEmptyState = false;
   mocks.idleServerTab = false;
@@ -237,8 +268,8 @@ function setup() {
   mocks.recordingTabIds = new Set();
   mocks.recordingRuntimeTabId = null;
   useComposerDraftStore.setState({
-    addPreviewAnnotation: mocks.addPreviewAnnotation,
-    addImage: mocks.addImage,
+    addPreviewAnnotation: mocks.addPreviewAnnotation as never,
+    addImage: mocks.addImage as never,
   });
   usePreviewMiniPlayerStore.setState({ byThreadKey: {} });
   useBrowserPointerStore.setState({ byTabId: {} });
@@ -312,7 +343,7 @@ describe("PreviewView", () => {
     const picked = annotation("annotation-revoked");
     const onSendAnnotation = vi.fn();
     let submitPick: (() => void) | undefined;
-    mocks.pickElement.mockImplementationOnce(
+    mocks.pickElement.implementOnce(
       () =>
         new Promise((resolve) => {
           submitPick = () => resolve({ annotation: picked, submission: "send" });
@@ -323,7 +354,7 @@ describe("PreviewView", () => {
     await vi.waitFor(() => expect(submitPick).toBeDefined());
     expect(mocks.setAnnotationSendEnabled).toHaveBeenLastCalledWith(TEST_RUNTIME_TAB_ID, true);
 
-    mocks.readEnvironmentScope.mockImplementation(
+    mocks.readEnvironmentScope.implement(
       (environmentId?: unknown) => environmentId !== TEST_THREAD_REF.environmentId,
     );
     await screen.rerender(view(onSendAnnotation));
@@ -334,8 +365,8 @@ describe("PreviewView", () => {
     );
     expect(onSendAnnotation).not.toHaveBeenCalled();
 
-    mocks.readEnvironmentScope.mockReturnValue(true);
-    mocks.pickElement.mockResolvedValue({ annotation: picked, submission: "send" });
+    mocks.readEnvironmentScope.implement(() => true);
+    mocks.pickElement.implement(async () => ({ annotation: picked, submission: "send" }));
     await screen.rerender(view(onSendAnnotation));
     await userEvent.click(page.getByRole("button", { name: "Annotate preview" }));
     await vi.waitFor(() => expect(onSendAnnotation).toHaveBeenCalledWith(picked, null));
@@ -351,7 +382,7 @@ describe("PreviewView", () => {
       cropRect: { x: 0, y: 0, width: 10, height: 10 },
     });
     const onSendAnnotation = vi.fn();
-    mocks.pickElement.mockResolvedValue({ annotation: picked, submission: "send" });
+    mocks.pickElement.implement(async () => ({ annotation: picked, submission: "send" }));
     await using _screen = await render(view(onSendAnnotation));
     await userEvent.click(page.getByRole("button", { name: "Annotate preview" }));
 

@@ -136,8 +136,15 @@ export class WorkspaceFileSystem extends Context.Service<
 
 const UTF8_BOM = "\uFEFF";
 
-async function startsWithUtf8Bom(filePath: string) {
-  const handle = await NodeFSP.open(
+export const WorkspaceNodeFileSystem = Context.Reference<{
+  readonly open: typeof NodeFSP.open;
+  readonly realpath: (path: string) => Promise<string>;
+}>("supaterm/workspace/WorkspaceFileSystem/WorkspaceNodeFileSystem", {
+  defaultValue: () => ({ open: NodeFSP.open, realpath: (path) => NodeFSP.realpath(path) }),
+});
+
+async function startsWithUtf8Bom(open: typeof NodeFSP.open, filePath: string) {
+  const handle = await open(
     filePath,
     NodeFS.constants.O_RDONLY |
       (NodeFS.constants.O_NOFOLLOW ?? 0) |
@@ -163,6 +170,7 @@ export const make = Effect.gen(function* () {
   const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
   const isServerInternalPath = yield* makeIsServerInternalPath;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+  const nodeFileSystem = yield* WorkspaceNodeFileSystem;
 
   const toHostPath = (requestedPath: string) =>
     toWslDrivePath(requestedPath).pipe(
@@ -183,7 +191,7 @@ export const make = Effect.gen(function* () {
     if (path.extname(expandedPath) === "" && stat.value.size > 0) {
       mimeType = yield* Effect.tryPromise({
         try: async () => {
-          const handle = await NodeFSP.open(
+          const handle = await nodeFileSystem.open(
             expandedPath,
             NodeFS.constants.O_RDONLY | NodeFS.constants.O_NONBLOCK,
           );
@@ -260,7 +268,7 @@ export const make = Effect.gen(function* () {
     if (path.isAbsolute(hostPath)) {
       const absolutePath = isNetworkPath(hostPath) ? path.resolve(hostPath) : hostPath;
       const realTargetPath = yield* Effect.tryPromise({
-        try: () => NodeFSP.realpath(absolutePath),
+        try: () => nodeFileSystem.realpath(absolutePath),
         catch: (cause) =>
           new WorkspaceFileSystemOperationError({
             workspaceRoot: input.cwd,
@@ -286,7 +294,7 @@ export const make = Effect.gen(function* () {
     });
 
     const realWorkspaceRoot = yield* Effect.tryPromise({
-      try: () => NodeFSP.realpath(path.resolve(input.cwd)),
+      try: () => nodeFileSystem.realpath(path.resolve(input.cwd)),
       catch: (cause) =>
         new WorkspaceFileSystemOperationError({
           workspaceRoot: input.cwd,
@@ -313,7 +321,7 @@ export const make = Effect.gen(function* () {
           try {
             return {
               realTargetPath: path.join(
-                await NodeFSP.realpath(candidate),
+                await nodeFileSystem.realpath(candidate),
                 path.relative(candidate, target.absolutePath),
               ),
               exists: candidate === target.absolutePath,
@@ -381,7 +389,7 @@ export const make = Effect.gen(function* () {
     return yield* Effect.acquireUseRelease(
       Effect.tryPromise({
         try: () =>
-          NodeFSP.open(
+          nodeFileSystem.open(
             realTargetPath,
             NodeFS.constants.O_RDONLY | (NodeFS.constants.O_NONBLOCK ?? 0),
           ),
@@ -485,7 +493,7 @@ export const make = Effect.gen(function* () {
       relativePath: input.relativePath,
     });
     const realWorkspaceRoot = yield* Effect.tryPromise({
-      try: () => NodeFSP.realpath(path.resolve(input.cwd)),
+      try: () => nodeFileSystem.realpath(path.resolve(input.cwd)),
       catch: (cause) =>
         new WorkspaceFileSystemOperationError({
           workspaceRoot: input.cwd,
@@ -503,7 +511,7 @@ export const make = Effect.gen(function* () {
         for (let depth = segments.length; depth > 0; depth--) {
           const candidate = path.join(realWorkspaceRoot, ...segments.slice(0, depth));
           try {
-            return path.join(await NodeFSP.realpath(candidate), ...segments.slice(depth));
+            return path.join(await nodeFileSystem.realpath(candidate), ...segments.slice(depth));
           } catch (error) {
             const exists = await NodeFSP.lstat(candidate).then(
               () => true,
@@ -566,7 +574,7 @@ export const make = Effect.gen(function* () {
     const keepsBom =
       replacesFile &&
       !input.contents.startsWith(UTF8_BOM) &&
-      (yield* Effect.promise(() => startsWithUtf8Bom(realTargetPath)));
+      (yield* Effect.promise(() => startsWithUtf8Bom(nodeFileSystem.open, realTargetPath)));
     const contents = keepsBom ? UTF8_BOM + input.contents : input.contents;
 
     yield* fileSystem.makeDirectory(path.dirname(realTargetPath), { recursive: true }).pipe(

@@ -63,16 +63,17 @@ function makeHarness() {
   const sidebar = creation.snapshotAtom(environmentId);
   registry.mount(sidebar);
   const reply = Promise.withResolvers<AtomCommandResult<{ sequence: number }, Error>>();
+  const replies: Array<Promise<AtomCommandResult<{ sequence: number }, Error>>> = [];
   const command = {
     label: "start-turn",
-    run: vi.fn(() => reply.promise),
+    run: vi.fn(() => replies.shift() ?? reply.promise),
   };
   const start = (turnInput = input, targetEnvironmentId = environmentId) =>
     creation.wrap(command).run(registry, {
       environmentId: targetEnvironmentId,
       input: turnInput,
     });
-  return { registry, source, sidebar, reply, command, start, creation };
+  return { registry, source, sidebar, reply, replies, command, start, creation };
 }
 
 describe("optimistic thread creation", () => {
@@ -184,7 +185,7 @@ describe("optimistic thread creation", () => {
   it("shows retries as one row and preserves the remaining launch after a rejection", async () => {
     const h = makeHarness();
     const secondReply = Promise.withResolvers<AtomCommandResult<{ sequence: number }, Error>>();
-    h.command.run.mockReturnValueOnce(h.reply.promise).mockReturnValueOnce(secondReply.promise);
+    h.replies.push(h.reply.promise, secondReply.promise);
     const first = h.start();
     const second = h.start();
     expect(h.registry.get(h.sidebar)?.threads).toHaveLength(2);

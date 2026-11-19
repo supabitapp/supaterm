@@ -24,8 +24,24 @@ vi.mock("./session", () => ({
 vi.mock("@supaterm/client-runtime/state/attachments", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@supaterm/client-runtime/state/attachments")>()),
   createAttachmentEnvironmentAtoms: () => ({
-    createUploadUrl: { label: "create", run: state.create },
-    remove: { label: "remove", run: state.remove },
+    createUploadUrl: {
+      label: "create",
+      run: async (...args: ReadonlyArray<unknown>) => {
+        state.create(...args);
+        return AsyncResult.success({
+          attachmentId: "pending",
+          relativeUrl: "/upload",
+          expiresAt: 1,
+        });
+      },
+    },
+    remove: {
+      label: "remove",
+      run: async (...args: ReadonlyArray<unknown>) => {
+        state.remove(...args);
+        return AsyncResult.success(undefined);
+      },
+    },
   }),
 }));
 
@@ -35,14 +51,8 @@ const environmentId = EnvironmentId.make("secondary");
 const registry = AtomRegistry.make();
 beforeEach(() => {
   state.grantedEnvironments = new Set(["primary"]);
-  state.create.mockReset().mockResolvedValue(
-    AsyncResult.success({
-      attachmentId: "pending",
-      relativeUrl: "/upload",
-      expiresAt: 1,
-    }),
-  );
-  state.remove.mockReset().mockResolvedValue(AsyncResult.success(undefined));
+  state.create.mockReset();
+  state.remove.mockReset();
 });
 afterEach(() => {
   vi.restoreAllMocks();

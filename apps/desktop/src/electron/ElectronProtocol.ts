@@ -132,18 +132,31 @@ class ElectronProtocolFetchError extends Schema.TaggedError<ElectronProtocolFetc
   { cause: Schema.Defect() },
 ) {}
 
-const netFetch = (url: string, init: RequestInit) =>
+export type ElectronProtocolNative = {
+  readonly handle: (scheme: string, handler: (request: Request) => Promise<Response>) => void;
+  readonly unhandle: (scheme: string) => void;
+  readonly fetch: (url: string, init: RequestInit) => Promise<Response>;
+};
+
+const electronProtocolNative: ElectronProtocolNative = {
+  handle: (scheme, handler) => Electron.protocol.handle(scheme, handler),
+  unhandle: (scheme) => Electron.protocol.unhandle(scheme),
+  fetch: (url, init) => Electron.net.fetch(url, init),
+};
+
+const netFetch = (native: ElectronProtocolNative, url: string, init: RequestInit) =>
   Effect.tryPromise({
-    try: () => Electron.net.fetch(url, init),
+    try: () => native.fetch(url, init),
     catch: (cause) => new ElectronProtocolFetchError({ cause }),
   });
 
-const fetchWithTransientRetry = (url: string, init: RequestInit) =>
-  netFetch(url, init).pipe(
+const fetchWithTransientRetry = (native: ElectronProtocolNative, url: string, init: RequestInit) =>
+  netFetch(native, url, init).pipe(
     Effect.retry({ schedule: Schedule.exponential("50 millis", 3), times: 2 }),
   );
 
 const proxyRequest = Effect.fn("desktop.protocol.proxyRequest")(function* (
+  native: ElectronProtocolNative,
   request: Request,
   targetOrigin: URL,
   contentSecurityPolicy: string,
@@ -185,8 +198,8 @@ const proxyRequest = Effect.fn("desktop.protocol.proxyRequest")(function* (
   }
   const response =
     request.method === "GET" || request.method === "HEAD"
-      ? yield* fetchWithTransientRetry(targetUrl.toString(), init)
-      : yield* netFetch(targetUrl.toString(), init);
+      ? yield* fetchWithTransientRetry(native, targetUrl.toString(), init)
+      : yield* netFetch(native, targetUrl.toString(), init);
   return withContentSecurityPolicy(response, contentSecurityPolicy);
 });
 
@@ -228,8 +241,9 @@ const serveDesktopAsset = Effect.fn("desktop.protocol.serveAsset")(function* (
   });
 });
 
-/** @public */
-export const make = Effect.gen(function* () {
+export const makeWith = Effect.fn("ElectronProtocol.make")(function* (
+  native: ElectronProtocolNative,
+) {
   const registered = yield* Ref.make(false);
   const context = yield* Effect.context<FileSystem.FileSystem | Path.Path>();
   const runPromise = Effect.runPromiseWith(context);
@@ -243,7 +257,7 @@ export const make = Effect.gen(function* () {
       yield* Effect.acquireRelease(
         Effect.try({
           try: () => {
-            Electron.protocol.handle(input.scheme, async (request) => {
+            native.handle(input.scheme, async (request) => {
               if ("assetDirectory" in input) {
                 return withContentSecurityPolicy(
                   await runPromise(serveDesktopAsset(request, input.assetDirectory)),
@@ -251,7 +265,7 @@ export const make = Effect.gen(function* () {
                 );
               }
               return runPromise(
-                proxyRequest(request, input.targetOrigin, contentSecurityPolicy).pipe(
+                proxyRequest(native, request, input.targetOrigin, contentSecurityPolicy).pipe(
                   Effect.catchTags({
                     ElectronProtocolFetchError: (error) => Effect.die(error.cause),
                   }),
@@ -263,7 +277,7 @@ export const make = Effect.gen(function* () {
         }).pipe(Effect.andThen(Ref.set(registered, true))),
         () =>
           Effect.try({
-            try: () => Electron.protocol.unhandle(input.scheme),
+            try: () => native.unhandle(input.scheme),
             catch: (cause) =>
               new ElectronProtocolUnregistrationError({
                 scheme: input.scheme,
@@ -276,5 +290,8 @@ export const make = Effect.gen(function* () {
 
   return ElectronProtocol.of({ registerDesktopProtocol });
 });
+
+/** @public */
+export const make = makeWith(electronProtocolNative);
 
 export const layer = Layer.effect(ElectronProtocol, make);

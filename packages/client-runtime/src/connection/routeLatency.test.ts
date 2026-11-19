@@ -1,9 +1,12 @@
+// @effect-diagnostics nodeBuiltinImport:off globalFetch:off - The real loopback server observes the request the route probe sends.
 import {
   DEFAULT_PUBLIC_RELAY_URL,
   EnvironmentId,
   ORCHESTRATION_PROTOCOL_VERSION,
 } from "@supaterm/contracts";
 import { describe, expect, it } from "@effect/vitest";
+import * as NodeHttp from "node:http";
+import type * as NodeNet from "node:net";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -77,12 +80,39 @@ describe("route latency", () => {
 
   it.effect("bypasses cached responses and sends no credential", () =>
     Effect.gen(function* () {
-      const calls: RequestInit[] = [];
-      const fetchFn: typeof fetch = async (_request, init) => {
-        calls.push(init ?? {});
-        return Response.json(descriptor);
+      const authorization: Array<string | undefined> = [];
+      const server = yield* Effect.acquireRelease(
+        Effect.promise(async () => {
+          const listener = NodeHttp.createServer((request, response) => {
+            authorization.push(request.headers.authorization);
+            response.setHeader("content-type", "application/json");
+            response.end(JSON.stringify(descriptor));
+          });
+          await new Promise<void>((resolve) => listener.listen(0, "127.0.0.1", resolve));
+          return listener;
+        }),
+        (listener) =>
+          Effect.promise(() => new Promise<void>((resolve) => listener.close(() => resolve()))),
+      );
+      const { port } = server.address() as NodeNet.AddressInfo;
+      const localRoute: ConnectionRoute = {
+        target: directRoute.target,
+        profile: Option.some(
+          new BearerConnectionProfile({
+            environmentId,
+            connectionId: "lan",
+            label: "Test",
+            httpBaseUrl: `http://127.0.0.1:${port}/`,
+            wsBaseUrl: `ws://127.0.0.1:${port}/`,
+          }),
+        ),
       };
-      const result = yield* measureConnectionRouteLatency({ route: directRoute }).pipe(
+      const calls: RequestInit[] = [];
+      const fetchFn: typeof fetch = (request, init) => {
+        calls.push(init ?? {});
+        return fetch(request, init);
+      };
+      const result = yield* measureConnectionRouteLatency({ route: localRoute }).pipe(
         Effect.provide(layerRemoteHttpClient(fetchFn)),
       );
       expect(result.status).toBe("reachable");
@@ -90,6 +120,7 @@ describe("route latency", () => {
       expect(calls[0]?.cache).toBe("no-store");
       expect(calls[0]?.credentials).toBe("omit");
       expect(new Headers(calls[0]?.headers).has("authorization")).toBe(false);
+      expect(authorization).toEqual([undefined]);
     }),
   );
 

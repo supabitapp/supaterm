@@ -320,10 +320,11 @@ describe("CDP relay downloads", () => {
   it.each([false, true])(
     "keeps the previous download configuration (events enabled: %s) when configuration fails",
     async (enabled) => {
-      const send = vi
-        .fn(async () => ({}))
-        .mockResolvedValueOnce({})
-        .mockRejectedValueOnce(new Error("Page command rejected"));
+      const replies: Array<() => Promise<object>> = [
+        async () => ({}),
+        () => Promise.reject(new Error("Page command rejected")),
+      ];
+      const send = async () => (replies.shift() ?? (async () => ({})))();
       const written: Array<Record<string, unknown>> = [];
       let directory: string | null = null;
       const relay = makeRelay(

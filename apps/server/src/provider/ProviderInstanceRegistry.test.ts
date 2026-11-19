@@ -2,9 +2,8 @@ import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as CodexInstallation from "./CodexInstallation.ts";
 import * as CodexManagedTokenBroker from "./CodexManagedTokenBroker.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
-import * as ClaudeSdk from "@anthropic-ai/claude-agent-sdk";
+import type * as ClaudeSdk from "@anthropic-ai/claude-agent-sdk";
 import { assert, describe, expect, it } from "@effect/vitest";
-import { vi } from "vite-plus/test";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
@@ -35,6 +34,7 @@ import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { ClaudeDriver, type ClaudeDriverEnv } from "./Drivers/ClaudeDriver.ts";
+import { ClaudeProbeQuery } from "./ClaudeProvider.ts";
 import { CodexDriver, type CodexDriverEnv } from "./Drivers/CodexDriver.ts";
 import * as ModelManifest from "./ModelManifest.ts";
 import * as ResetCreditCoordinator from "./resetCreditCoordinator.ts";
@@ -46,8 +46,6 @@ import * as ProviderOrchestrationAdapterInfrastructure from "./ProviderOrchestra
 import * as PortScanner from "../preview/PortScanner.ts";
 import * as ProviderHostLive from "./ProviderHostLive.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-
-vi.mock("@anthropic-ai/claude-agent-sdk", { spy: true });
 
 const layerTestHttpClient = Layer.succeed(
   HttpClient.HttpClient,
@@ -623,40 +621,35 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
         let probeCount = 0;
         let successfulProbeCount = 0;
         let failProbe = false;
-        const query = vi.spyOn(ClaudeSdk, "query").mockImplementation(
-          () =>
-            ({
-              initializationResult: () => {
-                probeCount++;
-                if (failProbe) return Promise.reject(new Error("initialization failed"));
-                successfulProbeCount++;
-                return Promise.resolve({
-                  commands: [
-                    {
-                      name: successfulProbeCount === 1 ? "last-good" : "recovered",
-                      description: "",
-                      argumentHint: "",
-                    },
-                  ],
-                  account: {
-                    email:
-                      successfulProbeCount === 1
-                        ? "account-a@example.com"
-                        : "account-b@example.com",
-                    subscriptionType: "pro",
-                    tokenSource: "oauth",
+        const query: typeof ClaudeSdk.query = () =>
+          ({
+            initializationResult: () => {
+              probeCount++;
+              if (failProbe) return Promise.reject(new Error("initialization failed"));
+              successfulProbeCount++;
+              return Promise.resolve({
+                commands: [
+                  {
+                    name: successfulProbeCount === 1 ? "last-good" : "recovered",
+                    description: "",
+                    argumentHint: "",
                   },
-                });
-              },
-              usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => ({
-                rate_limits_available: true,
-                rate_limits: {
-                  five_hour: { utilization: 12, resets_at: "2026-07-18T14:39:00Z" },
+                ],
+                account: {
+                  email:
+                    successfulProbeCount === 1 ? "account-a@example.com" : "account-b@example.com",
+                  subscriptionType: "pro",
+                  tokenSource: "oauth",
                 },
-              }),
-            }) as ReturnType<typeof ClaudeSdk.query>,
-        );
-        yield* Effect.addFinalizer(() => Effect.sync(() => query.mockRestore()));
+              });
+            },
+            usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: async () => ({
+              rate_limits_available: true,
+              rate_limits: {
+                five_hour: { utilization: 12, resets_at: "2026-07-18T14:39:00Z" },
+              },
+            }),
+          }) as ReturnType<typeof ClaudeSdk.query>;
 
         const { registry } = yield* makeProviderInstanceRegistry<ClaudeDriverEnv>({
           drivers: [ClaudeDriver],
@@ -671,7 +664,7 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
               }),
             },
           },
-        });
+        }).pipe(Effect.provideService(ClaudeProbeQuery, query));
         const claude = yield* registry.getInstance(claudeId);
         expect(claude).toBeDefined();
 

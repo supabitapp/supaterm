@@ -263,17 +263,21 @@ describe("thread outbox", () => {
     });
     const started = Promise.withResolvers<void>();
     const response = Promise.withResolvers<ThreadOutboxLoadResult>();
-    const load = vi.fn<ThreadOutboxStorage["load"]>(async () => ({
-      messages: [message],
-      errors: [],
-    }));
-    load.mockImplementationOnce(() => {
-      started.resolve();
-      return response.promise;
-    });
+    const reads: Array<ThreadOutboxStorage["load"]> = [
+      () => {
+        started.resolve();
+        return response.promise;
+      },
+    ];
+    const storage: ThreadOutboxStorage = {
+      load: () => (reads.shift() ?? (async () => ({ messages: [message], errors: [] })))(),
+      write: async () => {},
+      remove: async () => {},
+    };
+    const load = vi.spyOn(storage, "load");
     const manager = createThreadOutboxManager({
       registry,
-      storage: { load, write: async () => {}, remove: async () => {} },
+      storage,
       warn: () => {},
     });
     const loading = manager.load();

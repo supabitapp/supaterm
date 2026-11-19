@@ -62,7 +62,10 @@ describe("ProjectScriptEditorDialog", () => {
 
   async function openEditor(
     screen: Screen,
-    onSubmit = vi.fn().mockResolvedValue(AsyncResult.success(undefined)),
+    onSubmit = vi.spyOn(
+      { submit: async (..._args: Array<unknown>) => AsyncResult.success(undefined) },
+      "submit",
+    ),
     editorRequest = request,
     actions = { onDelete: vi.fn(), onClose: vi.fn() },
     editScope:

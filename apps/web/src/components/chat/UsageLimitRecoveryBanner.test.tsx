@@ -26,12 +26,14 @@ describe("usageLimitRecoveryBannerItem", () => {
     ["12-hour", "Resets 5:30 PM"],
     ["24-hour", "Resets 17:30"],
   ] as const)("formats a same-day reset with the %s setting", (timestampFormat, expected) => {
-    using _now = vi.spyOn(Date, "now").mockReturnValue(stoppedAt.getTime());
+    vi.setSystemTime(stoppedAt);
+    using _clock = { [Symbol.dispose]: () => void vi.useRealTimers() };
     expect(bannerDescription(new Date(2026, 9, 20, 17, 30), timestampFormat)).toBe(expected);
   });
 
   it("names the day when the reset is tomorrow", () => {
-    using _now = vi.spyOn(Date, "now").mockReturnValue(stoppedAt.getTime());
+    vi.setSystemTime(stoppedAt);
+    using _clock = { [Symbol.dispose]: () => void vi.useRealTimers() };
     expect(bannerDescription(new Date(2026, 9, 21, 17, 30), "24-hour")).toBe(
       "Resets tomorrow at 17:30",
     );

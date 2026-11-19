@@ -2,19 +2,32 @@ import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   retain: vi.fn(),
+  releases: [] as Array<() => void>,
+  nextReleases: [] as Array<() => void>,
   share: vi.fn(),
-  exists: vi.fn(),
+  sharing: Promise.resolve(),
+  fileExists: true,
 }));
 
 vi.mock("./composerAttachmentPreviewRetention", () => ({
-  retainComposerAttachmentFileForPreview: mocks.retain,
+  retainComposerAttachmentFileForPreview: (attachment: unknown) => {
+    mocks.retain(attachment);
+    const release = mocks.nextReleases.shift() ?? vi.fn();
+    mocks.releases.push(release);
+    return release;
+  },
 }));
-vi.mock("./attachmentDownload", () => ({ shareLocalAttachment: mocks.share }));
+vi.mock("./attachmentDownload", () => ({
+  shareLocalAttachment: (...args: ReadonlyArray<unknown>) => {
+    mocks.share(...args);
+    return mocks.sharing;
+  },
+}));
 vi.mock("expo-file-system", () => ({
   File: class {
     constructor(readonly uri: string) {}
     get exists() {
-      return mocks.exists(this.uri) satisfies boolean as boolean;
+      return mocks.fileExists;
     }
   },
   Paths: {
@@ -45,11 +58,11 @@ const attachment = {
 
 beforeEach(() => {
   mocks.retain.mockReset();
+  mocks.releases.length = 0;
+  mocks.nextReleases.length = 0;
   mocks.share.mockReset();
-  mocks.exists.mockReset();
-  mocks.retain.mockImplementation(() => vi.fn());
-  mocks.exists.mockReturnValue(true);
-  mocks.share.mockResolvedValue(undefined);
+  mocks.sharing = Promise.resolve();
+  mocks.fileExists = true;
 });
 
 describe("loadLocalAttachmentPreview", () => {
@@ -75,7 +88,7 @@ describe("loadLocalAttachmentPreview", () => {
     const preview = await loadLocalAttachmentPreview(attachment, new AbortController().signal);
     expect(preview?.uri).toContain("/22222222-2222-4222-8222-222222222222/Documents/");
     expect(mocks.retain).toHaveBeenCalledWith(attachment);
-    const release = mocks.retain.mock.results[0]!.value;
+    const release = mocks.releases[0];
     expect(release).not.toHaveBeenCalled();
     preview?.dispose();
     preview?.dispose();
@@ -86,12 +99,11 @@ describe("loadLocalAttachmentPreview", () => {
     "keeps a separate share lease after playback closes (source: %s)",
     async (sourceIdentifier) => {
       const shared = Promise.withResolvers<void>();
-      mocks.share.mockReturnValue(shared.promise);
+      mocks.sharing = shared.promise;
       const preview = await loadLocalAttachmentPreview(attachment, new AbortController().signal);
       const share = preview!.share(new AbortController().signal, sourceIdentifier);
       expect(mocks.retain).toHaveBeenCalledTimes(2);
-      const releasePlayback = mocks.retain.mock.results[0]!.value;
-      const releaseShare = mocks.retain.mock.results[1]!.value;
+      const [releasePlayback, releaseShare] = mocks.releases;
       preview!.dispose();
       expect(releasePlayback).toHaveBeenCalledTimes(1);
       expect(releaseShare).not.toHaveBeenCalled();
@@ -122,7 +134,7 @@ describe("localAttachmentPreviewAtom", () => {
   it("shares one lease per file and releases it when the last reader leaves", async () => {
     const released = Promise.withResolvers<void>();
     const release = vi.fn(() => released.resolve());
-    mocks.retain.mockReturnValueOnce(release);
+    mocks.nextReleases.push(release);
     const registry = AtomRegistry.make();
     const first = settled(registry, attachment);
     const renamed = settled(registry, { ...attachment, name: "renamed.mov" });
@@ -138,7 +150,7 @@ describe("localAttachmentPreviewAtom", () => {
   });
 
   it("reports a missing file as an error", async () => {
-    mocks.exists.mockReturnValue(false);
+    mocks.fileExists = false;
     const registry = AtomRegistry.make();
     const reader = settled(registry, { ...attachment, id: "missing" });
     const state = await reader.state;

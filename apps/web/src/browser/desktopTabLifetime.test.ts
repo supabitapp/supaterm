@@ -7,18 +7,30 @@ import {
 } from "@supaterm/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { closeTab, createTab, stopBrowserRecording } = vi.hoisted(() => ({
-  closeTab: vi.fn<(tabId: string) => Promise<void>>(async () => undefined),
-  createTab: vi.fn<() => Promise<void>>(),
-  stopBrowserRecording: vi.fn(async () => null),
-}));
+const desktop = vi.hoisted(() => {
+  const pendingCloses: Array<Promise<void>> = [];
+  const pendingStops: Array<Promise<null>> = [];
+  return {
+    pendingCloses,
+    pendingStops,
+    closeTab: (_tabId: string) => pendingCloses.shift() ?? Promise.resolve(),
+    createTab: (_tabId: string, _state: unknown) => Promise.resolve(),
+    stopBrowserRecording: (_tabId: string) => pendingStops.shift() ?? Promise.resolve(null),
+  };
+});
+const closeTab = vi.spyOn(desktop, "closeTab");
+const createTab = vi.spyOn(desktop, "createTab");
+const stopBrowserRecording = vi.spyOn(desktop, "stopBrowserRecording");
 
 vi.mock("~/components/preview/previewBridge", () => ({
-  previewBridge: { closeTab, createTab },
+  previewBridge: {
+    closeTab: (tabId: string) => desktop.closeTab(tabId),
+    createTab: (tabId: string, state: unknown) => desktop.createTab(tabId, state),
+  },
 }));
 
 vi.mock("./browserRecording", () => ({
-  stopBrowserRecording,
+  stopBrowserRecording: (tabId: string) => desktop.stopBrowserRecording(tabId),
 }));
 
 import { acquireDesktopTab } from "./desktopTabLifetime";
@@ -42,12 +54,10 @@ describe("desktopTabLifetime", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
-    vi.restoreAllMocks();
   });
 
   it("keeps identical server tab ids from two environments in separate desktop slots", async () => {
     vi.useFakeTimers();
-    createTab.mockResolvedValue(undefined);
     const tabA = previewRuntimeTabId(
       {
         environmentId: EnvironmentId.make("environment-a"),
@@ -81,12 +91,11 @@ describe("desktopTabLifetime", () => {
   it("stops recording before closing the final desktop tab lease", async () => {
     vi.useFakeTimers();
     let resolveStop: (() => void) | undefined;
-    stopBrowserRecording.mockReturnValueOnce(
+    desktop.pendingStops.push(
       new Promise<null>((resolve) => {
         resolveStop = () => resolve(null);
       }),
     );
-    createTab.mockResolvedValueOnce(undefined);
 
     const lease = acquireDesktopTab("tab_recording_cleanup");
     await lease.ready;
@@ -105,8 +114,7 @@ describe("desktopTabLifetime", () => {
   it("waits for an in-flight close before recreating a reacquired tab", async () => {
     vi.useFakeTimers();
     let resolveClose: (() => void) | undefined;
-    createTab.mockResolvedValue(undefined);
-    closeTab.mockReturnValueOnce(
+    desktop.pendingCloses.push(
       new Promise<void>((resolve) => {
         resolveClose = resolve;
       }),

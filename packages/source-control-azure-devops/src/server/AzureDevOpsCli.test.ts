@@ -1,5 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { assert, it, afterEach, describe, expect, vi } from "@effect/vitest";
+import { assert, it, afterEach, describe, expect } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
@@ -14,6 +14,7 @@ import { SpawnExecutableResolution } from "@supaterm/shared/shell";
 import { AzureCliInstallLocation, type AzureCliInstall } from "./azureCliLauncher.ts";
 import * as AzureDevOpsCli from "./AzureDevOpsCli.ts";
 import { primaryRemoteUrl, scopeAzureCliArgs } from "./AzureDevOpsCli.ts";
+import { scriptedFunction } from "@supaterm/source-control-testing/scriptedFunction";
 
 const processOutput = (stdout: string) => ({
   exitCode: ChildProcessSpawner.ExitCode(0),
@@ -23,13 +24,14 @@ const processOutput = (stdout: string) => ({
   stderrTruncated: false,
 });
 
-const mockRun = vi.fn<SourceControlHost.SourceControlHost["Service"]["process"]["run"]>();
+const fakeRun =
+  scriptedFunction<SourceControlHost.SourceControlHost["Service"]["process"]["run"]>();
 
 const layerSupport = Layer.mergeAll(
   TestSourceControlHost.layer({
     process: {
       run: (input) =>
-        input.command === "git" ? Effect.succeed(processOutput("")) : mockRun(input),
+        input.command === "git" ? Effect.succeed(processOutput("")) : fakeRun(input),
     },
   }),
   NodeServices.layer,
@@ -38,13 +40,13 @@ const layerSupport = Layer.mergeAll(
 const layer = Layer.mergeAll(AzureDevOpsCli.layer.pipe(Layer.provide(layerSupport)), layerSupport);
 
 afterEach(() => {
-  mockRun.mockReset();
+  fakeRun.reset();
 });
 
 describe("AzureDevOpsCli.layer", () => {
   it.effect("parses pull request view output", () =>
     Effect.gen(function* () {
-      mockRun.mockReturnValueOnce(
+      fakeRun.returnsOnce(
         Effect.succeed(
           processOutput(
             JSON.stringify({
@@ -81,7 +83,7 @@ describe("AzureDevOpsCli.layer", () => {
       assert.strictEqual(result.headSha, "a".repeat(40));
       assert.strictEqual(result.state, "open");
       assert.deepStrictEqual(result.updatedAt._tag, Option.some(1)._tag);
-      const { classifyFailure, ...call } = mockRun.mock.calls.at(-1)?.[0] ?? {};
+      const { classifyFailure, ...call } = fakeRun.calls.at(-1)?.[0] ?? {};
       assert.strictEqual(
         classifyFailure?.("Please run az login to setup account."),
         "authentication",
@@ -127,7 +129,7 @@ describe("AzureDevOpsCli.layer", () => {
 
   it.effect("marks a pull request from a fork as cross-repository", () =>
     Effect.gen(function* () {
-      mockRun.mockReturnValueOnce(
+      fakeRun.returnsOnce(
         Effect.succeed(
           processOutput(
             JSON.stringify({
@@ -151,7 +153,7 @@ describe("AzureDevOpsCli.layer", () => {
 
   it.effect("builds a web URL when Azure returns only the pull request REST URL", () =>
     Effect.gen(function* () {
-      mockRun.mockReturnValueOnce(
+      fakeRun.returnsOnce(
         Effect.succeed(
           processOutput(
             JSON.stringify({
@@ -187,7 +189,7 @@ describe("AzureDevOpsCli.layer", () => {
 
   it.effect("reads repository clone URLs", () =>
     Effect.gen(function* () {
-      mockRun.mockReturnValueOnce(
+      fakeRun.returnsOnce(
         Effect.succeed(
           processOutput(
             JSON.stringify({
@@ -219,7 +221,7 @@ describe("AzureDevOpsCli.layer", () => {
 
   it.effect("looks up a project/repository path as that project's repository", () =>
     Effect.gen(function* () {
-      mockRun.mockReturnValueOnce(
+      fakeRun.returnsOnce(
         Effect.succeed(
           processOutput(
             JSON.stringify({
@@ -236,7 +238,7 @@ describe("AzureDevOpsCli.layer", () => {
       const az = yield* AzureDevOpsCli.AzureDevOpsCli;
       yield* az.getRepositoryCloneUrls({ cwd: "/somewhere", repository: "project/repo" });
 
-      assert.deepStrictEqual(mockRun.mock.calls.at(-1)?.[0].args, [
+      assert.deepStrictEqual(fakeRun.calls.at(-1)?.[0].args, [
         "repos",
         "show",
         "--detect",
@@ -254,7 +256,7 @@ describe("AzureDevOpsCli.layer", () => {
 
   it.effect("percent-encodes the source branch while preserving recognized ref prefixes", () =>
     Effect.gen(function* () {
-      mockRun.mockReturnValueOnce(Effect.succeed(processOutput("[]")));
+      fakeRun.returnsOnce(Effect.succeed(processOutput("[]")));
 
       const az = yield* AzureDevOpsCli.AzureDevOpsCli;
       yield* az.listPullRequests({
@@ -263,11 +265,11 @@ describe("AzureDevOpsCli.layer", () => {
         state: "open",
       });
 
-      const args = mockRun.mock.calls.at(-1)?.[0].args ?? [];
+      const args = fakeRun.calls.at(-1)?.[0].args ?? [];
       assert.strictEqual(args[args.indexOf("--source-branch") + 1], "user%2Ffeat%2F1-(%232)-slug");
 
       for (const prefix of ["refs/heads/", "refs/pull/", "refs/tags/"]) {
-        mockRun.mockReturnValueOnce(Effect.succeed(processOutput("[]")));
+        fakeRun.returnsOnce(Effect.succeed(processOutput("[]")));
         yield* az.listPullRequests({
           cwd: "/somewhere",
           headSelector: "fallback",
@@ -275,7 +277,7 @@ describe("AzureDevOpsCli.layer", () => {
           state: "open",
         });
 
-        const refArgs = mockRun.mock.calls.at(-1)?.[0].args ?? [];
+        const refArgs = fakeRun.calls.at(-1)?.[0].args ?? [];
         assert.strictEqual(
           refArgs[refArgs.indexOf("--source-branch") + 1],
           `${prefix}user%2Ffeat%2F1-(%232)-slug`,
@@ -288,7 +290,7 @@ describe("AzureDevOpsCli.layer", () => {
     Effect.gen(function* () {
       const az = yield* AzureDevOpsCli.AzureDevOpsCli;
       for (const title of ["@notes.txt", "a=@notes.txt"]) {
-        mockRun.mockReturnValueOnce(Effect.succeed(processOutput("{}")));
+        fakeRun.returnsOnce(Effect.succeed(processOutput("{}")));
         yield* az.createPullRequest({
           cwd: "/somewhere",
           baseBranch: "main",
@@ -297,17 +299,15 @@ describe("AzureDevOpsCli.layer", () => {
           bodyFile: "/tmp/body.md",
         });
 
-        const fileReads = (mockRun.mock.calls.at(-1)?.[0].args ?? []).flatMap((arg) => {
+        const fileReads = (fakeRun.calls.at(-1)?.[0].args ?? []).flatMap((arg) => {
           const value = arg.startsWith("@") ? arg : arg.slice(arg.indexOf("=") + 1);
           return (arg.startsWith("@") || arg.includes("=")) && value.startsWith("@")
             ? [value.slice(1)]
             : [];
         });
         expect(fileReads).not.toContain("notes.txt");
-        expect(mockRun.mock.calls.at(-1)?.[0].stdin).toBe(
-          title.startsWith("@") ? title : undefined,
-        );
-        expect(mockRun.mock.calls.at(-1)?.[0].args).toContain("--description=@/tmp/body.md");
+        expect(fakeRun.calls.at(-1)?.[0].stdin).toBe(title.startsWith("@") ? title : undefined);
+        expect(fakeRun.calls.at(-1)?.[0].args).toContain("--description=@/tmp/body.md");
       }
     }).pipe(Effect.provide(layer)),
   );
@@ -321,7 +321,7 @@ describe("AzureDevOpsCli.layer", () => {
         exitCode: 1,
         detail: "sensitive-upstream-detail",
       });
-      mockRun.mockReturnValueOnce(Effect.fail(cause));
+      fakeRun.returnsOnce(Effect.fail(cause));
 
       const az = yield* AzureDevOpsCli.AzureDevOpsCli;
       const error = yield* az.execute({ cwd: "/repo", args: ["repos", "list"] }).pipe(Effect.flip);
@@ -354,7 +354,7 @@ describe("AzureDevOpsCli.layer", () => {
         argumentCount: 2,
         cause: platformCause,
       });
-      mockRun.mockReturnValueOnce(Effect.fail(cause));
+      fakeRun.returnsOnce(Effect.fail(cause));
 
       const az = yield* AzureDevOpsCli.AzureDevOpsCli;
       const error = yield* az.execute({ cwd, args: ["repos", "list"] }).pipe(Effect.flip);
@@ -376,7 +376,7 @@ describe("AzureDevOpsCli.layer", () => {
         detail: "API rate limit exceeded.",
         failureKind: "rate-limited",
       });
-      mockRun.mockReturnValueOnce(Effect.fail(cause));
+      fakeRun.returnsOnce(Effect.fail(cause));
 
       const az = yield* AzureDevOpsCli.AzureDevOpsCli;
       const error = yield* az.execute({ cwd: "/repo", args: ["repos", "list"] }).pipe(Effect.flip);

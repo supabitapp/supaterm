@@ -46,7 +46,7 @@ describe("createRecentThreadShortcuts", () => {
   });
 
   it("does not persist the empty fallback after a failed load", async () => {
-    using _warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    using _warn = vi.spyOn(console, "warn");
     const { save, publish, recents } = setup(() => Promise.reject(new Error("read failed")));
     await recents.loaded;
     await recents.saved();

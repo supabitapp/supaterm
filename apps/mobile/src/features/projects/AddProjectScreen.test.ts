@@ -32,8 +32,10 @@ const state = vi.hoisted(() => ({
   createNewResult: null as Promise<unknown> | null,
   connectionStates: {} as Record<string, EnvironmentConnectionPhase>,
   newProjectsRoot: null as string | null,
-  waitForProject: vi.fn<() => Promise<unknown>>(async () => null),
+  waitForProject: vi.fn(),
+  projectArrival: () => Promise.resolve<unknown>(null),
   dispatch: vi.fn(),
+  onDispatch: ((_action: unknown) => {}) as { run(action: unknown): void }["run"],
   alert: vi.fn(),
   navigationState: undefined as NavigationState | undefined,
   environments: [{ environmentId: "environment", environmentLabel: "Environment" }],
@@ -68,7 +70,10 @@ vi.mock("react-native", () => ({
 }));
 vi.mock("@react-navigation/native", () => ({
   useNavigation: () => ({
-    dispatch: state.dispatch,
+    dispatch: (action: unknown) => {
+      state.dispatch(action);
+      state.onDispatch(action);
+    },
     getState: () =>
       state.navigationState ?? {
         index: 4,
@@ -103,7 +108,10 @@ vi.mock("../../state/session", () => ({
 }));
 vi.mock("../../state/entities", () => ({
   useProjects: () => state.existingProjects,
-  waitForProject: () => state.waitForProject(),
+  waitForProject: () => {
+    state.waitForProject();
+    return state.projectArrival();
+  },
   useServerConfigs: () =>
     new Map(
       state.environments.map((environment) => [
@@ -252,12 +260,13 @@ describe("clone project permissions", () => {
     state.projects = [];
     state.createResult = null;
     state.dispatch.mockReset();
+    state.onDispatch = () => {};
     state.navigationState = {
       index: 0,
       routes: [{ key: "home", name: "Home" }],
     } as NavigationState;
     state.waitForProject.mockReset();
-    state.waitForProject.mockResolvedValue(null);
+    state.projectArrival = async () => null;
   });
 
   afterEach(async () => {
@@ -286,7 +295,7 @@ describe("clone project permissions", () => {
 
   it("opens the cloned project's draft from the screen that started the clone", async () => {
     state.scopes.add(AuthOrchestrationOperateScope);
-    state.waitForProject.mockResolvedValue({ id: "project" });
+    state.projectArrival = async () => ({ id: "project" });
     const submit = cloneAction();
     await act(() => submit());
 
@@ -299,13 +308,13 @@ describe("clone project permissions", () => {
 
   it("leaves navigation alone when the user moved on while the project arrived", async () => {
     state.scopes.add(AuthOrchestrationOperateScope);
-    state.waitForProject.mockImplementation(async () => {
+    state.projectArrival = async () => {
       state.navigationState = {
         index: 0,
         routes: [{ key: "settings", name: "Settings" }],
       } as NavigationState;
       return { id: "project" };
-    });
+    };
     const submit = cloneAction();
     await act(() => submit());
 
@@ -367,9 +376,10 @@ function mountProjectFlow(screenName = "AddProjectLocal") {
     apply(StackActions.push(name));
   }
   state.navigationState = current;
-  state.dispatch.mockImplementation((action) =>
-    apply(action.type === "PUSH" ? action : CommonActions.reset(action)),
-  );
+  state.onDispatch = (
+    action: Parameters<typeof router.getStateForAction>[1] &
+      Parameters<typeof CommonActions.reset>[0],
+  ) => apply(action.type === "PUSH" ? action : CommonActions.reset(action));
   return {
     getState: () => current,
     back: () => apply(StackActions.pop()),
@@ -382,6 +392,7 @@ describe("add project source environment", () => {
   beforeEach(() => {
     state.scopes = new Set([AuthOrchestrationOperateScope]);
     state.dispatch.mockReset();
+    state.onDispatch = () => {};
     state.environments = [
       { environmentId: "environment", environmentLabel: "Environment" },
       { environmentId: "another-environment", environmentLabel: "Another environment" },
@@ -505,12 +516,14 @@ describe("local project navigation", () => {
     state.baseDirectory = baseDirectory;
     state.projects = [];
     state.dispatch.mockReset();
+    state.onDispatch = () => {};
     state.alert.mockReset();
     state.waitForProject.mockReset();
+    state.projectArrival = async () => null;
     const created = Promise.withResolvers<ReturnType<typeof AsyncResult.success<void>>>();
     const projected = Promise.withResolvers<unknown>();
     state.createResult = created.promise;
-    state.waitForProject.mockReturnValue(projected.promise);
+    state.projectArrival = () => projected.promise;
     const submit = findAction(
       renderScreen(() => AddProjectLocalFolderScreen({ environmentId: "environment" })),
       "Add project",
@@ -579,10 +592,10 @@ describe("local project navigation", () => {
     const created = Promise.withResolvers<unknown>();
     const waitingForProject = Promise.withResolvers<void>();
     state.createNewResult = created.promise;
-    state.waitForProject.mockImplementation(() => {
+    state.projectArrival = () => {
       waitingForProject.resolve();
       return projected.promise;
-    });
+    };
     const navigation = mountProjectFlow("AddProjectNew");
     let screen: ReactNode;
     function NewProjectObserver() {

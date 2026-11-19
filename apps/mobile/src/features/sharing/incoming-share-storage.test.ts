@@ -4,6 +4,7 @@ import { vi } from "vite-plus/test";
 const fileSystemMocks = vi.hoisted(() => {
   const files = new Map<string, string>();
   let failNextWrite = false;
+  let failNextDelete = false;
   let failRelocationTo = "";
   let snapshots: Map<string, string>[] | undefined;
   const record = () => snapshots?.push(new Map(files));
@@ -72,6 +73,10 @@ const fileSystemMocks = vi.hoisted(() => {
     }
 
     delete() {
+      if (failNextDelete) {
+        failNextDelete = false;
+        throw new Error("backup cleanup failed");
+      }
       files.delete(this.name);
       record();
     }
@@ -95,6 +100,9 @@ const fileSystemMocks = vi.hoisted(() => {
     failNextWrite() {
       failNextWrite = true;
     },
+    failNextDelete() {
+      failNextDelete = true;
+    },
     failRelocationTo(suffix: string) {
       failRelocationTo = suffix;
     },
@@ -108,6 +116,7 @@ const fileSystemMocks = vi.hoisted(() => {
         files.set(file.name, file.contents);
       }
       failNextWrite = false;
+      failNextDelete = false;
       failRelocationTo = "";
       snapshots = undefined;
     },
@@ -147,7 +156,7 @@ describe("incoming share storage", () => {
       new fileSystemMocks.File("valid.json", JSON.stringify(VALID_DRAFT)),
       new fileSystemMocks.File("invalid.json", "{"),
     ]);
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warning = vi.spyOn(console, "warn");
 
     await expect(loadIncomingShareDrafts()).resolves.toEqual([VALID_DRAFT]);
     expect(warning).toHaveBeenCalledOnce();
@@ -161,7 +170,7 @@ describe("incoming share storage", () => {
       operation: "write",
       shareId: VALID_DRAFT.id,
     });
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.spyOn(console, "warn");
     await expect(loadIncomingShareDrafts()).resolves.toEqual([]);
 
     await writeIncomingShareDraft(VALID_DRAFT);
@@ -200,9 +209,7 @@ describe("incoming share storage", () => {
   it("keeps a successful replacement when backup cleanup fails", async () => {
     await writeIncomingShareDraft(VALID_DRAFT);
     const updated = { ...VALID_DRAFT, text: "Updated" };
-    vi.spyOn(fileSystemMocks.File.prototype, "delete").mockImplementationOnce(() => {
-      throw new Error("backup cleanup failed");
-    });
+    fileSystemMocks.failNextDelete();
 
     await expect(writeIncomingShareDraft(updated)).resolves.toBeUndefined();
 

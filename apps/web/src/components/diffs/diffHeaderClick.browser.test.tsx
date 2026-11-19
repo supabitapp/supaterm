@@ -15,17 +15,18 @@ import { getDiffHeaderClickAction } from "./diffHeaderClick";
 import { StyledDiffCodeView } from "./StyledDiffCodeView";
 
 function captureWorkerPools() {
-  const pools = new Map<WorkerPoolManager, Promise<void>>();
-  const initialize = WorkerPoolManager.prototype.initialize;
-  const spy = vi.spyOn(WorkerPoolManager.prototype, "initialize").mockImplementation(function (
-    this: WorkerPoolManager,
-    ...args
-  ) {
-    const pending = initialize.apply(this, args);
-    pools.set(this, pending);
-    return pending;
-  });
-  return { pools, [Symbol.dispose]: () => spy.mockRestore() };
+  const spy = vi.spyOn(WorkerPoolManager.prototype, "initialize");
+  return {
+    get pools() {
+      return new Map(
+        spy.mock.contexts.map((pool, index) => [
+          pool as WorkerPoolManager,
+          spy.mock.results[index]!.value as Promise<void>,
+        ]),
+      );
+    },
+    [Symbol.dispose]: () => spy.mockRestore(),
+  };
 }
 
 function RepeatedDiffs({
@@ -90,7 +91,6 @@ describe("repeated diff blocks", () => {
     );
     if (parsed?.kind !== "files") throw new Error("Expected file diffs");
     using captured = captureWorkerPools();
-    const { pools } = captured;
     const entries = buildFileDiffEntries(parsed.files);
     let viewer: CodeViewHandle<undefined, undefined> | null = null;
     await using _screen = await render(
@@ -102,6 +102,7 @@ describe("repeated diff blocks", () => {
       />,
       { router: false },
     );
+    const pools = captured.pools;
     const pool = [...pools.keys()][0]!;
     await act(async () => {
       await pools.get(pool);

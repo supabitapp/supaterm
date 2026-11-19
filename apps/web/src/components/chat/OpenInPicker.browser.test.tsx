@@ -1,5 +1,5 @@
 import { AuthOrchestrationOperateScope, EnvironmentId, type EditorId } from "@supaterm/contracts";
-import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
+import { DEFAULT_RESOLVED_KEYBINDINGS, isMacPlatform } from "@supaterm/shared/keybindings";
 import { Cause } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vite-plus/test";
@@ -7,14 +7,45 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { act, fakeTimers, render as renderUi } from "../../../test/render";
 import type { RemoteOpenState } from "../../remoteOpen";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   allowed: new Set<string>(),
   remote: { mode: "local-exec" } as RemoteOpenState,
   clientEditors: ["vscode"] as readonly EditorId[],
-  run: vi.fn(),
-  openUrl: vi.fn(),
-  setPreferred: vi.fn(),
-  markHintSeen: vi.fn(),
+  run: fake(),
+  openUrl: fake(),
+  setPreferred: fake(),
+  markHintSeen: fake(),
   listeners: new Set<() => void>(),
 }));
 
@@ -59,10 +90,10 @@ vi.mock(import("../../editorPreferences"), async (importOriginal) => {
 });
 vi.mock(import("../../remoteOpen"), async (importOriginal) => ({
   ...(await importOriginal()),
-  useRemoteOpenState: () => state.remote,
-  useRemoteCapableEditors: () => state.clientEditors,
+  useRemoteOpenState: (() => state.remote) as never,
+  useRemoteCapableEditors: (() => state.clientEditors) as never,
   useRemoteOpenHint: () => [false, state.markHintSeen] as const,
-  openRemoteEditorUrl: state.openUrl,
+  openRemoteEditorUrl: state.openUrl as never,
 }));
 
 import { OpenInPicker } from "./OpenInPicker";
@@ -79,16 +110,14 @@ async function setup() {
   state.allowed.clear();
   state.remote = { mode: "local-exec" };
   state.clientEditors = editors;
-  state.run.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.openUrl.mockReset().mockResolvedValue(true);
-  state.setPreferred.mockReset();
-  state.markHintSeen.mockReset();
+  state.run.reset(async () => AsyncResult.success(undefined));
+  state.openUrl.reset(async () => true);
+  state.setPreferred.reset();
+  state.markHintSeen.reset();
   state.listeners.clear();
   window.localStorage.clear();
 
   await using stack = new AsyncDisposableStack();
-  const _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux");
-  stack.use(_platform);
   const _storage = { [Symbol.dispose]: () => window.localStorage.clear() };
   stack.use(_storage);
   const _openFavorite = { [Symbol.dispose]: registerOpenFavoriteEditorCommand() };
@@ -129,7 +158,7 @@ async function setup() {
     await act(async () => element.click());
   }
 
-  async function pressOpenFavorite(mac = false) {
+  async function pressOpenFavorite(mac = isMacPlatform(navigator.platform)) {
     const event = new KeyboardEvent("keydown", {
       key: "o",
       ctrlKey: !mac,
@@ -190,7 +219,7 @@ describe("remote editor links", () => {
     await using fixture = await setup();
     const { screen, pressOpenFavorite, FavoriteEditorFallback } = fixture;
     state.remote = { mode: "remote-links", host: { kind: "ssh-alias", host: "sol" } };
-    state.openUrl.mockResolvedValueOnce(false);
+    state.openUrl.implementOnce(async () => false);
     await act(async () => screen.rerender(<FavoriteEditorFallback />));
 
     expect((await pressOpenFavorite()).defaultPrevented).toBe(true);
@@ -233,7 +262,7 @@ describe("open in editor announcement", () => {
         .join("");
     };
     const refuse = () =>
-      state.run.mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("No editor"))));
+      state.run.implementOnce(async () => AsyncResult.failure(Cause.fail(new Error("No editor"))));
 
     refuse();
     await pressOpenFavorite();

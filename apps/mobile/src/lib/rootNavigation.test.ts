@@ -45,7 +45,7 @@ it("holds navigation until the container is ready, then runs it once", () => {
   const failing = vi.fn(() => {
     throw new Error("unknown route");
   });
-  const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const logged = vi.spyOn(console, "error");
   whenRootNavigationReady(failing);
   whenRootNavigationReady(navigate);
   expect(navigate).not.toHaveBeenCalled();

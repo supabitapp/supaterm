@@ -1,5 +1,4 @@
 // @effect-diagnostics nodeBuiltinImport:off -- Bundled Wayland helper installed only by explicit setup.
-import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -8,7 +7,7 @@ import * as Schema from "effect/Schema";
 import type { DesktopCaptureHelperState } from "@supaterm/contracts";
 import type { LinuxWindowSnapshot } from "./LinuxSnapShot.ts";
 import { CaptureSetupRequiredError, readPortalPng } from "./linuxCaptureSession.ts";
-import { startNativeCaptureFeedback } from "./NativeCaptureFeedback.ts";
+import { nodeCaptureHelperNative, type CaptureHelperNative } from "./NativeCaptureFeedback.ts";
 import { HYPRLAND_CAPTURE_ACTION } from "./linuxCaptureSession.ts";
 export { isHyprlandCaptureSession } from "./linuxCaptureSession.ts";
 
@@ -47,10 +46,20 @@ export async function hyprlandCaptureShortcut(
   };
 }
 
-function run(executable: string, args: string[], signal?: AbortSignal): Promise<string>;
-function run(executable: string, args: string[], signal?: AbortSignal) {
+function run(
+  native: CaptureHelperNative,
+  executable: string,
+  args: string[],
+  signal?: AbortSignal,
+): Promise<string>;
+function run(
+  native: CaptureHelperNative,
+  executable: string,
+  args: string[],
+  signal?: AbortSignal,
+) {
   return new Promise((resolve, reject) => {
-    NodeChildProcess.execFile(
+    native.execFile(
       executable,
       args,
       { timeout: 20_000, maxBuffer: 128 * 1024, encoding: "utf8", ...(signal ? { signal } : {}) },
@@ -83,8 +92,10 @@ const decodeCapabilities = Schema.decodeUnknownSync(
 
 export class HyprlandCaptureSetup {
   private readonly paths: HyprlandCapturePaths;
-  constructor(paths: HyprlandCapturePaths) {
+  private readonly native: CaptureHelperNative;
+  constructor(paths: HyprlandCapturePaths, native: CaptureHelperNative = nodeCaptureHelperNative) {
     this.paths = paths;
+    this.native = native;
   }
   state(): Promise<DesktopCaptureHelperState>;
   async state() {
@@ -109,7 +120,9 @@ export class HyprlandCaptureSetup {
         status: "ready",
         message:
           "Helper ready. Hyprland may ask for screen-sharing permission on your first capture.",
-        ...decodeCapabilities(await run(hyprlandCaptureExecutable(this.paths), ["check"])),
+        ...decodeCapabilities(
+          await run(this.native, hyprlandCaptureExecutable(this.paths), ["check"]),
+        ),
       } satisfies DesktopCaptureHelperState;
     } catch (error) {
       return {
@@ -168,12 +181,14 @@ const decodeCapture = Schema.decodeUnknownSync(
 export function captureHyprlandWindow(
   paths: HyprlandCapturePaths,
   options?: { readonly flash: boolean; readonly animate: boolean },
+  native?: CaptureHelperNative,
 ): Promise<LinuxWindowSnapshot>;
 export async function captureHyprlandWindow(
   paths: HyprlandCapturePaths,
   options?: { readonly flash: boolean; readonly animate: boolean },
+  native: CaptureHelperNative = nodeCaptureHelperNative,
 ) {
-  const setup = new HyprlandCaptureSetup(paths);
+  const setup = new HyprlandCaptureSetup(paths, native);
   let state = await setup.state();
   if (state.status === "update-required") {
     await setup.perform("install-hyprland-helper").catch((cause: unknown) => {
@@ -189,17 +204,19 @@ export async function captureHyprlandWindow(
   const cleanup = () => NodeFSP.rm(directory, { recursive: true, force: true });
   let retained = false;
   try {
-    const result = decodeCapture(await run(executable, ["capture", directory]));
+    const result = decodeCapture(await run(native, executable, ["capture", directory]));
     const png = await readPortalPng(
       NodeURL.pathToFileURL(NodePath.join(directory, "capture.png")).href,
     );
     const effects =
       state.feedbackAvailable && result.window && options && (options.flash || options.animate)
-        ? await startNativeCaptureFeedback(executable, directory, {
-            bounds: result.window.bounds,
-            pid: process.pid,
-            ...options,
-          }).catch(() => undefined)
+        ? await native
+            .startFeedback(executable, directory, {
+              bounds: result.window.bounds,
+              pid: process.pid,
+              ...options,
+            })
+            .catch(() => undefined)
         : undefined;
     if (effects) {
       retained = true;
@@ -214,7 +231,12 @@ export async function captureHyprlandWindow(
         animationStarted: effects?.animationStarted ?? false,
         activate: async (title) => {
           targetTitle = title;
-          await run(executable, ["activate", String(process.pid), title], activation.signal);
+          await run(
+            native,
+            executable,
+            ["activate", String(process.pid), title],
+            activation.signal,
+          );
         },
         animateTo: async (frame) => {
           await effects?.animateTo(targetTitle, frame);

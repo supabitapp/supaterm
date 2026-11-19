@@ -8,8 +8,39 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { render, stubGlobal } from "../../../test/render";
 import { AppAtomRegistryProvider } from "../../rpc/atomRegistry";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const mocks = vi.hoisted(() => ({
-  connectSshEnvironment: vi.fn<() => Promise<AtomCommandResult<void, Error>>>(async () =>
+  connectSshEnvironment: fake<() => Promise<AtomCommandResult<void, Error>>>(async () =>
     AsyncResult.success(undefined),
   ),
   refresh: () => {},
@@ -97,7 +128,7 @@ describe("AddEnvironmentDialog", () => {
     using _bridge = setup();
     await using _screen = await render(<Owner />);
 
-    mocks.connectSshEnvironment.mockResolvedValueOnce(
+    mocks.connectSshEnvironment.implementOnce(async () =>
       AsyncResult.failure(Cause.fail(new Error("ssh: connection refused"))),
     );
     await openDialogOnSsh();
@@ -137,7 +168,7 @@ describe("AddEnvironmentDialog", () => {
     const pending = new Promise<AtomCommandResult<void, Error>>((resolve) => {
       finishConnection = resolve;
     });
-    mocks.connectSshEnvironment.mockImplementationOnce(() => pending);
+    mocks.connectSshEnvironment.implementOnce(() => pending);
     await userEvent.fill(page.getByPlaceholder("Search hosts or type devbox"), "devbox");
     await userEvent.click(
       page.getByRole("dialog").getByRole("button", { name: "Add environment" }),

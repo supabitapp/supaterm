@@ -8,15 +8,46 @@ import { expect, it, vi } from "vite-plus/test";
 
 import { fakeTimers, stubGlobal } from "../../test/render";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   mode: "notifications",
   inApp: false,
-  toast: vi.fn(),
-  closeToast: vi.fn(),
+  toast: fake(),
+  closeToast: fake(),
   shells: null as unknown as { set: (id: string, value: unknown) => void },
-  navigate: vi.fn(),
-  sound: vi.fn(),
-  badge: vi.fn(),
+  navigate: fake(),
+  sound: fake(),
+  badge: fake(),
   settingsListeners: new Set<() => void>(),
 }));
 vi.mock(import("./ui/toast"), async (original) => {
@@ -65,9 +96,9 @@ vi.mock(import("../hooks/useSettings"), async (original) => ({
 }));
 vi.mock(import("../threadNotifications"), async (original) => ({
   ...(await original()),
-  playNotificationSound: state.sound,
+  playNotificationSound: state.sound as never,
   unlockNotificationAudio: vi.fn(),
-  setNotificationBadge: state.badge,
+  setNotificationBadge: state.badge as never,
 }));
 
 import { startThreadNotifications } from "./ThreadNotificationCoordinator";
@@ -189,13 +220,6 @@ function setup() {
   TestNotification.permission = "granted";
   TestNotification.sent = [];
   stack.use(stubGlobal("Notification", TestNotification));
-  stack.use(vi.spyOn(window, "focus").mockImplementation(() => undefined));
-  stack.use(vi.spyOn(document, "hasFocus").mockImplementation(() => focused));
-  stack.use(
-    vi
-      .spyOn(document, "visibilityState", "get")
-      .mockImplementation(() => visibility as DocumentVisibilityState),
-  );
   const routeListeners = new Set<() => void>();
   const route = { params: {} as Record<string, string> };
   const router = {
@@ -208,7 +232,12 @@ function setup() {
   } as unknown as AnyRouter;
   return {
     start: () => {
-      stack.defer(startThreadNotifications(testRegistry, router));
+      stack.defer(
+        startThreadNotifications(testRegistry, router, {
+          isForeground: () => visibility === "visible" && focused,
+          focus: () => {},
+        }),
+      );
     },
     setEnvironmentIds: (ids: ReadonlyArray<string>) => testRegistry.set(environmentIdsAtom, ids),
     openThread: (environmentId: string, threadId: string) => {
@@ -418,10 +447,10 @@ it("opening a thread or removing its environment closes only its in-app toasts, 
   state.inApp = true;
   focused = true;
   state.toast
-    .mockReturnValueOnce("one-completed")
-    .mockReturnValueOnce("one-approval")
-    .mockReturnValueOnce("one-other")
-    .mockReturnValueOnce("two-completed");
+    .implementOnce(() => "one-completed")
+    .implementOnce(() => "one-approval")
+    .implementOnce(() => "one-other")
+    .implementOnce(() => "two-completed");
   state.shells.set("one", shell({}, { id: "other" }));
   app.start();
   using _timers = fakeTimers();

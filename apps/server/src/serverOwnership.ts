@@ -166,7 +166,15 @@ const olderBootServiceHome = Effect.fn("olderBootServiceHome")(
 
 const ownershipLockPath = (stateDir: string) => NodePath.join(stateDir, "server-owner.sqlite");
 
-const openOwnershipLock = (stateDir: string) =>
+interface OwnershipLockDatabase {
+  exec(sql: string): void;
+  close(): void;
+}
+
+const openSqliteDatabase: (path: string) => OwnershipLockDatabase = (path) =>
+  new NodeSqlite.DatabaseSync(path);
+
+const openOwnershipLock = (stateDir: string, openDatabase = openSqliteDatabase) =>
   Effect.try({
     try: () => {
       const lockPath = ownershipLockPath(stateDir);
@@ -176,7 +184,7 @@ const openOwnershipLock = (stateDir: string) =>
         NodeFS.closeSync(NodeFS.openSync(lockPath, "a", 0o644));
         before = NodeFS.statSync(lockPath, { bigint: true });
       }
-      const db = new NodeSqlite.DatabaseSync(lockPath);
+      const db = openDatabase(lockPath);
       try {
         db.exec("PRAGMA busy_timeout = 250; BEGIN EXCLUSIVE;");
         const identity = NodeFS.statSync(lockPath, { bigint: true });
@@ -208,6 +216,7 @@ export const holdServerOwnershipLock = Effect.fn("holdServerOwnershipLock")(func
 /** Hold an exclusive lock on the state directory until the scope closes. */
 export const acquireServerOwnership = Effect.fn("acquireServerOwnership")(function* (
   statePath: string,
+  options?: { readonly openDatabase?: (path: string) => OwnershipLockDatabase },
 ) {
   const stateDir = NodePath.dirname(statePath);
   const random = yield* SecureRandom.SecureRandom;
@@ -215,16 +224,18 @@ export const acquireServerOwnership = Effect.fn("acquireServerOwnership")(functi
     .uuidV4()
     .pipe(Effect.mapError((cause) => new ServerOwnershipError({ stateDir, cause })));
   const lockPath = ownershipLockPath(stateDir);
-  const lock = yield* Effect.acquireRelease(openOwnershipLock(stateDir), ({ db }) =>
-    readPersistedServerRuntimeState(statePath).pipe(
-      Effect.flatMap((state) =>
-        Option.isSome(state) && state.value.ownerId === ownerId
-          ? clearPersistedServerRuntimeState(statePath)
-          : Effect.void,
+  const lock = yield* Effect.acquireRelease(
+    openOwnershipLock(stateDir, options?.openDatabase),
+    ({ db }) =>
+      readPersistedServerRuntimeState(statePath).pipe(
+        Effect.flatMap((state) =>
+          Option.isSome(state) && state.value.ownerId === ownerId
+            ? clearPersistedServerRuntimeState(statePath)
+            : Effect.void,
+        ),
+        Effect.ignore({ log: true }),
+        Effect.ensuring(Effect.sync(() => db.close())),
       ),
-      Effect.ignore({ log: true }),
-      Effect.ensuring(Effect.sync(() => db.close())),
-    ),
   );
 
   const previous = yield* readPersistedServerRuntimeState(statePath).pipe(

@@ -15,17 +15,48 @@ import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   environments: [] as Array<Record<string, unknown>>,
   projects: [] as Array<Record<string, unknown>>,
   permissions: new Set<string>(),
   tasks: new Map<string, ScheduledTask[]>(),
   search: {} as Record<string, unknown>,
-  navigate: vi.fn(),
-  upsert: vi.fn(),
-  toggle: vi.fn(),
-  run: vi.fn(),
-  remove: vi.fn(),
+  navigate: fake(),
+  upsert: fake(),
+  toggle: fake(),
+  run: fake(),
+  remove: fake(),
 }));
 
 vi.mock(import("@tanstack/react-router"), async (original) => ({
@@ -256,11 +287,11 @@ describe("automation permissions", () => {
     state.permissions = new Set([primaryId, remoteId]);
     state.tasks = new Map();
     state.search = {};
-    state.navigate.mockReset();
-    state.upsert.mockReset().mockResolvedValue({ _tag: "Success" });
-    state.toggle.mockReset().mockResolvedValue({ _tag: "Success" });
-    state.run.mockReset().mockResolvedValue({ _tag: "Success" });
-    state.remove.mockReset().mockResolvedValue({ _tag: "Success" });
+    state.navigate.reset();
+    state.upsert.reset(async () => ({ _tag: "Success" }));
+    state.toggle.reset(async () => ({ _tag: "Success" }));
+    state.run.reset(async () => ({ _tag: "Success" }));
+    state.remove.reset(async () => ({ _tag: "Success" }));
     screen = resources.use(await renderUi(null, { router: false }));
 
     return resources.move();

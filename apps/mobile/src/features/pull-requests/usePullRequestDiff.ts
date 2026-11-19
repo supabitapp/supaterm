@@ -65,12 +65,25 @@ const withheldFileDiffsAtom = Atom.family((key: string) => {
   );
 });
 
-export function usePullRequestDiffEntry(navigation: {
-  readonly addListener: (
-    type: "transitionStart" | "transitionEnd",
-    listener: (event: { readonly data: { readonly closing: boolean } }) => void,
-  ) => () => void;
-}) {
+interface PullRequestDiffEntryFrames {
+  readonly request: (callback: FrameRequestCallback) => number;
+  readonly cancel: (frame: number) => void;
+}
+
+const animationFrames: PullRequestDiffEntryFrames = {
+  request: (callback) => requestAnimationFrame(callback),
+  cancel: (frame) => cancelAnimationFrame(frame),
+};
+
+export function usePullRequestDiffEntry(
+  navigation: {
+    readonly addListener: (
+      type: "transitionStart" | "transitionEnd",
+      listener: (event: { readonly data: { readonly closing: boolean } }) => void,
+    ) => () => void;
+  },
+  frames: PullRequestDiffEntryFrames = animationFrames,
+) {
   const [ready, setReady] = useState(false);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- subscribes to navigator transition events and frames to defer the diff until the opening transition ends
   useLayoutEffect(() => {
@@ -88,8 +101,8 @@ export function usePullRequestDiffEntry(navigation: {
       closing = data.closing;
       if (!closing) finish();
     });
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => {
+    let frame = frames.request(() => {
+      frame = frames.request(() => {
         if (!opening) finish();
       });
     });
@@ -97,10 +110,10 @@ export function usePullRequestDiffEntry(navigation: {
     return () => {
       removeStart();
       removeEnd();
-      cancelAnimationFrame(frame);
+      frames.cancel(frame);
       clearTimeout(fallback);
     };
-  }, [navigation, ready]);
+  }, [frames, navigation, ready]);
   return ready;
 }
 

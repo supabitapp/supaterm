@@ -17,15 +17,38 @@ const NotificationBadge = Schema.Struct({
   ),
 });
 
+type NotificationBadgeWindow = {
+  readonly isDestroyed: () => boolean;
+  readonly setOverlayIcon: (overlay: Electron.NativeImage | null, description: string) => void;
+  readonly webContents: { readonly send: (channel: string) => void };
+};
+
+export type NotificationBadgeNative = {
+  readonly hasFocusedWindow: () => boolean;
+  readonly getAllWindows: () => ReadonlyArray<NotificationBadgeWindow>;
+  readonly createFromDataURL: (dataUrl: string) => Electron.NativeImage;
+  readonly setBadgeCount: (count: number) => void;
+};
+
+const electronNotificationBadgeNative: NotificationBadgeNative = {
+  hasFocusedWindow: () => Electron.BrowserWindow.getFocusedWindow() !== null,
+  getAllWindows: () => Electron.BrowserWindow.getAllWindows(),
+  createFromDataURL: (dataUrl) => Electron.nativeImage.createFromDataURL(dataUrl),
+  setBadgeCount: (count) => {
+    Electron.app.setBadgeCount(count);
+  },
+};
+
 function applyNotificationBadge(
+  native: NotificationBadgeNative,
   platform: NodeJS.Platform,
   { count, image }: typeof NotificationBadge.Type,
 ) {
   try {
-    if (Electron.BrowserWindow.getFocusedWindow()) count = 0;
+    if (native.hasFocusedWindow()) count = 0;
     if (platform === "win32") {
-      const overlay = count > 0 && image ? Electron.nativeImage.createFromDataURL(image) : null;
-      for (const window of Electron.BrowserWindow.getAllWindows()) {
+      const overlay = count > 0 && image ? native.createFromDataURL(image) : null;
+      for (const window of native.getAllWindows()) {
         if (!window.isDestroyed()) {
           window.setOverlayIcon(
             overlay?.isEmpty() ? null : overlay,
@@ -34,7 +57,7 @@ function applyNotificationBadge(
         }
       }
     } else if (platform === "darwin" || platform === "linux") {
-      Electron.app.setBadgeCount(count);
+      native.setBadgeCount(count);
     }
   } catch (error) {
     Effect.runSync(Effect.logWarning("Could not update notification badge", error));
@@ -42,13 +65,13 @@ function applyNotificationBadge(
 }
 
 export const installNotificationBadge = Effect.fn("desktop.ipc.installNotificationBadge")(
-  function* () {
+  function* (native: NotificationBadgeNative = electronNotificationBadgeNative) {
     const ipc = yield* DesktopIpc.DesktopIpc;
     const app = yield* ElectronApp.ElectronApp;
     const platform = yield* HostProcess.Platform;
     const clear = () => {
-      applyNotificationBadge(platform, { count: 0, image: null });
-      for (const window of Electron.BrowserWindow.getAllWindows()) {
+      applyNotificationBadge(native, platform, { count: 0, image: null });
+      for (const window of native.getAllWindows()) {
         if (!window.isDestroyed()) window.webContents.send(SET_NOTIFICATION_BADGE_CHANNEL);
       }
     };
@@ -59,8 +82,8 @@ export const installNotificationBadge = Effect.fn("desktop.ipc.installNotificati
         result: Schema.Void,
         handler: (badge) =>
           Effect.sync(() => {
-            if (badge.count > 0 && Electron.BrowserWindow.getFocusedWindow()) clear();
-            else applyNotificationBadge(platform, badge);
+            if (badge.count > 0 && native.hasFocusedWindow()) clear();
+            else applyNotificationBadge(native, platform, badge);
           }),
       }),
     );

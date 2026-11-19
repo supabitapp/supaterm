@@ -10,6 +10,8 @@ import { beforeEach, expect, it, vi } from "vite-plus/test";
 const state = vi.hoisted(() => ({
   sessions: new Map<string, Pick<AuthSessionState, "authenticated" | "scopes">>(),
   refresh: vi.fn(),
+  signedUrl: async () => "https://host.test/image.png",
+  previewFile: undefined as { uri: string; dispose: () => void } | undefined,
   download: vi.fn(),
   downloadPreview: vi.fn(),
   saveImage: vi.fn(),
@@ -32,8 +34,10 @@ vi.mock("../lib/markdownLinks", () => ({
   normalizeNativeMarkdownUrl: (uri: string) => uri,
 }));
 vi.mock("./assets", () => ({
-  useRefreshAssetUrl: (environmentId: string, resource: unknown) => () =>
-    state.refresh(environmentId, resource),
+  useRefreshAssetUrl: (environmentId: string, resource: unknown) => () => {
+    state.refresh(environmentId, resource);
+    return state.signedUrl();
+  },
 }));
 vi.mock("./session", () => ({
   environmentSession: { sessionStateAtom: (environmentId: string) => environmentId },
@@ -53,13 +57,22 @@ vi.mock("./atom-registry", () => ({
   },
 }));
 vi.mock("../lib/attachmentDownload", () => ({
-  downloadAndShareAttachment: state.download,
-  downloadAttachmentForPreview: state.downloadPreview,
-  shareLocalAttachment: state.shareLocal,
+  downloadAndShareAttachment: async (...args: ReadonlyArray<unknown>) => {
+    state.download(...args);
+  },
+  downloadAttachmentForPreview: async (...args: ReadonlyArray<unknown>) => {
+    state.downloadPreview(...args);
+    return state.previewFile;
+  },
+  shareLocalAttachment: async (...args: ReadonlyArray<unknown>) => {
+    state.shareLocal(...args);
+  },
 }));
 vi.mock("../lib/saveImageToLibrary", () => ({
   canSaveImageToLibrary: (mimeType: string) => mimeType === "image/png",
-  saveImageToLibrary: state.saveImage,
+  saveImageToLibrary: async (...args: ReadonlyArray<unknown>) => {
+    state.saveImage(...args);
+  },
 }));
 vi.mock("expo-haptics", () => ({
   notificationAsync: async () => {},
@@ -67,7 +80,12 @@ vi.mock("expo-haptics", () => ({
 }));
 vi.mock("../lib/copyTextWithHaptic", () => ({ copyTextWithHaptic: state.copy }));
 vi.mock("../lib/localAttachmentPreview", () => ({
-  loadLocalAttachmentPreview: async () => ({ share: state.shareDraft, dispose: vi.fn() }),
+  loadLocalAttachmentPreview: async () => ({
+    share: async (...args: ReadonlyArray<unknown>) => {
+      state.shareDraft(...args);
+    },
+    dispose: vi.fn(),
+  }),
 }));
 
 import { useMediaActions } from "./mediaActions";
@@ -99,12 +117,14 @@ function hostSource(_tag: "workspace-file" | "media-file" = "media-file") {
 beforeEach(() => {
   state.sessions.clear();
   state.sessions.set(environmentId, denied);
-  state.refresh.mockReset().mockResolvedValue("https://host.test/image.png");
-  state.download.mockReset().mockResolvedValue(undefined);
+  state.refresh.mockReset();
+  state.signedUrl = async () => "https://host.test/image.png";
+  state.download.mockReset();
   state.downloadPreview.mockReset();
-  state.saveImage.mockReset().mockResolvedValue(undefined);
-  state.shareLocal.mockReset().mockResolvedValue(undefined);
-  state.shareDraft.mockReset().mockResolvedValue(undefined);
+  state.previewFile = undefined;
+  state.saveImage.mockReset();
+  state.shareLocal.mockReset();
+  state.shareDraft.mockReset();
   state.navigate.mockReset();
   state.copy.mockReset();
 });
@@ -163,10 +183,10 @@ it.each([false, true])("uses the media environment's grant (allowed: %s)", async
 
 it("stops before downloading if access is revoked while the URL is refreshed", async () => {
   state.sessions.set(environmentId, granted);
-  state.refresh.mockImplementation(async () => {
+  state.signedUrl = async () => {
     state.sessions.set(environmentId, denied);
     return "https://host.test/image.png";
-  });
+  };
 
   await useMediaActions(hostSource()).share();
 
@@ -196,10 +216,7 @@ it.each(["https://cdn.test/image.png", "file:///device/image.png"])(
 it("saves a host image from its downloaded file, then removes the file", async () => {
   state.sessions.set(environmentId, granted);
   const disposed = Promise.withResolvers<void>();
-  state.downloadPreview.mockResolvedValue({
-    uri: "file:///cache/image.png",
-    dispose: disposed.resolve,
-  });
+  state.previewFile = { uri: "file:///cache/image.png", dispose: disposed.resolve };
 
   useMediaActions(hostSource())
     .actions.find(({ id }) => id === "save-image")!

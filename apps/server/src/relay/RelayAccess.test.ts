@@ -20,13 +20,17 @@ import * as ServerSettingsService from "../serverSettings.ts";
 import * as RelayAccess from "./RelayAccess.ts";
 import * as RelayIdentity from "./RelayIdentity.ts";
 import { RelayIngress } from "./RelayIngress.ts";
+import type { startRelayTransport } from "./transport.ts";
 
-const { startRelayTransport } = vi.hoisted(() => ({
-  startRelayTransport: vi.fn<typeof import("./transport.ts").startRelayTransport>(),
-}));
-vi.mock("./transport.ts", () => ({ startRelayTransport }));
+type TransportInput = Parameters<typeof startRelayTransport>[0];
+const noTransportStop = () => {};
+const relayTransport: {
+  readonly calls: Array<TransportInput>;
+  respond: (input: TransportInput) => () => void;
+} = { calls: [], respond: () => noTransportStop };
 beforeEach(() => {
-  startRelayTransport.mockReset();
+  relayTransport.calls.length = 0;
+  relayTransport.respond = () => noTransportStop;
 });
 
 const fixture = Effect.gen(function* () {
@@ -63,6 +67,12 @@ const fixture = Effect.gen(function* () {
       }),
     ),
     Layer.provide(Layer.succeed(RelayIngress, { accept: () => {} })),
+    Layer.provide(
+      Layer.succeed(RelayAccess.RelayTransportStarter, (input) => {
+        relayTransport.calls.push(input);
+        return relayTransport.respond(input);
+      }),
+    ),
   );
   const setEnabled = (enabled: boolean) =>
     SubscriptionRef.updateAndGet(settings, (value) => ({
@@ -81,12 +91,12 @@ const awaitState = (service: RelayAccess.RelayAccess["Service"], state: RelayHos
     Stream.runHead,
   );
 const openTransport = Effect.sync(() => {
-  const opened = Promise.withResolvers<Parameters<typeof startRelayTransport>[0]>();
+  const opened = Promise.withResolvers<TransportInput>();
   const stopped = vi.fn();
-  startRelayTransport.mockImplementation((input) => {
+  relayTransport.respond = (input) => {
     opened.resolve(input);
     return stopped;
-  });
+  };
   return { opened: Effect.promise(() => opened.promise), stopped };
 });
 
@@ -103,7 +113,7 @@ it.effect("stays idle by default without creating an identity when started or to
       yield* test.setEnabled(true);
       yield* awaitState(service, "idle");
       expect(test.secrets.size).toBe(0);
-      expect(startRelayTransport).not.toHaveBeenCalled();
+      expect(relayTransport.calls).toEqual([]);
     }).pipe(Effect.provide(test.layer));
   }),
 );
@@ -125,7 +135,7 @@ it.effect("shares activation and waits for registration before returning a relay
       expect(yield* Fiber.join(second)).toEqual(result);
       expect(result.relayEndpoint).toMatch(/^https:\/\//);
       expect(yield* service.prepare).toEqual(result);
-      expect(startRelayTransport).toHaveBeenCalledTimes(1);
+      expect(relayTransport.calls).toHaveLength(1);
     }).pipe(Effect.provide(test.layer), Effect.scoped);
     expect(transport.stopped).toHaveBeenCalledTimes(1);
   }),
@@ -136,7 +146,7 @@ it.effect("reconnects an activated host after restart and disable/re-enable", ()
     const test = yield* fixture;
     test.secrets.set("relay-identity", new Uint8Array(32).fill(2));
     const stopped = vi.fn();
-    startRelayTransport.mockReturnValue(stopped);
+    relayTransport.respond = () => stopped;
     const run = Effect.scoped(
       Effect.gen(function* () {
         const service = yield* RelayAccess.RelayAccess;
@@ -152,7 +162,7 @@ it.effect("reconnects an activated host after restart and disable/re-enable", ()
     );
     yield* run;
     yield* run;
-    expect(startRelayTransport).toHaveBeenCalledTimes(4);
+    expect(relayTransport.calls).toHaveLength(4);
     expect(stopped).toHaveBeenCalledTimes(4);
   }),
 );
@@ -171,7 +181,7 @@ it.effect("fails preparation when disabled and ignores callbacks from the old tr
       yield* test.setEnabled(true);
       yield* awaitState(service, "connecting");
       old.onStatus?.("registered");
-      const current = startRelayTransport.mock.calls.at(-1)?.[0];
+      const current = relayTransport.calls.at(-1);
       current?.onStatus?.("superseded");
       yield* awaitState(service, "superseded");
       expect((yield* service.prepare.pipe(Effect.flip)).reason).toBe("superseded");
@@ -193,7 +203,7 @@ it.effect("times out registration and permits a later retry", () =>
       input.onStatus?.("registered");
       yield* awaitState(service, "registered");
       expect(yield* service.prepare).toHaveProperty("relayEndpoint");
-      expect(startRelayTransport).toHaveBeenCalledTimes(1);
+      expect(relayTransport.calls).toHaveLength(1);
     }).pipe(Effect.provide(test.layer));
   }),
 );
@@ -214,7 +224,7 @@ it.effect.each([
       yield* service.start;
       expect((yield* service.prepare.pipe(Effect.flip)).reason).toBe(reason);
       expect(test.secrets.size).toBe(0);
-      expect(startRelayTransport).not.toHaveBeenCalled();
+      expect(relayTransport.calls).toEqual([]);
     }).pipe(Effect.provide(test.layer));
   }),
 );
@@ -224,18 +234,18 @@ it.effect("recovers a superseded host when disable and re-enable are queued toge
     const test = yield* fixture;
     test.secrets.set("relay-identity", new Uint8Array(32).fill(3));
     const stopped = vi.fn();
-    startRelayTransport.mockReturnValue(stopped);
+    relayTransport.respond = () => stopped;
     yield* Effect.gen(function* () {
       const service = yield* RelayAccess.RelayAccess;
       yield* service.start;
-      startRelayTransport.mock.calls[0]?.[0].onStatus?.("superseded");
+      relayTransport.calls[0]?.onStatus?.("superseded");
       yield* awaitState(service, "superseded");
       yield* test.setEnabled(false);
       yield* test.setEnabled(true);
       yield* awaitState(service, "connecting");
       expect(stopped).toHaveBeenCalledTimes(1);
-      expect(startRelayTransport).toHaveBeenCalledTimes(2);
-      startRelayTransport.mock.calls[1]?.[0].onStatus?.("registered");
+      expect(relayTransport.calls).toHaveLength(2);
+      relayTransport.calls[1]?.onStatus?.("registered");
       expect(yield* service.prepare).toHaveProperty("relayEndpoint");
     }).pipe(Effect.provide(test.layer));
   }),
@@ -245,12 +255,12 @@ it.effect("advertises the first activation and later changes without activating 
   Effect.gen(function* () {
     const test = yield* fixture;
     const lifecycle: string[] = [];
-    startRelayTransport.mockImplementation(({ relayUrl }) => {
+    relayTransport.respond = ({ relayUrl }) => {
       lifecycle.push(`start:${relayUrl}`);
       return () => {
         lifecycle.push(`stop:${relayUrl}`);
       };
-    });
+    };
     yield* Effect.gen(function* () {
       const service = yield* RelayAccess.RelayAccess;
       const advertisements = yield* Queue.unbounded<RelayConnectionInfo | null>();
@@ -265,11 +275,11 @@ it.effect("advertises the first activation and later changes without activating 
       expect(yield* Queue.take(advertisements)).toBeNull();
       yield* service.start;
       expect((yield* awaitState(service, "idle"))._tag).toBe("Some");
-      expect(startRelayTransport).not.toHaveBeenCalled();
+      expect(relayTransport.calls).toEqual([]);
       const preparing = yield* service.prepare.pipe(Effect.forkChild);
       const first = yield* Queue.take(advertisements);
       expect(first?.relayUrl).toBe(DEFAULT_SERVER_SETTINGS.publicRelayUrl);
-      const report = startRelayTransport.mock.calls[0]![0].onStatus;
+      const report = relayTransport.calls[0]!.onStatus;
       report?.("registered");
       expect(yield* Fiber.join(preparing)).toEqual(first);
       report?.("superseded");

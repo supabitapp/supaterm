@@ -1,4 +1,3 @@
-import { AppState } from "react-native";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import {
@@ -17,10 +16,16 @@ vi.mock("expo-updates", () => ({
   reloadAsync: vi.fn(),
 }));
 
+const appState = vi.hoisted(() => ({ subscriptions: [] as Array<{ remove: () => void }> }));
+
 vi.mock("react-native", () => ({
   AppState: {
     currentState: "active",
-    addEventListener: vi.fn(() => ({ remove: vi.fn() })),
+    addEventListener: () => {
+      const subscription = { remove: vi.fn() };
+      appState.subscriptions.push(subscription);
+      return subscription;
+    },
   },
 }));
 
@@ -133,7 +138,7 @@ describe("runAppUpdateCheck", () => {
   });
 
   it("holds the deferred restart and re-arms when the pre-restart flush fails", async () => {
-    const reportError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const reportError = vi.spyOn(console, "error");
     const client = makeAvailableUpdateClient();
     const { backgroundCallbacks, environment } = makeUpdateEnvironment({
       flushPendingWrites: vi.fn(async () => {
@@ -152,7 +157,7 @@ describe("runAppUpdateCheck", () => {
   });
 
   it("still restarts a user-requested install when the flush fails", async () => {
-    const reportError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const reportError = vi.spyOn(console, "error");
     const client = makeAvailableUpdateClient();
     const { environment } = makeUpdateEnvironment({
       flushPendingWrites: vi.fn(async () => {
@@ -194,7 +199,7 @@ describe("runAppUpdateCheck", () => {
   it.each(["ERR_NOT_AVAILABLE_IN_DEV_CLIENT", "ERR_UPDATES_DISABLED"])(
     "treats Expo's %s failure as an unavailable update check",
     async (code) => {
-      const reportError = vi.spyOn(console, "error").mockImplementation(() => {});
+      const reportError = vi.spyOn(console, "error");
       const error = Object.assign(new Error("Updates are unavailable"), { code });
       const client = makeUpdateClient({
         checkForUpdateAsync: vi.fn(async () => {
@@ -301,14 +306,14 @@ describe("runAppUpdateCheck", () => {
 
 describe("installAppUpdateChecks", () => {
   it("checks once at launch and stops listening for foregrounds when disposed", () => {
-    const remove = vi.fn();
-    vi.mocked(AppState.addEventListener).mockReturnValueOnce({ remove });
+    appState.subscriptions.length = 0;
     const client = makeUpdateClient();
 
     const dispose = installAppUpdateChecks(client);
     expect(client.checkForUpdateAsync).toHaveBeenCalledOnce();
+    expect(appState.subscriptions).toHaveLength(1);
     dispose();
 
-    expect(remove).toHaveBeenCalledOnce();
+    expect(appState.subscriptions[0]!.remove).toHaveBeenCalledOnce();
   });
 });

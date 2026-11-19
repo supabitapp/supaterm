@@ -1222,8 +1222,8 @@ describe("environment query lifecycle", () => {
 
   it.effect("refetches when mounted again after its stale time, while still cached", () =>
     Effect.gen(function* () {
-      let now = 0;
-      using _now = vi.spyOn(Date, "now").mockImplementation(() => now);
+      vi.useFakeTimers({ toFake: ["Date"], now: 0 });
+      yield* Effect.addFinalizer(() => Effect.sync(() => vi.useRealTimers()));
       let contents = "before edit";
       let fetches = 0;
       const harness = yield* makeEnvironmentQueryHarness(
@@ -1247,11 +1247,11 @@ describe("environment query lifecycle", () => {
       expect(yield* remount).toBe("before edit");
       contents = "after edit";
 
-      now = 30_000;
+      vi.setSystemTime(30_000);
       expect(yield* remount).toBe("before edit");
       expect(fetches).toBe(1);
 
-      now = 61_000;
+      vi.setSystemTime(61_000);
       expect(yield* remount).toBe("after edit");
       expect(fetches).toBe(2);
     }),
@@ -1261,7 +1261,8 @@ describe("environment query lifecycle", () => {
     Effect.gen(function* () {
       NodeV8.setFlagsFromString("--expose-gc");
       const gc = NodeVM.runInNewContext("gc") as () => void;
-      using _now = vi.spyOn(Date, "now").mockReturnValue(0);
+      vi.useFakeTimers({ toFake: ["Date"], now: 0 });
+      yield* Effect.addFinalizer(() => Effect.sync(() => vi.useRealTimers()));
       let fetches = 0;
       const harness = yield* makeEnvironmentQueryHarness(
         Effect.sync(() => {

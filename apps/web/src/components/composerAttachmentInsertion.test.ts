@@ -1,7 +1,7 @@
 import { Editor, Node, type Extensions, type JSONContent } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import { TextSelection } from "@tiptap/pm/state";
-import { expect, it, vi } from "vite-plus/test";
+import { expect, it } from "vite-plus/test";
 
 import { serializeEditorDoc } from "../composer-rich-text-map";
 import { formatInlineContextReference } from "../lib/composerContextReferences";
@@ -44,11 +44,10 @@ it.each([
     content: [{ type: "paragraph", content: [{ type: "text", text: `Before ${selected}` }] }],
   });
   try {
-    using _alive = vi.spyOn(editor, "isDestroyed", "get").mockReturnValue(false);
     editor.view.dispatch(
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 8, 8 + selected.length)),
     );
-    const insertion = captureComposerAttachmentInsertion(editor);
+    const insertion = captureComposerAttachmentInsertion(editor, () => true);
     if (insertedBefore) editor.view.dispatch(editor.state.tr.insertText(insertedBefore, 1));
     editor.view.dispatch(editor.state.tr.insertText("yaz"));
     expect(insertion.insert([image])).toBe(true);
@@ -83,9 +82,8 @@ it("maps source-marker rewrites before the paste point when the caret enters sty
     [ComposerMarkdownSourceExtension],
   );
   try {
-    using _alive = vi.spyOn(editor, "isDestroyed", "get").mockReturnValue(false);
     editor.view.dispatch(editor.state.tr.setSelection(TextSelection.atEnd(editor.state.doc)));
-    const insertion = captureComposerAttachmentInsertion(editor);
+    const insertion = captureComposerAttachmentInsertion(editor, () => true);
     editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 3)));
     expect(editor.state.doc.textContent).toContain("**bold**");
     expect(insertion.insert([image])).toBe(true);
@@ -103,9 +101,8 @@ it("gives up the paste point when the prompt is replaced wholesale", () => {
     content: [{ type: "paragraph", content: [{ type: "text", text: "Hello world" }] }],
   });
   try {
-    using _alive = vi.spyOn(editor, "isDestroyed", "get").mockReturnValue(false);
     editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 7)));
-    const insertion = captureComposerAttachmentInsertion(editor);
+    const insertion = captureComposerAttachmentInsertion(editor, () => true);
     editor.commands.setContent(
       {
         type: "doc",
@@ -128,9 +125,8 @@ it("keeps a pending image reference as text inside a code block", () => {
     content: [{ type: "codeBlock", content: [{ type: "text", text: "Before " }] }],
   });
   try {
-    using _alive = vi.spyOn(editor, "isDestroyed", "get").mockReturnValue(false);
     editor.view.dispatch(editor.state.tr.setSelection(TextSelection.atEnd(editor.state.doc)));
-    const insertion = captureComposerAttachmentInsertion(editor);
+    const insertion = captureComposerAttachmentInsertion(editor, () => true);
     editor.view.dispatch(editor.state.tr.insertText("yaz"));
     expect(insertion.insert([image])).toBe(true);
     editor.view.dispatch(editor.state.tr.insertText("maya"));
@@ -156,14 +152,13 @@ it.each([
       content: [{ type: "paragraph", content: [{ type: "text", text: before + after }] }],
     });
     try {
-      using _alive = vi.spyOn(editor, "isDestroyed", "get").mockReturnValue(false);
       editor.view.dispatch(
         editor.state.tr.setSelection(TextSelection.create(editor.state.doc, before.length + 1)),
       );
       const firstImage = { ...image, contextId: "image_first", label: "first.png" };
       const secondImage = { ...image, contextId: "image_second", label: "second.png" };
-      const first = captureComposerAttachmentInsertion(editor);
-      const second = captureComposerAttachmentInsertion(editor);
+      const first = captureComposerAttachmentInsertion(editor, () => true);
+      const second = captureComposerAttachmentInsertion(editor, () => true);
       if (finishesFirst === "second") expect(second.insert([secondImage])).toBe(true);
       expect(first.insert([firstImage])).toBe(true);
       if (finishesFirst === "first") expect(second.insert([secondImage])).toBe(true);

@@ -22,9 +22,18 @@ import { vi } from "vite-plus/test";
 import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as WorkspaceSearchIndex from "./WorkspaceSearchIndex.ts";
 
-const testLayer = VcsProcess.layer.pipe(Layer.provideMerge(NodeServices.layer));
+const queuedFinders: Array<FileFinder> = [];
+
+const testLayer = Layer.mergeAll(
+  VcsProcess.layer.pipe(Layer.provideMerge(NodeServices.layer)),
+  Layer.succeed(WorkspaceSearchIndex.CreateFileFinder, (options) => {
+    const queued = queuedFinders.shift();
+    return queued === undefined ? FileFinder.create(options) : { ok: true, value: queued };
+  }),
+);
 
 afterEach(() => {
+  queuedFinders.length = 0;
   vi.restoreAllMocks();
 });
 
@@ -172,7 +181,7 @@ it.effect("fetches past a first page of Git-ignored results", () =>
         watchAsync: async () => ({ ok: true as const, value: () => undefined }),
         fileSearchAsync: fileSearch,
       } as unknown as FileFinder;
-      vi.spyOn(FileFinder, "create").mockReturnValueOnce({ ok: true, value: finder });
+      queuedFinders.push(finder);
 
       const searchIndex = yield* WorkspaceSearchIndex.make(cwd);
       const result = yield* searchIndex.search("a", 1, "file", false);
@@ -201,7 +210,7 @@ it.effect.skipIf(HostProcess.Platform.defaultValue() === "win32")(
             value: { items, scores: [], totalMatched: 1, totalFiles: 1 },
           })),
         } as unknown as FileFinder;
-        vi.spyOn(FileFinder, "create").mockReturnValueOnce({ ok: true, value: finder });
+        queuedFinders.push(finder);
 
         const searchIndex = yield* WorkspaceSearchIndex.make("/workspace/project");
         const result = yield* searchIndex.search("report", 50, "file");
@@ -265,7 +274,7 @@ it.effect("continues whole-word searches after a filtered grep page", () =>
         watchAsync: async () => ({ ok: true as const, value: () => undefined }),
         grepAsync: grep,
       } as unknown as FileFinder;
-      vi.spyOn(FileFinder, "create").mockReturnValueOnce({ ok: true, value: finder });
+      queuedFinders.push(finder);
 
       const searchIndex = yield* WorkspaceSearchIndex.make("/workspace/project", "content");
       const result = yield* searchIndex.searchContents({
@@ -337,11 +346,7 @@ it.live("answers content searches with git grep while a slow content index build
       ...finder,
       waitForIndexReady: vi.fn(async () => ({ ok: true as const, value: true })),
     } as unknown as FileFinder;
-    vi.spyOn(FileFinder, "create")
-      .mockReturnValueOnce({ ok: true, value: finder })
-      .mockReturnValueOnce({ ok: true, value: noPcreFinder })
-      .mockReturnValueOnce({ ok: true, value: noPcreFinder })
-      .mockReturnValueOnce({ ok: true, value: noPcreFinder });
+    queuedFinders.push(finder, noPcreFinder, noPcreFinder, noPcreFinder);
 
     const searchIndex = yield* WorkspaceSearchIndex.make(cwd, "content");
     const search = (input: Partial<Parameters<typeof searchIndex.searchContents>[0]>) =>
@@ -526,7 +531,7 @@ function fakeSymlinkFinder(
       value: { items: indexedItems, totalMatched: indexedItems.length },
     }),
   } as unknown as FileFinder;
-  vi.spyOn(FileFinder, "create").mockReturnValueOnce({ ok: true, value: finder });
+  queuedFinders.push(finder);
   return {
     directorySearch,
     notifyWatchers: (events: ReadonlyArray<WatchEvent>) =>

@@ -16,7 +16,9 @@ import {
   threadWithHistory,
   type FakeDriver,
 } from "../../test/fakeEnvironment";
-import { act, render } from "../../test/render";
+import { act, fakeTimers, render } from "../../test/render";
+import { isMacPlatform } from "@supaterm/shared/keybindings";
+import { THREAD_JUMP_HINT_SHOW_DELAY_MS } from "./Sidebar.logic";
 
 vi.mock("../../../../packages/client-runtime/src/connection/driver.ts", async (importOriginal) => {
   const [actual, { fakeDriver }, Layer] = await Promise.all([
@@ -46,7 +48,7 @@ vi.mock(import("~/state/server"), async (original) => {
 it("leaves thread shortcuts and their hints to the preview when their rules exclude it", async () => {
   const [first, second] = [threadWithHistory("thread-a", 1), threadWithHistory("thread-b", 1)];
   using _environment = installFakeEnvironment([first, second]);
-  using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+  const mod = isMacPlatform(navigator.platform) ? "Meta" : "Control";
   __setClientSettingsForTests({
     ...DEFAULT_CLIENT_SETTINGS,
     onboardingCompletedAt: "2026-01-01T00:00:00.000Z",
@@ -67,15 +69,14 @@ it("leaves thread shortcuts and their hints to the preview when their rules excl
   document.body.append(previewChrome);
   using _chrome = { [Symbol.dispose]: () => previewChrome.remove() };
 
-  const press = () => userEvent.keyboard("{Control>}{Shift>}]{/Shift}{/Control}");
+  const press = () => userEvent.keyboard(`{${mod}>}{Shift>}]{/Shift}{/${mod}}`);
   const jumpHint = () => document.querySelector("[data-jump-hint]");
   const whileHoldingControl = async (assertJumpHints: () => void) => {
-    let now = Date.parse("2026-01-01T00:00:00.000Z");
-    using _clock = vi.spyOn(Date, "now").mockImplementation(() => (now += 1000));
-    await userEvent.keyboard("{Control>}");
-    await act(() => {});
-    await vi.waitFor(assertJumpHints);
-    await userEvent.keyboard("{/Control}");
+    using _timers = fakeTimers();
+    await userEvent.keyboard(`{${mod}>}`);
+    await act(() => vi.advanceTimersByTime(THREAD_JUMP_HINT_SHOW_DELAY_MS));
+    assertJumpHints();
+    await userEvent.keyboard(`{/${mod}}`);
   };
   const firstPath = `/${ENVIRONMENT_ID}/${first.id}`;
 

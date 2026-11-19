@@ -304,8 +304,13 @@ export function formatRelativeHourShort(
   return formatDateTimeShort(hourStart, timeZone, hour12);
 }
 
-export function makeWindow(days: number, now = new Date(), resolution: UsageResolution = "day") {
-  let timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+export function makeWindow(
+  days: number,
+  now = new Date(),
+  resolution: UsageResolution = "day",
+  resolvedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
+) {
+  let timeZone = resolvedTimeZone || "UTC";
   let format: Intl.DateTimeFormat;
   try {
     format = new Intl.DateTimeFormat("en-CA", {

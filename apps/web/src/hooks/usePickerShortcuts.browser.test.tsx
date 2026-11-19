@@ -34,7 +34,6 @@ const select = vi.fn();
 
 async function setupTest() {
   await using resources = new AsyncDisposableStack();
-  resources.use(vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel"));
   select.mockClear();
   screen = resources.use(await renderUi(null, { router: false }));
 
@@ -49,6 +48,7 @@ async function renderPicker(overrides: Partial<ComponentProps<typeof Picker>> = 
       items={["Alpha", "Beta", "Gamma", "Delta"]}
       keybindings={DEFAULT_RESOLVED_KEYBINDINGS}
       onSelect={select}
+      platform="MacIntel"
       {...overrides}
     />,
   );

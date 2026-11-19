@@ -15,8 +15,39 @@ import {
 import type { OpenVsxThemeExtension } from "../../openVsxThemes";
 import { ThemeImportDialog } from "./ThemeImportDialog";
 
-const searchOpenVsxThemes = vi.hoisted(() => vi.fn());
-const importOpenVsxThemeExtension = vi.hoisted(() => vi.fn());
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const searchOpenVsxThemes = vi.hoisted(() => fake());
+const importOpenVsxThemeExtension = vi.hoisted(() => fake());
 
 vi.mock("../../openVsxThemes", () => ({
   searchOpenVsxThemes,
@@ -41,8 +72,8 @@ const extension: OpenVsxThemeExtension = {
 
 describe("ThemeImportDialog", () => {
   it("searches Open VSX under StrictMode", async () => {
-    searchOpenVsxThemes.mockReset();
-    searchOpenVsxThemes.mockResolvedValue([extension]);
+    searchOpenVsxThemes.reset();
+    searchOpenVsxThemes.implement(async () => [extension]);
     await using _screen = await render(
       <StrictMode>
         <ThemeImportDialog
@@ -71,14 +102,14 @@ describe("ThemeImportDialog", () => {
       },
     };
     const collection = { id: "open-vsx:acme.nightfall", label: "Nightfall" };
-    searchOpenVsxThemes.mockReset();
-    searchOpenVsxThemes.mockResolvedValue([{ ...extension, collectionId: collection.id }]);
+    searchOpenVsxThemes.reset();
+    searchOpenVsxThemes.implement(async () => [{ ...extension, collectionId: collection.id }]);
     let finishInstall: (themes: ReadonlyArray<unknown>) => void = () => {};
     const installed = new Promise<ReadonlyArray<unknown>>((resolve) => {
       finishInstall = resolve;
     });
-    importOpenVsxThemeExtension.mockReset();
-    importOpenVsxThemeExtension.mockReturnValue(installed);
+    importOpenVsxThemeExtension.reset();
+    importOpenVsxThemeExtension.implement(() => installed);
     const onImportedMany = vi.fn();
     await using screen = await render(
       <StrictMode>

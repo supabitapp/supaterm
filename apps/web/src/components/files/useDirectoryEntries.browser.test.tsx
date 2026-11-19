@@ -8,8 +8,39 @@ import { useEffect } from "react";
 import { act, render } from "../../../test/render";
 import { expect, it, vi } from "vite-plus/test";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const { listEntries, mocks } = vi.hoisted(() => ({
-  listEntries: vi.fn(),
+  listEntries: fake<(request: { input: { directoryPath: string } }) => Promise<unknown>>(),
   mocks: {
     reconnect: false,
     generation: 0,
@@ -24,10 +55,11 @@ vi.mock("~/connection/catalog", () => ({
 }));
 vi.mock("~/state/projects", () => {
   const queries = new Map<string, ReturnType<typeof makeQuery>>();
-  const makeQuery = (request: unknown) => Atom.make(Effect.promise(() => listEntries(request)));
+  const makeQuery = (request: { input: { directoryPath: string } }) =>
+    Atom.make(Effect.promise(() => listEntries(request)));
   return {
     projectEnvironment: {
-      listEntries: (request: unknown) =>
+      listEntries: (request: { input: { directoryPath: string } }) =>
         mocks.reconnect
           ? Atom.make((get) =>
               get(mocks.reachable)
@@ -73,7 +105,7 @@ function setup() {
     await act(async () => calls[index]!.resolve(entries));
   }
 
-  listEntries.mockReset().mockImplementation((request) => {
+  listEntries.reset((request) => {
     activeQueries++;
     peakQueries = Math.max(peakQueries, activeQueries);
     return new Promise((resolve) => {

@@ -15,7 +15,6 @@ import * as Path from "effect/Path";
 import * as Runtime from "effect/Runtime";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as TestClock from "effect/testing/TestClock";
-import { vi } from "vite-plus/test";
 
 import { renderBootServicePlist, renderBootServiceUnit } from "./service/bootService.ts";
 import { ServiceLauncherHostProcess } from "./service/serviceLauncherClient.ts";
@@ -218,24 +217,29 @@ describe("server ownership", () => {
         const statePath = path.join(root, "server-runtime.json");
         const lockPath = path.join(root, "server-owner.sqlite");
         const replacement = path.join(root, "replacement.sqlite");
-        if (operation === "during acquisition" || operation === "first acquisition") {
+        const replacedDuringAcquisition =
+          operation === "during acquisition" || operation === "first acquisition";
+        if (replacedDuringAcquisition) {
           if (operation === "during acquisition") yield* fs.writeFileString(lockPath, "");
           yield* fs.writeFileString(replacement, "");
-          const exec = NodeSqlite.DatabaseSync.prototype.exec;
-          yield* Effect.acquireRelease(
-            Effect.sync(() =>
-              vi.spyOn(NodeSqlite.DatabaseSync.prototype, "exec").mockImplementationOnce(function (
-                this: NodeSqlite.DatabaseSync,
-                sql: string,
-              ) {
-                exec.call(this, sql);
-                NodeFS.renameSync(replacement, lockPath);
-              }),
-            ),
-            (spy) => Effect.sync(() => spy.mockRestore()),
-          );
         }
-        yield* ServerOwnership.acquireServerOwnership(statePath);
+        yield* ServerOwnership.acquireServerOwnership(
+          statePath,
+          replacedDuringAcquisition
+            ? {
+                openDatabase: (databasePath) => {
+                  const db = new NodeSqlite.DatabaseSync(databasePath);
+                  return {
+                    exec: (sql) => {
+                      db.exec(sql);
+                      NodeFS.renameSync(replacement, lockPath);
+                    },
+                    close: () => db.close(),
+                  };
+                },
+              }
+            : undefined,
+        );
         if (operation === "unlink") {
           yield* fs.remove(lockPath);
         } else if (operation === "replace") {

@@ -8,7 +8,6 @@ import {
   PREVIEW_URL_MAX_LENGTH,
   type DiscoveredLocalServer,
 } from "@supaterm/contracts";
-import * as ProcessGroup from "@supaterm/provider-core/server/processGroup";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as Duration from "effect/Duration";
@@ -19,14 +18,12 @@ import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
 import * as Scope from "effect/Scope";
 import * as TestClock from "effect/testing/TestClock";
-import { expect, vi } from "vite-plus/test";
+import { expect } from "vite-plus/test";
 import { FetchHttpClient } from "effect/http";
 
 import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as PortScanner from "./PortScanner.ts";
-
-vi.mock("@supaterm/provider-core/server/processGroup", { spy: true });
 
 const processProbeFailure: ProcessRunner.ProcessRunner["Service"]["run"] = (input) =>
   Effect.fail(
@@ -760,11 +757,8 @@ effectIt.effect("rechecks the socket owner before stopping a Linux server withou
     }),
   );
 
+  const signals: Array<readonly [number, NodeJS.Signals | 0]> = [];
   return Effect.gen(function* () {
-    const signal = vi.spyOn(ProcessGroup, "signalProcessGroup").mockImplementation(() => {
-      throw Object.assign(new Error("No such process"), { code: "ESRCH" });
-    });
-    yield* Effect.addFinalizer(() => Effect.sync(() => signal.mockRestore()));
     const scanner = yield* PortScanner.PortDiscovery;
     expect(yield* scanner.scan()).toMatchObject([{ pid: 4242, port: 8765 }]);
 
@@ -772,12 +766,18 @@ effectIt.effect("rechecks the socket owner before stopping a Linux server withou
     const result = yield* scanner
       .stopServer({ pid: 4242, port: 8765 })
       .pipe(Effect.match({ onFailure: (error) => error.reason, onSuccess: () => null }));
-    expect(signal).not.toHaveBeenCalled();
+    expect(signals).toEqual([]);
     expect(result).toBe("not-found");
     expect(yield* scanner.scan()).toMatchObject([{ pid: 5000, port: 8765 }]);
     yield* scanner.stopServer({ pid: 5000, port: 8765 });
-    expect(signal).toHaveBeenCalledExactlyOnceWith(5300, "SIGTERM");
-  }).pipe(Effect.provide(layer));
+    expect(signals).toEqual([[5300, "SIGTERM"]]);
+  }).pipe(
+    Effect.provide(layer),
+    Effect.provideService(PortScanner.SignalProcessGroup, (group, signal) => {
+      signals.push([group, signal]);
+      throw Object.assign(new Error("No such process"), { code: "ESRCH" });
+    }),
+  );
 });
 
 effectIt.effect.each(["linux", "darwin", "win32"] as const)(

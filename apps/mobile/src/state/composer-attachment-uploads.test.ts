@@ -23,8 +23,8 @@ const native = vi.hoisted(() => ({
   nextUuid: 0,
   mint: Symbol("mint"),
   remove: Symbol("remove"),
-  transfer:
-    vi.fn<(uri: string, url: string, options: UploadOptions) => Promise<{ status: number }>>(),
+  transfer: vi.fn<(uri: string, url: string, options: UploadOptions) => void>(),
+  transfers: [] as Array<(uri: string, url: string) => Promise<{ status: number }>>,
   onWrite: null as ((uri: string, value: string) => void) | null,
 }));
 
@@ -86,7 +86,13 @@ vi.mock("expo-file-system", () => {
       native.files.delete(this.uri);
     }
     upload(url: string, options: UploadOptions) {
-      return native.transfer(this.uri, url, options);
+      native.transfer(this.uri, url, options);
+      const scripted = native.transfers.shift();
+      if (scripted) return scripted(this.uri, url);
+      const bytes = native.files.get(this.uri)!;
+      options.onProgress?.({ bytesSent: bytes.length, totalBytes: bytes.length });
+      native.server.set(url.split("/").at(-1)!, bytes);
+      return Promise.resolve({ status: 204 });
     }
   }
   return {
@@ -243,8 +249,8 @@ const requestsAtom = Atom.make((get) =>
   }),
 );
 
-function worker() {
-  const { queue, dispose } = createComposerAttachmentUploadWorker(requestsAtom);
+function worker(flushDrafts?: () => Promise<void>) {
+  const { queue, dispose } = createComposerAttachmentUploadWorker(requestsAtom, flushDrafts);
   disposeWorker = dispose;
   return queue;
 }
@@ -272,7 +278,7 @@ function queuedMessage() {
 }
 
 beforeEach(async () => {
-  vi.spyOn(console, "warn").mockImplementation(() => {});
+  vi.spyOn(console, "warn");
   native.files.clear();
   native.server.clear();
   native.deleted.length = 0;
@@ -290,12 +296,7 @@ beforeEach(async () => {
   await drafts.flushComposerDrafts();
   await threadOutboxManager.load();
   native.transfer.mockReset();
-  native.transfer.mockImplementation(async (uri, url, options) => {
-    const bytes = native.files.get(uri)!;
-    options.onProgress?.({ bytesSent: bytes.length, totalBytes: bytes.length });
-    native.server.set(url.split("/").at(-1)!, bytes);
-    return { status: 204 };
-  });
+  native.transfers.length = 0;
 });
 
 afterEach(async () => {
@@ -362,7 +363,7 @@ it.effect("uploads again at send time when the server swept a finished upload", 
 it("keeps an upload running when its message is sent mid-upload and records it on the message", async () => {
   const transferStarted = Promise.withResolvers<void>();
   const finishTransfer = Promise.withResolvers<{ status: number }>();
-  native.transfer.mockImplementationOnce(async (uri, url) => {
+  native.transfers.push(async (uri, url) => {
     native.server.set(url.split("/").at(-1)!, native.files.get(uri)!);
     transferStarted.resolve();
     return finishTransfer.promise;
@@ -424,7 +425,7 @@ it("saves a pending-task edit that opened while an upload was recorded on its me
 it.each(["http", "permission"] as const)(
   "keeps a real %s upload failure blocking Send",
   async (failure) => {
-    if (failure === "http") native.transfer.mockResolvedValueOnce({ status: 503 });
+    if (failure === "http") native.transfers.push(async () => ({ status: 503 }));
     if (failure === "permission") native.canOperate = false;
     const queue = worker();
     await queue.settled();
@@ -436,10 +437,12 @@ it.each(["http", "permission"] as const)(
 );
 
 it("keeps an unexpected draft flush error blocking Send", async () => {
-  vi.spyOn(drafts, "flushComposerDrafts").mockRejectedValueOnce(
-    new Error("Unexpected flush defect"),
+  let flushes = 0;
+  const queue = worker(() =>
+    flushes++ === 0
+      ? Promise.reject(new Error("Unexpected flush defect"))
+      : drafts.flushComposerDrafts(),
   );
-  const queue = worker();
   await queue.settled();
   expect(composerAttachmentUploadBlockReason(sendInput())).toBe(
     "Retry or remove the failed attachment",

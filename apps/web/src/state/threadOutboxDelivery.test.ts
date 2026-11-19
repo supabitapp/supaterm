@@ -25,19 +25,32 @@ function harness() {
   let now = 0;
   let online = false;
   const delivered: ThreadOutboxEntry<Payload>[] = [];
+  type Entry = ThreadOutboxEntry<Payload>;
+  const overrides = {
+    load: null as (() => Promise<Entry[]>) | null,
+    observeWrite: null as ((entry: Entry) => void) | null,
+    writeMany: [] as Array<(entries: ReadonlyArray<Entry>) => Promise<void>>,
+    remove: [] as Array<() => Promise<void>>,
+    deliver: [] as Array<(entry: Entry) => Promise<void>>,
+  };
   const storage: BrowserThreadOutboxStorage<Payload> = {
-    load: vi.fn(async () => [...records.values()]),
-    write: vi.fn(async (entry) => {
+    load: () => overrides.load?.() ?? Promise.resolve([...records.values()]),
+    write: async (entry) => {
+      overrides.observeWrite?.(entry);
       if (!records.has(entry.id)) return false;
       records.set(entry.id, entry);
       return true;
-    }),
-    writeMany: vi.fn(async (entries) => {
+    },
+    writeMany: async (entries) => {
+      const override = overrides.writeMany.shift();
+      if (override) return override(entries);
       for (const entry of entries) records.set(entry.id, entry);
-    }),
-    remove: vi.fn(async (id) => {
+    },
+    remove: async (id) => {
+      const override = overrides.remove.shift();
+      if (override) return override();
       records.delete(id);
-    }),
+    },
     withLock: async (scope, action) => {
       if (locks.has(scope)) return null;
       locks.add(scope);
@@ -48,9 +61,11 @@ function harness() {
       }
     },
   };
-  const deliver = vi.fn(async (entry: ThreadOutboxEntry<Payload>) => {
+  const deliver = async (entry: Entry) => {
+    const override = overrides.deliver.shift();
+    if (override) return override(entry);
     delivered.push(entry);
-  });
+  };
   const create = () =>
     createBrowserThreadOutbox({
       registry: AtomRegistry.make(),
@@ -65,8 +80,7 @@ function harness() {
     });
   return {
     records,
-    storage,
-    deliver,
+    overrides,
     delivered,
     create,
     connect: () => {
@@ -92,9 +106,7 @@ describe("durable thread outbox", () => {
     const h = harness();
     const outbox = h.create();
     await outbox.enqueue(message("prompt"));
-    vi.mocked(h.storage.load).mockImplementation(async () =>
-      structuredClone([...h.records.values()]),
-    );
+    h.overrides.load = async () => structuredClone([...h.records.values()]);
     const snapshot = outbox.getSnapshot();
     const changed = vi.fn();
     const unsubscribe = outbox.subscribe(changed);
@@ -109,7 +121,7 @@ describe("durable thread outbox", () => {
     const h = harness();
     const outbox = h.create();
     await outbox.enqueue(message("prompt"));
-    vi.mocked(h.storage.remove).mockRejectedValueOnce(new Error("disk unavailable"));
+    h.overrides.remove.push(() => Promise.reject(new Error("disk unavailable")));
     await expect(outbox.clearEnvironment(EnvironmentId.make("environment"))).rejects.toThrow(
       "Some pending messages could not be removed.",
     );
@@ -122,7 +134,7 @@ describe("durable thread outbox", () => {
     const outbox = h.create();
     const writing = deferred();
     const commit = deferred();
-    vi.mocked(h.storage.writeMany).mockImplementationOnce(async (entries) => {
+    h.overrides.writeMany.push(async (entries) => {
       writing.resolve();
       await commit.promise;
       for (const entry of entries) h.records.set(entry.id, entry);
@@ -167,7 +179,7 @@ describe("durable thread outbox", () => {
     const first = h.create();
     h.connect();
     await first.enqueue(message("prompt"));
-    h.deliver.mockImplementationOnce(async (entry) => {
+    h.overrides.deliver.push(async (entry) => {
       h.delivered.push(entry);
       throw { _tag: "RpcClientError" };
     });
@@ -199,7 +211,7 @@ describe("durable thread outbox", () => {
     const outbox = h.create();
     h.connect();
     await outbox.enqueue(message("prompt"));
-    vi.mocked(h.storage.remove).mockRejectedValueOnce(new Error("disk unavailable"));
+    h.overrides.remove.push(() => Promise.reject(new Error("disk unavailable")));
     await expect(outbox.drain()).rejects.toThrow("disk unavailable");
     expect(h.records.get("prompt")?.status).toBe("delivered");
     const recovered = h.create();
@@ -213,12 +225,10 @@ describe("durable thread outbox", () => {
     const outbox = h.create();
     h.connect();
     await outbox.enqueue(message("prompt"));
-    const write = vi.mocked(h.storage.write).getMockImplementation()!;
     let sendingWhenAcknowledged: boolean | null = null;
-    vi.mocked(h.storage.write).mockImplementation(async (entry) => {
+    h.overrides.observeWrite = (entry) => {
       if (entry.status === "delivered") sendingWhenAcknowledged = outbox.isSending(entry.id);
-      return write(entry);
-    });
+    };
     await outbox.drain();
     expect(sendingWhenAcknowledged).toBe(true);
     expect(outbox.isSending("prompt")).toBe(false);
@@ -259,7 +269,7 @@ describe("durable thread outbox", () => {
     const second = h.create();
     const started = deferred();
     const finish = deferred();
-    h.deliver.mockImplementationOnce(async (entry) => {
+    h.overrides.deliver.push(async (entry) => {
       h.delivered.push(entry);
       started.resolve();
       await finish.promise;
@@ -286,10 +296,12 @@ describe("durable thread outbox", () => {
       message("first"),
       message("second", "environment:thread", "2026-10-06T00:01:00Z"),
     ]);
-    h.deliver.mockRejectedValueOnce({
-      _tag: "OrchestrationDispatchCommandError",
-      message: "Invalid model",
-    });
+    h.overrides.deliver.push(() =>
+      Promise.reject({
+        _tag: "OrchestrationDispatchCommandError",
+        message: "Invalid model",
+      }),
+    );
     expect(await outbox.drain()).toBeNull();
     expect(await outbox.drain()).toBeNull();
     expect(outbox.getSnapshot()[0]?.status).toBe("failed");
@@ -306,7 +318,7 @@ describe("durable thread outbox", () => {
   it("keeps all drafts unaccepted when an atomic multiple-model submission fails", async () => {
     const h = harness();
     const outbox = h.create();
-    vi.mocked(h.storage.writeMany).mockRejectedValueOnce(new Error("quota exceeded"));
+    h.overrides.writeMany.push(() => Promise.reject(new Error("quota exceeded")));
     await expect(outbox.enqueueMany([message("a", "a"), message("b", "b")])).rejects.toThrow(
       "quota exceeded",
     );
@@ -342,9 +354,7 @@ describe("durable thread outbox", () => {
     const h = harness();
     const outbox = h.create();
     await outbox.enqueueMany([message("z-first"), message("a-second")]);
-    vi.mocked(h.storage.load).mockImplementation(async () =>
-      [...h.records.values()].sort((a, b) => a.id.localeCompare(b.id)),
-    );
+    h.overrides.load = async () => [...h.records.values()].sort((a, b) => a.id.localeCompare(b.id));
     h.connect();
     const recovered = h.create();
     await recovered.drain();
@@ -358,7 +368,7 @@ describe("durable thread outbox", () => {
     h.connect();
     const started = deferred();
     const finish = deferred();
-    h.deliver.mockImplementationOnce(async (entry) => {
+    h.overrides.deliver.push(async (entry) => {
       h.delivered.push(entry);
       started.resolve();
       await finish.promise;
@@ -380,7 +390,7 @@ describe("durable thread outbox", () => {
     h.connect();
     const started = deferred();
     const finish = deferred();
-    h.deliver.mockImplementationOnce(async (entry) => {
+    h.overrides.deliver.push(async (entry) => {
       h.delivered.push(entry);
       started.resolve();
       await finish.promise;

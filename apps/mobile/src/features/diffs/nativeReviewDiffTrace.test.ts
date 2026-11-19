@@ -2,7 +2,8 @@ import { expect, it, vi } from "vite-plus/test";
 
 const sink = vi.hoisted(() => ({
   created: vi.fn(),
-  written: vi.fn<(line: string, options: unknown) => Promise<void>>(),
+  written: vi.fn<(line: string, options: unknown) => void>(),
+  onWrite: async (_line: string) => {},
   opened: vi.fn(),
 }));
 
@@ -16,7 +17,8 @@ vi.mock("expo-file-system", () => ({
       sink.created(options);
     }
     write(line: string, options: unknown) {
-      return sink.written(line, options);
+      sink.written(line, options);
+      return sink.onWrite(line);
     }
   },
 }));
@@ -57,15 +59,15 @@ it("serializes appends to a retrievable file and bounds a process to 1000 events
   const firstWrite = Promise.withResolvers<void>();
   const releaseFirst = Promise.withResolvers<void>();
   const finished = Promise.withResolvers<void>();
-  sink.written.mockImplementation(async (line) => {
+  sink.onWrite = async (line) => {
     const { seq } = JSON.parse(line);
     if (seq === 1) {
       firstWrite.resolve();
       await releaseFirst.promise;
     }
     if (seq === 1000) finished.resolve();
-  });
-  using warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+  };
+  using warning = vi.spyOn(console, "warn");
   vi.stubEnv("EXPO_PUBLIC_SUPATERM_DIFF_TRACE", "1");
   try {
     const { diffHighlightTraceId, traceDiffHighlight } = await import("./nativeReviewDiffTrace");

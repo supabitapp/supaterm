@@ -19,7 +19,7 @@ import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
-// @effect-diagnostics-next-line nodeBuiltinImport:off -- the shared login shell probe runs synchronously through execFileSync.
+// @effect-diagnostics-next-line nodeBuiltinImport:off -- the login shell probes run synchronously through execFileSync.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeOS from "node:os";
 
@@ -33,9 +33,11 @@ const LOGIN_SHELL_ENV_NAMES = ["PATH", "__MISE_DIFF", "JAVA_HOME"] as const;
 const LOGIN_SHELL_TIMEOUT = Duration.seconds(5);
 const SLOW_LOGIN_SHELL_TIMEOUT_MS = 20_000;
 
-function readSlowLoginShellEnvironment(shell: string) {
+type ExecFileSync = NonNullable<Parameters<typeof readPathFromLaunchctl>[0]>;
+
+function readSlowLoginShellEnvironment(shell: string, execFileSync: ExecFileSync) {
   return readEnvironmentFromLoginShell(shell, LOGIN_SHELL_ENV_NAMES, (file, args, options) =>
-    NodeChildProcess.execFileSync(file, args, {
+    execFileSync(file, args, {
       ...options,
       timeout: SLOW_LOGIN_SHELL_TIMEOUT_MS,
     }),
@@ -61,18 +63,22 @@ function applyLoginShellEnvironment(
   }
 }
 
-function hydratePosixPath(env: NodeJS.ProcessEnv, platform: NodeJS.Platform) {
+function hydratePosixPath(
+  env: NodeJS.ProcessEnv,
+  platform: NodeJS.Platform,
+  execFileSync: ExecFileSync,
+) {
   let shellEnvironment: Partial<Record<string, string>> = {};
   let waitedForSlowShell = false;
   for (const shell of listLoginShellCandidates(platform, env.SHELL)) {
     try {
-      shellEnvironment = readEnvironmentFromLoginShell(shell, LOGIN_SHELL_ENV_NAMES);
+      shellEnvironment = readEnvironmentFromLoginShell(shell, LOGIN_SHELL_ENV_NAMES, execFileSync);
     } catch (error) {
       logPathHydrationWarning(`Failed to read PATH from login shell ${shell}.`, error);
       if (!waitedForSlowShell && (error as NodeJS.ErrnoException | null)?.code === "ETIMEDOUT") {
         waitedForSlowShell = true;
         try {
-          shellEnvironment = readSlowLoginShellEnvironment(shell);
+          shellEnvironment = readSlowLoginShellEnvironment(shell, execFileSync);
         } catch (retryError) {
           logPathHydrationWarning(
             `Failed to read PATH from slow login shell ${shell}.`,
@@ -86,7 +92,9 @@ function hydratePosixPath(env: NodeJS.ProcessEnv, platform: NodeJS.Platform) {
   }
 
   const launchctlPath =
-    platform === "darwin" && !shellEnvironment.PATH ? readPathFromLaunchctl() : undefined;
+    platform === "darwin" && !shellEnvironment.PATH
+      ? readPathFromLaunchctl(execFileSync)
+      : undefined;
   applyLoginShellEnvironment(env, platform, shellEnvironment, launchctlPath);
 }
 
@@ -104,6 +112,7 @@ export function hydratePosixHome(
 
 export const fixPath = Effect.fn("fixPath")(function* (options?: {
   readonly shellEnvironmentPrepared?: boolean | undefined;
+  readonly execFileSync?: ExecFileSync;
 }) {
   const platform = yield* HostProcess.Platform;
   const env = yield* HostProcess.Environment;
@@ -139,7 +148,9 @@ export const fixPath = Effect.fn("fixPath")(function* (options?: {
     ),
   );
   if (options?.shellEnvironmentPrepared === true) return;
-  yield* Effect.sync(() => hydratePosixPath(env, platform)).pipe(
+  yield* Effect.sync(() =>
+    hydratePosixPath(env, platform, options?.execFileSync ?? NodeChildProcess.execFileSync),
+  ).pipe(
     Effect.catchDefect((defect) =>
       Effect.sync(() => {
         logPathHydrationWarning("Failed to hydrate PATH from the user environment.", defect);

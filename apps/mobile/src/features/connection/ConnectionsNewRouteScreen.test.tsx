@@ -19,7 +19,9 @@ const state = vi.hoisted(() => ({
   dispatch: vi.fn(),
   alert: vi.fn(),
   requestCameraPermission: vi.fn(async () => ({ granted: true })),
-  onConnectPress: vi.fn<(url: string, environmentId?: EnvironmentId) => Promise<PairingOutcome>>(),
+  onConnectPress: vi.fn<(url: string, environmentId?: EnvironmentId) => void>(),
+  nextPairingOutcomes: [] as Array<() => Promise<PairingOutcome>>,
+  pairingOutcome: () => new Promise<PairingOutcome>(() => {}),
 }));
 
 vi.mock("../../components/ui/ScreenScrollView", () => ({ ScreenScrollView: "ScrollView" }));
@@ -96,7 +98,10 @@ vi.mock("../../state/use-remote-environment-registry", async () => {
       connectionPairingUrl: useSyncExternalStore(subscribe, () => state.connectionPairingUrl),
       connectionError: state.pendingConnectionError,
       onChangeConnectionPairingUrl: setConnectionPairingUrl,
-      onConnectPress: state.onConnectPress,
+      onConnectPress: (url: string, environmentId?: EnvironmentId) => {
+        state.onConnectPress(url, environmentId);
+        return (state.nextPairingOutcomes.shift() ?? state.pairingOutcome)();
+      },
     }),
   };
 });
@@ -112,6 +117,7 @@ beforeEach(() => {
   vi.stubGlobal("__DEV__", false);
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.clearAllMocks();
+  state.nextPairingOutcomes.length = 0;
   state.connectionPairingUrl = "";
   state.pendingConnectionError = null;
   state.autoConnectAttempt = null;
@@ -176,7 +182,7 @@ describe("QR pairing", () => {
     "pairs a scanned link immediately and dismisses only after acceptance: %s",
     async (data) => {
       const result = deferredResult();
-      state.onConnectPress.mockReturnValue(result.promise);
+      state.pairingOutcome = () => result.promise;
       await mount();
       const scan = scanner();
 
@@ -197,7 +203,7 @@ describe("QR pairing", () => {
 
   it("opens Home after pairing when there is no previous screen", async () => {
     state.canGoBack = false;
-    state.onConnectPress.mockResolvedValue(PAIRED);
+    state.pairingOutcome = async () => PAIRED;
     await mount();
     await act(() => scanner()({ data: pairingUrl }));
 
@@ -211,8 +217,8 @@ describe("QR pairing", () => {
   it("keeps a failed route pairing open and accepts a fresh scan", async () => {
     const environmentId = EnvironmentId.make("machine");
     const result = deferredResult();
-    state.onConnectPress.mockReturnValueOnce(result.promise);
-    state.onConnectPress.mockResolvedValue(PAIRED);
+    state.nextPairingOutcomes.push(() => result.promise);
+    state.pairingOutcome = async () => PAIRED;
     await mount(environmentId);
     await act(() => scanner()({ data: pairingUrl }));
 
@@ -240,7 +246,7 @@ describe("QR pairing", () => {
 
   it("shows only its own pairing failure until the code is edited", async () => {
     state.pendingConnectionError = "Could not send the message.";
-    state.onConnectPress.mockResolvedValue({ ok: false, error: "Pairing code expired." });
+    state.pairingOutcome = async () => ({ ok: false, error: "Pairing code expired." });
     await mount();
     expect(shown("Could not send the message.")).toBe(false);
 
@@ -260,7 +266,7 @@ describe("QR pairing", () => {
 
   it("rejects an empty QR code and reopens scanning", async () => {
     vi.useFakeTimers();
-    state.onConnectPress.mockResolvedValue(PAIRED);
+    state.pairingOutcome = async () => PAIRED;
     await mount();
     await act(() => scanner()({ data: " " }));
 
@@ -282,7 +288,7 @@ describe("pairing links", () => {
   const secondLink = "http://second.test/pair#token=new";
 
   it("gives a fresh link a clean form after a failed attempt", async () => {
-    state.onConnectPress.mockResolvedValue({ ok: false, error: "Old pairing expired." });
+    state.pairingOutcome = async () => ({ ok: false, error: "Old pairing expired." });
     await openLink(firstLink);
     await act(() => connectAction().onPress());
     expect(shown("Old pairing expired.")).toBe(true);
@@ -301,7 +307,7 @@ describe("pairing links", () => {
 
   it("keeps a replaced link's pending attempt out of the fresh form", async () => {
     const result = deferredResult();
-    state.onConnectPress.mockReturnValue(result.promise);
+    state.pairingOutcome = () => result.promise;
     await openLink(firstLink);
     await act(() => connectAction().onPress());
     expect(connectAction().loading).toBe(true);
@@ -316,7 +322,7 @@ describe("pairing links", () => {
 
   it("keeps a replaced link's successful pairing from closing or clearing the fresh form", async () => {
     const result = deferredResult();
-    state.onConnectPress.mockReturnValue(result.promise);
+    state.pairingOutcome = () => result.promise;
     await openLink(firstLink);
     await act(() => connectAction().onPress());
 

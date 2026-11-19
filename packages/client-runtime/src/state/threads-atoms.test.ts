@@ -11,6 +11,8 @@ import {
   type OrchestrationV2ThreadStreamItem,
 } from "@supaterm/contracts";
 import { afterEach, describe, expect, it, vi } from "@effect/vitest";
+import * as NodeV8 from "node:v8";
+import * as NodeVM from "node:vm";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -383,7 +385,9 @@ describe("createEnvironmentThreadStateAtoms", () => {
   it.effect("keeps warm data when the raw atom family's weak entry is collected", () =>
     Effect.gen(function* () {
       const h = yield* makeHarness();
-      const oldRaw = h.rawAtoms.stateAtom(TARGET.environmentId, THREAD_ID);
+      NodeV8.setFlagsFromString("--expose-gc");
+      const gc = NodeVM.runInNewContext("gc") as () => void;
+      const oldRaw = new WeakRef(h.rawAtoms.stateAtom(TARGET.environmentId, THREAD_ID));
       const unmount = h.registry.mount(h.stateAtom);
       const first = yield* Queue.take(h.subscriptions);
       const latest = { ...THREAD, thread: { ...THREAD.thread, title: "Newer cached thread" } };
@@ -397,11 +401,9 @@ describe("createEnvironmentThreadStateAtoms", () => {
       unmount();
       yield* Deferred.await(first.closed);
 
-      const deref = WeakRef.prototype.deref;
-      vi.spyOn(WeakRef.prototype, "deref").mockImplementation(function (this: WeakRef<object>) {
-        const value = deref.call(this);
-        return value === oldRaw ? undefined : value;
-      });
+      yield* Effect.yieldNow;
+      gc();
+      expect(oldRaw.deref()).toBeUndefined();
       const remount = h.registry.mount(h.stateAtom);
       expect(currentThread(h.registry, h.stateAtom)).toBe(latest);
       const next = yield* Queue.take(h.subscriptions);

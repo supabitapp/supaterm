@@ -39,9 +39,26 @@ const unavailableThread = () => ({
   close: () => undefined,
 });
 
-export function startWindowsForegroundFocusThread(workerPath: string): WindowsForegroundFocusThread;
-export function startWindowsForegroundFocusThread(workerPath: string) {
-  let worker: NodeWorkerThreads.Worker | undefined;
+export type WindowsForegroundFocusWorker = {
+  readonly postMessage: (message: FocusRequest) => void;
+  readonly terminate: () => Promise<number>;
+  readonly unref: () => void;
+  readonly on: (event: "message", listener: (message: unknown) => void) => unknown;
+  readonly once: (event: "error" | "exit", listener: () => void) => unknown;
+};
+
+const createNodeWorker: (workerPath: string) => WindowsForegroundFocusWorker = (workerPath) =>
+  new NodeWorkerThreads.Worker(workerPath);
+
+export function startWindowsForegroundFocusThread(
+  workerPath: string,
+  createWorker?: (workerPath: string) => WindowsForegroundFocusWorker,
+): WindowsForegroundFocusThread;
+export function startWindowsForegroundFocusThread(
+  workerPath: string,
+  createWorker = createNodeWorker,
+) {
+  let worker: WindowsForegroundFocusWorker | undefined;
   let ready = false;
   let closed = false;
   let nextRequestId = 1;
@@ -61,7 +78,7 @@ export function startWindowsForegroundFocusThread(workerPath: string) {
     clearTimeout(request.timeout);
     request.resolve(focused);
   };
-  const send = (request: FocusRequest, targetWorker: NodeWorkerThreads.Worker) => {
+  const send = (request: FocusRequest, targetWorker: WindowsForegroundFocusWorker) => {
     if (!ready || closed || worker !== targetWorker) return;
     try {
       // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Node workers do not accept a target origin.
@@ -72,9 +89,9 @@ export function startWindowsForegroundFocusThread(workerPath: string) {
   };
   const start = () => {
     if (closed) return false;
-    let nextWorker: NodeWorkerThreads.Worker;
+    let nextWorker: WindowsForegroundFocusWorker;
     try {
-      nextWorker = new NodeWorkerThreads.Worker(workerPath);
+      nextWorker = createWorker(workerPath);
       nextWorker.unref();
     } catch {
       return false;
@@ -105,7 +122,7 @@ export function startWindowsForegroundFocusThread(workerPath: string) {
 
   if (!start()) return unavailableThread() satisfies WindowsForegroundFocusThread;
 
-  const restart = (timedOutWorker: NodeWorkerThreads.Worker | undefined) => {
+  const restart = (timedOutWorker: WindowsForegroundFocusWorker | undefined) => {
     if (!timedOutWorker || worker !== timedOutWorker) return;
     worker = undefined;
     ready = false;

@@ -1,4 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off - FileSystem cannot create a FIFO, and reads spy on native realpath.
+// @effect-diagnostics nodeBuiltinImport:off - FileSystem cannot create a FIFO, and short reads wrap native file handles.
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 
@@ -21,28 +21,32 @@ import * as WorkspaceFileSystem from "./WorkspaceFileSystem.ts";
 import * as WorkspacePaths from "./WorkspacePaths.ts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { symlinksSupported } from "@supaterm/shared/testing/symlinks";
-import { vi } from "vite-plus/test";
 
-vi.mock("node:fs/promises", async (importOriginal) => {
-  const actual = await importOriginal<typeof NodeFSP>();
-  return { ...actual, realpath: vi.fn(actual.realpath), open: vi.fn(actual.open) };
-});
+const shortReadingOpen = (target: string) => {
+  const open: typeof NodeFSP.open = async (path, flags, mode) => {
+    const handle = await NodeFSP.open(path, flags, mode);
+    if (path !== target) return handle;
+    const read = (buffer: Uint8Array, offset: number, length: number, position: number) =>
+      handle.read(buffer, offset, Math.min(length, 2), position);
+    return new Proxy(handle, {
+      get: (fileHandle, key) => {
+        if (key === "read") return read;
+        const value: unknown = Reflect.get(fileHandle, key, fileHandle);
+        return typeof value === "function" ? value.bind(fileHandle) : value;
+      },
+    });
+  };
+  return open;
+};
 
-const injectShortReads = Effect.fn("injectShortReads")(function* (target: string) {
-  const native = yield* Effect.promise(() => vi.importActual<typeof NodeFSP>("node:fs/promises"));
-  const open = vi.mocked(NodeFSP.open).mockImplementation(async (path, flags, mode) => {
-    const handle = await native.open(path, flags, mode);
-    if (path === target) {
-      const read = handle.read.bind(handle);
-      Object.defineProperty(handle, "read", {
-        value: (buffer: Uint8Array, offset: number, length: number, position: number) =>
-          read(buffer, offset, Math.min(length, 2), position),
-      });
-    }
-    return handle;
-  });
-  yield* Effect.addFinalizer(() => Effect.sync(() => open.mockImplementation(native.open)));
-});
+const makeWithShortReads = (target: string) =>
+  WorkspaceFileSystem.make.pipe(
+    Effect.provide(layerKnownWorkspacesTest),
+    Effect.provideService(WorkspaceFileSystem.WorkspaceNodeFileSystem, {
+      open: shortReadingOpen(target),
+      realpath: (path) => NodeFSP.realpath(path),
+    }),
+  );
 
 const whitespaceFilePaths =
   HostProcess.Platform.defaultValue() === "win32"
@@ -284,13 +288,12 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
 
     it.effect("finishes short reads before decoding UTF-8 text", () =>
       Effect.gen(function* () {
-        const files = yield* WorkspaceFileSystem.WorkspaceFileSystem;
         const fs = yield* FileSystem.FileSystem;
         const cwd = yield* makeTempDir;
         const contents = "A café 🐈\n";
         yield* writeTextFile(cwd, "short.txt", contents);
         const target = yield* fs.realPath(`${cwd}/short.txt`);
-        yield* injectShortReads(target);
+        const files = yield* makeWithShortReads(target);
         expect(yield* files.readFile({ cwd, relativePath: "short.txt" })).toEqual({
           relativePath: "short.txt",
           contents,
@@ -302,12 +305,11 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
 
     it.effect("rejects binary bytes delivered after an initial short read", () =>
       Effect.gen(function* () {
-        const files = yield* WorkspaceFileSystem.WorkspaceFileSystem;
         const fs = yield* FileSystem.FileSystem;
         const cwd = yield* makeTempDir;
         yield* writeTextFile(cwd, "short.txt", "ab\0cd");
         const target = yield* fs.realPath(`${cwd}/short.txt`);
-        yield* injectShortReads(target);
+        const files = yield* makeWithShortReads(target);
         const error = yield* files.readFile({ cwd, relativePath: "short.txt" }).pipe(Effect.flip);
         expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceBinaryFileError);
       }),
@@ -455,13 +457,17 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
 
     it.effect("reads the network path it checked", () =>
       Effect.gen(function* () {
+        const realpathTargets: Array<string> = [];
         const workspaceFileSystem = yield* WorkspaceFileSystem.make.pipe(
           Effect.provide(Layer.merge(layerKnownWorkspacesTest, NodePath.layerWin32)),
+          Effect.provideService(WorkspaceFileSystem.WorkspaceNodeFileSystem, {
+            open: NodeFSP.open,
+            realpath: async (target) => {
+              realpathTargets.push(target);
+              throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+            },
+          }),
         );
-        const realpath = vi
-          .mocked(NodeFSP.realpath)
-          .mockClear()
-          .mockRejectedValueOnce(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
 
         yield* workspaceFileSystem
           .readFile({
@@ -470,9 +476,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
           })
           .pipe(Effect.exit);
 
-        expect(realpath.mock.calls.map(([target]) => target)).toEqual([
-          "\\\\?\\UNC\\nas.test\\share\\project\\a.md",
-        ]);
+        expect(realpathTargets).toEqual(["\\\\?\\UNC\\nas.test\\share\\project\\a.md"]);
       }),
     );
 

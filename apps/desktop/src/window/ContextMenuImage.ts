@@ -3,13 +3,27 @@ import { sourceDimensions } from "../preview/FaviconCapture.ts";
 
 const MAX_IMAGE_BYTES = 32 * 1024 * 1024;
 
+export type ContextMenuImageNative = {
+  readonly fetch: (url: string, init: RequestInit) => Promise<Response>;
+  readonly createFromBuffer: (bytes: Buffer) => Pick<Electron.NativeImage, "isEmpty" | "toPNG">;
+  readonly writeClipboard: (items: Record<string, Blob>) => Promise<void>;
+};
+
+const electronContextMenuImageNative: ContextMenuImageNative = {
+  fetch: (url, init) => Electron.net.fetch(url, init),
+  createFromBuffer: (bytes) => Electron.nativeImage.createFromBuffer(bytes),
+  writeClipboard: (items) => Electron.clipboard.write([new Electron.ClipboardItem(items)]),
+};
+
 export function copyContextMenuImage(
   contents: Electron.WebContents,
   params: Electron.ContextMenuParams,
+  native?: ContextMenuImageNative,
 ): Promise<void>;
 export async function copyContextMenuImage(
   contents: Electron.WebContents,
   params: Electron.ContextMenuParams,
+  native: ContextMenuImageNative = electronContextMenuImageNative,
 ) {
   const frame = params.frame;
   if (contents.isDestroyed() || !frame || frame.isDestroyed()) return;
@@ -27,7 +41,7 @@ export async function copyContextMenuImage(
   ) {
     throw new Error("Unsupported image URL");
   }
-  const fetchImage = url.protocol === "data:" ? globalThis.fetch : Electron.net.fetch;
+  const fetchImage = url.protocol === "data:" ? globalThis.fetch : native.fetch;
   const response = await fetchImage(url.href, {
     credentials: "omit",
     redirect: "error",
@@ -68,7 +82,7 @@ export async function copyContextMenuImage(
     throw new Error("Image dimensions exceed the size limit");
   }
   if (contents.isDestroyed() || frame.isDestroyed()) return;
-  const image = Electron.nativeImage.createFromBuffer(bytes);
+  const image = native.createFromBuffer(bytes);
   let png: Buffer;
   if (image.isEmpty()) {
     const decoded: unknown = await contents.executeJavaScriptInIsolatedWorld(1002, [
@@ -100,9 +114,7 @@ export async function copyContextMenuImage(
   }
   if (png.byteLength > MAX_IMAGE_BYTES) throw new Error("PNG exceeded the size limit");
   if (contents.isDestroyed() || frame.isDestroyed()) return;
-  await Electron.clipboard.write([
-    new Electron.ClipboardItem({
-      "image/png": new Blob([Uint8Array.from(png)], { type: "image/png" }),
-    }),
-  ]);
+  await native.writeClipboard({
+    "image/png": new Blob([Uint8Array.from(png)], { type: "image/png" }),
+  });
 }

@@ -1,19 +1,50 @@
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vite-plus/test";
 import { PROVIDER_SEND_TURN_MAX_IMAGE_BYTES } from "@supaterm/contracts";
 import type { ImagePickerAsset } from "expo-image-picker";
 
-const mocks = vi.hoisted(() => ({
-  documentUri: "file:///documents",
-  pickFile: vi.fn(),
-  pickMedia: vi.fn(),
-  copy: vi.fn(),
-  delete: vi.fn(),
-  open: vi.fn(),
-  size: vi.fn(),
-  readBase64: vi.fn(),
-  manipulate: vi.fn(),
-  release: vi.fn(),
-}));
+type Size = { width: number; height: number };
+type Spy = Mock<(...args: unknown[]) => unknown>;
+
+interface NativeFakes {
+  documentUri: string;
+  pickFile: Spy;
+  pickFileResult: (options: { copyToCacheDirectory?: boolean }) => Promise<unknown>;
+  pickMedia: Spy;
+  pickMediaResult: (options: unknown) => Promise<unknown>;
+  copy: Spy;
+  copyBehavior: (uri: string, destination: string) => void;
+  delete: Spy;
+  open: Spy;
+  openHandle: (uri: string, mode: string) => unknown;
+  sizeOf: (uri: string) => number | null | undefined;
+  readBase64: Spy;
+  base64Of: (uri: string) => Promise<string>;
+  manipulate: Spy;
+  manipulateContext: (source: string | Size) => unknown;
+  release: Spy;
+}
+
+const mocks = vi.hoisted(() => {
+  const fakes: NativeFakes = {
+    documentUri: "file:///documents",
+    pickFile: vi.fn(),
+    pickFileResult: async () => ({ canceled: true, assets: null }),
+    pickMedia: vi.fn(),
+    pickMediaResult: async () => ({ canceled: true, assets: null }),
+    copy: vi.fn(),
+    copyBehavior: () => {},
+    delete: vi.fn(),
+    open: vi.fn(),
+    openHandle: () => undefined,
+    sizeOf: () => null,
+    readBase64: vi.fn(),
+    base64Of: async () => "",
+    manipulate: vi.fn(),
+    manipulateContext: () => undefined,
+    release: vi.fn(),
+  };
+  return fakes;
+});
 
 vi.mock("expo-file-system", () => {
   class Directory {
@@ -38,7 +69,7 @@ vi.mock("expo-file-system", () => {
     }
 
     get size() {
-      return (mocks.size(this.uri) ?? null) satisfies number | null as number | null;
+      return mocks.sizeOf(this.uri) ?? null;
     }
 
     get name() {
@@ -52,16 +83,19 @@ vi.mock("expo-file-system", () => {
     create() {}
 
     open(mode: string) {
-      return mocks.open(this.uri, mode);
+      mocks.open(this.uri, mode);
+      return mocks.openHandle(this.uri, mode);
     }
 
     async copy(destination: File) {
       mocks.copy(this.uri, destination.uri);
+      mocks.copyBehavior(this.uri, destination.uri);
     }
 
     base64(): Promise<string>;
     async base64() {
-      return mocks.readBase64(this.uri) satisfies string;
+      mocks.readBase64(this.uri);
+      return mocks.base64Of(this.uri);
     }
 
     delete() {
@@ -81,11 +115,26 @@ vi.mock("expo-file-system", () => {
   };
 });
 
-vi.mock("expo-image-picker", () => ({ launchImageLibraryAsync: mocks.pickMedia }));
-vi.mock("expo-document-picker", () => ({ getDocumentAsync: mocks.pickFile }));
+vi.mock("expo-image-picker", () => ({
+  launchImageLibraryAsync: (options: unknown) => {
+    mocks.pickMedia(options);
+    return mocks.pickMediaResult(options);
+  },
+}));
+vi.mock("expo-document-picker", () => ({
+  getDocumentAsync: (options: { copyToCacheDirectory?: boolean }) => {
+    mocks.pickFile(options);
+    return mocks.pickFileResult(options);
+  },
+}));
 vi.mock("expo-image-manipulator", () => ({
   SaveFormat: { JPEG: "jpeg", PNG: "png", WEBP: "webp" },
-  ImageManipulator: { manipulate: mocks.manipulate },
+  ImageManipulator: {
+    manipulate: (source: string | Size) => {
+      mocks.manipulate(source);
+      return mocks.manipulateContext(source);
+    },
+  },
 }));
 vi.mock("./uuid", () => ({ uuidv4: () => "attachment-id" }));
 
@@ -108,10 +157,15 @@ describe("composer file attachments", () => {
     mocks.copy.mockReset();
     mocks.delete.mockReset();
     mocks.open.mockReset();
-    mocks.size.mockReset();
     mocks.readBase64.mockReset();
     mocks.manipulate.mockReset();
-    mocks.size.mockImplementation((uri: string) => (uri.startsWith("content:") ? null : 42));
+    mocks.pickFileResult = async () => ({ canceled: true, assets: null });
+    mocks.pickMediaResult = async () => ({ canceled: true, assets: null });
+    mocks.copyBehavior = () => {};
+    mocks.openHandle = () => undefined;
+    mocks.base64Of = async () => "";
+    mocks.manipulateContext = () => undefined;
+    mocks.sizeOf = (uri: string) => (uri.startsWith("content:") ? null : 42);
   });
 
   describe("photo library image conversion", () => {
@@ -125,7 +179,6 @@ describe("composer file attachments", () => {
       width: 4032,
       height: 3024,
     };
-    type Size = { width: number; height: number };
     const native = {
       size: { width: 1, height: 1 } as Size,
       resizes: [] as Size[],
@@ -140,7 +193,7 @@ describe("composer file attachments", () => {
       native.encode = null;
       mocks.manipulate.mockReset();
       mocks.release.mockReset();
-      mocks.manipulate.mockImplementation((source: string | Size) => {
+      mocks.manipulateContext = (source: string | Size) => {
         let size = typeof source === "string" ? native.size : source;
         const context = {
           resize(next: Size) {
@@ -157,13 +210,13 @@ describe("composer file attachments", () => {
           }),
         };
         return context;
-      });
+      };
     });
 
     it.each(["image/heic", "image/heif", undefined])(
       "renders a %s photo to JPEG natively and previews the rendered file",
       async (mimeType) => {
-        mocks.pickMedia.mockResolvedValue({
+        mocks.pickMediaResult = async () => ({
           canceled: false,
           assets: [{ ...photo, mimeType }],
         });
@@ -196,11 +249,11 @@ describe("composer file attachments", () => {
       { extension: "webp", mimeType: "image/webp", base64: "UklGRgQAAABXRUJQ" },
     ])("keeps original $extension bytes from the picker file", async (original) => {
       const name = `photo.${original.extension}`;
-      mocks.pickMedia.mockResolvedValue({
+      mocks.pickMediaResult = async () => ({
         canceled: false,
         assets: [{ ...photo, fileName: name, mimeType: original.mimeType }],
       });
-      mocks.readBase64.mockResolvedValue(original.base64);
+      mocks.base64Of = async () => original.base64;
 
       const result = await pickComposerImages({ existingCount: 0 });
 
@@ -229,9 +282,9 @@ describe("composer file attachments", () => {
         uri: `file:///cache/fitted-${size.width}x${size.height}.${format}`,
         base64: Buffer.alloc(size.width * size.height * 4).toString("base64"),
       });
-      mocks.size.mockReturnValue(7 * 1024 * 1024);
-      mocks.readBase64.mockResolvedValue(header.toString("base64"));
-      mocks.pickMedia.mockResolvedValue({
+      mocks.sizeOf = () => 7 * 1024 * 1024;
+      mocks.base64Of = async () => header.toString("base64");
+      mocks.pickMediaResult = async () => ({
         canceled: false,
         assets: [{ ...photo, fileName: "IMG_9280.png", mimeType: "image/png" }],
       });
@@ -257,11 +310,11 @@ describe("composer file attachments", () => {
     });
 
     it("measures the picker file instead of trusting the reported size", async () => {
-      mocks.pickMedia.mockResolvedValue({
+      mocks.pickMediaResult = async () => ({
         canceled: false,
         assets: [{ ...photo, fileName: "photo.png", mimeType: "image/png", fileSize: 42 }],
       });
-      mocks.size.mockReturnValue(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES + 1);
+      mocks.sizeOf = () => PROVIDER_SEND_TURN_MAX_IMAGE_BYTES + 1;
 
       const result = await pickComposerImages({ existingCount: 0 });
 
@@ -271,7 +324,7 @@ describe("composer file attachments", () => {
     });
 
     it("renders a supported original whose size cannot be measured", async () => {
-      mocks.pickMedia.mockResolvedValue({
+      mocks.pickMediaResult = async () => ({
         canceled: false,
         assets: [
           { ...photo, uri: "content://media/1", fileName: "photo.png", mimeType: "image/png" },
@@ -292,7 +345,7 @@ describe("composer file attachments", () => {
           rendered.base64.slice(0, 4) +
           "A".repeat(Math.ceil(PROVIDER_SEND_TURN_MAX_IMAGE_BYTES / 3) * 4),
       };
-      mocks.pickMedia.mockResolvedValue({ canceled: false, assets: [photo] });
+      mocks.pickMediaResult = async () => ({ canceled: false, assets: [photo] });
 
       await expect(pickComposerImages({ existingCount: 0 })).resolves.toEqual({
         images: [],
@@ -301,11 +354,11 @@ describe("composer file attachments", () => {
     });
 
     it("retains a rendered photo when another original cannot be read", async () => {
-      mocks.pickMedia.mockResolvedValue({
+      mocks.pickMediaResult = async () => ({
         canceled: false,
         assets: [{ ...photo, fileName: "missing.gif", mimeType: "image/gif" }, photo],
       });
-      mocks.readBase64.mockRejectedValue(new Error("missing file"));
+      mocks.base64Of = () => Promise.reject(new Error("missing file"));
 
       const result = await pickComposerImages({ existingCount: 0 });
 
@@ -314,13 +367,13 @@ describe("composer file attachments", () => {
     });
 
     it("reports a photo the native renderer cannot decode", async () => {
-      mocks.manipulate.mockImplementation(() => ({
+      mocks.manipulateContext = () => ({
         resize: () => {
           throw new Error("unreachable");
         },
         renderAsync: () => Promise.reject(new Error("corrupt")),
-      }));
-      mocks.pickMedia.mockResolvedValue({ canceled: false, assets: [photo] });
+      });
+      mocks.pickMediaResult = async () => ({ canceled: false, assets: [photo] });
 
       await expect(pickComposerImages({ existingCount: 0 })).resolves.toEqual({
         images: [],
@@ -341,7 +394,7 @@ describe("composer file attachments", () => {
     };
 
     beforeEach(() => {
-      mocks.readBase64.mockResolvedValue("YWJj");
+      mocks.base64Of = async () => "YWJj";
     });
     const video: ImagePickerAsset = {
       uri: "file:///picker/clip.mov",
@@ -355,10 +408,8 @@ describe("composer file attachments", () => {
     };
 
     it("retains mixed photos and videos, keeping video bytes in durable file storage", async () => {
-      mocks.pickMedia.mockResolvedValue({ canceled: false, assets: [image, video] });
-      mocks.size.mockImplementation((uri: string) =>
-        uri.endsWith("clip.mov") ? video.fileSize : 3,
-      );
+      mocks.pickMediaResult = async () => ({ canceled: false, assets: [image, video] });
+      mocks.sizeOf = (uri: string) => (uri.endsWith("clip.mov") ? video.fileSize : 3);
 
       const result = await pickComposerMedia({ existingCount: 0, maxVideoBytes: 50 * 1024 * 1024 });
 
@@ -390,7 +441,7 @@ describe("composer file attachments", () => {
     });
 
     it("does not persist videos when the destination lacks file support", async () => {
-      mocks.pickMedia.mockResolvedValue({ canceled: false, assets: [video, image] });
+      mocks.pickMediaResult = async () => ({ canceled: false, assets: [video, image] });
 
       const result = await pickComposerMedia({ existingCount: 0 });
 
@@ -400,7 +451,7 @@ describe("composer file attachments", () => {
     });
 
     it("uses local video metadata when the picker omits its name, MIME type, or size", async () => {
-      mocks.pickMedia.mockResolvedValue({
+      mocks.pickMediaResult = async () => ({
         canceled: false,
         assets: [{ ...video, fileName: null, mimeType: undefined, fileSize: undefined }],
       });
@@ -443,11 +494,11 @@ describe("composer file attachments", () => {
     ])(
       "rejects a video when $reason while retaining the selected photo",
       async ({ reported, stored, limit, error }) => {
-        mocks.pickMedia.mockResolvedValue({
+        mocks.pickMediaResult = async () => ({
           canceled: false,
           assets: [{ ...video, fileSize: reported }, image],
         });
-        mocks.size.mockImplementation((uri: string) => (uri.endsWith("clip.mov") ? stored : 3));
+        mocks.sizeOf = (uri: string) => (uri.endsWith("clip.mov") ? stored : 3);
 
         const result = await pickComposerMedia({ existingCount: 0, maxVideoBytes: limit });
 
@@ -464,7 +515,7 @@ describe("composer file attachments", () => {
     );
 
     it("applies the remaining attachment slots to photos and videos together", async () => {
-      mocks.pickMedia.mockResolvedValue({ canceled: false, assets: [image, video] });
+      mocks.pickMediaResult = async () => ({ canceled: false, assets: [image, video] });
 
       const result = await pickComposerMedia({
         existingCount: 99,
@@ -478,7 +529,8 @@ describe("composer file attachments", () => {
     });
 
     it("reports a native video retrieval error and ends the foreground handoff", async () => {
-      mocks.pickMedia.mockRejectedValue(new Error("Could not download video from iCloud."));
+      mocks.pickMediaResult = () =>
+        Promise.reject(new Error("Could not download video from iCloud."));
 
       await expect(pickComposerMedia({ existingCount: 0, maxVideoBytes: 1024 })).resolves.toEqual({
         attachments: [],
@@ -500,12 +552,12 @@ describe("composer file attachments", () => {
       { name: "photo.webp", mimeType: "application/unknown", expected: "image/webp" },
       { name: "photo.jpg", mimeType: "IMAGE/PNG; charset=binary", expected: "image/png" },
     ])("prepares $name ($mimeType) as $expected", async ({ name, mimeType, expected }) => {
-      mocks.pickFile.mockResolvedValue({
+      mocks.pickFileResult = async () => ({
         canceled: false,
         assets: [{ uri: `file:///picker/${name}`, name, mimeType, size: 3 }],
       });
-      mocks.size.mockReturnValue(3);
-      mocks.readBase64.mockResolvedValue("YWJj");
+      mocks.sizeOf = () => 3;
+      mocks.base64Of = async () => "YWJj";
 
       const result = await pickComposerFiles({ existingCount: 0 });
 
@@ -536,7 +588,7 @@ describe("composer file attachments", () => {
       { name: "photo.png", mimeType: "application/pdf" },
       { name: "unknown.bin", mimeType: "application/octet-stream" },
     ])("keeps $name ($mimeType) as a file", async ({ name, mimeType }) => {
-      mocks.pickFile.mockResolvedValue({
+      mocks.pickFileResult = async () => ({
         canceled: false,
         assets: [{ uri: `file:///picker/${name}`, name, mimeType, size: 42 }],
       });
@@ -553,14 +605,14 @@ describe("composer file attachments", () => {
     it.each([PROVIDER_SEND_TURN_MAX_IMAGE_BYTES, PROVIDER_SEND_TURN_MAX_IMAGE_BYTES + 1])(
       "classifies a measured %s byte PNG independently of picker metadata and file limit",
       async (size) => {
-        mocks.pickFile.mockResolvedValue({
+        mocks.pickFileResult = async () => ({
           canceled: false,
           assets: [
             { uri: "file:///picker/photo.png", name: "photo.png", mimeType: "image/png", size: 1 },
           ],
         });
-        mocks.size.mockReturnValue(size);
-        mocks.readBase64.mockResolvedValue("YWJj");
+        mocks.sizeOf = () => size;
+        mocks.base64Of = async () => "YWJj";
 
         const result = await pickComposerFiles({
           existingCount: 0,
@@ -587,7 +639,7 @@ describe("composer file attachments", () => {
       header.writeUInt32BE(4000, 16);
       header.writeUInt32BE(3000, 20);
       const original = header.toString("base64");
-      mocks.readBase64.mockResolvedValue(original);
+      mocks.base64Of = async () => original;
       const resize = vi.fn();
       const renderAsync = vi.fn(async () => ({
         width: 4000,
@@ -600,7 +652,7 @@ describe("composer file attachments", () => {
             : "YWJj",
         })),
       }));
-      mocks.manipulate.mockImplementation(() => {
+      mocks.manipulateContext = () => {
         const context = {
           resize: (size: unknown) => {
             resize(size);
@@ -609,8 +661,8 @@ describe("composer file attachments", () => {
           renderAsync,
         };
         return context;
-      });
-      mocks.pickFile.mockResolvedValue({
+      };
+      mocks.pickFileResult = async () => ({
         canceled: false,
         assets: [{ uri: "file:///picker/photo.png", name: "photo.png", mimeType: "image/png" }],
       });
@@ -635,11 +687,11 @@ describe("composer file attachments", () => {
     });
 
     it("releases the owned copy when reading an image fails", async () => {
-      mocks.pickFile.mockResolvedValue({
+      mocks.pickFileResult = async () => ({
         canceled: false,
         assets: [{ uri: "file:///picker/photo.png", name: "photo.png", mimeType: "image/png" }],
       });
-      mocks.readBase64.mockRejectedValue(new Error("unreadable image"));
+      mocks.base64Of = () => Promise.reject(new Error("unreadable image"));
 
       expect(await pickComposerFiles({ existingCount: 0 })).toEqual({
         files: [],
@@ -652,7 +704,7 @@ describe("composer file attachments", () => {
   });
 
   it("copies picked files into app-owned storage without loading their contents", async () => {
-    mocks.pickFile.mockResolvedValue({
+    mocks.pickFileResult = async () => ({
       canceled: false,
       assets: [
         {
@@ -685,7 +737,7 @@ describe("composer file attachments", () => {
 
   it("preserves Android picker metadata instead of using the content URI document id", async () => {
     const uri = "content://com.android.providers.media.documents/document/video%3A18";
-    mocks.pickFile.mockResolvedValue({
+    mocks.pickFileResult = async () => ({
       canceled: false,
       assets: [
         {
@@ -697,7 +749,7 @@ describe("composer file attachments", () => {
         },
       ],
     });
-    mocks.size.mockReturnValue(620_992);
+    mocks.sizeOf = () => 620_992;
 
     await expect(pickComposerFiles({ existingCount: 0 })).resolves.toEqual({
       files: [
@@ -723,7 +775,7 @@ describe("composer file attachments", () => {
   it("persists provider selections that require a readable cache copy", async () => {
     const providerUri = "content://cloud-provider/documents/clip";
     const cachedUri = "file:///cache/DocumentPicker/clip.mp4";
-    mocks.pickFile.mockImplementation(async (options) => ({
+    mocks.pickFileResult = async (options) => ({
       canceled: false,
       assets: [
         {
@@ -734,10 +786,10 @@ describe("composer file attachments", () => {
           lastModified: 0,
         },
       ],
-    }));
-    mocks.copy.mockImplementation((uri: string) => {
-      if (uri === providerUri) throw new Error("The provider URI is not directly readable.");
     });
+    mocks.copyBehavior = (uri: string) => {
+      if (uri === providerUri) throw new Error("The provider URI is not directly readable.");
+    };
 
     const result = await pickComposerFiles({ existingCount: 0 });
 
@@ -753,10 +805,10 @@ describe("composer file attachments", () => {
   });
 
   it("ends the foreground handoff when the picker is canceled without copying files", async () => {
-    mocks.pickFile.mockImplementation(async () => {
+    mocks.pickFileResult = async () => {
       expect(isForegroundHandoffActive()).toBe(true);
       return { canceled: true, assets: null };
-    });
+    };
 
     await expect(pickComposerFiles({ existingCount: 0 })).resolves.toEqual({
       files: [],
@@ -779,7 +831,7 @@ describe("composer file attachments", () => {
   });
 
   it("rejects files that exceed the environment's advertised upload limit", async () => {
-    mocks.pickFile.mockResolvedValue({
+    mocks.pickFileResult = async () => ({
       canceled: false,
       assets: [
         {
@@ -799,7 +851,7 @@ describe("composer file attachments", () => {
   });
 
   it("rejects a file that grew after the picker reported its size", async () => {
-    mocks.pickFile.mockResolvedValue({
+    mocks.pickFileResult = async () => ({
       canceled: false,
       assets: [
         {
@@ -810,7 +862,7 @@ describe("composer file attachments", () => {
         },
       ],
     });
-    mocks.size.mockReturnValue(2 * 1024 * 1024);
+    mocks.sizeOf = () => 2 * 1024 * 1024;
 
     await expect(pickComposerFiles({ existingCount: 0, maxBytes: 1024 * 1024 })).resolves.toEqual({
       files: [],
@@ -831,9 +883,7 @@ describe("composer file attachments", () => {
       close: vi.fn(),
     };
     const destination = { writeBytes: vi.fn(), close: vi.fn() };
-    mocks.open.mockImplementation((uri: string) =>
-      uri.startsWith("content:") ? source : destination,
-    );
+    mocks.openHandle = (uri: string) => (uri.startsWith("content:") ? source : destination);
 
     await expect(
       persistComposerAttachmentFile("content://shared/large", "large.bin", maxBytes),
@@ -849,9 +899,7 @@ describe("composer file attachments", () => {
 
   it("rejects a copy that delivered more bytes than the source reported", async () => {
     const maxBytes = 1024 * 1024;
-    mocks.size.mockImplementation((uri: string) =>
-      uri.startsWith("content:") ? 42 : 2 * 1024 * 1024,
-    );
+    mocks.sizeOf = (uri: string) => (uri.startsWith("content:") ? 42 : 2 * 1024 * 1024);
 
     await expect(
       persistComposerAttachmentFile("content://shared/liar", "liar.bin", maxBytes),
@@ -864,17 +912,15 @@ describe("composer file attachments", () => {
   });
 
   it.each([0, undefined])("copies an Android SAF file when the picker size is %s", async (size) => {
+    const chunks = [new Uint8Array(42), new Uint8Array()];
     const reader = {
-      readBytes: vi
-        .fn()
-        .mockReturnValueOnce(new Uint8Array(42))
-        .mockReturnValueOnce(new Uint8Array()),
+      readBytes: () => chunks.shift(),
       close: vi.fn(),
     };
     const writer = { writeBytes: vi.fn(), close: vi.fn() };
-    mocks.size.mockImplementation((uri: string) => (uri.startsWith("content:") ? 0 : 42));
-    mocks.open.mockImplementation((uri: string) => (uri.startsWith("content:") ? reader : writer));
-    mocks.pickFile.mockResolvedValue({
+    mocks.sizeOf = (uri: string) => (uri.startsWith("content:") ? 0 : 42);
+    mocks.openHandle = (uri: string) => (uri.startsWith("content:") ? reader : writer);
+    mocks.pickFileResult = async () => ({
       canceled: false,
       assets: [
         {
@@ -902,7 +948,7 @@ describe("composer file attachments", () => {
   });
 
   it("uses the remaining slot for the first valid file after an oversized selection", async () => {
-    mocks.pickFile.mockResolvedValue({
+    mocks.pickFileResult = async () => ({
       canceled: false,
       assets: [
         {
@@ -926,9 +972,9 @@ describe("composer file attachments", () => {
   });
 
   it("removes the partial destination file when a copy fails midway", async () => {
-    mocks.copy.mockImplementation(() => {
+    mocks.copyBehavior = () => {
       throw new Error("disk full");
-    });
+    };
 
     await expect(
       persistComposerAttachmentFile("file:///downloads/report.pdf", "report.pdf"),

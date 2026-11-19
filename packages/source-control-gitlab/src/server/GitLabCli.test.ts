@@ -1,5 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { assert, it, afterEach, expect, vi } from "@effect/vitest";
+import { assert, it, afterEach, expect } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -11,11 +11,13 @@ import { VcsProcessExitError } from "@supaterm/contracts";
 import type * as SourceControlHost from "@supaterm/source-control-core/server/SourceControlHost";
 import * as TestSourceControlHost from "@supaterm/source-control-testing/TestSourceControlHost";
 import * as GitLabCli from "./GitLabCli.ts";
+import { scriptedFunction } from "@supaterm/source-control-testing/scriptedFunction";
 
-const mockedRun = vi.fn<SourceControlHost.SourceControlHost["Service"]["process"]["run"]>();
+const fakeRun =
+  scriptedFunction<SourceControlHost.SourceControlHost["Service"]["process"]["run"]>();
 const layer = it.layer(
   GitLabCli.layer.pipe(
-    Layer.provide(TestSourceControlHost.layer({ process: { run: mockedRun } })),
+    Layer.provide(TestSourceControlHost.layer({ process: { run: fakeRun } })),
     Layer.provideMerge(NodeServices.layer),
   ),
 );
@@ -31,13 +33,13 @@ function processOutput(stdout: string) {
 }
 
 afterEach(() => {
-  mockedRun.mockReset();
+  fakeRun.reset();
 });
 
 layer("GitLabCli.layer", (it) => {
   it.effect("parses merge request view output", () =>
     Effect.gen(function* () {
-      mockedRun.mockReturnValueOnce(
+      fakeRun.returnsOnce(
         Effect.succeed(
           processOutput(
             JSON.stringify({
@@ -81,14 +83,14 @@ layer("GitLabCli.layer", (it) => {
         headRepositoryNameWithOwner: "octocat/supaterm",
         headRepositoryOwnerLogin: "octocat",
       });
-      expect(mockedRun).toHaveBeenCalledWith(
+      expect(fakeRun.calls).toContainEqual([
         expect.objectContaining({
           command: "glab",
           cwd: "/repo",
           args: ["mr", "view", "--output", "json", "--", "42"],
         }),
-      );
-      const classifyFailure = mockedRun.mock.calls.at(-1)?.[0].classifyFailure;
+      ]);
+      const classifyFailure = fakeRun.calls.at(-1)?.[0].classifyFailure;
       assert.strictEqual(
         classifyFailure?.(
           "x gitlab.example.test has not been authenticated with glab. Run `glab auth login`",
@@ -113,7 +115,7 @@ layer("GitLabCli.layer", (it) => {
       });
       const bodyFile = path.join(bodyDir, "supaterm-pr-body.md");
       yield* fileSystem.writeFileString(bodyFile, "## Summary\n\nFixes the thing.\n");
-      mockedRun.mockReturnValueOnce(Effect.succeed(processOutput("{}")));
+      fakeRun.returnsOnce(Effect.succeed(processOutput("{}")));
 
       const glab = yield* GitLabCli.GitLabCli;
       yield* glab.createMergeRequest({
@@ -124,7 +126,7 @@ layer("GitLabCli.layer", (it) => {
         bodyFile,
       });
 
-      const call = mockedRun.mock.calls.at(-1)?.[0];
+      const call = fakeRun.calls.at(-1)?.[0];
       expect(call?.args.join(" ")).not.toContain(bodyFile);
       expect(call?.args).toContain("description=@-");
       assert.strictEqual(call?.stdin, "## Summary\n\nFixes the thing.\n");
@@ -151,13 +153,13 @@ layer("GitLabCli.layer", (it) => {
 
       assert.strictEqual(error._tag, "GitLabMergeRequestBodyReadError");
       assert.strictEqual(error.detail, "The merge request description could not be read.");
-      expect(mockedRun).not.toHaveBeenCalled();
+      expect(fakeRun.calls).toHaveLength(0);
     }).pipe(Effect.scoped),
   );
 
   it.effect("skips invalid entries when parsing MR lists", () =>
     Effect.gen(function* () {
-      mockedRun.mockReturnValueOnce(
+      fakeRun.returnsOnce(
         Effect.succeed(
           processOutput(
             JSON.stringify([
@@ -203,7 +205,7 @@ layer("GitLabCli.layer", (it) => {
           mergedAt: "2026-08-23T11:00:00Z",
         },
       ]);
-      expect(mockedRun).toHaveBeenCalledWith(
+      expect(fakeRun.calls).toContainEqual([
         expect.objectContaining({
           command: "glab",
           cwd: "/repo",
@@ -219,7 +221,7 @@ layer("GitLabCli.layer", (it) => {
             "json",
           ],
         }),
-      );
+      ]);
     }),
   );
 
@@ -237,7 +239,7 @@ layer("GitLabCli.layer", (it) => {
           source_project_id: index === 3 ? 100 : 101,
           target_project_id: 100,
         }));
-        mockedRun.mockImplementation((input) => {
+        fakeRun.implement((input) => {
           const size = Number(input.args[input.args.indexOf("--per-page") + 1]);
           const pageIndex = input.args.indexOf("--page");
           const page = pageIndex < 0 ? 1 : Number(input.args[pageIndex + 1]);
@@ -267,7 +269,7 @@ layer("GitLabCli.layer", (it) => {
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const bodyFile = yield* fileSystem.makeTempFileScoped({ prefix: "supaterm-gitlab-mr-body-" });
-      mockedRun.mockReturnValueOnce(Effect.succeed(processOutput("{}")));
+      fakeRun.returnsOnce(Effect.succeed(processOutput("{}")));
       const glab = yield* GitLabCli.GitLabCli;
       yield* glab.createMergeRequest({
         cwd: "/repo",
@@ -276,24 +278,26 @@ layer("GitLabCli.layer", (it) => {
         title: "Fix remote flow",
         bodyFile,
       });
-      expect(mockedRun).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({
-          args: [
-            "api",
-            "--method",
-            "POST",
-            "projects/:fullpath/merge_requests",
-            "--raw-field",
-            "source_branch=feature/fix",
-            "--raw-field",
-            "target_branch=main",
-            "--raw-field",
-            "title=Fix remote flow",
-            "--field",
-            "description=@-",
-          ],
-        }),
-      );
+      expect(fakeRun.calls).toEqual([
+        [
+          expect.objectContaining({
+            args: [
+              "api",
+              "--method",
+              "POST",
+              "projects/:fullpath/merge_requests",
+              "--raw-field",
+              "source_branch=feature/fix",
+              "--raw-field",
+              "target_branch=main",
+              "--raw-field",
+              "title=Fix remote flow",
+              "--field",
+              "description=@-",
+            ],
+          }),
+        ],
+      ]);
     }).pipe(Effect.scoped),
   );
 
@@ -307,7 +311,7 @@ layer("GitLabCli.layer", (it) => {
         detail: "GET 404 merge request not found",
         failureKind: "not-found",
       });
-      mockedRun.mockReturnValueOnce(Effect.fail(cause));
+      fakeRun.returnsOnce(Effect.fail(cause));
 
       const error = yield* Effect.gen(function* () {
         const glab = yield* GitLabCli.GitLabCli;
@@ -338,7 +342,7 @@ layer("GitLabCli.layer", (it) => {
     },
   ])("looks up $repository by its project path", ({ repository, args }) =>
     Effect.gen(function* () {
-      mockedRun.mockReturnValueOnce(
+      fakeRun.returnsOnce(
         Effect.succeed(
           processOutput(
             JSON.stringify({
@@ -354,7 +358,7 @@ layer("GitLabCli.layer", (it) => {
       const glab = yield* GitLabCli.GitLabCli;
       yield* glab.getRepositoryCloneUrls({ cwd: "/repo", repository });
 
-      expect(mockedRun).toHaveBeenCalledWith(expect.objectContaining({ command: "glab", args }));
+      expect(fakeRun.calls).toContainEqual([expect.objectContaining({ command: "glab", args })]);
     }),
   );
 
@@ -368,7 +372,7 @@ layer("GitLabCli.layer", (it) => {
         detail: "GET 404 project not found",
         failureKind: "not-found",
       });
-      mockedRun.mockReturnValueOnce(Effect.fail(cause));
+      fakeRun.returnsOnce(Effect.fail(cause));
 
       const error = yield* Effect.gen(function* () {
         const glab = yield* GitLabCli.GitLabCli;
@@ -393,7 +397,7 @@ layer("GitLabCli.layer", (it) => {
         detail: "API rate limit exceeded.",
         failureKind: "rate-limited",
       });
-      mockedRun.mockReturnValueOnce(Effect.fail(cause));
+      fakeRun.returnsOnce(Effect.fail(cause));
 
       const glab = yield* GitLabCli.GitLabCli;
       const error = yield* glab

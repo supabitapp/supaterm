@@ -1,14 +1,24 @@
 import { expect, it, vi } from "vite-plus/test";
 
-import { readMediaPng } from "./mediaContent";
+import { readMediaPng, type MediaSources } from "./mediaContent";
+
+function mediaSources(
+  fetch: (src: string) => Promise<Response>,
+  desktopBridge?: ReturnType<MediaSources["desktopBridge"]>,
+) {
+  return { fetch, desktopBridge: () => desktopBridge } satisfies MediaSources;
+}
+
+const unreachable = (_src: string) => Promise.reject<Response>(new TypeError("Failed to fetch"));
 
 const PNG_BYTES = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 it("copies a data URL image without fetching it", async () => {
-  using fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
+  const sources = mediaSources(unreachable);
+  const fetch = vi.spyOn(sources, "fetch");
   const src = `data:image/png;base64,${btoa(String.fromCharCode(...PNG_BYTES))}`;
 
-  const png = await readMediaPng(src);
+  const png = await readMediaPng(src, sources);
 
   expect(fetch).not.toHaveBeenCalled();
   expect(png.type).toBe("image/png");
@@ -49,27 +59,27 @@ it.each(["data:image/png;base64,%%%", "data:image/png"])(
 
 it("keeps remote media on the fetch path", async () => {
   const png = new Blob([new Uint8Array(PNG_BYTES)], { type: "image/png" });
-  using fetch = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(png));
+  const sources = mediaSources(async () => new Response(png));
+  const fetch = vi.spyOn(sources, "fetch");
 
-  expect(await readMediaPng("https://example.com/image.png")).toEqual(png);
+  expect(await readMediaPng("https://example.com/image.png", sources)).toEqual(png);
   expect(fetch).toHaveBeenCalledWith("https://example.com/image.png");
 });
 
 it("reads media the renderer cannot fetch through the desktop main process", async () => {
-  using fetch = vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
-  const readMedia = vi.fn().mockResolvedValue({
-    status: 200,
-    mimeType: "image/png",
-    data: new Uint8Array(PNG_BYTES),
-  });
-  vi.stubGlobal("window", { desktopBridge: { readMedia } });
-  try {
-    const png = await readMediaPng("https://example.com/image.png");
+  const desktop = {
+    readMedia: async (_src: string) => ({
+      status: 200,
+      mimeType: "image/png",
+      data: new Uint8Array(PNG_BYTES),
+    }),
+  };
+  const readMedia = vi.spyOn(desktop, "readMedia");
+  const sources = mediaSources(unreachable, desktop as ReturnType<MediaSources["desktopBridge"]>);
+  const fetch = vi.spyOn(sources, "fetch");
+  const png = await readMediaPng("https://example.com/image.png", sources);
 
-    expect(fetch).toHaveBeenCalledOnce();
-    expect(readMedia).toHaveBeenCalledWith("https://example.com/image.png");
-    expect([...new Uint8Array(await png.arrayBuffer())]).toEqual(PNG_BYTES);
-  } finally {
-    vi.unstubAllGlobals();
-  }
+  expect(fetch).toHaveBeenCalledOnce();
+  expect(readMedia).toHaveBeenCalledWith("https://example.com/image.png");
+  expect([...new Uint8Array(await png.arrayBuffer())]).toEqual(PNG_BYTES);
 });

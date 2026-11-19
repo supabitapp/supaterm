@@ -16,11 +16,15 @@ import { hydrateImagesFromPersisted } from "../composerDraftStore";
 import { resizeSnapShotSource } from "./snapShotSource";
 
 const mocks = vi.hoisted(() => ({
-  heicTo: vi.fn(),
+  heicTo: vi.fn<(input: unknown) => void>(),
+  decodedHeic: [] as Array<unknown>,
 }));
 
 vi.mock("heic-to/csp", () => ({
-  heicTo: mocks.heicTo,
+  heicTo: async (input: unknown) => {
+    mocks.heicTo(input);
+    return mocks.decodedHeic.shift();
+  },
 }));
 
 const originalCreateImageBitmap = globalThis.createImageBitmap;
@@ -91,7 +95,7 @@ function makeHeicFile(options?: {
 
 function stubCanvasPipeline(
   sizeForQuality: (quality: number) => number,
-  options?: { supportsWebp?: boolean; htmlCanvas?: boolean },
+  options?: { supportsWebp?: boolean; htmlCanvas?: boolean; nativeHeic?: boolean },
 ) {
   const supportsWebp = options?.supportsWebp ?? true;
   const close = vi.fn();
@@ -99,7 +103,10 @@ function stubCanvasPipeline(
   const canvasSizes: Array<{ width: number; height: number }> = [];
   vi.stubGlobal(
     "createImageBitmap",
-    vi.fn(async () => ({ width: 4000, height: 3000, close })),
+    vi.fn(async () => {
+      if (options?.nativeHeic === false) throw new Error("HEIC is not supported natively");
+      return { width: 4000, height: 3000, close };
+    }),
   );
   vi.stubGlobal(
     "OffscreenCanvas",
@@ -139,6 +146,7 @@ function stubCanvasPipeline(
 
 afterEach(() => {
   mocks.heicTo.mockReset();
+  mocks.decodedHeic.length = 0;
   vi.unstubAllGlobals();
   globalThis.createImageBitmap = originalCreateImageBitmap;
   globalThis.OffscreenCanvas = originalOffscreenCanvas;
@@ -162,7 +170,7 @@ describe("compressImageForStash", () => {
   it("compresses an oversized source before reading it as a data URL", async () => {
     stubCanvasPipeline(() => 120_000);
     const original = makeFile(4_000_000);
-    const read = vi.spyOn(original, "arrayBuffer").mockRejectedValue(new Error("unneeded read"));
+    const read = vi.spyOn(original, "arrayBuffer");
 
     const result = await compressImageForStash(original);
 
@@ -309,9 +317,8 @@ describe("HEIC attachment preparation", () => {
       type: "",
       lastModified: 123,
     });
-    const { close } = stubCanvasPipeline(() => 4);
-    vi.mocked(createImageBitmap).mockRejectedValue(new Error("HEIC is not supported natively"));
-    mocks.heicTo.mockResolvedValueOnce({ width: 4000, height: 3000, close });
+    const { close } = stubCanvasPipeline(() => 4, { nativeHeic: false });
+    mocks.decodedHeic.push({ width: 4000, height: 3000, close });
 
     const result = await prepareImageForAttachment(original, 1024);
 
@@ -331,9 +338,8 @@ describe("HEIC attachment preparation", () => {
       name: "large.heic",
       type: "image/heic",
     });
-    const { close, canvasSizes } = stubCanvasPipeline(() => 200_000);
-    vi.mocked(createImageBitmap).mockRejectedValue(new Error("HEIC is not supported natively"));
-    mocks.heicTo.mockResolvedValueOnce({ width: 4000, height: 3000, close });
+    const { close, canvasSizes } = stubCanvasPipeline(() => 200_000, { nativeHeic: false });
+    mocks.decodedHeic.push({ width: 4000, height: 3000, close });
 
     const result = await prepareImageForAttachment(original, 1_000_000);
 

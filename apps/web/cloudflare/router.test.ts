@@ -1,8 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
-import router from "./router";
-
-afterEach(() => vi.unstubAllGlobals());
+import router, { routeRequest } from "./router";
 
 describe("hosted channel routing", () => {
   it.each(["nightly", "latest", "invalid"])(
@@ -27,14 +25,17 @@ describe("hosted channel routing", () => {
     ["other=x; supaterm_web_channel=nightly", "nightly"],
     ["supaterm_web_channel=latest", "latest"],
   ])("routes cookie %s to %s without changing the path or query", async (cookie, channel) => {
-    const fetch = vi.fn().mockResolvedValue(new Response("asset", { status: 200 }));
-    vi.stubGlobal("fetch", fetch);
-    const response = await router.fetch(
+    const upstreamRequests: Array<Request> = [];
+    const response = await routeRequest(
       new Request("https://app.supaterm.com/assets/app.js?v=42", {
         headers: { Cookie: cookie, "If-None-Match": "asset-v1" },
       }),
+      async (input) => {
+        upstreamRequests.push(new Request(input));
+        return new Response("asset", { status: 200 });
+      },
     );
-    const request = fetch.mock.calls[0]?.[0] as Request;
+    const request = upstreamRequests[0]!;
     expect(request.url).toBe(`https://${channel}.app.supaterm.com/assets/app.js?v=42`);
     expect(request.headers.get("If-None-Match")).toBe("asset-v1");
     expect(await response.text()).toBe("asset");

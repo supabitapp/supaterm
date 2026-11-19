@@ -10,24 +10,55 @@ import { act, render as renderUi } from "../../../test/render";
 import { HtmlRenderDialog } from "./HtmlRenderDialog";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const { cachedUrl, refresh, showError, openLink, openChangeRequestLink } = vi.hoisted(() => ({
   cachedUrl: { lifeMs: 60 * 60_000 },
-  refresh: vi.fn(),
-  showError: vi.fn(),
-  openLink: vi.fn(),
-  openChangeRequestLink: vi.fn(),
+  refresh: fake(),
+  showError: fake(),
+  openLink: fake(),
+  openChangeRequestLink: fake(),
 }));
 vi.mock(import("~/browser/useOpenLink"), async (original) => ({
   ...(await original()),
-  useOpenLink: () => openLink,
+  useOpenLink: (() => openLink) as never,
 }));
 vi.mock(import("~/lib/openPullRequestLink"), async (original) => ({
   ...(await original()),
-  useOpenChangeRequestLink: () => openChangeRequestLink,
+  useOpenChangeRequestLink: (() => openChangeRequestLink) as never,
 }));
 vi.mock(import("~/assets/assetUrls"), async (original) => ({
   ...(await original()),
-  useAssetUrlRefresh: () => refresh,
+  useAssetUrlRefresh: (() => refresh) as never,
 }));
 vi.mock(import("~/assets/longLivedAssetUrls"), async (original) => ({
   ...(await original()),
@@ -39,7 +70,7 @@ vi.mock(import("~/assets/longLivedAssetUrls"), async (original) => ({
 }));
 vi.mock(import("../ui/toast"), async (original) => {
   const actual = await original();
-  return { ...actual, toastManager: { ...actual.toastManager, add: showError } };
+  return { ...actual, toastManager: { ...actual.toastManager, add: showError as never } };
 });
 vi.mock(import("~/hooks/useHtmlRenderTheme"), async (original) => ({
   ...(await original()),
@@ -51,10 +82,10 @@ const onClose = vi.fn();
 const onOpen = vi.fn();
 
 function setup() {
-  refresh.mockReset();
+  refresh.reset();
   cachedUrl.lifeMs = 60 * 60_000;
-  openLink.mockReset().mockResolvedValue(undefined);
-  openChangeRequestLink.mockReset().mockReturnValue(false);
+  openLink.reset(async () => undefined);
+  openChangeRequestLink.reset(() => false);
   showError.mockClear();
   onClose.mockClear();
   onOpen.mockClear();

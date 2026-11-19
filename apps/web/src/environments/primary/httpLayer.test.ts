@@ -1,11 +1,20 @@
 import type { DesktopBridge } from "@supaterm/contracts";
-import { afterEach, describe, expect, it, vi } from "@effect/vitest";
+import { afterEach, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import { HttpClient } from "effect/http";
 
 import { __resetDesktopPrimaryAuthForTests } from "./desktopAuth";
 import * as PrimaryEnvironmentHttpLayer from "./httpLayer";
+
+function recordingFetch() {
+  const requests: Array<Request> = [];
+  const send = async (input: RequestInfo | URL, init?: RequestInit) => {
+    requests.push(new Request(input, init));
+    return new Response(null, { status: 200 });
+  };
+  return { requests, send };
+}
 
 function createSignal<A>() {
   let resolve!: (value: A) => void;
@@ -19,12 +28,10 @@ describe("primary environment HTTP layer", { concurrent: false }, () => {
   afterEach(() => {
     __resetDesktopPrimaryAuthForTests();
     Reflect.deleteProperty(globalThis, "window");
-    vi.unstubAllGlobals();
   });
 
   it.effect("uses cookie credentials for browser primary environments", () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
+    const transport = recordingFetch();
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: {
@@ -38,17 +45,16 @@ describe("primary environment HTTP layer", { concurrent: false }, () => {
     return Effect.gen(function* () {
       yield* HttpClient.get("http://127.0.0.1:3773/api/auth/session");
 
-      const request = new Request(fetchMock.mock.calls[0]?.[0], fetchMock.mock.calls[0]?.[1]);
+      const request = transport.requests[0]!;
       expect(request.credentials).toBe("include");
       expect(request.headers.get("authorization")).toBeNull();
-    }).pipe(Effect.provide(PrimaryEnvironmentHttpLayer.layerForCurrentOrigin()));
+    }).pipe(Effect.provide(PrimaryEnvironmentHttpLayer.layerForCurrentOrigin(transport.send)));
   });
 
   it.effect("uses bearer auth without cookies for desktop-managed primaries", () => {
     const requested = createSignal<void>();
     const bearerToken = createSignal<string>();
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
-    vi.stubGlobal("fetch", fetchMock);
+    const transport = recordingFetch();
     Object.defineProperty(globalThis, "window", {
       configurable: true,
       value: {
@@ -73,13 +79,13 @@ describe("primary environment HTTP layer", { concurrent: false }, () => {
         "http://127.0.0.1:3773/api/connect/link-state",
       ).pipe(Effect.forkChild);
       yield* Effect.promise(() => requested.promise);
-      expect(fetchMock).not.toHaveBeenCalled();
+      expect(transport.requests).toHaveLength(0);
       bearerToken.resolve("desktop-bearer-token");
       yield* Fiber.join(requestFiber);
 
-      const request = new Request(fetchMock.mock.calls[0]?.[0], fetchMock.mock.calls[0]?.[1]);
+      const request = transport.requests[0]!;
       expect(request.credentials).not.toBe("include");
       expect(request.headers.get("authorization")).toBe("Bearer desktop-bearer-token");
-    }).pipe(Effect.provide(PrimaryEnvironmentHttpLayer.layerForCurrentOrigin()));
+    }).pipe(Effect.provide(PrimaryEnvironmentHttpLayer.layerForCurrentOrigin(transport.send)));
   });
 });

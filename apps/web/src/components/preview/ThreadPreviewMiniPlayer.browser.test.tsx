@@ -3,7 +3,6 @@ import "~/index.css";
 import { RegistryContext } from "@effect/atom-react";
 import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { type DeviceServiceState, type EnvironmentId, ThreadId } from "@supaterm/contracts";
-import { AsyncResult, Atom } from "effect/reactivity";
 import { useState } from "react";
 import { expect, it, vi } from "vite-plus/test";
 
@@ -15,7 +14,6 @@ import {
 } from "../../previewMiniPlayerStore";
 import { useRightPanelStore } from "../../rightPanelStore";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
-import { deviceEnvironment } from "../../state/device";
 import { ChatCanvas } from "../chat/ChatCanvas";
 import { createChatCanvasStore } from "../chat/canvasStore";
 import { deviceStreamScreenAtom } from "../device/deviceStreamSession";
@@ -53,9 +51,6 @@ function Harness() {
 }
 
 it("holds its frame through a source change and stops when the gesture is interrupted", async () => {
-  using _state = vi
-    .spyOn(deviceEnvironment, "state")
-    .mockReturnValue(Atom.make<AsyncResult.AsyncResult<DeviceServiceState>>(AsyncResult.initial()));
   using _store = {
     [Symbol.dispose]: () => usePreviewMiniPlayerStore.getState().removeThread(threadRef),
   };
@@ -121,9 +116,6 @@ it("holds its frame through a source change and stops when the gesture is interr
 });
 
 it("keeps a floating device closed when the agent opens that device again", async () => {
-  using _state = vi
-    .spyOn(deviceEnvironment, "state")
-    .mockReturnValue(Atom.make<AsyncResult.AsyncResult<DeviceServiceState>>(AsyncResult.initial()));
   using _stores = {
     [Symbol.dispose]: () => {
       usePreviewMiniPlayerStore.getState().removeThread(threadRef);

@@ -32,7 +32,7 @@ import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
-import { chromium, type BrowserContext, type Page } from "playwright-core";
+import { chromium, type BrowserContext, type CDPSession, type Page } from "playwright-core";
 import { beforeEach, expect, vi } from "vite-plus/test";
 
 import * as ServerConfig from "../config.ts";
@@ -42,6 +42,7 @@ import * as DesktopChannel from "./DesktopBrowserChannel.ts";
 import * as Manager from "./Manager.ts";
 import * as PreviewAgentActivity from "./PreviewAgentActivity.ts";
 import * as ServerBrowser from "./ServerBrowser.ts";
+import { scriptedFake } from "../testUtils/scriptedFake.ts";
 import * as PreviewBrowser from "./PreviewBrowser.ts";
 
 vi.mock("./ServerBrowserContexts.ts", () => ({
@@ -71,8 +72,8 @@ vi.mock("./ServerBrowserContexts.ts", () => ({
     }
     async connectDesktopPage(endpoint: string) {
       const context = makeContext(undefined, desktopPageUrl);
-      context.page.viewportSize.mockReturnValue(null);
-      const browser = { close: vi.fn(async () => {}) };
+      context.page.viewportSize.use(() => null);
+      const browser = { close: scriptedFake(async () => {}) };
       desktopConnections.push({ endpoint, context, browser });
       desktopConnectionStarted?.resolve();
       await desktopConnectionGate?.promise;
@@ -108,12 +109,14 @@ function makeSession(
 ) {
   const events = new NodeEvents.EventEmitter();
   return {
-    on: vi.fn((name: string, callback: (...args: unknown[]) => void) => events.on(name, callback)),
+    on: scriptedFake((name: string, callback: (...args: unknown[]) => void) =>
+      events.on(name, callback),
+    ),
     emit: (name: string, ...args: unknown[]) => events.emit(name, ...args),
     emitAsync: (name: string, ...args: unknown[]) =>
       Promise.all(events.listeners(name).map((listener) => listener(...args))),
-    detach: vi.fn(async () => {}),
-    send: vi.fn<(method: string, input?: unknown) => Promise<Record<string, unknown>>>(
+    detach: scriptedFake(async () => {}),
+    send: scriptedFake<(method: string, input?: unknown) => Promise<Record<string, unknown>>>(
       async (method, input) => {
         if (method === "Page.getNavigationHistory") return { currentIndex: 0, entries: [{}] };
         if (method === "Page.getLayoutMetrics")
@@ -176,7 +179,7 @@ function fileChooserElement(accept: string) {
 function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "about:blank") {
   const events = new NodeEvents.EventEmitter();
   const nativeFileChooser = vi.fn();
-  const setChooserFiles = vi.fn(async (_files: unknown) => {});
+  const setChooserFiles = scriptedFake(async (_files: unknown) => {});
   const sessions: ReturnType<typeof makeSession>[] = [];
   let url = initialUrl;
   let viewport: ReturnType<Page["viewportSize"]> = { width: 1280, height: 800 };
@@ -208,36 +211,38 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
     context: () => context,
     mainFrame: () => page,
     frames: () => [page],
-    url: () => url,
+    url: scriptedFake(() => url),
     commit: (next: string) => {
       url = next;
     },
-    title: vi.fn(async () => "test page"),
-    viewportSize: vi.fn(() => viewport),
-    setViewportSize: vi.fn(async (size: typeof viewport) => {
+    title: scriptedFake(async () => "test page"),
+    viewportSize: scriptedFake(() => viewport),
+    setViewportSize: scriptedFake(async (size: typeof viewport) => {
       viewport = size;
     }),
-    goto: vi.fn(async (next: string, _options?: { timeout?: number; waitUntil?: string }) => {
-      const pending = initialNavigation;
-      initialNavigation = null;
-      await pending?.();
-      url = next;
-      events.emit("load");
-    }),
-    goBack: vi.fn(async () => {}),
-    goForward: vi.fn(async () => {}),
-    reload: vi.fn(async () => {}),
-    emulateMedia: vi.fn(async () => {}),
-    waitForLoadState: vi.fn(async (_state?: string, _options?: { timeout?: number }) => {}),
-    evaluate: vi.fn(async () => ({
+    goto: scriptedFake(
+      async (next: string, _options?: { timeout?: number; waitUntil?: string }) => {
+        const pending = initialNavigation;
+        initialNavigation = null;
+        await pending?.();
+        url = next;
+        events.emit("load");
+      },
+    ),
+    goBack: scriptedFake(async () => {}),
+    goForward: scriptedFake(async () => {}),
+    reload: scriptedFake(async () => {}),
+    emulateMedia: scriptedFake(async () => {}),
+    waitForLoadState: scriptedFake(async (_state?: string, _options?: { timeout?: number }) => {}),
+    evaluate: scriptedFake(async () => ({
       url,
       title: "test page",
       loading: false,
       visibleText: "delete",
       interactiveElements: [],
     })),
-    ariaSnapshot: vi.fn(async () => '- button "delete" [ref=e1]'),
-    locator: vi.fn<() => unknown>(() => {
+    ariaSnapshot: scriptedFake(async () => '- button "delete" [ref=e1]'),
+    locator: scriptedFake<() => unknown>(() => {
       throw new Error("Unexpected locator action");
     }),
     isClosed: () => closed,
@@ -251,11 +256,11 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
     removed: false,
     pagehideBinding: null as (() => void) | null,
     pagehideWatched: Promise.withResolvers<void>(),
-    exposeFunction: vi.fn(async (_name: string, callback: () => void) => {
+    exposeFunction: scriptedFake(async (_name: string, callback: () => void) => {
       page.pagehideBinding = callback;
       page.pagehideWatched.resolve();
     }),
-    close: vi.fn(async (options?: { runBeforeUnload?: boolean }) => {
+    close: scriptedFake(async (options?: { runBeforeUnload?: boolean }) => {
       if (closed) return;
       const finish = () => {
         if (closed || page.removed) return;
@@ -276,8 +281,8 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
         type: () => "beforeunload",
         message: () => "",
         defaultValue: () => "",
-        accept: vi.fn(async () => finish()),
-        dismiss: vi.fn(async () => {}),
+        accept: scriptedFake(async () => finish()),
+        dismiss: scriptedFake(async () => {}),
       };
       page.beforeUnloadDialog = dialog;
       events.emit("dialog", dialog);
@@ -288,7 +293,7 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
     sessions,
     cssViewport,
     newPage: async () => page as unknown as Page,
-    grantPermissions: vi.fn(async () => {}),
+    grantPermissions: scriptedFake(async () => {}),
     newCDPSession: async (target: unknown) => {
       const session = makeSession(
         target === page ? undefined : (target as ReturnType<typeof makeFrame>),
@@ -298,7 +303,7 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
       return session;
     },
     closing: Promise.withResolvers<void>(),
-    close: vi.fn(async () => {
+    close: scriptedFake(async () => {
       if (contextClosed) return;
       contextClosed = true;
       context.closing.resolve();
@@ -378,7 +383,7 @@ function makeEncoderPage() {
   const context = NodeVM.createContext(sandbox);
   return {
     ...makeContext().page,
-    evaluate: vi.fn(async (script: string | ((arg: unknown) => unknown), arg?: unknown) =>
+    evaluate: scriptedFake(async (script: string | ((arg: unknown) => unknown), arg?: unknown) =>
       typeof script === "string"
         ? NodeVM.runInContext(script, context)
         : NodeVM.runInContext(`(${script.toString()})`, context)(arg),
@@ -421,6 +426,7 @@ let desktopAttachWaiting = Promise.withResolvers<void>();
 const shownDesktopTabs = new Set<string>();
 const releasedDesktopTabs: Array<string> = [];
 const desktopLoadFailures = new Map<string, PreviewAutomationLoadError>();
+let desktopLoadFailureOverride: PreviewAutomationLoadError | undefined;
 const desktopTurns = new NodeEvents.EventEmitter();
 const desktopConnections: Array<{
   endpoint: string;
@@ -444,9 +450,29 @@ const asSession = (providerSessionId: string) => ({
   ...scope,
   thread: { ...testThread, providerSessionId },
 });
+type PreviewManagerService = Manager.PreviewManager["Service"];
+const realManager: { current?: PreviewManagerService } = {};
+const managerOverrides: {
+  open?: PreviewManagerService["open"] | undefined;
+  readonly openOnce: Array<PreviewManagerService["open"]>;
+  close?: PreviewManagerService["close"] | undefined;
+} = { openOnce: [] };
+const layerManager = Layer.effect(
+  Manager.PreviewManager,
+  Effect.gen(function* () {
+    const manager = yield* Manager.PreviewManager;
+    realManager.current = manager;
+    return Manager.PreviewManager.of({
+      ...manager,
+      open: (input) =>
+        (managerOverrides.openOnce.shift() ?? managerOverrides.open ?? manager.open)(input),
+      close: (input) => (managerOverrides.close ?? manager.close)(input),
+    });
+  }),
+).pipe(Layer.provide(Manager.layer));
 const dependencies = Layer.mergeAll(
   Broker.layer,
-  Manager.layer,
+  layerManager,
   Layer.succeed(ServerEnvironment.ServerEnvironment, {
     getEnvironmentId: Effect.succeed(scope.environmentId),
     getDescriptor: Effect.die("unused descriptor"),
@@ -506,7 +532,7 @@ const dependencies = Layer.mergeAll(
     ),
     isAttached: (key) => Effect.sync(() => desktopRenders(key.tabId)),
     isShown: (key) => shownDesktopTabs.has(key.tabId),
-    loadFailure: (key) => desktopLoadFailures.get(key.tabId),
+    loadFailure: (key) => desktopLoadFailureOverride ?? desktopLoadFailures.get(key.tabId),
     endpoint: (key) =>
       Effect.acquireRelease(Effect.succeed(`ws://desktop/${key.tabId}`), () =>
         Effect.sync(() => {
@@ -589,6 +615,7 @@ beforeEach(() => {
   desktopTabs.clear();
   shownDesktopTabs.clear();
   desktopLoadFailures.clear();
+  desktopLoadFailureOverride = undefined;
   desktopRendersNext = false;
   desktopAttachesLate = false;
   desktopAttachWaiting = Promise.withResolvers<void>();
@@ -719,7 +746,7 @@ it.effect.each([
         const { broker, tabId } = yield* ready;
         const page = contexts[0]!.page;
         const titleRequested = Promise.withResolvers<void>();
-        page.title.mockImplementation(() => {
+        page.title.use(() => {
           titleRequested.resolve();
           return renderer === "busy"
             ? new Promise<string>(() => {})
@@ -730,7 +757,7 @@ it.effect.each([
           Object.assign(new Error(`${method}: Timeout ${timeout}ms exceeded.`), {
             name: "TimeoutError",
           });
-        page.goto.mockImplementation(async (next, options) => {
+        page.goto.use(async (next, options) => {
           page.commit(next);
           page.emit("request", {
             url: () => next,
@@ -739,7 +766,7 @@ it.effect.each([
           });
           if (options?.waitUntil === "load") throw timedOut("page.goto", options.timeout);
         });
-        page.waitForLoadState.mockImplementation(async (state, options) => {
+        page.waitForLoadState.use(async (state, options) => {
           if (state === undefined || state === "load") {
             throw timedOut("page.waitForLoadState", options?.timeout);
           }
@@ -823,8 +850,8 @@ it.effect.each([
       const probed = Promise.withResolvers<void>();
       const navigatedAfterStop: Array<boolean> = [];
       for (const cdp of sessions) {
-        const send = cdp.send.getMockImplementation()!;
-        cdp.send.mockImplementation((method, input) => {
+        const send = cdp.send.implementation();
+        cdp.send.use((method, input) => {
           if (
             method === "Runtime.evaluate" &&
             (input as { expression: string }).expression === "0"
@@ -837,13 +864,13 @@ it.effect.each([
           return send(method, input);
         });
       }
-      const goto = page.goto.getMockImplementation()!;
-      page.goto.mockImplementation(async (next, options) => {
+      const goto = page.goto.implementation();
+      page.goto.use(async (next, options) => {
         navigatedAfterStop.push(stopped);
         return goto(next, options);
       });
       for (const method of ["goBack", "goForward", "reload"] as const) {
-        page[method].mockImplementation(async () => {
+        page[method].use(async () => {
           navigatedAfterStop.push(stopped);
         });
       }
@@ -875,7 +902,7 @@ it.live("navigate fails when the page never commits within its timeout", () =>
   Effect.scoped(
     Effect.gen(function* () {
       const { broker, tabId } = yield* ready;
-      contexts[0]!.page.goto.mockImplementation(async () => {
+      contexts[0]!.page.goto.use(async () => {
         throw Object.assign(new Error("page.goto: Timeout 4000ms exceeded."), {
           name: "TimeoutError",
         });
@@ -1078,8 +1105,8 @@ it.effect.each(["none", "during", "after-fragment", "same-url"])(
           failure: () => ({ errorText: "net::ERR_ABORTED" }),
         };
         const cdp = contexts.at(-1)!.sessions.at(-1)!;
-        const send = cdp.send.getMockImplementation()!;
-        cdp.send.mockImplementation(async (operation, input) => {
+        const send = cdp.send.implementation();
+        cdp.send.use(async (operation, input) => {
           if (operation === "Page.stopLoading") {
             committed.reject(new Error("net::ERR_ABORTED"));
             if (requestTiming === "during") page.emit("request", request);
@@ -1105,7 +1132,7 @@ it.effect.each(["none", "during", "after-fragment", "same-url"])(
         const corrected = requestTiming === "same-url";
         using timeout = vi.spyOn(globalThis, "setTimeout");
         if (corrected) {
-          page.goto.mockImplementationOnce(async () => {
+          page.goto.useOnce(async () => {
             page.emit("request", request);
           });
           yield* viewer.input({ type: "navigate", url: request.url() });
@@ -1160,14 +1187,14 @@ it.effect.each([
       const started = Promise.withResolvers<void>();
       const committed = Promise.withResolvers<void>();
       const page = contexts[0]!.page;
-      page[method].mockImplementationOnce(() => {
+      page[method].useOnce(() => {
         started.resolve();
         return committed.promise;
       });
       const navigation = yield* viewer.input(message).pipe(Effect.forkScoped);
       yield* Effect.promise(() => started.promise);
       const cdp = contexts[0]!.sessions.at(-1)!;
-      const send = cdp.send.getMockImplementation()!;
+      const send = cdp.send.implementation();
       const request = {
         url: () => "https://example.com/pending",
         method: () => "GET",
@@ -1176,7 +1203,7 @@ it.effect.each([
         failure: () => ({ errorText: "net::ERR_ABORTED" }),
       };
       let cancelled = false;
-      cdp.send.mockImplementation(async (operation, input) => {
+      cdp.send.use(async (operation, input) => {
         if (operation === "Page.stopLoading") {
           cancelled = true;
           committed.reject(new Error("net::ERR_ABORTED"));
@@ -1369,8 +1396,8 @@ it.effect.each([
         yield* broker.invoke({ scope, tabId, operation: "recordingStart", input: {} });
 
         const cdp = contexts[0]!.sessions[0]!;
-        const send = cdp.send.getMockImplementation()!;
-        cdp.send.mockImplementation((method, input) => {
+        const send = cdp.send.implementation();
+        cdp.send.use((method, input) => {
           if (method !== "Page.captureScreenshot") return send(method, input);
           return refreshFails
             ? Promise.reject(new Error("Page cannot capture a frame"))
@@ -1658,9 +1685,9 @@ it.effect("a viewer gets a settle still only when it may lack the page's final l
       yield* advance(200);
       expect(painted(yield* frames)).toEqual(["frame"]);
 
-      const send = session.send.getMockImplementation()!;
+      const send = session.send.implementation();
       const restored = Promise.withResolvers<void>();
-      session.send.mockImplementation(async (method, input) => {
+      session.send.use(async (method, input) => {
         if (method === "Page.startScreencast" && (input as { maxWidth: number }).maxWidth === 1280)
           await restored.promise;
         return send(method, input);
@@ -1713,7 +1740,7 @@ it.effect(
         const started = Promise.withResolvers<void>();
         const finish = Promise.withResolvers<Record<string, unknown>>();
         const session = contexts[0]!.sessions[0]!;
-        session.send.mockImplementationOnce(async () => {
+        session.send.useOnce(async () => {
           started.resolve();
           return finish.promise;
         });
@@ -1766,7 +1793,7 @@ it.effect(
         const strict = new Error(
           "locator.scrollIntoViewIfNeeded: Error: strict mode violation: locator('button[aria-label=\\'Permissions: Full access\\']') resolved to 2 elements:",
         );
-        contexts[0]!.page.locator.mockImplementation(
+        contexts[0]!.page.locator.use(
           () =>
             new Proxy(
               {},
@@ -1805,8 +1832,8 @@ it.effect("reports a pending dialog without evaluating the page and resolves it 
       const started = Promise.withResolvers<void>();
       const resolvedEvaluation = Promise.withResolvers<Record<string, unknown>>();
       const session = contexts[0]!.sessions[0]!;
-      const send = session.send.getMockImplementation()!;
-      session.send.mockImplementation(async (method, input) => {
+      const send = session.send.implementation();
+      session.send.use(async (method, input) => {
         if (method !== "Runtime.evaluate") return send(method, input);
         started.resolve();
         return resolvedEvaluation.promise;
@@ -1827,10 +1854,10 @@ it.effect("reports a pending dialog without evaluating the page and resolves it 
         type: () => "confirm",
         message: () => "Delete row?",
         defaultValue: () => "",
-        accept: vi.fn(async () => {
+        accept: scriptedFake(async () => {
           resolvedEvaluation.resolve({ result: { value: true } });
         }),
-        dismiss: vi.fn(async () => {}),
+        dismiss: scriptedFake(async () => {}),
       };
       page.emit("dialog", dialog);
       page.title.mockClear();
@@ -2172,7 +2199,7 @@ it.effect.each(["before", "during"] as const)(
         const events = yield* manager.subscribeEvents;
         const page = contexts[0]!.page;
         const heldTitle = Promise.withResolvers<string>();
-        page.title.mockImplementationOnce(() => heldTitle.promise);
+        page.title.useOnce(() => heldTitle.promise);
         const failing = {
           url: () => "https://example.com/missing",
           method: () => "GET",
@@ -2340,12 +2367,12 @@ it.effect.each([
       const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
       yield* viewer.input({ type: "takeControl" });
       const session = contexts[0]!.sessions.at(-1)!;
-      const send = session.send.getMockImplementation()!;
+      const send = session.send.implementation();
       const started = Promise.withResolvers<void>();
       const finish = Promise.withResolvers<void>();
       yield* Effect.addFinalizer(() => Effect.sync(() => finish.resolve()));
       session.send.mockClear();
-      session.send.mockImplementationOnce(async (method, input) => {
+      session.send.useOnce(async (method, input) => {
         started.resolve();
         await finish.promise;
         return send(method, input);
@@ -2418,15 +2445,15 @@ it.effect("a busy embedded frame does not hold a copy key back from the page", (
       yield* Effect.promise(() => frame.recording.promise);
 
       const keyReached = Promise.withResolvers<void>();
-      const pageSend = pageSession.send.getMockImplementation()!;
-      pageSession.send.mockImplementation(async (method, input) => {
+      const pageSend = pageSession.send.implementation();
+      pageSession.send.use(async (method, input) => {
         if (method === "Input.dispatchKeyEvent" && (input as { type?: string }).type === "keyUp")
           keyReached.resolve();
         return pageSend(method, input);
       });
       const frameSession = context.sessions.at(-1)!;
-      const frameSend = frameSession.send.getMockImplementation()!;
-      frameSession.send.mockImplementation(async (method, input) => {
+      const frameSend = frameSession.send.implementation();
+      frameSession.send.use(async (method, input) => {
         if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 7) {
           await keyReached.promise;
         }
@@ -2641,7 +2668,7 @@ it.effect("a page's file picker goes to the controller and takes its uploaded fi
       const page = contexts[0]!.page;
       const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
       yield* viewer.input({ type: "takeControl" });
-      const setFiles = vi.fn(async (_files: unknown) => {});
+      const setFiles = scriptedFake(async (_files: unknown) => {});
       page.emit("filechooser", {
         isMultiple: () => false,
         element: () => fileChooserElement(".csv"),
@@ -2677,8 +2704,8 @@ it.effect("overlapping file pickers keep the newer offer answerable", () =>
       const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
       yield* viewer.input({ type: "takeControl" });
       const accept = Promise.withResolvers<string | null>();
-      const firstFiles = vi.fn(async (_files: unknown) => {});
-      const secondFiles = vi.fn(async (_files: unknown) => {});
+      const firstFiles = scriptedFake(async (_files: unknown) => {});
+      const secondFiles = scriptedFake(async (_files: unknown) => {});
       page.emit("filechooser", {
         isMultiple: () => false,
         element: () => ({ ...fileChooserElement(""), getAttribute: () => accept.promise }),
@@ -2739,7 +2766,7 @@ it.effect("a detached file picker stays open across same-document navigation", (
             });
           },
         }),
-        setFiles: vi.fn(async (_files: unknown) => {}),
+        setFiles: scriptedFake(async (_files: unknown) => {}),
       });
       let offered = yield* Queue.take(viewer.output);
       while (offered._tag !== "fileChooser") offered = yield* Queue.take(viewer.output);
@@ -2783,7 +2810,7 @@ it.effect.each(["main", "iframe"])(
         const page = contexts[0]!.page;
         const viewer = yield* browser.attachViewer(viewerInput(tabId, true));
         yield* viewer.input({ type: "takeControl" });
-        const setFiles = vi.fn(async (_files: unknown) => {});
+        const setFiles = scriptedFake(async (_files: unknown) => {});
         const probeStarted = Promise.withResolvers<void>();
         const probeSettled = Promise.withResolvers<void>();
         let probeCount = 0;
@@ -2845,7 +2872,7 @@ it.effect("a file picker closes when its page is replaced while control changes 
             return current.promise;
           },
         }),
-        setFiles: vi.fn(async (_files: unknown) => {}),
+        setFiles: scriptedFake(async (_files: unknown) => {}),
       });
       let offered = yield* Queue.take(first.output);
       while (offered._tag !== "fileChooser") offered = yield* Queue.take(first.output);
@@ -2895,7 +2922,7 @@ it.effect("a file picker is not offered after its document changes while reading
             return current.promise;
           },
         }),
-        setFiles: vi.fn(async (_files: unknown) => {}),
+        setFiles: scriptedFake(async (_files: unknown) => {}),
       });
 
       yield* Effect.promise(() => acceptRead.promise);
@@ -2922,7 +2949,7 @@ it.effect("only the current controller can answer a file picker", () =>
       const { browser, tabId } = yield* ready;
       const first = yield* browser.attachViewer(viewerInput(tabId, true));
       yield* first.input({ type: "takeControl" });
-      const setFiles = vi.fn(async (_files: unknown) => {});
+      const setFiles = scriptedFake(async (_files: unknown) => {});
       contexts[0]!.page.emit("filechooser", {
         isMultiple: () => false,
         element: () => fileChooserElement(""),
@@ -2955,7 +2982,7 @@ it.live("an agent answers the page's file picker or sets files on a file input",
       expect(yield* Effect.flip(upload({ paths: ["/tmp/a.csv"] }))).toMatchObject({
         _tag: "PreviewAutomationExecutionError",
       });
-      const setFiles = vi.fn(async (_files: unknown) => {});
+      const setFiles = scriptedFake(async (_files: unknown) => {});
       page.emit("filechooser", {
         isMultiple: () => false,
         element: () => fileChooserElement(".csv"),
@@ -2975,8 +3002,8 @@ it.live("an agent answers the page's file picker or sets files on a file input",
       expect(setFiles).toHaveBeenCalledExactlyOnceWith(["/tmp/a.csv"], expect.anything());
       expect((yield* status).fileChooser).toBeNull();
 
-      const setInputFiles = vi.fn(async () => {});
-      page.locator.mockReturnValue({ setInputFiles } as never);
+      const setInputFiles = scriptedFake(async () => {});
+      page.locator.use(() => ({ setInputFiles }) as never);
       yield* upload({ paths: ["/tmp/b.csv"], locator: "input[type=file]" });
       expect(page.locator).toHaveBeenLastCalledWith("input[type=file]");
       expect(setInputFiles).toHaveBeenCalledWith(["/tmp/b.csv"], expect.anything());
@@ -3164,10 +3191,10 @@ it.effect("a desktop tab reports the size the desktop draws after a resize", () 
           Effect.forkScoped,
         );
       const url = context.page.url();
-      using urlRead = vi.spyOn(context.page, "url");
+      const urlRead = context.page.url;
       const startStatus = Effect.gen(function* () {
         const started = Promise.withResolvers<void>();
-        urlRead.mockImplementationOnce(() => {
+        urlRead.useOnce(() => {
           started.resolve();
           return url;
         });
@@ -3218,7 +3245,7 @@ it.effect("a stalled desktop viewer still gets its size, control and reconnect",
       context.page.emit("filechooser", {
         isMultiple: () => false,
         element: () => fileChooserElement(".csv"),
-        setFiles: vi.fn(async () => {}),
+        setFiles: scriptedFake(async () => {}),
       });
       let chooser = yield* Queue.take(viewer.output);
       while (chooser._tag !== "fileChooser") chooser = yield* Queue.take(viewer.output);
@@ -3755,18 +3782,17 @@ it.effect.each([
       const sessionGate = Promise.withResolvers<void>();
       const launchGate = (contextGate = Promise.withResolvers<void>());
       const sessionStarted = Promise.withResolvers<void>();
-      const realOpen = manager.open;
-      const delayedOpen = vi.spyOn(manager, "open").mockImplementation((input) =>
+      const realOpen = realManager.current!.open;
+      managerOverrides.open = (input) =>
         Effect.promise(() => {
           sessionStarted.resolve();
           return sessionGate.promise;
-        }).pipe(Effect.andThen(realOpen(input))),
-      );
+        }).pipe(Effect.andThen(realOpen(input)));
       yield* Effect.addFinalizer(() =>
         Effect.sync(() => {
           sessionGate.resolve();
           launchGate.resolve();
-          delayedOpen.mockRestore();
+          managerOverrides.open = undefined;
         }),
       );
       const events = yield* manager.subscribeEvents;
@@ -3775,7 +3801,7 @@ it.effect.each([
       const popup = makeContext();
       const resized = Promise.withResolvers<void>();
       const setViewportSize = popup.page.setViewportSize;
-      popup.page.setViewportSize = vi.fn(async (size) => {
+      popup.page.setViewportSize = scriptedFake(async (size) => {
         await setViewportSize(size);
         if (size?.width === 900) resized.resolve();
       });
@@ -3851,12 +3877,10 @@ it.effect("failed session and browser launches release capacity, as does closing
         input: { reuseExistingTab: false, show: false },
       });
       for (let count = 1; count < 7; count++) yield* open;
-      const failSession = vi
-        .spyOn(manager, "open")
-        .mockImplementationOnce(() => Effect.die(new Error("session creation failed")));
-      yield* Effect.addFinalizer(() => Effect.sync(() => failSession.mockRestore()));
+      managerOverrides.openOnce.push(() => Effect.die(new Error("session creation failed")));
+      yield* Effect.addFinalizer(() => Effect.sync(() => (managerOverrides.openOnce.length = 0)));
       expect(yield* open.pipe(Effect.result)).toMatchObject({ _tag: "Failure" });
-      failSession.mockRestore();
+      managerOverrides.openOnce.length = 0;
       const events = yield* manager.subscribeEvents;
       contextFailure = new Error("Chromium launch failed");
       expect(yield* open.pipe(Effect.result)).toMatchObject({ _tag: "Failure" });
@@ -3905,8 +3929,8 @@ it.effect("a full server takes back the slot of the longest idle agent tab nobod
       const manager = yield* Manager.PreviewManager;
       yield* ServerBrowser.ServerBrowser;
       yield* Effect.yieldNow;
-      const now = vi.spyOn(Date, "now").mockReturnValue(0);
-      yield* Effect.addFinalizer(() => Effect.sync(() => now.mockRestore()));
+      vi.useFakeTimers({ toFake: ["Date"], now: 0 });
+      yield* Effect.addFinalizer(() => Effect.sync(() => vi.useRealTimers()));
       const open = (providerSessionId: string) => {
         desktopRendersNext = true;
         return broker.invoke<PreviewAutomationStatus>({
@@ -3917,11 +3941,11 @@ it.effect("a full server takes back the slot of the longest idle agent tab nobod
       };
       const opened: Array<string> = [];
       for (let index = 0; index < 32; index++) {
-        now.mockReturnValue(index);
+        vi.setSystemTime(index);
         opened.push((yield* open(`agent-${Math.floor(index / 8)}`)).tabId!);
       }
 
-      now.mockReturnValue(100);
+      vi.setSystemTime(100);
       yield* broker.invoke<PreviewAutomationStatus>({
         scope: asSession("agent-observer"),
         operation: "status",
@@ -3929,11 +3953,11 @@ it.effect("a full server takes back the slot of the longest idle agent tab nobod
         input: {},
       });
 
-      now.mockReturnValue(29 * 60 * 1000);
+      vi.setSystemTime(29 * 60 * 1000);
       expect(yield* open("agent-new").pipe(Effect.flip)).toMatchObject({ reason: "tabLimit" });
       expect(releasedDesktopTabs).toEqual([]);
 
-      now.mockReturnValue(31 * 60 * 1000);
+      vi.setSystemTime(31 * 60 * 1000);
       expect(yield* open("agent-3").pipe(Effect.flip)).toMatchObject({ reason: "tabLimit" });
       expect(releasedDesktopTabs).toEqual([]);
       for (const tabId of opened) shownDesktopTabs.add(tabId);
@@ -3971,13 +3995,10 @@ it.effect("a full server takes back the slot of the longest idle agent tab nobod
       closingPage.beforeUnload = "listen";
       closingPage.unloadGate = Promise.withResolvers<void>();
       const closeRequests = yield* Queue.unbounded<void>();
-      const close = manager.close;
-      const closeSpy = vi
-        .spyOn(manager, "close")
-        .mockImplementation((input) =>
-          Queue.offer(closeRequests, undefined).pipe(Effect.andThen(close(input))),
-        );
-      yield* Effect.addFinalizer(() => Effect.sync(() => closeSpy.mockRestore()));
+      const close = realManager.current!.close;
+      managerOverrides.close = (input) =>
+        Queue.offer(closeRequests, undefined).pipe(Effect.andThen(close(input)));
+      yield* Effect.addFinalizer(() => Effect.sync(() => (managerOverrides.close = undefined)));
       const firstOpen = yield* open("agent-concurrent").pipe(Effect.forkScoped);
       yield* Queue.take(closeRequests);
       yield* Effect.promise(() => closingPage.pagehideWatched.promise);
@@ -3991,7 +4012,7 @@ it.effect("a full server takes back the slot of the longest idle agent tab nobod
       const closedBeforeReturn = yield* Deferred.make<void>();
       const finishClose = yield* Deferred.make<void>();
       let heldClose = false;
-      closeSpy.mockImplementation((input) => {
+      managerOverrides.close = (input) => {
         const hold = !heldClose;
         heldClose = true;
         return close(input).pipe(
@@ -4003,7 +4024,7 @@ it.effect("a full server takes back the slot of the longest idle agent tab nobod
               : Effect.void,
           ),
         );
-      });
+      };
       const reclaimingOpen = yield* open("agent-reclaiming").pipe(Effect.forkScoped);
       yield* Deferred.await(closedBeforeReturn);
       const takingFreedSlot = yield* open("agent-taking-free-slot");
@@ -4049,7 +4070,7 @@ it.effect("reports why a page failed to load while the tab shows the error page"
       expect(yield* snapshot()).not.toHaveProperty("loadError");
       page.emit("request", request);
       page.emit("requestfailed", request);
-      page.url = () => "chrome-error://chromewebdata/";
+      page.url.use(() => "chrome-error://chromewebdata/");
       expect(yield* status()).toMatchObject({
         url: certificateError.url,
         loadError: certificateError,
@@ -4104,14 +4125,19 @@ it.effect("preview_open rejects a desktop navigation that failed before automati
     Effect.gen(function* () {
       const { broker, tabId } = yield* ready;
       const manager = yield* Manager.PreviewManager;
-      const channel = yield* DesktopChannel.DesktopBrowserChannel;
+      yield* DesktopChannel.DesktopBrowserChannel;
       desktopRendersNext = true;
       desktopPageUrl = "chrome-error://chromewebdata/";
       const failure = {
         ...certificateError,
         url: "https://user:secret@device.local/?token=private#fragment",
       };
-      using _failure = vi.spyOn(channel, "loadFailure").mockReturnValue(failure);
+      desktopLoadFailureOverride = failure;
+      using _failure = {
+        [Symbol.dispose]: () => {
+          desktopLoadFailureOverride = undefined;
+        },
+      };
       const error = yield* broker
         .invoke<PreviewAutomationStatus>({
           scope,
@@ -4142,7 +4168,7 @@ it.effect("reports a desktop tab's load failure from before the server connected
       desktopLoadFailures.set(opened.tabId, certificateError);
       yield* browser.attachViewer(viewerInput(opened.tabId, false));
       const page = desktopConnections[0]!.context.page;
-      page.url = () => "chrome-error://chromewebdata/";
+      page.url.use(() => "chrome-error://chromewebdata/");
       const status = () =>
         broker.invoke<PreviewAutomationStatus>({
           scope,
@@ -4212,28 +4238,34 @@ it.live("a page's title change without navigation reaches its session", () =>
       ),
     );
     let watched = Promise.withResolvers<void>();
-    const newSession = context.newCDPSession.bind(context);
-    vi.spyOn(context, "newCDPSession").mockImplementation(async (page) => {
-      const cdp = await newSession(page);
-      const send = cdp.send.bind(cdp);
-      vi.spyOn(cdp, "send").mockImplementation((...args) => {
-        const result = send(...args);
+    const delegate = <T extends object>(target: T, overrides: Partial<T>) =>
+      new Proxy(target, {
+        get: (object, key) => {
+          if (Object.hasOwn(overrides, key)) return Reflect.get(overrides, key);
+          const value: unknown = Reflect.get(object, key, object);
+          return typeof value === "function" ? value.bind(object) : value;
+        },
+      });
+    const newSession: BrowserContext["newCDPSession"] = async (page) => {
+      const cdp = await context.newCDPSession(page);
+      const send: CDPSession["send"] = (...args) => {
+        const result = cdp.send(...args);
         if (
           args[0] === "Runtime.evaluate" &&
           args[1] &&
           "awaitPromise" in args[1] &&
           args[1].awaitPromise
         ) {
-          void send("Runtime.evaluate", { expression: "0" }).then(
+          void cdp.send("Runtime.evaluate", { expression: "0" }).then(
             () => watched.resolve(),
             () => undefined,
           );
         }
         return result;
-      });
-      return cdp;
-    });
-    realContextOverride = context;
+      };
+      return delegate(cdp, { send });
+    };
+    realContextOverride = delegate(context, { newCDPSession: newSession });
     yield* Effect.gen(function* () {
       const browser = yield* ServerBrowser.ServerBrowser;
       const manager = yield* Manager.PreviewManager;

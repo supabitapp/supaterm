@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 const mocks = vi.hoisted(() => ({
   files: new Set<string>(),
-  write: vi.fn(async (_content: string, _options: unknown) => undefined),
+  write: vi.fn<(content: string, options: unknown) => void>(),
+  writeFailures: [] as Array<Error>,
 }));
 
 vi.mock("expo-file-system", () => ({
@@ -28,8 +29,10 @@ vi.mock("expo-file-system", () => ({
     delete() {
       mocks.files.delete(this.uri);
     }
-    write(content: string, options: unknown) {
-      return mocks.write(content, options);
+    async write(content: string, options: unknown) {
+      mocks.write(content, options);
+      const failure = mocks.writeFailures.shift();
+      if (failure) throw failure;
     }
     async move(destination: { uri: string }) {
       if (!mocks.files.delete(this.uri)) throw new Error("source missing");
@@ -95,9 +98,9 @@ describe("materializedPreviewAtom", () => {
       unmount();
       return AsyncResult.isSuccess(result) ? result.value : undefined;
     };
-    using _warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    using _warn = vi.spyOn(console, "warn");
     mocks.write.mockClear();
-    mocks.write.mockRejectedValueOnce(new Error("disk full"));
+    mocks.writeFailures.push(new Error("disk full"));
 
     expect(await materialize()).toBeNull();
     expect(await materialize()).toBe("file:///cache/supaterm-composer-previews/image-failed.png");

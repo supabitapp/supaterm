@@ -1,32 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const { confirmMock, readLocalApiMock, settingsMock, hydrateMock } = vi.hoisted(() => {
-  const confirmMock = vi.fn<(message: string, options?: unknown) => Promise<boolean>>();
-  const readLocalApiMock = vi.fn<
-    () =>
-      | {
-          dialogs: { confirm: (message: string, options?: unknown) => Promise<boolean> };
+import {
+  confirmTerminalClose as confirmWithHost,
+  isTerminalCloseConfirmPending,
+  type CloseConfirmationHost,
+  type TerminalCloseTarget,
+} from "./terminalCloseConfirm";
+
+const confirmMock = vi.fn<(message: string, options?: unknown) => void>();
+const settingsMock = { confirmTerminalClose: true };
+const dialogs = {
+  available: true,
+  answer: () => Promise.resolve(false),
+  hydrate: () => Promise.resolve(),
+};
+const host: CloseConfirmationHost = {
+  dialogs: () =>
+    dialogs.available
+      ? {
+          confirm: (message, options) => {
+            confirmMock(message, options);
+            return dialogs.answer();
+          },
         }
-      | undefined
-  >();
-  return {
-    confirmMock,
-    readLocalApiMock,
-    settingsMock: { confirmTerminalClose: true },
-    hydrateMock: vi.fn<() => Promise<void>>(),
-  };
-});
-
-vi.mock("~/hooks/useSettings", () => ({
-  getClientSettings: () => settingsMock,
-  ensureClientSettingsHydrated: () => hydrateMock(),
-}));
-
-vi.mock("~/localApi", () => ({
-  readLocalApi: () => readLocalApiMock(),
-}));
-
-import { confirmTerminalClose, isTerminalCloseConfirmPending } from "./terminalCloseConfirm";
+      : undefined,
+  hydrateSettings: () => dialogs.hydrate(),
+  confirmTerminalCloseEnabled: () => settingsMock.confirmTerminalClose,
+};
+const confirmTerminalClose = (targets: readonly TerminalCloseTarget[]) =>
+  confirmWithHost(targets, host);
 
 const target = (label: string, hasRunningSubprocess = true) => ({
   label,
@@ -36,11 +38,10 @@ const target = (label: string, hasRunningSubprocess = true) => ({
 describe("terminal close confirmation", () => {
   beforeEach(() => {
     settingsMock.confirmTerminalClose = true;
-    hydrateMock.mockReset();
-    hydrateMock.mockResolvedValue(undefined);
+    dialogs.available = true;
+    dialogs.answer = () => Promise.resolve(false);
+    dialogs.hydrate = () => Promise.resolve();
     confirmMock.mockReset();
-    readLocalApiMock.mockReset();
-    readLocalApiMock.mockReturnValue({ dialogs: { confirm: confirmMock } });
   });
 
   it("closes single and multiple terminals immediately when confirmation is disabled", async () => {
@@ -54,22 +55,20 @@ describe("terminal close confirmation", () => {
     expect(isTerminalCloseConfirmPending()).toBe(false);
 
     settingsMock.confirmTerminalClose = true;
-    confirmMock.mockResolvedValue(false);
+    dialogs.answer = () => Promise.resolve(false);
     await expect(confirmTerminalClose([target("Terminal 1")])).resolves.toBe(false);
     expect(confirmMock).toHaveBeenCalledOnce();
   });
 
   it("waits for the saved opt-out before closing immediately after reload", async () => {
     let finishHydration: () => void = () => undefined;
-    hydrateMock.mockImplementation(
-      () =>
-        new Promise<void>((resolve) => {
-          finishHydration = () => {
-            settingsMock.confirmTerminalClose = false;
-            resolve();
-          };
-        }),
-    );
+    dialogs.hydrate = () =>
+      new Promise<void>((resolve) => {
+        finishHydration = () => {
+          settingsMock.confirmTerminalClose = false;
+          resolve();
+        };
+      });
 
     const close = confirmTerminalClose([target("Terminal 1")]);
     expect(isTerminalCloseConfirmPending()).toBe(true);
@@ -83,8 +82,8 @@ describe("terminal close confirmation", () => {
 
   it("asks for confirmation when saved settings cannot be loaded", async () => {
     settingsMock.confirmTerminalClose = false;
-    hydrateMock.mockRejectedValue(new Error("storage unavailable"));
-    confirmMock.mockResolvedValue(false);
+    dialogs.hydrate = () => Promise.reject(new Error("storage unavailable"));
+    dialogs.answer = () => Promise.resolve(false);
 
     await expect(confirmTerminalClose([target("Terminal 1")])).resolves.toBe(false);
     expect(confirmMock).toHaveBeenCalledOnce();
@@ -93,12 +92,12 @@ describe("terminal close confirmation", () => {
 
   it("tracks pending state until the confirmation settles", async () => {
     let settle: (value: boolean) => void = () => undefined;
-    const asked = new Promise<void>((resolveAsked) =>
-      confirmMock.mockImplementation(() => {
+    const asked = new Promise<void>((resolveAsked) => {
+      dialogs.answer = () => {
         resolveAsked();
         return new Promise<boolean>((resolve) => (settle = resolve));
-      }),
-    );
+      };
+    });
 
     expect(isTerminalCloseConfirmPending()).toBe(false);
 
@@ -114,14 +113,14 @@ describe("terminal close confirmation", () => {
 
   it("clears pending state and resolves false when the dialog rejects", async () => {
     let reject: (reason?: unknown) => void = () => undefined;
-    const asked = new Promise<void>((resolveAsked) =>
-      confirmMock.mockImplementation(() => {
+    const asked = new Promise<void>((resolveAsked) => {
+      dialogs.answer = () => {
         resolveAsked();
         return new Promise<boolean>((_resolve, rejectPromise) => {
           reject = rejectPromise;
         });
-      }),
-    );
+      };
+    });
 
     const confirmation = confirmTerminalClose([target("Terminal 1")]);
     expect(isTerminalCloseConfirmPending()).toBe(true);
@@ -133,7 +132,7 @@ describe("terminal close confirmation", () => {
   });
 
   it("names every terminal in a multi-terminal close", async () => {
-    confirmMock.mockResolvedValue(true);
+    dialogs.answer = () => Promise.resolve(true);
 
     await expect(
       confirmTerminalClose([target("Terminal 1"), target("Development server")]),
@@ -153,7 +152,7 @@ describe("terminal close confirmation", () => {
   });
 
   it("only names running terminals in a mixed close", async () => {
-    confirmMock.mockResolvedValue(true);
+    dialogs.answer = () => Promise.resolve(true);
 
     await expect(
       confirmTerminalClose([target("Terminal 1", false), target("Development server")]),
@@ -168,7 +167,7 @@ describe("terminal close confirmation", () => {
   });
 
   it("closes without prompting when no local API is available", async () => {
-    readLocalApiMock.mockReturnValue(undefined);
+    dialogs.available = false;
 
     await expect(confirmTerminalClose([target("Terminal 1")])).resolves.toBe(true);
     expect(confirmMock).not.toHaveBeenCalled();

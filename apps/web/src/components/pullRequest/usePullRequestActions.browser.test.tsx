@@ -8,10 +8,41 @@ import { useComposerDraftStore } from "~/composerDraftStore";
 import { ToastProvider } from "../ui/toast";
 import { usePullRequestActionRunner, usePullRequestHandoffs } from "./usePullRequestActions";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
-  runAction: vi.fn(),
-  newThread: vi.fn(),
-  prepareThread: vi.fn(),
+  runAction: fake(),
+  newThread: fake(),
+  prepareThread: fake(),
 }));
 vi.mock(import("~/state/use-atom-command"), () => ({
   useAtomCommand: (() => state.runAction) as never,
@@ -54,9 +85,9 @@ it("keeps pending merges with their pull request when navigating between threads
   const firstResult = deferred<{ _tag: "Success"; value: void }>();
   const secondResult = deferred<{ _tag: "Success"; value: void }>();
   state.runAction
-    .mockReset()
-    .mockReturnValueOnce(firstResult.promise)
-    .mockReturnValueOnce(secondResult.promise);
+    .reset()
+    .implementOnce(() => firstResult.promise)
+    .implementOnce(() => secondResult.promise);
   await using screen = await render(<MergeButton reference={first} />);
   const button = screen.getByRole("button");
 
@@ -112,10 +143,10 @@ it("stops a pull request handoff when its loading toast is dismissed", async () 
     };
   }>();
   state.newThread
-    .mockReset()
-    .mockResolvedValueOnce({ draftId: "draft-1", threadId: ThreadId.make("thread-1") })
-    .mockResolvedValueOnce({ draftId: "draft-2", threadId: ThreadId.make("thread-1") });
-  state.prepareThread.mockReset().mockReturnValueOnce(prepared.promise);
+    .reset()
+    .implementOnce(async () => ({ draftId: "draft-1", threadId: ThreadId.make("thread-1") }))
+    .implementOnce(async () => ({ draftId: "draft-2", threadId: ThreadId.make("thread-1") }));
+  state.prepareThread.reset().implementOnce(() => prepared.promise);
   await using screen = await render(
     <ToastProvider>
       <FixChecksButton />

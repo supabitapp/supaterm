@@ -56,6 +56,10 @@ export const readOnly: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effec
     restore(Effect.provideService(effect, ReadOnly, restore)),
   );
 
+export const StatementObserver = Context.Reference<
+  ((statement: NodeSqlite.StatementSync, rows: ReadonlyArray<unknown>) => void) | undefined
+>("@supaterm/shared/nodeSqliteClient/StatementObserver", { defaultValue: () => undefined });
+
 interface Acquired {
   readonly connection: "writer" | "reader";
   readonly lockWaitMs: number;
@@ -803,7 +807,9 @@ const make = Effect.fn("makeWithDatabase")(function* (options: SqliteClientConfi
           if (hasRows(statement)) {
             arrays = mode === "values";
             if (arrays) statement.setReturnArrays(true);
-            result = Exit.succeed(statement.all(...(params as any)));
+            const rows = statement.all(...(params as any));
+            Context.get(fiber.context, StatementObserver)?.(statement, rows);
+            result = Exit.succeed(rows);
           } else {
             const value = statement.run(...(params as any));
             result = Exit.succeed(

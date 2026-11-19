@@ -68,24 +68,31 @@ function makeBridge(
     readonly savedTokenRejected?: boolean;
     readonly savedTokenScopes?: ReadonlyArray<string>;
     readonly launchGate?: Promise<void>;
+    readonly pendingSetups?: Array<Promise<DesktopSshEnvironmentBootstrap>>;
+    readonly pendingSetup?: Promise<DesktopSshEnvironmentBootstrap>;
+    readonly serverVersion?: string;
+    readonly pairingFailure?: Error;
   },
 ) {
   return {
     getClientPlatform: () => "linux",
     getLocalEnvironmentEnabled: () => true,
-    ensureSshEnvironment: async (
+    ensureSshEnvironment: (
       target: DesktopSshEnvironmentTarget,
       ensureOptions?: { issuePairingToken?: boolean },
-    ) => {
-      calls.push("ensure");
-      await options?.launchGate;
-      return {
-        target,
-        httpBaseUrl: "http://127.0.0.1:3201/",
-        wsBaseUrl: "ws://127.0.0.1:3201/",
-        pairingToken: ensureOptions?.issuePairingToken === true ? "pairing-token" : null,
-      };
-    },
+    ) =>
+      options?.pendingSetups?.shift() ??
+      options?.pendingSetup ??
+      (async () => {
+        calls.push("ensure");
+        await options?.launchGate;
+        return {
+          target,
+          httpBaseUrl: "http://127.0.0.1:3201/",
+          wsBaseUrl: "ws://127.0.0.1:3201/",
+          pairingToken: ensureOptions?.issuePairingToken === true ? "pairing-token" : null,
+        };
+      })(),
     disconnectSshEnvironment: async () => {
       calls.push("disconnect");
     },
@@ -108,12 +115,13 @@ function makeBridge(
           os: "linux",
           arch: "x64",
         },
-        serverVersion: "0.0.0-test",
+        serverVersion: options?.serverVersion ?? "0.0.0-test",
         orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
         capabilities: {},
       };
     },
     bootstrapSshBearerSession: async () => {
+      if (options?.pairingFailure) throw options.pairingFailure;
       calls.push("token");
       return {
         access_token: "bearer-token",
@@ -129,9 +137,9 @@ function makeBridge(
 describe("desktop SSH pairing", () => {
   it.effect("exchanges one setup credential after repeated interrupted provisions", () =>
     Effect.gen(function* () {
-      const bridge = makeBridge([]);
       const setup = pendingSetup();
-      const ensure = vi.spyOn(bridge, "ensureSshEnvironment").mockReturnValue(setup.promise);
+      const bridge = makeBridge([], { pendingSetup: setup.promise });
+      const ensure = vi.spyOn(bridge, "ensureSshEnvironment");
       const exchange = vi.spyOn(bridge, "bootstrapSshBearerSession");
       for (let attempt = 0; attempt < 2; attempt += 1) {
         const interrupted = yield* Effect.forkChild(
@@ -159,9 +167,9 @@ describe("desktop SSH pairing", () => {
   it.effect("starts fresh after an abandoned setup settles in success or failure", () =>
     Effect.gen(function* () {
       for (const outcome of ["success", "failure"]) {
-        const bridge = makeBridge([]);
         const setup = pendingSetup();
-        const ensure = vi.spyOn(bridge, "ensureSshEnvironment").mockReturnValueOnce(setup.promise);
+        const bridge = makeBridge([], { pendingSetups: [setup.promise] });
+        const ensure = vi.spyOn(bridge, "ensureSshEnvironment");
         const exchange = vi.spyOn(bridge, "bootstrapSshBearerSession");
         const interrupted = yield* Effect.forkChild(
           provisionDesktopSshEnvironment(bridge, TARGET),
@@ -192,9 +200,9 @@ describe("desktop SSH pairing", () => {
   it.effect("disconnect invalidates unfinished setup even before provision is interrupted", () =>
     Effect.gen(function* () {
       const calls: string[] = [];
-      const bridge = makeBridge(calls);
       const setup = pendingSetup();
-      const ensure = vi.spyOn(bridge, "ensureSshEnvironment").mockReturnValueOnce(setup.promise);
+      const bridge = makeBridge(calls, { pendingSetups: [setup.promise] });
+      const ensure = vi.spyOn(bridge, "ensureSshEnvironment");
       const exchange = vi.spyOn(bridge, "bootstrapSshBearerSession");
       vi.stubGlobal("window", { desktopBridge: bridge });
       const ssh = yield* ClientCapabilities.SshEnvironmentGateway.pipe(Effect.provide(layer));
@@ -216,13 +224,7 @@ describe("desktop SSH pairing", () => {
   );
 
   const failPairing = (serverVersion: string, message: string) => {
-    const bridge = makeBridge([]);
-    const fetchDescriptor = bridge.fetchSshEnvironmentDescriptor;
-    vi.spyOn(bridge, "fetchSshEnvironmentDescriptor").mockImplementation(async (url) => ({
-      ...(await fetchDescriptor(url)),
-      serverVersion,
-    }));
-    vi.spyOn(bridge, "bootstrapSshBearerSession").mockRejectedValue(new Error(message));
+    const bridge = makeBridge([], { serverVersion, pairingFailure: new Error(message) });
     return provisionDesktopSshEnvironment(bridge, TARGET).pipe(Effect.flip);
   };
   const PAIRING_500 =

@@ -5,7 +5,6 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
-import { vi } from "vite-plus/test";
 
 import {
   callAcpMcpTool,
@@ -97,17 +96,6 @@ describe("AcpMcpStdioBridge", () => {
   );
 
   it("prints structured results once in the terminal while retaining other content and errors", async () => {
-    const originalEnvironment = process.env;
-    using _environment = {
-      [Symbol.dispose]: () => {
-        process.env = originalEnvironment;
-      },
-    };
-    process.env = {
-      ...originalEnvironment,
-      SUPATERM_ACP_MCP_ENDPOINT: "http://127.0.0.1:1/mcp",
-      SUPATERM_ACP_MCP_AUTHORIZATION: "Bearer bridge-test",
-    };
     const structuredContent = { taskId: "task-1", status: "failed" };
     const explanation = { type: "text", text: "The command failed." };
     const image = { type: "image", data: "image-data", mimeType: "image/png" };
@@ -116,32 +104,37 @@ describe("AcpMcpStdioBridge", () => {
       content: [{ type: "text", text: JSON.stringify(structuredContent) }, explanation, image],
       isError: true,
     };
-    using fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
-      if (init?.method === "DELETE") return new Response(null, { status: 204 });
-      const message = JSON.parse(String(init?.body)) as { id?: string; method: string };
-      if (message.method === "notifications/initialized") {
-        return new Response(null, { status: 202 });
-      }
-      return Response.json(
-        {
-          jsonrpc: "2.0",
-          id: message.id,
-          result: message.method === "initialize" ? { protocolVersion: "2025-06-18" } : result,
-        },
-        { headers: { "mcp-session-id": "session-42" } },
-      );
+    const requests: Array<{ readonly url: string; readonly method: string | undefined }> = [];
+    const output: Array<string> = [];
+
+    await runAcpMcpCliFastPath("acp-mcp-call", ["task_status", '{"taskId":"task-1"}'], {
+      environment: {
+        SUPATERM_ACP_MCP_ENDPOINT: "http://127.0.0.1:1/mcp",
+        SUPATERM_ACP_MCP_AUTHORIZATION: "Bearer bridge-test",
+      },
+      fetchImplementation: async (url, init) => {
+        requests.push({ url, method: init?.method });
+        if (init?.method === "DELETE") return new Response(null, { status: 204 });
+        const message = JSON.parse(String(init?.body)) as { id?: string; method: string };
+        if (message.method === "notifications/initialized") {
+          return new Response(null, { status: 202 });
+        }
+        return Response.json(
+          {
+            jsonrpc: "2.0",
+            id: message.id,
+            result: message.method === "initialize" ? { protocolVersion: "2025-06-18" } : result,
+          },
+          { headers: { "mcp-session-id": "session-42" } },
+        );
+      },
+      writeOutput: (chunk) => {
+        output.push(chunk);
+      },
     });
-    using output = vi.spyOn(process.stdout, "write").mockReturnValue(true);
 
-    await runAcpMcpCliFastPath("acp-mcp-call", ["task_status", '{"taskId":"task-1"}']);
-
-    expect(output).toHaveBeenCalledExactlyOnceWith(
-      `${JSON.stringify({ ...result, content: [explanation, image] })}\n`,
-    );
-    expect(fetch).toHaveBeenLastCalledWith(
-      "http://127.0.0.1:1/mcp",
-      expect.objectContaining({ method: "DELETE" }),
-    );
+    expect(output).toEqual([`${JSON.stringify({ ...result, content: [explanation, image] })}\n`]);
+    expect(requests.at(-1)).toEqual({ url: "http://127.0.0.1:1/mcp", method: "DELETE" });
   });
 
   it.effect("forwards requests and replays the session id and protocol version", () =>

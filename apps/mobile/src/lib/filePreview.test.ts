@@ -24,46 +24,111 @@ import { ThreadFeed } from "../features/threads/ThreadFeed";
 import type { ThreadFeedEntry } from "./threadActivity";
 import type { MarkdownImageRenderer } from "../native/SelectableMarkdownText";
 
-const audio = vi.hoisted(() => ({
-  status: {
-    playing: false,
-    isLoaded: false,
-    error: null,
-    didJustFinish: false,
-    currentTime: 0,
-    duration: 10,
-    isBuffering: false,
-  },
-  player: {
-    play: vi.fn(),
-    pause: vi.fn((_deactivateSession?: boolean) => {}),
-    release: vi.fn(),
-    replace: vi.fn(),
-    seekTo: vi.fn(async () => {}),
-  },
-  refresh: vi.fn<() => Promise<string | null>>(),
-  setAudioMode: vi.fn(async (_mode: unknown) => {}),
-  setActive: vi.fn(async (_active: boolean) => {}),
-  setSessionOwner: vi.fn((_owned: boolean) => {}),
-  sessionOwned: false,
-  enabled: true,
-  played: vi.fn(),
-  video: {
-    playing: false,
-    playbackRequested: false,
-    status: "readyToPlay",
-    play: vi.fn(),
-    pause: vi.fn(),
-    replaceAsync: vi.fn(async (_source: unknown) => {}),
-    addListener: vi.fn(),
-  },
-  videoListeners: new Set<(event: { isPlaying: boolean }) => void>(),
-  videoStatusListeners: new Set<(event: { status: string }) => void>(),
-  videoEndListeners: new Set<() => void>(),
-  videoRequestListeners: new Set<(event: { isPlaybackRequested: boolean }) => void>(),
-  navigate: vi.fn(),
-  query: vi.fn(),
-}));
+interface AudioBehavior {
+  setSessionOwner(owned: boolean): void;
+  setActive(active: boolean): Promise<void>;
+  setAudioMode(mode: unknown): Promise<void>;
+  refresh(): Promise<string | null> | undefined;
+  query(...args: ReadonlyArray<unknown>): unknown;
+  play(): void;
+  pause(deactivateSession?: boolean): void;
+  seekTo(seconds: number): Promise<void>;
+  videoAddListener(
+    event: string,
+    listener: (event: { isPlaying: boolean }) => void,
+  ): { remove(): void } | undefined;
+  videoPlay(): void;
+  videoPause(): void;
+}
+
+const audio = vi.hoisted(() => {
+  const behavior: AudioBehavior = {
+    setSessionOwner: () => {},
+    setActive: async () => {},
+    setAudioMode: async () => {},
+    refresh: () => undefined,
+    query: () => undefined,
+    play: () => {},
+    pause: () => {},
+    seekTo: async () => {},
+    videoAddListener: () => undefined,
+    videoPlay: () => {},
+    videoPause: () => {},
+  };
+  const once = {
+    setActive: [] as Array<(active: boolean) => Promise<void>>,
+    setAudioMode: [] as Array<(mode: unknown) => Promise<void>>,
+    refresh: [] as Array<() => Promise<string | null>>,
+    query: [] as Array<(...args: ReadonlyArray<unknown>) => unknown>,
+    seekTo: [] as Array<(seconds: number) => Promise<void>>,
+  };
+  const state = {
+    behavior,
+    once,
+    status: {
+      playing: false,
+      isLoaded: false,
+      error: null,
+      didJustFinish: false,
+      currentTime: 0,
+      duration: 10,
+      isBuffering: false,
+    },
+    player: {
+      play: () => state.behavior.play(),
+      pause: (deactivateSession?: boolean) => state.behavior.pause(deactivateSession),
+      release: () => {},
+      replace: (_source: unknown) => {},
+      seekTo: (seconds: number) => (once.seekTo.shift() ?? state.behavior.seekTo)(seconds),
+    },
+    refresh: () => (once.refresh.shift() ?? state.behavior.refresh)(),
+    setAudioMode: (mode: unknown) =>
+      (once.setAudioMode.shift() ?? state.behavior.setAudioMode)(mode),
+    setActive: (active: boolean) => (once.setActive.shift() ?? state.behavior.setActive)(active),
+    setSessionOwner: (owned: boolean) => state.behavior.setSessionOwner(owned),
+    sessionOwned: false,
+    enabled: true,
+    played: vi.fn(),
+    video: {
+      playing: false,
+      playbackRequested: false,
+      status: "readyToPlay",
+      play: () => state.behavior.videoPlay(),
+      pause: () => state.behavior.videoPause(),
+      replaceAsync: async (_source: unknown) => {},
+      addListener: (event: string, listener: (event: { isPlaying: boolean }) => void) =>
+        state.behavior.videoAddListener(event, listener),
+    },
+    videoListeners: new Set<(event: { isPlaying: boolean }) => void>(),
+    videoStatusListeners: new Set<(event: { status: string }) => void>(),
+    videoEndListeners: new Set<() => void>(),
+    videoRequestListeners: new Set<(event: { isPlaybackRequested: boolean }) => void>(),
+    navigate: vi.fn(),
+    query: (...args: ReadonlyArray<unknown>) =>
+      (once.query.shift() ?? state.behavior.query)(...args),
+  };
+  return {
+    ...state,
+    player: {
+      play: vi.spyOn(state.player, "play"),
+      pause: vi.spyOn(state.player, "pause"),
+      release: vi.spyOn(state.player, "release"),
+      replace: vi.spyOn(state.player, "replace"),
+      seekTo: vi.spyOn(state.player, "seekTo"),
+    },
+    refresh: vi.spyOn(state, "refresh"),
+    setAudioMode: vi.spyOn(state, "setAudioMode"),
+    setActive: vi.spyOn(state, "setActive"),
+    setSessionOwner: vi.spyOn(state, "setSessionOwner"),
+    video: Object.assign(state.video, {
+      play: vi.spyOn(state.video, "play"),
+      pause: vi.spyOn(state.video, "pause"),
+      replaceAsync: vi.spyOn(state.video, "replaceAsync"),
+      addListener: vi.spyOn(state.video, "addListener"),
+    }),
+    query: vi.spyOn(state, "query"),
+  };
+});
 const feedList = vi.hoisted(() => ({
   data: [] as ReadonlyArray<unknown>,
   onStartReached: undefined as (() => void) | undefined,
@@ -344,47 +409,49 @@ describe("ThreadInlineFilePreview playback", () => {
   let root: ReturnType<typeof createRoot> | undefined;
   beforeEach(() => {
     audio.sessionOwned = false;
-    audio.setSessionOwner.mockImplementation((owned) => {
+    audio.behavior.setSessionOwner = (owned) => {
       audio.sessionOwned = owned;
-    });
+    };
     audio.player.pause.mockReset();
+    audio.behavior.pause = () => {};
     audio.enabled = true;
-    audio.setActive.mockImplementation(async (enabled) => {
+    audio.behavior.setActive = async (enabled) => {
       audio.enabled = enabled;
-    });
-    audio.player.play.mockImplementation(() => {
+    };
+    audio.behavior.play = () => {
       if (audio.enabled) audio.played();
-    });
-    audio.video.addListener.mockImplementation(
-      (event: string, listener: (event: { isPlaying: boolean }) => void) => {
-        if (event === "playbackRequestedChange") {
-          const requestListener = listener as unknown as (event: {
-            isPlaybackRequested: boolean;
-          }) => void;
-          audio.videoRequestListeners.add(requestListener);
-          return { remove: () => audio.videoRequestListeners.delete(requestListener) };
-        }
-        if (event === "statusChange") {
-          const statusListener = listener as unknown as (event: { status: string }) => void;
-          audio.videoStatusListeners.add(statusListener);
-          return { remove: () => audio.videoStatusListeners.delete(statusListener) };
-        }
-        if (event === "playToEnd") {
-          const endListener = listener as unknown as () => void;
-          audio.videoEndListeners.add(endListener);
-          return { remove: () => audio.videoEndListeners.delete(endListener) };
-        }
-        audio.videoListeners.add(listener);
-        return { remove: () => audio.videoListeners.delete(listener) };
-      },
-    );
-    audio.video.play.mockImplementation(() => {
+    };
+    audio.behavior.videoAddListener = (
+      event: string,
+      listener: (event: { isPlaying: boolean }) => void,
+    ) => {
+      if (event === "playbackRequestedChange") {
+        const requestListener = listener as unknown as (event: {
+          isPlaybackRequested: boolean;
+        }) => void;
+        audio.videoRequestListeners.add(requestListener);
+        return { remove: () => audio.videoRequestListeners.delete(requestListener) };
+      }
+      if (event === "statusChange") {
+        const statusListener = listener as unknown as (event: { status: string }) => void;
+        audio.videoStatusListeners.add(statusListener);
+        return { remove: () => audio.videoStatusListeners.delete(statusListener) };
+      }
+      if (event === "playToEnd") {
+        const endListener = listener as unknown as () => void;
+        audio.videoEndListeners.add(endListener);
+        return { remove: () => audio.videoEndListeners.delete(endListener) };
+      }
+      audio.videoListeners.add(listener);
+      return { remove: () => audio.videoListeners.delete(listener) };
+    };
+    audio.behavior.videoPlay = () => {
       audio.video.playing = true;
       audio.video.playbackRequested = true;
       for (const listener of audio.videoRequestListeners) listener({ isPlaybackRequested: true });
       for (const listener of audio.videoListeners) listener({ isPlaying: audio.video.playing });
-    });
-    audio.video.pause.mockImplementation(() => {
+    };
+    audio.behavior.videoPause = () => {
       const wasRequested = audio.video.playbackRequested;
       const wasPlaying = audio.video.playing;
       audio.video.playbackRequested = false;
@@ -396,7 +463,7 @@ describe("ThreadInlineFilePreview playback", () => {
       if (wasPlaying) {
         for (const listener of audio.videoListeners) listener({ isPlaying: false });
       }
-    });
+    };
   });
   afterEach(async () => {
     await act(async () => root?.unmount());
@@ -405,6 +472,12 @@ describe("ThreadInlineFilePreview playback", () => {
     audio.refresh.mockReset();
     audio.setAudioMode.mockReset();
     audio.setActive.mockReset();
+    audio.behavior.refresh = () => undefined;
+    audio.behavior.setAudioMode = async () => {};
+    audio.behavior.setActive = async () => {};
+    audio.once.refresh.length = 0;
+    audio.once.setAudioMode.length = 0;
+    audio.once.setActive.length = 0;
     audio.video.status = "readyToPlay";
     audio.status = {
       playing: false,
@@ -471,10 +544,9 @@ describe("ThreadInlineFilePreview playback", () => {
       const lookup = new Promise((resolve) => {
         finishLookup = resolve;
       });
-      audio.query
-        .mockResolvedValue({ _tag: "Success", value: { kind: "file" } })
-        .mockReturnValueOnce(lookup);
-      audio.refresh.mockResolvedValue(uri);
+      audio.behavior.query = async () => ({ _tag: "Success", value: { kind: "file" } });
+      audio.once.query.push(() => lookup);
+      audio.behavior.refresh = async () => uri;
       const container = document.createElement("div");
       root = createRoot(container);
       await act(async () =>
@@ -522,7 +594,9 @@ describe("ThreadInlineFilePreview playback", () => {
         }
       }
       await act(async () => link.click());
-      const signal: AbortSignal = audio.query.mock.calls[0]![2].signal;
+      const signal: AbortSignal = (
+        audio.query.mock.calls[0]![2] as { readonly signal: AbortSignal }
+      ).signal;
       expect(signal.aborted).toBe(false);
       expect(audio.navigate).not.toHaveBeenCalled();
       await act(async () => {
@@ -637,13 +711,13 @@ describe("ThreadInlineFilePreview playback", () => {
           audio.video.playing = false;
           deactivated();
         }, 100);
-      audio.setSessionOwner.mockImplementation((owned) => {
+      audio.behavior.setSessionOwner = (owned) => {
         audio.sessionOwned = owned;
         if (!owned) queueDeactivation();
-      });
-      audio.player.pause.mockImplementation((deactivateSession) => {
+      };
+      audio.behavior.pause = (deactivateSession) => {
         if (deactivateSession !== false) queueDeactivation();
-      });
+      };
       vi.useFakeTimers();
       let recording: ReturnType<typeof acquireAudioSession> | undefined;
       try {
@@ -696,6 +770,7 @@ describe("ThreadInlineFilePreview playback", () => {
         vi.clearAllTimers();
         vi.useRealTimers();
         audio.player.pause.mockReset();
+        audio.behavior.pause = () => {};
       }
     },
   );
@@ -802,7 +877,7 @@ describe("ThreadInlineFilePreview playback", () => {
       (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
       audio.status = { ...audio.status, isLoaded: true, didJustFinish: true, currentTime: 10 };
       const seek = Promise.withResolvers<void>();
-      audio.player.seekTo.mockReturnValueOnce(seek.promise);
+      audio.once.seekTo.push(() => seek.promise);
       const container = document.createElement("div");
       root = createRoot(container);
       await act(async () =>
@@ -1067,13 +1142,11 @@ describe("ThreadInlineFilePreview playback", () => {
       vi.clearAllMocks();
       let activate: () => void = () => {};
       if (intent === "mode failure") {
-        audio.setAudioMode.mockRejectedValueOnce(new Error("Playback mode unavailable"));
+        audio.once.setAudioMode.push(() => Promise.reject(new Error("Playback mode unavailable")));
       } else if (intent === "activation failure") {
-        audio.setActive.mockRejectedValueOnce(new Error("Audio session unavailable"));
+        audio.once.setActive.push(() => Promise.reject(new Error("Audio session unavailable")));
       } else {
-        audio.setActive.mockImplementationOnce(
-          () => new Promise((resolve) => (activate = resolve)),
-        );
+        audio.once.setActive.push(() => new Promise((resolve) => (activate = resolve)));
       }
       audio.status = { ...audio.status, isLoaded: true };
       const container = document.createElement("div");
@@ -1136,10 +1209,10 @@ describe("ThreadInlineFilePreview playback", () => {
       (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
       const url = Promise.withResolvers<string>();
       const native = Promise.withResolvers<void>();
-      audio.refresh.mockReturnValueOnce(url.promise);
+      audio.once.refresh.push(() => url.promise);
       audio.status = { ...audio.status, isLoaded: phase !== "URL pending" };
-      if (phase === "mode pending") audio.setAudioMode.mockReturnValueOnce(native.promise);
-      if (phase === "activation pending") audio.setActive.mockReturnValueOnce(native.promise);
+      if (phase === "mode pending") audio.once.setAudioMode.push(() => native.promise);
+      if (phase === "activation pending") audio.once.setActive.push(() => native.promise);
       const container = document.createElement("div");
       root = createRoot(container);
       act(() =>
@@ -1215,7 +1288,7 @@ describe("ThreadInlineFilePreview playback", () => {
       const container = document.createElement("div");
       root = createRoot(container);
       const resolutions: Array<(uri: string) => void> = [];
-      audio.refresh.mockImplementation(() => new Promise((resolve) => resolutions.push(resolve)));
+      audio.behavior.refresh = () => new Promise((resolve) => resolutions.push(resolve));
       act(() =>
         root!.render(
           createElement(ThreadInlineFilePreview, {
@@ -1275,12 +1348,10 @@ describe("ThreadInlineFilePreview playback", () => {
       root = createRoot(container);
       audio.status = { ...audio.status, isLoaded, isBuffering: isLoaded };
       let resolve: (uri: string) => void = () => {};
-      audio.refresh.mockImplementation(
-        () =>
-          new Promise((done) => {
-            resolve = done;
-          }),
-      );
+      audio.behavior.refresh = () =>
+        new Promise((done) => {
+          resolve = done;
+        });
       const preview = createElement(ThreadInlineFilePreview, {
         source: {
           kind: "document",
@@ -1309,7 +1380,7 @@ describe("ThreadInlineFilePreview playback", () => {
       expect(audio.player.play).toHaveBeenCalledTimes(isLoaded ? 1 : 0);
       if (!isLoaded) {
         expect(audio.player.replace).not.toHaveBeenCalled();
-        audio.refresh.mockResolvedValue("https://example.com/sound.mp3");
+        audio.behavior.refresh = async () => "https://example.com/sound.mp3";
       }
       await act(async () => button.click());
       expect(audio.player.play).toHaveBeenCalledTimes(isLoaded ? 2 : 1);

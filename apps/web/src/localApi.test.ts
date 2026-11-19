@@ -67,7 +67,6 @@ afterEach(() => {
 
 describe("LocalApi", () => {
   it("fails closed in a browser when no themed host is available", async () => {
-    requestConfirmDialogMock.mockReturnValue(undefined);
     const { createLocalApi } = await import("./localApi");
 
     await expect(createLocalApi().dialogs.confirm("Delete this thread?")).resolves.toBe(false);

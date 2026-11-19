@@ -13,6 +13,7 @@ import {
 } from "@supaterm/contracts";
 import * as Cache from "effect/Cache";
 import * as Cause from "effect/Cause";
+import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -505,6 +506,11 @@ function claudeGatewayDiscoveryGraceMs(environment: Readonly<Record<string, unkn
   return Number.isFinite(configured) && configured > 0 ? configured : 3_000;
 }
 
+export const ClaudeProbeQuery = Context.Reference<typeof claudeQuery>(
+  "supaterm/provider/ClaudeProvider/ClaudeProbeQuery",
+  { defaultValue: () => claudeQuery },
+);
+
 /**
  * We pass a never-yielding AsyncIterable as the prompt so that no user message is ever written
  * to the subprocess stdin. This means the Claude Code subprocess completes its local
@@ -528,6 +534,7 @@ const probeClaudeCapabilities = (
       claudeEnvironment,
     );
     const managedMcpConfig = yield* hasClaudeManagedMcpConfig();
+    const query = yield* ClaudeProbeQuery;
     const graceMs = includeStatus
       ? claudeGatewayDiscoveryGraceMs({
           ...claudeEnvironment,
@@ -542,7 +549,7 @@ const probeClaudeCapabilities = (
           ? "env"
           : undefined;
     return yield* Effect.tryPromise(async () => {
-      const q = claudeQuery({
+      const q = query({
         // oxlint-disable-next-line require-yield -- Never yield; we only need initialization data, not a conversation. This prevents any prompt from reaching the Anthropic API.
         prompt: (async function* () {
           await waitForAbortSignal(abort.signal);

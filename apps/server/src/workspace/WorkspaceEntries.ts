@@ -149,9 +149,15 @@ const resolveBrowseTarget = Effect.fn("WorkspaceEntries.resolveBrowseTarget")(fu
   );
 });
 
+export const ResolveRealPath = Context.Reference<(path: string) => Promise<string>>(
+  "supaterm/workspace/WorkspaceEntries/ResolveRealPath",
+  { defaultValue: () => (path) => NodeFSP.realpath(path) },
+);
+
 /** @public */
 export const make = Effect.gen(function* () {
   const path = yield* Path.Path;
+  const realpath = yield* ResolveRealPath;
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const workspaceSearchIndexes = yield* WorkspaceSearchIndex.WorkspaceSearchIndexMap;
   const vcsProcess = yield* VcsProcess.VcsProcess;
@@ -317,7 +323,7 @@ export const make = Effect.gen(function* () {
     const listed =
       (yield* listWorktrees(["-z"])) ?? (yield* listWorktrees([]))?.replaceAll("\n", "\0");
     if (listed === undefined) return [];
-    const realCwd = yield* Effect.promise(() => NodeFSP.realpath(cwd).catch(() => cwd));
+    const realCwd = yield* Effect.promise(() => realpath(cwd).catch(() => cwd));
     const worktreeRoots = listed.split("\0\0").flatMap((record) => {
       const fields = record.split("\0");
       const worktree = fields.find((field) => field.startsWith("worktree "));
@@ -384,8 +390,8 @@ export const make = Effect.gen(function* () {
                 .pipe(Effect.mapError(toError));
         const { entries, throughSymlink, nestedGitRoots } = yield* Effect.tryPromise({
           try: async () => {
-            const root = await NodeFSP.realpath(normalizedCwd);
-            const directory = await NodeFSP.realpath(target.absolutePath);
+            const root = await realpath(normalizedCwd);
+            const directory = await realpath(target.absolutePath);
             const relative = path.relative(root, directory);
             if (
               relative === ".." ||
@@ -412,14 +418,12 @@ export const make = Effect.gen(function* () {
                 let current = normalizedCwd;
                 for (const segment of target.relativePath.split("/").filter(Boolean)) {
                   current = path.join(current, segment);
-                  folders.push(await NodeFSP.realpath(current));
+                  folders.push(await realpath(current));
                 }
                 return folders;
               })());
             const resolveSymlinkKind = async (name: string) => {
-              const resolved = await NodeFSP.realpath(path.join(directory, name)).catch(
-                () => undefined,
-              );
+              const resolved = await realpath(path.join(directory, name)).catch(() => undefined);
               if (
                 resolved === undefined ||
                 !isSameOrInside(root, resolved) ||

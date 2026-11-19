@@ -20,6 +20,22 @@ vi.mock("react-native-nitro-modules", async () => {
   return { NitroModules: { hasHybridObject: () => true, createHybridObject: () => highlights } };
 });
 
+type ContentsResult = Awaited<
+  ReturnType<Parameters<typeof createPullRequestDiffHighlightFiles<never>>[3]>
+>;
+
+function scriptedFetch(
+  responses: Array<() => Promise<ContentsResult>>,
+  fallback: () => Promise<ContentsResult> = () => Promise.reject(new Error("Unexpected fetch")),
+) {
+  const requests: Array<unknown> = [];
+  const fetch = (request: unknown) => {
+    requests.push(request);
+    return (responses.shift() ?? fallback)();
+  };
+  return { fetch, requests };
+}
+
 const target = {
   environmentId: EnvironmentId.make("remote-environment"),
   input: {
@@ -216,10 +232,10 @@ it.each([
   const cache = createPullRequestDiffHighlightCache();
   const previous = { oldContents: "", newContents: "previous" };
   const current = { oldContents: "", newContents: "current" };
-  const fetch = vi
-    .fn()
-    .mockResolvedValueOnce(AsyncResult.success(previous))
-    .mockResolvedValueOnce(AsyncResult.success(current));
+  const { fetch, requests } = scriptedFetch([
+    async () => AsyncResult.success(previous),
+    async () => AsyncResult.success(current),
+  ]);
   const first = createPullRequestDiffHighlightFiles(
     { target, commit: "abc" },
     parsed,
@@ -231,7 +247,7 @@ it.each([
   const second = createPullRequestDiffHighlightFiles(source, parsed, files, fetch, cache);
   expect(await second[0]!.loadContents!()).toBe(current);
   expect(await first[0]!.loadContents!()).toBe(previous);
-  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(requests).toHaveLength(2);
 });
 
 it("does not reuse a replaced later-page file with the same ID", async () => {
@@ -239,10 +255,10 @@ it("does not reuse a replaced later-page file with the same ID", async () => {
   const cache = createPullRequestDiffHighlightCache();
   const previous = { oldContents: "", newContents: "previous" };
   const current = { oldContents: "", newContents: "current" };
-  const fetch = vi
-    .fn()
-    .mockResolvedValueOnce(AsyncResult.success(previous))
-    .mockResolvedValueOnce(AsyncResult.success(current));
+  const { fetch, requests } = scriptedFetch([
+    async () => AsyncResult.success(previous),
+    async () => AsyncResult.success(current),
+  ]);
   const first = createPullRequestDiffHighlightFiles({ target }, parsed, files, fetch, cache);
   expect(await first[1]!.loadContents!()).toBe(previous);
   const second = createPullRequestDiffHighlightFiles(
@@ -253,7 +269,7 @@ it("does not reuse a replaced later-page file with the same ID", async () => {
     cache,
   );
   expect(await second[1]!.loadContents!()).toBe(current);
-  expect(fetch).toHaveBeenCalledTimes(2);
+  expect(requests).toHaveLength(2);
 });
 
 it.each(["permanent", "transient"])(
@@ -262,10 +278,11 @@ it.each(["permanent", "transient"])(
     const { parsed, files } = setup();
     const cache = createPullRequestDiffHighlightCache();
     const contents = { oldContents: "", newContents: "current" };
-    const fetch = vi.fn(async () => AsyncResult.success(contents));
     const error = failure === "permanent" ? { reason: "unsupported" } : new Error("Offline");
-    fetch.mockRejectedValueOnce(error);
-    if (failure === "transient") fetch.mockRejectedValueOnce(error);
+    const { fetch, requests } = scriptedFetch(
+      Array.from({ length: failure === "transient" ? 2 : 1 }, () => () => Promise.reject(error)),
+      async () => AsyncResult.success(contents),
+    );
     const first = createPullRequestDiffHighlightFiles({ target }, parsed, files, fetch, cache);
     if (failure === "transient") {
       await expect(first[1]!.loadContents!()).rejects.toThrow("Offline");
@@ -282,7 +299,7 @@ it.each(["permanent", "transient"])(
     );
     expect(await second[1]!.loadContents!()).toBe(contents);
     expect(await first[1]!.loadContents!()).toBe(failure === "permanent" ? null : contents);
-    expect(fetch).toHaveBeenCalledTimes(failure === "permanent" ? 2 : 4);
+    expect(requests).toHaveLength(failure === "permanent" ? 2 : 4);
   },
 );
 

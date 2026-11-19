@@ -4,13 +4,17 @@ import {
   CHATGPT_USAGE_LIMIT_CODE,
   CHATGPT_WORKSPACE_USAGE_LIMIT_CODE,
 } from "@supaterm/shared/usageLimits";
-import * as Clipboard from "expo-clipboard";
 import type { ReactNode } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 type ButtonProps = { label: string; disabled?: boolean; onPress: () => void };
+
+const clipboard = vi.hoisted(() => ({
+  copied: vi.fn<(text: string) => void>(),
+  results: [] as Array<() => Promise<boolean>>,
+}));
 
 vi.mock("react-native", () => ({
   Linking: { openURL: vi.fn() },
@@ -21,7 +25,12 @@ vi.mock("react-native", () => ({
   ),
   View: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
-vi.mock("expo-clipboard", () => ({ setStringAsync: vi.fn() }));
+vi.mock("expo-clipboard", () => ({
+  setStringAsync: (text: string) => {
+    clipboard.copied(text);
+    return clipboard.results.shift()?.() ?? Promise.resolve(true);
+  },
+}));
 vi.mock("../../components/ProviderIcon", () => ({ ProviderIcon: () => null }));
 vi.mock("../../components/ui/AppText", () => ({
   AppText: ({ children }: { children: ReactNode }) => <span>{children}</span>,
@@ -86,9 +95,10 @@ describe("UsageLimitRecoveryCard", () => {
   });
 
   it("drops a failed copy's error once a retry copies the request", async () => {
-    vi.mocked(Clipboard.setStringAsync)
-      .mockRejectedValueOnce(new Error("denied"))
-      .mockResolvedValueOnce(true);
+    clipboard.results.push(
+      () => Promise.reject(new Error("denied")),
+      async () => true,
+    );
     const container = document.createElement("div");
     const root = createRoot(container);
     using _root = { [Symbol.dispose]: () => act(() => root.unmount()) };
@@ -110,7 +120,9 @@ describe("UsageLimitRecoveryCard", () => {
 
   it("ignores a second copy while the first is still in flight", async () => {
     const first = Promise.withResolvers<boolean>();
-    vi.mocked(Clipboard.setStringAsync).mockReset().mockReturnValueOnce(first.promise);
+    clipboard.copied.mockReset();
+    clipboard.results.length = 0;
+    clipboard.results.push(() => first.promise);
     const container = document.createElement("div");
     const root = createRoot(container);
     using _root = { [Symbol.dispose]: () => act(() => root.unmount()) };
@@ -125,7 +137,7 @@ describe("UsageLimitRecoveryCard", () => {
     const copy = () => container.querySelector("button")!.click();
     act(() => copy());
     act(() => copy());
-    expect(Clipboard.setStringAsync).toHaveBeenCalledTimes(1);
+    expect(clipboard.copied).toHaveBeenCalledTimes(1);
     await act(async () => first.resolve(true));
     expect(container.textContent).toContain("Request copied");
   });

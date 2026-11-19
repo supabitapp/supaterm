@@ -4,15 +4,32 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 import "~/index.css";
 
-const { refresh, assetUrlState } = vi.hoisted(() => ({
-  refresh: vi.fn<() => Promise<string | null>>(),
-  assetUrlState: vi.fn<() => import("~/assets/assetUrls").AssetUrlState>(),
-}));
+const { assets, refresh, assetUrlState } = vi.hoisted(() => {
+  const assets = {
+    refreshQueue: [] as Array<string | null>,
+    refreshResult: null as string | null,
+    onRefresh: undefined as (() => void) | undefined,
+    state: undefined as import("~/assets/assetUrls").AssetUrlState | undefined,
+    refresh: async () => {
+      assets.onRefresh?.();
+      return assets.refreshQueue.length > 0 ? assets.refreshQueue.shift()! : assets.refreshResult;
+    },
+    useState: (..._args: Array<unknown>) => assets.state,
+    reset: (...results: Array<string | null>) => {
+      assets.refreshQueue = results.slice(0, -1);
+      assets.refreshResult = results.at(-1) ?? null;
+      assets.onRefresh = undefined;
+      refresh.mockClear();
+    },
+  };
+  const refresh = vi.spyOn(assets, "refresh");
+  return { assets, refresh, assetUrlState: vi.spyOn(assets, "useState") };
+});
 
 vi.mock(import("~/assets/assetUrls"), async (original) => ({
   ...(await original()),
   useAssetUrlRefresh: () => refresh,
-  useAssetUrlState: assetUrlState,
+  useAssetUrlState: (...args: Array<unknown>) => assetUrlState(...args)!,
 }));
 vi.mock(import("./ReadOnlySourcePreview"), () => ({
   default: ({ text, wordWrap }: { text: string; wordWrap?: boolean }) => (
@@ -354,10 +371,7 @@ describe("bounded binary previews", () => {
   it("reauthorizes a failed image when retry is clicked", async () => {
     const image =
       'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="2" height="2"/>';
-    refresh
-      .mockReset()
-      .mockResolvedValueOnce("data:image/png;base64,broken")
-      .mockResolvedValue(image);
+    assets.reset("data:image/png;base64,broken", image);
     await using screen = await render(
       <AttachmentFilePreview
         name="photo.png"
@@ -550,13 +564,13 @@ describe("large text preview recovery", () => {
       </div>
     );
     const state = (url: string, fileRevision?: string) =>
-      assetUrlState.mockReturnValue({
+      (assets.state = {
         _tag: "Success",
         url,
-        expiresAt: Date.now() + 3_600_000,
+        expiresAt: Number.MAX_SAFE_INTEGER,
         ...(fileRevision === undefined ? {} : { fileRevision }),
       });
-    refresh.mockResolvedValue(`${original}#renewed`);
+    assets.reset(`${original}#renewed`);
     try {
       state(`${original}#initial`, "one");
       await using screen = await render(preview("first"));
@@ -588,14 +602,11 @@ describe("large text preview recovery", () => {
       await screen.rerender(preview("legacy-edit", 1));
       await vi.waitFor(() => expect(workers).toHaveLength(4));
       await vi.waitFor(() => expect(screen.container.textContent).toContain("original"));
-      assetUrlState.mockReturnValue({ _tag: "Failure" });
+      assets.state = { _tag: "Failure" };
       await screen.rerender(preview("legacy-edit", 1));
       expect(screen.container.textContent).toContain("Unable to load file preview.");
-      refresh.mockClear();
-      refresh.mockImplementation(async () => {
-        state(`${changed}#retried`);
-        return changed;
-      });
+      assets.reset(changed);
+      assets.onRefresh = () => state(`${changed}#retried`);
       await screen.getByRole("button", { name: "Try again" }).click();
       expect(refresh).toHaveBeenCalledOnce();
       await screen.rerender(preview("legacy-edit", 1));
@@ -741,18 +752,14 @@ describe("large text preview recovery", () => {
     const old = Array.from({ length: 64 }, (_, i) => "old-" + i).join("\n") + "\n";
     const current = Array.from({ length: 100 }, (_, i) => "current-" + i).join("\n");
     const src = URL.createObjectURL(new Blob([current]));
-    using _fetch = stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(old, {
-          status: 206,
-          headers: {
-            "content-length": String(old.length),
-            "content-range": "bytes 0-" + (old.length - 1) + "/100000",
-          },
-        }),
-      ),
-    );
+    const prefetched = new Response(old, {
+      status: 206,
+      headers: {
+        "content-length": String(old.length),
+        "content-range": "bytes 0-" + (old.length - 1) + "/100000",
+      },
+    });
+    using _fetch = stubGlobal("fetch", async () => prefetched);
     try {
       await using screen = await render(
         <div style={{ display: "flex", height: 2000, width: 600 }}>
@@ -1996,22 +2003,22 @@ it("loads an edited HTML file outside the workspace from a renewed URL", async (
       workspaceMutationId={mutation}
     />
   );
-  assetUrlState.mockReturnValue({ _tag: "Success", url: "data:text/html,original", expiresAt: 0 });
+  assets.state = { _tag: "Success", url: "data:text/html,original", expiresAt: 0 };
   await using screen = await render(preview("first"));
   const opened = screen.container.querySelector("iframe");
   expect(opened?.getAttribute("src")).toMatch(/^data:text\/html,original/);
 
-  assetUrlState.mockReturnValue({
+  assets.state = {
     _tag: "Success",
     url: "data:text/html,original",
     expiresAt: 0,
     waiting: true,
-  });
+  };
   await screen.rerender(preview("second"));
   expect(assetUrlState).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), "second");
   expect(screen.container.querySelector("iframe")).toBe(opened);
 
-  assetUrlState.mockReturnValue({ _tag: "Success", url: "data:text/html,edited", expiresAt: 0 });
+  assets.state = { _tag: "Success", url: "data:text/html,edited", expiresAt: 0 };
   await screen.rerender(preview("second"));
   expect(screen.container.querySelector("iframe")?.getAttribute("src")).toMatch(
     /^data:text\/html,edited/,

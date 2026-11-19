@@ -104,9 +104,8 @@ const LEGACY_UNSIGNALED_POLLS = {
   "apps/mobile/src/features/updates/app-updates.test.ts": 1,
   "apps/mobile/src/lib/coalescedRun.test.ts": 2,
   "apps/mobile/src/lib/videoThumbnails.test.ts": 1,
-  "apps/web/src/browser/ServerBrowserSurface.browser.test.tsx": 1,
   "apps/web/src/components/ChatMarkdown.browser.test.tsx": 2,
-  "apps/web/src/components/ChatMarkdown.permissions.browser.test.tsx": 6,
+  "apps/web/src/components/ChatMarkdown.permissions.browser.test.tsx": 5,
   "apps/web/src/components/CommandPalette.browser.test.tsx": 1,
   "apps/web/src/components/DiffFilePathCopyButton.browser.test.tsx": 1,
   "apps/web/src/components/ThreadStatusIndicators.subscriptions.browser.test.tsx": 1,
@@ -255,7 +254,6 @@ export default defineConfig({
       { name: "landmines-testing", specifier: "@interfere/landmines/testing" },
       { name: "landmines-structure", specifier: "@interfere/landmines/structure" },
       { name: "landmines-style", specifier: "@interfere/landmines/style" },
-      { name: "landmines-types", specifier: "@interfere/landmines/types" },
     ],
     settings: {
       shadcn: { ui: "~/components/ui" },
@@ -289,7 +287,6 @@ export default defineConfig({
       "landmines-testing/no-test-doubles": "error",
       "landmines-testing/no-unsignaled-poll": ["error", { allow: LEGACY_UNSIGNALED_POLLS }],
       "landmines-testing/strict-msw": "error",
-      "landmines-types/no-explicit-return-types": "error",
       "oxc/no-accumulating-spread": "error",
       "eslint/no-control-regex": "off",
       "typescript/no-this-alias": "off",
@@ -396,10 +393,7 @@ export default defineConfig({
       },
       {
         files: ["**/_generated/**", "**/generated/**", "**/*.generated.ts", "**/*.gen.ts"],
-        rules: {
-          "landmines-style/no-comments": "off",
-          "landmines-types/no-explicit-return-types": "off",
-        },
+        rules: { "landmines-style/no-comments": "off" },
       },
       {
         files: ["vite.config.ts"],

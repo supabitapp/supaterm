@@ -54,15 +54,22 @@ export function subscribeDocumentActivity(listener: () => void) {
  * focus coming back from an iframe, or an alt-tab whose blur was missed, still
  * counts as a return.
  */
-export function subscribeDocumentReturn(listener: () => void) {
-  if (typeof document === "undefined") return () => {};
+export function subscribeDocumentReturn(
+  listener: () => void,
+  source?: {
+    readonly window: EventTarget;
+    readonly document: EventTarget & Pick<Document, "visibilityState">;
+  },
+) {
+  if (source === undefined && typeof document === "undefined") return () => {};
+  const { window: view, document: page } = source ?? { window, document };
   const handleVisibilityChange = () => {
-    if (document.visibilityState === "visible") listener();
+    if (page.visibilityState === "visible") listener();
   };
-  window.addEventListener("focus", listener);
-  document.addEventListener("visibilitychange", handleVisibilityChange);
+  view.addEventListener("focus", listener);
+  page.addEventListener("visibilitychange", handleVisibilityChange);
   return () => {
-    window.removeEventListener("focus", listener);
-    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    view.removeEventListener("focus", listener);
+    page.removeEventListener("visibilitychange", handleVisibilityChange);
   };
 }

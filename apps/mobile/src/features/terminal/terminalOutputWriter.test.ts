@@ -47,11 +47,15 @@ it("appends across rollover without replay and seeds fresh writers with only bou
 it("recovers the newer snapshot queued during a rejected append without a third write", async () => {
   const started = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
-  const write = vi.fn(async () => {});
-  const writer = createTerminalOutputWriter(write);
+  const writes: Array<() => Promise<void>> = [];
+  const output = {
+    write: (_data: string, _reset: boolean) => writes.shift()?.() ?? Promise.resolve(),
+  };
+  const write = vi.spyOn(output, "write");
+  const writer = createTerminalOutputWriter(output.write);
   const initial = append(EMPTY_TERMINAL_BUFFER_STATE, "initial");
   await writer.write(initial.output);
-  write.mockImplementationOnce(async () => {
+  writes.push(async () => {
     started.resolve();
     await release.promise;
     throw new Error("partially applied append");

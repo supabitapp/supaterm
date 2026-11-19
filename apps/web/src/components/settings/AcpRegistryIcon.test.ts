@@ -12,25 +12,25 @@ describe("ACP Registry icon cache", () => {
   const put = vi.fn(async (url: string, response: Response) => {
     stored.set(url, response.clone());
   });
-  const fetchIcon = vi.fn();
+  let response: Response | undefined;
+  const fetchIcon = vi.spyOn({ fetch: async (..._args: Array<unknown>) => response }, "fetch");
 
   beforeEach(() => {
     stored.clear();
     match.mockClear();
     put.mockClear();
-    fetchIcon.mockReset();
+    response = undefined;
+    fetchIcon.mockClear();
     vi.stubGlobal("caches", { open: vi.fn(async () => ({ match, put })) });
     vi.stubGlobal("fetch", fetchIcon);
   });
 
   it("single-flights the first fetch and serves later reads from persistent cache", async () => {
     const url = "https://cdn.agentclientprotocol.com/registry/icons/cache-test.svg";
-    fetchIcon.mockResolvedValue(
-      new Response("<svg/>", {
-        status: 200,
-        headers: { "content-type": "image/svg+xml" },
-      }),
-    );
+    response = new Response("<svg/>", {
+      status: 200,
+      headers: { "content-type": "image/svg+xml" },
+    });
 
     const [first, concurrent] = await Promise.all([
       loadCachedAcpRegistryIcon(url),
@@ -47,15 +47,13 @@ describe("ACP Registry icon cache", () => {
 
   it("rejects oversized image responses before caching", async () => {
     const url = "https://cdn.agentclientprotocol.com/registry/icons/oversized.svg";
-    fetchIcon.mockResolvedValue(
-      new Response("too large", {
-        status: 200,
-        headers: {
-          "content-length": String(513 * 1_024),
-          "content-type": "image/svg+xml",
-        },
-      }),
-    );
+    response = new Response("too large", {
+      status: 200,
+      headers: {
+        "content-length": String(513 * 1_024),
+        "content-type": "image/svg+xml",
+      },
+    });
 
     await expect(loadCachedAcpRegistryIcon(url)).rejects.toThrow("too large");
     expect(put).not.toHaveBeenCalled();

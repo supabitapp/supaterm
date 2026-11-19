@@ -1,5 +1,3 @@
-import * as NodeAssert from "node:assert/strict";
-
 import {
   EnvironmentId,
   ORCHESTRATION_PROTOCOL_VERSION,
@@ -10,22 +8,12 @@ import { expect, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import * as Effect from "effect/Effect";
+import { HttpClient, HttpClientResponse } from "effect/http";
+import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import { vi } from "vite-plus/test";
 
-import { npmReleaseAtom, npmReleaseFailureMessage } from "./npmRelease";
-import { primaryEnvironmentIdAtom } from "./primaryEnvironment";
-import { serverEnvironment } from "./server";
-
-vi.mock("./server", () => ({
-  serverEnvironment: { npmRelease: vi.fn(), configValueAtom: vi.fn() },
-}));
-vi.mock("./presentation", () => ({
-  environmentSummaries: { connectedEnvironmentIdsAtom: Atom.make(["first", "second"]) },
-}));
-vi.mock("./primaryEnvironment", () => ({
-  primaryEnvironmentIdAtom: Atom.make<EnvironmentId | null>(null),
-}));
+import { makeNpmReleaseAtom, npmReleaseFailureMessage } from "./npmRelease";
 
 const version = "0.0.46-nightly.20261012.3021";
 const first = EnvironmentId.make("first");
@@ -66,29 +54,56 @@ const configFor = (environmentId: EnvironmentId | null, supported = true) =>
     settings: {},
   });
 
-function setup(supported = true) {
-  vi.mocked(serverEnvironment.configValueAtom)
-    .mockReset()
-    .mockImplementation((environmentId) => Atom.make(configFor(environmentId, supported)));
-  return vi.mocked(serverEnvironment.npmRelease).mockReset();
+function setup(options: {
+  readonly supports?: (environmentId: EnvironmentId | null) => boolean;
+  readonly release?: (environmentId: EnvironmentId) => {
+    readonly version: string;
+    readonly databaseMigration?: number;
+  };
+}) {
+  const query =
+    vi.fn<(request: { environmentId: EnvironmentId; input: { spec: string } }) => void>();
+  const publicRequests: Array<string> = [];
+  const primaryEnvironmentIdAtom = Atom.make<EnvironmentId | null>(null);
+  const npmReleaseAtom = makeNpmReleaseAtom({
+    primaryEnvironmentIdAtom,
+    connectedEnvironmentIdsAtom: Atom.make([first, second]),
+    configValueAtom: (environmentId) =>
+      Atom.make(configFor(environmentId, options.supports?.(environmentId) ?? true)),
+    serverRelease: (request) => {
+      query(request);
+      return Atom.make(
+        AsyncResult.success(options.release?.(request.environmentId) ?? { version }),
+      );
+    },
+    httpClient: Layer.succeed(
+      HttpClient.HttpClient,
+      HttpClient.make((request) => {
+        publicRequests.push(request.url);
+        return Effect.succeed(
+          HttpClientResponse.fromWeb(
+            request,
+            Response.json({ version, supaterm: { databaseMigration: 7 } }),
+          ),
+        );
+      }),
+    ),
+  });
+  return { query, publicRequests, primaryEnvironmentIdAtom, npmReleaseAtom };
 }
 
 it.effect(
   "resolves track metadata through the primary environment and follows primary changes",
   () =>
     Effect.gen(function* () {
-      const query = setup();
-      query.mockImplementation(({ environmentId }) =>
-        Atom.make(
-          AsyncResult.success({ version, databaseMigration: environmentId === first ? 42 : 43 }),
-        ),
-      );
+      const { npmReleaseAtom, primaryEnvironmentIdAtom } = setup({
+        release: (environmentId) => ({
+          version,
+          databaseMigration: environmentId === first ? 42 : 43,
+        }),
+      });
       const registry = AtomRegistry.make();
       const release = npmReleaseAtom("nightly");
-      NodeAssert.ok(
-        Atom.isWritable<EnvironmentId | null, EnvironmentId | null>(primaryEnvironmentIdAtom),
-        "Expected the mocked primary environment atom to be writable.",
-      );
       registry.set(primaryEnvironmentIdAtom, first);
       const unmount = registry.mount(release);
       try {
@@ -114,13 +129,9 @@ it.effect(
 
 it.effect("resolves track metadata through a supporting server when there is no primary", () =>
   Effect.gen(function* () {
-    const query = setup();
-    vi.mocked(serverEnvironment.configValueAtom).mockImplementation((environmentId) =>
-      Atom.make(
-        environmentId === first ? configFor(environmentId, false) : configFor(environmentId),
-      ),
-    );
-    query.mockReturnValue(Atom.make(AsyncResult.success({ version })));
+    const { query, npmReleaseAtom } = setup({
+      supports: (environmentId) => environmentId !== first,
+    });
     const registry = AtomRegistry.make();
     const release = npmReleaseAtom("nightly");
     const unmount = registry.mount(release);
@@ -139,15 +150,10 @@ it.effect("resolves track metadata through a supporting server when there is no 
 
 it.effect("asks public npm, not the missing RPC, for an older primary server", () =>
   Effect.gen(function* () {
-    const query = setup(false);
-    using fetch = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(Response.json({ version, supaterm: { databaseMigration: 7 } }));
+    const { query, publicRequests, npmReleaseAtom, primaryEnvironmentIdAtom } = setup({
+      supports: () => false,
+    });
     const registry = AtomRegistry.make();
-    NodeAssert.ok(
-      Atom.isWritable<EnvironmentId | null, EnvironmentId | null>(primaryEnvironmentIdAtom),
-      "Expected the mocked primary environment atom to be writable.",
-    );
     registry.set(primaryEnvironmentIdAtom, first);
     const release = npmReleaseAtom("latest");
     const unmount = registry.mount(release);
@@ -157,9 +163,7 @@ it.effect("asks public npm, not the missing RPC, for an older primary server", (
         databaseMigration: 7,
       });
       expect(query).not.toHaveBeenCalled();
-      expect(fetch.mock.calls.map(([url]) => String(url))).toEqual([
-        "https://registry.npmjs.org/supaterm/latest",
-      ]);
+      expect(publicRequests).toEqual(["https://registry.npmjs.org/supaterm/latest"]);
     } finally {
       unmount();
       registry.dispose();

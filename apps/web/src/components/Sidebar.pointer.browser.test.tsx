@@ -4,7 +4,6 @@ import { fakeTimers } from "../../test/render";
 import { SidebarPointerSensor } from "./Sidebar.pointer";
 
 const sensors: SidebarPointerSensor[] = [];
-let hidden = false;
 
 function pointer(type: string, values: PointerEventInit = {}) {
   return new PointerEvent(type, {
@@ -44,8 +43,6 @@ function gesture(
 function setup() {
   const stack = new DisposableStack();
   stack.use(fakeTimers());
-  hidden = false;
-  stack.use(vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden));
   stack.defer(() => {
     for (const sensor of sensors.splice(0)) sensor.cancel();
     document.dispatchEvent(pointer("pointerdown"));

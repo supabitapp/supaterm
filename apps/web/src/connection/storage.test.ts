@@ -250,6 +250,7 @@ describe("browser GitHub routing permissions", () => {
   it.effect("revokes across runtimes before storage events and resists stale catalog writes", () =>
     Effect.gen(function* () {
       const values = new Map<string, string>();
+      const storageFailure: { write: Error | null } = { write: null };
       const localStorage: Storage = {
         get length() {
           return values.size;
@@ -257,6 +258,7 @@ describe("browser GitHub routing permissions", () => {
         key: (index) => [...values.keys()][index] ?? null,
         getItem: (key) => values.get(key) ?? null,
         setItem: (key, value) => {
+          if (storageFailure.write) throw storageFailure.write;
           values.set(key, value);
         },
         removeItem: (key) => {
@@ -324,9 +326,7 @@ describe("browser GitHub routing permissions", () => {
       yield* second.forget(entry.target.environmentId);
       expect(yield* first.get(entry)).toBe("off");
       expect(yield* first.get(other)).toBe("read");
-      vi.spyOn(localStorage, "setItem").mockImplementation(() => {
-        throw new Error("Storage unavailable");
-      });
+      storageFailure.write = new Error("Storage unavailable");
       expect(yield* first.set(entry, "read-write").pipe(Effect.flip)).toBeInstanceOf(
         ConnectionTransientError,
       );

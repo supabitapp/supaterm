@@ -16,7 +16,38 @@ import { discardComposerDraft } from "../../lib/discardComposerDraft";
 import { getPreparingComposerImages } from "./preparingComposerImages";
 import { useComposerAttachmentIntake } from "./useComposerAttachmentIntake";
 
-const compression = vi.hoisted(() => ({ prepare: vi.fn() }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const compression = vi.hoisted(() => ({ prepare: fake() }));
 vi.mock("../../lib/imageCompression", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../lib/imageCompression")>()),
   prepareImageForAttachment: compression.prepare,
@@ -59,12 +90,12 @@ it("prepares a repeated paste without a tile, and still keeps a different image"
   using _draft = { [Symbol.dispose]: () => store.clearComposerContent(target) };
   const firstCompression = deferred<void>();
   compression.prepare
-    .mockReset()
-    .mockImplementationOnce(async (file: File) => {
+    .reset()
+    .implementOnce(async (file: File) => {
       await firstCompression.promise;
       return compress(file);
     })
-    .mockImplementation(compress);
+    .implement(compress);
   const composerImagesRef = { current: [] as ComposerImageAttachment[] };
   const addImages = (images: ComposerImageAttachment[]) => {
     const ids = store.addImages(target, images);
@@ -149,7 +180,7 @@ it.each(["thread", "session"] as const)(
 
     const compressing = deferred<void>();
     const resumeCompression = deferred<void>();
-    compression.prepare.mockReset().mockImplementation(async (file: File) => {
+    compression.prepare.reset(async (file: File) => {
       compressing.resolve();
       await resumeCompression.promise;
       return compress(file);

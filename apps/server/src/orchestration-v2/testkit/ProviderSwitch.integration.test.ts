@@ -1,4 +1,3 @@
-import { vi } from "vite-plus/test";
 import { historyResponseItems } from "@supaterm/provider-core/server/handoffBudget";
 import { assert, describe, it } from "@effect/vitest";
 import {
@@ -580,6 +579,7 @@ describe("orchestration v2 provider switching", () => {
       const failResumeOnce = yield* Ref.make(false);
       const generation = yield* Ref.make(0);
       const pendingBackgroundWork = yield* Ref.make(false);
+      let failInlineDeliveryWrites = false;
       const priorImages = scenario.includes("prior-images");
       const exhaustedTarget = scenario.includes("exhausted-target");
       const replaceNative = scenario.includes("replacement");
@@ -741,25 +741,7 @@ describe("orchestration v2 provider switching", () => {
         });
         yield* dispatch(1, "Original request with constraints", CODEX_MODEL_SELECTION);
         yield* wait(1);
-        const write = eventSink.write;
-        const spy =
-          scenario === "delivery-write-failure"
-            ? vi.spyOn(eventSink, "write").mockImplementation((input) =>
-                input.events.some(
-                  (event) =>
-                    event.type === "context-handoff.updated" &&
-                    event.payload.delivery?.status === "inline",
-                )
-                  ? Effect.fail(
-                      new EventSink.EventSinkWriteError({
-                        eventCount: input.events.length,
-                        cause: "bookkeeping unavailable",
-                      }),
-                    )
-                  : write(input),
-              )
-            : undefined;
-        yield* Effect.addFinalizer(() => Effect.sync(() => spy?.mockRestore()));
+        failInlineDeliveryWrites = scenario === "delivery-write-failure";
         const current = scenario.startsWith("compact")
           ? "/compact"
           : scenario.includes("target-oversized")
@@ -1136,6 +1118,25 @@ describe("orchestration v2 provider switching", () => {
               },
             },
             layerRegistry,
+            {
+              wrapEventSink: (sink) => ({
+                ...sink,
+                write: (input) =>
+                  failInlineDeliveryWrites &&
+                  input.events.some(
+                    (event) =>
+                      event.type === "context-handoff.updated" &&
+                      event.payload.delivery?.status === "inline",
+                  )
+                    ? Effect.fail(
+                        new EventSink.EventSinkWriteError({
+                          eventCount: input.events.length,
+                          cause: "bookkeeping unavailable",
+                        }),
+                      )
+                    : sink.write(input),
+              }),
+            },
           ),
         ),
       );

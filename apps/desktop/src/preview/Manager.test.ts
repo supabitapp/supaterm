@@ -9,7 +9,6 @@ import type {
 } from "@supaterm/contracts";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { parseKeybindingShortcut } from "@supaterm/shared/keybindings";
-import { app, shell } from "electron";
 import * as Cause from "effect/Cause";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -26,12 +25,17 @@ import type * as Scope from "effect/Scope";
 import { TestClock } from "effect/testing";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+const { configurableFake, emptyFake } = await vi.hoisted(
+  () => import("../testing/configurableFake.ts"),
+);
+
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
 import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as PreviewPasskeys from "./Passkeys.ts";
 import * as BrowserSession from "./BrowserSession.ts";
 import * as DesktopBrowserHost from "./DesktopBrowserHost.ts";
 import * as PreviewManager from "./Manager.ts";
+import type { ConfigurableFake } from "../testing/configurableFake.ts";
 
 describe("fitPictureInPictureContentSize", () => {
   it("does not collapse toward the minimum size when orientation changes repeatedly", () => {
@@ -142,6 +146,7 @@ describe("previewWindowOpenAction", () => {
 });
 
 const {
+  appGetPath,
   browserWindowConstructor,
   clipboardItemConstructor,
   createFromPath,
@@ -154,24 +159,27 @@ const {
   writeFile,
   writeClipboard,
 } = vi.hoisted(() => ({
-  browserWindowConstructor: vi.fn(),
+  appGetPath: configurableFake<(name: string) => string | undefined>(() => undefined),
+  browserWindowConstructor: configurableFake<(options?: unknown) => unknown>(() => undefined),
   clipboardItemConstructor: vi.fn(),
   createFromPath: vi.fn(() => ({
     isEmpty: () => false,
     toPNG: () => Buffer.from("png"),
   })),
-  fromId: vi.fn<(_id?: number) => Electron.WebContents | null>((_id?: number) => null),
-  getFocusedWebContents: vi.fn(() => null),
+  fromId: configurableFake<(id?: number) => Electron.WebContents | null>(() => null),
+  getFocusedWebContents: configurableFake<() => Electron.WebContents | null>(() => null),
   mkdir: vi.fn((_path: string) => undefined),
   previewSession: { on: vi.fn() },
-  showItemInFolder: vi.fn(),
-  webviewSend: vi.fn(),
-  writeFile: vi.fn((_path: string, _data: Uint8Array) => undefined),
+  showItemInFolder: configurableFake<(path: string) => void>(() => undefined),
+  webviewSend: configurableFake<(channel: string, ...args: Array<unknown>) => void>(
+    () => undefined,
+  ),
+  writeFile: configurableFake<(path: string, data: Uint8Array) => undefined>(() => undefined),
   writeClipboard: vi.fn(async () => undefined),
 }));
 
 vi.mock("electron", () => ({
-  app: { getPath: vi.fn() },
+  app: { getPath: appGetPath },
   BrowserWindow: browserWindowConstructor,
   ClipboardItem: clipboardItemConstructor,
   clipboard: {
@@ -277,7 +285,12 @@ interface TestHostWebContents {
 }
 
 type TestPreviewWebContents = Electron.WebContents & {
-  readonly setBackgroundThrottling: ReturnType<typeof vi.fn<(enabled: boolean) => void>>;
+  readonly setBackgroundThrottling: ConfigurableFake<(enabled: boolean) => void>;
+  readonly debugger: Electron.Debugger & {
+    readonly sendCommand: ConfigurableFake<
+      (method: string, params?: unknown, sessionId?: string) => Promise<unknown>
+    >;
+  };
 };
 
 const makeTestHostWebContents = () => {
@@ -301,7 +314,7 @@ const makeTestPreviewWebContents = (
   id = 42,
   hostWebContents: TestHostWebContents = makeTestHostWebContents(),
 ) => {
-  const setBackgroundThrottling = vi.fn<(enabled: boolean) => void>();
+  const setBackgroundThrottling = configurableFake<(enabled: boolean) => void>(() => undefined);
   return {
     id,
     mainFrame: { routingId: id },
@@ -327,7 +340,9 @@ const makeTestPreviewWebContents = (
     debugger: {
       isAttached: () => false,
       attach: vi.fn(),
-      sendCommand: vi.fn(async () => undefined),
+      sendCommand: configurableFake<
+        (method: string, params?: unknown, sessionId?: string) => Promise<unknown>
+      >(async () => undefined),
       on: vi.fn(),
       off: vi.fn(),
     },
@@ -352,7 +367,7 @@ const holdStillImagePaint = (
   wc: TestPreviewWebContents,
   paint: Promise<void> | Array<Promise<void>>,
 ) => {
-  vi.mocked(wc.debugger.sendCommand).mockImplementation(async (method) => {
+  wc.debugger.sendCommand.implement(async (method) => {
     if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "main" } } };
     if (method === "Page.createIsolatedWorld") return { executionContextId: 7 };
     if (method === "Runtime.evaluate") {
@@ -366,10 +381,10 @@ const holdStillImagePaint = (
 const setupStill = (manager: PreviewManager.PreviewManager["Service"], paint = Promise.resolve()) =>
   Effect.gen(function* () {
     const image = makeStillImage();
-    const capturePage = vi.fn<() => Promise<typeof image>>().mockResolvedValue(image);
+    const capturePage = configurableFake<() => Promise<typeof image>>(async () => image);
     const wc = makeTestStillImageWebContents(capturePage);
     holdStillImagePaint(wc, paint);
-    fromId.mockReturnValue(wc);
+    fromId.returns(wc);
     yield* manager.createTab("tab_still");
     yield* manager.registerWebview("tab_still", wc.id);
     yield* manager.setColorScheme("tab_still", "system");
@@ -393,9 +408,7 @@ const setupRecordingRaceTabs = (manager: PreviewManager.PreviewManager["Service"
       [41, makeWebContents(41)],
       [42, makeWebContents(42)],
     ]);
-    fromId.mockImplementation((id) =>
-      id === undefined ? null : (webContentsById.get(id) ?? null),
-    );
+    fromId.implement((id) => (id === undefined ? null : (webContentsById.get(id) ?? null)));
     yield* manager.createTab("tab_race_a");
     yield* manager.createTab("tab_race_b");
     yield* manager.registerWebview("tab_race_a", 41);
@@ -455,11 +468,11 @@ const makeFaviconWebContents = (options?: {
     },
   );
   const reload = vi.fn();
-  const loadURL = vi.fn(async (url: string) => {
+  const loadURL = configurableFake(async (url: string) => {
     currentUrl = url;
   });
   const off = vi.fn();
-  const debuggerOff = vi.fn();
+  const debuggerOff = configurableFake<(...args: Array<unknown>) => void>(() => undefined);
   const webContents = {
     id: options?.id ?? 42,
     isDestroyed: () => destroyed,
@@ -567,7 +580,7 @@ const makeTestPictureInPictureWindow = (loadURL: () => Promise<void> = async () 
     getContentSize: vi.fn(() => [480, 320]),
     setContentSize: vi.fn(),
     loadURL: vi.fn(loadURL),
-    showInactive: vi.fn(() => {
+    showInactive: configurableFake(() => {
       if (destroyed) throw new Error("Picture-in-picture window is closed.");
     }),
     close: vi.fn(() => {
@@ -585,18 +598,18 @@ const makeTestPictureInPictureWindow = (loadURL: () => Promise<void> = async () 
 
 describe("PreviewManager", () => {
   beforeEach(() => {
-    browserWindowConstructor.mockReset();
+    browserWindowConstructor.reset();
     fromId.mockClear();
-    getFocusedWebContents.mockReset();
-    getFocusedWebContents.mockReturnValue(null);
+    getFocusedWebContents.reset();
+    appGetPath.reset();
     mkdir.mockClear();
     previewSession.on.mockClear();
-    writeFile.mockClear();
-    showItemInFolder.mockClear();
+    writeFile.reset();
+    showItemInFolder.reset();
     clipboardItemConstructor.mockClear();
     writeClipboard.mockClear();
     createFromPath.mockClear();
-    webviewSend.mockClear();
+    webviewSend.reset();
   });
 
   effectIt.effect("preserves recording artifacts saved in the same millisecond", () =>
@@ -607,7 +620,7 @@ describe("PreviewManager", () => {
           stored.set(path, Uint8Array.from(bytes));
           return undefined;
         };
-        writeFile.mockImplementationOnce(save).mockImplementationOnce(save);
+        writeFile.implementOnce(save).implementOnce(save);
         const firstBytes = new Uint8Array([1, 2, 3]);
         const secondBytes = new Uint8Array([4, 5, 6]);
         const [first, second] = yield* Effect.all(
@@ -633,7 +646,7 @@ describe("PreviewManager", () => {
         const dir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-download-test-" });
         const downloads = `${dir}/downloads`;
         yield* fs.makeDirectory(downloads);
-        using _downloads = vi.spyOn(app, "getPath").mockReturnValue(downloads);
+        appGetPath.returns(downloads);
         if (existing) yield* fs.writeFileString(`${downloads}/report.txt`, "existing download");
         const sources = [`${dir}/first`, `${dir}/second`];
         yield* fs.writeFileString(sources[0]!, "first download");
@@ -642,7 +655,7 @@ describe("PreviewManager", () => {
         const finished = makeChangeSignal();
         let probes = 0;
         let completions = 0;
-        using _reveal = vi.spyOn(shell, "showItemInFolder").mockImplementation(() => {
+        showItemInFolder.implement(() => {
           completions += 1;
           finished.notify();
         });
@@ -741,7 +754,7 @@ describe("PreviewManager", () => {
             Object.assign(preview.webContents, {
               hostWebContents: { isDestroyed: () => false, send },
             });
-            fromId.mockReturnValue(preview.webContents);
+            fromId.returns(preview.webContents);
             yield* manager.createTab("tab_alt_graph");
             yield* manager.registerWebview("tab_alt_graph", 42);
             yield* manager.setForwardedShortcuts([
@@ -779,7 +792,7 @@ describe("PreviewManager", () => {
         (manager) =>
           Effect.gen(function* () {
             const preview = makeFaviconWebContents();
-            fromId.mockReturnValue(preview.webContents);
+            fromId.returns(preview.webContents);
             yield* manager.createTab("tab_refresh");
             yield* manager.registerWebview("tab_refresh", 42);
             const preventDefault = vi.fn();
@@ -837,7 +850,7 @@ describe("PreviewManager", () => {
             off: vi.fn(),
           },
         });
-        fromId.mockReturnValue(preview.webContents);
+        fromId.returns(preview.webContents);
         yield* manager.createTab("tab_busy");
         yield* manager.registerWebview("tab_busy", 42);
 
@@ -878,7 +891,7 @@ describe("PreviewManager", () => {
           getZoomFactor: () => 2,
           send,
         });
-        fromId.mockReturnValue(preview.webContents);
+        fromId.returns(preview.webContents);
         yield* manager.createTab("tab_mouse_navigation");
         yield* manager.registerWebview("tab_mouse_navigation", 42);
 
@@ -930,11 +943,11 @@ describe("PreviewManager", () => {
         const newer = makeFaviconWebContents({ id: 43 });
         for (const tab of [older, newer]) Object.assign(tab.webContents, { hostWebContents: host });
 
-        getFocusedWebContents.mockReturnValue(newer.webContents as never);
-        fromId.mockReturnValue(older.webContents);
+        getFocusedWebContents.returns(newer.webContents as never);
+        fromId.returns(older.webContents);
         yield* manager.createTab("tab_older");
         yield* manager.registerWebview("tab_older", 42);
-        fromId.mockReturnValue(newer.webContents);
+        fromId.returns(newer.webContents);
         yield* manager.createTab("tab_newer");
         yield* manager.registerWebview("tab_newer", 43);
         const shortcut = parseKeybindingShortcut("mod+shift+t")!;
@@ -1009,7 +1022,7 @@ describe("PreviewManager", () => {
               mainFrame,
               focusedFrame: mainFrame,
             });
-            fromId.mockReturnValue(preview.webContents);
+            fromId.returns(preview.webContents);
             yield* manager.createTab("tab_page_find");
             yield* manager.registerWebview("tab_page_find", 42);
             yield* manager.setForwardedShortcuts([
@@ -1102,7 +1115,7 @@ describe("PreviewManager", () => {
         const findInPage = vi.fn();
         const stopFindInPage = vi.fn();
         Object.assign(preview.webContents, { findInPage, stopFindInPage });
-        fromId.mockReturnValue(preview.webContents);
+        fromId.returns(preview.webContents);
         yield* manager.createTab("tab_find");
         yield* manager.registerWebview("tab_find", 42);
         const reported = yield* Deferred.make<DesktopPreviewFindResultEvent>();
@@ -1206,7 +1219,7 @@ describe("PreviewManager", () => {
       Effect.gen(function* () {
         const loadURL = vi.fn(async () => undefined);
         const listeners = new Map<string, (...args: never[]) => void>();
-        fromId.mockReturnValue({
+        fromId.returns({
           id: 42,
           isDestroyed: () => false,
           getType: () => "webview",
@@ -1253,21 +1266,17 @@ describe("PreviewManager", () => {
         const loadError = (errno: number, code: string, url: string) =>
           Object.assign(new Error(`${code} (${errno}) loading '${url}'`), { errno, code, url });
         const preview = makeFaviconWebContents();
-        fromId.mockReturnValue(preview.webContents);
+        fromId.returns(preview.webContents);
         yield* manager.createTab("tab_redirect");
         yield* manager.registerWebview("tab_redirect", 42);
 
-        preview.loadURL.mockRejectedValueOnce(
-          loadError(-3, "ERR_ABORTED", "https://example.com/target"),
-        );
+        preview.loadURL.rejectsOnce(loadError(-3, "ERR_ABORTED", "https://example.com/target"));
         yield* manager.navigate("tab_redirect", "https://example.com/");
 
-        preview.loadURL.mockRejectedValueOnce(
-          loadError(-3, "ERR_ABORTED", "https://example.com/reload"),
-        );
+        preview.loadURL.rejectsOnce(loadError(-3, "ERR_ABORTED", "https://example.com/reload"));
         yield* manager.navigate("tab_redirect", "https://example.com/reload");
 
-        preview.loadURL.mockImplementationOnce(async () => {
+        preview.loadURL.implementOnce(async () => {
           preview.listeners.get("will-prevent-unload")?.();
           throw loadError(-3, "ERR_ABORTED", "https://example.com/blocked");
         });
@@ -1276,7 +1285,7 @@ describe("PreviewManager", () => {
         );
         expect(Exit.isFailure(blocked)).toBe(true);
 
-        preview.loadURL.mockRejectedValueOnce(
+        preview.loadURL.rejectsOnce(
           loadError(-105, "ERR_NAME_NOT_RESOLVED", "https://missing.invalid/"),
         );
         const failed = yield* Effect.exit(
@@ -1312,7 +1321,7 @@ describe("PreviewManager", () => {
           on: vi.fn(),
           off: debuggerOff,
         };
-        fromId.mockReturnValue({
+        fromId.returns({
           id: 42,
           isDestroyed: () => destroyed,
           getType: () => "webview",
@@ -1362,7 +1371,7 @@ describe("PreviewManager", () => {
         const replacementReady = new Promise<void>((resolve) => {
           startReplacementRegistration = resolve;
         });
-        fromId.mockImplementation(() => current);
+        fromId.implement(() => current);
         yield* manager.createTab("tab_destroyed_replacement_race");
         yield* manager.registerWebview("tab_destroyed_replacement_race", 42);
         yield* manager.setColorScheme("tab_destroyed_replacement_race", "dark");
@@ -1371,7 +1380,7 @@ describe("PreviewManager", () => {
           Effect.forkChild({ startImmediately: true }),
         );
         previous.setDestroyed(true);
-        previous.debuggerOff.mockImplementationOnce(() => {
+        previous.debuggerOff.implementOnce(() => {
           current = replacement.webContents;
           startReplacementRegistration();
         });
@@ -1415,7 +1424,7 @@ describe("PreviewManager", () => {
                   }),
                 ),
         });
-        fromId.mockReturnValue(preview.webContents);
+        fromId.returns(preview.webContents);
         const states: PreviewManager.PreviewTabState[] = [];
         yield* manager.subscribeStateChanges((_tabId, state) =>
           Effect.sync(() => {
@@ -1457,7 +1466,7 @@ describe("PreviewManager", () => {
               resolveFetch = resolve;
             }),
         });
-        fromId.mockReturnValue(preview.webContents);
+        fromId.returns(preview.webContents);
         const states: PreviewManager.PreviewTabState[] = [];
         yield* manager.subscribeStateChanges((_tabId, state) =>
           Effect.sync(() => {
@@ -1503,7 +1512,7 @@ describe("PreviewManager", () => {
             }),
         });
         const replacement = makeFaviconWebContents({ changes, id: 43 });
-        fromId.mockImplementation((id?: number) =>
+        fromId.implement((id?: number) =>
           id === 42 ? initial.webContents : id === 43 ? replacement.webContents : null,
         );
         const states: PreviewManager.PreviewTabState[] = [];
@@ -1544,7 +1553,7 @@ describe("PreviewManager", () => {
         const initial = makeFaviconWebContents({ changes, id: 42 });
         const replacement = makeFaviconWebContents({ changes, id: 42 });
         let active = initial.webContents;
-        fromId.mockImplementation(() => active);
+        fromId.implement(() => active);
         const states: PreviewManager.PreviewTabState[] = [];
         yield* manager.subscribeStateChanges((_tabId, state) =>
           Effect.sync(() => {
@@ -1574,7 +1583,7 @@ describe("PreviewManager", () => {
     const listeners = new Map<string, () => void>();
     const attach = vi.fn();
     const detach = vi.fn();
-    const sendCommand = vi.fn<(method: string, params?: unknown) => Promise<unknown>>(
+    const sendCommand = configurableFake<(method: string, params?: unknown) => Promise<unknown>>(
       async () => undefined,
     );
     const detachListeners = new Set<() => void>();
@@ -1641,7 +1650,7 @@ describe("PreviewManager", () => {
     withManager((manager) =>
       Effect.gen(function* () {
         const guest = makeAttachingGuest(48);
-        fromId.mockReturnValue(guest.wc);
+        fromId.returns(guest.wc);
         yield* manager.createTab("tab_detached");
         yield* manager.registerWebview("tab_detached", 48);
         yield* Effect.yieldNow;
@@ -1663,7 +1672,7 @@ describe("PreviewManager", () => {
         const slowCommand = new Promise<void>((resolve) => {
           releaseSlow = resolve;
         });
-        slow.sendCommand.mockImplementation(() => slowCommand);
+        slow.sendCommand.implement(() => slowCommand);
         const queued = makeAttachingGuest(47);
 
         const slowFiber = yield* manager
@@ -1742,7 +1751,7 @@ describe("PreviewManager", () => {
       Effect.gen(function* () {
         const guest = makeAudioWebContents(42);
         guest.startPlayingAfterFirstRead();
-        fromId.mockReturnValue(guest.wc);
+        fromId.returns(guest.wc);
         const states: PreviewManager.PreviewTabState[] = [];
 
         yield* manager.subscribeStateChanges((_tabId, state) =>
@@ -1763,7 +1772,7 @@ describe("PreviewManager", () => {
     withManager((manager) =>
       Effect.gen(function* () {
         const first = makeAudioWebContents(42);
-        fromId.mockReturnValue(first.wc);
+        fromId.returns(first.wc);
         const states: PreviewManager.PreviewTabState[] = [];
 
         yield* manager.subscribeStateChanges((_tabId, state) =>
@@ -1776,7 +1785,7 @@ describe("PreviewManager", () => {
         yield* Effect.yieldNow;
 
         const replacement = makeAudioWebContents(43);
-        fromId.mockReturnValue(replacement.wc);
+        fromId.returns(replacement.wc);
         yield* manager.registerWebview("tab_audio_stale", 43);
         yield* Effect.yieldNow;
 
@@ -1804,13 +1813,13 @@ describe("PreviewManager", () => {
           readonly off: ReturnType<typeof vi.fn>;
           readonly ipc: { readonly off: ReturnType<typeof vi.fn> };
         };
-        fromId.mockImplementation((id) => {
+        fromId.implement((id) => {
           if (id === 42) return firstWebContents;
           if (id === 43) return replacementWebContents;
           return null;
         });
         const { pictureInPictureWindow } = makeTestPictureInPictureWindow();
-        browserWindowConstructor.mockImplementation(function () {
+        browserWindowConstructor.implement(function () {
           return pictureInPictureWindow;
         });
 
@@ -1872,10 +1881,10 @@ describe("PreviewManager", () => {
         const paint = Promise.withResolvers<void>();
         const { capturePage, wc, capture } = yield* setupStill(manager, paint.promise);
         capturePage
-          .mockRejectedValueOnce(new Error("UnknownVizError"))
-          .mockRejectedValueOnce(new Error("UnknownVizError"))
-          .mockRejectedValueOnce(new Error("UnknownVizError"))
-          .mockResolvedValue(makeStillImage("final-png"));
+          .rejectsOnce(new Error("UnknownVizError"))
+          .rejectsOnce(new Error("UnknownVizError"))
+          .rejectsOnce(new Error("UnknownVizError"))
+          .resolves(makeStillImage("final-png"));
         const fiber = yield* capture.pipe(Effect.forkChild({ startImmediately: true }));
         yield* TestClock.adjust(300);
         expect(capturePage).toHaveBeenCalledTimes(3);
@@ -1900,13 +1909,12 @@ describe("PreviewManager", () => {
           toJPEG: () => png,
           getSize: () => ({ width: 1280, height: 720 }),
         });
-        const capturePage = vi
-          .fn<() => Promise<ReturnType<typeof pngImage>>>()
-          .mockResolvedValueOnce(pngImage(firstPng))
-          .mockResolvedValueOnce(pngImage(firstPng))
-          .mockResolvedValueOnce(pngImage(secondPng))
-          .mockResolvedValueOnce(pngImage(secondPng));
-        fromId.mockReturnValue(makeTestPreviewWebContents(capturePage));
+        const capturePage = emptyFake<() => Promise<ReturnType<typeof pngImage>>>()
+          .resolvesOnce(pngImage(firstPng))
+          .resolvesOnce(pngImage(firstPng))
+          .resolvesOnce(pngImage(secondPng))
+          .resolvesOnce(pngImage(secondPng));
+        fromId.returns(makeTestPreviewWebContents(capturePage));
         yield* manager.createTab("tab_1");
         yield* manager.registerWebview("tab_1", 42);
         const first = yield* manager.captureScreenshot("tab_1");
@@ -1937,10 +1945,10 @@ describe("PreviewManager", () => {
           const first = Promise.withResolvers<typeof image>();
           const second = Promise.withResolvers<typeof image>();
           capturePage
-            .mockResolvedValueOnce(makeStillImage("discarded-warmup"))
-            .mockResolvedValueOnce(makeStillImage("discarded-warmup"))
-            .mockReturnValueOnce(first.promise)
-            .mockReturnValueOnce(second.promise);
+            .resolvesOnce(makeStillImage("discarded-warmup"))
+            .resolvesOnce(makeStillImage("discarded-warmup"))
+            .returnsOnce(first.promise)
+            .returnsOnce(second.promise);
           const hostThrottling = vi.fn();
           yield* manager.setMainWindow({
             isDestroyed: () => false,
@@ -1977,11 +1985,11 @@ describe("PreviewManager", () => {
         const { image, capturePage, wc, capture } = yield* setupStill(manager);
         const pending = Promise.withResolvers<typeof image>();
         capturePage
-          .mockResolvedValueOnce(image)
-          .mockResolvedValueOnce(makeStillImage("discarded-warmup"))
-          .mockReturnValueOnce(pending.promise);
+          .resolvesOnce(image)
+          .resolvesOnce(makeStillImage("discarded-warmup"))
+          .returnsOnce(pending.promise);
         const { pictureInPictureWindow } = makeTestPictureInPictureWindow();
-        browserWindowConstructor.mockImplementation(function () {
+        browserWindowConstructor.implement(function () {
           return pictureInPictureWindow;
         });
         yield* manager.openPictureInPicture("tab_still");
@@ -2004,7 +2012,7 @@ describe("PreviewManager", () => {
       Effect.gen(function* () {
         const { image, capturePage, wc, capture } = yield* setupStill(manager);
         const pending = Promise.withResolvers<typeof image>();
-        capturePage.mockResolvedValueOnce(image).mockReturnValue(pending.promise);
+        capturePage.resolvesOnce(image).returns(pending.promise);
         yield* manager.startRecording("tab_still");
         const fiber = yield* capture.pipe(Effect.forkChild({ startImmediately: true }));
         yield* TestClock.adjust(0);
@@ -2049,9 +2057,7 @@ describe("PreviewManager", () => {
           [41, firstWebContents],
           [42, secondWebContents],
         ]);
-        fromId.mockImplementation((id) =>
-          id === undefined ? null : (webContentsById.get(id) ?? null),
-        );
+        fromId.implement((id) => (id === undefined ? null : (webContentsById.get(id) ?? null)));
 
         yield* manager.createTab("tab_capture_throttling_1");
         yield* manager.createTab("tab_capture_throttling_2");
@@ -2085,12 +2091,14 @@ describe("PreviewManager", () => {
   effectIt.effect("does not commit failed starts and retries throttle restoration", () =>
     withManager((manager) =>
       Effect.gen(function* () {
-        const setBackgroundThrottling = vi.fn<(enabled: boolean) => void>();
+        const setBackgroundThrottling = configurableFake<(enabled: boolean) => void>(
+          () => undefined,
+        );
         const capturePage = vi.fn(async () => ({
           toJPEG: () => Buffer.from("recording-frame"),
           getSize: () => ({ width: 1280, height: 720 }),
         }));
-        fromId.mockReturnValue(makeTestPreviewWebContents(capturePage));
+        fromId.returns(makeTestPreviewWebContents(capturePage));
 
         yield* manager.createTab("tab_capture_throttling_failure");
         yield* manager.registerWebview("tab_capture_throttling_failure", 42);
@@ -2100,7 +2108,7 @@ describe("PreviewManager", () => {
           webContents: { setBackgroundThrottling },
         } as never);
 
-        setBackgroundThrottling.mockImplementationOnce(() => {
+        setBackgroundThrottling.implementOnce(() => {
           throw new Error("start throttling update failed");
         });
         const failedStart = yield* Effect.exit(
@@ -2111,7 +2119,7 @@ describe("PreviewManager", () => {
         yield* manager.startRecording("tab_capture_throttling_failure");
         expect(setBackgroundThrottling.mock.calls).toEqual([[false], [false]]);
 
-        setBackgroundThrottling.mockImplementationOnce(() => {
+        setBackgroundThrottling.implementOnce(() => {
           throw new Error("stop throttling update failed");
         });
         yield* manager.stopRecording("tab_capture_throttling_failure");
@@ -2141,7 +2149,7 @@ describe("PreviewManager", () => {
           getSize: () => ({ width: 1280, height: 720 }),
         }));
         const guest = makeTestPreviewWebContents(capturePage, 42, host);
-        fromId.mockReturnValue(guest);
+        fromId.returns(guest);
         yield* manager.createTab("tab_shutdown");
         yield* manager.registerWebview("tab_shutdown", 42);
         yield* manager.setMainWindow({
@@ -2151,7 +2159,7 @@ describe("PreviewManager", () => {
         } as never);
         yield* manager.startRecording("tab_shutdown");
         const pip = makeTestPictureInPictureWindow();
-        browserWindowConstructor.mockImplementation(function () {
+        browserWindowConstructor.implement(function () {
           return pip.pictureInPictureWindow;
         });
         yield* manager.openPictureInPicture("tab_shutdown");
@@ -2212,7 +2220,7 @@ describe("PreviewManager", () => {
           toJPEG: () => Buffer.from("recording-frame"),
           getSize: () => ({ width: 1280, height: 720 }),
         }));
-        fromId.mockReturnValue(makeTestPreviewWebContents(capturePage));
+        fromId.returns(makeTestPreviewWebContents(capturePage));
 
         yield* manager.createTab("tab_replaced_window_close");
         yield* manager.registerWebview("tab_replaced_window_close", 42);
@@ -2254,9 +2262,7 @@ describe("PreviewManager", () => {
           [42, makeTestPreviewWebContents(capturePage, 42, host)],
           [43, makeTestPreviewWebContents(capturePage, 43, host)],
         ]);
-        fromId.mockImplementation((id) =>
-          id === undefined ? null : (webContentsById.get(id) ?? null),
-        );
+        fromId.implement((id) => (id === undefined ? null : (webContentsById.get(id) ?? null)));
 
         yield* manager.createTab("tab_window_close_recording");
         yield* manager.createTab("tab_window_close_race");
@@ -2319,7 +2325,7 @@ describe("PreviewManager", () => {
             }),
         );
         const host = makeTestHostWebContents();
-        fromId.mockReturnValue(makeTestPreviewWebContents(capturePage, 42, host));
+        fromId.returns(makeTestPreviewWebContents(capturePage, 42, host));
 
         yield* manager.createTab("tab_window_close_warmup");
         yield* manager.registerWebview("tab_window_close_warmup", 42);
@@ -2368,7 +2374,7 @@ describe("PreviewManager", () => {
         toJPEG: () => Buffer.from("jpeg"),
         getSize: () => ({ width: 100, height: 80 }),
       }));
-      fromId.mockReturnValue(
+      fromId.returns(
         Object.assign(makeTestPreviewWebContents(capturePage, 42), {
           isDevToolsOpened: () => false,
           getUserAgent: () => "Electron",
@@ -2403,7 +2409,7 @@ describe("PreviewManager", () => {
         contents.debugger.sendCommand = vi.fn((method: string) =>
           method === "Page.captureScreenshot" ? screenshot.promise : Promise.resolve(undefined),
         ) as unknown as typeof contents.debugger.sendCommand;
-        fromId.mockReturnValue(contents);
+        fromId.returns(contents);
         const manager = yield* PreviewManager.PreviewManager;
         const capturing = yield* Queue.unbounded<boolean>();
         yield* manager.subscribeStateChanges((_tabId, state) =>
@@ -2458,7 +2464,7 @@ describe("PreviewManager", () => {
             focusedFrame: null,
           },
         );
-        fromId.mockReturnValue(contents);
+        fromId.returns(contents);
         const manager = yield* PreviewManager.PreviewManager;
         const openLinks = yield* Queue.unbounded<boolean>();
         yield* manager.subscribeOpenLinks(({ background }) =>
@@ -2568,12 +2574,12 @@ describe("PreviewManager", () => {
         description: "ERR_CERT_AUTHORITY_INVALID",
       });
 
-      fromId.mockReturnValue(initial.wc);
+      fromId.returns(initial.wc);
       yield* manager.registerWebview("tab_1", 42);
       expect(JSON.parse(yield* Queue.take(lines))).toEqual({ type: "attached", ...serverTab });
       expect(JSON.parse(yield* Queue.take(lines))).toEqual(failure("https://first.local/"));
 
-      fromId.mockReturnValue(replacement.wc);
+      fromId.returns(replacement.wc);
       yield* manager.registerWebview("tab_1", 43);
       expect(JSON.parse(yield* Queue.take(lines))).toEqual({ type: "detached", ...serverTab });
       expect(JSON.parse(yield* Queue.take(lines))).toEqual({ type: "attached", ...serverTab });
@@ -2588,7 +2594,7 @@ describe("PreviewManager", () => {
       yield* manager.prepareWebview(retried.wc);
       retried.fail("https://retry.local/");
       retried.emit("did-start-navigation", { isMainFrame: true, isSameDocument: false });
-      fromId.mockReturnValue(retried.wc);
+      fromId.returns(retried.wc);
       yield* manager.registerWebview("tab_1", 44);
       expect(JSON.parse(yield* Queue.take(lines))).toEqual({ type: "detached", ...serverTab });
       expect(JSON.parse(yield* Queue.take(lines))).toEqual({ type: "attached", ...serverTab });
@@ -2606,7 +2612,7 @@ describe("PreviewManager", () => {
         };
         const pending = Promise.withResolvers<typeof image>();
         const capturePage = vi.fn(() => pending.promise);
-        fromId.mockReturnValue(makeTestPreviewWebContents(capturePage, 42));
+        fromId.returns(makeTestPreviewWebContents(capturePage, 42));
         yield* manager.createTab("tab_1");
         yield* manager.registerWebview("tab_1", 42);
 
@@ -2615,7 +2621,7 @@ describe("PreviewManager", () => {
         );
         yield* TestClock.adjust(0);
         expect(capturePage).toHaveBeenCalledOnce();
-        fromId.mockReturnValue(makeTestPreviewWebContents(capturePage, 43));
+        fromId.returns(makeTestPreviewWebContents(capturePage, 43));
         yield* manager.registerWebview("tab_1", 43);
         pending.resolve(image);
         const exit = yield* Fiber.join(fiber);
@@ -2685,9 +2691,7 @@ describe("PreviewManager", () => {
           [41, makeWebContents(41, firstCapturePage, firstSendCommand)],
           [42, makeWebContents(42, secondCapturePage, secondSendCommand)],
         ]);
-        fromId.mockImplementation((id) =>
-          id === undefined ? null : (webContentsById.get(id) ?? null),
-        );
+        fromId.implement((id) => (id === undefined ? null : (webContentsById.get(id) ?? null)));
         yield* manager.createTab("tab_1");
         yield* manager.createTab("tab_2");
         yield* manager.registerWebview("tab_1", 41);
@@ -2770,7 +2774,7 @@ describe("PreviewManager", () => {
               humanInput = (input) => callback({} as Electron.IpcMainEvent, input);
             return contents.ipc;
           };
-          fromId.mockReturnValue(contents);
+          fromId.returns(contents);
           yield* manager.createTab("tab_human");
           yield* manager.registerWebview("tab_human", 42);
           yield* manager.startRecording("tab_human", {
@@ -2779,7 +2783,7 @@ describe("PreviewManager", () => {
           });
           const controllers: string[] = [];
           const feedback = yield* Queue.unbounded<void>();
-          webviewSend.mockImplementation((channel) => {
+          webviewSend.implement((channel) => {
             if (channel === "preview:recording-controller") Queue.offerUnsafe(feedback, undefined);
           });
           yield* manager.subscribeStateChanges((_tabId, state) =>
@@ -2824,7 +2828,7 @@ describe("PreviewManager", () => {
             humanInput = (input) => callback({} as Electron.IpcMainEvent, input);
           return contents.ipc;
         };
-        fromId.mockReturnValue(contents);
+        fromId.returns(contents);
         yield* manager.createTab("tab_idle");
         yield* manager.registerWebview("tab_idle", 42);
         const controllers: string[] = [];
@@ -2854,7 +2858,7 @@ describe("PreviewManager", () => {
         );
         replacement.ipc.on = contents.ipc.on;
         contents.isDestroyed = () => true;
-        fromId.mockImplementation((id) => (id === 43 ? replacement : null));
+        fromId.implement((id) => (id === 43 ? replacement : null));
         yield* manager.registerWebview("tab_idle", 43);
         expect(controllers.at(-1)).toBe("none");
         const count = controllers.length;
@@ -2887,7 +2891,7 @@ describe("PreviewManager", () => {
             },
           },
         );
-        fromId.mockReturnValue(contents as never);
+        fromId.returns(contents as never);
         yield* manager.createTab("tab_recording_input");
         yield* manager.registerWebview("tab_recording_input", 42);
         const received: DesktopPreviewRecordingInputEvent[] = [];
@@ -2946,7 +2950,7 @@ describe("PreviewManager", () => {
         const webContents = Object.assign(makeTestPreviewWebContents(capturePage, 42, host), {
           executeJavaScript: vi.fn(async () => ({ width: 1280, height: 720 })),
         });
-        fromId.mockReturnValue(webContents);
+        fromId.returns(webContents);
 
         yield* manager.createTab("tab_recording_warmup_failure");
         yield* manager.registerWebview("tab_recording_warmup_failure", 42);
@@ -2977,22 +2981,21 @@ describe("PreviewManager", () => {
           markWarmupStarted = resolve;
         });
         let finishWarmup!: (image: TestCapturedPreviewImage) => void;
-        const capturePage = vi
-          .fn<() => Promise<TestCapturedPreviewImage>>()
-          .mockImplementationOnce(
+        const capturePage = emptyFake<() => Promise<TestCapturedPreviewImage>>()
+          .implementOnce(
             () =>
               new Promise<TestCapturedPreviewImage>((resolve) => {
                 markWarmupStarted();
                 finishWarmup = resolve;
               }),
           )
-          .mockResolvedValue(capturedImage);
+          .resolves(capturedImage);
         const initialWebContents = makeTestPreviewWebContents(capturePage, 42);
         const replacementOn = vi.fn();
         const replacementWebContents = Object.assign(makeTestPreviewWebContents(capturePage, 43), {
           on: replacementOn,
         });
-        fromId.mockImplementation((id) => {
+        fromId.implement((id) => {
           if (id === 42) return initialWebContents;
           if (id === 43) return replacementWebContents;
           return null;
@@ -3033,12 +3036,12 @@ describe("PreviewManager", () => {
           toJPEG: () => Buffer.from("closing-preview-frame"),
           getSize: () => ({ width: 1280, height: 720 }),
         }));
-        fromId.mockReturnValue(makeTestPreviewWebContents(capturePage));
+        fromId.returns(makeTestPreviewWebContents(capturePage));
         const { pictureInPictureWindow } = makeTestPictureInPictureWindow();
-        pictureInPictureWindow.showInactive.mockImplementationOnce(() => {
+        pictureInPictureWindow.showInactive.implementOnce(() => {
           pictureInPictureWindow.close();
         });
-        browserWindowConstructor.mockImplementation(function () {
+        browserWindowConstructor.implement(function () {
           return pictureInPictureWindow;
         });
         const states: PreviewManager.PreviewTabState[] = [];
@@ -3067,16 +3070,16 @@ describe("PreviewManager", () => {
           toJPEG: () => Buffer.from("serialized-preview-frame"),
           getSize: () => ({ width: 1280, height: 720 }),
         }));
-        fromId.mockReturnValue(makeTestPreviewWebContents(capturePage));
+        fromId.returns(makeTestPreviewWebContents(capturePage));
         const { pictureInPictureWindow: initializingWindow } = makeTestPictureInPictureWindow(
           () => new Promise<void>(() => {}),
         );
         const { pictureInPictureWindow: reopenedWindow } = makeTestPictureInPictureWindow();
         browserWindowConstructor
-          .mockImplementationOnce(function () {
+          .implementOnce(function () {
             return initializingWindow;
           })
-          .mockImplementationOnce(function () {
+          .implementOnce(function () {
             return reopenedWindow;
           });
         const states: PreviewManager.PreviewTabState[] = [];
@@ -3144,14 +3147,13 @@ describe("PreviewManager", () => {
         };
         const stalledInitial = Promise.withResolvers<typeof image>();
         const stalledLoop = Promise.withResolvers<typeof image>();
-        const capturePage = vi
-          .fn<() => Promise<typeof image>>()
-          .mockImplementationOnce(() => stalledInitial.promise)
-          .mockImplementationOnce(() => stalledLoop.promise)
-          .mockResolvedValue(image);
-        fromId.mockReturnValue(makeTestPreviewWebContents(capturePage));
+        const capturePage = emptyFake<() => Promise<typeof image>>()
+          .implementOnce(() => stalledInitial.promise)
+          .implementOnce(() => stalledLoop.promise)
+          .resolves(image);
+        fromId.returns(makeTestPreviewWebContents(capturePage));
         const { pictureInPictureWindow, send } = makeTestPictureInPictureWindow();
-        browserWindowConstructor.mockImplementation(function () {
+        browserWindowConstructor.implement(function () {
           return pictureInPictureWindow;
         });
         yield* manager.createTab("tab_pip_stalled_capture");
@@ -3189,7 +3191,7 @@ describe("PreviewManager", () => {
         }));
         const initialWebContents = makeTestPreviewWebContents(initialCapturePage, 42);
         const replacementWebContents = makeTestPreviewWebContents(replacementCapturePage, 43);
-        fromId.mockImplementation((webContentsId?: number) => {
+        fromId.implement((webContentsId?: number) => {
           if (webContentsId === 42) return initialWebContents;
           if (webContentsId === 43) return replacementWebContents;
           return null;
@@ -3201,7 +3203,7 @@ describe("PreviewManager", () => {
               resolveLoad = resolve;
             }),
         );
-        browserWindowConstructor.mockImplementation(function () {
+        browserWindowConstructor.implement(function () {
           return pictureInPictureWindow;
         });
 
@@ -3246,7 +3248,7 @@ describe("PreviewManager", () => {
     withManager((manager) =>
       Effect.gen(function* () {
         const listeners = new Map<string, (...args: unknown[]) => void>();
-        fromId.mockReturnValue({
+        fromId.returns({
           id: 42,
           isDestroyed: () => false,
           getType: () => "webview",
@@ -3339,7 +3341,7 @@ describe("PreviewManager", () => {
               ] as const,
           ),
         );
-        fromId.mockImplementation((id) => (id === undefined ? null : (guests.get(id) ?? null)));
+        fromId.implement((id) => (id === undefined ? null : (guests.get(id) ?? null)));
         yield* manager.createTab("tab_a");
         yield* manager.createTab("tab_b");
         yield* manager.registerWebview("tab_a", 42);
@@ -3413,7 +3415,7 @@ describe("PreviewManager", () => {
             toDataURL: () => (emptyImage === "viewport" ? "data:," : "data:image/png;base64,full"),
             crop,
           }));
-          fromId.mockReturnValue(
+          fromId.returns(
             Object.assign(makeTestPreviewWebContents(capturePage), {
               isFocused: () => true,
               once: vi.fn(),

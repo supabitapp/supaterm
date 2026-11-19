@@ -14,12 +14,13 @@ vi.mock(import("../state/server"), async (original) => {
 });
 vi.mock(import("./Sidebar"), () => ({ default: (() => null) as never }));
 
+import { isMacPlatform } from "@supaterm/shared/keybindings";
 import { AppSidebarLayout } from "./AppSidebarLayout";
 
 describe("sidebar toggle shortcut", () => {
   it("leaves the key to a focused terminal when its rule excludes terminalFocus", async () => {
     await page.viewport(1280, 800);
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    const mod = isMacPlatform(navigator.platform) ? "Meta" : "Control";
     await using screen = await render(
       <AppSidebarLayout>
         <div data-terminal-owner="drawer">
@@ -31,11 +32,11 @@ describe("sidebar toggle shortcut", () => {
     const wrapper = screen.container.querySelector('[data-slot="sidebar-wrapper"]')!;
 
     await userEvent.click(screen.getByRole("textbox", { name: "Terminal input" }));
-    await userEvent.keyboard("{Control>}b{/Control}");
+    await userEvent.keyboard(`{${mod}>}b{/${mod}}`);
     expect(wrapper.getAttribute("data-sidebar-state")).toBe("expanded");
 
     await userEvent.click(screen.getByRole("button", { name: "Outside" }));
-    await userEvent.keyboard("{Control>}b{/Control}");
+    await userEvent.keyboard(`{${mod}>}b{/${mod}}`);
     await vi.waitFor(() => expect(wrapper.getAttribute("data-sidebar-state")).toBe("collapsed"));
   });
 });

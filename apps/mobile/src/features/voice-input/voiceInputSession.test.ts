@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi, type Mock } from "vite-plus/test";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { PreparedVoiceTranscription } from "@supaterm/client-runtime/voice-input";
 import { resetVoiceInputGlobalsForTests } from "../../../../../packages/client-runtime/src/voice-input/controller";
 import {
@@ -9,13 +9,20 @@ import {
 } from "../../lib/audioSession";
 
 const audio = vi.hoisted(() => ({
-  setMode: vi.fn(async (_mode: unknown) => {}),
-  setActive: vi.fn(async (_active: boolean) => {}),
+  setMode: vi.fn<(mode: unknown) => void>(),
+  setActive: vi.fn<(active: boolean) => void>(),
+  activationFailures: [] as Array<Error>,
 }));
 vi.mock("expo-audio", () => ({
   AudioModule: {},
-  setAudioModeAsync: audio.setMode,
-  setIsAudioActiveAsync: audio.setActive,
+  setAudioModeAsync: async (mode: unknown) => {
+    audio.setMode(mode);
+  },
+  setIsAudioActiveAsync: async (active: boolean) => {
+    audio.setActive(active);
+    const failure = audio.activationFailures.shift();
+    if (failure) throw failure;
+  },
 }));
 
 import {
@@ -26,10 +33,10 @@ import {
   type VoiceRecordingSample,
 } from "./voiceInputSession";
 
-let prepare: Mock<() => Promise<PreparedVoiceTranscription>>;
+let transcriber: { prepare: () => Promise<PreparedVoiceTranscription> };
 
 const engine = () => ({
-  transcriber: { prepare },
+  transcriber,
   language: "en-US",
 });
 
@@ -62,10 +69,13 @@ function createSession(
     record: vi.fn(),
     stop: vi.fn(async () => {}),
   };
-  prepare = vi.fn(async () => ({
-    locale: "en-US",
-    transcribe: async () => "spoken text",
-  }));
+  const preparations: Array<() => Promise<PreparedVoiceTranscription>> = [];
+  transcriber = {
+    prepare: () =>
+      preparations.shift()?.() ??
+      Promise.resolve({ locale: "en-US", transcribe: async () => "spoken text" }),
+  };
+  const prepare = vi.spyOn(transcriber, "prepare");
   const session = new VoiceInputSession({
     recorder,
     requestPermission: async () => ({ granted: true, canAskAgain: true }),
@@ -77,7 +87,15 @@ function createSession(
     keepAwake,
     ...overrides,
   });
-  return { session, recorder, prepare, keepAwake, releaseKeepAwake, publishAudioLevels };
+  return {
+    session,
+    recorder,
+    prepare,
+    preparations,
+    keepAwake,
+    releaseKeepAwake,
+    publishAudioLevels,
+  };
 }
 
 describe("global voice input", () => {
@@ -89,7 +107,7 @@ describe("global voice input", () => {
       const pause = vi.fn();
       const playback = acquireAudioSession("recording", pause);
       await activateAudioSession(playback);
-      audio.setActive.mockRejectedValueOnce(new Error("Deactivation failed"));
+      audio.activationFailures.push(new Error("Deactivation failed"));
       await expect(releaseAudioSession(playback)).rejects.toThrow("Deactivation failed");
       if (action === "retry") {
         await releaseAudioSession(playback);
@@ -122,7 +140,7 @@ describe("global voice input", () => {
         releaseRecording: () => releaseAudioSession(recording),
       });
       if (outcome === "activation failure") {
-        audio.setActive.mockRejectedValueOnce(new Error("Audio activation failed"));
+        audio.activationFailures.push(new Error("Audio activation failed"));
       }
       await session.start(createTarget("first", () => "", vi.fn(), { start: 0, end: 0 }));
       expect(pause).toHaveBeenCalledOnce();
@@ -207,8 +225,8 @@ describe("global voice input", () => {
       const preparationEntered = Promise.withResolvers<void>();
       const transcription = Promise.withResolvers<string>();
       const transcriptionEntered = Promise.withResolvers<void>();
-      const { session, recorder, prepare } = createSession();
-      prepare.mockImplementationOnce(() => {
+      const { session, recorder, prepare, preparations } = createSession();
+      preparations.push(() => {
         preparationEntered.resolve();
         return preparation.promise;
       });
@@ -264,8 +282,8 @@ describe("global voice input", () => {
   );
 
   it("retries a failed start against the draft as edited since", async () => {
-    const { session, prepare } = createSession();
-    prepare.mockRejectedValueOnce(new Error("model unavailable"));
+    const { session, prepare, preparations } = createSession();
+    preparations.push(() => Promise.reject(new Error("model unavailable")));
     let text = "first";
     const commit = vi.fn();
     await session.start(createTarget("first", () => text, commit, { start: 5, end: 5 }));
@@ -323,8 +341,8 @@ describe("global voice input", () => {
   it("waits for canceled native work before starting a recording for another draft", async () => {
     const preparation = Promise.withResolvers<PreparedVoiceTranscription>();
     const preparationEntered = Promise.withResolvers<void>();
-    const { session, recorder, prepare } = createSession();
-    prepare.mockImplementationOnce(() => {
+    const { session, recorder, prepare, preparations } = createSession();
+    preparations.push(() => {
       preparationEntered.resolve();
       return preparation.promise;
     });

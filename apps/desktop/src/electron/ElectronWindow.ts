@@ -21,18 +21,54 @@ import {
 } from "./WindowsForeground.ts";
 import { startWindowsForegroundFocusThread } from "./WindowsForegroundFocusThread.ts";
 
-function windowsForegroundFocusTarget(window: Electron.BrowserWindow) {
+export type ElectronWindowNative = {
+  readonly createWindow: (
+    options: Electron.BrowserWindowConstructorOptions,
+  ) => Electron.BrowserWindow;
+  readonly getAllWindows: () => ReadonlyArray<Electron.BrowserWindow>;
+  readonly getFocusedWindow: () => Electron.BrowserWindow | null;
+  readonly focusApp: (options?: Electron.FocusOptions) => void;
+  readonly dipToScreenRect: (
+    window: Electron.BrowserWindow,
+    rect: Electron.Rectangle,
+  ) => Electron.Rectangle;
+  readonly activateWindowsForeground: (handle: Buffer) => Promise<void>;
+  readonly isWindowsShellHostedForeground: () => Promise<boolean>;
+  readonly loadWindowsForegroundApi: () => Promise<{ readonly getForegroundWindow: () => bigint }>;
+  readonly startWindowsForegroundFocusThread: typeof startWindowsForegroundFocusThread;
+};
+
+const electronWindowNative: ElectronWindowNative = {
+  createWindow: (options) => new Electron.BrowserWindow(options),
+  getAllWindows: () => Electron.BrowserWindow.getAllWindows(),
+  getFocusedWindow: () => Electron.BrowserWindow.getFocusedWindow(),
+  focusApp: (options) => Electron.app.focus(options),
+  dipToScreenRect: (window, rect) => Electron.screen.dipToScreenRect(window, rect),
+  activateWindowsForeground,
+  isWindowsShellHostedForeground,
+  loadWindowsForegroundApi,
+  startWindowsForegroundFocusThread,
+};
+
+function windowsForegroundFocusTarget(
+  native: ElectronWindowNative,
+  window: Electron.BrowserWindow,
+) {
   return {
     windowId: window.id,
     processId: process.pid,
     title: window.getTitle(),
-    bounds: Electron.screen.dipToScreenRect(window, window.getBounds()),
-    contentBounds: Electron.screen.dipToScreenRect(window, window.getContentBounds()),
+    bounds: native.dipToScreenRect(window, window.getBounds()),
+    contentBounds: native.dipToScreenRect(window, window.getContentBounds()),
   };
 }
 
-async function isWindowsBrowserWindowForeground(window: Electron.BrowserWindow) {
-  const foreground = await loadWindowsForegroundApi()
+async function isWindowsBrowserWindowForeground(
+  native: ElectronWindowNative,
+  window: Electron.BrowserWindow,
+) {
+  const foreground = await native
+    .loadWindowsForegroundApi()
     .then((api) => api.getForegroundWindow())
     .catch(() => undefined);
   if (window.isDestroyed() || foreground === undefined || foreground === 0n) return false;
@@ -132,12 +168,11 @@ export class ElectronWindow extends Context.Service<
   }
 >()("@supaterm/desktop/electron/ElectronWindow") {}
 
-/** @public */
-export const make = Effect.gen(function* () {
+export const makeWith = Effect.fn("ElectronWindow.make")(function* (native: ElectronWindowNative) {
   const platform = yield* HostProcess.Platform;
   let windowsForegroundFocus: ReturnType<typeof startWindowsForegroundFocusThread> | undefined;
   const ensureWindowsForegroundFocus = () => {
-    windowsForegroundFocus ??= startWindowsForegroundFocusThread(
+    windowsForegroundFocus ??= native.startWindowsForegroundFocusThread(
       NodePath.join(__dirname, "electron", "WindowsForegroundFocusWorker.cjs"),
     );
     return windowsForegroundFocus;
@@ -149,7 +184,7 @@ export const make = Effect.gen(function* () {
   const titleBarOverlayWindows = new WeakSet<Electron.BrowserWindow>();
 
   const listWindows = Effect.try({
-    try: () => Electron.BrowserWindow.getAllWindows(),
+    try: () => native.getAllWindows(),
     catch: (cause) =>
       new ElectronWindowOperationError({
         operation: "list-windows",
@@ -198,7 +233,7 @@ export const make = Effect.gen(function* () {
 
   const focusedMainOrFirst = Effect.gen(function* () {
     const focused = yield* Effect.try({
-      try: () => Option.fromNullishOr(Electron.BrowserWindow.getFocusedWindow() ?? null),
+      try: () => Option.fromNullishOr(native.getFocusedWindow() ?? null),
       catch: (cause) =>
         new ElectronWindowOperationError({
           operation: "get-focused-window",
@@ -241,7 +276,7 @@ export const make = Effect.gen(function* () {
 
       return Effect.try({
         try: () => {
-          const window = new Electron.BrowserWindow(options);
+          const window = native.createWindow(options);
           if (behavior?.auxiliary === true) auxiliaryWindows.add(window);
           if (options.titleBarOverlay !== undefined && options.titleBarOverlay !== false) {
             titleBarOverlayWindows.add(window);
@@ -275,7 +310,7 @@ export const make = Effect.gen(function* () {
         }
         captureRevealWindows.add(window.id);
         return ensureWindowsForegroundFocus()
-          .prepare(windowsForegroundFocusTarget(window))
+          .prepare(windowsForegroundFocusTarget(native, window))
           .catch(() => false);
       });
     }),
@@ -288,14 +323,14 @@ export const make = Effect.gen(function* () {
 
           const captureReveal = platform === "win32" && captureRevealWindows.delete(window.id);
           const shellHostedForeground =
-            captureReveal && (await isWindowsShellHostedForeground().catch(() => false));
+            captureReveal && (await native.isWindowsShellHostedForeground().catch(() => false));
 
           if (window.isMinimized()) {
             window.restore();
           }
 
           if (captureReveal) {
-            Electron.app.focus();
+            native.focusApp();
           }
 
           if (captureReveal || !window.isVisible()) {
@@ -307,7 +342,7 @@ export const make = Effect.gen(function* () {
           }
 
           if (platform === "darwin") {
-            Electron.app.focus({ steal: true });
+            native.focusApp({ steal: true });
           }
 
           window.focus();
@@ -315,20 +350,20 @@ export const make = Effect.gen(function* () {
           if (captureReveal) {
             if (shellHostedForeground) {
               await windowsForegroundFocus
-                ?.focus(windowsForegroundFocusTarget(window))
+                ?.focus(windowsForegroundFocusTarget(native, window))
                 .catch(() => false);
             }
             try {
-              await activateWindowsForeground(window.getNativeWindowHandle());
+              await native.activateWindowsForeground(window.getNativeWindowHandle());
             } catch {
-              const needsFocus = !(await isWindowsBrowserWindowForeground(window));
+              const needsFocus = !(await isWindowsBrowserWindowForeground(native, window));
               if (needsFocus && !window.isDestroyed()) {
                 await windowsForegroundFocus
-                  ?.focus(windowsForegroundFocusTarget(window))
+                  ?.focus(windowsForegroundFocusTarget(native, window))
                   .catch(() => false);
               }
               if (!window.isDestroyed()) {
-                await activateWindowsForeground(window.getNativeWindowHandle());
+                await native.activateWindowsForeground(window.getNativeWindowHandle());
               }
             }
           }
@@ -401,5 +436,8 @@ export const make = Effect.gen(function* () {
     }),
   });
 });
+
+/** @public */
+export const make = makeWith(electronWindowNative);
 
 export const layer = Layer.effect(ElectronWindow, make);

@@ -16,7 +16,7 @@ import { act, render, type Screen } from "../../test/render";
 
 const state = vi.hoisted(() => ({
   settings: new Map<string, unknown>(),
-  persist: vi.fn(),
+  persist: (_input: unknown) => Promise.resolve<unknown>(undefined),
 }));
 
 vi.mock(import("~/state/server"), async (original) => {
@@ -31,7 +31,7 @@ vi.mock(import("~/state/server"), async (original) => {
 });
 vi.mock(import("~/state/use-atom-command"), async (original) => ({
   ...(await original()),
-  useAtomCommand: (() => state.persist) as never,
+  useAtomCommand: (() => (input: unknown) => state.persist(input)) as never,
 }));
 
 import { useToggleEnvironmentModelFavorite } from "./useSettings";
@@ -81,30 +81,27 @@ async function setup() {
     state.settings.set(id, Atom.make<ServerSettings | null>(initialSettings));
     durable.set(id, initialSettings);
   }
-  state.persist.mockReset().mockImplementation(
-    ({
-      environmentId,
-      input,
-    }: {
+  state.persist = (request) => {
+    const { environmentId, input } = request as {
       environmentId: EnvironmentId;
       input: { patch: ServerSettingsPatch };
-    }) =>
-      new Promise((resolve) => {
-        writes.push({
-          environmentId,
-          patch: input.patch,
-          finish: (success = true) => {
-            if (!success) {
-              resolve(AsyncResult.failure(Cause.fail(new Error("save failed"))));
-              return;
-            }
-            const settings = applyServerSettingsPatch(durable.get(environmentId)!, input.patch);
-            durable.set(environmentId, settings);
-            resolve(AsyncResult.success(settings));
-          },
-        });
-      }),
-  );
+    };
+    return new Promise((resolve) => {
+      writes.push({
+        environmentId,
+        patch: input.patch,
+        finish: (success = true) => {
+          if (!success) {
+            resolve(AsyncResult.failure(Cause.fail(new Error("save failed"))));
+            return;
+          }
+          const settings = applyServerSettingsPatch(durable.get(environmentId)!, input.patch);
+          durable.set(environmentId, settings);
+          resolve(AsyncResult.success(settings));
+        },
+      });
+    });
+  };
 
   const environment = stack.move();
   let screen: Screen | undefined;

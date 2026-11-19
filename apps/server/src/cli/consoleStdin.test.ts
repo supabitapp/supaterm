@@ -1,129 +1,141 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import * as NodeEvents from "node:events";
 
-const io = vi.hoisted(() => ({
-  platform: vi.fn(() => "win32"),
-  stat: vi.fn<() => { isCharacterDevice: () => boolean }>(() => ({
-    isCharacterDevice: () => true,
-  })),
-  open: vi.fn(() => 42),
-  close: vi.fn(),
-  isatty: vi.fn((fd: number) => fd !== 0),
-}));
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-vi.mock("node:fs", () => ({ fstatSync: io.stat, openSync: io.open, closeSync: io.close }));
-vi.mock("node:tty", async () => {
-  const { EventEmitter } = await import("node:events");
-  return {
-    isatty: io.isatty,
-    ReadStream: class extends EventEmitter {
-      readonly isTTY = true;
-      readonly _readableState = { reading: true };
-      _handle: { reading: boolean; readStop: () => void } | undefined = {
-        reading: true,
-        readStop: vi.fn(),
-      };
+class FakeConsoleStream extends NodeEvents.EventEmitter {
+  readonly isTTY = true;
+  readonly _readableState = { reading: true };
+  _handle: { reading: boolean; readStop: () => void } | undefined = {
+    reading: true,
+    readStop: vi.fn(),
+  };
+}
+
+function consoleIo(
+  overrides: {
+    readonly platform?: NodeJS.Platform;
+    readonly env?: NodeJS.ProcessEnv;
+    readonly fstat?: (fd: number) => { isCharacterDevice(): boolean };
+    readonly isatty?: (fd: number) => boolean;
+    readonly open?: (path: string) => number;
+  } = {},
+) {
+  const opened: Array<string> = [];
+  const closed: Array<number> = [];
+  const replaced: Array<FakeConsoleStream> = [];
+  const open = overrides.open ?? (() => 42);
+  const io = {
+    platform: overrides.platform ?? "win32",
+    env: overrides.env ?? { SUPATERM_DESKTOP_CLI_LAUNCHER: "1" },
+    fstat: overrides.fstat ?? (() => ({ isCharacterDevice: () => true })),
+    isatty: overrides.isatty ?? ((fd: number) => fd !== 0),
+    open: (path: string) => {
+      opened.push(path);
+      return open(path);
+    },
+    close: (fd: number) => {
+      closed.push(fd);
+    },
+    openReadStream: () => new FakeConsoleStream(),
+    replaceStdin: (stdin: NodeEvents.EventEmitter) => {
+      if (stdin instanceof FakeConsoleStream) replaced.push(stdin);
     },
   };
-});
-vi.mock("@supaterm/shared/HostProcess", () => ({ Platform: { defaultValue: io.platform } }));
-
-const originalStdin = Object.getOwnPropertyDescriptor(process, "stdin")!;
+  return { io, opened, closed, replaced };
+}
 
 beforeEach(() => {
   vi.resetModules();
-  vi.resetAllMocks();
-  vi.stubEnv("SUPATERM_DESKTOP_CLI_LAUNCHER", "1");
-});
-
-afterEach(() => {
-  Object.defineProperty(process, "stdin", originalStdin);
-  vi.unstubAllEnvs();
 });
 
 describe("attachConsoleStdin", () => {
   it("reopens the console when Node replaces missing Windows stdin with NUL", async () => {
     const { attachConsoleStdin, interactiveStdin } = await import("./consoleStdin.ts");
+    const { io, replaced } = consoleIo();
 
-    expect(attachConsoleStdin()).toBe(42);
-    expect(process.stdin.isTTY).toBe(true);
+    expect(attachConsoleStdin(io)).toBe(42);
+    expect(replaced.at(-1)?.isTTY).toBe(true);
     expect(interactiveStdin()).toBe(42);
-    expect(process.env.SUPATERM_DESKTOP_CLI_LAUNCHER).toBeUndefined();
+    expect(io.env.SUPATERM_DESKTOP_CLI_LAUNCHER).toBeUndefined();
   });
 
   it("releases console reads when the picker pauses stdin before launching an agent", async () => {
     const { attachConsoleStdin, interactiveStdin } = await import("./consoleStdin.ts");
-    attachConsoleStdin();
-    const stdin = process.stdin as unknown as {
-      emit(event: string): boolean;
-      _readableState: { reading: boolean };
-      _handle: { reading: boolean; readStop: () => void };
-    };
+    const { io, replaced } = consoleIo();
+    attachConsoleStdin(io);
+    const stdin = replaced.at(-1)!;
+    const handle = stdin._handle!;
     stdin.emit("pause");
     expect(stdin._readableState.reading).toBe(false);
-    expect(stdin._handle.reading).toBe(false);
-    expect(stdin._handle.readStop).toHaveBeenCalledOnce();
+    expect(handle.reading).toBe(false);
+    expect(handle.readStop).toHaveBeenCalledOnce();
     expect(interactiveStdin()).toBe(42);
   });
 
   it("can pause after the reopened stream's handle has been closed", async () => {
     const { attachConsoleStdin } = await import("./consoleStdin.ts");
-    attachConsoleStdin();
-    const stdin = process.stdin as unknown as {
-      emit(event: string): boolean;
-      _handle: undefined;
-    };
+    const { io, replaced } = consoleIo();
+    attachConsoleStdin(io);
+    const stdin = replaced.at(-1)!;
     stdin._handle = undefined;
     expect(() => stdin.emit("pause")).not.toThrow();
   });
 
   it("still reopens a closed stdin", async () => {
-    io.stat.mockImplementation(() => {
-      throw new Error("EBADF");
-    });
     const { attachConsoleStdin, interactiveStdin } = await import("./consoleStdin.ts");
-    expect(attachConsoleStdin()).toBe(42);
+    const { io } = consoleIo({
+      fstat: () => {
+        throw new Error("EBADF");
+      },
+    });
+    expect(attachConsoleStdin(io)).toBe(42);
     expect(interactiveStdin()).toBe(42);
   });
 
   it.each(["pipe"])("preserves redirected %s input", async () => {
-    io.stat.mockReturnValue({ isCharacterDevice: () => false });
-    const stdin = process.stdin;
     const { attachConsoleStdin, interactiveStdin } = await import("./consoleStdin.ts");
-    expect(attachConsoleStdin()).toBeUndefined();
-    expect(process.stdin).toBe(stdin);
+    const { io, opened, replaced } = consoleIo({
+      fstat: () => ({ isCharacterDevice: () => false }),
+    });
+    expect(attachConsoleStdin(io)).toBeUndefined();
+    expect(replaced).toEqual([]);
     expect(interactiveStdin()).toBe("inherit");
-    expect(io.open).not.toHaveBeenCalled();
+    expect(opened).toEqual([]);
   });
 
   it.each(["console input", "redirected output", "unmarked process", "non-Windows"])(
     "leaves %s alone",
     async (scenario) => {
-      if (scenario === "console input") io.isatty.mockReturnValue(true);
-      if (scenario === "redirected output") io.isatty.mockReturnValue(false);
-      if (scenario === "unmarked process") delete process.env.SUPATERM_DESKTOP_CLI_LAUNCHER;
-      if (scenario === "non-Windows") io.platform.mockReturnValue("darwin");
       const { attachConsoleStdin, interactiveStdin } = await import("./consoleStdin.ts");
-      expect(attachConsoleStdin()).toBeUndefined();
+      const { io, opened } = consoleIo({
+        ...(scenario === "console input" ? { isatty: () => true } : {}),
+        ...(scenario === "redirected output" ? { isatty: () => false } : {}),
+        ...(scenario === "unmarked process" ? { env: {} } : {}),
+        ...(scenario === "non-Windows" ? { platform: "darwin" } : {}),
+      });
+      expect(attachConsoleStdin(io)).toBeUndefined();
       expect(interactiveStdin()).toBe("inherit");
-      expect(io.open).not.toHaveBeenCalled();
-      expect(process.env.SUPATERM_DESKTOP_CLI_LAUNCHER).toBeUndefined();
+      expect(opened).toEqual([]);
+      expect(io.env.SUPATERM_DESKTOP_CLI_LAUNCHER).toBeUndefined();
     },
   );
 
   it("keeps inherited input when CONIN$ cannot be opened", async () => {
-    io.open.mockImplementation(() => {
-      throw new Error("ENOENT");
-    });
     const { attachConsoleStdin, interactiveStdin } = await import("./consoleStdin.ts");
-    expect(attachConsoleStdin()).toBeUndefined();
+    const { io } = consoleIo({
+      open: () => {
+        throw new Error("ENOENT");
+      },
+    });
+    expect(attachConsoleStdin(io)).toBeUndefined();
     expect(interactiveStdin()).toBe("inherit");
   });
 
   it("closes a reopened descriptor that is not a console", async () => {
-    io.isatty.mockImplementation((fd) => fd === 1);
     const { attachConsoleStdin, interactiveStdin } = await import("./consoleStdin.ts");
-    expect(attachConsoleStdin()).toBeUndefined();
+    const { io, closed } = consoleIo({ isatty: (fd) => fd === 1 });
+    expect(attachConsoleStdin(io)).toBeUndefined();
     expect(interactiveStdin()).toBe("inherit");
-    expect(io.close).toHaveBeenCalledWith(42);
+    expect(closed).toEqual([42]);
   });
 });

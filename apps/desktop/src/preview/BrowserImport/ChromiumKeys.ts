@@ -47,16 +47,30 @@ export interface ChromiumKeyMaterial {
 const derive = (passphrase: string, iterations: number) =>
   NodeCrypto.pbkdf2Sync(passphrase, KEY_SALT, iterations, KEY_LENGTH, "sha1");
 
+export type ChromiumKeychain = {
+  readonly readPassword: (service: string, account: string) => Promise<string | null | undefined>;
+};
+
+export type LoadChromiumKeychain = () => Promise<ChromiumKeychain>;
+
+const loadNapiKeychain: LoadChromiumKeychain = async () => {
+  const Keyring = await import("@napi-rs/keyring");
+  return {
+    readPassword: (service, account) => new Keyring.AsyncEntry(service, account).getPassword(),
+  };
+};
+
 const readKeychainSecret = Effect.fn("ChromiumKeys.readKeychainSecret")(function* (
+  loadKeychain: LoadChromiumKeychain,
   service: string,
   account: string,
 ) {
-  const Keyring = yield* Effect.tryPromise({
-    try: () => import("@napi-rs/keyring"),
+  const keychain = yield* Effect.tryPromise({
+    try: loadKeychain,
     catch: (cause) => new ChromiumKeyError({ reason: "keychainUnavailable", cause }),
   });
   const secret = yield* Effect.tryPromise({
-    try: () => new Keyring.AsyncEntry(service, account).getPassword(),
+    try: () => keychain.readPassword(service, account),
     catch: (cause) => {
       const message = String((cause as { message?: unknown } | undefined)?.message ?? "");
       const missing = /no (matching )?entry|not found/i.test(message);
@@ -232,13 +246,21 @@ export interface ChromiumKeyRequest {
 
 export const resolveChromiumKeys: (
   request: ChromiumKeyRequest,
+  loadKeychain?: LoadChromiumKeychain,
 ) => Effect.Effect<ChromiumKeyMaterial, ChromiumKeyError, ChildProcessSpawner.ChildProcessSpawner> =
-  Effect.fn("ChromiumKeys.resolveChromiumKeys")(function* (request: ChromiumKeyRequest) {
+  Effect.fn("ChromiumKeys.resolveChromiumKeys")(function* (
+    request: ChromiumKeyRequest,
+    loadKeychain: LoadChromiumKeychain = loadNapiKeychain,
+  ) {
     if (request.platform === "darwin") {
       if (!request.keychainService || !request.keychainAccount) {
         return yield* new ChromiumKeyError({ reason: "unsupportedPlatform" });
       }
-      const secret = yield* readKeychainSecret(request.keychainService, request.keychainAccount);
+      const secret = yield* readKeychainSecret(
+        loadKeychain,
+        request.keychainService,
+        request.keychainAccount,
+      );
       return { cbcV10: derive(secret, MAC_KEY_ITERATIONS) };
     }
 

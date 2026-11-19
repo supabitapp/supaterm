@@ -1,25 +1,16 @@
-import { assert, beforeEach, it } from "@effect/vitest";
+import { assert, it } from "@effect/vitest";
 import * as NodeEvents from "node:events";
 import { vi } from "vite-plus/test";
-
-const workerConstructorMock = vi.hoisted(() => vi.fn());
-
-vi.mock("node:worker_threads", () => ({
-  Worker: function Worker(...args: ReadonlyArray<unknown>) {
-    return workerConstructorMock(...args);
-  },
-}));
 
 import { startWindowsForegroundFocusThread } from "./WindowsForegroundFocusThread.ts";
 
 const makeWorker = () =>
   Object.assign(new NodeEvents.EventEmitter(), {
     postMessage: vi.fn(),
-    terminate: vi.fn(async () => 0),
-    unref: vi.fn(),
+    terminate: async () => 0,
+    unref: () => undefined,
   });
 
-let worker = makeWorker();
 const target = {
   windowId: 7,
   processId: 42,
@@ -28,13 +19,22 @@ const target = {
   contentBounds: { x: 108, y: 50, width: 1_184, height: 792 },
 };
 
-beforeEach(() => {
-  worker = makeWorker();
-  workerConstructorMock.mockReset().mockReturnValue(worker);
-});
+function workerFactory(...workers: ReadonlyArray<ReturnType<typeof makeWorker>>) {
+  const queue = [...workers];
+  const paths: Array<string> = [];
+  const create = (path: string) => {
+    paths.push(path);
+    const next = queue.shift();
+    if (!next) throw new Error("No worker queued");
+    return next;
+  };
+  return { create, paths };
+}
 
 it("queues focus until the helper is ready", async () => {
-  const thread = startWindowsForegroundFocusThread("focus.cjs");
+  const worker = makeWorker();
+  const factory = workerFactory(worker);
+  const thread = startWindowsForegroundFocusThread("focus.cjs", factory.create);
   const focused = thread.focus(target);
 
   assert.lengthOf(worker.postMessage.mock.calls, 0);
@@ -47,24 +47,25 @@ it("queues focus until the helper is ready", async () => {
   worker.emit("message", { type: "result", requestId: 1, focused: true });
 
   assert.isTrue(await focused);
-  assert.deepEqual(workerConstructorMock.mock.calls, [["focus.cjs"]]);
+  assert.deepEqual(factory.paths, ["focus.cjs"]);
   thread.close();
 });
 
 it("fails pending focus when the helper exits", async () => {
+  const worker = makeWorker();
   const replacement = makeWorker();
-  workerConstructorMock.mockReturnValueOnce(worker).mockReturnValueOnce(replacement);
-  const thread = startWindowsForegroundFocusThread("focus.cjs");
+  const factory = workerFactory(worker, replacement);
+  const thread = startWindowsForegroundFocusThread("focus.cjs", factory.create);
   const focused = thread.focus(target);
 
   worker.emit("exit", 1);
 
   assert.isFalse(await focused);
-  assert.lengthOf(workerConstructorMock.mock.calls, 1);
+  assert.lengthOf(factory.paths, 1);
   const prepared = thread.prepare(target);
   replacement.emit("message", "ready");
   replacement.emit("message", { type: "result", requestId: 2, focused: true });
   assert.isTrue(await prepared);
-  assert.lengthOf(workerConstructorMock.mock.calls, 2);
+  assert.lengthOf(factory.paths, 2);
   thread.close();
 });

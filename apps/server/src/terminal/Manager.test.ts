@@ -38,9 +38,8 @@ import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import * as SynchronizedRef from "effect/SynchronizedRef";
 import * as TestClock from "effect/testing/TestClock";
-import { expect, vi } from "vite-plus/test";
+import { expect } from "vite-plus/test";
 
 import * as ServerConfig from "../config.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
@@ -55,11 +54,6 @@ import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
 import { terminalOutputStream } from "./OutputProtocol.ts";
 import * as PtyAdapter from "@supaterm/shared/PtyAdapter";
 import packageJson from "../../package.json" with { type: "json" };
-
-vi.mock("effect/SynchronizedRef", async (importOriginal) => {
-  const original = await importOriginal<typeof SynchronizedRef>();
-  return { ...original, make: vi.fn(original.make) };
-});
 
 const POWERSHELL_ARGS = [
   "-NoLogo",
@@ -256,6 +250,7 @@ interface CreateManagerOptions {
   >[0]["resolveProviderInstanceEnvironment"];
   managedBinaryCacheDir?: string;
   managedBinaryToolsDir?: string;
+  inspectState?: (readState: Effect.Effect<unknown>) => void;
 }
 
 const createManager = (historyLineLimit = 5, options: CreateManagerOptions = {}) =>
@@ -290,6 +285,7 @@ const createManager = (historyLineLimit = 5, options: CreateManagerOptions = {})
         ...(options.maxRetainedInactiveSessions !== undefined
           ? { maxRetainedInactiveSessions: options.maxRetainedInactiveSessions }
           : {}),
+        ...(options.inspectState !== undefined ? { inspectState: options.inspectState } : {}),
         ...(options.resolveProviderInstanceEnvironment !== undefined
           ? { resolveProviderInstanceEnvironment: options.resolveProviderInstanceEnvironment }
           : {}),
@@ -1514,19 +1510,12 @@ it.layer(
   it.effect("releases delivered output while the process queue stays busy", () =>
     Effect.gen(function* () {
       let readState: Effect.Effect<unknown> = Effect.void;
-      const makeRef = vi.mocked(SynchronizedRef.make).getMockImplementation()!;
-      using _capture = vi.spyOn(SynchronizedRef, "make").mockImplementation(<A>(value: A) =>
-        makeRef(value).pipe(
-          Effect.tap((ref) =>
-            Effect.sync(() => {
-              if (typeof value === "object" && value !== null && "sessions" in value) {
-                readState = SynchronizedRef.get(ref);
-              }
-            }),
-          ),
-        ),
-      );
-      const { manager, ptyAdapter } = yield* createManager(5, { historyByteLimit: 1024 });
+      const { manager, ptyAdapter } = yield* createManager(5, {
+        historyByteLimit: 1024,
+        inspectState: (read) => {
+          readState = read;
+        },
+      });
       yield* manager.open(openInput());
       const process = ptyAdapter.processes[0]!;
       const entered = yield* Deferred.make<void>();

@@ -16,8 +16,12 @@ const { StackRouter } = requireFromCore("@react-navigation/routers") as {
   readonly StackRouter: typeof import("@react-navigation/native").StackRouter;
 };
 
+type PairingOutcome = { ok: boolean; error: string | null };
+
 const harness = vi.hoisted(() => ({
-  pair: vi.fn(),
+  pair: vi.fn<(url: string) => void>(),
+  pairings: [] as Array<Promise<PairingOutcome>>,
+  fallbackPairing: () => new Promise<PairingOutcome>(() => {}),
   goBack: vi.fn(),
   dispatch: vi.fn(),
   rootState: {
@@ -39,7 +43,10 @@ vi.mock("@react-navigation/native", () => ({
   },
 }));
 vi.mock("../../state/use-remote-environment-registry", () => ({
-  pairEnvironment: harness.pair,
+  pairEnvironment: (url: string) => {
+    harness.pair(url);
+    return harness.pairings.shift() ?? harness.fallbackPairing();
+  },
 }));
 vi.mock("../../lib/rootNavigation", () => ({
   rootNavigationRef: {
@@ -81,7 +88,7 @@ function settingsLink(params: object) {
 it("pairs from a nested settings link once, reports failure, and closes the form on success", async () => {
   vi.stubGlobal("__DEV__", true);
   const failed = Promise.withResolvers<{ ok: boolean; error: string | null }>();
-  harness.pair.mockReturnValueOnce(failed.promise);
+  harness.pairings.push(failed.promise);
 
   const state = settingsLink({ pairingUrl: ` ${PAIRING_URL} `, autoConnect: "1" });
   expect(startDevAutoConnect(state)).toBe(state);
@@ -102,7 +109,7 @@ it("pairs from a nested settings link once, reports failure, and closes the form
   expect(harness.goBack).not.toHaveBeenCalled();
 
   const succeeded = Promise.withResolvers<{ ok: boolean; error: string | null }>();
-  harness.pair.mockReturnValueOnce(succeeded.promise);
+  harness.pairings.push(succeeded.promise);
   startDevAutoConnect(settingsLink({ pairingUrl: PAIRING_URL, autoConnect: "true" }));
   succeeded.resolve({ ok: true, error: null });
   await succeeded.promise;
@@ -123,7 +130,7 @@ it("only prefills without the flag, and ignores the flag in production builds", 
 it("forgets a failed auto-connect once the form is opened again without the flag", async () => {
   vi.stubGlobal("__DEV__", true);
   const failed = Promise.withResolvers<{ ok: boolean; error: string | null }>();
-  harness.pair.mockReturnValueOnce(failed.promise);
+  harness.pairings.push(failed.promise);
   startDevAutoConnect(settingsLink({ pairingUrl: PAIRING_URL, autoConnect: "1" }));
   failed.resolve({ ok: false, error: "Pairing code expired." });
   await failed.promise;
@@ -137,7 +144,7 @@ it("forgets a failed auto-connect once the form is opened again without the flag
 it("drops the result of a pairing that a later link superseded", async () => {
   vi.stubGlobal("__DEV__", true);
   const stale = Promise.withResolvers<{ ok: boolean; error: string | null }>();
-  harness.pair.mockReturnValueOnce(stale.promise);
+  harness.pairings.push(stale.promise);
   startDevAutoConnect(settingsLink({ pairingUrl: PAIRING_URL, autoConnect: "1" }));
   startDevAutoConnect(settingsLink({ pairingUrl: PAIRING_URL }));
 
@@ -164,7 +171,7 @@ it("keeps Connect busy while the auto-connect runs, even after the user edits th
 
 async function pairSuccessfully(link: PartialState<NavigationState>) {
   const succeeded = Promise.withResolvers<{ ok: boolean; error: string | null }>();
-  harness.pair.mockReturnValueOnce(succeeded.promise);
+  harness.pairings.push(succeeded.promise);
   startDevAutoConnect(link);
   succeeded.resolve({ ok: true, error: null });
   await succeeded.promise;
@@ -259,7 +266,7 @@ it("fills the Settings pairing form open inside the settings sheet's own stack",
 it("a link cannot aim a pairing at a saved environment", () => {
   vi.stubGlobal("__DEV__", true);
   harness.pair.mockClear();
-  harness.pair.mockResolvedValue({ ok: false, error: null });
+  harness.fallbackPairing = async () => ({ ok: false, error: null });
   const linking = {
     initialRouteName: "Home",
     screens: {

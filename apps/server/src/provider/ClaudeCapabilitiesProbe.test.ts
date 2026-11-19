@@ -1,6 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - cleanup uses Node's retrying rm, which the FileSystem service does not expose.
-import * as ClaudeSdk from "@anthropic-ai/claude-agent-sdk";
-import { vi } from "vite-plus/test";
+import type * as ClaudeSdk from "@anthropic-ai/claude-agent-sdk";
 import * as Deferred from "effect/Deferred";
 import * as Cause from "effect/Cause";
 import * as Fiber from "effect/Fiber";
@@ -18,13 +17,12 @@ import * as Schema from "effect/Schema";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 
 import {
+  ClaudeProbeQuery,
   buildClaudeCapabilitiesProbeQueryOptions,
   probeClaudeCapabilities,
   probeClaudeWorkspaceSnapshot,
   spawnClaudeProbeThroughEnv,
 } from "./ClaudeProvider.ts";
-
-vi.mock("@anthropic-ai/claude-agent-sdk", { spy: true });
 
 const hostPath = process.env.PATH;
 
@@ -130,19 +128,21 @@ it.effect("preserves the timeout cause, logs its deadline, and aborts the SDK qu
   return Effect.gen(function* () {
     const started = yield* Deferred.make<void>();
     let abortSignal: AbortSignal | undefined;
-    const query = vi.spyOn(ClaudeSdk, "query").mockImplementation(({ options }) => {
-      abortSignal = options?.abortController?.signal;
-      return {
-        initializationResult: () => {
-          Deferred.doneUnsafe(started, Effect.void);
-          return new Promise(() => {});
-        },
-      } as ReturnType<typeof ClaudeSdk.query>;
-    });
-    yield* Effect.addFinalizer(() => Effect.sync(() => query.mockRestore()));
     const probe = yield* probeClaudeCapabilities(
       decodeClaudeSettings({ binaryPath: "claude" }),
-    ).pipe(Effect.result, Effect.forkChild);
+    ).pipe(
+      Effect.provideService(ClaudeProbeQuery, ({ options }) => {
+        abortSignal = options?.abortController?.signal;
+        return {
+          initializationResult: () => {
+            Deferred.doneUnsafe(started, Effect.void);
+            return new Promise(() => {});
+          },
+        } as ReturnType<typeof ClaudeSdk.query>;
+      }),
+      Effect.result,
+      Effect.forkChild,
+    );
     yield* Deferred.await(started);
     yield* TestClock.adjust("25 seconds");
     const result = yield* Fiber.join(probe);
@@ -161,16 +161,18 @@ it.effect("records an SDK failure without exposing the rejection message", () =>
     messages.push(message);
   });
   return Effect.gen(function* () {
-    const query = vi.spyOn(ClaudeSdk, "query").mockImplementation(
-      () =>
-        ({
-          initializationResult: () => Promise.reject(new TypeError("secret-sdk-output")),
-        }) as ReturnType<typeof ClaudeSdk.query>,
-    );
-    yield* Effect.addFinalizer(() => Effect.sync(() => query.mockRestore()));
     const result = yield* probeClaudeCapabilities(
       decodeClaudeSettings({ binaryPath: "claude" }),
-    ).pipe(Effect.result);
+    ).pipe(
+      Effect.provideService(
+        ClaudeProbeQuery,
+        () =>
+          ({
+            initializationResult: () => Promise.reject(new TypeError("secret-sdk-output")),
+          }) as ReturnType<typeof ClaudeSdk.query>,
+      ),
+      Effect.result,
+    );
     assert.equal(Result.isFailure(result), true);
     if (Result.isFailure(result)) assert.equal(result.failure._tag, "UnknownError");
     assert.deepEqual(messages, [["Claude capability probe failed.", { errorTag: "UnknownError" }]]);
@@ -218,19 +220,6 @@ it.effect("reports a deleted worktree's scan as finished, not pending", () =>
 it.effect("keeps the probe subprocess alive while gateway model discovery can finish", () =>
   Effect.gen(function* () {
     let abortSignal: AbortSignal | undefined;
-    const query = vi.spyOn(ClaudeSdk, "query").mockImplementation(({ options }) => {
-      abortSignal = options?.abortController?.signal;
-      return {
-        initializationResult: async () => ({
-          account: { email: "dev@example.com", subscriptionType: "pro", tokenSource: "oauth" },
-          commands: [{ name: "review", description: "Review changes", argumentHint: "[path]" }],
-          models: [{ value: "gateway/claude-relay", displayName: "Relay", description: "" }],
-        }),
-        usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: () =>
-          new Promise((_, reject) => reject(new Error("usage unavailable"))),
-      } as ReturnType<typeof ClaudeSdk.query>;
-    });
-    yield* Effect.addFinalizer(() => Effect.sync(() => query.mockRestore()));
     const fileSystem = yield* FileSystem.FileSystem;
     const configDir = yield* fileSystem.makeTempDirectoryScoped();
     yield* fileSystem.writeFileString(
@@ -245,6 +234,19 @@ it.effect("keeps the probe subprocess alive while gateway model discovery can fi
     const capabilities = yield* probeClaudeCapabilities(
       decodeClaudeSettings({ binaryPath: "claude" }),
       { PATH: process.env.PATH, CLAUDE_CONFIG_DIR: configDir },
+    ).pipe(
+      Effect.provideService(ClaudeProbeQuery, ({ options }) => {
+        abortSignal = options?.abortController?.signal;
+        return {
+          initializationResult: async () => ({
+            account: { email: "dev@example.com", subscriptionType: "pro", tokenSource: "oauth" },
+            commands: [{ name: "review", description: "Review changes", argumentHint: "[path]" }],
+            models: [{ value: "gateway/claude-relay", displayName: "Relay", description: "" }],
+          }),
+          usage_EXPERIMENTAL_MAY_CHANGE_DO_NOT_RELY_ON_THIS_API_YET: () =>
+            new Promise((_, reject) => reject(new Error("usage unavailable"))),
+        } as ReturnType<typeof ClaudeSdk.query>;
+      }),
     );
     assert.deepEqual(
       capabilities.models?.map((model) => model.value),

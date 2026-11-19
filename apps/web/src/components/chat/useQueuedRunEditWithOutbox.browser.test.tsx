@@ -19,20 +19,51 @@ import type { ChatComposerHandle } from "./ChatComposer";
 import type { EditQueuedRunRequest } from "./QueuedRunsControl";
 import { useQueuedRunEditWithOutbox } from "./useQueuedRunEditWithOutbox";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const outbox = vi.hoisted(() => ({
-  pause: vi.fn(),
-  replace: vi.fn(),
-  navigate: vi.fn(),
+  pause: fake(),
+  replace: fake(),
+  navigate: fake(),
   queued: {
     editingRunId: null,
     isEditing: false,
     isSaving: false,
     draftTarget: null as ScopedThreadRef | null,
     editingAttachments: null,
-    beginEdit: vi.fn(),
-    cancelEdit: vi.fn(),
-    removeEditingAttachment: vi.fn(),
-    saveEdit: vi.fn(),
+    beginEdit: fake(),
+    cancelEdit: fake(),
+    removeEditingAttachment: fake(),
+    saveEdit: fake(),
   },
 }));
 vi.mock("./useQueuedRunEdit", () => ({ useQueuedRunEdit: () => outbox.queued }));
@@ -42,7 +73,7 @@ vi.mock("../../state/threadOutbox", () => ({
 }));
 vi.mock(import("@tanstack/react-router"), async (original) => ({
   ...(await original()),
-  useNavigate: () => outbox.navigate,
+  useNavigate: (() => outbox.navigate) as never,
 }));
 
 const environmentId = EnvironmentId.make("environment");
@@ -149,8 +180,8 @@ async function setupTest() {
   vi.clearAllMocks();
   outbox.queued.isSaving = false;
   outbox.queued.draftTarget = routeThreadRef;
-  outbox.pause.mockResolvedValue(true);
-  outbox.replace.mockResolvedValue(null);
+  outbox.pause.implement(async () => true);
+  outbox.replace.implement(async () => null);
   screen = resources.use(await renderUi(<Probe />, { router: false }));
 
   return resources.move();
@@ -204,7 +235,7 @@ describe("queued-run editing with the outbox", () => {
     await using _test = await setupTest();
     const savedThread = { environmentId, threadId: ThreadId.make("saved") };
     let finishSave!: (value: typeof savedThread) => void;
-    outbox.replace.mockReturnValue(new Promise((resolve) => (finishSave = resolve)));
+    outbox.replace.implement(() => new Promise((resolve) => (finishSave = resolve)));
     await beginOutboxEdit();
     const sendInFlightRef = { current: false };
     let saving!: Promise<void>;
@@ -241,7 +272,9 @@ describe("queued-run editing with the outbox", () => {
 
   it("keeps the edit open and shows why a save failed", async () => {
     await using _test = await setupTest();
-    outbox.replace.mockRejectedValue(new Error("Delivery has already started."));
+    outbox.replace.implement(async () =>
+      Promise.reject(new Error("Delivery has already started.")),
+    );
     await beginOutboxEdit();
     const sendInFlightRef = { current: false };
     await act(() =>

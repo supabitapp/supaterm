@@ -1,25 +1,26 @@
 import * as NodeEvents from "node:events";
 import * as NodeVM from "node:vm";
-import { beforeEach, expect, it, vi } from "vite-plus/test";
+import { expect, it, vi } from "vite-plus/test";
 import { watchMacSettingsWindow } from "./MacSettingsWindow.ts";
 
-const mocks = vi.hoisted(() => ({ spawn: vi.fn() }));
-vi.mock("node:child_process", () => ({ spawn: mocks.spawn }));
-let child: NodeEvents.EventEmitter & {
-  stdout: NodeEvents.EventEmitter & { setEncoding: ReturnType<typeof vi.fn> };
-  kill: ReturnType<typeof vi.fn>;
-};
-beforeEach(() => {
-  child = Object.assign(new NodeEvents.EventEmitter(), {
-    stdout: Object.assign(new NodeEvents.EventEmitter(), { setEncoding: vi.fn() }),
+function makeWatcher() {
+  const child = Object.assign(new NodeEvents.EventEmitter(), {
+    stdout: Object.assign(new NodeEvents.EventEmitter(), { setEncoding: () => undefined }),
     kill: vi.fn(),
   });
-  mocks.spawn.mockReturnValue(child);
-});
+  const spawned: Array<[string, ReadonlyArray<string>]> = [];
+  const spawn = (command: string, args: ReadonlyArray<string>) => {
+    spawned.push([command, args]);
+    return child;
+  };
+  return { child, spawn, spawned };
+}
+
 it("decodes partial updates and stops the one watcher process on disposal", () => {
+  const { child, spawn } = makeWatcher();
   const changed = vi.fn();
   const unavailable = vi.fn();
-  const stop = watchMacSettingsWindow(changed, unavailable);
+  const stop = watchMacSettingsWindow(changed, unavailable, spawn);
   const state = { x: 10, y: 20, width: 723, height: 719, frontmost: true };
   const line = JSON.stringify(state);
   child.stdout.emit("data", line.slice(0, 8));
@@ -32,9 +33,10 @@ it("decodes partial updates and stops the one watcher process on disposal", () =
   expect(changed).toHaveBeenCalledTimes(2);
 });
 it("distinguishes unavailable tracking from a valid absent window", () => {
+  const { child, spawn } = makeWatcher();
   const changed = vi.fn();
   const unavailable = vi.fn();
-  const stop = watchMacSettingsWindow(changed, unavailable);
+  const stop = watchMacSettingsWindow(changed, unavailable, spawn);
   child.stdout.emit("data", '{"x":"bad"}\n');
   expect(changed).not.toHaveBeenCalled();
   expect(unavailable).toHaveBeenCalledOnce();
@@ -44,8 +46,9 @@ it("distinguishes unavailable tracking from a valid absent window", () => {
   stop();
 });
 it("polls while its parent lives and stops after reparenting to launchd", () => {
-  watchMacSettingsWindow(vi.fn(), vi.fn())();
-  const script = mocks.spawn.mock.lastCall?.[1][3];
+  const { spawn, spawned } = makeWatcher();
+  watchMacSettingsWindow(vi.fn(), vi.fn(), spawn)();
+  const script = spawned.at(-1)?.[1][3];
   const imports = new Set<string>();
   const writeData = vi.fn();
   const poll = vi.fn(() => ({ count: 0 }));

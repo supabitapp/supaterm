@@ -6,6 +6,7 @@ import {
 } from "@supaterm/contracts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
+import * as Context from "effect/Context";
 import * as SecureRandom from "effect/crypto/SecureRandom";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -61,6 +62,11 @@ export interface CursorAuthOptions {
   readonly onChanged: (signedIn: boolean) => Effect.Effect<void, ProviderSetupError>;
   readonly login?: (options: SdkLoginOptions) => Promise<SdkLoginResult>;
 }
+
+export const CursorLogin = Context.Reference<CursorAuthOptions["login"]>(
+  "@supaterm/provider-cursor/server/auth/CursorLogin",
+  { defaultValue: () => undefined },
+);
 
 export const makeCursorAuth = Effect.fn("makeCursorAuth")(function* (options: CursorAuthOptions) {
   const scope = yield* Scope.Scope;

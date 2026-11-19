@@ -3,10 +3,6 @@ import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
-const execute = vi.hoisted(() => vi.fn());
-const startEffects = vi.hoisted(() => vi.fn());
-vi.mock("node:child_process", () => ({ execFile: execute }));
-vi.mock("./NativeCaptureFeedback.ts", () => ({ startNativeCaptureFeedback: startEffects }));
 vi.mock("electron", () => ({
   nativeImage: {
     createFromBuffer: () => ({ isEmpty: () => false, getSize: () => ({ width: 2, height: 1 }) }),
@@ -19,12 +15,16 @@ import {
   hyprlandCaptureShortcut,
 } from "./HyprlandSnapShot.ts";
 import { CaptureSetupRequiredError } from "./linuxCaptureSession.ts";
+import type { CaptureHelperNative } from "./NativeCaptureFeedback.ts";
 
 let directory: string;
 let paths: { bundle: string; dataHome: string };
 let setup: HyprlandCaptureSetup;
 let denial: boolean;
 let metadata: typeof window | null;
+let executions: Array<[string, ReadonlyArray<string>]> = [];
+let startEffects: () => ReturnType<CaptureHelperNative["startFeedback"]> = async () => undefined;
+let effectsStarted = 0;
 const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0]);
 const window = {
   title: "Notes",
@@ -41,29 +41,29 @@ beforeEach(async () => {
     dataHome: NodePath.join(directory, "user data"),
   };
   await NodeFSP.writeFile(paths.bundle, "bundled executable");
-  setup = new HyprlandCaptureSetup(paths);
+  setup = new HyprlandCaptureSetup(paths, native);
   denial = false;
   metadata = window;
-  startEffects.mockReset().mockResolvedValue(undefined);
-  execute
-    .mockReset()
-    .mockImplementation(
-      (
-        _file: string,
-        args: string[],
-        _options: unknown,
-        callback: (error: Error | null, stdout: string, stderr: string) => void,
-      ) => {
-        if (args[0] === "capture") {
-          if (denial) callback(new Error("Denied"), "", "Check screen-sharing permission.");
-          else
-            void NodeFSP.writeFile(NodePath.join(args[1]!, "capture.png"), png).then(() =>
-              callback(null, JSON.stringify({ window: metadata }), ""),
-            );
-        } else callback(null, '{"feedbackAvailable":true}', "");
-      },
-    );
+  executions = [];
+  startEffects = async () => undefined;
+  effectsStarted = 0;
 });
+const native: CaptureHelperNative = {
+  execFile: (file, args, _options, callback) => {
+    executions.push([file, args]);
+    if (args[0] === "capture") {
+      if (denial) callback(new Error("Denied"), "", "Check screen-sharing permission.");
+      else
+        void NodeFSP.writeFile(NodePath.join(args[1]!, "capture.png"), png).then(() =>
+          callback(null, JSON.stringify({ window: metadata }), ""),
+        );
+    } else callback(null, '{"feedbackAvailable":true}', "");
+  },
+  startFeedback: () => {
+    effectsStarted++;
+    return startEffects();
+  },
+};
 afterEach(async () => {
   await NodeFSP.rm(directory, { recursive: true, force: true });
 });
@@ -72,9 +72,7 @@ it("installs offline at a stable executable path and probes only capabilities", 
   await setup.perform("install-hyprland-helper");
   expect((await NodeFSP.stat(hyprlandCaptureExecutable(paths))).mode & 0o777).toBe(0o755);
   expect(await setup.state()).toMatchObject({ status: "ready", feedbackAvailable: true });
-  expect(execute.mock.calls.map(([file, args]) => [file, args])).toEqual([
-    [hyprlandCaptureExecutable(paths), ["check"]],
-  ]);
+  expect(executions).toEqual([[hyprlandCaptureExecutable(paths), ["check"]]]);
 });
 it("updates explicitly and removes only its helper", async () => {
   await setup.perform("install-hyprland-helper");
@@ -91,13 +89,15 @@ it("updates explicitly and removes only its helper", async () => {
 it("updates a helper left stale by an app update before capturing", async () => {
   await setup.perform("install-hyprland-helper");
   await NodeFSP.writeFile(paths.bundle, "update");
-  const result = await captureHyprlandWindow(paths);
+  const result = await captureHyprlandWindow(paths, undefined, native);
   expect(result.png).toEqual(png);
   expect(await NodeFSP.readFile(hyprlandCaptureExecutable(paths), "utf8")).toBe("update");
   result.feedback?.close();
 });
 it("leaves first-time installation to explicit setup", async () => {
-  await expect(captureHyprlandWindow(paths)).rejects.toBeInstanceOf(CaptureSetupRequiredError);
+  await expect(captureHyprlandWindow(paths, undefined, native)).rejects.toBeInstanceOf(
+    CaptureSetupRequiredError,
+  );
   await expect(NodeFSP.stat(hyprlandCaptureExecutable(paths))).rejects.toMatchObject({
     code: "ENOENT",
   });
@@ -133,37 +133,39 @@ it.each([true, false])("uses the active config syntax and user bindings (Lua: %s
 });
 it("captures exact-window metadata for accessibility and focuses only through the installed helper", async () => {
   await setup.perform("install-hyprland-helper");
-  const result = await captureHyprlandWindow(paths);
+  const result = await captureHyprlandWindow(paths, undefined, native);
   expect(result.png).toEqual(png);
   expect(result.window).toEqual(window);
   await result.feedback?.activate("Supaterm destination");
-  expect(execute.mock.calls.find(([, args]) => args[0] === "activate")?.slice(0, 2)).toEqual([
+  expect(executions.find(([, args]) => args[0] === "activate")?.slice(0, 2)).toEqual([
     hyprlandCaptureExecutable(paths),
     ["activate", String(process.pid), "Supaterm destination"],
   ]);
-  const captureDirectory = execute.mock.calls.find(([, args]) => args[0] === "capture")![1][1];
+  const captureDirectory = executions.find(([, args]) => args[0] === "capture")![1][1]!;
   await expect(NodeFSP.stat(captureDirectory)).rejects.toMatchObject({ code: "ENOENT" });
   result.feedback?.close();
 });
 it("does not guess accessibility metadata when the captured window changed", async () => {
   await setup.perform("install-hyprland-helper");
   metadata = null;
-  const result = await captureHyprlandWindow(paths, { flash: true, animate: true });
+  const result = await captureHyprlandWindow(paths, { flash: true, animate: true }, native);
   expect(result.window).toBeUndefined();
-  expect(startEffects).not.toHaveBeenCalled();
+  expect(effectsStarted).toBe(0);
   result.feedback?.close();
 });
 it("surfaces a capture denial without a picker fallback and removes temporary output", async () => {
   await setup.perform("install-hyprland-helper");
   denial = true;
-  await expect(captureHyprlandWindow(paths)).rejects.toThrow("screen-sharing permission");
-  const path = execute.mock.calls.find(([, args]) => args[0] === "capture")![1][1];
+  await expect(captureHyprlandWindow(paths, undefined, native)).rejects.toThrow(
+    "screen-sharing permission",
+  );
+  const path = executions.find(([, args]) => args[0] === "capture")![1][1]!;
   await expect(NodeFSP.stat(path)).rejects.toMatchObject({ code: "ENOENT" });
 });
 it("keeps capture working when an overlay cannot start", async () => {
   await setup.perform("install-hyprland-helper");
-  startEffects.mockRejectedValue(new Error("No layer shell"));
-  const result = await captureHyprlandWindow(paths, { flash: true, animate: true });
+  startEffects = () => Promise.reject(new Error("No layer shell"));
+  const result = await captureHyprlandWindow(paths, { flash: true, animate: true }, native);
   expect(result.png).toEqual(png);
   expect(result.feedback?.animationStarted).toBe(false);
   result.feedback?.close();

@@ -7,7 +7,6 @@ import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import * as previewRuntime from "./browser/previewRuntime";
 import { type ClosedViewEntry, useClosedViewStore } from "./closedViewStore";
 import { __setClientSettingsForTests } from "./hooks/useSettings";
 import { readThreadPreviewState, resetPreviewStateForTests } from "./previewStateStore";
@@ -181,11 +180,10 @@ describe("reopenClosedView", () => {
   });
 
   it("recreates a server browser tab with its saved URL, viewport, profile, zoom and appearance, then selects its new ID", async () => {
-    using _runtime = vi.spyOn(previewRuntime, "previewRuntimeFor").mockReturnValue("server");
     const openPreview = vi.fn(async () => AsyncResult.success({ ...snapshot, tabId: "new-tab" }));
     const result = await reopenClosedView(
       { kind: "browser", threadRef, snapshot },
-      { openPreview, workspaceAvailable: false },
+      { openPreview, workspaceAvailable: false, runtime: "server" },
     );
     expect(result).toBe(true);
     expect(openPreview).toHaveBeenCalledWith({

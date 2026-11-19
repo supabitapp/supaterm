@@ -1,4 +1,4 @@
-import { act, render as renderUi, type Screen } from "../../../test/render";
+import { act, fakeTimers, render as renderUi, type Screen } from "../../../test/render";
 import { EnvironmentId, MessageId } from "@supaterm/contracts";
 import type { LegendListRef } from "@legendapp/list/react";
 import { createRef, type ComponentProps, type ReactNode } from "react";
@@ -70,14 +70,10 @@ function baseProps() {
 
 let fixtureScreen: Screen;
 let container: HTMLDivElement;
-const frames = new Map<number, FrameRequestCallback>();
-
 async function flushFrames(count: number) {
   for (let index = 0; index < count; index += 1) {
     await act(async () => {
-      const callbacks = [...frames.values()];
-      frames.clear();
-      for (const callback of callbacks) callback(0);
+      vi.advanceTimersToNextFrame();
     });
   }
 }
@@ -240,15 +236,7 @@ describe("MessagesTimeline end-follow", () => {
 });
 
 async function setup() {
-  frames.clear();
-  let nextFrame = 0;
-  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-    frames.set(++nextFrame, callback);
-    return nextFrame;
-  });
-  vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frame) => {
-    frames.delete(frame);
-  });
+  const timers = fakeTimers();
   container = document.body.appendChild(document.createElement("div"));
   fixtureScreen = await renderUi(null, { container });
 
@@ -256,6 +244,7 @@ async function setup() {
   return {
     async [Symbol.asyncDispose]() {
       await ownedScreen[Symbol.asyncDispose]();
+      timers[Symbol.dispose]();
 
       vi.restoreAllMocks();
       vi.unstubAllGlobals();

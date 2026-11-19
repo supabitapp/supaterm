@@ -5,21 +5,24 @@ import { render } from "../../../test/render";
 import { __setClientSettingsForTests, getClientSettings } from "../../hooks/useSettings";
 import { publishVoiceInputActivity } from "../../voice/voiceInputActivity";
 import { CodexMicroCoordinator } from "./CodexMicroCoordinator";
-import { getCodexMicroBridge } from "./codexMicroBridge";
 
-vi.mock("./codexMicroBridge", () => ({ getCodexMicroBridge: vi.fn() }));
+const bridges = vi.hoisted(() => ({ current: null as DesktopCodexMicroBridge | null }));
+vi.mock("./codexMicroBridge", () => ({ getCodexMicroBridge: () => bridges.current }));
 
 it("clears voice lighting when the coordinator leaves the app shell", async () => {
   const settings = getClientSettings();
   const owner = {};
-  const setLighting = vi.fn<DesktopCodexMicroBridge["setLighting"]>().mockResolvedValue();
+  const setLighting = vi.spyOn(
+    { setLighting: async (..._args: Parameters<DesktopCodexMicroBridge["setLighting"]>) => {} },
+    "setLighting",
+  );
   const bridge: DesktopCodexMicroBridge = {
     setLighting,
     getState: vi.fn(),
     onStateChange: () => () => {},
     onInput: () => () => {},
   };
-  vi.mocked(getCodexMicroBridge).mockReturnValue(bridge);
+  bridges.current = bridge;
   __setClientSettingsForTests({
     ...DEFAULT_CLIENT_SETTINGS,
     codexMicro: { ...DEFAULT_CLIENT_SETTINGS.codexMicro, enabled: true },
@@ -40,6 +43,6 @@ it("clears voice lighting when the coordinator leaves the app shell", async () =
   } finally {
     publishVoiceInputActivity(owner, "idle");
     __setClientSettingsForTests(settings);
-    vi.mocked(getCodexMicroBridge).mockReset();
+    bridges.current = null;
   }
 });

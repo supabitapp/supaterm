@@ -12,13 +12,44 @@ import type {
   GhosttyTerminalSurfaceOptions,
 } from "~/terminal/ghostty/surface";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   allowed: true,
   listeners: new Set<() => void>(),
-  resize: vi.fn(),
-  otherCommand: vi.fn(),
+  resize: fake(),
+  otherCommand: fake(),
   createSurface:
-    vi.fn<
+    fake<
       (
         mount: HTMLElement,
         options: GhosttyTerminalSurfaceOptions,
@@ -85,9 +116,9 @@ const threadRef = {
 function setup() {
   state.allowed = true;
   state.listeners.clear();
-  state.resize.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.otherCommand.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.createSurface.mockReset().mockReturnValue(new Promise(() => undefined));
+  state.resize.reset(async () => AsyncResult.success(undefined));
+  state.otherCommand.reset(async () => AsyncResult.success(undefined));
+  state.createSurface.reset(() => new Promise(() => undefined));
 }
 
 it.each(["horizontal", "vertical"] as const)(
@@ -98,7 +129,7 @@ it.each(["horizontal", "vertical"] as const)(
       typeof import("~/terminal/ghostty/surface")
     >("~/terminal/ghostty/surface");
     const output: string[][] = [];
-    state.createSurface.mockImplementation((mount, options) => {
+    state.createSurface.implement((mount, options) => {
       const data: string[] = [];
       output.push(data);
       return GhosttyTerminalSurface.create(mount, {

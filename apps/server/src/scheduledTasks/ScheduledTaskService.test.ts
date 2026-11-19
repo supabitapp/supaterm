@@ -2,7 +2,7 @@ import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as NodeUtil from "node:util";
 
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
-import { assert, it, vi } from "@effect/vitest";
+import { assert, it } from "@effect/vitest";
 import {
   CommandId,
   ProjectId,
@@ -881,15 +881,24 @@ it.effect("checks a task's destination thread only when the destination changes"
   }).pipe(Effect.provide(SqlitePersistence.layerMemory)),
 );
 
-it.effect("a run interrupted right after it reserves the task does not block the next run", () =>
+it.effect("a run interrupted after it reserves the task does not block the next run", () =>
   Effect.gen(function* () {
     const launches = yield* Ref.make(0);
+    const attempts = yield* Ref.make(0);
+    const firstLaunchStarted = yield* Deferred.make<void>();
     const layer = ScheduledTaskService.layer.pipe(
       Layer.provide(
         Layer.mergeAll(
           Layer.mock(ThreadLaunchService.ThreadLaunchService)({
             launch: () =>
-              Ref.update(launches, (n) => n + 1).pipe(
+              Ref.getAndUpdate(attempts, (n) => n + 1).pipe(
+                Effect.flatMap((attempt) =>
+                  attempt === 0
+                    ? Deferred.succeed(firstLaunchStarted, undefined).pipe(
+                        Effect.andThen(Effect.never),
+                      )
+                    : Ref.update(launches, (n) => n + 1),
+                ),
                 Effect.as({ threadId: ThreadId.make("thread:launched"), resumed: false } as never),
               ),
           }),
@@ -918,25 +927,11 @@ it.effect("a run interrupted right after it reserves the task does not block the
         interactionMode: "default",
       });
 
-      const add = Set.prototype.add;
-      let interrupted = false;
-      const first = yield* Effect.gen(function* () {
-        using _reserve = vi.spyOn(Set.prototype, "add").mockImplementation(function (
-          this: Set<unknown>,
-          value: unknown,
-        ) {
-          const result = add.call(this, value);
-          if (value === task.id && !interrupted) {
-            interrupted = true;
-            Fiber.getCurrent()?.interruptUnsafe();
-          }
-          return result;
-        });
-        return yield* service
-          .runNow({ id: task.id })
-          .pipe(Effect.forkChild, Effect.flatMap(Fiber.await));
-      });
-      assert.isTrue(interrupted);
+      const firstFiber = yield* service.runNow({ id: task.id }).pipe(Effect.forkChild);
+      yield* Deferred.await(firstLaunchStarted);
+      const first = yield* Fiber.interrupt(firstFiber).pipe(
+        Effect.andThen(Fiber.await(firstFiber)),
+      );
       assert.isTrue(Exit.hasInterrupts(first));
 
       const second = yield* service.runNow({ id: task.id });

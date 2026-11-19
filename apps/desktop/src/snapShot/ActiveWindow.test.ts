@@ -1,24 +1,14 @@
-import { assert, beforeEach, it, vi } from "vite-plus/test";
+import { assert, it } from "vite-plus/test";
 
-const { execFileMock } = vi.hoisted(() => ({ execFileMock: vi.fn() }));
-
-vi.mock("node:child_process", () => ({ execFile: execFileMock }));
-
-import { activeWindow } from "./ActiveWindow.ts";
-
-beforeEach(() => {
-  execFileMock.mockReset();
-});
+import { activeWindow, type MacLookupExecFile } from "./ActiveWindow.ts";
 
 function stubMacLookup(stdout: string) {
-  execFileMock.mockImplementation(
-    (
-      _file: string,
-      _args: ReadonlyArray<string>,
-      _options: unknown,
-      callback: (error: Error | null, stdout: string) => void,
-    ) => callback(null, stdout),
-  );
+  const calls: Array<[string, ReadonlyArray<string>]> = [];
+  const execFile: MacLookupExecFile = (file, args, _options, callback) => {
+    calls.push([file, args]);
+    callback(null, stdout);
+  };
+  return { calls, execFile };
 }
 
 function macLookup(
@@ -41,7 +31,7 @@ function macLookup(
 }
 
 it("parses the frontmost macOS window from the osascript lookup", async () => {
-  stubMacLookup(
+  const lookup = stubMacLookup(
     macLookup([
       {
         id: 42,
@@ -51,7 +41,7 @@ it("parses the frontmost macOS window from the osascript lookup", async () => {
     ]) + "\n",
   );
 
-  const window = await activeWindow("darwin");
+  const window = await activeWindow("darwin", lookup.execFile);
 
   assert.deepEqual(window, {
     platform: "macos",
@@ -65,7 +55,7 @@ it("parses the frontmost macOS window from the osascript lookup", async () => {
       bundleId: "com.example.editor",
     },
   });
-  const [file, args] = execFileMock.mock.calls[0]!;
+  const [file, args] = lookup.calls[0]!;
   assert.strictEqual(file, "/usr/bin/osascript");
   assert.deepEqual(args.slice(0, 3), ["-l", "JavaScript", "-e"]);
 });
@@ -129,9 +119,9 @@ it.each([
     ],
   },
 ])("selects the content window behind $name", async ({ helpers, content, background = [] }) => {
-  stubMacLookup(macLookup([...helpers, content, ...background]));
+  const lookup = stubMacLookup(macLookup([...helpers, content, ...background]));
 
-  const window = await activeWindow("darwin");
+  const window = await activeWindow("darwin", lookup.execFile);
 
   assert.strictEqual(window?.id, content.id);
   assert.deepEqual(window?.bounds, content.bounds);
@@ -173,14 +163,14 @@ it.each([
     bounds: { x: -250, y: 0, width: 50, height: 1_000 },
   },
 ])("keeps a frontmost $name ahead of a larger document", async ({ title, bounds }) => {
-  stubMacLookup(
+  const lookup = stubMacLookup(
     macLookup([
       { id: 1, title, bounds },
       { id: 2, title: "Document", bounds: { x: 0, y: 0, width: 800, height: 1_000 } },
     ]),
   );
 
-  const window = await activeWindow("darwin");
+  const window = await activeWindow("darwin", lookup.execFile);
 
   assert.strictEqual(window?.id, 1);
   assert.deepEqual(window?.bounds, bounds);
@@ -188,14 +178,14 @@ it.each([
 
 it("keeps an untitled content window ahead of a much taller background window", async () => {
   const bounds = { x: 0, y: 0, width: 800, height: 900 };
-  stubMacLookup(
+  const lookup = stubMacLookup(
     macLookup([
       { id: 1, title: "", bounds },
       { id: 2, title: "Background document", bounds: { x: 0, y: 0, width: 800, height: 4_000 } },
     ]),
   );
 
-  const window = await activeWindow("darwin");
+  const window = await activeWindow("darwin", lookup.execFile);
 
   assert.strictEqual(window?.id, 1);
   assert.deepEqual(window?.bounds, bounds);

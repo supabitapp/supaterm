@@ -1,4 +1,4 @@
-// @effect-diagnostics nodeBuiltinImport:off -- Intercepts the spawn electron-updater requires natively.
+// @effect-diagnostics nodeBuiltinImport:off -- Relaunches the AppImage under a leaky parent shell.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
@@ -7,8 +7,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { autoUpdater } from "electron-updater";
-import type * as NodeChildProcess from "node:child_process";
-import * as NodeModule from "node:module";
+import * as NodeChildProcess from "node:child_process";
 import { vi } from "vite-plus/test";
 
 vi.hoisted(() => {
@@ -40,14 +39,6 @@ vi.hoisted(() => {
 });
 
 import * as ElectronUpdater from "./ElectronUpdater.ts";
-
-const childProcess = NodeModule.createRequire(import.meta.url)("node:child_process") as {
-  spawn: (
-    command: string,
-    args: ReadonlyArray<string>,
-    options: NodeChildProcess.SpawnOptions,
-  ) => NodeChildProcess.ChildProcess;
-};
 
 describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
   "ElectronUpdater AppImage install",
@@ -83,28 +74,17 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
         });
 
         const relaunched = yield* Deferred.make<void>();
-        const realSpawn = childProcess.spawn;
-        yield* Effect.acquireRelease(
-          Effect.sync(() => {
-            childProcess.spawn = (command, args, options) => {
-              const child = realSpawn(
-                "bash",
-                ["-c", 'exec 7</dev/null; exec "$@"', "leaky-parent", command, ...args],
-                options,
-              );
-              child.once("exit", () => Deferred.doneUnsafe(relaunched, Effect.void));
-              return child;
-            };
-            NodeModule.syncBuiltinESMExports();
-          }),
-          () =>
-            Effect.sync(() => {
-              childProcess.spawn = realSpawn;
-              NodeModule.syncBuiltinESMExports();
-            }),
-        );
+        const appImageSpawnLog: ElectronUpdater.SpawnLog = async (command, args = [], env) => {
+          const child = NodeChildProcess.spawn(
+            "bash",
+            ["-c", 'exec 7</dev/null; exec "$@"', "leaky-parent", command, ...args],
+            { stdio: "ignore", env: env as NodeJS.ProcessEnv | undefined },
+          );
+          child.once("exit", () => Deferred.doneUnsafe(relaunched, Effect.void));
+          return true;
+        };
 
-        const electronUpdater = yield* ElectronUpdater.ElectronUpdater;
+        const electronUpdater = ElectronUpdater.makeWith({ appImageSpawnLog });
         yield* electronUpdater.quitAndInstall({ isSilent: true, isForceRunAfter: true });
         yield* Deferred.await(relaunched);
 
@@ -114,7 +94,7 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")(
           "7",
           `relaunched AppImage inherited the updating process's fd 7 (open fds: ${descriptors.join(" ")})`,
         );
-      }).pipe(Effect.provide([ElectronUpdater.layer, NodeServices.layer])),
+      }).pipe(Effect.provide(NodeServices.layer)),
     );
   },
 );

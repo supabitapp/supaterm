@@ -6,20 +6,10 @@ import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import { vi } from "vite-plus/test";
 
-const harness = vi.hoisted(() => ({
-  clearOutbox: vi.fn<(environmentId: string) => Promise<void>>(),
-  clearDrafts: vi.fn<(environmentId: string) => Promise<void>>(),
-  clearComposerErrors: vi.fn(),
-}));
-
-vi.mock("../state/thread-outbox-removal", () => ({
-  clearThreadOutboxEnvironment: harness.clearOutbox,
-}));
-vi.mock("../state/use-composer-drafts", () => ({
-  clearComposerDraftsEnvironment: harness.clearDrafts,
-}));
+vi.mock("../state/thread-outbox-removal", () => ({ clearThreadOutboxEnvironment: vi.fn() }));
+vi.mock("../state/use-composer-drafts", () => ({ clearComposerDraftsEnvironment: vi.fn() }));
 vi.mock("../state/thread-composer-error", () => ({
-  clearThreadComposerErrorsForEnvironment: harness.clearComposerErrors,
+  clearThreadComposerErrorsForEnvironment: vi.fn(),
 }));
 
 import * as EnvironmentOwnedDataCleanup from "./environment-owned-data-cleanup";
@@ -35,16 +25,20 @@ describe("EnvironmentOwnedDataCleanup", () => {
       warnings.push(message);
       releaseDrafts();
     });
+    const cleanupLayer = Layer.succeed(
+      Persistence.EnvironmentOwnedDataCleanup,
+      EnvironmentOwnedDataCleanup.make({
+        outbox: () => Promise.reject(new Error("Some queued messages could not be read.")),
+        drafts: () =>
+          new Promise<void>((resolve) => {
+            releaseDrafts = resolve;
+          }).then(() => {
+            draftsCleared = true;
+          }),
+        composerErrors: () => {},
+      }),
+    );
     return Effect.gen(function* () {
-      harness.clearOutbox.mockRejectedValue(new Error("Some queued messages could not be read."));
-      harness.clearDrafts.mockImplementation(() =>
-        new Promise<void>((resolve) => {
-          releaseDrafts = resolve;
-        }).then(() => {
-          draftsCleared = true;
-        }),
-      );
-
       const cleanup = yield* Persistence.EnvironmentOwnedDataCleanup;
       yield* cleanup.clear(ENVIRONMENT_ID);
 
@@ -63,10 +57,7 @@ describe("EnvironmentOwnedDataCleanup", () => {
       ]);
     }).pipe(
       Effect.provide(
-        Layer.merge(
-          EnvironmentOwnedDataCleanup.layer,
-          Logger.layer([logger], { mergeWithExisting: false }),
-        ),
+        Layer.merge(cleanupLayer, Logger.layer([logger], { mergeWithExisting: false })),
       ),
     );
   });

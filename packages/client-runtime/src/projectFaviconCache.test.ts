@@ -28,7 +28,8 @@ function deferred<A>() {
 
 function fixture() {
   const records = new Map<string, ProjectFaviconEntry>();
-  const load = vi.fn(async () => image);
+  const loader = { queued: new Array<() => Promise<string>>(), value: image };
+  const load = vi.fn(() => loader.queued.shift()?.() ?? Promise.resolve(loader.value));
   const storage: ProjectFaviconStorage = {
     list: async () => [...records.values()],
     put: async (key, entry) => {
@@ -41,6 +42,7 @@ function fixture() {
   return {
     storage,
     load,
+    loader,
     records,
     cache: createProjectFaviconCache({ storage, load }),
   };
@@ -71,12 +73,12 @@ describe("persistent project favicon cache", () => {
   ])(
     "does not restore images for $scope removed during a download",
     async ({ clear, remaining }) => {
-      const { cache, load, records } = fixture();
+      const { cache, loader, records } = fixture();
       const other = { ...target, environmentId: EnvironmentId.make("other") };
       await cache.resolve(other, url, signal());
       const next = deferred<string>();
       const started = deferred<void>();
-      load.mockImplementationOnce(() => {
+      loader.queued.push(() => {
         started.resolve();
         return next.promise;
       });
@@ -92,14 +94,14 @@ describe("persistent project favicon cache", () => {
   );
 
   it("bounds individual images, total bytes, and entry count in storage", async () => {
-    const { cache, load, records } = fixture();
-    load.mockResolvedValueOnce(
-      `data:image/png;base64,${"a".repeat(PROJECT_FAVICON_MAX_DATA_URL_LENGTH)}`,
+    const { cache, loader, records } = fixture();
+    loader.queued.push(
+      async () => `data:image/png;base64,${"a".repeat(PROJECT_FAVICON_MAX_DATA_URL_LENGTH)}`,
     );
     expect(await cache.resolve(target, url, signal())).toBe(url);
     expect(cache.peek(target)).toBeNull();
     const large = `data:image/png;base64,${"a".repeat(PROJECT_FAVICON_MAX_DATA_URL_LENGTH - 32)}`;
-    load.mockResolvedValue(large);
+    loader.value = large;
     for (let i = 0; i < 40; i++) {
       await cache.resolve({ ...target, cwd: `/large-${i}` }, url, signal());
     }
@@ -109,7 +111,7 @@ describe("persistent project favicon cache", () => {
     ).toBeLessThanOrEqual(PROJECT_FAVICON_CACHE_MAX_BYTES);
     expect(cache.peek({ ...target, cwd: "/large-0" })).toBeNull();
     expect(cache.peek({ ...target, cwd: "/large-39" })).toBe(large);
-    load.mockResolvedValue(image);
+    loader.value = image;
     for (let i = 0; i <= PROJECT_FAVICON_CACHE_MAX_ENTRIES; i++) {
       await cache.resolve({ ...target, cwd: `/small-${i}` }, url, signal());
     }

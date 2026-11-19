@@ -1,9 +1,29 @@
-export function createIndexedDbTransaction(options: {
-  readonly name: string;
-  readonly version: number;
-  readonly upgrade: (database: IDBDatabase) => void;
-  readonly blockedMessage: string;
-}) {
+export interface IndexedDbAccess {
+  readonly open?: (name: string, version: number) => IDBOpenDBRequest;
+  readonly begin?: (
+    database: IDBDatabase,
+    stores: string | string[],
+    mode: IDBTransactionMode,
+  ) => IDBTransaction;
+}
+
+const openIndexedDb = (name: string, version: number) => indexedDB.open(name, version);
+const beginIndexedDbTransaction = (
+  database: IDBDatabase,
+  stores: string | string[],
+  mode: IDBTransactionMode,
+) => database.transaction(stores, mode);
+
+export function createIndexedDbTransaction(
+  options: {
+    readonly name: string;
+    readonly version: number;
+    readonly upgrade: (database: IDBDatabase) => void;
+    readonly blockedMessage: string;
+  } & IndexedDbAccess,
+) {
+  const open = options.open ?? openIndexedDb;
+  const begin = options.begin ?? beginIndexedDbTransaction;
   let database: Promise<IDBDatabase> | undefined;
   const forget = (opening: Promise<IDBDatabase>) => {
     if (database === opening) database = undefined;
@@ -12,7 +32,7 @@ export function createIndexedDbTransaction(options: {
   function openDatabase() {
     if (database) return database;
     const opening = new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open(options.name, options.version);
+      const request = open(options.name, options.version);
       let settled = false;
       request.addEventListener("upgradeneeded", () => options.upgrade(request.result));
       request.addEventListener("success", () => {
@@ -48,7 +68,7 @@ export function createIndexedDbTransaction(options: {
       const opening = openDatabase();
       const opened = await opening;
       try {
-        return opened.transaction(stores, mode);
+        return begin(opened, stores, mode);
       } catch (cause) {
         if (!(cause instanceof DOMException) || cause.name !== "InvalidStateError") throw cause;
         forget(opening);

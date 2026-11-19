@@ -59,7 +59,10 @@ describe("project files queries", () => {
     vi.useFakeTimers();
     const closePreview = appAtomRegistry.mount(optimisticFile);
     let canWrite = true;
-    const persist = vi.fn().mockResolvedValue(AsyncResult.success(undefined));
+    const persist = vi.spyOn(
+      { persist: async (_contents: string) => AsyncResult.success(undefined) },
+      "persist",
+    );
     const onPendingChange = vi.fn();
     const makeCoordinator = () =>
       new FileSaveCoordinator({
@@ -107,7 +110,11 @@ describe("project files queries", () => {
     const firstWrite = new Promise<typeof saved>((resolve) => {
       finishFirstWrite = resolve;
     });
-    const persist = vi.fn().mockReturnValueOnce(firstWrite).mockResolvedValue(saved);
+    const writes = [firstWrite];
+    const persist = vi.spyOn(
+      { persist: async (_contents: string) => writes.shift() ?? saved },
+      "persist",
+    );
     const onPendingChange = vi.fn();
     const makeCoordinator = () =>
       new FileSaveCoordinator({

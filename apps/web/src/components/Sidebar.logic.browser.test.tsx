@@ -20,7 +20,8 @@ function WakeClock(props: { readonly threads: ReadonlyArray<{ readonly snoozedUn
 
 describe("useSnoozeWakeClock", () => {
   it("settles in one step when many distinct wakes passed during a sleep", async () => {
-    using now = vi.spyOn(Date, "now").mockReturnValue(MOUNTED_AT_MS);
+    vi.setSystemTime(MOUNTED_AT_MS);
+    using _clock = { [Symbol.dispose]: () => void vi.useRealTimers() };
     const threads = Array.from({ length: 40 }, (_, index) => ({
       snoozedUntil: new Date(MOUNTED_AT_MS + 1 + index * 60_000).toISOString(),
     }));
@@ -30,7 +31,7 @@ describe("useSnoozeWakeClock", () => {
     await expect.element(screen.getByRole("status")).toHaveTextContent(String(MOUNTED_AT_MS));
 
     const resumedAtMs = MOUNTED_AT_MS + 24 * 60 * 60_000;
-    now.mockReturnValue(resumedAtMs);
+    vi.setSystemTime(resumedAtMs);
 
     const lastWakeMs = MOUNTED_AT_MS + 1 + 39 * 60_000;
     await expect.element(screen.getByRole("status")).toHaveTextContent(String(lastWakeMs));

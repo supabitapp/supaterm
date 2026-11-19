@@ -8,6 +8,9 @@ import { toastManager } from "../components/ui/toast";
 import { useThreadUndoNotice } from "./showThreadUndoNotice";
 import { announce } from "../lib/announce";
 
+const commandResults = vi.hoisted(
+  () => new Map<string, (...args: ReadonlyArray<unknown>) => Promise<unknown>>(),
+);
 const commands = vi.hoisted(() => ({
   pin: vi.fn(),
   unpin: vi.fn(),
@@ -76,29 +79,37 @@ vi.mock("../state/entities", async (original) => ({
   readEnvironmentServerConfigLoaded: () => true,
   readThreadShell: () => (shellLoaded.current ? threadShell : null),
 }));
+function runCommand(name: keyof typeof commands) {
+  return (...args: ReadonlyArray<unknown>) => {
+    commands[name](...args);
+    const result = commandResults.get(name);
+    return result ? result(...args) : Promise.resolve({ _tag: "Success", value: undefined });
+  };
+}
+
 vi.mock("../state/use-atom-command", () => ({
   useAtomCommand: (command: unknown) => {
     switch (command) {
       case threadEnvironment.pin:
-        return commands.pin;
+        return runCommand("pin");
       case threadEnvironment.unpin:
-        return commands.unpin;
+        return runCommand("unpin");
       case threadEnvironment.archive:
-        return commands.archive;
+        return runCommand("archive");
       case threadEnvironment.unarchive:
-        return commands.unarchive;
+        return runCommand("unarchive");
       case threadEnvironment.delete:
-        return commands.delete;
+        return runCommand("delete");
       case threadEnvironment.markDone:
-        return commands.markDone;
+        return runCommand("markDone");
       case threadEnvironment.reopen:
-        return commands.reopen;
+        return runCommand("reopen");
       case threadEnvironment.snooze:
-        return commands.snooze;
+        return runCommand("snooze");
       case threadEnvironment.unsnooze:
-        return commands.unsnooze;
+        return runCommand("unsnooze");
       case threadEnvironment.reorderActive:
-        return commands.reorderActive;
+        return runCommand("reorderActive");
       default:
         return vi.fn();
     }
@@ -117,9 +128,8 @@ function currentUndo() {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  for (const command of Object.values(commands)) {
-    command.mockReset().mockResolvedValue({ _tag: "Success", value: undefined });
-  }
+  for (const command of Object.values(commands)) command.mockReset();
+  commandResults.clear();
   router.navigate.mockClear();
   router.state.location.href = "/";
   router.state.matches[0]!.params = {};
@@ -220,7 +230,7 @@ describe("unpin Undo", () => {
 
 describe("archive Undo", () => {
   it("unarchives and returns to the thread when archiving left it", async () => {
-    const add = vi.spyOn(toastManager, "add").mockReturnValue("toast");
+    const add = vi.spyOn(toastManager, "add");
     router.state.matches[0]!.params = {
       environmentId: target.environmentId,
       threadId: target.threadId,
@@ -251,7 +261,7 @@ describe("archive Undo", () => {
   });
 
   it("shows no Undo when the archive failed", async () => {
-    commands.archive.mockResolvedValue({ _tag: "Failure", cause: new Error("nope") });
+    commandResults.set("archive", async () => ({ _tag: "Failure", cause: new Error("nope") }));
     await useThreadActions().archiveThread(target);
     expect(useThreadUndoNotice.getState().notice).toBeNull();
   });
@@ -269,11 +279,10 @@ describe("archive navigation", () => {
       threadId: target.threadId,
     };
     let finishArchive!: () => void;
-    commands.archive.mockReturnValue(
-      new Promise((resolve) => {
-        finishArchive = () => resolve({ _tag: "Success", value: undefined });
-      }),
-    );
+    const archiving = new Promise((resolve) => {
+      finishArchive = () => resolve({ _tag: "Success", value: undefined });
+    });
+    commandResults.set("archive", () => archiving);
     const archived = useThreadActions().archiveThread(target);
     router.state.location.href = route.destination;
     finishArchive();
@@ -292,7 +301,7 @@ describe("delete navigation", () => {
       environmentId: target.environmentId,
       threadId: target.threadId,
     };
-    commands.delete.mockImplementation(async () => {
+    commandResults.set("delete", async () => {
       for (const listener of router.history.listeners) listener({ action: { type } });
       return { _tag: "Success", value: undefined };
     });
@@ -304,7 +313,7 @@ describe("delete navigation", () => {
 
 describe("mark done and snooze Undo", () => {
   it("reopens from the notice and expires the Undo after a manual reopen", async () => {
-    const add = vi.spyOn(toastManager, "add").mockReturnValue("toast");
+    const add = vi.spyOn(toastManager, "add");
     const actions = useThreadActions();
     await actions.markThreadDone(target);
     expect(useThreadUndoNotice.getState().notice).toMatchObject({ action: "Done", count: 1 });
@@ -379,8 +388,10 @@ describe("mark done and snooze Undo", () => {
   it("stops Done restoration if restoring the pin fails", async () => {
     threadShell.pinnedAt = "2026-01-01T00:00:00.000Z";
     threadShell.snoozedUntil = "2030-01-01T09:00:00.000Z";
-    commands.pin.mockResolvedValue({ _tag: "Failure", cause: Cause.fail(new Error("Pin failed")) });
-    vi.spyOn(toastManager, "add").mockReturnValue("toast");
+    commandResults.set("pin", async () => ({
+      _tag: "Failure",
+      cause: Cause.fail(new Error("Pin failed")),
+    }));
     await useThreadActions().markThreadDone(target);
     await currentUndo()();
     expect(commands.reopen).toHaveBeenCalledOnce();
@@ -421,7 +432,7 @@ describe("mark done and snooze Undo", () => {
   });
 
   it("wakes the thread from the snooze notice", async () => {
-    const add = vi.spyOn(toastManager, "add").mockReturnValue("toast");
+    const add = vi.spyOn(toastManager, "add");
     const actions = useThreadActions();
     await actions.snoozeThread(target, "2100-01-01T00:00:00.000Z");
     expect(useThreadUndoNotice.getState().notice).toMatchObject({ action: "Snoozed", count: 1 });
@@ -473,7 +484,7 @@ describe("archive and delete Undo expiry", () => {
     it("keeps the earlier Undo when the request fails", async () => {
       const actions = useThreadActions();
       await actions.markThreadDone(target);
-      commands[lifecycle === "archiveThread" ? "archive" : "delete"].mockResolvedValue(failure);
+      commandResults.set(lifecycle === "archiveThread" ? "archive" : "delete", async () => failure);
       await actions[lifecycle](target);
       expect(useThreadUndoNotice.getState().notice).toMatchObject({ action: "Done" });
       await currentUndo()();

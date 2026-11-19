@@ -14,14 +14,14 @@ import {
 } from "@particle/dbus-next";
 import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
 
-const { connect, resize, imageSize } = vi.hoisted(() => ({
-  connect: vi.fn(),
+const { session, resize, imageSize } = vi.hoisted(() => ({
+  session: { bus: undefined as unknown },
   resize: vi.fn(() => ({ toPNG: () => Buffer.from("resized") })),
   imageSize: { width: 800, height: 600 },
 }));
 vi.mock("@particle/dbus-next", async (original) => ({
   ...(await original<typeof import("@particle/dbus-next")>()),
-  sessionBus: connect,
+  sessionBus: () => session.bus as MessageBus,
 }));
 vi.mock("electron", () => ({
   nativeImage: {
@@ -149,7 +149,7 @@ let bus: FakeBus;
 let directory: string;
 beforeEach(async () => {
   bus = new FakeBus();
-  connect.mockImplementation(() => bus as unknown as MessageBus);
+  session.bus = bus;
   directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "supaterm-portal-test-"));
   bus.uri = NodeURL.pathToFileURL(NodePath.join(directory, "image.png")).href;
   await NodeFSP.writeFile(NodePath.join(directory, "image.png"), png);

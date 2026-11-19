@@ -1,10 +1,43 @@
-import { compileResolvedKeybindingsConfig } from "@supaterm/shared/keybindings";
+import { compileResolvedKeybindingsConfig, isMacPlatform } from "@supaterm/shared/keybindings";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../test/render";
 
-const state = vi.hoisted(() => ({ navigate: vi.fn() }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const state = vi.hoisted(() => ({ navigate: fake() }));
+
+const MOD = isMacPlatform(navigator.platform) ? "Meta" : "Control";
 
 const keybindings = compileResolvedKeybindingsConfig([
   { key: "mod+u", command: "navigation.back", when: "usagePageOpen" },
@@ -43,19 +76,20 @@ function MountedPalette() {
 describe("usage toggle shortcut on Usage", () => {
   it("goes back", async () => {
     vi.clearAllMocks();
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
     await using screen = await render(null, { router: "/usage" });
-    using _commands = { [Symbol.dispose]: registerNavigationHistoryCommands(screen.router!) };
+    const history = { navigate: (_direction: "back" | "forward") => {} };
+    const navigate = vi.spyOn(history, "navigate");
+    using _commands = {
+      [Symbol.dispose]: registerNavigationHistoryCommands(screen.router!, history.navigate),
+    };
 
-    using back = vi.spyOn(window.history, "back").mockImplementation(() => undefined);
-    await userEvent.keyboard("{Control>}u{/Control}");
+    await userEvent.keyboard(`{${MOD}>}u{/${MOD}}`);
 
-    expect(back).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledExactlyOnceWith("back");
   });
 
   it("does not reopen Usage from the command palette", async () => {
     vi.clearAllMocks();
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
     await using screen = await render(<MountedPalette />, { router: "/usage" });
     using navigate = vi.spyOn(screen.router!, "navigate");
     using commands = new DisposableStack();
@@ -63,7 +97,7 @@ describe("usage toggle shortcut on Usage", () => {
       installCommandPaletteCommands(screen.router!, { keybindings: () => keybindings }),
     );
 
-    await userEvent.keyboard("{Control>}u{/Control}");
+    await userEvent.keyboard(`{${MOD}>}u{/${MOD}}`);
 
     expect(navigate).not.toHaveBeenCalled();
   });

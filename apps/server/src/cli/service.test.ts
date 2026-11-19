@@ -8,14 +8,11 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as TestConsole from "effect/testing/TestConsole";
 import { Command } from "effect/cli";
-import { afterEach, vi } from "vite-plus/test";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as BootService from "../service/bootService.ts";
 import { resolveHostCliCommand } from "./invocation.ts";
 import { serviceCommand } from "./service.ts";
-
-afterEach(() => vi.restoreAllMocks());
 
 const status = {
   supported: true,
@@ -86,9 +83,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
         const fs = yield* FileSystem.FileSystem;
         const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-cli-test-" });
         const { service, installOptions } = makeTestService(serviceStatus);
-        vi.spyOn(BootService, "layer").mockReturnValue(
-          Layer.succeed(BootService.BootService, service),
-        );
+        const bootService = service;
 
         const error = yield* Command.runWith(serviceCommand, { version: packageJson.version })([
           command,
@@ -96,6 +91,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
           baseDir,
         ]).pipe(
           Effect.provideService(HostProcess.Environment, {}),
+          Effect.provideService(BootService.ProvidedBootService, bootService),
           Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} }))),
           Effect.flip,
         );
@@ -110,9 +106,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
       const fs = yield* FileSystem.FileSystem;
       const parent = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-cli-test-" });
       const baseDir = `${parent}/supaterm`;
-      vi.spyOn(BootService, "layer").mockReturnValue(
-        Layer.succeed(BootService.BootService, makeTestService(status).service),
-      );
+      const bootService = makeTestService(status).service;
 
       const output = yield* Command.runWith(serviceCommand, { version: packageJson.version })([
         "protect",
@@ -122,6 +116,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
         Effect.andThen(TestConsole.logLines),
         Effect.map((lines) => lines.join("\n")),
         Effect.provideService(HostProcess.Environment, {}),
+        Effect.provideService(BootService.ProvidedBootService, bootService),
         Effect.provideService(HostProcess.Platform, "linux"),
         Effect.provideService(HostProcess.UserId, 0),
         Effect.provide(
@@ -141,9 +136,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
       const fs = yield* FileSystem.FileSystem;
       const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-cli-test-" });
       const { service, installOptions } = makeTestService(status);
-      vi.spyOn(BootService, "layer").mockReturnValue(
-        Layer.succeed(BootService.BootService, service),
-      );
+      const bootService = service;
       const node = "/home/me/.nvm/versions/node/v26.8.2/bin/node";
       const script = "/home/me/.nvm/versions/node/v26.8.2/lib/node_modules/supaterm/dist/bin.mjs";
 
@@ -155,6 +148,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
         Effect.andThen(TestConsole.logLines),
         Effect.map((lines) => lines.join("\n")),
         Effect.provideService(HostProcess.Environment, {}),
+        Effect.provideService(BootService.ProvidedBootService, bootService),
         Effect.provideService(HostProcess.IsExecutable, false),
         Effect.provideService(HostProcess.ExecutablePath, node),
         Effect.provideService(HostProcess.Arguments, [node, script, "service", command]),
@@ -195,9 +189,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "supaterm-service-cli-test-" });
-      vi.spyOn(BootService, "layer").mockReturnValue(
-        Layer.succeed(BootService.BootService, makeTestService(input.status).service),
-      );
+      const bootService = makeTestService(input.status).service;
 
       const [lines, next] = yield* Command.runWith(serviceCommand, {
         version: packageJson.version,
@@ -209,6 +201,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
           ]),
         ),
         Effect.provideService(HostProcess.Environment, {}),
+        Effect.provideService(BootService.ProvidedBootService, bootService),
         Effect.provide(
           Layer.mergeAll(
             ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })),
@@ -232,17 +225,12 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
         ...status,
         installedBaseDir: input.otherHome ? "/home/me/.supaterm" : baseDir,
       });
-      vi.spyOn(BootService, "layer").mockReturnValue(
-        Layer.succeed(
-          BootService.BootService,
-          input.unreadable
-            ? {
-                ...service,
-                status: Effect.fail(new BootService.BootServiceInstallError({ cause: "EACCES" })),
-              }
-            : service,
-        ),
-      );
+      const bootService = input.unreadable
+        ? {
+            ...service,
+            status: Effect.fail(new BootService.BootServiceInstallError({ cause: "EACCES" })),
+          }
+        : service;
 
       const output = yield* Command.runWith(serviceCommand, { version: packageJson.version })([
         "uninstall",
@@ -252,6 +240,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("service commands
         Effect.andThen(TestConsole.logLines),
         Effect.map((lines) => lines.join("\n")),
         Effect.provideService(HostProcess.Environment, {}),
+        Effect.provideService(BootService.ProvidedBootService, bootService),
         Effect.provide(
           Layer.mergeAll(
             ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })),

@@ -1,15 +1,30 @@
 import DocumentPages, { sanitizeDocumentHtml } from "./DocumentPages";
-import { act, render, stubGlobal, type Screen } from "../../../test/render";
+import { act, fakeTimers, render, stubGlobal, type Screen } from "../../../test/render";
 import { EnvironmentId, ThreadId } from "@supaterm/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page } from "vite-plus/test/browser";
 import "~/index.css";
 
-const { refresh, assetUrlState, pdfOpens, pdfWorkerUrl } = await vi.hoisted(async () => {
+const { assets, refresh, assetUrlState, pdfOpens, pdfWorkerUrl } = await vi.hoisted(async () => {
   const { default: source } = await import("pdfjs-dist/build/pdf.worker.min.mjs?raw");
+  const assets = {
+    refreshQueue: [] as Array<string | null>,
+    refreshResult: null as string | null,
+    state: undefined as import("~/assets/assetUrls").AssetUrlState | undefined,
+    refresh: async () =>
+      assets.refreshQueue.length > 0 ? assets.refreshQueue.shift()! : assets.refreshResult,
+    useState: (..._args: Array<unknown>) => assets.state,
+    reset: (...results: Array<string | null>) => {
+      assets.refreshQueue = results.slice(0, -1);
+      assets.refreshResult = results.at(-1) ?? null;
+      refresh.mockClear();
+    },
+  };
+  const refresh = vi.spyOn(assets, "refresh");
   return {
-    refresh: vi.fn<() => Promise<string | null>>(),
-    assetUrlState: vi.fn<() => import("~/assets/assetUrls").AssetUrlState>(),
+    assets,
+    refresh,
+    assetUrlState: vi.spyOn(assets, "useState"),
     pdfOpens: [] as Array<(task: import("pdfjs-dist").PDFDocumentLoadingTask) => void>,
     pdfWorkerUrl: URL.createObjectURL(new Blob([source], { type: "text/javascript" })),
   };
@@ -22,7 +37,7 @@ vi.mock(import("pdfjs-dist/build/pdf.worker.min.mjs?url"), () => ({
 vi.mock(import("~/assets/assetUrls"), async (original) => ({
   ...(await original()),
   useAssetUrlRefresh: () => refresh,
-  useAssetUrlState: assetUrlState,
+  useAssetUrlState: (...args: Array<unknown>) => assetUrlState(...args)!,
 }));
 vi.mock(import("./pdfDocument"), async (original) => {
   const actual = await original();
@@ -63,6 +78,7 @@ import { AttachmentFilePreview } from "./AttachmentFilePreview";
 import LargeTextViewer from "./LargeTextViewer";
 import { OfficeFilePreview } from "./OfficeFilePreview";
 import { MermaidFilePreview } from "./MermaidFilePreview";
+import { NativePdfViewerContext } from "./BrowserDocumentFrame";
 import JSZip from "jszip";
 import type { OfficeWorkerResult } from "./officePreviewProtocol";
 import type { ReactElement } from "react";
@@ -74,9 +90,7 @@ describe("standalone Mermaid previews", () => {
     "A@{ label: &key img, *key: '/pixel.png' }",
     'A["<img src=//attacker.invalid/pixel.png>"]',
   ])("never requests the resource in %s", async (node) => {
-    using imageSource = vi
-      .spyOn(HTMLImageElement.prototype, "src", "set")
-      .mockImplementation(() => {});
+    using imageSource = vi.spyOn(HTMLImageElement.prototype, "src", "set");
     await using screen = await render(<MermaidFilePreview text={`flowchart LR\n${node}`} />);
     await vi.waitFor(
       () => expect(screen.container.querySelector("[data-markdown-mermaid] svg")).not.toBeNull(),
@@ -114,7 +128,7 @@ it("reloads a workspace Word file after a preview remount", async () => {
       return new Response(await archive.generateAsync({ type: "arraybuffer" }));
     }),
   );
-  refresh.mockReset().mockResolvedValue("https://example.com/workspace.docx");
+  assets.reset("https://example.com/workspace.docx");
   const asset = { environmentId: EnvironmentId.make("test-environment"), attachmentId: "word" };
   await using screen = await render(
     <AttachmentFilePreview
@@ -176,7 +190,7 @@ describe("attachment HTML preview recovery", () => {
   const renewedUrl = "data:text/html,renewed";
 
   function setup() {
-    refresh.mockReset().mockResolvedValueOnce(originalUrl).mockResolvedValue(renewedUrl);
+    assets.reset(originalUrl, renewedUrl);
   }
 
   const openRemote = () =>
@@ -205,15 +219,14 @@ describe("attachment HTML preview recovery", () => {
 
   it("keeps a renewed URL for subsequent rendered and source views", async () => {
     setup();
-    let now = 0;
-    using _now = vi.spyOn(Date, "now").mockImplementation(() => now);
+    using _clock = fakeTimers({ now: 0 });
     using _fetch = stubGlobal(
       "fetch",
       vi.fn(async () => new Response("<p>Captured HTML</p>")),
     );
     await using screen = await openRemote();
     expect(screen.container.querySelector("iframe")?.getAttribute("src")).toBe(originalUrl);
-    now = 61 * 60_000;
+    vi.setSystemTime(61 * 60_000);
     await toggleMode(screen, "Show HTML source");
     await act(async () => {
       await import("./ReadOnlySourcePreview");
@@ -232,15 +245,14 @@ describe("attachment HTML preview recovery", () => {
 
   it("does not fetch or mark an expired URL fresh when reauthorization is unavailable", async () => {
     setup();
-    let now = 0;
-    using _now = vi.spyOn(Date, "now").mockImplementation(() => now);
+    using _clock = fakeTimers({ now: 0 });
     using _fetch = stubGlobal(
       "fetch",
       vi.fn(async () => new Response("<p>Captured HTML</p>")),
     );
     await using screen = await openRemote();
-    now = 61 * 60_000;
-    refresh.mockResolvedValue(null);
+    vi.setSystemTime(61 * 60_000);
+    assets.refreshResult = null;
     await toggleMode(screen, "Show HTML source");
     expect(attachmentFetches()).toEqual([]);
     expect(alert(screen)?.textContent).toContain("Reconnect to the environment and try again.");
@@ -253,8 +265,7 @@ describe("attachment HTML preview recovery", () => {
 
   it("can return to rendered HTML after local source decoding fails", async () => {
     setup();
-    let now = 0;
-    using _now = vi.spyOn(Date, "now").mockImplementation(() => now);
+    using _clock = fakeTimers({ now: 0 });
     using _fetch = stubGlobal(
       "fetch",
       vi.fn(async () => new Response("<p>Captured HTML</p>")),
@@ -312,7 +323,7 @@ describe("document output sanitization", () => {
   });
 });
 it("opens a known empty attachment even when its range response is inaccessible", async () => {
-  refresh.mockResolvedValue("https://unreachable.invalid/empty.txt");
+  assets.reset("https://unreachable.invalid/empty.txt");
   await using screen = await render(
     <AttachmentFilePreview
       name="empty.txt"
@@ -330,7 +341,7 @@ it("opens a known empty attachment even when its range response is inaccessible"
 it.each(["draft", "thread"] as const)(
   "reads an unknown-size %s workspace file instead of treating it as empty",
   async (source) => {
-    refresh.mockResolvedValue("https://example.test/binary.txt");
+    assets.reset("https://example.test/binary.txt");
     using _fetch = stubGlobal(
       "fetch",
       vi.fn(async () => new Response("invalid\0text")),
@@ -362,7 +373,7 @@ it.each(["draft", "thread"] as const)(
 it("refreshes authorization and retries a failed streamed attachment", async () => {
   const bad = URL.createObjectURL(new Blob(["invalid\0text"]));
   const good = URL.createObjectURL(new Blob(["recovered text\n"]));
-  refresh.mockReset().mockResolvedValueOnce(bad).mockResolvedValue(good);
+  assets.reset(bad, good);
   try {
     await using screen = await render(
       <AttachmentFilePreview
@@ -462,7 +473,7 @@ it.each(["archive", "sqlite"] as const)(
       database.close();
     }
     const good = URL.createObjectURL(new Blob([bytes]));
-    refresh.mockReset().mockResolvedValueOnce(bad).mockResolvedValue(good);
+    assets.reset(bad, good);
     try {
       await using screen = await render(
         <AttachmentFilePreview
@@ -551,61 +562,62 @@ it("toggles a Mermaid attachment between diagram and source through the lazy pre
 
 it("keeps a workspace PDF open across URL renewals and reloads it when the file changes", async () => {
   const { WorkspaceBrowserPreview } = await import("./FilePreviewPanel");
-  using _native = vi.spyOn(navigator, "pdfViewerEnabled", "get").mockReturnValue(true);
   const original = URL.createObjectURL(new Blob(["%PDF-1.4"], { type: "application/pdf" }));
   const edited = URL.createObjectURL(new Blob(["%PDF-1.4 edited"], { type: "application/pdf" }));
   const preview = (mutation: string) => (
-    <WorkspaceBrowserPreview
-      environmentId={EnvironmentId.make("test")}
-      threadRef={{ environmentId: EnvironmentId.make("test"), threadId: ThreadId.make("test") }}
-      draft={false}
-      workspaceRoot="/repo"
-      absolutePath="/repo/planning.pdf"
-      title="Planning PDF"
-      workspaceMutationId={mutation}
-    />
+    <NativePdfViewerContext value={() => true}>
+      <WorkspaceBrowserPreview
+        environmentId={EnvironmentId.make("test")}
+        threadRef={{ environmentId: EnvironmentId.make("test"), threadId: ThreadId.make("test") }}
+        draft={false}
+        workspaceRoot="/repo"
+        absolutePath="/repo/planning.pdf"
+        title="Planning PDF"
+        workspaceMutationId={mutation}
+      />
+    </NativePdfViewerContext>
   );
-  assetUrlState.mockReturnValue({
+  assets.state = {
     _tag: "Success",
     url: `${original}#initial`,
     expiresAt: 0,
     fileRevision: "one",
-  });
+  };
   try {
     await using screen = await render(preview("first"));
     const opened = screen.container.querySelector("iframe");
     expect(opened?.src.startsWith(original)).toBe(true);
 
-    assetUrlState.mockReturnValue({
+    assets.state = {
       _tag: "Success",
       url: `${original}#renewed`,
       expiresAt: 0,
       fileRevision: "one",
-    });
+    };
     await screen.rerender(preview("second"));
     expect(assetUrlState).toHaveBeenLastCalledWith(expect.anything(), expect.anything(), "second");
     expect(screen.container.querySelector("iframe")).toBe(opened);
 
-    assetUrlState.mockReturnValue({
+    assets.state = {
       _tag: "Success",
       url: edited,
       expiresAt: 0,
       fileRevision: "two",
-    });
+    };
     await screen.rerender(preview("third"));
     const reloaded = screen.container.querySelector("iframe");
     expect(reloaded).not.toBe(opened);
     expect(reloaded?.src.startsWith(edited)).toBe(true);
 
-    assetUrlState.mockReturnValue({
+    assets.state = {
       _tag: "Success",
       url: `${edited}#stale`,
       expiresAt: 0,
       waiting: true,
-    });
+    };
     await screen.rerender(preview("fourth"));
     expect(screen.container.querySelector("iframe")).toBeNull();
-    assetUrlState.mockReturnValue({ _tag: "Success", url: original, expiresAt: 0 });
+    assets.state = { _tag: "Success", url: original, expiresAt: 0 };
     await screen.rerender(preview("fourth"));
     expect(screen.container.querySelector("iframe")?.src.startsWith(original)).toBe(true);
   } finally {
@@ -658,35 +670,36 @@ function nextPdfLoad() {
 }
 
 it("keeps a workspace PDF's page, offset and zoom when a new revision reloads it", async () => {
-  assetUrlState.mockReset();
+  assets.state = undefined;
   pdfOpens.length = 0;
   const { WorkspaceBrowserPreview } = await import("./FilePreviewPanel");
-  using _native = vi.spyOn(navigator, "pdfViewerEnabled", "get").mockReturnValue(false);
   const original = URL.createObjectURL(planningPdf());
   const updated = URL.createObjectURL(
     planningPdf(["Quarterly outlook", "Delivery milestones", "Updated budget"], 500),
   );
   const preview = (src: string, mutation: string, path = "/repo/planning.pdf") => {
-    assetUrlState.mockReturnValue({
+    assets.state = {
       _tag: "Success",
       url: `${src}#preview`,
-      expiresAt: Date.now() + 3_600_000,
-    });
+      expiresAt: Number.MAX_SAFE_INTEGER,
+    };
     return (
-      <div className="flex h-[600px] w-[320px]">
-        <WorkspaceBrowserPreview
-          environmentId={EnvironmentId.make("test")}
-          threadRef={{
-            environmentId: EnvironmentId.make("test"),
-            threadId: ThreadId.make(original),
-          }}
-          draft={false}
-          absolutePath={path}
-          workspaceRoot="/repo"
-          title="Planning PDF"
-          workspaceMutationId={mutation}
-        />
-      </div>
+      <NativePdfViewerContext value={() => false}>
+        <div className="flex h-[600px] w-[320px]">
+          <WorkspaceBrowserPreview
+            environmentId={EnvironmentId.make("test")}
+            threadRef={{
+              environmentId: EnvironmentId.make("test"),
+              threadId: ThreadId.make(original),
+            }}
+            draft={false}
+            absolutePath={path}
+            workspaceRoot="/repo"
+            title="Planning PDF"
+            workspaceMutationId={mutation}
+          />
+        </div>
+      </NativePdfViewerContext>
     );
   };
   const reload = async (screen: Screen, element: ReactElement) => {
@@ -1061,17 +1074,15 @@ it.each([
 ])("validates PDF %s assets before decoding", async (kind, filename, directory) => {
   const { BinaryDataFactory } = await import("./pdfDocument");
   const factory = new BinaryDataFactory();
-  const fetchAsset = vi.fn(
-    async () =>
-      new Response("<html>app</html>", {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      }),
-  );
-  using _fetch = stubGlobal("fetch", fetchAsset);
+  let respond = () =>
+    new Response("<html>app</html>", {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  using _fetch = stubGlobal("fetch", async () => respond());
   await expect(factory.fetch({ kind, filename })).rejects.toThrow(
     `PDF ${directory} asset unavailable.`,
   );
-  fetchAsset.mockImplementation(async () => new Response(new Uint8Array([1, 2, 3])));
+  respond = () => new Response(new Uint8Array([1, 2, 3]));
   await expect(factory.fetch({ kind, filename })).resolves.toEqual(new Uint8Array([1, 2, 3]));
   await expect(factory.fetch({ kind, filename: "missing" })).rejects.toThrow(
     `Unsupported PDF ${directory} asset.`,
@@ -1080,7 +1091,7 @@ it.each([
 
 describe("binary workspace file", () => {
   it("offers a download instead of reading a text-named binary as text", async () => {
-    refresh.mockReset().mockResolvedValue("data:application/octet-stream,a%00b");
+    assets.reset("data:application/octet-stream,a%00b");
     using _fetch = stubGlobal(
       "fetch",
       vi.fn(async () => new Response(new Uint8Array([0x61, 0x00, 0x62]))),

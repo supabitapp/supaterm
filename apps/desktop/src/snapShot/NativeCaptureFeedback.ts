@@ -13,19 +13,36 @@ const decodeEvent = Schema.decodeUnknownSync(
   ),
 );
 
+export type FeedbackHelperProcess = {
+  readonly stdin: {
+    end(data: string): unknown;
+    write(data: string): unknown;
+    on(event: "error", listener: () => void): unknown;
+  };
+  readonly stdout: {
+    setEncoding(encoding: "utf8"): unknown;
+    on(event: "data", listener: (chunk: string) => void): unknown;
+  };
+  once(event: "error" | "close", listener: () => void): unknown;
+  kill(): unknown;
+};
+
+export type SpawnFeedbackHelper = (
+  executable: string,
+  args: ReadonlyArray<string>,
+) => FeedbackHelperProcess;
+
+const spawnFeedbackHelper: SpawnFeedbackHelper = (executable, args) =>
+  NodeChildProcess.spawn(executable, args, { stdio: ["pipe", "pipe", "ignore"] });
+
 /** Ready and landed are compositor receipts. A requested animation is not proof it started. */
 export async function startNativeCaptureFeedback(
   executable: string,
   directory: string,
   options: { bounds: LinuxWindowMetadata["bounds"]; pid: number; flash: boolean; animate: boolean },
+  spawn: SpawnFeedbackHelper = spawnFeedbackHelper,
 ) {
-  const child = NodeChildProcess.spawn(
-    executable,
-    ["feedback", directory, JSON.stringify(options)],
-    {
-      stdio: ["pipe", "pipe", "ignore"],
-    },
-  );
+  const child = spawn(executable, ["feedback", directory, JSON.stringify(options)]);
   const ready = Promise.withResolvers<boolean | undefined>();
   const landed = Promise.withResolvers<void>();
   const exited = Promise.withResolvers<void>();
@@ -110,3 +127,28 @@ export async function startNativeCaptureFeedback(
     close,
   };
 }
+
+export type CaptureHelperExecFile = (
+  executable: string,
+  args: ReadonlyArray<string>,
+  options: {
+    readonly timeout: number;
+    readonly maxBuffer: number;
+    readonly encoding: "utf8";
+    readonly signal?: AbortSignal;
+  },
+  callback: (error: Error | null, stdout: string, stderr: string) => void,
+) => void;
+
+export type CaptureHelperNative = {
+  readonly execFile: CaptureHelperExecFile;
+  readonly startFeedback: typeof startNativeCaptureFeedback;
+};
+
+export const nodeCaptureHelperNative: CaptureHelperNative = {
+  execFile: (executable, args, options, callback) => {
+    NodeChildProcess.execFile(executable, [...args], options, callback);
+  },
+  startFeedback: (executable, directory, options) =>
+    startNativeCaptureFeedback(executable, directory, options),
+};

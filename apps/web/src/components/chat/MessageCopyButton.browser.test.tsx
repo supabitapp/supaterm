@@ -11,11 +11,8 @@ it("explains a denied clipboard write and lets the same message be copied again"
       <MessageCopyButton text="A message to copy" />
     </AnchoredToastProvider>,
   );
-  using write = vi
-    .spyOn(navigator.clipboard, "writeText")
-    .mockRejectedValueOnce(new DOMException("Clipboard access denied", "NotAllowedError"))
-    .mockResolvedValue(undefined);
-  using _console = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  using write = vi.spyOn(navigator.clipboard, "writeText");
+  using _console = vi.spyOn(console, "error");
 
   const copy = screen.getByRole("button", { name: "Copy message" });
   await copy.click();

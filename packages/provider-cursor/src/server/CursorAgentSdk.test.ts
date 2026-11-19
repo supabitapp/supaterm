@@ -13,118 +13,132 @@ import { vi } from "vite-plus/test";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 import * as CursorAgentSdk from "./CursorAgentSdk.ts";
 import * as CursorSdk from "./CursorSdk.ts";
+import { loadCursorSdk, loadCursorSqlite } from "./sdk.ts";
 
-type CreateAgentPlatform = typeof import("@cursor/sdk").createAgentPlatform;
+type CursorSdkModule = ReturnType<CursorSdk.CursorSdk["Service"]["load"]>;
+type CreateAgentPlatform = CursorSdkModule["createAgentPlatform"];
 
-const cursorSdkMock = vi.hoisted(() => {
-  const createAgentPlatform = vi.fn<CreateAgentPlatform>();
+const finishedRun = {
+  id: "run-cursor-agent-sdk-test",
+  requestId: "request-cursor-agent-sdk-test",
+  status: "finished",
+  result: "ok",
+  model: { id: "default" },
+  durationMs: 1,
+};
+
+const cursorSdkFake = (() => {
   const closeExecutionOrder: Array<string> = [];
   const runOperations: Array<string> = [];
-  let agentCloseFailure: unknown;
+  const platforms: Array<() => Promise<Awaited<ReturnType<CreateAgentPlatform>>>> = [];
+  const agentCreations: Array<() => Promise<unknown>> = [];
+  const waits: Array<() => Promise<typeof finishedRun>> = [];
+  const steerFailures: Array<Error> = [];
+  const sends: Array<() => Promise<unknown>> = [];
+  const steers: Array<Array<string>> = [];
+  const listRunsCalls: Array<[string, ListRunsOptions | undefined]> = [];
+  const cancelRunCalls: Array<[string, unknown]> = [];
   let storedRuns: Array<{ readonly id: string; readonly status: string }> = [];
-  const runWait = vi.fn(async () => ({
-    id: "run-cursor-agent-sdk-test",
-    requestId: "request-cursor-agent-sdk-test",
-    status: "finished",
-    result: "ok",
-    model: { id: "default" },
-    durationMs: 1,
-  }));
-  const runCancel = vi.fn(async () => {});
-  const runSteer = vi.fn(async () => "complete_delivered" as const);
-  const agentClose = vi.fn(() => {
+  const runWait = () => waits.shift()?.() ?? Promise.resolve(finishedRun);
+  const runCancel = async () => {};
+  const runSteer = async (message: string) => {
+    steers.push([message]);
+    const failure = steerFailures.shift();
+    if (failure) throw failure;
+    return "complete_delivered" as const;
+  };
+  const agentClose = () => {
     closeExecutionOrder.push("sdk:agent.close");
-    if (agentCloseFailure !== undefined) {
-      throw agentCloseFailure;
+  };
+  const send = async (
+    _message: unknown,
+    options: { readonly onDelta?: (input: { readonly update: unknown }) => Promise<void> },
+  ) => {
+    const queued = sends.shift();
+    if (queued) return queued();
+    runOperations.push("run.start");
+    if (storedRuns.some((run) => run.status === "running")) {
+      throw new Error("Agent agent-cursor-agent-sdk-test already has active run");
     }
-  });
-  const send = vi.fn(
-    async (
-      _message: unknown,
-      options: { readonly onDelta?: (input: { readonly update: unknown }) => Promise<void> },
-    ) => {
-      runOperations.push("run.start");
-      if (storedRuns.some((run) => run.status === "running")) {
-        throw new Error("Agent agent-cursor-agent-sdk-test already has active run");
-      }
-      await options.onDelta?.({
-        update: {
-          type: "assistant-message-chunk",
-          text: "hello",
-        },
-      });
-      return {
-        id: "run-cursor-agent-sdk-test",
-        agentId: "agent-cursor-agent-sdk-test",
-        wait: runWait,
-        cancel: runCancel,
-        steer: runSteer as typeof runSteer | undefined,
-      };
-    },
-  );
-  const create = vi.fn(async () => ({
-    agentId: "agent-cursor-agent-sdk-test",
-    send,
-    close: agentClose,
-  }));
-  const resume = vi.fn(async () => ({
-    agentId: "agent-cursor-agent-sdk-test",
-    send,
-    close: agentClose,
-  }));
-  const listRuns = vi.fn(async (_agentId: string, options?: ListRunsOptions) => {
-    runOperations.push("agent.listRuns");
-    const offset = options?.cursor === undefined ? 0 : Number(options.cursor);
-    const end = offset + (options?.limit ?? 50);
+    await options.onDelta?.({
+      update: {
+        type: "assistant-message-chunk",
+        text: "hello",
+      },
+    });
     return {
-      items: storedRuns.slice(offset, end),
-      ...(end < storedRuns.length ? { nextCursor: String(end) } : {}),
+      id: "run-cursor-agent-sdk-test",
+      agentId: "agent-cursor-agent-sdk-test",
+      wait: runWait,
+      cancel: runCancel,
+      steer: runSteer,
     };
+  };
+  const agent = () => ({
+    agentId: "agent-cursor-agent-sdk-test",
+    send,
+    close: agentClose,
   });
-  const cancelRun = vi.fn(async (runId: string) => {
-    runOperations.push("agent.cancelRun");
-    storedRuns = storedRuns.map((run) =>
-      run.id === runId ? { ...run, status: "cancelled" } : run,
-    );
-  });
+  const sdk = {
+    Agent: {
+      create: async () => agentCreations.shift()?.() ?? agent(),
+      resume: async () => agent(),
+      listRuns: async (agentId: string, options?: ListRunsOptions) => {
+        listRunsCalls.push([agentId, options]);
+        runOperations.push("agent.listRuns");
+        const offset = options?.cursor === undefined ? 0 : Number(options.cursor);
+        const end = offset + (options?.limit ?? 50);
+        return {
+          items: storedRuns.slice(offset, end),
+          ...(end < storedRuns.length ? { nextCursor: String(end) } : {}),
+        };
+      },
+      cancelRun: async (runId: string, options: unknown) => {
+        cancelRunCalls.push([runId, options]);
+        runOperations.push("agent.cancelRun");
+        storedRuns = storedRuns.map((run) =>
+          run.id === runId ? { ...run, status: "cancelled" } : run,
+        );
+      },
+      messages: {
+        list: async () => [],
+      },
+    },
+    createAgentPlatform: async () => {
+      const platform = platforms.shift();
+      if (!platform) throw new Error("No agent platform");
+      return platform();
+    },
+  };
 
   return {
+    agent,
     agentClose,
-    cancelRun,
-    createAgentPlatform,
+    agentCreations,
+    cancelRunCalls,
     closeExecutionOrder,
-    create,
-    listRuns,
-    resume,
-    runOperations,
+    listRunsCalls,
+    platforms,
     runCancel,
-    runSteer,
+    runOperations,
     runWait,
     send,
-    setAgentCloseFailure: (failure: unknown) => {
-      agentCloseFailure = failure;
-    },
+    sends,
+    steerFailures,
+    steers,
+    waits,
+    service: CursorSdk.CursorSdk.of({
+      load: () => sdk as unknown as CursorSdkModule,
+      loadSqlite: () =>
+        ({ SqliteLocalAgentStore: { open: async () => ({}) } }) as unknown as ReturnType<
+          CursorSdk.CursorSdk["Service"]["loadSqlite"]
+        >,
+    }),
     setStoredRuns: (runs: Array<{ readonly id: string; readonly status: string }>) => {
       storedRuns = runs;
     },
   };
-});
-
-vi.mock("./sdk.ts", () => ({
-  loadCursorSdk: () => ({
-    Agent: {
-      create: cursorSdkMock.create,
-      resume: cursorSdkMock.resume,
-      listRuns: cursorSdkMock.listRuns,
-      cancelRun: cursorSdkMock.cancelRun,
-      messages: {
-        list: vi.fn(async () => []),
-      },
-    },
-    createAgentPlatform: cursorSdkMock.createAgentPlatform,
-  }),
-  loadCursorSqlite: () => ({ SqliteLocalAgentStore: { open: vi.fn() } }),
-}));
+})();
 
 const layerTest = CursorAgentSdk.layer.pipe(
   Layer.provide(
@@ -138,7 +152,7 @@ const layerTest = CursorAgentSdk.layer.pipe(
               event !== null &&
               Reflect.get(Reflect.get(event, "event"), "payload")?.type === "agent.close"
             ) {
-              cursorSdkMock.closeExecutionOrder.push("protocol:agent.close");
+              cursorSdkFake.closeExecutionOrder.push("protocol:agent.close");
             }
           }),
         close: () => Effect.void,
@@ -146,7 +160,7 @@ const layerTest = CursorAgentSdk.layer.pipe(
       canonical: undefined,
     }),
   ),
-  Layer.provide(CursorSdk.layer),
+  Layer.provide(Layer.succeed(CursorSdk.CursorSdk, cursorSdkFake.service)),
   Layer.provide(NodeServices.layer),
 );
 
@@ -156,7 +170,7 @@ describe("CursorAgentSdkRunner", () => {
       const started = Promise.withResolvers<void>();
       const release = Promise.withResolvers<void>();
       let primed = false;
-      cursorSdkMock.createAgentPlatform.mockImplementationOnce(
+      cursorSdkFake.platforms.push(
         async () =>
           ({
             prewarmLocalWorkspace: async () => {
@@ -168,13 +182,9 @@ describe("CursorAgentSdkRunner", () => {
             },
           }) as unknown as Awaited<ReturnType<CreateAgentPlatform>>,
       );
-      cursorSdkMock.create.mockImplementationOnce(async () => {
+      cursorSdkFake.agentCreations.push(async () => {
         assert.isTrue(primed);
-        return {
-          agentId: "agent-cursor-agent-sdk-test",
-          send: cursorSdkMock.send,
-          close: cursorSdkMock.agentClose,
-        };
+        return cursorSdkFake.agent();
       });
       const runner = yield* CursorAgentSdk.CursorAgentSdkRunner;
       const input: CursorAgentSdk.CursorAgentSdkOpenInput = {
@@ -203,10 +213,7 @@ describe("CursorAgentSdkRunner", () => {
     Effect.gen(function* () {
       const fileSystem = yield* FileSystem.FileSystem;
       const workspace = yield* fileSystem.makeTempDirectoryScoped({ prefix: "cursor-resume-" });
-      const loaders = yield* Effect.promise(() =>
-        vi.importActual<typeof import("./sdk.ts")>("./sdk.ts"),
-      );
-      const sdk = loaders.loadCursorSdk();
+      const sdk = loadCursorSdk();
       const store = new sdk.JsonlLocalAgentStore(workspace);
       const storeCwd = `${workspace}/checkout`;
       const cwd = `${workspace}/worktree`;
@@ -218,8 +225,8 @@ describe("CursorAgentSdkRunner", () => {
       );
       const runner = yield* CursorAgentSdk.makeCursorAgentSdkRunner(() => undefined).pipe(
         Effect.provideService(CursorSdk.CursorSdk, {
-          load: loaders.loadCursorSdk,
-          loadSqlite: loaders.loadCursorSqlite,
+          load: loadCursorSdk,
+          loadSqlite: loadCursorSqlite,
         }),
       );
       const session = yield* runner.open({
@@ -274,10 +281,10 @@ describe("CursorAgentSdkRunner", () => {
 
   it.effect("retries a resumed send after cancelling its abandoned local run", () =>
     Effect.gen(function* () {
-      cursorSdkMock.runOperations.length = 0;
-      cursorSdkMock.listRuns.mockClear();
-      cursorSdkMock.cancelRun.mockClear();
-      cursorSdkMock.setStoredRuns([
+      cursorSdkFake.runOperations.length = 0;
+      cursorSdkFake.listRunsCalls.length = 0;
+      cursorSdkFake.cancelRunCalls.length = 0;
+      cursorSdkFake.setStoredRuns([
         ...Array.from({ length: 50 }, (_, index) => ({
           id: `run-terminal-${index}`,
           status: index === 0 ? "cancelled" : "finished",
@@ -295,27 +302,27 @@ describe("CursorAgentSdkRunner", () => {
           "provider-session-cursor-agent-sdk-stale-run-test",
         ),
       });
-      assert.deepStrictEqual(cursorSdkMock.runOperations, []);
+      assert.deepStrictEqual(cursorSdkFake.runOperations, []);
       const run = yield* session.send({ message: "continue" });
       yield* run.wait;
 
-      assert.deepStrictEqual(cursorSdkMock.runOperations, [
+      assert.deepStrictEqual(cursorSdkFake.runOperations, [
         "run.start",
         "agent.listRuns",
         "agent.listRuns",
         "agent.cancelRun",
         "run.start",
       ]);
-      assert.deepStrictEqual(cursorSdkMock.listRuns.mock.calls[0], [
+      assert.deepStrictEqual(cursorSdkFake.listRunsCalls[0], [
         "agent-cursor-agent-sdk-test",
         { runtime: "local", cwd: process.cwd() },
       ]);
-      assert.strictEqual(cursorSdkMock.listRuns.mock.calls.length, 2);
-      assert.deepStrictEqual(cursorSdkMock.listRuns.mock.calls[1], [
+      assert.strictEqual(cursorSdkFake.listRunsCalls.length, 2);
+      assert.deepStrictEqual(cursorSdkFake.listRunsCalls[1], [
         "agent-cursor-agent-sdk-test",
         { runtime: "local", cwd: process.cwd(), cursor: "50" },
       ]);
-      assert.deepStrictEqual(cursorSdkMock.cancelRun.mock.calls[0], [
+      assert.deepStrictEqual(cursorSdkFake.cancelRunCalls[0], [
         "run-stale",
         {
           runtime: "local",
@@ -333,17 +340,10 @@ describe("CursorAgentSdkRunner", () => {
           toolCallId: "tool-shell",
           event: { case: "stdout", value: { data } },
         });
-      cursorSdkMock.runWait.mockImplementationOnce(async () => {
+      cursorSdkFake.waits.push(async () => {
         publish("agent-cursor-agent-sdk-test", "tick 1\n");
         publish("agent-someone-else", "not ours\n");
-        return {
-          id: "run-cursor-agent-sdk-test",
-          requestId: "request-cursor-agent-sdk-test",
-          status: "finished",
-          result: "ok",
-          model: { id: "default" },
-          durationMs: 1,
-        };
+        return finishedRun;
       });
       const updates: Array<unknown> = [];
       const runner = yield* CursorAgentSdk.CursorAgentSdkRunner;
@@ -376,7 +376,7 @@ describe("CursorAgentSdkRunner", () => {
 
   it.effect("forwards Run.steer and reports a missing method as a follow-up", () =>
     Effect.gen(function* () {
-      cursorSdkMock.runSteer.mockClear();
+      cursorSdkFake.steers.length = 0;
       const runner = yield* CursorAgentSdk.CursorAgentSdkRunner;
       const session = yield* runner.open({
         operation: "create",
@@ -386,19 +386,17 @@ describe("CursorAgentSdkRunner", () => {
       });
       const run = yield* session.send({ message: "continue" });
       assert.equal(yield* run.steer!("keep going"), "complete_delivered");
-      assert.deepStrictEqual(cursorSdkMock.runSteer.mock.calls, [["keep going"]]);
+      assert.deepStrictEqual(cursorSdkFake.steers, [["keep going"]]);
 
-      cursorSdkMock.runSteer.mockImplementationOnce(async () => {
-        throw new Error("steer transport failed");
-      });
+      cursorSdkFake.steerFailures.push(new Error("steer transport failed"));
       const failed = yield* run.steer!("again").pipe(Effect.exit);
       assert(Exit.isFailure(failed));
 
-      cursorSdkMock.send.mockImplementationOnce(async () => ({
+      cursorSdkFake.sends.push(async () => ({
         id: "run-without-steer",
         agentId: "agent-cursor-agent-sdk-test",
-        wait: cursorSdkMock.runWait,
-        cancel: cursorSdkMock.runCancel,
+        wait: cursorSdkFake.runWait,
+        cancel: cursorSdkFake.runCancel,
         steer: undefined,
       }));
       const plain = yield* session.send({ message: "plain" });

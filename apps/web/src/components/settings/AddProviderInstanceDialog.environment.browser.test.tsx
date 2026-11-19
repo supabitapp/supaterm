@@ -8,15 +8,46 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../../test/render";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const actions = vi.hoisted(() => ({
-  toast: vi.fn(),
-  onOpenChange: vi.fn(),
+  toast: fake(),
+  onOpenChange: fake(),
   canManageProviders: true,
 }));
 const settingsHooks = vi.hoisted(() => ({
-  read: vi.fn(() => ({ providerInstances: {} })),
-  mutate: vi.fn(),
-  useMutation: vi.fn(),
+  read: fake(() => ({ providerInstances: {} })),
+  mutate: fake(),
+  useMutation: fake(),
 }));
 const preparedAgent = vi.hoisted(
   () =>
@@ -55,7 +86,7 @@ vi.mock(import("../../state/session"), async (original) => {
 });
 vi.mock(import("../ui/toast"), async (original) => {
   const actual = await original();
-  return { ...actual, toastManager: { ...actual.toastManager, add: actions.toast } };
+  return { ...actual, toastManager: { ...actual.toastManager, add: actions.toast as never } };
 });
 vi.mock(import("./AcpRegistrySearchStep"), async (original) => ({
   ...(await original()),
@@ -148,19 +179,19 @@ async function prepareCodexInstance() {
 
 function setup() {
   actions.canManageProviders = true;
-  actions.toast.mockReset();
-  actions.onOpenChange.mockReset();
-  settingsHooks.read.mockReset().mockReturnValue({ providerInstances: {} });
-  settingsHooks.mutate.mockReset().mockResolvedValue({ _tag: "Success", value: {} });
-  settingsHooks.useMutation.mockReset().mockReturnValue(settingsHooks.mutate);
+  actions.toast.reset();
+  actions.onOpenChange.reset();
+  settingsHooks.read.reset(() => ({ providerInstances: {} }));
+  settingsHooks.mutate.reset(async () => ({ _tag: "Success", value: {} }));
+  settingsHooks.useMutation.reset(() => settingsHooks.mutate);
 }
 
 describe("AddProviderInstanceDialog environment routing", () => {
   it("chooses an unused identity for another account without replacing configured instances", async () => {
     setup();
-    settingsHooks.read.mockReturnValue({
+    settingsHooks.read.implement(() => ({
       providerInstances: { codex_2: { driver: "codex", enabled: false } },
-    });
+    }));
     await using _screen = await render(dialog());
     await click("Configure manually");
     await click("Next");
@@ -220,7 +251,7 @@ describe("AddProviderInstanceDialog environment routing", () => {
   it("awaits an atomic create before closing and retains prepared ACP metadata", async () => {
     setup();
     const mutation = deferred<{ readonly _tag: "Success"; readonly value: unknown }>();
-    settingsHooks.mutate.mockReturnValueOnce(mutation.promise);
+    settingsHooks.mutate.implementOnce(() => mutation.promise);
     await using _screen = await render(dialog());
     await click("Show more");
     await click("Use Kilo Code");

@@ -1,6 +1,7 @@
 import { act, fakeTimers, render as renderUi, type Screen } from "../test/render";
 import { useLayoutEffect } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { cdp } from "vite-plus/test/browser";
 
 import {
   PanelAnimationSuppressionProvider,
@@ -9,9 +10,6 @@ import {
 } from "./panelAnimations";
 
 let fixtureScreen: Screen;
-let pendingFrames: FrameRequestCallback[] = [];
-let reducedMotion = false;
-let mediaListeners = new Set<() => void>();
 let settings: ReturnType<typeof usePanelAnimationSettings>;
 let presence: ReturnType<typeof usePanelPresence<string>>;
 
@@ -32,9 +30,18 @@ function AnimationProbe({ open = true }: { open?: boolean }) {
 }
 
 async function setReducedMotion(value: boolean) {
-  await act(() => {
-    reducedMotion = value;
-    for (const listener of mediaListeners) listener();
+  const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const changed =
+    query.matches === value
+      ? Promise.resolve()
+      : new Promise<void>((resolve) =>
+          query.addEventListener("change", () => resolve(), { once: true }),
+        );
+  await act(async () => {
+    await cdp().send("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: value ? "reduce" : "no-preference" }],
+    });
+    await changed;
   });
 }
 
@@ -55,7 +62,7 @@ describe("panel motion", () => {
   it("skips motion immediately when Reduce Motion is already enabled", async () => {
     await using _fixture = await setup();
 
-    reducedMotion = true;
+    await setReducedMotion(true);
     await act(() => fixtureScreen.rerender(<AnimationProbe />));
     expect(settings).toEqual({ active: false, durationMs: 0 });
     await act(() => fixtureScreen.rerender(<AnimationProbe open={false} />));
@@ -104,24 +111,7 @@ describe("panel motion", () => {
 });
 
 async function setup(fakeClock = true) {
-  pendingFrames = [];
-  reducedMotion = false;
-  mediaListeners = new Set();
-  vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-    pendingFrames.push(callback);
-    return pendingFrames.length;
-  });
-  vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => undefined);
-  vi.spyOn(window, "matchMedia").mockImplementation(
-    (query) =>
-      ({
-        media: query,
-        matches: reducedMotion,
-        addEventListener: (_event: string, callback: () => void) => mediaListeners.add(callback),
-        removeEventListener: (_event: string, callback: () => void) =>
-          mediaListeners.delete(callback),
-      }) as unknown as MediaQueryList,
-  );
+  await setReducedMotion(false);
   fixtureScreen = await renderUi(null, { router: false });
 
   const clock = fakeClock ? fakeTimers() : null;
@@ -132,8 +122,7 @@ async function setup(fakeClock = true) {
       await ownedScreen[Symbol.asyncDispose]();
 
       clock?.[Symbol.dispose]();
-      vi.restoreAllMocks();
-      vi.unstubAllGlobals();
+      await cdp().send("Emulation.setEmulatedMedia", { features: [] });
     },
   };
 }

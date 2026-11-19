@@ -10,8 +10,8 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 
-const { readPreparedConnection, entities, settingsHydration } = vi.hoisted(() => ({
-  readPreparedConnection: vi.fn<() => { httpBaseUrl: string } | null>(() => null),
+const { connection, entities, settingsHydration } = vi.hoisted(() => ({
+  connection: { prepared: null as { httpBaseUrl: string } | null },
   entities: {
     projects: [] as Array<Record<string, unknown>>,
     shellProjectId: null as string | null,
@@ -23,7 +23,7 @@ const { readPreparedConnection, entities, settingsHydration } = vi.hoisted(() =>
   },
 }));
 
-vi.mock("~/state/session", () => ({ readPreparedConnection }));
+vi.mock("~/state/session", () => ({ readPreparedConnection: () => connection.prepared }));
 vi.mock("~/state/entities", () => ({
   readEnvironmentSupportsServerBrowser: () => false,
   readThreadShell: () => (entities.shellProjectId ? { projectId: entities.shellProjectId } : null),
@@ -69,7 +69,7 @@ function entry(overrides: Partial<BrowserHistoryEntry> = {}) {
 }
 
 beforeEach(() => {
-  readPreparedConnection.mockReturnValue(null);
+  connection.prepared = null;
   entities.projects = [];
   entities.shellProjectId = null;
   settingsHydration.hydrated = true;
@@ -306,13 +306,13 @@ describe("useBrowserHistoryStore", () => {
   it("matches a requested localhost URL to the resolved environment host", () => {
     useBrowserHistoryStore.getState().registerThreadProject(threadRef, "proj-a");
     recordVisitForThread(threadRef, "http://localhost:5173/app", 1);
-    readPreparedConnection.mockReturnValue({ httpBaseUrl: "http://192.168.64.2:3773" });
+    connection.prepared = { httpBaseUrl: "http://192.168.64.2:3773" };
     settle("http://192.168.64.2:5173/app", "Local App");
     expect(useBrowserHistoryStore.getState().byProjectKey["proj-a"]?.[0]?.title).toBe("Local App");
   });
 
   it("deduplicates loopback aliases and the resolved environment host", () => {
-    readPreparedConnection.mockReturnValue({ httpBaseUrl: "http://192.168.64.2:3773" });
+    connection.prepared = { httpBaseUrl: "http://192.168.64.2:3773" };
     useBrowserHistoryStore.getState().registerThreadProject(threadRef, "proj-a");
     recordVisitForThread(threadRef, "http://localhost:5173/app", 1);
     recordVisitForThread(threadRef, "http://127.0.0.1:5173/app", 2);

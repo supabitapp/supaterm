@@ -13,12 +13,43 @@ import {
   workspaceAreaProps,
 } from "~/lib/workspaceFocus";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   file: null as ProjectReadFileResult | null,
   optimistic: null as ProjectReadFileResult | null,
-  writeFile: vi.fn(),
+  writeFile: fake(),
   assetUrl: { _tag: "Loading" } as import("~/assets/assetUrls").AssetUrlState,
-  mintUrl: vi.fn<() => Promise<string | null>>(),
+  mintUrl: fake<() => Promise<string | null>>(),
 }));
 
 vi.mock(import("@supaterm/client-runtime/state/runtime"), async (original) => ({
@@ -121,8 +152,8 @@ function setup() {
   state.optimistic = null;
   state.assetUrl = { _tag: "Loading" };
   let mints = 0;
-  state.mintUrl.mockReset().mockImplementation(async () => `/assets/report.docx?mint=${++mints}`);
-  state.writeFile.mockReset().mockResolvedValue(AsyncResult.success(undefined));
+  state.mintUrl.reset(async () => `/assets/report.docx?mint=${++mints}`);
+  state.writeFile.reset(async () => AsyncResult.success(undefined));
   return {
     [Symbol.dispose]() {
       for (const [index, key] of keys.entries()) {

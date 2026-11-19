@@ -14,8 +14,13 @@ class EnvironmentOwnedDataClearError extends Schema.TaggedError<EnvironmentOwned
   { cause: Schema.Defect() },
 ) {}
 
-export const layer = Layer.succeed(
-  Persistence.EnvironmentOwnedDataCleanup,
+interface EnvironmentOwnedDataClears {
+  readonly outbox: (environmentId: EnvironmentId) => Promise<void>;
+  readonly drafts: (environmentId: EnvironmentId) => Promise<void>;
+  readonly composerErrors: (environmentId: EnvironmentId) => void;
+}
+
+export const make = (clears: EnvironmentOwnedDataClears) =>
   Persistence.EnvironmentOwnedDataCleanup.of({
     clear: Effect.fn("Persistence.EnvironmentOwnedDataCleanup.clear")(function (environmentId) {
       const settle = (
@@ -36,12 +41,20 @@ export const layer = Layer.succeed(
         );
       return Effect.all(
         [
-          settle("outbox", clearThreadOutboxEnvironment),
-          settle("drafts", clearComposerDraftsEnvironment),
-          Effect.sync(() => clearThreadComposerErrorsForEnvironment(environmentId)),
+          settle("outbox", clears.outbox),
+          settle("drafts", clears.drafts),
+          Effect.sync(() => clears.composerErrors(environmentId)),
         ],
         { concurrency: "unbounded", discard: true },
       );
     }),
+  });
+
+export const layer = Layer.succeed(
+  Persistence.EnvironmentOwnedDataCleanup,
+  make({
+    outbox: clearThreadOutboxEnvironment,
+    drafts: clearComposerDraftsEnvironment,
+    composerErrors: clearThreadComposerErrorsForEnvironment,
   }),
 );

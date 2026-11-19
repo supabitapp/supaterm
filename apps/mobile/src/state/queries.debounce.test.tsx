@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   sessionAtom: {},
   searchEntriesAtom: {},
   searchEntries: vi.fn(() => mocks.searchEntriesAtom),
-  listRefs: vi.fn(),
+  listRefs: (_request: { environmentId: EnvironmentId; input: { cwd: string; cursor?: number } }) =>
+    undefined as unknown,
   refresh: vi.fn(),
 }));
 
@@ -29,7 +30,11 @@ vi.mock("./projects", () => ({
 }));
 vi.mock("./atom-registry", () => ({ appAtomRegistry: { refresh: mocks.refresh } }));
 vi.mock("./orchestration", () => ({ orchestrationEnvironment: {} }));
-vi.mock("./vcs", () => ({ vcsEnvironment: { listRefs: mocks.listRefs } }));
+vi.mock("./vcs", () => ({
+  vcsEnvironment: {
+    listRefs: (request: Parameters<typeof mocks.listRefs>[0]) => mocks.listRefs(request),
+  },
+}));
 vi.mock("./threads", () => ({ olderDoneThreads: {}, threadFamilies: {} }));
 vi.mock("./query", () => ({
   useEnvironmentQuery: (atom: unknown) => ({
@@ -170,15 +175,8 @@ it("keeps compiled branch results stable and resets pagination for a new target 
       }),
     );
   });
-  mocks.listRefs.mockImplementation(
-    ({
-      environmentId,
-      input,
-    }: {
-      environmentId: EnvironmentId;
-      input: { cwd: string; cursor?: number };
-    }) => pages(JSON.stringify([environmentId, input.cwd, input.cursor ?? null])),
-  );
+  mocks.listRefs = ({ environmentId, input }) =>
+    pages(JSON.stringify([environmentId, input.cwd, input.cursor ?? null]));
   mocks.refresh.mockClear();
   const root = createRoot(document.createElement("div"));
   using _cleanup = {

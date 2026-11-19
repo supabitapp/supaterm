@@ -170,6 +170,7 @@ const composerAttachmentUploadRequestsAtom = Atom.make((get) => {
 const recordComposerAttachmentUpload = Effect.fn("ComposerAttachments.recordUpload")(function* (
   request: ComposerAttachmentUploadRequest,
   uploadedId: string,
+  flushDrafts: () => Promise<void>,
 ) {
   const { environmentId, attachment } = request;
   const uploaded: DraftComposerAttachment = {
@@ -194,7 +195,7 @@ const recordComposerAttachmentUpload = Effect.fn("ComposerAttachments.recordUplo
   }
   yield* recordQueuedAttachmentUpload(environmentId, uploaded);
   if (!draftsChanged) return;
-  yield* Effect.tryPromise({ try: () => flushComposerDrafts(), catch: attachmentUploadError }).pipe(
+  yield* Effect.tryPromise({ try: () => flushDrafts(), catch: attachmentUploadError }).pipe(
     Effect.catchIf(
       (error) => error.cause instanceof ComposerDraftPersistenceError,
       (error) =>
@@ -206,7 +207,7 @@ const recordComposerAttachmentUpload = Effect.fn("ComposerAttachments.recordUplo
   );
 });
 
-const createComposerUploadRegistry = () =>
+const createComposerUploadRegistry = (flushDrafts: () => Promise<void>) =>
   createAttachmentUploadRegistry<ComposerAttachmentUploadRequest>({
     key: (request) => composerAttachmentUploadKey(request.environmentId, request.attachment.id),
     environmentId: (request) => request.environmentId,
@@ -222,11 +223,12 @@ const createComposerUploadRegistry = () =>
         () => uploadComposerAttachment(environmentId, attachment, reportProgress),
         (release) => Effect.sync(() => release?.()),
       ),
-    onUploaded: recordComposerAttachmentUpload,
+    onUploaded: (request, uploadedId) =>
+      recordComposerAttachmentUpload(request, uploadedId, flushDrafts),
   });
 
-function composerAttachmentUploads() {
-  uploadQueue ??= createComposerUploadRegistry();
+function composerAttachmentUploads(flushDrafts: () => Promise<void> = flushComposerDrafts) {
+  uploadQueue ??= createComposerUploadRegistry(flushDrafts);
   return uploadQueue;
 }
 
@@ -260,9 +262,10 @@ export function createComposerAttachmentUploadWorker(
   requestsAtom: Atom.Atom<
     ReadonlyArray<ComposerAttachmentUploadRequest>
   > = composerAttachmentUploadRequestsAtom,
+  flushDrafts: () => Promise<void> = flushComposerDrafts,
 ) {
   ensureComposerDraftsLoaded();
-  const queue = composerAttachmentUploads();
+  const queue = composerAttachmentUploads(flushDrafts);
   const unsubscribe = appAtomRegistry.subscribe(requestsAtom, (requests) => queue.sync(requests), {
     immediate: true,
   });

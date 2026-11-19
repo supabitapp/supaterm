@@ -1,18 +1,6 @@
-import { assert, beforeEach, it } from "@effect/vitest";
+import { assert, it } from "@effect/vitest";
 import * as NodeEvents from "node:events";
 import { vi } from "vite-plus/test";
-
-const forkMock = vi.hoisted(() =>
-  vi.fn<
-    (
-      _path: string,
-      _args: ReadonlyArray<string>,
-      _options: { env?: NodeJS.ProcessEnv; execPath?: string },
-    ) => unknown
-  >(),
-);
-
-vi.mock("node:child_process", () => ({ fork: forkMock }));
 
 import {
   makeSnapShotAccessibilityProcessPool,
@@ -21,10 +9,20 @@ import {
 
 const makeWorker = () =>
   Object.assign(new NodeEvents.EventEmitter(), {
-    kill: vi.fn(() => true),
+    kill: () => true,
     send: vi.fn(),
   });
-let worker = makeWorker();
+
+function forkQueue(...workers: Array<ReturnType<typeof makeWorker>>) {
+  const forked: Array<string> = [];
+  const fork = (workerPath: string) => {
+    forked.push(workerPath);
+    const next = workers.shift();
+    if (!next) throw new Error("No accessibility worker queued");
+    return next;
+  };
+  return { fork, forked };
+}
 const request = {
   active: {
     title: "Zoom Meeting",
@@ -36,13 +34,9 @@ const request = {
   imageSize: { width: 1_600, height: 1_200 },
 };
 
-beforeEach(() => {
-  worker = makeWorker();
-  forkMock.mockReset().mockReturnValue(worker);
-});
-
 it("keeps Supaterm alive when Zoom crashes accessibility extraction", async () => {
-  const process = startSnapShotAccessibilityProcess("accessibility.cjs");
+  const worker = makeWorker();
+  const process = startSnapShotAccessibilityProcess("accessibility.cjs", forkQueue(worker).fork);
   const read = process.read(request);
   worker.emit("message", "ready");
   worker.emit("message", "started");
@@ -53,7 +47,8 @@ it("keeps Supaterm alive when Zoom crashes accessibility extraction", async () =
 });
 
 it("returns immediately when accessibility crashes before the screenshot is ready", async () => {
-  const process = startSnapShotAccessibilityProcess("accessibility.cjs");
+  const worker = makeWorker();
+  const process = startSnapShotAccessibilityProcess("accessibility.cjs", forkQueue(worker).fork);
   worker.emit("exit", null, "SIGABRT");
 
   const read = process.read(request);
@@ -65,12 +60,8 @@ it("replaces a warm helper that exits before capture", async () => {
   const exitedWorker = makeWorker();
   const captureWorker = makeWorker();
   const replacementWorker = makeWorker();
-  forkMock
-    .mockReset()
-    .mockReturnValueOnce(exitedWorker)
-    .mockReturnValueOnce(captureWorker)
-    .mockReturnValueOnce(replacementWorker);
-  const pool = makeSnapShotAccessibilityProcessPool("accessibility.cjs");
+  const workers = forkQueue(exitedWorker, captureWorker, replacementWorker);
+  const pool = makeSnapShotAccessibilityProcessPool("accessibility.cjs", workers.fork);
 
   pool.warm();
   exitedWorker.emit("exit", 1);
@@ -80,7 +71,7 @@ it("replaces a warm helper that exits before capture", async () => {
   captureWorker.emit("message", { type: "result", context: { accessibleText: "Recovered" } });
 
   assert.deepEqual(await read.result, { accessibleText: "Recovered" });
-  assert.lengthOf(forkMock.mock.calls, 3);
+  assert.lengthOf(workers.forked, 3);
   assert.deepEqual(captureWorker.send.mock.calls[0]?.[0], request);
   pool.close();
 });

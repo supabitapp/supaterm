@@ -15,7 +15,38 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../test/render";
 
-const mint = vi.hoisted(() => vi.fn<() => Promise<AssetCreateUrlResult>>());
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const mint = vi.hoisted(() => fake<() => Promise<AssetCreateUrlResult>>());
 const remoteOpen = vi.hoisted(() => ({
   state: { mode: "local-exec" as "local-exec" | "remote-unavailable" },
   isResolved: true,
@@ -92,7 +123,7 @@ const assetResult = (version: string) => ({
 });
 
 function setup() {
-  mint.mockReset().mockResolvedValue(assetResult("updated"));
+  mint.reset(async () => assetResult("updated"));
   remoteOpen.isResolved = true;
   remoteOpen.state.mode = "local-exec";
   remoteOpen.label = "media-host";
@@ -123,7 +154,7 @@ describe("pending media requests", () => {
   async function resolveAfterVisiting(visits: ReadonlyArray<{ threadId: string; text: string }>) {
     using env = setup();
     let resolveMint!: (result: Awaited<ReturnType<typeof mint>>) => void;
-    mint.mockReturnValue(new Promise((resolve) => (resolveMint = resolve)));
+    mint.implement(() => new Promise((resolve) => (resolveMint = resolve)));
     const onImageExpand = vi.fn();
     await using screen = await renderInRegistry(
       env.registry,

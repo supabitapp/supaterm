@@ -12,10 +12,19 @@ const mocks = vi.hoisted(() => ({
   environments: [] as ReadonlyArray<WorkspaceEnvironment>,
   isReady: true,
   projects: [] as ReadonlyArray<EnvironmentProject>,
+  applyParams: (_params: Partial<PullRequestEnvironmentTarget>) => {},
   navigation: { setParams: vi.fn<(params: Partial<PullRequestEnvironmentTarget>) => void>() },
 }));
 
-vi.mock("@react-navigation/native", () => ({ useNavigation: () => mocks.navigation }));
+vi.mock("@react-navigation/native", () => {
+  const navigation = {
+    setParams: (params: Partial<PullRequestEnvironmentTarget>) => {
+      mocks.navigation.setParams(params);
+      mocks.applyParams(params);
+    },
+  };
+  return { useNavigation: () => navigation };
+});
 vi.mock("../../state/entities", () => ({ useProjects: () => mocks.projects }));
 vi.mock("../../state/workspace", () => ({
   useWorkspaceEnvironments: () => mocks.environments,
@@ -65,9 +74,7 @@ function setup() {
       host: "github.com",
     });
     useEffect(() => {
-      mocks.navigation.setParams.mockImplementation((next) =>
-        updateParams((previous) => ({ ...previous, ...next })),
-      );
+      mocks.applyParams = (next) => updateParams((previous) => ({ ...previous, ...next }));
     }, []);
     usePullRequestEnvironmentFallback(params);
     return <span>{`${params.environmentId}/${params.projectId}`}</span>;

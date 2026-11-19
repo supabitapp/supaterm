@@ -10,6 +10,7 @@ const { Children, mocks } = vi.hoisted(() => ({
   mocks: {
     branchNaming: { onChange: (_patch: ServerSettingsPatch) => {} },
     updateSettings: vi.fn(),
+    settingsUpdates: [] as Array<Promise<unknown>>,
     alert: vi.fn(),
     targets: [] as ReturnType<typeof environment>[],
     readOnly: new Set<string>(),
@@ -58,9 +59,13 @@ vi.mock("../../state/session", () => ({
     ),
 }));
 vi.mock("../../state/server", () => ({ serverEnvironment: { updateSettings: {} } }));
-vi.mock("../../state/use-atom-command", () => ({
-  useAtomCommand: () => mocks.updateSettings,
-}));
+vi.mock("../../state/use-atom-command", () => {
+  const updateSettings = (...args: ReadonlyArray<unknown>) => {
+    mocks.updateSettings(...args);
+    return mocks.settingsUpdates.shift() ?? Promise.resolve(AsyncResult.success(undefined));
+  };
+  return { useAtomCommand: () => updateSettings };
+});
 vi.mock("../threads/thread-settings-options", () => ({ RUNTIME_MODE_CHOICES: [] }));
 vi.mock("../../components/ui/ScreenScrollView", () => ({ ScreenScrollView: Children }));
 vi.mock("../../components/ui/AppText", () => ({ AppText: Children }));
@@ -177,7 +182,7 @@ beforeEach(() => {
   mocks.readOnly = new Set();
   mocks.alert.mockReset();
   mocks.updateSettings.mockReset();
-  mocks.updateSettings.mockResolvedValue(AsyncResult.success(undefined));
+  mocks.settingsUpdates.length = 0;
 });
 
 afterEach(() => {
@@ -187,7 +192,7 @@ afterEach(() => {
 describe("SettingsServerControlsRouteScreen", () => {
   it("sends a draft saved during a pending write once that write settles", async () => {
     const pending = Promise.withResolvers<AsyncResult.Success<void>>();
-    mocks.updateSettings.mockReturnValueOnce(pending.promise);
+    mocks.settingsUpdates.push(pending.promise);
     act(() => root.render(<SettingsWorktreesRouteScreen />));
 
     act(() => mocks.branchNaming.onChange({ branchNamingMode: "custom" }));
@@ -209,7 +214,7 @@ describe("SettingsServerControlsRouteScreen", () => {
   it("holds auto-mark-done changes until a pending project override write settles", async () => {
     mocks.projectSelected = true;
     const pending = Promise.withResolvers<AsyncResult.Success<void>>();
-    mocks.updateSettings.mockReturnValueOnce(pending.promise);
+    mocks.settingsUpdates.push(pending.promise);
     act(() => root.render(<SettingsThreadsRouteScreen />));
     const toggle = (label: string) =>
       [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')].find(

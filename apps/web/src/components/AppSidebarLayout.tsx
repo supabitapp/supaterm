@@ -106,11 +106,14 @@ function readRoutePanelsOpen(router: AnyRouter) {
   };
 }
 
-export function registerNavigationHistoryCommands(router: AnyRouter) {
+export function registerNavigationHistoryCommands(
+  router: AnyRouter,
+  navigate: typeof navigateHistory = navigateHistory,
+) {
   return registerCommands(
     {
-      "navigation.back": () => navigateHistory("back"),
-      "navigation.forward": () => navigateHistory("forward"),
+      "navigation.back": () => navigate("back"),
+      "navigation.forward": () => navigate("forward"),
     },
     {
       context: () => ({

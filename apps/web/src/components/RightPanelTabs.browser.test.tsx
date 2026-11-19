@@ -11,7 +11,38 @@ import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
 import { RightPanelTabs, type RightPanelTabsProps } from "./RightPanelTabs";
 import { subscribePreviewAction } from "./preview/previewActionBus";
 
-const navigateHistory = vi.hoisted(() => vi.fn());
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const navigateHistory = vi.hoisted(() => fake());
 vi.mock("../navigationHistory", () => ({ canNavigateHistory: () => true, navigateHistory }));
 
 function trackpad() {
@@ -63,16 +94,15 @@ const surfaces: RightPanelSurface[] = Array.from({ length: 16 }, (_, index) => (
 
 describe("RightPanelTabs", () => {
   it("a flick that scrolls the tab strip to its left edge keeps the thread, a swipe from the edge goes back", async () => {
-    navigateHistory.mockReset();
+    navigateHistory.reset();
     const { bridge, scroll } = trackpad();
     using _bridge = stubGlobal("desktopBridge", bridge);
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
     const panel = document.createElement("div");
     panel.style.cssText = "width: 320px; height: 200px; display: flex";
     const noop = () => {};
     await using screen = await render(
       <>
-        <HistorySwipeNavigation />
+        <HistorySwipeNavigation platform="MacIntel" />
         <RightPanelTabs
           mode="embedded"
           keybindings={[]}

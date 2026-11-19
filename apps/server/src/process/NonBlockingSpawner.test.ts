@@ -1,9 +1,5 @@
-// @effect-diagnostics nodeBuiltinImport:off - the spawner's checks are node:fs/promises calls, which the test spies on.
-import * as NodeFSP from "node:fs/promises";
-
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
-import { vi } from "vite-plus/test";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -15,8 +11,6 @@ import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
 import * as NonBlockingSpawner from "./NonBlockingSpawner.ts";
-
-vi.mock("node:fs/promises", { spy: true });
 
 const hostPath = process.env.PATH;
 
@@ -156,18 +150,16 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("NonBlockingSpa
       let releasing = false;
       let running = 0;
       let mostRunning = 0;
-      using _access = vi.spyOn(NodeFSP, "access").mockImplementation(
-        () =>
-          new Promise<void>((_resolve, reject) => {
-            mostRunning = Math.max(mostRunning, ++running);
-            const fail = () => {
-              running--;
-              reject(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
-            };
-            if (releasing) fail();
-            else hung.push(fail);
-          }),
-      );
+      const hangingAccess = () =>
+        new Promise<void>((_resolve, reject) => {
+          mostRunning = Math.max(mostRunning, ++running);
+          const fail = () => {
+            running--;
+            reject(Object.assign(new Error("ENOENT"), { code: "ENOENT" }));
+          };
+          if (releasing) fail();
+          else hung.push(fail);
+        });
       const spawns = yield* Effect.forEach(
         ["a", "b", "c"],
         (name) =>
@@ -177,7 +169,7 @@ describe.skipIf(HostProcess.Platform.defaultValue() !== "linux")("NonBlockingSpa
         { concurrency: "unbounded" },
       ).pipe(
         Effect.provide(
-          NonBlockingSpawner.layer.pipe(
+          NonBlockingSpawner.layerWithAccess(hangingAccess).pipe(
             Layer.provide(arrivalPath),
             Layer.provide(NodeServices.layer),
           ),

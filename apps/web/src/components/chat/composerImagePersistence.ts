@@ -7,6 +7,7 @@ import { readFileAsDataUrl } from "../../lib/imageCompression";
 export async function serializeComposerImages(
   images: ReadonlyArray<ComposerImageAttachment>,
   persistedAttachments: ReadonlyArray<PersistedComposerImageAttachment>,
+  read = readFileAsDataUrl,
 ) {
   const existingPersistedById = new Map(
     persistedAttachments.map((attachment) => [attachment.id, attachment]),
@@ -14,8 +15,7 @@ export async function serializeComposerImages(
   const staged = await Promise.all(
     images.map(async (image) => {
       try {
-        const dataUrl =
-          existingPersistedById.get(image.id)?.dataUrl ?? (await readFileAsDataUrl(image.file));
+        const dataUrl = existingPersistedById.get(image.id)?.dataUrl ?? (await read(image.file));
         return {
           id: image.id,
           name: image.name,

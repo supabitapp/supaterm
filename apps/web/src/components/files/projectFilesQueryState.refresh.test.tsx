@@ -12,6 +12,37 @@ import * as Option from "effect/Option";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const authorizationMocks = vi.hoisted(() => ({
   sessionAtom: null as Atom.Atom<
     AsyncResult.AsyncResult<Pick<AuthSessionState, "authenticated" | "scopes">, Error>
@@ -31,9 +62,9 @@ vi.mock("~/state/presentation", () => ({
 }));
 
 const projectMocks = vi.hoisted(() => ({
-  listEntries: vi.fn(),
-  optimisticFile: vi.fn(),
-  readFile: vi.fn(),
+  listEntries: fake(),
+  optimisticFile: fake(),
+  readFile: fake(),
 }));
 
 const atomHooks = vi.hoisted(() => ({
@@ -132,9 +163,9 @@ describe("project query refresh", () => {
       AsyncResult.success({ authenticated: true, scopes: [AuthFilesystemReadScope] }),
     );
     authorizationMocks.phase = "connected";
-    projectMocks.listEntries.mockReset();
-    projectMocks.optimisticFile.mockReset();
-    projectMocks.readFile.mockReset();
+    projectMocks.listEntries.reset();
+    projectMocks.optimisticFile.reset();
+    projectMocks.readFile.reset();
     reactHooks.reset();
   });
 
@@ -144,7 +175,7 @@ describe("project query refresh", () => {
     );
     const registry = AtomRegistry.make();
     atomHooks.registry = registry;
-    projectMocks.optimisticFile.mockReturnValue(Atom.make({ data: file("cached contents") }));
+    projectMocks.optimisticFile.implement(() => Atom.make({ data: file("cached contents") }));
     try {
       const query = useProjectFileQuery(environmentId, "/repo", "src/preview.ts");
       expect(projectMocks.readFile).not.toHaveBeenCalled();
@@ -168,7 +199,7 @@ describe("project query refresh", () => {
       fetches += 1;
       return AsyncResult.success({ entries: [], truncated: false });
     }).pipe(Atom.keepAlive);
-    projectMocks.listEntries.mockReturnValue(listing);
+    projectMocks.listEntries.implement(() => listing);
     const registry = AtomRegistry.make();
     atomHooks.registry = registry;
     const read = (mutationId: string | null) =>
@@ -200,8 +231,8 @@ describe("project query refresh", () => {
     ).pipe(Atom.swr({ staleTime: 30_000, revalidateOnMount: true }));
     const registry = AtomRegistry.make();
     const unmount = registry.mount(readAtom);
-    projectMocks.readFile.mockReturnValue(readAtom);
-    projectMocks.optimisticFile.mockReturnValue(Atom.make(null));
+    projectMocks.readFile.implement(() => readAtom);
+    projectMocks.optimisticFile.implement(() => Atom.make(null));
     atomHooks.registry = registry;
     let renderedContents: string | null = null;
 
@@ -266,8 +297,8 @@ describe("project query refresh", () => {
     >(AsyncResult.initial(true));
     const registry = AtomRegistry.make();
     const unmount = registry.mount(readAtom);
-    projectMocks.readFile.mockReturnValue(readAtom);
-    projectMocks.optimisticFile.mockReturnValue(Atom.make(null));
+    projectMocks.readFile.implement(() => readAtom);
+    projectMocks.optimisticFile.implement(() => Atom.make(null));
     atomHooks.registry = registry;
 
     try {

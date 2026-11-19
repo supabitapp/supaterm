@@ -1,5 +1,4 @@
 import { rewindToMessage } from "./chat/chatViewSend";
-import * as session from "../state/session";
 import { referenceContextReference } from "../lib/composerContextRecords";
 import {
   modelContextRecord,
@@ -46,7 +45,6 @@ import * as Option from "effect/Option";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import { environmentThreadDetails } from "../state/threads";
 
 import type { Thread } from "../types";
 import { DraftId, hydrateImagesFromPersisted, useComposerDraftStore } from "../composerDraftStore";
@@ -896,17 +894,13 @@ describe("waitForRevertedMessage", () => {
       ],
     } as unknown as ReturnType<typeof makeThreadProjectionFixture>;
     const state = Atom.make({ data: Option.some(projection) });
-    vi.spyOn(environmentThreadDetails, "stateAtom").mockReturnValue(state as never);
-    return { state, projection };
+    return { state, projection, threadState: state as never };
   }
 
   afterEach(() => vi.restoreAllMocks());
 
   it("restores the rewound message's thread and model mentions beside the existing draft", async () => {
-    const { state, projection } = projectionAtom();
-    vi.spyOn(session, "readPreparedConnection").mockReturnValue({
-      httpBaseUrl: "http://localhost",
-    } as never);
+    const { state, projection, threadState } = projectionAtom();
     useComposerDraftStore.setState({ draftsByThreadKey: {}, draftThreadsByThreadKey: {} });
     const thread = (id: string, title: string) =>
       threadContextRecord(
@@ -951,6 +945,8 @@ describe("waitForRevertedMessage", () => {
       createAssetUrl: async () => {
         throw new Error("No attachment expected");
       },
+      readConnection: () => ({ httpBaseUrl: "http://localhost" }) as never,
+      threadStateAtom: threadState,
       revertThreadCheckpoint: async () => {
         appAtomRegistry.set(state, {
           data: Option.some({
@@ -977,8 +973,15 @@ describe("waitForRevertedMessage", () => {
   });
 
   it("rejects with the projected reason when the rollback fails for good", async () => {
-    const { state, projection } = projectionAtom();
-    const waiting = waitForRevertedMessage(threadRef, 1, requestId, async () => {});
+    const { state, projection, threadState } = projectionAtom();
+    const waiting = waitForRevertedMessage(
+      threadRef,
+      1,
+      requestId,
+      async () => {},
+      undefined,
+      threadState,
+    );
     await Promise.resolve();
     appAtomRegistry.set(state, {
       data: Option.some({
@@ -1001,7 +1004,7 @@ describe("waitForRevertedMessage", () => {
     "waits for the retained rollback suffix when the edited message and run are paged out (%s provider, %s)",
     async (providerIdentity, projectionSource) => {
       vi.useFakeTimers();
-      const { state, projection } = projectionAtom();
+      const { state, projection, threadState } = projectionAtom();
       const latestRunId = RunId.make("latest-run-9");
       const latestRun = {
         ...projection.runs[3]!,
@@ -1038,7 +1041,14 @@ describe("waitForRevertedMessage", () => {
       };
       appAtomRegistry.set(state, { data: Option.some(bounded) });
       let outcome = "pending";
-      const waiting = waitForRevertedMessage(threadRef, 0, requestId, async () => {}).then(
+      const waiting = waitForRevertedMessage(
+        threadRef,
+        0,
+        requestId,
+        async () => {},
+        undefined,
+        threadState,
+      ).then(
         () => {
           outcome = "reverted";
         },
@@ -1082,9 +1092,16 @@ describe("waitForRevertedMessage", () => {
 
   it("waits for the requested target when another client finishes a shallower rewind", async () => {
     vi.useFakeTimers();
-    const { state, projection } = projectionAtom();
+    const { state, projection, threadState } = projectionAtom();
     let outcome = "pending";
-    const waiting = waitForRevertedMessage(threadRef, 1, requestId, async () => {}).then(
+    const waiting = waitForRevertedMessage(
+      threadRef,
+      1,
+      requestId,
+      async () => {},
+      undefined,
+      threadState,
+    ).then(
       () => {
         outcome = "reverted";
       },
@@ -1135,7 +1152,7 @@ describe("waitForRevertedMessage", () => {
 
   it("rejects a stale edit already rewound by another client during attachment preparation", async () => {
     vi.useFakeTimers();
-    const { state, projection } = projectionAtom();
+    const { state, projection, threadState } = projectionAtom();
     appAtomRegistry.set(state, {
       data: Option.some({
         ...projection,
@@ -1152,7 +1169,14 @@ describe("waitForRevertedMessage", () => {
     });
     const revert = vi.fn(async () => {});
     let outcome = "pending";
-    const waiting = waitForRevertedMessage(threadRef, 1, requestId, revert).then(
+    const waiting = waitForRevertedMessage(
+      threadRef,
+      1,
+      requestId,
+      revert,
+      undefined,
+      threadState,
+    ).then(
       () => {
         outcome = "reverted";
       },
@@ -1506,9 +1530,6 @@ describe("deriveThreadPendingBackgroundTasks", () => {
 
 describe("prepareRevertedMessageAttachments", () => {
   it("suppresses a repeated image after restoring a rewound message", async () => {
-    using _fetch = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(new Response(new Uint8Array([1, 2, 3])));
     const [file] = await prepareRevertedMessageAttachments({
       message: {
         id: MessageId.make("rewound"),
@@ -1526,6 +1547,7 @@ describe("prepareRevertedMessageAttachments", () => {
       httpBaseUrl: "http://localhost",
       createAssetUrl: async () =>
         AsyncResult.success({ relativeUrl: "/attachment/image.png", expiresAt: 0 }),
+      fetchAsset: async () => new Response(new Uint8Array([1, 2, 3])),
     });
     const target = DraftId.make("rewind-image-repeat");
     const store = useComposerDraftStore.getState();

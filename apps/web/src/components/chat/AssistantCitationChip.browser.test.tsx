@@ -13,10 +13,44 @@ import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection
 import "~/index.css";
 import { act, render } from "../../../test/render";
 
-const mocks = vi.hoisted(() => ({ observeSource: vi.fn(), dispose: vi.fn() }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const mocks = vi.hoisted(() => ({
+  observeSource: fake<(options: { onUnavailable: () => void }) => unknown>(),
+  dispose: fake(),
+}));
 vi.mock(import("./AssistantCitationSource"), async (importOriginal) => ({
   ...(await importOriginal()),
-  observeAssistantCitationCommentSource: mocks.observeSource,
+  observeAssistantCitationCommentSource: mocks.observeSource as never,
 }));
 vi.mock(import("@tanstack/react-router"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -39,7 +73,7 @@ const citation = {
 };
 
 function setup() {
-  mocks.observeSource.mockReset().mockReturnValue(mocks.dispose);
+  mocks.observeSource.reset(() => mocks.dispose);
   mocks.dispose.mockClear();
   const source = document.createElement("p");
   source.textContent = "hello";
@@ -118,14 +152,15 @@ describe("citation comment source disappearance", () => {
 
   it("preserves a rejected save and allows a later retry", async () => {
     using source = setup();
-    const onSave = vi.fn(() => false);
+    let saves = false;
+    const onSave = vi.spyOn({ save: () => saves }, "save");
     await using _screen = await mount(source.sourceAnchor, onSave);
     await typeComment("keep this draft");
     await removeSource();
 
     expect(onSave).toHaveBeenCalledWith("keep this draft");
     expect(textarea()?.value).toBe("keep this draft");
-    onSave.mockReturnValue(true);
+    saves = true;
     await clickButton("Save");
     expect(onSave).toHaveBeenLastCalledWith("keep this draft");
     expect(textarea()).toBeNull();

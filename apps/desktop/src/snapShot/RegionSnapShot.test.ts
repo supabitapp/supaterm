@@ -1,23 +1,9 @@
 import type * as Electron from "electron";
-import { assert, beforeEach, expect, it, vi } from "vite-plus/test";
+import { assert, expect, it, vi } from "vite-plus/test";
 
 import type { RegionSnapShotChild, RegionSnapShotProcess } from "./RegionSnapShot.ts";
 
-const { createFromBufferMock, resizeMock } = vi.hoisted(() => ({
-  createFromBufferMock: vi.fn(),
-  resizeMock: vi.fn(),
-}));
-
-vi.mock("electron", () => ({
-  nativeImage: { createFromBuffer: createFromBufferMock },
-}));
-
 import { makeRegionSnapShotPool, startRegionSnapShotProcess } from "./RegionSnapShot.ts";
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  createFromBufferMock.mockReturnValue({ resize: resizeMock });
-});
 
 function fakeChild() {
   const messageListeners: Array<(message: unknown) => void> = [];

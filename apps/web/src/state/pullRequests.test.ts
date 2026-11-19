@@ -62,15 +62,16 @@ it("observes both typed list failures without changing their status or replaying
     truncated: false,
     nextCursors: {},
   };
-  using clock = vi.spyOn(Date, "now").mockReturnValue(100);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  using _clock = { [Symbol.dispose]: () => vi.useRealTimers() };
   for (const error of [
     new PullRequestUnavailableError({ reason: "cli-unauthenticated", listResult }),
     new PullRequestOperationError({ operation: "list", detail: "HTTP 403", listResult }),
   ]) {
-    clock.mockReturnValue(100);
+    vi.setSystemTime(100);
     const failure = AsyncResult.failure<PullRequestListResult, unknown>(Cause.fail(error));
     expect(observeFailedPullRequestList(failure)).toEqual({ value: listResult, observedAt: 100 });
-    clock.mockReturnValue(200);
+    vi.setSystemTime(200);
     expect(observeFailedPullRequestList(failure)?.observedAt).toBe(100);
     expect(failure._tag).toBe("Failure");
     expect(observeFailedPullRequestList({ ...failure, waiting: true })).toBeUndefined();

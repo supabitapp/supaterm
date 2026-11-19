@@ -141,8 +141,14 @@ const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
   yield* checkForUpdatesFromMenu;
 }).pipe(Effect.withSpan("desktop.menu.handleCheckForUpdatesClick"));
 
-/** @public */
-export const make = Effect.gen(function* () {
+export type DevToolsContents = Pick<
+  Electron.WebContents,
+  "isDestroyed" | "isDevToolsFocused" | "closeDevTools"
+>;
+
+export const makeWith = Effect.fn("DesktopApplicationMenu.make")(function* (
+  getAllWebContents: () => ReadonlyArray<DevToolsContents>,
+) {
   const electronMenu = yield* ElectronMenu.ElectronMenu;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const context = yield* Effect.context<DesktopApplicationMenuRuntimeServices>();
@@ -233,8 +239,7 @@ export const make = Effect.gen(function* () {
             accelerator: "CmdOrCtrl+W",
             visible: false,
             click: () => {
-              Electron.webContents
-                .getAllWebContents()
+              getAllWebContents()
                 .find((contents) => !contents.isDestroyed() && contents.isDevToolsFocused())
                 ?.closeDevTools();
             },
@@ -359,5 +364,11 @@ export const make = Effect.gen(function* () {
     configure,
   });
 });
+
+/** @public */
+export const make = makeWith(() => Electron.webContents.getAllWebContents());
+
+export const layerWith = (getAllWebContents: () => ReadonlyArray<DevToolsContents>) =>
+  Layer.effect(DesktopApplicationMenu, makeWith(getAllWebContents));
 
 export const layer = Layer.effect(DesktopApplicationMenu, make);

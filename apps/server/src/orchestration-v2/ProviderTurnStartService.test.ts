@@ -75,6 +75,7 @@ import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as ProviderTurnStart from "./ProviderTurnStartService.ts";
+import { scriptedFake } from "../testUtils/scriptedFake.ts";
 import * as RunExecutionService from "./RunExecutionService.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
@@ -147,12 +148,12 @@ function startWithMissingWorktree(
     turnItems: [],
   } as unknown as OrchestrationV2ThreadProjection;
   let projectionReadCount = 0;
-  const writeIfRunCurrent = vi.fn(() =>
+  const writeIfRunCurrent = scriptedFake(() =>
     Effect.succeed({ committed: true, storedEvents: [] } as never),
   );
-  const startRootRun = vi.fn(() => Effect.void);
+  const startRootRun = scriptedFake(() => Effect.void);
   const pruneWorktrees = vi.fn(() => Effect.void);
-  const createWorktree = vi.fn(() => Effect.succeed({} as never));
+  const createWorktree = scriptedFake(() => Effect.succeed({} as never));
   const listLocalBranchNames = vi.fn(() => Effect.succeed(["feature/restore"]));
   const layer = ProviderTurnStart.layer.pipe(
     Layer.provide(
@@ -1156,7 +1157,7 @@ function makeLocalCommandHarness(input: {
       : (input: ProviderAdapter.ProviderAdapterV2ResumeTurnInput) =>
           startTurn(ProviderAdapter.resumeTurnInput(input)),
   };
-  const open = vi.fn(() =>
+  const open = scriptedFake(() =>
     startsProviderTurn
       ? Effect.succeed(sideChatSession as never)
       : input.interruptOpen === true
@@ -1188,7 +1189,7 @@ function makeLocalCommandHarness(input: {
                   } as never)
                 : Effect.die("A local command must not open a native session."),
   );
-  const startRootRun = vi.fn<
+  const startRootRun = scriptedFake<
     (
       input: RunExecutionService.RunExecutionServiceV2StartRootRunInput,
     ) => Effect.Effect<void, RunExecutionService.RunExecutionServiceV2Error>
@@ -1215,7 +1216,7 @@ function makeLocalCommandHarness(input: {
         )
       : Effect.void,
   );
-  const tryHandlePromptCommand = vi.fn(() =>
+  const tryHandlePromptCommand = scriptedFake(() =>
     input.logoutFailure === undefined
       ? Effect.succeed(true)
       : Effect.fail(
@@ -1226,7 +1227,7 @@ function makeLocalCommandHarness(input: {
           }),
         ),
   );
-  const writeIfRunCurrent = vi.fn<EventSink.EventSinkV2["Service"]["writeIfRunCurrent"]>(
+  const writeIfRunCurrent = scriptedFake<EventSink.EventSinkV2["Service"]["writeIfRunCurrent"]>(
     ({ events: incoming, activeAttemptId, expectedStatus }) =>
       "writeFailure" in input
         ? Effect.fail(
@@ -1259,13 +1260,13 @@ function makeLocalCommandHarness(input: {
       } as never),
   );
   const pruneWorktrees = vi.fn(() => Effect.void);
-  const createWorktree = vi.fn<GitWorkflow.GitWorkflowService["Service"]["createWorktree"]>(() =>
-    Effect.succeed({} as never),
+  const createWorktree = scriptedFake<GitWorkflow.GitWorkflowService["Service"]["createWorktree"]>(
+    () => Effect.succeed({} as never),
   );
-  const getThreadRecords = vi.fn<ProjectionStore.ProjectionStoreV2Shape["getThreadRecords"]>((id) =>
-    Effect.succeed(id === parentThreadId ? parentRecords : projection),
+  const getThreadRecords = scriptedFake<ProjectionStore.ProjectionStoreV2Shape["getThreadRecords"]>(
+    (id) => Effect.succeed(id === parentThreadId ? parentRecords : projection),
   );
-  const getTurnStartContext = vi.fn(() =>
+  const getTurnStartContext = scriptedFake(() =>
     Effect.succeed({
       ...projection,
       hasConversation: projection.messages.some(
@@ -1275,7 +1276,7 @@ function makeLocalCommandHarness(input: {
       ),
     }),
   );
-  const getRuntimeRecoveryProjection = vi.fn<
+  const getRuntimeRecoveryProjection = scriptedFake<
     ProjectionStore.ProjectionStoreV2Shape["getRuntimeRecoveryProjection"]
   >(() =>
     input.recoveryReadFailure !== undefined
@@ -1294,7 +1295,7 @@ function makeLocalCommandHarness(input: {
           ),
         }),
   );
-  const getRun = vi.fn<ProjectionStore.ProjectionStoreV2Shape["getRun"]>((_threadId, id) =>
+  const getRun = scriptedFake<ProjectionStore.ProjectionStoreV2Shape["getRun"]>((_threadId, id) =>
     Effect.as(
       failReadIfRunning,
       projection.runs.find((candidate) => candidate.id === id),
@@ -1580,7 +1581,7 @@ effectIt.effect(
 
 effectIt.effect("retries a failed settlement past the start budget until it is persisted", () => {
   const harness = makeLocalCommandHarness({ text: "Continue", missingProviderSession: true });
-  harness.writeIfRunCurrent.mockImplementationOnce(({ events }) =>
+  harness.writeIfRunCurrent.useOnce(({ events }) =>
     Effect.fail(
       new EventSink.EventSinkWriteError({
         eventCount: events.length,
@@ -1665,9 +1666,9 @@ effectIt.effect.each(["Stop", "a replacement attempt"] as const)(
   "does not overwrite %s committed during the final start failure write",
   (change) => {
     const harness = makeLocalCommandHarness({ text: "Continue", missingProviderSession: true });
-    const write = harness.writeIfRunCurrent.getMockImplementation()!;
+    const write = harness.writeIfRunCurrent.implementation();
     let protectedProjection = harness.projection();
-    harness.writeIfRunCurrent.mockImplementationOnce((input) =>
+    harness.writeIfRunCurrent.useOnce((input) =>
       Effect.suspend(() => {
         const projection = harness.projection();
         if (change === "Stop") harness.interruptRun();
@@ -1702,10 +1703,10 @@ effectIt.effect.each(["Stop", "a replacement attempt"] as const)(
 
 effectIt.effect("preserves a replacement committed after the final pre-running start read", () => {
   const harness = makeLocalCommandHarness({ text: "Continue", missingProviderSession: true });
-  const read = harness.getTurnStartContext.getMockImplementation()!;
+  const read = harness.getTurnStartContext.implementation();
   let reads = 0;
   let replacement: OrchestrationV2ThreadProjection;
-  harness.getTurnStartContext.mockImplementation(() =>
+  harness.getTurnStartContext.use(() =>
     Effect.suspend(() => {
       const snapshot = read();
       reads++;
@@ -1742,10 +1743,8 @@ effectIt.effect("preserves a replacement committed after the final pre-running s
 effectIt.effect("preserves a replacement committed before exhausted start settlement reads", () =>
   Effect.gen(function* () {
     const harness = makeLocalCommandHarness({ text: "Continue", failReadsAfterRunning: true });
-    harness.getRuntimeRecoveryProjection.mockImplementation(() =>
-      Effect.succeed(harness.projection()),
-    );
-    harness.getRun.mockImplementation((_threadId, id) =>
+    harness.getRuntimeRecoveryProjection.use(() => Effect.succeed(harness.projection()));
+    harness.getRun.use((_threadId, id) =>
       Effect.succeed(harness.projection().runs.find((candidate) => candidate.id === id)),
     );
     const projection = harness.projection();
@@ -1768,11 +1767,11 @@ effectIt.effect("preserves a replacement committed before exhausted start settle
       eventCount: 5,
       cause: "terminal-write ownership query unavailable",
     });
-    const write = harness.writeIfRunCurrent.getMockImplementation()!;
-    harness.writeIfRunCurrent.mockImplementation((input) =>
+    const write = harness.writeIfRunCurrent.implementation();
+    harness.writeIfRunCurrent.use((input) =>
       input.expectedStatus === "running" ? Effect.fail(storageFailure) : write(input),
     );
-    harness.open.mockImplementationOnce(() =>
+    harness.open.useOnce(() =>
       Effect.fail(
         new ProviderSessionManager.ProviderSessionOpenError({
           instanceId: harness.newInstanceId,
@@ -1814,7 +1813,7 @@ effectIt.effect("preserves a replacement committed before exhausted start settle
     return yield* Effect.gen(function* () {
       const worker = yield* EffectWorker.OrchestrationEffectWorkerV2;
       const outbox = yield* EffectOutbox.EffectOutboxV2;
-      harness.startRootRun.mockImplementation((input) =>
+      harness.startRootRun.use((input) =>
         Effect.gen(function* () {
           const execution = yield* RunExecutionService.RunExecutionServiceV2;
           yield* execution.startRootRun({
@@ -2036,8 +2035,8 @@ effectIt.effect(
           gitWorkflow,
           failReadsAfterRunning: true,
         });
-        const open = harness.open.getMockImplementation()!;
-        harness.open.mockImplementation(() =>
+        const open = harness.open.implementation();
+        harness.open.use(() =>
           Effect.gen(function* () {
             expect(yield* git(worktreePath, ["branch", "--show-current"])).toBe("feature/restore");
             expect(yield* git(worktreePath, ["rev-parse", "HEAD"])).toBe(expected.tip);
@@ -2112,8 +2111,8 @@ effectIt.effect(
         fileSystem,
         failReadsAfterRunning: true,
       });
-      harness.createWorktree.mockImplementationOnce(() => Effect.interrupt);
-      harness.createWorktree.mockImplementation(() =>
+      harness.createWorktree.useOnce(() => Effect.interrupt);
+      harness.createWorktree.use(() =>
         Effect.fail(
           new GitCommandError({
             operation: "worktree-add",
@@ -2433,7 +2432,7 @@ effectIt.effect.each(
           ),
         });
       }
-      harness.tryHandlePromptCommand.mockReturnValue(Effect.succeed(false));
+      harness.tryHandlePromptCommand.use(() => Effect.succeed(false));
       yield* harness.start;
       expect(harness.startTurn.mock.calls[0]?.[0].message.text.includes("SIDE_CHAT_CONTEXT")).toBe(
         !nativeGoals,
@@ -2583,11 +2582,11 @@ effectIt.effect.each(["cleanup-first", "startup-first"])(
         fileSystem,
         failReadsAfterRunning: true,
       });
-      harness.createWorktree.mockImplementation(() =>
+      harness.createWorktree.use(() =>
         fileSystem.makeDirectory(worktreePath).pipe(Effect.as({} as never), Effect.orDie),
       );
-      const open = harness.open.getMockImplementation()!;
-      harness.open.mockImplementation(() =>
+      const open = harness.open.implementation();
+      harness.open.use(() =>
         Effect.gen(function* () {
           expect(yield* fileSystem.exists(worktreePath).pipe(Effect.orDie)).toBe(true);
           yield* Deferred.succeed(openEntered, undefined);
@@ -2709,8 +2708,8 @@ effectIt.effect.each([
         fileSystem,
         failReadsAfterRunning: true,
       });
-      const open = harness.open.getMockImplementation()!;
-      harness.open.mockImplementation(() =>
+      const open = harness.open.implementation();
+      harness.open.use(() =>
         Effect.sync(() => order.push("provider session opened")).pipe(Effect.andThen(open())),
       );
       const restore = yield* withCheckpointRestoreReservation(
@@ -2741,7 +2740,7 @@ effectIt.effect("reads current startup state after waiting for the workspace lea
       worktreePath,
       failReadsAfterRunning: true,
     });
-    harness.getThreadRecords.mockImplementationOnce(() =>
+    harness.getThreadRecords.useOnce(() =>
       Deferred.succeed(readEntered, undefined).pipe(Effect.as(harness.projection())),
     );
     const holder = yield* withWorkspaceLease(worktreePath, Deferred.await(release)).pipe(
@@ -2778,7 +2777,7 @@ effectIt.effect("starts another provider in the same checkout while a turn is pe
       worktreePath,
       failReadsAfterRunning: true,
     });
-    first.startRootRun.mockImplementation(() =>
+    first.startRootRun.use(() =>
       Deferred.succeed(turnEntered, undefined).pipe(Effect.andThen(Deferred.await(releaseTurn))),
     );
     const pending = yield* first.start.pipe(Effect.forkChild({ startImmediately: true }));

@@ -95,9 +95,20 @@ function run() {
   });
 }`;
 
-function runMacLookup() {
+export type MacLookupExecFile = (
+  file: string,
+  args: ReadonlyArray<string>,
+  options: { readonly timeout: number; readonly maxBuffer: number },
+  callback: (error: Error | null, stdout: string) => void,
+) => void;
+
+const nodeMacLookupExecFile: MacLookupExecFile = (file, args, options, callback) => {
+  NodeChildProcess.execFile(file, [...args], options, callback);
+};
+
+function runMacLookup(execFile: MacLookupExecFile) {
   return new Promise((resolve, reject) => {
-    NodeChildProcess.execFile(
+    execFile(
       "/usr/bin/osascript",
       ["-l", "JavaScript", "-e", MAC_LOOKUP_SCRIPT],
       { timeout: MAC_LOOKUP_TIMEOUT_MS, maxBuffer: 1024 * 1024 },
@@ -109,8 +120,8 @@ function runMacLookup() {
   }) satisfies Promise<string>;
 }
 
-async function macActiveWindow() {
-  const output = (await runMacLookup()).trim();
+async function macActiveWindow(execFile: MacLookupExecFile) {
+  const output = (await runMacLookup(execFile)).trim();
   if (!output) return undefined satisfies ActiveWindow | undefined;
   const lookup = decodeMacActiveWindowLookup(output);
   const visible = lookup.windows.filter(
@@ -172,9 +183,16 @@ async function windowsActiveWindow() {
   } satisfies ActiveWindow | undefined;
 }
 
-export function activeWindow(platform: NodeJS.Platform): Promise<ActiveWindow | undefined>;
-export function activeWindow(platform: NodeJS.Platform) {
-  if (platform === "darwin") return macActiveWindow() satisfies Promise<ActiveWindow | undefined>;
+export function activeWindow(
+  platform: NodeJS.Platform,
+  execFile?: MacLookupExecFile,
+): Promise<ActiveWindow | undefined>;
+export function activeWindow(
+  platform: NodeJS.Platform,
+  execFile: MacLookupExecFile = nodeMacLookupExecFile,
+) {
+  if (platform === "darwin")
+    return macActiveWindow(execFile) satisfies Promise<ActiveWindow | undefined>;
   if (platform === "win32")
     return windowsActiveWindow() satisfies Promise<ActiveWindow | undefined>;
   return Promise.resolve(undefined) satisfies Promise<ActiveWindow | undefined>;

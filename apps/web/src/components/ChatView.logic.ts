@@ -588,11 +588,14 @@ export async function resolveFileAttachmentUrl(input: {
   return url;
 }
 
+const fetchRevertedAsset = (url: string) => fetch(url, { signal: AbortSignal.timeout(30_000) });
+
 export async function prepareRevertedMessageAttachments(input: {
   message: ChatMessage;
   environmentId: EnvironmentId;
   httpBaseUrl: string;
   createAssetUrl: Parameters<typeof resolveFileAttachmentUrl>[0]["createAssetUrl"];
+  fetchAsset?: (url: string) => Promise<Response>;
 }) {
   return Promise.all(
     (input.message.attachments ?? []).map(async (attachment) => {
@@ -613,7 +616,7 @@ export async function prepareRevertedMessageAttachments(input: {
       if (result._tag === "Failure") throw squashAtomCommandFailure(result);
       const url = resolveAssetUrl(input.httpBaseUrl, result.value.relativeUrl);
       if (url === null) throw new Error("The environment returned an invalid attachment URL.");
-      const response = await fetch(url, { signal: AbortSignal.timeout(30_000) });
+      const response = await (input.fetchAsset ?? fetchRevertedAsset)(url);
       if (!response.ok) throw new Error(`Could not restore attachment: ${attachment.name}`);
       const file = new File([await response.blob()], attachment.name, {
         type: attachment.mimeType,
@@ -828,8 +831,8 @@ export async function waitForRevertedMessage(
   requestId: CommandId,
   revert: () => Promise<void>,
   timeoutMs = 120_000,
+  threadAtom = environmentThreadDetails.stateAtom(threadRef),
 ) {
-  const threadAtom = environmentThreadDetails.stateAtom(threadRef);
   const readProjection = () => Option.getOrNull(appAtomRegistry.get(threadAtom).data);
   const initial = readProjection();
   const providerThreadId = initial?.thread.activeProviderThreadId;

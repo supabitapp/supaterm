@@ -35,6 +35,7 @@ export interface CommandScopeOptions {
   /** When-clause context the dispatcher cannot know (terminalOpen, previewOpen), read at event time. */
   readonly context?: (event: KeyboardEvent) => Partial<ShortcutMatchContext>;
   readonly keybindings?: () => ResolvedKeybindingsConfig;
+  readonly platform?: string;
   /** Project script bindings; a key resolves to a script command only through these. */
   readonly scriptKeybindings?: () => ResolvedKeybindingsConfig;
   /**
@@ -79,7 +80,9 @@ function isLive(scope: CommandScope) {
 function resolveKeyCommand(scope: CommandScope, event: KeyboardEvent) {
   const { options } = scope;
   const keybindings = options.keybindings?.() ?? appAtomRegistry.get(primaryServerKeybindingsAtom);
-  const match = { context: { ...readFocusContext(event), ...options.context?.(event) } };
+  const context = { ...readFocusContext(event), ...options.context?.(event) };
+  const match =
+    options.platform === undefined ? { context } : { context, platform: options.platform };
   return options.scriptKeybindings
     ? resolveChatShortcutCommand(event, keybindings, options.scriptKeybindings(), match)
     : resolveShortcutCommand(event, keybindings, match);

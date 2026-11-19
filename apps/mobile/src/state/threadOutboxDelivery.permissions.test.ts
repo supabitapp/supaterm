@@ -14,7 +14,56 @@ import { AsyncResult, type Atom } from "effect/reactivity";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { threadOutboxRetryDelayMs, type QueuedThreadMessage } from "./thread-outbox-model";
 
+type Behavior = { run(...args: ReadonlyArray<unknown>): unknown }["run"];
+type BehaviorName =
+  | "start"
+  | "metadata"
+  | "runtime"
+  | "interaction"
+  | "checkout"
+  | "modelUnavailable"
+  | "uploadVoice"
+  | "familyMount"
+  | "prepare";
+
+const defaultBehavior = () =>
+  ({
+    start: async () => AsyncResult.success({}),
+    metadata: async () => AsyncResult.success(undefined),
+    runtime: async () => AsyncResult.success(undefined),
+    interaction: async () => AsyncResult.success(undefined),
+    checkout: async () => AsyncResult.success(undefined),
+    modelUnavailable: () => false,
+    uploadVoice: async () => undefined,
+    familyMount: () => () => {},
+    prepare: ({ attachments }: { readonly attachments: unknown }) =>
+      Effect.succeed({
+        status: "ready",
+        attachments: [],
+        draftAttachments: attachments,
+        pendingAttachmentIds: [],
+      }),
+  }) satisfies Record<BehaviorName, Behavior>;
+
 const state = vi.hoisted(() => ({
+  next: {
+    start: [] as Array<Behavior>,
+    metadata: [] as Array<Behavior>,
+    runtime: [] as Array<Behavior>,
+    interaction: [] as Array<Behavior>,
+    checkout: [] as Array<Behavior>,
+    modelUnavailable: [] as Array<Behavior>,
+    uploadVoice: [] as Array<Behavior>,
+    familyMount: [] as Array<Behavior>,
+    prepare: [] as Array<Behavior>,
+  },
+  fallback: {} as Record<BehaviorName, Behavior>,
+  respond(name: BehaviorName, observe: (...args: ReadonlyArray<unknown>) => unknown) {
+    return (...args: ReadonlyArray<unknown>) => {
+      observe(...args);
+      return (state.next[name].shift() ?? state.fallback[name])(...args);
+    };
+  },
   draftText: "Keep this draft separate",
   cleanups: [] as Array<() => void>,
   delivery: null as {
@@ -27,11 +76,11 @@ const state = vi.hoisted(() => ({
   interaction: vi.fn(),
   prepare: vi.fn(),
   checkout: vi.fn(),
-  modelUnavailable: vi.fn(() => false),
+  modelUnavailable: vi.fn(),
   uploadVoice: vi.fn(),
   audioExists: true,
-  releaseRecordings: vi.fn(async () => {}),
-  familyMount: vi.fn(() => () => {}),
+  releaseRecordings: vi.fn(),
+  familyMount: vi.fn(),
   threadShells: null as unknown as Atom.Writable<ReadonlyArray<unknown>>,
   manager: null as unknown as ReturnType<
     typeof import("./thread-outbox-manager").createThreadOutboxManager
@@ -88,27 +137,31 @@ vi.mock("./server", async () => {
     environmentServerConfigsAtom: Atom.make(new Map([["secondary", state.config]])),
   };
 });
-vi.mock("./transcription", () => ({ uploadEnvironmentVoiceRecording: state.uploadVoice }));
+vi.mock("./transcription", () => ({
+  uploadEnvironmentVoiceRecording: state.respond("uploadVoice", state.uploadVoice),
+}));
 vi.mock("./thread-outbox-audio", () => ({
   queuedVoiceRecordingFile: async (messageId: string) => ({
     exists: state.audioExists,
     uri: `file:///documents/thread-outbox-audio/${messageId}.wav`,
   }),
-  releaseUnusedQueuedVoiceRecordings: state.releaseRecordings,
+  releaseUnusedQueuedVoiceRecordings: async (...args: ReadonlyArray<unknown>) => {
+    state.releaseRecordings(...args);
+  },
 }));
 vi.mock("./threads", async () => {
   const { Atom, AsyncResult } = await import("effect/reactivity");
   state.threadShells = Atom.make<ReadonlyArray<unknown>>([state.thread]).pipe(Atom.keepAlive);
   return {
     threadEnvironment: {
-      startTurn: state.start,
-      updateMetadata: state.metadata,
-      setRuntimeMode: state.runtime,
-      setInteractionMode: state.interaction,
+      startTurn: state.respond("start", state.start),
+      updateMetadata: state.respond("metadata", state.metadata),
+      setRuntimeMode: state.respond("runtime", state.runtime),
+      setInteractionMode: state.respond("interaction", state.interaction),
     },
     environmentThreadShells: { threadShellsAtom: state.threadShells },
     threadFamilies: {
-      mount: state.familyMount,
+      mount: state.respond("familyMount", state.familyMount),
       familyAtom: () => Atom.make(AsyncResult.success({})),
       refresh: vi.fn(),
     },
@@ -116,16 +169,20 @@ vi.mock("./threads", async () => {
   };
 });
 vi.mock("./vcs", () => ({ fetchVcsRefs: vi.fn() }));
-vi.mock("./git", () => ({ gitEnvironment: { preparePullRequestThread: state.checkout } }));
+vi.mock("./git", () => ({
+  gitEnvironment: { preparePullRequestThread: state.respond("checkout", state.checkout) },
+}));
 vi.mock("../lib/modelOptions", () => ({
-  isModelSelectionUnavailable: state.modelUnavailable,
+  isModelSelectionUnavailable: state.respond("modelUnavailable", state.modelUnavailable),
   describeUnavailableModelSelection: () => ({
     title: "Model unavailable",
     detail: "Pick another.",
   }),
 }));
 vi.mock("../lib/uuid", () => ({ uuidv4: () => "uuid", randomHex: () => "abcd" }));
-vi.mock("../lib/attachmentUpload", () => ({ prepareTurnAttachments: state.prepare }));
+vi.mock("../lib/attachmentUpload", () => ({
+  prepareTurnAttachments: state.respond("prepare", state.prepare),
+}));
 vi.mock("./composer-attachment-uploads", () => ({ uploadComposerAttachmentShared: vi.fn() }));
 vi.mock("./thread-outbox", async () => {
   const { createThreadOutboxManager } = await import("./thread-outbox-manager");
@@ -246,11 +303,13 @@ beforeEach(() => {
   setOperateGrant("secondary", false);
   state.draftText = "Keep this draft separate";
   state.config.shellThreadFamilies = false;
-  state.modelUnavailable.mockReset().mockReturnValue(false);
+  state.modelUnavailable.mockReset();
   state.uploadVoice.mockReset();
   state.audioExists = true;
-  state.releaseRecordings.mockReset().mockResolvedValue(undefined);
-  state.familyMount.mockReset().mockReturnValue(() => {});
+  state.releaseRecordings.mockReset();
+  state.familyMount.mockReset();
+  for (const queue of Object.values(state.next)) queue.length = 0;
+  state.fallback = defaultBehavior();
   appAtomRegistry.set(state.threadShells, [state.thread]);
   appAtomRegistry.set(state.manager.queuedMessagesByThreadKeyAtom, {});
   appAtomRegistry.set(dispatchingQueuedMessageIdsAtom, {});
@@ -262,17 +321,9 @@ beforeEach(() => {
     state.interaction,
     state.checkout,
   ]) {
-    command.mockReset().mockResolvedValue(AsyncResult.success(undefined));
+    command.mockReset();
   }
-  state.start.mockResolvedValue(AsyncResult.success({}));
-  state.prepare.mockReset().mockImplementation(({ attachments }) =>
-    Effect.succeed({
-      status: "ready",
-      attachments: [],
-      draftAttachments: attachments,
-      pendingAttachmentIds: [],
-    }),
-  );
+  state.prepare.mockReset();
 });
 
 describe("queued PR checkout", () => {
@@ -301,7 +352,7 @@ describe("queued PR checkout", () => {
     const started = Promise.withResolvers<void>();
     const checkout =
       Promise.withResolvers<AsyncResult.AsyncResult<typeof preparedCheckout, Error>>();
-    state.checkout.mockImplementationOnce(() => {
+    state.next.checkout.push(() => {
       started.resolve();
       return checkout.promise;
     });
@@ -328,7 +379,7 @@ describe("queued PR checkout", () => {
     setOperateGrant("secondary", true);
     const queued = queuedPullRequest();
     await state.manager.enqueue(queued);
-    state.checkout.mockResolvedValueOnce(
+    state.next.checkout.push(async () =>
       AsyncResult.failure(Cause.fail(new Error("Socket is not connected"))),
     );
     await runDrain();
@@ -339,7 +390,7 @@ describe("queued PR checkout", () => {
   it("restores the PR draft when the reused worktree cannot reach the PR head", async () => {
     setOperateGrant("secondary", true);
     await state.manager.enqueue(queuedPullRequest());
-    state.checkout.mockResolvedValueOnce(
+    state.next.checkout.push(async () =>
       AsyncResult.success({ ...preparedCheckout, isOnPullRequestHead: false }),
     );
     await runDrain();
@@ -360,7 +411,7 @@ describe("queued PR checkout", () => {
     setOperateGrant("secondary", true);
     const queued = queuedPullRequest();
     await state.manager.enqueue(queued);
-    state.checkout.mockImplementationOnce(async () => {
+    state.next.checkout.push(async () => {
       setOperateGrant("secondary", false);
       return AsyncResult.success(preparedCheckout);
     });
@@ -374,7 +425,7 @@ describe("queued PR checkout", () => {
     const queued = queuedPullRequest();
     await state.manager.enqueue(queued);
     const edited = { ...queued, text: "Updated instructions" };
-    state.checkout.mockImplementationOnce(async () => {
+    state.next.checkout.push(async () => {
       await state.manager.update(edited);
       return AsyncResult.success(preparedCheckout);
     });
@@ -405,7 +456,7 @@ describe("queued task operation access", () => {
     setOperateGrant("secondary", true);
     const queued = message();
     await state.manager.enqueue(queued);
-    state.modelUnavailable.mockImplementationOnce(() => {
+    state.next.modelUnavailable.push(() => {
       throw new TypeError("Cannot read properties of undefined");
     });
     await runDrain();
@@ -420,7 +471,7 @@ describe("queued task operation access", () => {
     setOperateGrant("secondary", true);
     state.config.shellThreadFamilies = true;
     const subAgentThread = { ...state.thread, id: "sub-agent" };
-    state.familyMount.mockImplementationOnce(() => {
+    state.next.familyMount.push(() => {
       appAtomRegistry.set(state.threadShells, [state.thread, subAgentThread]);
       return () => {};
     });
@@ -448,7 +499,7 @@ describe("queued task operation access", () => {
       interactionMode: "plan",
     });
     await state.manager.enqueue(queued);
-    state.runtime.mockImplementationOnce(async () => {
+    state.next.runtime.push(async () => {
       setOperateGrant("secondary", false);
       return AsyncResult.success(undefined);
     });
@@ -488,7 +539,7 @@ describe("queued task operation access", () => {
       const started = Promise.withResolvers<void>();
       const delivery =
         Promise.withResolvers<AsyncResult.AsyncResult<{ readonly sequence?: number }, Error>>();
-      state.start.mockImplementationOnce(() => {
+      state.next.start.push(() => {
         started.resolve();
         return delivery.promise;
       });
@@ -539,7 +590,7 @@ describe("queued task operation access", () => {
           : {},
       );
       await state.manager.enqueue(queued);
-      state.prepare.mockImplementationOnce(({ attachments }) =>
+      state.next.prepare.push(({ attachments }) =>
         Effect.suspend(() => {
           setOperateGrant("secondary", false);
           return uploadFails
@@ -583,7 +634,7 @@ describe("queued task whose launch reply is lost", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     state.cleanups.push(() => vi.useRealTimers());
     await state.manager.enqueue(queued);
-    state.start.mockImplementationOnce(async () => {
+    state.next.start.push(async () => {
       if (edit !== undefined) await state.manager.update({ ...queued, text: edit });
       return AsyncResult.failure(Cause.fail(new Error("Socket is not connected")));
     });
@@ -638,7 +689,7 @@ describe("queued task whose launch reply is lost", () => {
   });
 
   it("resends a pull request task in its launched worktree without checking out again", async () => {
-    state.checkout.mockResolvedValueOnce(
+    state.next.checkout.push(async () =>
       AsyncResult.success({
         branch: "pr-123",
         worktreePath: "/repo/.supaterm/worktrees/pr-123",
@@ -679,7 +730,7 @@ describe("queued delivery timing", () => {
     setOperateGrant("secondary", true);
     const firstStarted = Promise.withResolvers<void>();
     const finishFirst = Promise.withResolvers<AsyncResult.AsyncResult<object, never>>();
-    state.start.mockImplementationOnce(async () => {
+    state.next.start.push(async () => {
       firstStarted.resolve();
       return finishFirst.promise;
     });
@@ -708,11 +759,11 @@ describe("queued delivery timing", () => {
     appAtomRegistry.set(state.threadShells, [state.thread, other]);
     const slowStarted = Promise.withResolvers<void>();
     const finishSlow = Promise.withResolvers<AsyncResult.AsyncResult<object, never>>();
-    state.start.mockImplementation(async ({ input }: { input: { threadId: string } }) => {
+    state.fallback.start = async ({ input }: { input: { threadId: string } }) => {
       if (input.threadId !== "thread") return AsyncResult.success({});
       slowStarted.resolve();
       return finishSlow.promise;
-    });
+    };
     const queuedBecomes = (ids: ReadonlyArray<string>) => {
       const reached = Promise.withResolvers<void>();
       const release = appAtomRegistry.subscribe(state.manager.queuedMessagesByThreadKeyAtom, () => {
@@ -754,7 +805,7 @@ describe("queued delivery timing", () => {
     const connected = [{ environmentId: "secondary", connectionState: "connected" }];
     state.cleanups.push(() => appAtomRegistry.set(environments, connected));
     await state.manager.enqueue(message());
-    state.start.mockResolvedValueOnce(
+    state.next.start.push(async () =>
       AsyncResult.failure(Cause.fail(new Error("Socket is not connected"))),
     );
     await runDrain();
@@ -785,7 +836,7 @@ describe("queued voice messages in the delivery fiber", () => {
     setOperateGrant("secondary", true);
     const uploadStarted = Promise.withResolvers<void>();
     const finishUpload = Promise.withResolvers<typeof sent>();
-    state.uploadVoice.mockImplementationOnce(async () => {
+    state.next.uploadVoice.push(async () => {
       uploadStarted.resolve();
       return finishUpload.promise;
     });
@@ -819,7 +870,7 @@ describe("queued voice messages in the delivery fiber", () => {
 
   it("starts a fresh session for a recording queued while /clear was armed", async () => {
     setOperateGrant("secondary", true);
-    state.uploadVoice.mockResolvedValueOnce(sent);
+    state.next.uploadVoice.push(async () => sent);
     await state.manager.enqueue(voiceMessage({ freshContext: true }));
     await runDrain();
     expect(state.uploadVoice.mock.calls[0]?.[0].request.submit.freshContext).toBe(true);
@@ -829,8 +880,10 @@ describe("queued voice messages in the delivery fiber", () => {
   it("holds a refused recording and keeps the thread's later messages waiting", async () => {
     setOperateGrant("secondary", true);
     const { VoiceUploadError } = await import("@supaterm/client-runtime/state/transcription");
-    state.uploadVoice.mockRejectedValueOnce(
-      new VoiceUploadError("signedOut", "Sign in to this provider again to transcribe.", false),
+    state.next.uploadVoice.push(() =>
+      Promise.reject(
+        new VoiceUploadError("signedOut", "Sign in to this provider again to transcribe.", false),
+      ),
     );
     const queued = voiceMessage();
     await state.manager.enqueue(queued);
@@ -862,7 +915,7 @@ describe("queued voice messages in the delivery fiber", () => {
 
   it("holds a recording whose model is unavailable instead of restoring it to the draft", async () => {
     setOperateGrant("secondary", true);
-    state.modelUnavailable.mockReturnValue(true);
+    state.fallback.modelUnavailable = () => true;
     await state.manager.enqueue(voiceMessage());
     await runDrain();
     expect(state.uploadVoice).not.toHaveBeenCalled();
@@ -878,11 +931,17 @@ describe("queued voice messages in the delivery fiber", () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
     state.cleanups.push(() => vi.useRealTimers());
     const { VoiceUploadError } = await import("@supaterm/client-runtime/state/transcription");
-    state.uploadVoice
-      .mockRejectedValueOnce(
-        new VoiceUploadError("disconnected", "The recording couldn't reach the environment.", true),
-      )
-      .mockResolvedValueOnce(sent);
+    state.next.uploadVoice.push(
+      () =>
+        Promise.reject(
+          new VoiceUploadError(
+            "disconnected",
+            "The recording couldn't reach the environment.",
+            true,
+          ),
+        ),
+      async () => sent,
+    );
     const queued = voiceMessage();
     await state.manager.enqueue(queued);
     await runDrain();
@@ -902,7 +961,10 @@ describe("queued voice messages in the delivery fiber", () => {
 
   it("keeps a transcript the thread refused as held text and releases the recording", async () => {
     setOperateGrant("secondary", true);
-    state.uploadVoice.mockResolvedValueOnce({ text: "ship it", submission: { status: "failed" } });
+    state.next.uploadVoice.push(async () => ({
+      text: "ship it",
+      submission: { status: "failed" },
+    }));
     await state.manager.enqueue(voiceMessage());
     await runDrain();
     const [held] = remaining();

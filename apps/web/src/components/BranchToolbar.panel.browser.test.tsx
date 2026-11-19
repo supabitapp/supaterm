@@ -6,10 +6,41 @@ import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   worktreePath: "/tmp/worktree" as string | null,
-  showContextMenu: vi.fn(),
-  writeTextToClipboard: vi.fn(),
+  showContextMenu: fake(),
+  writeTextToClipboard: fake(),
 }));
 
 vi.mock(import("../localApi"), async (original) => ({
@@ -18,7 +49,7 @@ vi.mock(import("../localApi"), async (original) => ({
 }));
 vi.mock(import("../hooks/useCopyToClipboard"), async (original) => ({
   ...(await original()),
-  writeTextToClipboard: state.writeTextToClipboard,
+  writeTextToClipboard: state.writeTextToClipboard as never,
 }));
 vi.mock(import("./BranchToolbarBranchSelector"), async (original) => ({
   ...(await original()),
@@ -97,8 +128,8 @@ it("keeps the machine picker usable beside a locked workspace", async () => {
 
 async function setup() {
   state.worktreePath = "/tmp/worktree";
-  state.showContextMenu.mockReset().mockResolvedValue("copy-path");
-  state.writeTextToClipboard.mockReset().mockResolvedValue(true);
+  state.showContextMenu.reset(async () => "copy-path");
+  state.writeTextToClipboard.reset(async () => true);
   container = document.createElement("div");
   document.body.append(container);
   fixtureScreen = await renderUi(null, { container });

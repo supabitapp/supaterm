@@ -8,9 +8,40 @@ import "../../index.css";
 import type { ScopedSettingsPatch } from "./scopedSettings";
 
 type WritingStyle = typeof DEFAULT_UNIFIED_SETTINGS.sourceControlWritingStyle;
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   styles: [] as WritingStyle[],
-  updateSettings: vi.fn<(patch: ScopedSettingsPatch) => void>(),
+  updateSettings: fake<(patch: ScopedSettingsPatch) => void>(),
 }));
 
 vi.mock(import("@tanstack/react-router"), async (original) => ({
@@ -84,7 +115,7 @@ async function setup() {
     },
   ];
   const screen = await render(content());
-  state.updateSettings.mockReset().mockImplementation((patch) => {
+  state.updateSettings.reset((patch) => {
     state.styles = state.styles.map((style) => ({ ...style, ...patch.sourceControlWritingStyle }));
     void screen.rerender(content());
   });

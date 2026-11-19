@@ -7,14 +7,19 @@ import {
   type PreviewSessionSnapshot,
 } from "@supaterm/contracts";
 
-const mocks = vi.hoisted(() => ({
-  resize: Symbol("preview-resize"),
-  runAtomCommand: vi.fn(),
-  updatePreviewServerSnapshot: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  const commandResults: Array<unknown> = [];
+  return {
+    resize: Symbol("preview-resize"),
+    commandResults,
+    runAtomCommand: async (..._args: ReadonlyArray<unknown>) => commandResults.shift(),
+    updatePreviewServerSnapshot: vi.fn(),
+  };
+});
+const runAtomCommand = vi.spyOn(mocks, "runAtomCommand");
 
 vi.mock("@supaterm/client-runtime/state/runtime", () => ({
-  runAtomCommand: mocks.runAtomCommand,
+  runAtomCommand: (...args: ReadonlyArray<unknown>) => mocks.runAtomCommand(...args),
   squashAtomCommandFailure: (result: { readonly error: unknown }) => result.error,
 }));
 vi.mock("~/rpc/atomRegistry", () => ({ appAtomRegistry: {} }));
@@ -66,7 +71,7 @@ describe("browserViewportActions", () => {
       threadId: ThreadId.make("thread-1"),
     };
     const snapshot = { tabId: "tab-1" } as PreviewSessionSnapshot;
-    mocks.runAtomCommand.mockResolvedValueOnce({ _tag: "Success", value: snapshot });
+    mocks.commandResults.push({ _tag: "Success", value: snapshot });
     const viewport: PreviewViewportSetting = { _tag: "freeform", width: 390, height: 844 };
 
     await commitBrowserViewportChange(
@@ -74,7 +79,7 @@ describe("browserViewportActions", () => {
       viewport,
     );
 
-    expect(mocks.runAtomCommand).toHaveBeenCalledWith(
+    expect(runAtomCommand).toHaveBeenCalledWith(
       expect.anything(),
       mocks.resize,
       {

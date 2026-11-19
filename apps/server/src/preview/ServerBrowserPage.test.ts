@@ -1,3 +1,6 @@
+// @effect-diagnostics nodeBuiltinImport:off globalDate:off - serves real pages to a real browser and reads the faked Date clock.
+import * as NodeHttp from "node:http";
+
 import { PreviewAutomationEvaluateInput } from "@supaterm/contracts";
 import * as Schema from "effect/Schema";
 import {
@@ -22,6 +25,25 @@ import * as ServerBrowserPage from "./ServerBrowserPage.ts";
 import { SessionControl } from "./SessionControl.ts";
 
 const decodeEvaluateInput = Schema.decodeUnknownSync(PreviewAutomationEvaluateInput);
+
+async function serveReadyPage(onRequest: (method: string | undefined) => void = () => {}) {
+  const server = NodeHttp.createServer((request, response) => {
+    onRequest(request.method);
+    response.writeHead(200, { "content-type": "text/html" });
+    response.end("<title>Ready</title>");
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (address === null || typeof address === "string") throw new Error("Expected a TCP address");
+  return {
+    url: `http://127.0.0.1:${address.port}/`,
+    [Symbol.asyncDispose]: () =>
+      new Promise<void>((resolve) => {
+        server.closeAllConnections();
+        server.close(() => resolve());
+      }),
+  };
+}
 
 describe("JPEG screenshot dimensions", () => {
   const encode = (bytes: number[]) => Buffer.from(bytes).toString("base64");
@@ -554,11 +576,10 @@ describe("server browser element refs", () => {
 
   it("does not rerun an expression whose awaited browser call rejects with a SyntaxError", async () => {
     let posts = 0;
-    await page.route("http://preview.test/**", (route) => {
-      if (route.request().method() === "POST") posts++;
-      return route.fulfill({ contentType: "text/html", body: "<title>Ready</title>" });
+    await using server = await serveReadyPage((method) => {
+      if (method === "POST") posts++;
     });
-    await page.goto("http://preview.test/");
+    await page.goto(server.url);
     const evaluation = ServerBrowserPage.evaluate(
       cdp,
       {
@@ -572,10 +593,8 @@ describe("server browser element refs", () => {
   });
 
   it("returns the result of a top-level await expression that reloads the page", async () => {
-    await page.route("http://preview.test/", (route) =>
-      route.fulfill({ contentType: "text/html", body: "<title>Ready</title>" }),
-    );
-    await page.goto("http://preview.test/");
+    await using server = await serveReadyPage();
+    await page.goto(server.url);
     const result = await ServerBrowserPage.evaluate(
       cdp,
       { expression: "await 0; location.reload(); ({ clicked: true })" },
@@ -819,8 +838,8 @@ describe("server browser action timeout", () => {
       last: ["#a.dragTo 1", "#b.boundingBox 1"],
     },
   ])("gives the $action's steps one shared timeout", async ({ act, last }) => {
-    let now = 0;
-    using _now = vi.spyOn(Date, "now").mockImplementation(() => now);
+    vi.useFakeTimers({ toFake: ["Date"], now: 0 });
+    using _clock = { [Symbol.dispose]: () => vi.useRealTimers() };
     const steps: Array<string> = [];
     const box = { x: 0, y: 0, width: 20, height: 20 };
     const page = {
@@ -830,11 +849,11 @@ describe("server browser action timeout", () => {
         return {
           scrollIntoViewIfNeeded: async (options: StepOptions) => {
             record("scrollIntoViewIfNeeded", options);
-            now += 5_000;
+            vi.setSystemTime(Date.now() + 5_000);
           },
           boundingBox: async (options: StepOptions) => {
             record("boundingBox", options);
-            now += 5_000;
+            vi.setSystemTime(Date.now() + 5_000);
             return box;
           },
           hover: async (options: StepOptions) => record("hover", options),

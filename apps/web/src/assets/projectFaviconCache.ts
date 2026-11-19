@@ -4,22 +4,11 @@ import {
   PROJECT_FAVICON_MAX_DATA_URL_LENGTH,
   PROJECT_FAVICON_THUMBNAIL_SIZE,
 } from "@supaterm/client-runtime/project-favicon-cache";
-import { createIndexedDbTransaction } from "../lib/indexedDb";
+import { createIndexedDbTransaction, type IndexedDbAccess } from "../lib/indexedDb";
 
 const DATABASE_NAME = "supaterm:project-favicons";
 const DATABASE_VERSION = 2;
 const STORE_NAME = "images";
-const beginTransaction = createIndexedDbTransaction({
-  name: DATABASE_NAME,
-  version: DATABASE_VERSION,
-  upgrade: (database) => {
-    for (const name of database.objectStoreNames) {
-      if (name !== STORE_NAME) database.deleteObjectStore(name);
-    }
-    if (!database.objectStoreNames.contains(STORE_NAME)) database.createObjectStore(STORE_NAME);
-  },
-  blockedMessage: "Project icon cache is blocked.",
-});
 
 function completed(transaction: IDBTransaction) {
   return new Promise<void>((resolve, reject) => {
@@ -27,16 +16,6 @@ function completed(transaction: IDBTransaction) {
     transaction.addEventListener("abort", () => reject(transaction.error));
     transaction.addEventListener("error", () => reject(transaction.error));
   });
-}
-
-async function withStore<A>(
-  mode: IDBTransactionMode,
-  run: (store: IDBObjectStore) => IDBRequest<A> | void,
-) {
-  const transaction = await beginTransaction(STORE_NAME, mode);
-  const request = run(transaction.objectStore(STORE_NAME));
-  await completed(transaction);
-  return request?.result;
 }
 
 async function downscaleProjectFavicon(
@@ -64,15 +43,42 @@ async function downscaleProjectFavicon(
   }
 }
 
-export const projectFaviconCache = createProjectFaviconCache({
-  storage: {
-    list: async () => (await withStore("readonly", (store) => store.getAll())) ?? [],
-    put: async (key, entry) => {
-      await withStore("readwrite", (store) => store.put(entry, key));
+export function createBrowserProjectFaviconCache(access: IndexedDbAccess = {}) {
+  const beginTransaction = createIndexedDbTransaction({
+    name: DATABASE_NAME,
+    version: DATABASE_VERSION,
+    upgrade: (database) => {
+      for (const name of database.objectStoreNames) {
+        if (name !== STORE_NAME) database.deleteObjectStore(name);
+      }
+      if (!database.objectStoreNames.contains(STORE_NAME)) database.createObjectStore(STORE_NAME);
     },
-    remove: async (key) => {
-      await withStore("readwrite", (store) => store.delete(key));
+    blockedMessage: "Project icon cache is blocked.",
+    ...access,
+  });
+
+  async function withStore<A>(
+    mode: IDBTransactionMode,
+    run: (store: IDBObjectStore) => IDBRequest<A> | void,
+  ) {
+    const transaction = await beginTransaction(STORE_NAME, mode);
+    const request = run(transaction.objectStore(STORE_NAME));
+    await completed(transaction);
+    return request?.result;
+  }
+
+  return createProjectFaviconCache({
+    storage: {
+      list: async () => (await withStore("readonly", (store) => store.getAll())) ?? [],
+      put: async (key, entry) => {
+        await withStore("readwrite", (store) => store.put(entry, key));
+      },
+      remove: async (key) => {
+        await withStore("readwrite", (store) => store.delete(key));
+      },
     },
-  },
-  load: createProjectFaviconImageLoader({ downscale: downscaleProjectFavicon }),
-});
+    load: createProjectFaviconImageLoader({ downscale: downscaleProjectFavicon }),
+  });
+}
+
+export const projectFaviconCache = createBrowserProjectFaviconCache();

@@ -1,5 +1,5 @@
 import type { PreviewAnnotationPayload } from "@supaterm/contracts";
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { capturePreviewAnnotationScreenshot } from "./previewAnnotation";
 
@@ -23,13 +23,8 @@ const annotation: PreviewAnnotationPayload = {
 };
 
 describe("preview annotation capture", () => {
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
   it("preserves the PNG bytes, MIME type, and filename without fetching", async () => {
-    const fetch = vi.fn().mockRejectedValue(new TypeError("Blocked by connect-src"));
-    vi.stubGlobal("fetch", fetch);
+    using fetch = vi.spyOn(globalThis, "fetch");
     const capture = capturePreviewAnnotationScreenshot(annotation);
     expect(capture.status).toBe("captured");
     if (capture.status !== "captured") throw new Error("Expected a screenshot file");

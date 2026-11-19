@@ -31,8 +31,10 @@ import {
   shortcutConflictKey,
 } from "@supaterm/shared/keybindings";
 import {
+  createContext,
   lazy,
   Suspense,
+  use,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
@@ -80,6 +82,14 @@ export const isPdfPreviewFile = (path: string) => /\.pdf$/i.test(path.split(/[?#
 
 const PdfViewer = lazy(() => import("./PdfViewer"));
 
+const browserPdfViewerAvailable = () =>
+  !isElectron &&
+  navigator.pdfViewerEnabled &&
+  !/iPad|iPhone|iPod/.test(navigator.userAgent) &&
+  !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+export const NativePdfViewerContext = createContext(browserPdfViewerAvailable);
+
 function PdfDocument(props: { src: string; title: string; documentKey: string }) {
   const [view, setView] = useState<PdfViewState>({ page: 0, offset: 0, zoom: null, left: 0 });
   return (
@@ -102,11 +112,7 @@ function PdfDocumentRevision(props: {
   onViewChange: (view: PdfViewState) => void;
 }) {
   const [src] = useState(props.src);
-  const native =
-    !isElectron &&
-    navigator.pdfViewerEnabled &&
-    !/iPad|iPhone|iPod/.test(navigator.userAgent) &&
-    !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const native = use(NativePdfViewerContext)();
   return native ? (
     // oxlint-disable-next-line react/iframe-missing-sandbox -- Chromium's PDF plugin requires an unsandboxed frame; src is an exact-file asset grant.
     <iframe

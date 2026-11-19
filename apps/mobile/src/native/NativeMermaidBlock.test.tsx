@@ -7,7 +7,7 @@ import { NativeMermaidBlock } from "./NativeMermaidBlock";
 import type { NativeMarkdownTextStyle } from "./SelectableMarkdownText.types";
 
 const { copy, navigate } = vi.hoisted(() => ({
-  copy: vi.fn().mockResolvedValue(undefined),
+  copy: vi.fn<(text: string) => void>(),
   navigate: vi.fn(),
 }));
 vi.mock("@react-navigation/native", () => ({ useNavigation: () => ({ navigate }) }));
@@ -19,7 +19,11 @@ vi.mock("react-native", () => ({
   Pressable: "Pressable",
 }));
 vi.mock("@supaterm/mobile-source-text", () => ({ SourceText: "SourceText" }));
-vi.mock("expo-clipboard", () => ({ setStringAsync: copy }));
+vi.mock("expo-clipboard", () => ({
+  setStringAsync: async (text: string) => {
+    copy(text);
+  },
+}));
 vi.mock("expo-haptics", () => ({ impactAsync: vi.fn(), ImpactFeedbackStyle: { Light: "light" } }));
 vi.mock("../components/ui/AppSymbol", () => ({ SymbolView: "SymbolView" }));
 vi.mock("../lib/useReducedMotionPreference", () => ({ useReducedMotionPreference: () => true }));
@@ -111,13 +115,13 @@ afterEach(async () => {
 describe("NativeMermaidBlock", () => {
   it("keeps a working diagram when resizing fails and replaces it after recovery", async () => {
     const source = "flowchart LR\nA-->B";
-    const renderer = vi
-      .fn()
-      .mockResolvedValueOnce(diagram("wide diagram"))
-      .mockResolvedValueOnce(null)
-      .mockRejectedValueOnce(new Error("Renderer unavailable"))
-      .mockResolvedValueOnce(diagram("narrow diagram"))
-      .mockResolvedValue(null);
+    const results: Array<() => Promise<Diagram | null>> = [
+      async () => diagram("wide diagram"),
+      async () => null,
+      () => Promise.reject(new Error("Renderer unavailable")),
+      async () => diagram("narrow diagram"),
+    ];
+    const renderer = () => results.shift()?.() ?? Promise.resolve(null);
     await render(source, renderer);
     const resize = (width: number) =>
       act(async () =>
@@ -137,7 +141,11 @@ describe("NativeMermaidBlock", () => {
 
   it("shows the rendered diagram and copies Mermaid source from either view", async () => {
     const source = "graph LR\nA --> B";
-    const renderer = vi.fn().mockResolvedValue(diagram("[A] --> [B]"));
+    let renders = 0;
+    const renderer = async () => {
+      renders++;
+      return diagram("[A] --> [B]");
+    };
     await render(source, renderer);
     expect(displayedText()).toBe("[A] --> [B]");
     await press("Copy Mermaid source");
@@ -150,7 +158,7 @@ describe("NativeMermaidBlock", () => {
     await press("View diagram");
     expect(displayedText()).toBe("[A] --> [B]");
     await render(source, renderer, { ...textStyle, codeColor: "white" });
-    expect(renderer).toHaveBeenCalledTimes(1);
+    expect(renders).toBe(1);
   });
 
   it("opens the rendered diagram full screen", async () => {
@@ -191,8 +199,8 @@ describe("NativeMermaidBlock", () => {
   it.each(["unsupported", "rejected"])("keeps %s input readable and copyable", async (failure) => {
     const renderer =
       failure === "unsupported"
-        ? vi.fn().mockResolvedValue(null)
-        : vi.fn().mockRejectedValue(new Error("invalid diagram"));
+        ? async () => null
+        : () => Promise.reject(new Error("invalid diagram"));
     await render("unsupported syntax", renderer);
     expect(displayedText()).toBe("unsupported syntax");
     expect(root!.root.findAllByProps({ accessibilityLabel: "View diagram" })).toHaveLength(0);

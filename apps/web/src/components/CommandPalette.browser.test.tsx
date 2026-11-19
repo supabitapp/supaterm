@@ -1,4 +1,5 @@
 import { EnvironmentId, ProjectId, ThreadId } from "@supaterm/contracts";
+import { isMacPlatform } from "@supaterm/shared/keybindings";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
@@ -11,10 +12,41 @@ import { makeThreadFixture } from "../thread.fixture";
 import type { Project, Thread } from "../types";
 import { CommandPalette } from "./CommandPalette";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const entities = vi.hoisted(() => ({
   projects: [] as ReadonlyArray<Project>,
   threads: [] as ReadonlyArray<Thread>,
-  handleNewThread: vi.fn(async () => undefined),
+  handleNewThread: fake(async () => undefined),
 }));
 vi.mock("../state/server", async (original) => {
   const actual = await original<typeof import("../state/server")>();
@@ -255,15 +287,17 @@ describe("CommandPalette open intents", () => {
   });
 
   it("numbers filtered New thread in... rows from 1 and jumps to them", async () => {
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
+    const mac = isMacPlatform(navigator.platform);
     setup({ projects: [makeProject("server"), makeProject("lima")] });
     await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
 
     openCommandPalette({ open: "new-thread-in" });
     await userEvent.fill(page.getByPlaceholder("Search..."), "li");
     await expect.element(page.getByRole("option", { name: /server/ })).not.toBeInTheDocument();
-    await expect.element(page.getByRole("option", { name: /lima/ })).toMatchTextContent("Ctrl+1");
-    await userEvent.keyboard("{Control>}1{/Control}");
+    await expect
+      .element(page.getByRole("option", { name: /lima/ }))
+      .toMatchTextContent(mac ? "⌘1" : "Ctrl+1");
+    await userEvent.keyboard(mac ? "{Meta>}1{/Meta}" : "{Control>}1{/Control}");
 
     await vi.waitFor(() =>
       expect(entities.handleNewThread).toHaveBeenCalledWith({

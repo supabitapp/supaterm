@@ -1,10 +1,40 @@
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { ComposerImageAttachment } from "../../composerDraftStore";
-import { readFileAsDataUrl } from "../../lib/imageCompression";
 import { serializeComposerImages } from "./composerImagePersistence";
 
-vi.mock("../../lib/imageCompression", () => ({ readFileAsDataUrl: vi.fn() }));
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const readFileAsDataUrl = fake<(file: Blob) => Promise<string>>();
 
 function image(id: string) {
   const file = new File([id], `${id}.png`, { type: "image/png" });
@@ -21,17 +51,17 @@ function image(id: string) {
 
 describe("serializeComposerImages", () => {
   beforeEach(() => {
-    vi.mocked(readFileAsDataUrl).mockReset();
+    readFileAsDataUrl.reset();
   });
 
   it("reads only new images and drops removed images without rereading retained bytes", async () => {
     const a = image("a");
     const b = image("b");
-    vi.mocked(readFileAsDataUrl).mockImplementation(async (file) =>
+    readFileAsDataUrl.implement(async (file) =>
       file === a.file ? "data:image/png;base64,YQ==" : "data:image/png;base64,Yg==",
     );
 
-    const first = await serializeComposerImages([a], []);
+    const first = await serializeComposerImages([a], [], readFileAsDataUrl);
     expect(first).toEqual([
       {
         id: "a",
@@ -43,7 +73,7 @@ describe("serializeComposerImages", () => {
     ]);
     expect(readFileAsDataUrl).toHaveBeenCalledTimes(1);
 
-    const second = await serializeComposerImages([a, b], first);
+    const second = await serializeComposerImages([a, b], first, readFileAsDataUrl);
     expect(second).toEqual([
       first[0],
       {
@@ -57,8 +87,8 @@ describe("serializeComposerImages", () => {
     expect(readFileAsDataUrl).toHaveBeenCalledTimes(2);
     expect(readFileAsDataUrl).toHaveBeenNthCalledWith(2, b.file);
 
-    expect(await serializeComposerImages([a], second)).toEqual(first);
-    expect(await serializeComposerImages([], second)).toEqual([]);
+    expect(await serializeComposerImages([a], second, readFileAsDataUrl)).toEqual(first);
+    expect(await serializeComposerImages([], second, readFileAsDataUrl)).toEqual([]);
     expect(readFileAsDataUrl).toHaveBeenCalledTimes(2);
   });
 
@@ -71,9 +101,9 @@ describe("serializeComposerImages", () => {
       sizeBytes: a.sizeBytes,
       dataUrl: "data:image/png;base64,YQ==",
     };
-    vi.mocked(readFileAsDataUrl).mockRejectedValue(new Error("File is unavailable"));
+    readFileAsDataUrl.implement(async () => Promise.reject(new Error("File is unavailable")));
 
-    expect(await serializeComposerImages([a], [persisted])).toEqual([persisted]);
+    expect(await serializeComposerImages([a], [persisted], readFileAsDataUrl)).toEqual([persisted]);
     expect(readFileAsDataUrl).not.toHaveBeenCalled();
   });
 
@@ -84,11 +114,11 @@ describe("serializeComposerImages", () => {
     const largeRead = new Promise<string>((resolve) => {
       finishLargeRead = resolve;
     });
-    vi.mocked(readFileAsDataUrl).mockImplementation(async (file) =>
+    readFileAsDataUrl.implement(async (file) =>
       file === large.file ? largeRead : "data:image/png;base64,c21hbGw=",
     );
 
-    const serialized = serializeComposerImages([large, small], []);
+    const serialized = serializeComposerImages([large, small], [], readFileAsDataUrl);
     finishLargeRead("data:image/png;base64,bGFyZ2U=");
     expect((await serialized).map(({ id }) => id)).toEqual(["large", "small"]);
   });
@@ -96,11 +126,11 @@ describe("serializeComposerImages", () => {
   it("omits failed uncached reads while keeping successfully serialized images", async () => {
     const a = image("a");
     const b = image("b");
-    vi.mocked(readFileAsDataUrl)
-      .mockRejectedValueOnce(new Error("File is unavailable"))
-      .mockResolvedValueOnce("data:image/png;base64,Yg==");
+    readFileAsDataUrl
+      .implementOnce(async () => Promise.reject(new Error("File is unavailable")))
+      .implementOnce(async () => "data:image/png;base64,Yg==");
 
-    expect(await serializeComposerImages([a, b], [])).toEqual([
+    expect(await serializeComposerImages([a, b], [], readFileAsDataUrl)).toEqual([
       {
         id: "b",
         name: "b.png",

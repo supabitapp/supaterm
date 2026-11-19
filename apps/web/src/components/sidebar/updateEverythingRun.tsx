@@ -33,6 +33,14 @@ const updateEverythingRunAtom = Atom.make<UpdateEverythingRun | null>(null).pipe
   Atom.withLabel("update-everything-run"),
 );
 
+export const updateRunEnvironment = {
+  configAtom: (environmentId: EnvironmentId) => serverEnvironment.configValueAtom(environmentId),
+  connectionStateAtom: (environmentId: EnvironmentId) =>
+    environmentCatalog.stateAtom(environmentId),
+  retryConnection: (environmentId: EnvironmentId) =>
+    environmentCatalog.retryNow.run(appAtomRegistry, environmentId),
+};
+
 export function useUpdateEverythingRun() {
   return useAtomValue(updateEverythingRunAtom);
 }
@@ -82,6 +90,7 @@ export function retryFailedUpdateRunServers(
     target: ServerUpdateTarget,
     options: { readonly quiet: boolean },
   ) => Promise<ServerUpdateOutcome>,
+  environment = updateRunEnvironment,
 ) {
   const failed = (appAtomRegistry.get(updateEverythingRunAtom)?.machines ?? []).flatMap(
     (machine) =>
@@ -93,7 +102,7 @@ export function retryFailedUpdateRunServers(
   for (const entry of failed) {
     if (
       runsVersion(
-        appAtomRegistry.get(serverEnvironment.configValueAtom(entry.target.environmentId)),
+        appAtomRegistry.get(environment.configAtom(entry.target.environmentId)),
         entry.target.targetVersion,
       )
     ) {
@@ -273,7 +282,10 @@ export function showUpdateEverythingResult(result: UpdateEverythingResult) {
   );
 }
 
-function followHandedOffServers(servers: ReadonlyArray<HandedOffServer>) {
+function followHandedOffServers(
+  servers: ReadonlyArray<HandedOffServer>,
+  environment: typeof updateRunEnvironment,
+) {
   if (servers.length === 0) return;
   setUpdateEverythingRun(() => ({
     localVersion: null,
@@ -300,7 +312,7 @@ function followHandedOffServers(servers: ReadonlyArray<HandedOffServer>) {
       status: "running",
       stage: "resuming",
       fromVersion:
-        appAtomRegistry.get(serverEnvironment.configValueAtom(server.environmentId))?.environment
+        appAtomRegistry.get(environment.configAtom(server.environmentId))?.environment
           .serverVersion ?? server.targetVersion,
       targetVersion: server.targetVersion,
     });
@@ -336,17 +348,17 @@ function followHandedOffServers(servers: ReadonlyArray<HandedOffServer>) {
       nudgeReconnectDuringUpdateRestart({
         stateChanges: AtomRegistry.toStream(
           appAtomRegistry,
-          environmentCatalog.stateAtom(server.environmentId),
+          environment.connectionStateAtom(server.environmentId),
         ).pipe(
           Stream.map((state) => AsyncResult.getOrElse(state, () => AVAILABLE_CONNECTION_STATE)),
         ),
-        retryNow: Effect.promise(() =>
-          environmentCatalog.retryNow.run(appAtomRegistry, server.environmentId),
-        ).pipe(Effect.asVoid),
+        retryNow: Effect.promise(() => environment.retryConnection(server.environmentId)).pipe(
+          Effect.asVoid,
+        ),
       }),
     );
     const unsubscribe = appAtomRegistry.subscribe(
-      serverEnvironment.configValueAtom(server.environmentId),
+      environment.configAtom(server.environmentId),
       (config) => {
         if (runsVersion(config, server.targetVersion)) settle(null);
       },
@@ -356,14 +368,14 @@ function followHandedOffServers(servers: ReadonlyArray<HandedOffServer>) {
 }
 
 /** Reports, once per launch, how the update run that restarted the app ended. */
-export function startDesktopUpdateLaunchNotice() {
+export function startDesktopUpdateLaunchNotice(environment = updateRunEnvironment) {
   const saved = takeSavedUpdateEverythingResult();
   if (saved) {
     showUpdateEverythingResult({
       ...saved,
       restarting: saved.handedOff.map((server) => server.label),
     });
-    followHandedOffServers(saved.handedOff);
+    followHandedOffServers(saved.handedOff, environment);
   }
 
   let notifiedNotAppliedVersion: string | null = null;

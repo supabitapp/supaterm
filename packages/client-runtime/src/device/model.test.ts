@@ -10,7 +10,11 @@ function fixture() {
     resolve: (model: { dispose: () => void }) => void;
     reject: (error: Error) => void;
   }[] = [];
-  const install = vi.fn();
+  const installFailures: Array<Error> = [];
+  const install = vi.fn((_model: { dispose: () => void } | null) => {
+    const failure = installFailures.shift();
+    if (failure) throw failure;
+  });
   const load = vi.fn(
     (_source: DeviceModelSource, signal: AbortSignal) =>
       new Promise<{ dispose: () => void }>((resolve, reject) =>
@@ -18,7 +22,7 @@ function fixture() {
       ),
   );
   const slot = createDeviceModelSlot({ load, install });
-  return { slot, pending, install, load };
+  return { slot, pending, install, installFailures, load };
 }
 
 it("cancels superseded downloads and releases a late decoded model without installing it", async () => {
@@ -79,10 +83,8 @@ it("retries a failed source while ignoring rejection of a superseded request", a
 });
 
 it("releases an invalid model and restores the fallback if scene preparation rejects it", async () => {
-  const { slot, pending, install } = fixture();
-  install.mockImplementationOnce(() => {
-    throw new Error("invalid display");
-  });
+  const { slot, pending, install, installFailures } = fixture();
+  installFailures.push(new Error("invalid display"));
   slot.set(pro);
   const model = { dispose: vi.fn() };
   pending[0]!.resolve(model);

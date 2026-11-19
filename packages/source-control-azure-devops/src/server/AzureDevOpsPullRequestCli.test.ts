@@ -3,7 +3,7 @@ import * as NodeFS from "node:fs";
 import * as NodeZlib from "node:zlib";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { afterEach, assert, expect, it, vi } from "@effect/vitest";
+import { afterEach, assert, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { ChildProcessSpawner } from "effect/process";
@@ -11,14 +11,15 @@ import { ChildProcessSpawner } from "effect/process";
 import * as AzureDevOpsCli from "./AzureDevOpsCli.ts";
 import * as AzureDevOpsPullRequestCli from "./AzureDevOpsPullRequestCli.ts";
 import * as AzureDevOpsPullRequestProvider from "./AzureDevOpsPullRequestProvider.ts";
+import { scriptedFunction } from "@supaterm/source-control-testing/scriptedFunction";
 
-const mockedExecute = vi.fn<AzureDevOpsCli.AzureDevOpsCli["Service"]["execute"]>();
+const fakeExecute = scriptedFunction<AzureDevOpsCli.AzureDevOpsCli["Service"]["execute"]>();
 
 const layer = it.layer(
   AzureDevOpsPullRequestCli.layer.pipe(
     Layer.provide(
       Layer.mock(AzureDevOpsCli.AzureDevOpsCli)({
-        execute: mockedExecute,
+        execute: fakeExecute,
       }),
     ),
     Layer.provide(NodeServices.layer),
@@ -130,7 +131,7 @@ function streamedZip(
 }
 
 function argsOfCall(index: number) {
-  const call = mockedExecute.mock.calls[index];
+  const call = fakeExecute.calls[index];
   assert.isDefined(call);
   return call[0].args;
 }
@@ -154,7 +155,7 @@ function changeEntries(count: number) {
 }
 
 afterEach(() => {
-  mockedExecute.mockReset();
+  fakeExecute.reset();
 });
 
 layer("AzureDevOpsPullRequestCli.layer", (it) => {
@@ -162,13 +163,13 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
     Effect.gen(function* () {
       const previousHead = "a".repeat(40);
       const latestHead = "c".repeat(40);
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(json({ ...pullRequestRow, lastMergeSourceCommit: { commitId: previousHead } })),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -184,8 +185,8 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output(json({ changeEntries: [] }))))
-        .mockReturnValueOnce(Effect.succeed(output("[]")));
+        .returnsOnce(Effect.succeed(output(json({ changeEntries: [] }))))
+        .returnsOnce(Effect.succeed(output("[]")));
       const provider = yield* AzureDevOpsPullRequestProvider.make;
       const detail = yield* provider.getChangeRequest({
         cwd: "/w",
@@ -196,7 +197,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
       expect(detail.headSha).toBe(latestHead);
       expect(argsOfCall(2)).toContain("iterationId=2");
-      expect(mockedExecute).toHaveBeenCalledTimes(4);
+      expect(fakeExecute.calls).toHaveLength(4);
     }),
   );
 
@@ -209,7 +210,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
       const response = JSON.stringify(rows);
       expect(Buffer.byteLength(response)).toBeGreaterThan(1_000_000);
 
-      mockedExecute.mockImplementationOnce((input) =>
+      fakeExecute.implementOnce((input) =>
         Effect.succeed(outputWithin(input.maxOutputBytes, response)),
       );
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
@@ -230,7 +231,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("steps over what it has already handed over, which is all Azure can be told", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(pullRequests(3, 1))));
+      fakeExecute.returnsOnce(Effect.succeed(output(pullRequests(3, 1))));
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
 
       yield* cli.listPullRequests({
@@ -252,7 +253,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("asks Azure for the author's pull requests by creator", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(pullRequests(1, 1))));
+      fakeExecute.returnsOnce(Effect.succeed(output(pullRequests(1, 1))));
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
 
       yield* cli.listPullRequests({
@@ -273,8 +274,8 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("advances by malformed raw rows and keeps reading until the page is full", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify([
@@ -285,7 +286,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output(pullRequests(2, 2))));
+        .returnsOnce(Effect.succeed(output(pullRequests(2, 2))));
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
 
       const batch = yield* cli.listPullRequests({
@@ -308,7 +309,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("reads the signed-in account, which az reports as a bare value", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(output(JSON.stringify({ name: "bilal@acme.dev", type: "user" }))),
       );
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
@@ -337,17 +338,17 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
         argumentCount: 7,
         cause: new Error("Please run 'az login' to setup account."),
       });
-      mockedExecute
-        .mockReturnValueOnce(Effect.fail(notLoggedIn))
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(Effect.fail(notLoggedIn))
+        .returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify([{ ...pullRequestRow, createdBy: { uniqueName: "bilal@acme.dev" } }]),
             ),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output("")))
-        .mockReturnValueOnce(Effect.succeed(output("[]")));
+        .returnsOnce(Effect.succeed(output("")))
+        .returnsOnce(Effect.succeed(output("[]")));
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
 
       assert.strictEqual(yield* cli.getViewer({ cwd: "/w" }), "bilal@acme.dev");
@@ -366,7 +367,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
         argumentCount: 7,
         cause: new Error("signed out"),
       });
-      mockedExecute.mockReturnValue(Effect.fail(signedOut));
+      fakeExecute.returns(Effect.fail(signedOut));
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
 
       const error = yield* Effect.flip(cli.getViewer({ cwd: "/w" }));
@@ -388,11 +389,9 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
   it.effect("follows every page of policies and puts failures first", () =>
     Effect.gen(function* () {
       const fullPage = Array.from({ length: 100 }, () => policyRow("Lint", "approved"));
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(JSON.stringify(fullPage))))
-        .mockReturnValueOnce(
-          Effect.succeed(output(JSON.stringify([policyRow("Tests", "rejected")]))),
-        );
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(JSON.stringify(fullPage))))
+        .returnsOnce(Effect.succeed(output(JSON.stringify([policyRow("Tests", "rejected")]))));
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
       const checks = yield* cli.listPolicyChecks({ cwd: "/w", number: 42, isDraft: false });
       assert.deepStrictEqual(argsOfCall(1).slice(0, 12), [
@@ -419,7 +418,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
     { name: "unreadable", result: output(JSON.stringify([{ status: 7 }])) },
   ])("fails rather than report a $name policy page as complete", ({ result }) =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(result));
+      fakeExecute.returnsOnce(Effect.succeed(result));
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
       const error = yield* Effect.flip(
         cli.listPolicyChecks({ cwd: "/w", number: 42, isDraft: false }),
@@ -430,7 +429,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("sends a description that starts with a dash as one value, not as a flag", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValue(Effect.succeed(output("{}")));
+      fakeExecute.returns(Effect.succeed(output("{}")));
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
 
       yield* cli.updatePullRequest({
@@ -447,7 +446,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
     "sends a title or description that looks like `@path` as text, not as a file for az to read",
     () =>
       Effect.gen(function* () {
-        mockedExecute.mockReturnValue(Effect.succeed(output("{}")));
+        fakeExecute.returns(Effect.succeed(output("{}")));
         const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
 
         yield* cli.updatePullRequest({
@@ -464,17 +463,14 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             : [];
         });
         expect(fileReads).not.toContain("notes.txt");
-        expect(mockedExecute.mock.calls.map(([call]) => call.stdin)).toEqual([
-          "@notes.txt",
-          "@notes.txt",
-        ]);
+        expect(fakeExecute.calls.map(([call]) => call.stdin)).toEqual(["@notes.txt", "@notes.txt"]);
       }),
   );
 
   it.effect("names the head's blob as what a cleared file was cleared at", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify({
@@ -490,7 +486,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify({
@@ -510,7 +506,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               JSON.stringify({
@@ -543,8 +539,8 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
     "answers for a marked file the pull request no longer changes as the empty version",
     () =>
       Effect.gen(function* () {
-        mockedExecute
-          .mockReturnValueOnce(
+        fakeExecute
+          .returnsOnce(
             Effect.succeed(
               output(
                 json({
@@ -560,7 +556,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
               ),
             ),
           )
-          .mockReturnValueOnce(
+          .returnsOnce(
             Effect.succeed(
               output(
                 json({
@@ -575,7 +571,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
               ),
             ),
           )
-          .mockReturnValueOnce(Effect.succeed(output('{"changeEntries":[]}')));
+          .returnsOnce(Effect.succeed(output('{"changeEntries":[]}')));
         const provider = yield* AzureDevOpsPullRequestProvider.make;
         assert.isDefined(provider.getFileRevisions);
 
@@ -598,8 +594,8 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
           changeType: "edit",
           item: { path: `/src/f${from + index}.ts`, objectId: `blob-${from + index}` },
         }));
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -615,7 +611,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -630,10 +626,10 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(output(json({ changeEntries: entries(0, 5_000), nextSkip: 5_000 }))),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(output(json({ changeEntries: entries(5_000, 5_000), nextSkip: 10_000 }))),
         );
       const provider = yield* AzureDevOpsPullRequestProvider.make;
@@ -657,8 +653,8 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("stops following pages by what Azure counts, not by what survives decoding", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -674,7 +670,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -689,7 +685,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockImplementation((command) => {
+        .implement((command) => {
           const skip = command.args.find((arg) => arg.startsWith("$skip="));
           const from = Number(skip?.slice("$skip=".length) ?? 0);
           return Effect.succeed(
@@ -712,17 +708,17 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
         paths: ["src/page.ts"],
       });
 
-      assert.strictEqual(mockedExecute.mock.calls.length, 7);
+      assert.strictEqual(fakeExecute.calls.length, 7);
       assert.strictEqual(answer.revisions.size, 0);
     }),
   );
 
   it.effect("leaves one file the host would not hand over listed without its hunks", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(json(pullRequestRow))))
-        .mockReturnValueOnce(Effect.succeed(output(json(oneIteration))))
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(json(pullRequestRow))))
+        .returnsOnce(Effect.succeed(output(json(oneIteration))))
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -734,7 +730,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.fail(
             new AzureDevOpsCli.AzureDevOpsCommandFailedError({
               operation: "execute",
@@ -745,7 +741,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             }),
           ),
         )
-        .mockReturnValueOnce(Effect.succeed(output(json({ content: "hello\n" }))));
+        .returnsOnce(Effect.succeed(output(json({ content: "hello\n" }))));
       const provider = yield* AzureDevOpsPullRequestProvider.make;
 
       const slice = yield* provider.getDiff({
@@ -763,10 +759,10 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("fails the whole read when it is the connection that would not answer", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(Effect.succeed(output(json(pullRequestRow))))
-        .mockReturnValueOnce(Effect.succeed(output(json(oneIteration))))
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(Effect.succeed(output(json(pullRequestRow))))
+        .returnsOnce(Effect.succeed(output(json(oneIteration))))
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -777,7 +773,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.fail(
             new AzureDevOpsCli.AzureDevOpsCliRateLimitError({
               operation: "execute",
@@ -800,8 +796,8 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("takes Azure's own word on a file it will not spell out", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -817,7 +813,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -832,7 +828,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -843,7 +839,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(json({ content: "iVBORw0KGgo=", contentMetadata: { isBinary: true } })),
           ),
@@ -865,8 +861,8 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("stops following pages when one of them does not move the cursor on", () =>
     Effect.gen(function* () {
-      mockedExecute
-        .mockReturnValueOnce(
+      fakeExecute
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -882,7 +878,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -897,7 +893,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -907,7 +903,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             output(
               json({
@@ -928,7 +924,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
         paths: ["a.ts", "b.ts", "unlisted.ts"],
       });
 
-      assert.strictEqual(mockedExecute.mock.calls.length, 4);
+      assert.strictEqual(fakeExecute.calls.length, 4);
       expect([...answer.revisions]).toEqual([
         ["a.ts", "8f80"],
         ["b.ts", "0ca4"],
@@ -940,7 +936,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
     Effect.gen(function* () {
       const response = json({ changeEntries: changeEntries(2_000) });
       expect(Buffer.byteLength(response)).toBeGreaterThan(VCS_DEFAULT_MAX_OUTPUT_BYTES);
-      mockedExecute.mockImplementationOnce((input) =>
+      fakeExecute.implementOnce((input) =>
         Effect.succeed(outputWithin(input.maxOutputBytes, response)),
       );
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
@@ -963,7 +959,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
       const response = json({ content: file });
       expect(Buffer.byteLength(file)).toBeLessThan(VCS_DEFAULT_MAX_OUTPUT_BYTES);
       expect(Buffer.byteLength(response)).toBeGreaterThan(VCS_DEFAULT_MAX_OUTPUT_BYTES);
-      mockedExecute.mockImplementationOnce((input) =>
+      fakeExecute.implementOnce((input) =>
         Effect.succeed(outputWithin(input.maxOutputBytes, response)),
       );
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
@@ -987,7 +983,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
         const id = (digit: string) => digit.repeat(40);
         const utf8 = (text: string) => new TextEncoder().encode(text);
         let sent = "";
-        mockedExecute.mockImplementationOnce((input) =>
+        fakeExecute.implementOnce((input) =>
           Effect.sync(() => {
             const flag = (name: string) => input.args[input.args.indexOf(name) + 1] ?? "";
             sent = NodeFS.readFileSync(flag("--in-file"), "utf8");
@@ -1031,7 +1027,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
     Effect.gen(function* () {
       const ids = ["1", "2", "3", "4", "5", "6"].map((digit) => digit.repeat(40));
       const blob = new Uint8Array(3 * 1024 * 1024).fill(0x61);
-      mockedExecute.mockImplementationOnce((input) =>
+      fakeExecute.implementOnce((input) =>
         Effect.sync(() => {
           NodeFS.writeFileSync(
             input.args[input.args.indexOf("--out-file") + 1] ?? "",
@@ -1054,7 +1050,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
 
   it.effect("escapes characters in a file path that would cut the query string", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(Effect.succeed(output(json({ content: "x" }))));
+      fakeExecute.returnsOnce(Effect.succeed(output(json({ content: "x" }))));
       const cli = yield* AzureDevOpsPullRequestCli.AzureDevOpsPullRequestCli;
 
       yield* cli.readItemContent({
@@ -1064,13 +1060,13 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
         commit: "a".repeat(40),
       });
 
-      expect(mockedExecute.mock.calls.at(-1)?.[0].args).toContain("path=%2Fdocs%2FC%23%2Fa%26b.md");
+      expect(fakeExecute.calls.at(-1)?.[0].args).toContain("path=%2Fdocs%2FC%23%2Fa%26b.md");
     }),
   );
 
   it.effect("reports a pull request it cannot place as its own outcome", () =>
     Effect.gen(function* () {
-      mockedExecute.mockReturnValueOnce(
+      fakeExecute.returnsOnce(
         Effect.succeed(
           output(
             JSON.stringify({
@@ -1105,7 +1101,7 @@ layer("AzureDevOpsPullRequestCli.layer", (it) => {
       );
 
       assert.strictEqual(error._tag, "AzureDevOpsReviewerNameError");
-      assert.strictEqual(mockedExecute.mock.calls.length, 0);
+      assert.strictEqual(fakeExecute.calls.length, 0);
     }),
   );
 });

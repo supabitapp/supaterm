@@ -50,7 +50,7 @@ it("copies a fenced command without the fence's closing newline", async () => {
     </MarkdownCodeBlock>,
     { router: false },
   );
-  using write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+  using write = vi.spyOn(navigator.clipboard, "writeText");
   await screen.getByRole("button", { name: "Copy code" }).click();
   await vi.waitFor(() => expect(write).toHaveBeenCalledWith("sudo pacman -S patchelf"));
 });

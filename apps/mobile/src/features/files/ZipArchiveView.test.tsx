@@ -94,7 +94,14 @@ vi.mock("expo-file-system", () => ({
     }
   },
 }));
-vi.mock("expo/fetch", () => ({ fetch: vi.fn() }));
+vi.mock("expo/fetch", () => ({
+  fetch: async (url: string) => {
+    const bytes = files.get(url);
+    return bytes
+      ? { ok: true, status: 200, body: new Response(Uint8Array.from(bytes)).body }
+      : { ok: false, status: 404, body: null };
+  },
+}));
 vi.mock("expo-crypto", () => ({ randomUUID: vi.fn() }));
 vi.mock("@react-navigation/native", () => ({
   useNavigation: () => ({ canGoBack: () => false }),
@@ -212,11 +219,6 @@ function setup() {
 it("opens a ZIP chat attachment as a browsable archive on the attachment file screen", async () => {
   const screen = setup();
   server.capabilities = { fileAttachments: { maxUploadBytes: 1024 } };
-  const { fetch } = await import("expo/fetch");
-  vi.mocked(fetch, { partial: true }).mockImplementation(async () => ({
-    ok: true,
-    body: new Response(Uint8Array.from(files.get("file:///first.zip")!)).body,
-  }));
   await act(async () =>
     screen.root.render(
       <AttachmentFileScreen

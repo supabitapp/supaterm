@@ -92,6 +92,23 @@ function writeTextWithExecCommand(value: string, extraFlavors?: Readonly<Record<
   }
 }
 
+export function clipboardItemFlavors(
+  value: string,
+  extraFlavors: Readonly<Record<string, string>>,
+) {
+  const { "text/plain": _replaced, ...rest } = extraFlavors;
+  const flavors: Record<string, string> = { "text/plain": value, ...rest };
+  const contextFragment = flavors[COMPOSER_CONTEXT_CLIPBOARD_MIME];
+  if (contextFragment) {
+    flavors["text/html"] = encodeComposerContextClipboardHtml(
+      value,
+      contextFragment,
+      flavors["text/html"],
+    );
+  }
+  return flavors;
+}
+
 export async function writeTextToClipboard(
   value: string,
   target = "text",
@@ -104,46 +121,28 @@ export async function writeTextToClipboard(
   }
 
   if (!value) return false;
-  if (extraFlavors) {
-    extraFlavors = Object.fromEntries(
-      Object.entries(extraFlavors).filter(([type]) => type !== "text/plain"),
-    );
-  }
-  const contextFragment = extraFlavors?.[COMPOSER_CONTEXT_CLIPBOARD_MIME];
-  if (contextFragment)
-    extraFlavors = {
-      ...extraFlavors,
-      "text/html": encodeComposerContextClipboardHtml(
-        value,
-        contextFragment,
-        extraFlavors?.["text/html"],
-      ),
-    };
+  const flavors = extraFlavors ? clipboardItemFlavors(value, extraFlavors) : undefined;
 
   if (typeof navigator === "undefined" || !navigator.clipboard?.writeText) {
-    if (writeTextWithExecCommand(value, extraFlavors)) return true;
+    if (writeTextWithExecCommand(value, flavors)) return true;
     throw new ClipboardApiUnavailableError({
       target,
     });
   }
 
   try {
-    if (extraFlavors && typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
+    if (flavors && typeof ClipboardItem !== "undefined" && navigator.clipboard.write) {
       try {
         await navigator.clipboard.write([
-          new ClipboardItem({
-            "text/plain": new Blob([value], { type: "text/plain" }),
-            ...Object.fromEntries(
-              Object.entries(extraFlavors).map(([type, data]) => [
-                type,
-                new Blob([data], { type }),
-              ]),
+          new ClipboardItem(
+            Object.fromEntries(
+              Object.entries(flavors).map(([type, data]) => [type, new Blob([data], { type })]),
             ),
-          }),
+          ),
         ]);
         return true;
       } catch {
-        const html = extraFlavors["text/html"];
+        const html = flavors["text/html"];
         if (html) {
           try {
             await navigator.clipboard.write([

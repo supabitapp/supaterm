@@ -1,12 +1,22 @@
 import { EnvironmentId } from "@supaterm/contracts";
 import { getProjectFaviconResourceKey } from "@supaterm/shared/projectFavicon";
-import { expect, it, vi } from "vite-plus/test";
+import { expect, it } from "vite-plus/test";
 
 import { randomUUID } from "../lib/utils";
 
-import { projectFaviconCache as cache } from "./projectFaviconCache";
+import { createBrowserProjectFaviconCache } from "./projectFaviconCache";
 
 it("persists and removes project icons after the database silently closes", async () => {
+  const closing = { next: false };
+  const cache = createBrowserProjectFaviconCache({
+    begin: (database, stores, mode) => {
+      if (closing.next) {
+        closing.next = false;
+        database.close();
+      }
+      return database.transaction(stores, mode);
+    },
+  });
   const target = {
     environmentId: EnvironmentId.make(randomUUID()),
     cwd: "/workspace",
@@ -14,16 +24,7 @@ it("persists and removes project icons after the database silently closes", asyn
   const image = "data:image/svg+xml;base64,PHN2Zy8+";
   await cache.hydrate();
 
-  const original = IDBDatabase.prototype.transaction;
-  using closing = vi.spyOn(IDBDatabase.prototype, "transaction").mockImplementationOnce(function (
-    this: IDBDatabase,
-    stores,
-    mode,
-    options,
-  ) {
-    this.close();
-    return original.call(this, stores, mode, options);
-  });
+  closing.next = true;
   const request = indexedDB.open("supaterm:project-favicons", 2);
   const database = await new Promise<IDBDatabase>((resolve, reject) => {
     request.addEventListener("success", () => resolve(request.result));
@@ -41,12 +42,11 @@ it("persists and removes project icons after the database silently closes", asyn
   try {
     expect(await cache.resolve(target, image, new AbortController().signal)).toBe(image);
     await cache.flush();
-    closing.mockRestore();
     expect(await read()).toMatchObject({ ...target, dataUrl: image });
     await cache.clearEnvironment(target.environmentId);
     expect(await read()).toBeUndefined();
   } finally {
-    closing.mockRestore();
+    closing.next = false;
     database.close();
     await cache.clearEnvironment(target.environmentId);
   }

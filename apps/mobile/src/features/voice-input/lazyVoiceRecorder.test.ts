@@ -9,7 +9,9 @@ type Status = { readonly isFinished: boolean };
 function createNativeRecorder(uri: string) {
   const listeners = new Set<(status: Status) => void>();
   const frameListeners = new Set<(pcm: Uint8Array) => void>();
+  const inputFailures: Array<Error> = [];
   return {
+    inputFailures,
     uri: null as string | null,
     prepared: uri,
     prepareToRecordAsync: vi.fn(async function (this: { uri: string | null; prepared: string }) {
@@ -31,7 +33,10 @@ function createNativeRecorder(uri: string) {
       { uid: "car", name: "CarPlay", type: "CarAudio" },
       { uid: "built-in", name: "iPhone Microphone", type: "MicrophoneBuiltIn" },
     ]),
-    setInput: vi.fn((_uid: string) => undefined),
+    setInput: vi.fn((_uid: string) => {
+      const failure = inputFailures.shift();
+      if (failure) throw failure;
+    }),
     release: vi.fn(),
     emit: (status: Status) => listeners.forEach((listener) => listener(status)),
     emitFrame: (pcm: Uint8Array) => frameListeners.forEach((listener) => listener(pcm)),
@@ -63,9 +68,7 @@ describe("createLazyVoiceRecorder", () => {
 
     const disconnected = createHarness((inputs) => inputs[1] ?? null);
     await disconnected.recorder.prepareToRecordAsync();
-    disconnected.created[0]!.setInput.mockImplementationOnce(() => {
-      throw new Error("Preferred input not found");
-    });
+    disconnected.created[0]!.inputFailures.push(new Error("Preferred input not found"));
     await expect(disconnected.recorder.prepareToRecordAsync()).resolves.toBeUndefined();
   });
 

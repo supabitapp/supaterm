@@ -7,7 +7,7 @@ describe("navigateAfterThreadDeletion", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("reports a rejected navigation without failing the completed deletion", async () => {
-    const addToast = vi.spyOn(toastManager, "add").mockReturnValue("navigation-error");
+    const addToast = vi.spyOn(toastManager, "add");
 
     await expect(
       navigateAfterThreadDeletion(() => Promise.reject(new Error("route unavailable"))),

@@ -1,7 +1,7 @@
 import { PlayIcon, WrapTextIcon, CheckIcon, CopyIcon } from "@supaterm/icons";
 
 import { toHtml } from "hast-util-to-html";
-import React, { use, useState, type ReactNode } from "react";
+import React, { createContext, use, useState, type ReactNode } from "react";
 
 import { useIncrementalHighlightedDocument } from "../../hooks/useIncrementalHighlightedDocument";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
@@ -18,6 +18,8 @@ import {
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { HighlightedCodeLines } from "./HighlightedCodeLines";
+
+export const SyntaxHighlighterSource = createContext(getSyntaxHighlighterPromise);
 import {
   createHighlightCacheKey,
   estimateHighlightedSize,
@@ -345,7 +347,7 @@ function UncachedShikiCodeBlock({
   isStreaming,
   preserveLines,
 }: UncachedShikiCodeBlockProps) {
-  const highlighter = use(getSyntaxHighlighterPromise(language));
+  const highlighter = use(use(SyntaxHighlighterSource)(language));
   const incrementalHighlight = useIncrementalHighlightedDocument(
     preserveLines,
     highlighter,

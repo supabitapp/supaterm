@@ -26,12 +26,30 @@ const accountLabel = (account: Electron.WebAuthnAccount) =>
     ? `${account.displayName} (${account.name})`
     : (account.name ?? account.displayName ?? "Unnamed passkey");
 
-const chooseAccount = async (details: Electron.SelectWebauthnAccountDetails) => {
+export type PasskeysNative = {
+  readonly configureWebAuthn: (options: Electron.ConfigureWebAuthnOptions) => void;
+  readonly showMessageBox: (
+    details: Electron.SelectWebauthnAccountDetails,
+    options: Electron.MessageBoxOptions,
+  ) => Promise<{ readonly response: number }>;
+};
+
+const electronPasskeysNative: PasskeysNative = {
+  configureWebAuthn: (options) => app.configureWebAuthn(options),
+  showMessageBox: (details, options) => {
+    const contents = details.frame ? webContents.fromFrame(details.frame) : undefined;
+    const owner = contents?.hostWebContents ?? contents;
+    const parent = owner ? BrowserWindow.fromWebContents(owner) : null;
+    return parent ? dialog.showMessageBox(parent, options) : dialog.showMessageBox(options);
+  },
+};
+
+const chooseAccount = async (
+  native: PasskeysNative,
+  details: Electron.SelectWebauthnAccountDetails,
+) => {
   if (details.accounts.length === 1) return details.accounts[0]?.credentialId;
   if (details.accounts.length === 0) return undefined;
-  const contents = details.frame ? webContents.fromFrame(details.frame) : undefined;
-  const owner = contents?.hostWebContents ?? contents;
-  const parent = owner ? BrowserWindow.fromWebContents(owner) : null;
   const options: Electron.MessageBoxOptions = {
     type: "none",
     message: "Choose a passkey",
@@ -41,14 +59,11 @@ const chooseAccount = async (details: Electron.SelectWebauthnAccountDetails) => 
     defaultId: 0,
     noLink: true,
   };
-  const { response } = parent
-    ? await dialog.showMessageBox(parent, options)
-    : await dialog.showMessageBox(options);
+  const { response } = await native.showMessageBox(details, options);
   return details.accounts[response]?.credentialId;
 };
 
-/** @public */
-export const make = Effect.gen(function* () {
+export const makeWith = Effect.fn("PreviewPasskeys.make")(function* (native: PasskeysNative) {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fs = yield* FileSystem.FileSystem;
   const keychainAccessGroup =
@@ -64,7 +79,7 @@ export const make = Effect.gen(function* () {
     configure:
       keychainAccessGroup === undefined
         ? Effect.void
-        : Effect.try(() => app.configureWebAuthn({ touchID: { keychainAccessGroup } })).pipe(
+        : Effect.try(() => native.configureWebAuthn({ touchID: { keychainAccessGroup } })).pipe(
             Effect.catch((error) =>
               Effect.logWarning("Could not configure Touch ID passkeys", { cause: error }),
             ),
@@ -74,7 +89,7 @@ export const make = Effect.gen(function* () {
       if (keychainAccessGroup === undefined || sessions.has(session)) return;
       sessions.add(session);
       session.on("select-webauthn-account", (_event, details, callback) => {
-        void chooseAccount(details).then(
+        void chooseAccount(native, details).then(
           (credentialId) => callback(credentialId),
           () => callback(),
         );
@@ -82,5 +97,8 @@ export const make = Effect.gen(function* () {
     },
   });
 });
+
+/** @public */
+export const make = makeWith(electronPasskeysNative);
 
 export const layer = Layer.effect(PreviewPasskeys, make);

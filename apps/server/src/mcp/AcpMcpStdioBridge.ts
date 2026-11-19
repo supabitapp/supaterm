@@ -340,16 +340,25 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions) {
 }
 
 /** Avoid heavy imports on the ACP first-message path. */
+interface AcpMcpCliIo {
+  readonly environment?: NodeJS.ProcessEnv;
+  readonly fetchImplementation?: (url: string, init?: RequestInit) => Promise<Response>;
+  readonly writeOutput?: (chunk: string) => void;
+}
+
 export function runAcpMcpCliFastPath(
   command: "acp-mcp-bridge" | "acp-mcp-call",
   args: ReadonlyArray<string>,
+  io?: AcpMcpCliIo,
 ): Promise<void>;
 export async function runAcpMcpCliFastPath(
   command: "acp-mcp-bridge" | "acp-mcp-call",
   args: ReadonlyArray<string>,
+  io: AcpMcpCliIo = {},
 ) {
-  const endpoint = process.env.SUPATERM_ACP_MCP_ENDPOINT;
-  const authorization = process.env.SUPATERM_ACP_MCP_AUTHORIZATION;
+  const environment = io.environment ?? process.env;
+  const endpoint = environment.SUPATERM_ACP_MCP_ENDPOINT;
+  const authorization = environment.SUPATERM_ACP_MCP_AUTHORIZATION;
   if (endpoint === undefined || authorization === undefined) {
     process.stderr.write(
       `${command} requires SUPATERM_ACP_MCP_ENDPOINT and SUPATERM_ACP_MCP_AUTHORIZATION.\n`,
@@ -364,6 +373,9 @@ export async function runAcpMcpCliFastPath(
         authorization,
         input: process.stdin,
         output: process.stdout,
+        ...(io.fetchImplementation === undefined
+          ? {}
+          : { fetchImplementation: io.fetchImplementation }),
       }),
     );
     return;
@@ -393,6 +405,9 @@ export async function runAcpMcpCliFastPath(
       authorization,
       tool,
       arguments: parsed as Record<string, unknown>,
+      ...(io.fetchImplementation === undefined
+        ? {}
+        : { fetchImplementation: io.fetchImplementation }),
     }),
   );
   if (
@@ -419,5 +434,7 @@ export async function runAcpMcpCliFastPath(
       ),
     };
   }
-  process.stdout.write(`${JSON.stringify(result)}\n`);
+  const line = `${JSON.stringify(result)}\n`;
+  if (io.writeOutput === undefined) process.stdout.write(line);
+  else io.writeOutput(line);
 }

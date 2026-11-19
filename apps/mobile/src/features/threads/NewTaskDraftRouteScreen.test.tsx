@@ -28,6 +28,12 @@ const harness = vi.hoisted(() => {
     },
     route: { key: "thread-route", name: "Thread", params: {} as object },
     checkout: vi.fn(),
+    checkouts: [] as Array<Promise<unknown>>,
+    checkoutResult: () => new Promise<unknown>(() => {}),
+    runCheckout(...args: ReadonlyArray<unknown>) {
+      harness.checkout(...args);
+      return harness.checkouts.shift() ?? harness.checkoutResult();
+    },
     draftProjectRefs: [] as unknown[],
     layout: { deferThreadSelectionUntil: () => undefined },
     navigation: { goBack: () => undefined },
@@ -65,11 +71,11 @@ vi.mock("./NewTaskDraftScreen", () => ({
 vi.mock("./new-task-context-presentation", () => ({
   resolveNewTaskBranchWorktreePath: () => null,
 }));
-vi.mock("./checkout-new-task-branch", () => ({ checkoutNewTaskBranch: harness.checkout }));
+vi.mock("./checkout-new-task-branch", () => ({ checkoutNewTaskBranch: harness.runCheckout }));
 vi.mock("../layout/AdaptiveWorkspaceLayout", () => ({
   useAdaptiveWorkspaceLayout: () => harness.layout,
 }));
-vi.mock("../../state/use-atom-command", () => ({ useAtomCommand: () => harness.checkout }));
+vi.mock("../../state/use-atom-command", () => ({ useAtomCommand: () => harness.runCheckout }));
 vi.mock("../../state/entities", () => ({ useProjects: () => useSnapshot().projects }));
 vi.mock("../../state/workspace", () => ({
   useWorkspaceState: () => ({ state: useSnapshot().catalog }),
@@ -99,10 +105,16 @@ it.each([
     const routeKey = `thread-route ${gap}`;
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const firstCheckout = Promise.withResolvers<unknown>();
-    harness.checkout.mockReturnValueOnce(firstCheckout.promise);
-    harness.checkout.mockResolvedValue(
-      AsyncResult.success({ name: "feature", current: true, isDefault: false, worktreePath: null }),
-    );
+    harness.checkouts.push(firstCheckout.promise);
+    harness.checkoutResult = () =>
+      Promise.resolve(
+        AsyncResult.success({
+          name: "feature",
+          current: true,
+          isDefault: false,
+          worktreePath: null,
+        }),
+      );
     harness.set({ projects: [project], catalog: connected });
     const draft = { environmentId: "env-1", projectId: "project-1", branch: "feature" };
     harness.route = { key: routeKey, name: "Thread", params: { draft } };
@@ -145,10 +157,12 @@ it.each([
 it("hands the draft screen the same project ref across re-renders", async () => {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   harness.checkout.mockReset();
+  harness.checkouts.length = 0;
   harness.draftProjectRefs.length = 0;
-  harness.checkout.mockResolvedValue(
-    AsyncResult.success({ name: "other", current: true, isDefault: false, worktreePath: null }),
-  );
+  harness.checkoutResult = () =>
+    Promise.resolve(
+      AsyncResult.success({ name: "other", current: true, isDefault: false, worktreePath: null }),
+    );
   harness.set({ projects: [project], catalog: connected });
   const draft = { environmentId: "env-1", projectId: "project-1", branch: "other" };
   harness.route = { key: "stable-route", name: "Thread", params: { draft } };

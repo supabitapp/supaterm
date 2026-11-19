@@ -24,6 +24,7 @@ export function usePickerShortcuts<T>({
   fixedChoice,
   keybindings,
   onSelect,
+  platform,
 }: {
   picker: keyof typeof PICKER_COMMANDS;
   open: boolean;
@@ -31,6 +32,7 @@ export function usePickerShortcuts<T>({
   fixedChoice?: { item: T; command: KeybindingCommand } | undefined;
   keybindings: ResolvedKeybindingsConfig;
   onSelect: (item: T) => void;
+  platform?: string;
 }) {
   const commands = PICKER_COMMANDS[picker];
   const context = {
@@ -39,18 +41,17 @@ export function usePickerShortcuts<T>({
     hostPickerOpen: picker === "host",
     branchPickerOpen: picker === "branch",
   };
+  const shortcutOptions = platform === undefined ? { context } : { context, platform };
   const labels = new Map<T, string>();
   if (open) {
     if (fixedChoice) {
-      const label = shortcutLabelForCommand(keybindings, fixedChoice.command, { context });
+      const label = shortcutLabelForCommand(keybindings, fixedChoice.command, shortcutOptions);
       if (label) labels.set(fixedChoice.item, label);
     }
     for (const [index, item] of items.entries()) {
       const command = commands[index];
       if (!command) break;
-      const label = shortcutLabelForCommand(keybindings, command, {
-        context,
-      });
+      const label = shortcutLabelForCommand(keybindings, command, shortcutOptions);
       if (label) labels.set(item, label);
     }
   }
@@ -59,9 +60,7 @@ export function usePickerShortcuts<T>({
     if (event.defaultPrevented || event.repeat || event.isComposing || isCommandPaletteOpen()) {
       return;
     }
-    const command = resolveShortcutCommand(event, keybindings, {
-      context,
-    });
+    const command = resolveShortcutCommand(event, keybindings, shortcutOptions);
     if (fixedChoice && command === fixedChoice.command) {
       event.preventDefault();
       event.stopPropagation();

@@ -523,6 +523,7 @@ export interface GhosttyTerminalSurfaceOptions {
   readonly onLinkHover?: (text: string | null) => void;
   /** The host must prevent the default menu; native Paste cannot reach a canvas terminal. */
   readonly onContextMenu?: (event: MouseEvent) => void;
+  readonly createCore?: typeof GhosttyTerminalCore.create;
 }
 
 export class GhosttyTerminalSurface {
@@ -708,7 +709,8 @@ export class GhosttyTerminalSurface {
     const fontFamily = await loadTerminalFontFamily(options.font?.family, fontSize);
     const metrics = measureGhosttyCell(context, fontSize, fontFamily);
     const grid = terminalGridSize(mount.clientWidth, mount.clientHeight, metrics, CONTENT_PADDING);
-    const core = await GhosttyTerminalCore.create(
+    const createCore = options.createCore ?? GhosttyTerminalCore.create;
+    const core = await createCore(
       grid.cols,
       grid.rows,
       metrics.width,

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
   navigate: vi.fn(),
-  openExternal: vi.fn().mockResolvedValue(undefined),
+  openExternal: vi.fn<(url: string) => void>(),
   openPreview: vi.fn(),
 }));
 
@@ -41,7 +41,13 @@ vi.mock(import("../state/environments"), async (original) => ({
 }));
 vi.mock(import("~/localApi"), async (original) => ({
   ...(await original()),
-  readLocalApi: (() => ({ shell: { openExternal: state.openExternal } })) as never,
+  readLocalApi: (() => ({
+    shell: {
+      openExternal: async (url: string) => {
+        state.openExternal(url);
+      },
+    },
+  })) as never,
 }));
 vi.mock(import("~/state/use-atom-command"), async (original) => ({
   ...(await original()),

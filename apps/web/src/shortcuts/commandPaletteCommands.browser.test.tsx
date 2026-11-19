@@ -1,5 +1,5 @@
 import { compileResolvedKeybindingsConfig } from "@supaterm/shared/keybindings";
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 import { page, userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../test/render";
@@ -27,11 +27,13 @@ function setup() {
 describe("command palette shortcuts", () => {
   it("stay inert on routes without the palette", async () => {
     setup();
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
     await using screen = await render(null, { router: "/pair" });
     using commands = new DisposableStack();
     commands.defer(
-      installCommandPaletteCommands(screen.router!, { keybindings: () => keybindings }),
+      installCommandPaletteCommands(screen.router!, {
+        keybindings: () => keybindings,
+        platform: "Linux x86_64",
+      }),
     );
 
     await userEvent.keyboard("{Control>}k{/Control}");
@@ -41,11 +43,13 @@ describe("command palette shortcuts", () => {
 
   it("open the palette while it is mounted, and it closes when it unmounts", async () => {
     setup();
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
     await using screen = await render(<MountedPalette />, { router: "/" });
     using commands = new DisposableStack();
     commands.defer(
-      installCommandPaletteCommands(screen.router!, { keybindings: () => keybindings }),
+      installCommandPaletteCommands(screen.router!, {
+        keybindings: () => keybindings,
+        platform: "Linux x86_64",
+      }),
     );
 
     await userEvent.keyboard("{Control>}k{/Control}");
@@ -66,7 +70,10 @@ describe("command palette shortcuts", () => {
     );
     using commands = new DisposableStack();
     commands.defer(
-      installCommandPaletteCommands(screen.router!, { keybindings: () => keybindings }),
+      installCommandPaletteCommands(screen.router!, {
+        keybindings: () => keybindings,
+        platform: "Linux x86_64",
+      }),
     );
     dispatchCommandPalette({ _tag: "ToggleMode", mode: "files" });
     const input = page.getByRole("textbox", { name: "Search files" });

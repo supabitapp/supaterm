@@ -9,10 +9,41 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { act, render, type Screen } from "../../test/render";
 
 type SessionResult = AsyncResult.AsyncResult<AuthSessionState, Error>;
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const testState = vi.hoisted(() => ({
-  updateServer: vi.fn(),
-  toast: vi.fn(),
-  clipboard: vi.fn(),
+  updateServer: fake(),
+  toast: fake<(toast: { title?: unknown }) => unknown>(),
+  clipboard: fake(),
   sessionAtom: null as unknown,
   serverVersions: new Map<string, string>(),
 }));
@@ -53,7 +84,7 @@ vi.mock(import("~/state/use-atom-command"), async (original) => ({
 }));
 vi.mock(import("./ui/toast"), async (original) => {
   const actual = await original();
-  return { ...actual, toastManager: { ...actual.toastManager, add: testState.toast } };
+  return { ...actual, toastManager: { ...actual.toastManager, add: testState.toast as never } };
 });
 
 import { resetConfirmDialogForTests } from "~/confirmDialog";
@@ -89,9 +120,9 @@ function setSession(session: SessionResult) {
 }
 
 function setup() {
-  testState.updateServer.mockReset();
-  testState.toast.mockReset();
-  testState.clipboard.mockReset();
+  testState.updateServer.reset();
+  testState.toast.reset();
+  testState.clipboard.reset();
   testState.serverVersions.clear();
   sessionAtom = Atom.make<SessionResult>(AsyncResult.success(currentSession));
   testState.sessionAtom = sessionAtom;
@@ -139,7 +170,7 @@ describe("ServerUpdateAction", () => {
       setSession(
         AsyncResult.success(decodeSessionState({ ...currentSession, scopes, auth: legacyAuth })),
       );
-      testState.updateServer.mockResolvedValue(success());
+      testState.updateServer.implement(async () => success());
 
       await using screen = await renderAction();
       expect(button(screen, "Update")!.disabled).toBe(!allowed);
@@ -185,7 +216,7 @@ describe("ServerUpdatesAction", () => {
 
   it("updates both supported machines and skips the manual machine", async () => {
     using _state = setup();
-    testState.updateServer.mockResolvedValue(success());
+    testState.updateServer.implement(async () => success());
     await using screen = await mount();
     await click(screen, "Update all");
 
@@ -202,8 +233,8 @@ describe("ServerUpdatesAction", () => {
   it("names a failed machine while letting the other machine complete", async () => {
     using _state = setup();
     testState.updateServer
-      .mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("Download failed"))))
-      .mockResolvedValueOnce(success());
+      .implementOnce(async () => AsyncResult.failure(Cause.fail(new Error("Download failed"))))
+      .implementOnce(async () => success());
     await using screen = await mount();
     await click(screen, "Update all");
 
@@ -222,7 +253,7 @@ describe("ServerUpdatesAction", () => {
   it("skips a machine whose update would cross Stable and Nightly", async () => {
     using _state = setup();
     testState.serverVersions.set("batch-a", "0.0.30-nightly.20261001.1");
-    testState.updateServer.mockResolvedValue(success());
+    testState.updateServer.implement(async () => success());
     await using screen = await mount();
     await click(screen, "Update all");
 

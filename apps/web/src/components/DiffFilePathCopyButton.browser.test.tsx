@@ -11,11 +11,8 @@ it("explains a denied clipboard write and lets the same path be copied again", a
       <DiffFilePathCopyButton filePath="apps/web/src/index.ts" workspaceRoot="/repo" />
     </AnchoredToastProvider>,
   );
-  using write = vi
-    .spyOn(navigator.clipboard, "writeText")
-    .mockRejectedValueOnce(new DOMException("Clipboard access denied", "NotAllowedError"))
-    .mockResolvedValue(undefined);
-  using _console = vi.spyOn(console, "error").mockImplementation(() => undefined);
+  using write = vi.spyOn(navigator.clipboard, "writeText");
+  using _console = vi.spyOn(console, "error");
 
   const copy = screen.getByRole("button", { name: "Copy file path" });
   await copy.click();
@@ -35,7 +32,7 @@ it("copies a Windows workspace's file path with Windows separators", async () =>
       <DiffFilePathCopyButton filePath="apps/web/src/index.ts" workspaceRoot="C:\repo" />
     </AnchoredToastProvider>,
   );
-  using write = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue(undefined);
+  using write = vi.spyOn(navigator.clipboard, "writeText");
 
   await screen.getByRole("button", { name: "Copy file path" }).click();
 

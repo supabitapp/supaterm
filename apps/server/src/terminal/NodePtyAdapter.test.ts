@@ -42,7 +42,13 @@ function makeNativeProcess(pid = 42) {
   };
 }
 
-const spawn = vi.fn(() => makeNativeProcess());
+const pendingProcesses: Array<ReturnType<typeof makeNativeProcess>> = [];
+const spawnedProcesses: Array<ReturnType<typeof makeNativeProcess>> = [];
+const spawn = () => {
+  const nativeProcess = pendingProcesses.shift() ?? makeNativeProcess();
+  spawnedProcesses.push(nativeProcess);
+  return nativeProcess;
+};
 
 function preparePendingProcess() {
   const nativeProcess = makeNativeProcess(0);
@@ -50,7 +56,7 @@ function preparePendingProcess() {
   nativeProcess._socket.on("newListener", (event) => {
     if (event === "ready_datapipe") queueMicrotask(() => subscribed.resolve());
   });
-  spawn.mockReturnValueOnce(nativeProcess);
+  pendingProcesses.push(nativeProcess);
   return { nativeProcess, subscribed: Effect.promise(() => subscribed.promise) };
 }
 
@@ -147,7 +153,7 @@ it.effect("reports an incompatible Windows readiness API instead of hanging", ()
   Effect.gen(function* () {
     const nativeProcess = makeNativeProcess(0);
     Reflect.deleteProperty(nativeProcess, "_socket");
-    spawn.mockReturnValueOnce(nativeProcess);
+    pendingProcesses.push(nativeProcess);
     const adapter = yield* PtyAdapter.PtyAdapter;
     const error = yield* adapter.spawn(spawnInput).pipe(Effect.flip);
     assert.instanceOf(error, PtyAdapter.PtySpawnError);
@@ -185,7 +191,7 @@ it.effect("replays an exit to late subscribers and respects unsubscription", () 
   Effect.gen(function* () {
     const adapter = yield* PtyAdapter.PtyAdapter;
     const process = yield* adapter.spawn(spawnInput);
-    const nativeProcess = spawn.mock.results.at(-1)!.value;
+    const nativeProcess = spawnedProcesses.at(-1)!;
     const removed = vi.fn();
     process.onExit(removed)();
     nativeProcess.events.emit("exit", { exitCode: 7, signal: 2 });

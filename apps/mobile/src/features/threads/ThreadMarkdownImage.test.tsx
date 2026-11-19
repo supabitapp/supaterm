@@ -14,6 +14,13 @@ const harness = vi.hoisted(() => ({
   pressable: {} as HandlerProps,
   gestures: {} as Record<string, GestureHandlers>,
   contentStyle: () => ({}) as { transform?: Transform },
+  fetchSvg: vi.fn<(uri: string, init?: { signal?: AbortSignal }) => void>(),
+  svgResponses: [] as Array<
+    () => Promise<{ ok: boolean; status: number; text: () => Promise<string> }>
+  >,
+  svgResponse: () =>
+    new Promise<{ ok: boolean; status: number; text: () => Promise<string> }>(() => {}),
+  parseSvg: vi.fn<(xml: string) => void>(),
 }));
 
 vi.mock("react-native", () => {
@@ -76,8 +83,19 @@ vi.mock("expo-image", () => ({
     return <img alt="" />;
   },
 }));
-vi.mock("expo/fetch", () => ({ fetch: vi.fn() }));
-vi.mock("react-native-svg", () => ({ parse: vi.fn(), SvgAst: () => null }));
+vi.mock("expo/fetch", () => ({
+  fetch: (uri: string, init?: { signal?: AbortSignal }) => {
+    harness.fetchSvg(uri, init);
+    return (harness.svgResponses.shift() ?? harness.svgResponse)();
+  },
+}));
+vi.mock("react-native-svg", () => ({
+  parse: (xml: string) => {
+    harness.parseSvg(xml);
+    return { props: {} };
+  },
+  SvgAst: () => null,
+}));
 vi.mock("@supaterm/client-runtime/state/assets", () => ({ MISSING_FILE_ACCESS_MESSAGE: "" }));
 vi.mock("../../components/ui/AppActivityIndicator", () => ({ AppActivityIndicator: () => null }));
 vi.mock("../../components/ui/FilePreviewGallery", () => ({
@@ -95,8 +113,6 @@ vi.mock("../../state/assets", () => ({ useAssetUrlState: vi.fn() }));
 
 import { RegistryContext } from "@effect/atom-react";
 import { AtomRegistry } from "effect/reactivity";
-import { fetch } from "expo/fetch";
-import { parse } from "react-native-svg";
 
 import { MarkdownImageAvailableWidthContext, ThreadMarkdownImageView } from "./ThreadMarkdownImage";
 
@@ -169,8 +185,7 @@ it("fetches a failed SVG again on the next mount but keeps a parsed one", async 
       return () => {};
     },
   });
-  const fetchSvg = vi.mocked(fetch);
-  vi.mocked(parse).mockReturnValue({ props: {} } as ReturnType<typeof parse>);
+  const fetchSvg = harness.fetchSvg;
   const container = document.createElement("div");
   const root = createRoot(container);
   const uri = "https://example.test/a.svg";
@@ -189,12 +204,12 @@ it("fetches a failed SVG again on the next mount but keeps a parsed one", async 
     </RegistryContext.Provider>
   );
   try {
-    fetchSvg.mockRejectedValueOnce(new Error("offline"));
+    harness.svgResponses.push(() => Promise.reject(new Error("offline")));
     await act(async () => root.render(view(true)));
     await vi.waitFor(() => expect(container.textContent).toContain("Image unavailable"));
 
     await act(async () => root.render(view(false)));
-    fetchSvg.mockResolvedValue({ ok: true, status: 200, text: async () => "<svg />" } as never);
+    harness.svgResponse = async () => ({ ok: true, status: 200, text: async () => "<svg />" });
     await act(async () => root.render(view(true)));
     await vi.waitFor(() => expect(container.textContent).not.toContain("Image unavailable"));
     expect(fetchSvg).toHaveBeenCalledTimes(2);
@@ -218,12 +233,12 @@ it("does not parse an obsolete SVG response after its last reader unmounts", asy
     },
   });
   const root = createRoot(document.createElement("div"));
-  const fetchSvg = vi.mocked(fetch);
-  const parseSvg = vi.mocked(parse);
+  const fetchSvg = harness.fetchSvg;
+  const parseSvg = harness.parseSvg;
   fetchSvg.mockReset();
   parseSvg.mockClear();
   const body = Promise.withResolvers<string>();
-  fetchSvg.mockResolvedValue({ ok: true, status: 200, text: () => body.promise } as never);
+  harness.svgResponse = async () => ({ ok: true, status: 200, text: () => body.promise });
   try {
     await act(async () =>
       root.render(

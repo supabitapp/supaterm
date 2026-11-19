@@ -1,5 +1,5 @@
 import { expect, it } from "@effect/vitest";
-import { describe, vi } from "vite-plus/test";
+import { describe } from "vite-plus/test";
 import * as NodeHttpPlatform from "@effect/platform-node/NodeHttpPlatform";
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
@@ -592,12 +592,18 @@ describe("video asset byte ranges", () => {
           [undefined, 413],
           ["bytes=0-1", 206],
         ] as const) {
-          const file = yield* openMediaFile(canonicalPath);
-          if (!file) throw new Error("Expected an opened media file");
-          const info = yield* Effect.promise(() => file.handle.stat({ bigint: true }));
+          const opened = yield* openMediaFile(canonicalPath);
+          if (!opened) throw new Error("Expected an opened media file");
+          const info = yield* Effect.promise(() => opened.handle.stat({ bigint: true }));
           info.size = size;
-          const statSpy = vi.spyOn(file.handle, "stat").mockResolvedValue(info);
-          yield* Effect.addFinalizer(() => Effect.sync(() => statSpy.mockRestore()));
+          const handle = new Proxy(opened.handle, {
+            get: (target, key) => {
+              if (key === "stat") return async () => info;
+              const value: unknown = Reflect.get(target, key, target);
+              return typeof value === "function" ? value.bind(target) : value;
+            },
+          });
+          const file = { ...opened, handle };
           const response = HttpServerResponse.toWeb(
             yield* assetFileResponse({ path: canonicalPath, file, mimeType: "video/mp4" }, range),
           );

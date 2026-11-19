@@ -105,6 +105,19 @@ const checkout = resolveSettingsScope(
   environments,
 );
 
+type PersistServer = Parameters<typeof persistScopedSettingsPatch>[1];
+type PersistRequest = Parameters<PersistServer>[0];
+type PersistStep = (request: PersistRequest) => ReturnType<PersistServer>;
+
+const succeed: PersistStep = async () => ({ _tag: "Success" });
+
+function persistResponses(...steps: Array<PersistStep>) {
+  const target = {
+    persist: (request: PersistRequest) => (steps.length > 1 ? steps.shift()! : steps[0]!)(request),
+  };
+  return vi.spyOn(target, "persist");
+}
+
 describe("scoped settings targets", () => {
   it("uses the named environment even when a different primary is available", () => {
     const selected = selectScopedSettingsEnvironments(named, environments, laptop.environmentId);
@@ -197,7 +210,7 @@ describe("scoped settings writes", () => {
   });
 
   it("writes an aggregate preference only to connected environments with loaded configuration", async () => {
-    const persistServer = vi.fn().mockResolvedValue({ _tag: "Success" });
+    const persistServer = persistResponses(succeed);
     const persistClient = vi.fn();
     await persistScopedSettingsPatch(
       planScopedSettingsPatch(all, environments, { enableProviderUpdateChecks: false }),
@@ -305,7 +318,7 @@ describe("scoped settings writes", () => {
   });
 
   it("persists client keys locally at any scope alongside server keys", async () => {
-    const persistServer = vi.fn().mockResolvedValue({ _tag: "Success" });
+    const persistServer = persistResponses(succeed);
     const persistClient = vi.fn();
     await persistScopedSettingsPatch(
       planScopedSettingsPatch(named, environments, {
@@ -534,10 +547,9 @@ describe("scoped settings writes", () => {
     const fourth = environment("Fourth");
     const selected = [...environments, third, fourth];
     const scope = resolveSettingsScope({}, [], selected);
-    const persistServer = vi
-      .fn()
-      .mockResolvedValueOnce({ _tag: "Success" })
-      .mockResolvedValueOnce({
+    const persistServer = persistResponses(
+      succeed,
+      async () => ({
         _tag: "Failure",
         cause: Cause.fail(
           new EnvironmentAuthorizationError({
@@ -545,9 +557,10 @@ describe("scoped settings writes", () => {
             message: "This connection lacks permission to change settings.",
           }),
         ),
-      })
-      .mockRejectedValueOnce(new Error("Disconnected during save"))
-      .mockResolvedValueOnce({ _tag: "Success" });
+      }),
+      async () => Promise.reject(new Error("Disconnected during save")),
+      succeed,
+    );
     const result = await persistScopedSettingsPatch(
       planScopedSettingsPatch(scope, selected, { enableAgentBrowserAccess: false }),
       persistServer,
@@ -572,11 +585,16 @@ describe("scoped settings writes", () => {
   describe("rapid project saves on one environment", () => {
     const saving = (initial: ServerSettings) => {
       let stored = initial;
-      const persistServer = vi.fn(async ({ input }: { input: { patch: ServerSettingsPatch } }) => {
+      const save = async ({ input }: { input: { patch: ServerSettingsPatch } }) => {
         stored = applyServerSettingsPatch(stored, input.patch);
         return { _tag: "Success" as const, value: stored };
-      });
-      return { persistServer, stored: () => stored };
+      };
+      const next: Array<typeof save> = [];
+      const target = {
+        persist: (request: { input: { patch: ServerSettingsPatch } }) =>
+          (next.shift() ?? save)(request),
+      };
+      return { persistServer: vi.spyOn(target, "persist"), save, next, stored: () => stored };
     };
 
     it("keeps every edit and reset while the client's copy trails its saves", async () => {
@@ -625,8 +643,8 @@ describe("scoped settings writes", () => {
           );
         await edit({ defaultAutoPull: true });
         const previous = host.stored();
-        const persist = host.persistServer.getMockImplementation()!;
-        host.persistServer.mockImplementationOnce(async (request) => {
+        const persist = host.save;
+        host.next.push(async (request) => {
           const response = await persist(request);
           if (push === "remote") {
             await persist({
@@ -669,7 +687,7 @@ describe("scoped settings writes", () => {
           host.persistServer,
           vi.fn(),
         );
-      host.persistServer.mockRejectedValueOnce(new Error("Disconnected"));
+      host.next.push(async () => Promise.reject(new Error("Disconnected")));
       expect((await edit({ defaultAutoPull: true })).failedEnvironments).toMatchObject([
         { message: "Disconnected" },
       ]);

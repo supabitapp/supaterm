@@ -1,134 +1,60 @@
 import { assert, describe, it } from "@effect/vitest";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
-import { beforeEach, vi } from "vite-plus/test";
-
-const {
-  appendSwitchMock,
-  autoUpdaterOnMock,
-  autoUpdaterRemoveListenerMock,
-  createFromNamedImageMock,
-  exitMock,
-  getAppPathMock,
-  getSystemLocaleMock,
-  getUserDefaultMock,
-  getVersionMock,
-  onMock,
-  quitMock,
-  relaunchMock,
-  removeListenerMock,
-  removeSwitchMock,
-  setAboutPanelOptionsMock,
-  setAppUserModelIdMock,
-  setAsDefaultProtocolClientMock,
-  setDesktopNameMock,
-  setDockIconMock,
-  setNameMock,
-  setPathMock,
-  whenReadyMock,
-} = vi.hoisted(() => ({
-  appendSwitchMock: vi.fn(),
-  autoUpdaterOnMock: vi.fn(),
-  autoUpdaterRemoveListenerMock: vi.fn(),
-  createFromNamedImageMock: vi.fn((name: string) => ({
-    isEmpty: () => false as boolean,
-    toDataURL: () => `data:image/png;base64,${name}`,
-  })),
-  exitMock: vi.fn(),
-  getAppPathMock: vi.fn(() => "/app"),
-  getSystemLocaleMock: vi.fn(() => "en-GB"),
-  getUserDefaultMock: vi.fn((_key: string) => false),
-  getVersionMock: vi.fn(() => "1.2.3"),
-  onMock: vi.fn(),
-  quitMock: vi.fn(),
-  relaunchMock: vi.fn(),
-  removeListenerMock: vi.fn(),
-  removeSwitchMock: vi.fn(),
-  setAboutPanelOptionsMock: vi.fn(),
-  setAppUserModelIdMock: vi.fn(),
-  setAsDefaultProtocolClientMock: vi.fn(() => true),
-  setDesktopNameMock: vi.fn(),
-  setDockIconMock: vi.fn(),
-  setNameMock: vi.fn(),
-  setPathMock: vi.fn(),
-  whenReadyMock: vi.fn(() => Promise.resolve()),
-}));
-
-vi.mock("electron", () => ({
-  systemPreferences: { getUserDefault: getUserDefaultMock },
-  nativeImage: { createFromNamedImage: createFromNamedImageMock },
-  autoUpdater: {
-    on: autoUpdaterOnMock,
-    removeListener: autoUpdaterRemoveListenerMock,
-  },
-  app: {
-    commandLine: {
-      appendSwitch: appendSwitchMock,
-      removeSwitch: removeSwitchMock,
-    },
-    dock: {
-      setIcon: setDockIconMock,
-    },
-    getAppPath: getAppPathMock,
-    getSystemLocale: getSystemLocaleMock,
-    getVersion: getVersionMock,
-    isPackaged: true,
-    name: "Supaterm",
-    on: onMock,
-    quit: quitMock,
-    relaunch: relaunchMock,
-    removeListener: removeListenerMock,
-    runningUnderARM64Translation: false,
-    setAboutPanelOptions: setAboutPanelOptionsMock,
-    setAsDefaultProtocolClient: setAsDefaultProtocolClientMock,
-    setAppUserModelId: setAppUserModelIdMock,
-    setDesktopName: setDesktopNameMock,
-    setName: setNameMock,
-    setPath: setPathMock,
-    whenReady: whenReadyMock,
-    exit: exitMock,
-  },
-}));
+import * as Layer from "effect/Layer";
 
 import * as ElectronApp from "./ElectronApp.ts";
 
-describe("ElectronApp", () => {
-  beforeEach(() => {
-    appendSwitchMock.mockClear();
-    autoUpdaterOnMock.mockClear();
-    autoUpdaterRemoveListenerMock.mockClear();
-    createFromNamedImageMock.mockClear();
-    exitMock.mockClear();
-    getSystemLocaleMock.mockReset();
-    getUserDefaultMock.mockReset();
-    onMock.mockClear();
-    quitMock.mockClear();
-    relaunchMock.mockClear();
-    removeListenerMock.mockClear();
-    removeSwitchMock.mockClear();
-    setPathMock.mockClear();
-  });
+type SymbolImage = ReturnType<ElectronApp.ElectronAppSystem["createFromNamedImage"]>;
 
-  it.effect("loads the native Mac mini and Mac Studio symbols on macOS", () =>
-    Effect.gen(function* () {
+function makeSystem(
+  options: {
+    readonly systemLocale?: string;
+    readonly userDefaults?: ReadonlySet<string>;
+    readonly symbols?: Array<(name: string) => SymbolImage>;
+  } = {},
+) {
+  const symbolCalls: Array<[string, { readonly pointSize: number }]> = [];
+  const symbols = [...(options.symbols ?? [])];
+  const system: ElectronApp.ElectronAppSystem = {
+    getSystemLocale: () => options.systemLocale ?? "en-GB",
+    getUserDefault: (key) => options.userDefaults?.has(key) ?? false,
+    createFromNamedImage: (name, imageOptions) => {
+      symbolCalls.push([name, imageOptions]);
+      const next = symbols.shift();
+      if (next) return next(name);
+      return {
+        isEmpty: () => false,
+        toDataURL: () => `data:image/png;base64,${name}`,
+      };
+    },
+  };
+  return {
+    symbolCalls,
+    layer: Layer.succeed(ElectronApp.ElectronApp, ElectronApp.makeWith(system)),
+  };
+}
+
+describe("ElectronApp", () => {
+  it.effect("loads the native Mac mini and Mac Studio symbols on macOS", () => {
+    const fake = makeSystem();
+    return Effect.gen(function* () {
       const electronApp = yield* ElectronApp.ElectronApp;
 
       assert.deepEqual(yield* electronApp.environmentMachineIcons, {
         "mac-mini": "data:image/png;base64,macmini",
         "mac-studio": "data:image/png;base64,macstudio",
       });
-      assert.deepEqual(createFromNamedImageMock.mock.calls, [
+      assert.deepEqual(fake.symbolCalls, [
         ["macmini", { pointSize: 32 }],
         ["macstudio", { pointSize: 32 }],
       ]);
-    }).pipe(
-      Effect.provide(ElectronApp.layer),
-      Effect.provideService(HostProcess.Platform, "darwin"),
-    ),
-  );
+    }).pipe(Effect.provide(fake.layer), Effect.provideService(HostProcess.Platform, "darwin"));
+  });
 
-  it.effect("keeps SVG fallbacks on Windows and Linux without loading Apple symbols", () =>
-    Effect.gen(function* () {
+  it.effect("keeps SVG fallbacks on Windows and Linux without loading Apple symbols", () => {
+    const fake = makeSystem();
+    return Effect.gen(function* () {
       const electronApp = yield* ElectronApp.ElectronApp;
 
       assert.deepEqual(
@@ -143,42 +69,39 @@ describe("ElectronApp", () => {
         ),
         {},
       );
-      assert.strictEqual(createFromNamedImageMock.mock.calls.length, 0);
-    }).pipe(Effect.provide(ElectronApp.layer)),
-  );
+      assert.strictEqual(fake.symbolCalls.length, 0);
+    }).pipe(Effect.provide(fake.layer));
+  });
 
-  it.effect("omits an empty system symbol so the client uses its fallback", () =>
-    Effect.gen(function* () {
-      createFromNamedImageMock.mockReturnValueOnce({
-        isEmpty: () => true,
-        toDataURL: () => "",
-      });
+  it.effect("omits an empty system symbol so the client uses its fallback", () => {
+    const fake = makeSystem({
+      symbols: [() => ({ isEmpty: () => true, toDataURL: () => "" })],
+    });
+    return Effect.gen(function* () {
       const electronApp = yield* ElectronApp.ElectronApp;
 
       assert.deepEqual(yield* electronApp.environmentMachineIcons, {
         "mac-studio": "data:image/png;base64,macstudio",
       });
-    }).pipe(
-      Effect.provide(ElectronApp.layer),
-      Effect.provideService(HostProcess.Platform, "darwin"),
-    ),
-  );
+    }).pipe(Effect.provide(fake.layer), Effect.provideService(HostProcess.Platform, "darwin"));
+  });
 
-  it.effect("a failed native symbol does not prevent loading the other one", () =>
-    Effect.gen(function* () {
-      createFromNamedImageMock.mockImplementationOnce(() => {
-        throw new Error("symbol unavailable");
-      });
+  it.effect("a failed native symbol does not prevent loading the other one", () => {
+    const fake = makeSystem({
+      symbols: [
+        () => {
+          throw new Error("symbol unavailable");
+        },
+      ],
+    });
+    return Effect.gen(function* () {
       const electronApp = yield* ElectronApp.ElectronApp;
 
       assert.deepEqual(yield* electronApp.environmentMachineIcons, {
         "mac-studio": "data:image/png;base64,macstudio",
       });
-    }).pipe(
-      Effect.provide(ElectronApp.layer),
-      Effect.provideService(HostProcess.Platform, "darwin"),
-    ),
-  );
+    }).pipe(Effect.provide(fake.layer), Effect.provideService(HostProcess.Platform, "darwin"));
+  });
 
   it("keeps the macOS region override and hour cycle in the locale tag", () => {
     assert.strictEqual(ElectronApp.toSystemLocaleTag("en_GB"), "en-GB");
@@ -203,12 +126,11 @@ describe("ElectronApp", () => {
       );
 
       assert.strictEqual(systemLocale, "de-DE");
-    }).pipe(Effect.provide(ElectronApp.layer)),
+    }).pipe(Effect.provide(makeSystem().layer)),
   );
 
   it.effect("falls back to Chromium's locale on Linux when the time locale is C", () =>
     Effect.gen(function* () {
-      getSystemLocaleMock.mockImplementationOnce(() => "fr-FR");
       const electronApp = yield* ElectronApp.ElectronApp;
       const systemLocale = yield* electronApp.systemLocale.pipe(
         Effect.provideService(HostProcess.Platform, "linux"),
@@ -216,7 +138,7 @@ describe("ElectronApp", () => {
       );
 
       assert.strictEqual(systemLocale, "fr-FR");
-    }).pipe(Effect.provide(ElectronApp.layer)),
+    }).pipe(Effect.provide(makeSystem({ systemLocale: "fr-FR" }).layer)),
   );
 });
 
@@ -227,11 +149,11 @@ it.effect("reads both macOS hour preferences without overriding explicit formats
       ["AppleICUForce24HourTime", "en-NL-u-hc-h23"],
       ["", "en-NL"],
     ]) {
-      getSystemLocaleMock.mockReturnValue("en_US@rg=nlzzzz");
-      getUserDefaultMock.mockImplementation((key) => key === preference);
-      const locale = yield* ElectronApp.make.systemLocale.pipe(
-        Effect.provideService(HostProcess.Platform, "darwin"),
-      );
+      const locale = yield* ElectronApp.makeWith({
+        getSystemLocale: () => "en_US@rg=nlzzzz",
+        getUserDefault: (key) => key === preference,
+        createFromNamedImage: () => ({ isEmpty: () => true, toDataURL: () => "" }),
+      }).systemLocale.pipe(Effect.provideService(HostProcess.Platform, "darwin"));
       assert.strictEqual(locale, expected);
       for (const hour12 of [true, false]) {
         assert.strictEqual(

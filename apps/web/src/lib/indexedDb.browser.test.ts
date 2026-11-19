@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
 import { createIndexedDbTransaction } from "./indexedDb";
 import { randomUUID } from "./utils";
@@ -6,12 +6,13 @@ import { randomUUID } from "./utils";
 function fixture() {
   const name = randomUUID();
   const databases = new Set<IDBDatabase>();
-  const originalOpen = indexedDB.open;
-  const open = vi.spyOn(indexedDB, "open").mockImplementation(function (name, version) {
-    const request = originalOpen.call(indexedDB, name, version);
-    request.addEventListener("success", () => databases.add(request.result));
-    return request;
-  });
+  const opens: Array<IDBOpenDBRequest> = [];
+  const openFailures: Array<DOMException> = [];
+  const begins: Array<IDBDatabase> = [];
+  const interruptions: {
+    next: Array<(database: IDBDatabase) => void>;
+    always: ((database: IDBDatabase) => void) | null;
+  } = { next: [], always: null };
   const create = (version: number) =>
     createIndexedDbTransaction({
       name,
@@ -20,6 +21,19 @@ function fixture() {
         if (!database.objectStoreNames.contains("values")) database.createObjectStore("values");
       },
       blockedMessage: "Storage is blocked.",
+      open: (databaseName, databaseVersion) => {
+        const failure = openFailures.shift();
+        if (failure) throw failure;
+        const request = indexedDB.open(databaseName, databaseVersion);
+        opens.push(request);
+        request.addEventListener("success", () => databases.add(request.result));
+        return request;
+      },
+      begin: (database, stores, mode) => {
+        begins.push(database);
+        (interruptions.next.shift() ?? interruptions.always)?.(database);
+        return database.transaction(stores, mode);
+      },
     });
   const begin = create(1);
   const read = () => begin("values", "readonly");
@@ -28,8 +42,11 @@ function fixture() {
     begin,
     read,
     create,
+    opens,
+    openFailures,
+    begins,
+    interruptions,
     async [Symbol.asyncDispose]() {
-      open.mockRestore();
       for (const database of databases) database.close();
       await new Promise<void>((resolve, reject) => {
         const request = indexedDB.deleteDatabase(name);
@@ -67,7 +84,7 @@ describe("IndexedDB transaction recovery", () => {
       return completed(transaction).then(() => request.result);
     });
     expect(await Promise.all(values)).toEqual(["queued message", "queued message"]);
-    expect(indexedDB.open).toHaveBeenCalledTimes(2);
+    expect(storage.opens).toHaveLength(2);
   });
 
   it("forgets closed connections without letting a stale close discard their replacement", async () => {
@@ -84,7 +101,7 @@ describe("IndexedDB transaction recovery", () => {
     const third = await read();
     await completed(third);
     expect(third.db).toBe(second.db);
-    expect(indexedDB.open).toHaveBeenCalledTimes(2);
+    expect(storage.opens).toHaveLength(2);
   });
 
   it("retries transaction creation only once and allows a later operation to recover", async () => {
@@ -92,46 +109,36 @@ describe("IndexedDB transaction recovery", () => {
     const { read } = storage;
     const initial = await read();
     await completed(initial);
-    const original = IDBDatabase.prototype.transaction;
-    using closing = vi.spyOn(IDBDatabase.prototype, "transaction").mockImplementation(function (
-      this: IDBDatabase,
-      stores,
-      mode,
-      options,
-    ) {
-      this.close();
-      return original.call(this, stores, mode, options);
-    });
+    storage.begins.length = 0;
+    storage.interruptions.always = (database) => database.close();
     await expect(read()).rejects.toMatchObject({ name: "InvalidStateError" });
-    expect(closing).toHaveBeenCalledTimes(2);
-    expect(indexedDB.open).toHaveBeenCalledTimes(2);
-    closing.mockRestore();
+    expect(storage.begins).toHaveLength(2);
+    expect(storage.opens).toHaveLength(2);
+    storage.interruptions.always = null;
     await completed(await read());
-    expect(indexedDB.open).toHaveBeenCalledTimes(3);
+    expect(storage.opens).toHaveLength(3);
   });
 
   it("does not retry a failed open and can reopen on a later operation", async () => {
     await using storage = fixture();
     const { read } = storage;
-    vi.mocked(indexedDB.open).mockImplementationOnce(() => {
-      throw new DOMException("Storage is unavailable.", "InvalidStateError");
-    });
+    storage.openFailures.push(new DOMException("Storage is unavailable.", "InvalidStateError"));
     await expect(read()).rejects.toMatchObject({ name: "InvalidStateError" });
-    expect(indexedDB.open).toHaveBeenCalledOnce();
+    expect(storage.opens).toHaveLength(0);
     await completed(await read());
-    expect(indexedDB.open).toHaveBeenCalledTimes(2);
+    expect(storage.opens).toHaveLength(1);
   });
 
   it("does not reopen for transaction creation errors unrelated to closure", async () => {
     await using storage = fixture();
     const { read } = storage;
     await completed(await read());
-    using _quota = vi.spyOn(IDBDatabase.prototype, "transaction").mockImplementationOnce(() => {
+    storage.interruptions.next.push(() => {
       throw new DOMException("Disk is full.", "QuotaExceededError");
     });
     await expect(read()).rejects.toMatchObject({ name: "QuotaExceededError" });
     await completed(await read());
-    expect(indexedDB.open).toHaveBeenCalledOnce();
+    expect(storage.opens).toHaveLength(1);
   });
 
   it("closes its connection so another tab can upgrade the schema", async () => {
@@ -145,25 +152,29 @@ describe("IndexedDB transaction recovery", () => {
       request.addEventListener("error", () => reject(request.error));
       request.addEventListener("blocked", () => reject(new Error("Schema upgrade was blocked.")));
     });
+    using _upgraded = { [Symbol.dispose]: () => request.result.close() };
     expect(request.result.version).toBe(2);
     expect(() => initial.db.transaction("values")).toThrow();
   });
 
   it("reopens after a blocked open and closes its abandoned result", async () => {
     await using storage = fixture();
-    const { read } = storage;
+    const { name, read } = storage;
     const initial = await read();
     await completed(initial);
+    const blocking = indexedDB.open(name, 1);
+    const blocker = await new Promise<IDBDatabase>((resolve, reject) => {
+      blocking.addEventListener("success", () => resolve(blocking.result));
+      blocking.addEventListener("error", () => reject(blocking.error));
+    });
     const beginUpgrade = storage.create(2);
     const upgraded = () => beginUpgrade("values", "readonly");
-    using blocker = vi.spyOn(initial.db, "close").mockImplementation(() => {});
     await expect(upgraded()).rejects.toThrow("Storage is blocked.");
-    const blockedRequest = vi.mocked(indexedDB.open).mock.results[1]!.value;
+    const blockedRequest = storage.opens[1]!;
     const retry = upgraded();
-    blocker.mockRestore();
-    initial.db.close();
+    blocker.close();
     await completed(await retry);
     expect(() => blockedRequest.result.transaction("values")).toThrow();
-    expect(indexedDB.open).toHaveBeenCalledTimes(3);
+    expect(storage.opens).toHaveLength(3);
   });
 });

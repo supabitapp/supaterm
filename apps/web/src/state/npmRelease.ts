@@ -2,6 +2,7 @@ import { type ServerConfig, ServerNpmReleaseError } from "@supaterm/contracts";
 import { npmReleaseDatabaseMigration } from "@supaterm/shared/cliRelease";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
+import type * as Layer from "effect/Layer";
 import { FetchHttpClient, HttpClient, HttpClientResponse } from "effect/http";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
@@ -32,64 +33,80 @@ export function npmReleaseFailureMessage(cause: Cause.Cause<unknown>) {
   ) satisfies string;
 }
 
-const publicNpmReleaseAtom = Atom.family((spec: string) =>
-  Atom.make(
-    Effect.gen(function* () {
-      const response = yield* HttpClient.get(
-        `https://registry.npmjs.org/supaterm/${encodeURIComponent(spec)}`,
-      );
-      if (response.status === 404) return null;
-      const body = yield* HttpClientResponse.filterStatusOk(response).pipe(
-        Effect.flatMap((ok) => ok.json),
-      );
-      if (
-        typeof body !== "object" ||
-        body === null ||
-        !("version" in body) ||
-        typeof body.version !== "string"
-      ) {
-        return null;
+interface NpmReleaseSources {
+  readonly primaryEnvironmentIdAtom: typeof primaryEnvironmentIdAtom;
+  readonly connectedEnvironmentIdsAtom: typeof environmentSummaries.connectedEnvironmentIdsAtom;
+  readonly configValueAtom: typeof serverEnvironment.configValueAtom;
+  readonly serverRelease: typeof serverEnvironment.npmRelease;
+  readonly httpClient: Layer.Layer<HttpClient.HttpClient>;
+}
+
+export function makeNpmReleaseAtom(sources: NpmReleaseSources) {
+  const publicNpmReleaseAtom = Atom.family((spec: string) =>
+    Atom.make(
+      Effect.gen(function* () {
+        const response = yield* HttpClient.get(
+          `https://registry.npmjs.org/supaterm/${encodeURIComponent(spec)}`,
+        );
+        if (response.status === 404) return null;
+        const body = yield* HttpClientResponse.filterStatusOk(response).pipe(
+          Effect.flatMap((ok) => ok.json),
+        );
+        if (
+          typeof body !== "object" ||
+          body === null ||
+          !("version" in body) ||
+          typeof body.version !== "string"
+        ) {
+          return null;
+        }
+        return {
+          version: body.version,
+          databaseMigration: npmReleaseDatabaseMigration(body),
+        } satisfies NpmRelease;
+      }).pipe(
+        Effect.provideService(HttpClient.TracerPropagationEnabled, false),
+        Effect.provide(sources.httpClient),
+      ),
+    ).pipe(Atom.withRefresh("5 minutes"), Atom.withLabel(`npm-release:public:${spec}`)),
+  );
+
+  return Atom.family((spec: string) =>
+    Atom.make((get) => {
+      const primary = get(sources.primaryEnvironmentIdAtom);
+      const candidates = primary === null ? get(sources.connectedEnvironmentIdsAtom) : [primary];
+      const environmentId =
+        candidates.find((id) => supportsLookup(get(sources.configValueAtom(id)))) ?? candidates[0];
+      if (environmentId === undefined) {
+        return Effect.fail(
+          new ServerNpmReleaseError({ reason: "Connect to a server to check releases." }),
+        );
       }
-      return {
-        version: body.version,
-        databaseMigration: npmReleaseDatabaseMigration(body),
-      } satisfies NpmRelease;
-    }).pipe(
-      Effect.provideService(HttpClient.TracerPropagationEnabled, false),
-      Effect.provide(FetchHttpClient.layer),
-    ),
-  ).pipe(Atom.withRefresh("5 minutes"), Atom.withLabel(`npm-release:public:${spec}`)),
-);
+      const config = get(sources.configValueAtom(environmentId));
+      if (config === null) {
+        return Effect.fail(
+          new ServerNpmReleaseError({ reason: "Connect to this server to check releases." }),
+        );
+      }
+      if (!supportsLookup(config)) return get.result(publicNpmReleaseAtom(spec));
+      return get
+        .result(sources.serverRelease({ environmentId, input: { spec } }))
+        .pipe(
+          Effect.map((release) =>
+            release === null
+              ? null
+              : { version: release.version, databaseMigration: release.databaseMigration },
+          ),
+        );
+    }).pipe(Atom.withLabel(`npm-release:${spec}`)),
+  );
+}
 
 /** `spec` is an exact version or a dist-tag such as `nightly`. Null when npm has no such release. */
-export const npmReleaseAtom = Atom.family((spec: string) =>
-  Atom.make((get) => {
-    const primary = get(primaryEnvironmentIdAtom);
-    const candidates =
-      primary === null ? get(environmentSummaries.connectedEnvironmentIdsAtom) : [primary];
-    const environmentId =
-      candidates.find((id) => supportsLookup(get(serverEnvironment.configValueAtom(id)))) ??
-      candidates[0];
-    if (environmentId === undefined) {
-      return Effect.fail(
-        new ServerNpmReleaseError({ reason: "Connect to a server to check releases." }),
-      );
-    }
-    const config = get(serverEnvironment.configValueAtom(environmentId));
-    if (config === null) {
-      return Effect.fail(
-        new ServerNpmReleaseError({ reason: "Connect to this server to check releases." }),
-      );
-    }
-    if (!supportsLookup(config)) return get.result(publicNpmReleaseAtom(spec));
-    return get
-      .result(serverEnvironment.npmRelease({ environmentId, input: { spec } }))
-      .pipe(
-        Effect.map((release) =>
-          release === null
-            ? null
-            : { version: release.version, databaseMigration: release.databaseMigration },
-        ),
-      );
-  }).pipe(Atom.withLabel(`npm-release:${spec}`)),
-);
+export const npmReleaseAtom = makeNpmReleaseAtom({
+  primaryEnvironmentIdAtom,
+  connectedEnvironmentIdsAtom: environmentSummaries.connectedEnvironmentIdsAtom,
+  configValueAtom: serverEnvironment.configValueAtom,
+  serverRelease: serverEnvironment.npmRelease,
+  httpClient: FetchHttpClient.layer,
+});

@@ -2,18 +2,24 @@ import { getTerminalLabel } from "@supaterm/shared/terminalLabels";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import type { RightPanelSurface } from "../rightPanelStore";
 
-const { confirmMock } = vi.hoisted(() => ({
-  confirmMock: vi.fn<(message: string, options?: unknown) => Promise<boolean>>(),
-}));
-
-vi.mock("~/localApi", () => ({
-  readLocalApi: () => ({ dialogs: { confirm: confirmMock } }),
-}));
-
 import {
   agentControlledBrowserCloseConfirmation,
   confirmRightPanelSurfacesClose,
 } from "./rightPanelCloseConfirm";
+import type { CloseConfirmationHost } from "./terminalCloseConfirm";
+
+const confirmMock = vi.fn<(message: string, options?: unknown) => void>();
+const answers: Array<boolean> = [];
+const host: CloseConfirmationHost = {
+  dialogs: () => ({
+    confirm: async (message, options) => {
+      confirmMock(message, options);
+      return answers.length > 1 ? answers.shift()! : (answers[0] ?? false);
+    },
+  }),
+  hydrateSettings: async () => {},
+  confirmTerminalCloseEnabled: () => true,
+};
 
 describe("agent browser close confirmation", () => {
   const surfaces = [
@@ -79,14 +85,16 @@ describe("right panel bulk close confirmation", () => {
 
   beforeEach(() => {
     confirmMock.mockReset();
+    answers.length = 0;
   });
 
   it("asks once, naming only the running terminals across every closed tab", async () => {
-    confirmMock.mockResolvedValue(false);
+    answers.push(false);
 
     await expect(
       confirmRightPanelSurfacesClose(surfaces, {
         desktopByTabId: {},
+        host,
         terminalCloseTarget: terminalCloseTarget(["term-1", "term-3"]),
       }),
     ).resolves.toBe(false);
@@ -101,6 +109,7 @@ describe("right panel bulk close confirmation", () => {
     await expect(
       confirmRightPanelSurfacesClose(surfaces, {
         desktopByTabId: {},
+        host,
         terminalCloseTarget: terminalCloseTarget([]),
       }),
     ).resolves.toBe(true);
@@ -108,11 +117,12 @@ describe("right panel bulk close confirmation", () => {
   });
 
   it("asks about running terminals after the agent's browser close is accepted", async () => {
-    confirmMock.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    answers.push(true, false);
 
     await expect(
       confirmRightPanelSurfacesClose(surfaces, {
         desktopByTabId: { "tab-1": { controller: "agent" } },
+        host,
         terminalCloseTarget: terminalCloseTarget(["term-1"]),
       }),
     ).resolves.toBe(false);
@@ -122,11 +132,12 @@ describe("right panel bulk close confirmation", () => {
   });
 
   it("skips the terminal prompt when closing the agent's browser is declined", async () => {
-    confirmMock.mockResolvedValue(false);
+    answers.push(false);
 
     await expect(
       confirmRightPanelSurfacesClose(surfaces, {
         desktopByTabId: { "tab-1": { controller: "agent" } },
+        host,
         terminalCloseTarget: terminalCloseTarget(["term-1"]),
       }),
     ).resolves.toBe(false);

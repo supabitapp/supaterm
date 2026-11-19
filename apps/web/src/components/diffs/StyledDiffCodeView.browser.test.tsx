@@ -9,7 +9,6 @@ const testState = vi.hoisted(() => ({
   workers: [] as Worker[],
   terminations: 0,
   requests: [] as WorkerRequest[],
-  pools: new Map<WorkerPoolManager, Promise<void>>(),
   renderPools: [] as (WorkerPoolManager | undefined)[],
   failWorkers: false,
   holdInitialization: false,
@@ -122,8 +121,6 @@ function renderViews(count: number) {
   );
 }
 
-const UNLIMITED_WORKER_STARTUP_MS = 120_000;
-
 const codeFile = (container: HTMLElement, name: string) =>
   container.querySelector(`[data-code-file="${name}"]`)?.textContent ?? "";
 
@@ -132,7 +129,6 @@ describe("code-view worker lifecycle", () => {
     testState.workers = [];
     testState.terminations = 0;
     testState.requests = [];
-    testState.pools.clear();
     testState.renderPools = [];
     testState.failWorkers = false;
     testState.holdInitialization = false;
@@ -141,28 +137,23 @@ describe("code-view worker lifecycle", () => {
   }
   // oxlint-disable-next-line supaterm/no-frame-waits-in-browser-tests -- the worker pool must start on real time.
   const idleClock = () => fakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-  async function workerEnvironment({ startupLimit = UNLIMITED_WORKER_STARTUP_MS } = {}) {
+  async function workerEnvironment() {
     await using stack = new AsyncDisposableStack();
-    stack.use(vi.spyOn(navigator, "hardwareConcurrency", "get").mockReturnValue(2));
-    const initialize = WorkerPoolManager.prototype.initialize;
-    stack.use(
-      vi.spyOn(WorkerPoolManager.prototype, "initialize").mockImplementation(function (
-        this: WorkerPoolManager,
-        ...args
-      ) {
-        const options: { workerInitializationTimeout?: number } = Reflect.get(this, "options");
-        options.workerInitializationTimeout = startupLimit;
-        const pending = initialize.apply(this, args);
-        testState.pools.set(this, pending);
-        return pending;
-      }),
-    );
+    const initialize = stack.use(vi.spyOn(WorkerPoolManager.prototype, "initialize"));
+    const pools = () =>
+      new Map(
+        initialize.mock.contexts.map((pool, index) => [
+          pool as WorkerPoolManager,
+          initialize.mock.results[index]!.value as Promise<void>,
+        ]),
+      );
     stack.defer(async () => {
       await vi.runOnlyPendingTimersAsync();
       vi.useRealTimers();
     });
     const environment = stack.move();
     return {
+      pools,
       async render(ui: ReactNode) {
         const view = environment.use(await render(ui, { router: false }));
         environment.defer(() => {
@@ -179,9 +170,10 @@ describe("code-view worker lifecycle", () => {
     await using workers = await workerEnvironment();
     testState.failWorkers = true;
     const { container } = await workers.render(renderViews(1));
-    const pool = [...testState.pools.keys()][0]!;
+    const pools = workers.pools();
+    const pool = [...pools.keys()][0]!;
     await act(async () => {
-      await expect(testState.pools.get(pool)).rejects.toMatchObject({ _tag: "DiffWorkerError" });
+      await expect(pools.get(pool)).rejects.toMatchObject({ _tag: "DiffWorkerError" });
       await getSharedHighlighter({
         themes: ["pierre-dark"],
         langs: ["text"],

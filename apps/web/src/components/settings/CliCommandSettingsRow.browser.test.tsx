@@ -14,10 +14,8 @@ it("blocks installation behind another supaterm without blocking removal of our 
     onPath: false,
     launcherPath: "/home/test/.supaterm/bin/supaterm",
   };
-  const getState = vi.fn<() => Promise<DesktopCliCommandState>>(async () => ({
-    ...state,
-    shadowedBy: "/usr/local/bin/supaterm",
-  }));
+  let current: DesktopCliCommandState = { ...state, shadowedBy: "/usr/local/bin/supaterm" };
+  const getState = vi.spyOn({ getState: async () => current }, "getState");
   const uninstall = vi.fn(async () => state);
   using _bridge = stubGlobal("desktopBridge", {
     cliCommand: { getState, install: vi.fn(async () => state), uninstall },
@@ -34,15 +32,15 @@ it("blocks installation behind another supaterm without blocking removal of our 
 
   await expect.element(screen.getByRole("button", { name: "Install" })).toBeDisabled();
 
-  getState.mockResolvedValue(state);
+  current = state;
   await act(() => registry.refresh(desktopCliCommandStateAtom));
   await expect.element(screen.getByRole("button", { name: "Install" })).toBeEnabled();
 
-  getState.mockResolvedValue({
+  current = {
     ...state,
     installedPath: "/home/test/.local/bin/supaterm",
     shadowedBy: "/usr/local/bin/supaterm",
-  });
+  };
   await act(() => registry.refresh(desktopCliCommandStateAtom));
   const remove = screen.getByRole("button", { name: "Remove" });
   await expect.element(remove).toBeEnabled();

@@ -1,11 +1,21 @@
 import { CommandId, EnvironmentId, MessageId, ThreadId } from "@supaterm/contracts";
-import { expect, it, vi } from "vite-plus/test";
+import { expect, it } from "vite-plus/test";
 
 import { randomUUID } from "../lib/utils";
 
-import { browserThreadOutboxStorage as storage } from "./threadOutboxStorage";
+import { createBrowserThreadOutboxStorage } from "./threadOutboxStorage";
 
 it("preserves queued messages and delivery leases after a silent database close", async () => {
+  const closing = { next: false };
+  const storage = createBrowserThreadOutboxStorage({
+    begin: (database, stores, mode) => {
+      if (closing.next) {
+        closing.next = false;
+        database.close();
+      }
+      return database.transaction(stores, mode);
+    },
+  });
   const id = randomUUID();
   const entry = {
     id,
@@ -38,27 +48,22 @@ it("preserves queued messages and delivery leases after a silent database close"
   };
   await storage.writeMany([entry]);
 
-  const original = IDBDatabase.prototype.transaction;
-  using closing = vi.spyOn(IDBDatabase.prototype, "transaction").mockImplementationOnce(function (
-    this: IDBDatabase,
-    stores,
-    mode,
-    options,
-  ) {
-    this.close();
-    return original.call(this, stores, mode, options);
-  });
+  closing.next = true;
   try {
     expect(await storage.load()).toContainEqual(entry);
     expect(await storage.write({ ...entry, paused: true })).toBe(true);
     expect(await storage.load()).toContainEqual({ ...entry, paused: true });
-    const delivered = vi.fn(async () => "delivered");
+    let deliveries = 0;
+    const delivered = async () => {
+      deliveries += 1;
+      return "delivered";
+    };
     expect(await storage.withLock(entry.scope, delivered)).toBe("delivered");
-    expect(delivered).toHaveBeenCalledOnce();
+    expect(deliveries).toBe(1);
     await storage.remove(id);
     expect((await storage.load()).some((value) => value.id === id)).toBe(false);
   } finally {
-    closing.mockRestore();
+    closing.next = false;
     await storage.remove(id).catch(() => {});
   }
 });

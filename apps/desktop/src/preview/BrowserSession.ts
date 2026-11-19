@@ -227,15 +227,24 @@ const encodeScopeForDigest = (scope: string) =>
       ),
   );
 
-const previewHostWindow = (guest: WebContents | null) => {
+export type BrowserSessionNative = {
+  readonly fromPartition: (partition: string) => Session;
+  readonly fromWebContents: (contents: WebContents) => BrowserWindow | null;
+};
+
+const electronBrowserSessionNative: BrowserSessionNative = {
+  fromPartition: (partition) => session.fromPartition(partition),
+  fromWebContents: (contents) => BrowserWindow.fromWebContents(contents),
+};
+
+const previewHostWindow = (native: BrowserSessionNative, guest: WebContents | null) => {
   if (guest === null || guest.isDestroyed()) return undefined;
   const host = guest.hostWebContents ?? guest;
   if (host.isDestroyed()) return undefined;
-  return BrowserWindow.fromWebContents(host) ?? undefined;
+  return native.fromWebContents(host) ?? undefined;
 };
 
-/** @public */
-export const make = Effect.gen(function* BrowserSessionMake() {
+export const makeWith = Effect.fn("BrowserSession.make")(function* (native: BrowserSessionNative) {
   const crypto = yield* Digest.Digest;
   const electronApp = yield* ElectronApp.ElectronApp;
   const electronDialog = yield* ElectronDialog.ElectronDialog;
@@ -274,7 +283,7 @@ export const make = Effect.gen(function* BrowserSessionMake() {
             message: prompt.message,
             ...(prompt.detail === undefined ? {} : { detail: prompt.detail }),
           },
-          previewHostWindow(requester),
+          previewHostWindow(native, requester),
         )
         .pipe(
           Effect.map(({ response }) => response === 0),
@@ -432,7 +441,7 @@ export const make = Effect.gen(function* BrowserSessionMake() {
               "Trust it only if you know this certificate belongs to the site. Clearing this browser profile's cookies forgets it.",
             ].join("\n"),
           },
-          platform === "win32" ? undefined : previewHostWindow(contents),
+          platform === "win32" ? undefined : previewHostWindow(native, contents),
         )
         .pipe(
           Effect.flatMap(({ response }) =>
@@ -540,7 +549,7 @@ export const make = Effect.gen(function* BrowserSessionMake() {
       if (existing) return Effect.succeed([existing, sessions] as const);
       return Effect.try({
         try: () => {
-          const browserSession = session.fromPartition(partition);
+          const browserSession = native.fromPartition(partition);
           const clipboardReadDecisions = new Map<string, boolean>();
           const confirmClipboardRead = (
             requester: WebContents,
@@ -692,6 +701,12 @@ export const make = Effect.gen(function* BrowserSessionMake() {
       );
     }),
   });
-}).pipe(Effect.withSpan("BrowserSession.make"));
+});
+
+/** @public */
+export const make = makeWith(electronBrowserSessionNative);
+
+export const layerWith = (native: BrowserSessionNative) =>
+  Layer.effect(BrowserSession, makeWith(native));
 
 export const layer = Layer.effect(BrowserSession, make);

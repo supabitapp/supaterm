@@ -4,11 +4,14 @@ import type { SettingsWindow } from "./MacSettingsWindow.ts";
 
 const mocks = vi.hoisted(() => ({
   granted: false,
-  createFromPath: vi.fn(),
+  createFromPath: () => ({
+    isEmpty: () => false,
+    resize: () => ({ toDataURL: () => "data:image/png;base64,abc" }),
+  }),
   startDrag: vi.fn(),
   showItemInFolder: vi.fn(),
   send: vi.fn(),
-  loadURL: vi.fn(),
+  loadURL: async () => undefined,
   stopTracking: vi.fn(),
   trackingFailed: undefined as (() => void) | undefined,
   settingsChanged: undefined as ((state: SettingsWindow) => void) | undefined,
@@ -95,9 +98,6 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   mocks.granted = false;
-  const icon = { toDataURL: () => "data:image/png;base64,abc" };
-  mocks.createFromPath.mockReturnValue({ isEmpty: () => false, resize: () => icon });
-  mocks.loadURL.mockResolvedValue(undefined);
   windows.length = 0;
   helper = new MacPermissionHelper();
 });

@@ -195,7 +195,6 @@ describe("GhosttyTerminalCore snapshots", () => {
   );
 
   it.each(["", "\x1b[>1u"])("encodes macOS Option text with keyboard mode %j", async (mode) => {
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
     const core = await createCore();
     core.write(mode);
     const option = {
@@ -210,8 +209,10 @@ describe("GhosttyTerminalCore snapshots", () => {
       getModifierState: () => false,
     } as unknown as KeyboardEvent;
 
-    expect(core.encodeKey(option)).toBe("@");
-    expect(core.encodeKey({ ...option, code: "KeyA", key: "Å", shiftKey: true })).toBe("Å");
+    expect(core.encodeKey(option, "press", "MacIntel")).toBe("@");
+    expect(
+      core.encodeKey({ ...option, code: "KeyA", key: "Å", shiftKey: true }, "press", "MacIntel"),
+    ).toBe("Å");
   });
 
   it("preserves styles, wide cells, and selection after shared memory grows", async () => {

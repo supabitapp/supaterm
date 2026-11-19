@@ -15,17 +15,24 @@ import type { HighlightNativeReviewDiffVisibleRowsInput } from "./nativeReviewDi
 import type { NativeReviewDiffViewProps } from "./nativeReviewDiffSurface";
 import type { NativeReviewDiffData } from "../review/nativeReviewDiffAdapter";
 
-const mocks = vi.hoisted(() => ({
-  registrationFailures: 0,
-  tokenAccepted: true as boolean | undefined,
-  tokenCompletion: null as Promise<boolean> | null,
-  onDebug: undefined as NativeReviewDiffViewProps["onDebug"],
-  autoViewport: false,
-  contentResetKeyLandsLate: false,
-  rows: vi.fn(),
-  tokens: vi.fn(),
-  highlight: vi.fn(),
-}));
+type HighlightRows =
+  typeof import("./nativeReviewDiffHighlighter").highlightNativeReviewDiffVisibleRows;
+const mocks = vi.hoisted(() => {
+  const highlightRows: HighlightRows = () =>
+    Promise.reject(new Error("highlightRows not configured"));
+  return {
+    registrationFailures: 0,
+    tokenAccepted: true as boolean | undefined,
+    tokenCompletion: null as Promise<boolean> | null,
+    onDebug: undefined as NativeReviewDiffViewProps["onDebug"],
+    autoViewport: false,
+    contentResetKeyLandsLate: false,
+    rows: vi.fn(),
+    tokens: vi.fn(),
+    highlight: vi.fn(),
+    highlightRows,
+  };
+});
 
 function RawView({
   ref: nativeRef,
@@ -121,7 +128,10 @@ vi.mock("../../components/ui/EmptyState", () => ({
   ),
 }));
 vi.mock("./nativeReviewDiffHighlighter", () => ({
-  highlightNativeReviewDiffVisibleRows: mocks.highlight,
+  highlightNativeReviewDiffVisibleRows: (input: HighlightNativeReviewDiffVisibleRowsInput) => {
+    mocks.highlight(input);
+    return mocks.highlightRows(input);
+  },
 }));
 vi.mock("@supaterm/client-runtime/state/runtime", () => ({
   settlePromise: async (execute: () => Promise<unknown>) => {
@@ -142,7 +152,11 @@ vi.mock("../settings/appearance/AppearancePreferencesProvider", () => ({
 }));
 vi.mock("../../lib/useUniwindTheme", () => ({ useUniwindTheme: () => ({}) }));
 
-import { resolveNativeReviewDiffView } from "./nativeReviewDiffSurface";
+import {
+  NativeReviewDiffFrameSchedulerContext,
+  resolveNativeReviewDiffView,
+  type NativeReviewDiffFrameScheduler,
+} from "./nativeReviewDiffSurface";
 import { useNativeReviewDiffBridge } from "../review/useNativeReviewDiffBridge";
 import {
   handlePullRequestDiffDebugEvent,
@@ -160,32 +174,31 @@ function setup(integrated = false) {
   mocks.contentResetKeyLandsLate = false;
   mocks.rows.mockClear();
   mocks.tokens.mockClear();
-  mocks.highlight
-    .mockReset()
-    .mockImplementation(async (input: HighlightNativeReviewDiffVisibleRowsInput) => {
-      const rowId = `r${input.firstRowIndex}`;
-      const tokensByRowId = input.alreadyHighlightedRowIds?.has(rowId)
-        ? {}
-        : { [rowId]: [{ content: "const", color: "#ff0000", fontStyle: null }] };
-      return {
-        rowCount: Object.keys(tokensByRowId).length,
-        durationMs: 0,
-        retryableRowIds: [],
-        tokensByRowId,
-      };
-    });
+  mocks.highlight.mockReset();
+  mocks.highlightRows = async (input: HighlightNativeReviewDiffVisibleRowsInput) => {
+    const rowId = `r${input.firstRowIndex}`;
+    const tokensByRowId = input.alreadyHighlightedRowIds?.has(rowId)
+      ? {}
+      : { [rowId]: [{ content: "const", color: "#ff0000", fontStyle: null }] };
+    return {
+      rowCount: Object.keys(tokensByRowId).length,
+      durationMs: 0,
+      retryableRowIds: [],
+      tokensByRowId,
+    };
+  };
   const frames = new Map<number, FrameRequestCallback>();
   let nextFrame = 0;
-  const requestFrame = vi
-    .spyOn(globalThis, "requestAnimationFrame")
-    .mockImplementation((callback) => {
+  const scheduler: NativeReviewDiffFrameScheduler = {
+    request: (callback) => {
       frames.set(++nextFrame, callback);
       return nextFrame;
-    });
-  const cancelFrame = vi.spyOn(globalThis, "cancelAnimationFrame").mockImplementation((id) => {
-    if (id != null) frames.delete(id);
-  });
-  const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    },
+    cancel: (id) => {
+      frames.delete(id);
+    },
+  };
+  const errors = vi.spyOn(console, "error");
   const expo = Object.getOwnPropertyDescriptor(globalThis, "expo");
   Object.defineProperty(globalThis, "expo", {
     configurable: true,
@@ -194,6 +207,12 @@ function setup(integrated = false) {
   const NativeDiff = resolveNativeReviewDiffView()!;
   const container = document.createElement("div");
   const root = createRoot(container);
+  const renderWithFrames = (node: ReactNode) =>
+    root.render(
+      <NativeReviewDiffFrameSchedulerContext.Provider value={scheduler}>
+        {node}
+      </NativeReviewDiffFrameSchedulerContext.Provider>,
+    );
   let data: NativeReviewDiffData = {
     rows: Array.from({ length: 1000 }, (_, index) =>
       index === 999
@@ -252,7 +271,7 @@ function setup(integrated = false) {
   }
   if (!integrated) {
     act(() =>
-      root.render(
+      renderWithFrames(
         <NativeDiff
           rowsJson="[]"
           tokensPatchJson='{"tokensByRowId":{}}'
@@ -267,11 +286,11 @@ function setup(integrated = false) {
   return {
     container,
     async mountPullRequest(targetFileId?: string) {
-      await act(async () => root.render(<PullRequestDiff targetFileId={targetFileId} />));
+      await act(async () => renderWithFrames(<PullRequestDiff targetFileId={targetFileId} />));
     },
     async showSection(contentResetKey: string) {
       await act(async () =>
-        root.render(
+        renderWithFrames(
           <NativeDiff
             rowsJson='[{"kind":"line","id":"r0"}]'
             contentResetKey={contentResetKey}
@@ -285,7 +304,7 @@ function setup(integrated = false) {
     },
     async collapseFiles(fileIds: ReadonlyArray<string>) {
       collapsedFileIds = fileIds;
-      await act(async () => root.render(<PullRequestDiff />));
+      await act(async () => renderWithFrames(<PullRequestDiff />));
     },
     async updateComment() {
       data = {
@@ -294,7 +313,7 @@ function setup(integrated = false) {
           row.kind === "comment" ? { ...row, commentText: "Updated comment" } : row,
         ),
       };
-      await act(async () => root.render(<PullRequestDiff />));
+      await act(async () => renderWithFrames(<PullRequestDiff />));
     },
     get tokenRows() {
       return container.querySelector("[data-token-rows]")?.getAttribute("data-token-rows");
@@ -334,8 +353,6 @@ function setup(integrated = false) {
     },
     [Symbol.dispose]() {
       act(() => root.unmount());
-      requestFrame.mockRestore();
-      cancelFrame.mockRestore();
       errors.mockRestore();
       vi.useRealTimers();
       if (expo) Object.defineProperty(globalThis, "expo", expo);
@@ -464,8 +481,8 @@ it("cancels stale collapse work and highlights expansion without resetting accep
   expect(screen.tokenRows).toBe("r0");
 
   const response = Promise.withResolvers<void>();
-  const highlight = mocks.highlight.getMockImplementation()!;
-  mocks.highlight.mockImplementation(async (input: HighlightNativeReviewDiffVisibleRowsInput) => {
+  const highlight = mocks.highlightRows;
+  mocks.highlightRows = async (input: HighlightNativeReviewDiffVisibleRowsInput) => {
     if (input.firstRowIndex === 400) {
       await response.promise;
       if (input.collapsedFileIds?.has("last-file")) {
@@ -473,7 +490,7 @@ it("cancels stale collapse work and highlights expansion without resetting accep
       }
     }
     return highlight(input);
-  });
+  };
   await screen.jump(400);
   await screen.collapseFiles(["last-file"]);
   await act(async () => response.resolve());

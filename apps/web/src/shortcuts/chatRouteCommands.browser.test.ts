@@ -124,13 +124,12 @@ describe("chat route commands", () => {
   });
 
   it("opens the project picker of the split pane focused when the key is pressed", () => {
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
     const { router } = routerAt(CHAT);
     const clicked: string[] = [];
     const left = addPane("left", clicked);
     const right = addPane("right", clicked);
     using stack = new DisposableStack();
-    stack.defer(installChatRouteCommands(router));
+    stack.defer(installChatRouteCommands(router, { platform: "Linux x86_64" }));
     stack.defer(() => {
       left.remove();
       right.remove();
@@ -150,10 +149,9 @@ describe("chat route commands", () => {
   });
 
   it("claims only keys bound to its own commands, so a focused composer keeps the rest", () => {
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
     const { router } = routerAt(CHAT);
     using stack = new DisposableStack();
-    stack.defer(installChatRouteCommands(router));
+    stack.defer(installChatRouteCommands(router, { platform: "Linux x86_64" }));
     const keydown = (key: string) => new KeyboardEvent("keydown", { key, ctrlKey: true });
 
     expect(hasCommandForKeyDown(keydown("."))).toBe(true);

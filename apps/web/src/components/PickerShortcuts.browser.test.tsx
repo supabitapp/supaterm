@@ -2,6 +2,7 @@ import { EnvironmentId } from "@supaterm/contracts";
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@supaterm/shared/keybindings";
 import { Fragment, useState, type ReactNode } from "react";
 import { act, render as renderUi, stubGlobal, type Screen } from "../../test/render";
+import { isMacPlatform } from "@supaterm/shared/keybindings";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
@@ -125,7 +126,6 @@ function RefPicker() {
 let screen: Screen;
 async function setupTest() {
   await using resources = new AsyncDisposableStack();
-  resources.use(vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel"));
   resources.use(
     stubGlobal(
       "ResizeObserver",
@@ -168,7 +168,8 @@ async function acceptWithTab(query: string) {
 async function pressNumber(key: string) {
   const event = new KeyboardEvent("keydown", {
     key,
-    metaKey: true,
+    metaKey: isMacPlatform(navigator.platform),
+    ctrlKey: !isMacPlatform(navigator.platform),
     bubbles: true,
     cancelable: true,
   });

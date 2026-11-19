@@ -3,7 +3,38 @@ import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts";
 import { userEvent } from "vite-plus/test/browser";
 import { expect, it, vi } from "vite-plus/test";
 
-const suppress = vi.hoisted(() => vi.fn<(enabled: boolean) => Promise<void>>());
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const suppress = vi.hoisted(() => fake<(enabled: boolean) => Promise<void>>());
 vi.mock(import("../../lib/desktopSnapShot"), async (original) => ({
   ...(await original()),
   getDesktopSnapShotBridge: () => ({ setSnapShotShortcutSuppressed: suppress }) as never,
@@ -34,7 +65,7 @@ function Recorder(props: { allowModifierPairs?: boolean; shortcutLabel?: string 
 }
 
 function setup() {
-  suppress.mockReset().mockResolvedValue(undefined);
+  suppress.reset(async () => undefined);
   recorded.mockReset();
   error.mockReset();
 }
@@ -59,9 +90,8 @@ async function renderRecorder(props: Parameters<typeof Recorder>[0] = {}) {
 
 it("ignores late suppression acknowledgements after cancellation", async () => {
   setup();
-  using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Linux x86_64");
   const pending = deferred<void>();
-  suppress.mockImplementation((enabled) => (enabled ? pending.promise : Promise.resolve()));
+  suppress.implement((enabled) => (enabled ? pending.promise : Promise.resolve()));
   await using screen = await renderRecorder();
   const { button } = screen;
   await userEvent.click(button());

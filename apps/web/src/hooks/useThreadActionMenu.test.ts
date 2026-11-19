@@ -25,8 +25,9 @@ const state = vi.hoisted(() => ({
     (
       items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>>,
       position: { x: number; y: number },
-    ) => Promise<ThreadActionMenuId | null>
+    ) => void
   >(),
+  choice: Promise.resolve<ThreadActionMenuId | null>(null),
 }));
 
 function recordEffect(action: string) {
@@ -72,7 +73,16 @@ vi.mock("../state/use-atom-command", () => ({
 }));
 vi.mock("../localApi", () => ({
   readLocalApi: () => ({
-    contextMenu: { show: state.show, close: () => {} },
+    contextMenu: {
+      show: (
+        items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>>,
+        position: { x: number; y: number },
+      ) => {
+        state.show(items, position);
+        return state.choice;
+      },
+      close: () => {},
+    },
     dialogs: {
       confirm: async () => {
         recordEffect("confirm");
@@ -163,7 +173,8 @@ beforeEach(() => {
   state.granted = new Set(["primary"]);
   state.effects = [];
   state.completed = deferred<void>();
-  state.show.mockReset().mockResolvedValue(null);
+  state.show.mockReset();
+  state.choice = Promise.resolve(null);
 });
 
 describe("thread menu permissions", () => {
@@ -172,7 +183,7 @@ describe("thread menu permissions", () => {
     async (action) => {
       state.granted.add("secondary");
       const choice = deferred<ThreadActionMenuId | null>();
-      state.show.mockReturnValue(choice.promise);
+      state.choice = choice.promise;
       createMenu().openMenu(position);
       state.granted.delete("secondary");
       choice.resolve(action);
@@ -184,7 +195,7 @@ describe("thread menu permissions", () => {
   it("offers find only to a header that can open it, without task permission", async () => {
     createMenu().openMenu(position);
     expect(state.show.mock.calls[0]![0].some((item) => item.id === "find")).toBe(false);
-    state.show.mockResolvedValue("find");
+    state.choice = Promise.resolve("find");
     const onFind = vi.fn(() => recordEffect("find"));
     createMenu({ onFind }).openMenu(position);
     await state.completed.promise;
@@ -198,7 +209,7 @@ describe("thread menu permissions", () => {
 
 describe("thread menu copy", () => {
   it("copies the workspace root of the thread's own environment", async () => {
-    state.show.mockResolvedValue("copy-path");
+    state.choice = Promise.resolve("copy-path");
     createMenu().openMenu(position);
     await state.completed.promise;
     expect(state.effects).toEqual(["copy:/secondary"]);

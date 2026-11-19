@@ -18,7 +18,7 @@ import {
 } from "../../hooks/useProjectGroupUpdate";
 import { Navigate, useLocation, useNavigate } from "@tanstack/react-router";
 import { InfoIcon, TrashIcon } from "@supaterm/icons";
-import { lazy, Suspense, useRef, useState, type ReactNode } from "react";
+import { createContext, lazy, Suspense, use, useRef, useState, type ReactNode } from "react";
 
 import { useComposerDraftStore } from "../../composerDraftStore";
 import { releaseProjectDraftUploads } from "../../lib/composerDraftUploads";
@@ -165,6 +165,8 @@ function sameProjectSelection(a: ProjectSelection | null, b: ProjectSelection) {
     a.memberKeys.every((key, index) => key === b.memberKeys[index])
   );
 }
+
+export const ProjectFaviconRefresh = createContext(refreshProjectFaviconUrl);
 
 export function ProjectSettingsPanel({
   projectKey,
@@ -324,6 +326,7 @@ function ProjectDetail({
   const [iconPickerOpen, setIconPickerOpen] = useComposerMenuState(!canEditGroup);
   const [isSavingFavicon, setIsSavingFavicon] = useState(false);
   const savingFaviconRef = useRef(false);
+  const refreshFavicon = use(ProjectFaviconRefresh);
   const setProjectIcon = async (input: Parameters<typeof updateAllMembers>[0]) => {
     if (savingFaviconRef.current) return;
     savingFaviconRef.current = true;
@@ -332,7 +335,7 @@ function ProjectDetail({
     for (const member of group.memberProjects) {
       const update = typeof input === "function" ? input(member) : input;
       if (update.faviconPath === undefined || update.projectIcon) continue;
-      refreshProjectFaviconUrl({
+      refreshFavicon({
         environmentId: member.environmentId,
         cwd: member.workspaceRoot,
         faviconPath: update.faviconPath,

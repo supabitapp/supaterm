@@ -10,6 +10,19 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { createDiagramRenderer } from "./diagramRendering.ts";
 
+type Render = Parameters<typeof createDiagramRenderer>[0];
+
+function scriptedRender(...steps: Array<() => ReturnType<Render>>) {
+  const adapter = {
+    render: (..._args: Parameters<Render>) => {
+      const step = steps.length > 1 ? steps.shift() : steps[0];
+      if (!step) throw new Error("No scripted render");
+      return step();
+    },
+  };
+  return vi.spyOn(adapter, "render");
+}
+
 describe("createDiagramRenderer", () => {
   it("keys geometry by width, fonts and chart date, while coalescing nearby widths", async () => {
     const render = vi.fn(async () => diagram("ready"));
@@ -46,7 +59,10 @@ describe("createDiagramRenderer", () => {
   it("coalesces identical requests and renders different sources in order", async () => {
     const first = Promise.withResolvers<Diagram>();
     const second = Promise.withResolvers<Diagram>();
-    const render = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    const render = scriptedRender(
+      () => first.promise,
+      () => second.promise,
+    );
     const renderer = createDiagramRenderer(render);
     const firstResult = renderer.render("first");
     const duplicateResult = renderer.render("first");
@@ -80,10 +96,10 @@ describe("createDiagramRenderer", () => {
   });
 
   it("allows the same source to retry after a transient adapter failure", async () => {
-    const render = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Worker unavailable"))
-      .mockResolvedValue(diagram("diagram"));
+    const render = scriptedRender(
+      () => Promise.reject(new Error("Worker unavailable")),
+      async () => diagram("diagram"),
+    );
     const renderer = createDiagramRenderer(render);
     expect(await renderer.render("source")).toBeNull();
     expect(render).toHaveBeenCalledTimes(1);
@@ -97,7 +113,10 @@ describe("createDiagramRenderer", () => {
 
   it("bounds pending work without retaining temporary queue saturation", async () => {
     const first = Promise.withResolvers<Diagram>();
-    const render = vi.fn().mockReturnValueOnce(first.promise).mockResolvedValue(diagram("diagram"));
+    const render = scriptedRender(
+      () => first.promise,
+      async () => diagram("diagram"),
+    );
     const renderer = createDiagramRenderer(render, { maxPending: 1 });
     const firstResult = renderer.render("first");
     expect(await renderer.render("second")).toBeNull();

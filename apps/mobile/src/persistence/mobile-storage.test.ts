@@ -2,24 +2,38 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import { beforeEach, vi } from "vite-plus/test";
 
-const { values, getItemAsync, setItemAsync, uuidv4 } = vi.hoisted(() => {
+const { values, writeFailures, generated, secureStore, setItemAsync, uuidv4 } = vi.hoisted(() => {
   const values = new Map<string, string>();
-  return {
-    values,
-    getItemAsync: vi.fn(async (key: string) => {
+  const writeFailures: Array<Error> = [];
+  const generated = { count: 0 };
+  const secureStore = {
+    getItemAsync: async (key: string) => {
       const value = values.get(key) ?? null;
       await Promise.resolve();
       return value;
-    }),
-    setItemAsync: vi.fn(async (key: string, value: string) => {
+    },
+    setItemAsync: async (key: string, value: string) => {
+      const failure = writeFailures.shift();
+      if (failure) throw failure;
       values.set(key, value);
-    }),
-    uuidv4: vi.fn(),
+    },
+    randomUUID: () => `generated-device-${++generated.count}`,
+  };
+  return {
+    values,
+    writeFailures,
+    generated,
+    secureStore,
+    setItemAsync: vi.spyOn(secureStore, "setItemAsync"),
+    uuidv4: vi.spyOn(secureStore, "randomUUID"),
   };
 });
 
-vi.mock("expo-secure-store", () => ({ getItemAsync, setItemAsync }));
-vi.mock("expo-crypto", () => ({ randomUUID: uuidv4 }));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: secureStore.getItemAsync,
+  setItemAsync: secureStore.setItemAsync,
+}));
+vi.mock("expo-crypto", () => ({ randomUUID: secureStore.randomUUID }));
 
 import "../lib/uuid";
 
@@ -31,11 +45,10 @@ const makeStorage = MobileStorage.make().pipe(Effect.provide(MobileSecureStorage
 
 beforeEach(() => {
   values.clear();
-  getItemAsync.mockClear();
+  writeFailures.length = 0;
+  generated.count = 0;
   setItemAsync.mockClear();
-  uuidv4.mockReset();
-  let generated = 0;
-  uuidv4.mockImplementation(() => `generated-device-${++generated}`);
+  uuidv4.mockClear();
 });
 
 describe("mobile device identity", () => {
@@ -68,7 +81,7 @@ describe("mobile device identity", () => {
 
   it.effect("retries a failed first write without retaining an unpersisted identity", () =>
     Effect.gen(function* () {
-      setItemAsync.mockRejectedValueOnce(new Error("Secure storage unavailable"));
+      writeFailures.push(new Error("Secure storage unavailable"));
       const storage = yield* makeStorage;
       const first = yield* Effect.result(storage.loadOrCreateDeviceId);
 

@@ -111,12 +111,14 @@ export function isMomentumTail(deltas: readonly number[]) {
  * Two-finger horizontal trackpad swipes go back and forward, like a browser.
  * macOS only: on Windows and Linux a mouse tilt wheel is indistinguishable from a trackpad swipe.
  */
-export function HistorySwipeNavigation() {
+export function HistorySwipeNavigation({
+  platform = navigator.platform,
+}: { platform?: string } = {}) {
   const [swipe, setSwipe] = useState<SwipeIndicatorState | null>(null);
 
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- window wheel and desktop gesture listeners track trackpad swipes
   useEffect(() => {
-    if (!isMacPlatform(navigator.platform)) return;
+    if (!isMacPlatform(platform)) return;
     let gesture: SwipeGesture | null = null;
     const hideIndicator = () =>
       setSwipe((current) => (current === null ? null : { ...current, tracking: false }));
@@ -175,7 +177,7 @@ export function HistorySwipeNavigation() {
       unsubscribeScrollEnd?.();
       window.removeEventListener("wheel", onWheel, { capture: true });
     };
-  }, []);
+  }, [platform]);
 
   return swipe === null ? null : <SwipeIndicator {...swipe} />;
 }

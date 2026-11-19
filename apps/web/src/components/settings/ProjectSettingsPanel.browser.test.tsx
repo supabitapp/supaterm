@@ -31,27 +31,58 @@ import { act, render, type Screen } from "../../../test/render";
 import type { Project } from "../../types";
 
 type SessionResult = AsyncResult.AsyncResult<AuthSessionState, Error>;
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const state = vi.hoisted(() => ({
   sessions: new Map<EnvironmentId, Atom.Writable<SessionResult>>(),
   projects: [] as Project[],
   update:
-    vi.fn<
+    fake<
       (request: {
         environmentId: EnvironmentId;
         input: UpdateProjectInput;
       }) => Promise<AsyncResult.Success<void> | AsyncResult.Failure<void, Error>>
     >(),
   delete:
-    vi.fn<
+    fake<
       (request: {
         environmentId: EnvironmentId;
         input: DeleteProjectInput;
       }) => Promise<AsyncResult.Success<void>>
     >(),
-  confirm: vi.fn<() => Promise<boolean>>(),
-  releaseUploads: vi.fn(),
-  clearDraft: vi.fn(),
-  toast: vi.fn(),
+  confirm: fake<() => Promise<boolean>>(),
+  releaseUploads: fake(),
+  clearDraft: fake(),
+  toast: fake<(typeof import("../ui/toast"))["toastManager"]["add"]>(),
 }));
 
 vi.mock(import("@supaterm/client-runtime/state/session"), async (original) => {
@@ -132,9 +163,9 @@ vi.mock(import("../files/projectFilesQueryState"), async (original) => ({
 import { scopeProjectRef } from "@supaterm/client-runtime/environment";
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
-import { assetEnvironment } from "../../state/assets";
+import { refreshProjectFaviconUrl } from "../../state/assets";
 import { buildSidebarProjectSnapshots } from "../../sidebarProjectGrouping";
-import { ProjectSettingsPanel } from "./ProjectSettingsPanel";
+import { ProjectFaviconRefresh, ProjectSettingsPanel } from "./ProjectSettingsPanel";
 import { ProjectsSettings } from "./ProjectsSettings";
 import { SettingsScopeProvider } from "./SettingsScopeContext";
 import { SettingsScopeNotice } from "./SettingsScopeNotice";
@@ -199,7 +230,7 @@ function setup() {
     updatedAt: "2026-01-01T00:00:00.000Z",
     scripts: [],
   }));
-  state.update.mockImplementation(async ({ environmentId, input }) => {
+  state.update.implement(async ({ environmentId, input }) => {
     const { projectId, ...updates } = input;
     const patch = Object.fromEntries(
       Object.entries(updates).filter(([, value]) => value !== undefined),
@@ -211,8 +242,8 @@ function setup() {
     );
     return AsyncResult.success(undefined);
   });
-  state.delete.mockResolvedValue(AsyncResult.success(undefined));
-  state.confirm.mockResolvedValue(true);
+  state.delete.implement(async () => AsyncResult.success(undefined));
+  state.confirm.implement(async () => true);
   useComposerDraftStore.setState({ clearProjectDraftThreadId: state.clearDraft });
 }
 
@@ -225,7 +256,10 @@ function projectKey() {
   })[0]!.projectKey;
 }
 
-async function mountPanel(search: Omit<SettingsScopeSearch, "project"> = {}) {
+async function mountPanel(
+  search: Omit<SettingsScopeSearch, "project"> = {},
+  refreshFavicon = refreshProjectFaviconUrl,
+) {
   const key = projectKey();
   const rootRoute = createRootRoute();
   const settingsRoute = createRoute({
@@ -238,11 +272,13 @@ async function mountPanel(search: Omit<SettingsScopeSearch, "project"> = {}) {
     getParentRoute: () => settingsRoute,
     path: "projects",
     component: () => (
-      <ProjectSettingsPanel
-        projectKey={key}
-        environmentId={search.machine ? EnvironmentId.make(search.machine) : null}
-        checkoutKey={search.checkout ?? null}
-      />
+      <ProjectFaviconRefresh value={refreshFavicon}>
+        <ProjectSettingsPanel
+          projectKey={key}
+          environmentId={search.machine ? EnvironmentId.make(search.machine) : null}
+          checkoutKey={search.checkout ?? null}
+        />
+      </ProjectFaviconRefresh>
     ),
   });
   const query = new URLSearchParams({ project: key });
@@ -373,7 +409,7 @@ describe("project settings permissions", () => {
   it("stops before the next member if its grant is revoked during an earlier update", async () => {
     setup();
     const firstUpdate = deferred<AsyncResult.Success<void>>();
-    state.update.mockReturnValueOnce(firstUpdate.promise);
+    state.update.implementOnce(() => firstUpdate.promise);
     await using screen = await mountPanel();
     await rename(screen, "Renamed");
     expect(state.update).toHaveBeenCalledOnce();
@@ -447,7 +483,7 @@ describe("project settings permissions", () => {
   it("rechecks every removal target after confirmation before deleting or clearing drafts", async () => {
     setup();
     const confirmed = deferred<boolean>();
-    state.confirm.mockReturnValueOnce(confirmed.promise);
+    state.confirm.implementOnce(() => confirmed.promise);
     await using screen = await mountPanel();
     await userEvent.click(removeAll(screen));
     expect(state.confirm).toHaveBeenCalledOnce();
@@ -562,31 +598,20 @@ describe("project identity reset", () => {
   it("refreshes a saved checkout's icon when a later checkout update fails", async () => {
     setup();
     state.projects = state.projects.map((project) => ({ ...project, faviconPath: "logo.png" }));
-    let iconExists = false;
-    const iconUrl = Atom.make(() =>
-      AsyncResult.success({
-        expiresAt: 4_000_000_000_000,
-        relativeUrl: iconExists ? "/restored-icon.svg" : "/project-favicon-missing",
-      }),
-    );
-    using _mount = { [Symbol.dispose]: appAtomRegistry.mount(iconUrl) };
-    const createUrl = assetEnvironment.createUrl;
-    using _createUrl = vi
-      .spyOn(assetEnvironment, "createUrl")
-      .mockImplementation((target) =>
-        target.environmentId === primaryId ? iconUrl : createUrl(target),
-      );
+    const refreshed: Array<Parameters<typeof refreshProjectFaviconUrl>[0]> = [];
     state.update
-      .mockResolvedValueOnce(AsyncResult.success(undefined))
-      .mockResolvedValueOnce(AsyncResult.failure(Cause.fail(new Error("Save failed"))));
-    await using screen = await mountPanel();
-    expect(appAtomRegistry.get(iconUrl).value.relativeUrl).toBe("/project-favicon-missing");
+      .implementOnce(async () => AsyncResult.success(undefined))
+      .implementOnce(async () => AsyncResult.failure(Cause.fail(new Error("Save failed"))));
+    await using screen = await mountPanel({}, (target) => refreshed.push(target));
 
-    iconExists = true;
     await userEvent.click(resetButton(screen, "project icon")!);
 
     await vi.waitFor(() =>
-      expect(appAtomRegistry.get(iconUrl).value.relativeUrl).toBe("/restored-icon.svg"),
+      expect(refreshed).toContainEqual({
+        environmentId: primaryId,
+        cwd: `/work/${primaryId}`,
+        faviconPath: null,
+      }),
     );
     expect(state.toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Failed to update project icon on remote" }),

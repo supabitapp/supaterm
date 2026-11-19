@@ -140,7 +140,13 @@ vi.mock("../../state/server", () => ({
 vi.mock("../../state/query", () => ({
   useEnvironmentQuery: () => ({ data: { tasks: mocks.tasks, threads: [] } }),
 }));
-vi.mock("../../state/use-atom-command", () => ({ useAtomCommand: () => mocks.upsert }));
+vi.mock("../../state/use-atom-command", () => {
+  const upsert = async (...args: ReadonlyArray<unknown>) => {
+    mocks.upsert(...args);
+    return { _tag: "Success" };
+  };
+  return { useAtomCommand: () => upsert };
+});
 
 import { appAtomRegistry } from "../../state/atom-registry";
 import { editDraft } from "./scheduledTaskDraft";
@@ -158,7 +164,6 @@ beforeEach(() => {
   root = createRoot(container);
   mocks.alert.mockReset();
   mocks.upsert.mockReset();
-  mocks.upsert.mockResolvedValue({ _tag: "Success" });
   const task: ScheduledTask = {
     id: ScheduledTaskId.make("task"),
     title: "Task",

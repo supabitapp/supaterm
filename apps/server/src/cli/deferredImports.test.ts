@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - CLI integration uses temporary Node paths.
+import * as NodeHttp from "node:http";
 import * as NodePath from "node:path";
 
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
@@ -41,6 +42,31 @@ vi.mock("../claudeHistoryWorker.ts", async () => {
   await hooks.releaseHistoryImport.promise;
   return { runClaudeHistoryWorker: hooks.runClaudeHistoryWorker };
 });
+
+const serveLiveServer = (respond: (method: string | undefined) => Promise<unknown>) =>
+  Effect.acquireRelease(
+    Effect.callback<NodeHttp.Server>((resume) => {
+      const server = NodeHttp.createServer((request, response) => {
+        void respond(request.method).then((body) => {
+          response.writeHead(200, { "content-type": "application/json" });
+          response.end(JSON.stringify(body));
+        });
+      });
+      server.listen(0, "127.0.0.1", () => resume(Effect.succeed(server)));
+    }),
+    (server) =>
+      Effect.callback<void>((resume) => {
+        server.closeAllConnections();
+        server.close(() => resume(Effect.void));
+      }),
+  ).pipe(
+    Effect.flatMap((server) => {
+      const address = server.address();
+      return address === null || typeof address === "string"
+        ? Effect.die(new Error("Expected a TCP address"))
+        : Effect.succeed(address.port);
+    }),
+  );
 
 const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NetService.layer);
 const runCli = (args: ReadonlyArray<string>) =>
@@ -105,37 +131,33 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("CLI deferred imp
       const baseDir = NodePath.join(root, "state");
       const workspaceRoot = NodePath.join(root, "workspace");
       yield* fs.makeDirectory(workspaceRoot);
+      hooks.importsAttempted.length = 0;
+      let mutations = 0;
+      const port = yield* serveLiveServer(async (method) => {
+        const isMutation = method === "POST";
+        if (isMutation) mutations++;
+        return isMutation
+          ? {
+              id: "live-project",
+              title: NodePath.basename(workspaceRoot),
+              workspaceRoot,
+              defaultModelSelection: null,
+              scripts: [],
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+              deletedAt: null,
+            }
+          : { projects: [], updatedAt: "2026-01-01T00:00:00.000Z" };
+      });
       yield* persistServerRuntimeState({
         path: NodePath.join(baseDir, "userdata", "server-runtime.json"),
         state: yield* makePersistedServerRuntimeState({
           config: { host: "127.0.0.1", devUrl: undefined },
-          port: 3_773,
+          port,
         }),
       });
 
-      hooks.importsAttempted.length = 0;
-      let mutations = 0;
-      const fetch: typeof globalThis.fetch = async (_input, init) => {
-        const isMutation = init?.method === "POST";
-        if (isMutation) mutations++;
-        return Response.json(
-          isMutation
-            ? {
-                id: "live-project",
-                title: NodePath.basename(workspaceRoot),
-                workspaceRoot,
-                defaultModelSelection: null,
-                scripts: [],
-                createdAt: "2026-01-01T00:00:00.000Z",
-                updatedAt: "2026-01-01T00:00:00.000Z",
-                deletedAt: null,
-              }
-            : { projects: [], updatedAt: "2026-01-01T00:00:00.000Z" },
-        );
-      };
-
       const exit = yield* runCli(["project", "add", workspaceRoot, "--base-dir", baseDir]).pipe(
-        Effect.provideService(FetchHttpClient.Fetch, fetch),
         Effect.exit,
       );
 

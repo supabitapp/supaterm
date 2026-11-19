@@ -160,6 +160,7 @@ export async function deliverSnapShot(
   bridge: DesktopBridge,
   item: DesktopPendingSnapShot,
   resolveTarget: () => CaptureTarget,
+  compressImage?: typeof import("../../lib/imageCompression").compressImageToByteLimit,
 ) {
   const store = useComposerDraftStore.getState();
   updateSnapShotAnimationSource(item.id, item.source);
@@ -167,7 +168,10 @@ export async function deliverSnapShot(
   const { compressImageToByteLimit, dataUrlToFile, readFileAsDataUrl } =
     await import("../../lib/imageCompression");
   const original = dataUrlToFile(capture.dataUrl, capture.name, capture.mimeType);
-  const compressed = await compressImageToByteLimit(original, PROVIDER_SEND_TURN_MAX_IMAGE_BYTES);
+  const compressed = await (compressImage ?? compressImageToByteLimit)(
+    original,
+    PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
+  );
   if (!compressed.ok) {
     finishSnapShotAnimation(item.id);
     throw new Error("The captured window is too large to attach.");

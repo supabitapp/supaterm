@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { act, render } from "../../../test/render";
-import { expect, it, vi } from "vite-plus/test";
+import { expect, it } from "vite-plus/test";
 
 import { useAttachmentExits, useAttachmentTrayMotion } from "./composerAttachmentMotion";
 
@@ -10,6 +10,9 @@ function Tray({ initial }: { initial: string[] }) {
   const exits = useAttachmentExits(tray, ids, (id) => id);
   return (
     <div ref={trayRef} data-draft={ids.join(" ")}>
+      <style>
+        {"[data-composer-attachment][data-ending-style] { opacity: 0; transition: opacity 600s; }"}
+      </style>
       {exits.items.map((id) => (
         <button
           key={id}
@@ -28,25 +31,6 @@ function Tray({ initial }: { initial: string[] }) {
 
 async function mountTray(initial: string[]) {
   await using resources = new AsyncDisposableStack();
-  const exits = new Map<string, { finished: Promise<void>; finish: () => void }>();
-  const exitOf = (id: string) => {
-    let exit = exits.get(id);
-    if (!exit) {
-      let finish = () => {};
-      const finished = new Promise<void>((resolve) => {
-        finish = resolve;
-      });
-      exit = { finished, finish };
-      exits.set(id, exit);
-    }
-    return exit;
-  };
-  resources.use(
-    vi.spyOn(Element.prototype, "getAnimations").mockImplementation(function (this: Element) {
-      const id = this instanceof HTMLElement ? this.dataset.composerAttachment : undefined;
-      return id === undefined ? [] : [{ finished: exitOf(id).finished, effect: null } as never];
-    }),
-  );
   const screen = resources.use(await render(<Tray initial={initial} />));
   const { container } = screen;
   const buttons = () => [...container.querySelectorAll("button")];
@@ -62,7 +46,11 @@ async function mountTray(initial: string[]) {
         .click(),
     );
   const draft = () => container.querySelector("div")!.dataset.draft;
-  const finishExit = (id: string) => act(async () => exitOf(id).finish());
+  const finishExit = (id: string) =>
+    act(async () => {
+      const button = buttons().find((candidate) => candidate.textContent === id)!;
+      for (const animation of button.getAnimations()) animation.finish();
+    });
   const cleanup = resources.move();
   return {
     draft,

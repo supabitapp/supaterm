@@ -25,12 +25,13 @@ import {
   type ReactElement,
 } from "react";
 import * as DateTime from "effect/DateTime";
-import { Atom } from "effect/reactivity";
 import { describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 
 import "~/index.css";
 
 import { environmentThreadDetails } from "../../state/threads";
+import { RegistryProvider } from "@effect/atom-react";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { act, fakeTimers, render, stubGlobal } from "../../../test/render";
 import { ChangedFilesCard } from "./ChangedFilesTree";
 import { MessagesTimeline } from "./MessagesTimeline";
@@ -220,6 +221,24 @@ function renderTimeline(entries: ReadonlyArray<Entry>, props: Partial<TimelinePr
   );
 }
 
+function mediaState(
+  element: HTMLMediaElement,
+  initial: Partial<Pick<HTMLMediaElement, "duration" | "currentTime" | "paused">>,
+) {
+  const state = {
+    duration: element.duration,
+    currentTime: element.currentTime,
+    paused: element.paused,
+    ...initial,
+    play: async () => {},
+  };
+  for (const key of ["duration", "currentTime", "paused"] as const) {
+    Object.defineProperty(element, key, { configurable: true, get: () => state[key] });
+  }
+  Object.defineProperty(element, "play", { configurable: true, value: () => state.play() });
+  return state;
+}
+
 async function click(element: HTMLElement) {
   await act(async () => element.click());
 }
@@ -402,30 +421,38 @@ describe("MessagesTimeline work rows", () => {
         task("continued", "completed", "Final implementation report"),
         task("follow-up", "completed", "Follow-up explanation"),
       ];
-      using _threadAtom = vi.spyOn(environmentThreadDetails, "threadAtom").mockReturnValue(
-        Atom.make({
-          projection: { subagents: tasks, turnItems: [], visibleTurnItems: [] },
-        }) as never,
+      const liveThread = environmentThreadDetails.threadAtom(
+        scopeThreadRef(ENVIRONMENT_ID, ThreadId.make("thread-1")),
       );
       const onOpenThread = vi.fn();
-      await using screen = await renderTimeline(
-        (source === "delegated" ? ["continued", "follow-up"] : [source]).map((id) =>
-          work(`notification-${id}`, {
-            label: "Notification fallback",
-            tone: "info",
-            itemType: "notification",
-            projectedItem: v2Item("notification", {
-              id: `notification-${id}`,
-              source:
-                source === "legacy"
-                  ? { kind: "subagent", childThreadId }
-                  : { kind: "delegated_task", childThreadId, taskIds: [NodeId.make(id)] },
-              outcome: "completed",
-              summary: "Notification fallback",
-            }),
-          }),
-        ),
-        { onOpenThread },
+      await using screen = await renderElement(
+        <RegistryProvider
+          initialValues={[
+            [liveThread, { projection: { subagents: tasks, turnItems: [], visibleTurnItems: [] } }],
+          ]}
+        >
+          <MessagesTimeline
+            {...baseProps()}
+            onOpenThread={onOpenThread}
+            timelineEntries={(source === "delegated" ? ["continued", "follow-up"] : [source]).map(
+              (id) =>
+                work(`notification-${id}`, {
+                  label: "Notification fallback",
+                  tone: "info",
+                  itemType: "notification",
+                  projectedItem: v2Item("notification", {
+                    id: `notification-${id}`,
+                    source:
+                      source === "legacy"
+                        ? { kind: "subagent", childThreadId }
+                        : { kind: "delegated_task", childThreadId, taskIds: [NodeId.make(id)] },
+                    outcome: "completed",
+                    summary: "Notification fallback",
+                  }),
+                }),
+            )}
+          />
+        </RegistryProvider>,
       );
       if (source === "delegated") {
         expect(screen.text()).toContain("Final implementation report");
@@ -1516,8 +1543,8 @@ describe("MessagesTimeline attachments", () => {
       );
       await using screen = await renderElement(<div dir="rtl">{preview()}</div>);
       const audio = screen.container.querySelector("audio")!;
-      const duration = vi.spyOn(audio, "duration", "get").mockReturnValue(Infinity);
-      const play = vi.spyOn(audio, "play").mockResolvedValue();
+      const media = mediaState(audio, { duration: Infinity });
+      const play = vi.spyOn(media, "play");
       expect(screen.button("Loading recording.webm")).toHaveProperty("disabled", true);
       await act(() => audio.dispatchEvent(new Event(readyEvent)));
       expect(screen.button("Play recording.webm")).toHaveProperty("disabled", false);
@@ -1526,7 +1553,7 @@ describe("MessagesTimeline attachments", () => {
       await click(screen.button("Play recording.webm"));
       expect(play).toHaveBeenCalledOnce();
       await act(() => {
-        vi.spyOn(audio, "currentTime", "get").mockReturnValue(3);
+        media.currentTime = 3;
         audio.dispatchEvent(new Event("play"));
         audio.dispatchEvent(new Event("timeupdate"));
       });
@@ -1535,7 +1562,7 @@ describe("MessagesTimeline attachments", () => {
       const progress = screen.container.querySelector<HTMLElement>("span[aria-hidden]")!;
       expect(progress.style.width).toBe("0%");
       await act(() => {
-        duration.mockReturnValue(10);
+        media.duration = 10;
         audio.dispatchEvent(new Event("durationchange"));
       });
       expect(screen.text()).toContain("0:03 / 0:10");
@@ -1545,7 +1572,7 @@ describe("MessagesTimeline attachments", () => {
       ).toBe("ltr");
       expect(progress.style.width).toBe("30%");
       await act(() => {
-        duration.mockReturnValue(NaN);
+        media.duration = NaN;
         audio.dispatchEvent(new Event("durationchange"));
       });
       expect(screen.text()).not.toContain("/");
@@ -1617,8 +1644,8 @@ describe("MessagesTimeline attachments", () => {
     );
     const [one, two] = [...screen.container.querySelectorAll("audio")];
     await act(async () => {
-      vi.spyOn(one!, "paused", "get").mockReturnValue(false);
-      vi.spyOn(two!, "paused", "get").mockReturnValue(false);
+      mediaState(one!, { paused: false });
+      mediaState(two!, { paused: false });
       one!.dispatchEvent(new Event("play"));
       two!.dispatchEvent(new Event("play"));
     });
@@ -1632,12 +1659,12 @@ describe("MessagesTimeline attachments", () => {
     expect(one!.isConnected).toBe(true);
     expect(two!.isConnected).toBe(true);
     await act(async () => {
-      vi.spyOn(one!, "paused", "get").mockReturnValue(true);
+      mediaState(one!, { paused: true });
       one!.dispatchEvent(new Event("pause"));
     });
     expect(two!.isConnected).toBe(true);
     await act(async () => {
-      if (event === "pause") vi.spyOn(two!, "paused", "get").mockReturnValue(true);
+      if (event === "pause") mediaState(two!, { paused: true });
       two!.dispatchEvent(new Event(event));
     });
     await act(() => {

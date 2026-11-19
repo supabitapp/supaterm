@@ -4,7 +4,6 @@ import { page, userEvent, type Locator } from "vite-plus/test/browser";
 
 import { render } from "../../../test/render";
 import { compileResolvedKeybindingsConfig } from "@supaterm/shared/keybindings";
-import * as atomCommands from "../../state/use-atom-command";
 
 vi.mock(import("../../state/session"), async (original) => ({
   ...(await original()),
@@ -13,9 +12,12 @@ vi.mock(import("../../state/session"), async (original) => ({
     new Set(environments.map(({ environmentId }) => environmentId))) as never,
   readEnvironmentScope: () => true,
 }));
+const commands = vi.hoisted(() => ({
+  current: null as null | ((...args: Array<unknown>) => unknown),
+}));
 vi.mock(import("../../state/use-atom-command"), async (original) => ({
   ...(await original()),
-  useAtomCommand: vi.fn(() => vi.fn()) as never,
+  useAtomCommand: (() => commands.current ?? (() => undefined)) as never,
 }));
 vi.mock(import("./SettingsScopeContext"), async (original) => ({
   ...(await original()),
@@ -113,47 +115,51 @@ describe("Esc in a shortcut recorder", () => {
 });
 
 it("unassigns a default shortcut and restores its condition when one is assigned again", async () => {
-  const mutate = vi.fn(async () => ({ _tag: "Success", value: [] }));
-  await vi.mocked(atomCommands.useAtomCommand).withImplementation(
-    () => mutate as never,
-    async () => {
-      await using screen = await render(<KeybindingsSettingsPanel />);
-
-      await screen.getByRole("button", { name: "Actions for Sidebar: Toggle" }).click();
-      await screen.getByRole("menuitem", { name: "Unassign" }).click();
-      expect(mutate).toHaveBeenLastCalledWith({
-        environmentId: "env",
-        input: {
-          command: "sidebar.toggle",
-          key: "mod+b",
-          when: "false",
-          replace: { command: "sidebar.toggle", key: "mod+b" },
-        },
-      });
-
-      const unassigned = screen.getByRole("button", {
-        name: "Edit shortcut for Composer: Start in Background: Unassigned",
-      });
-      const save = screen.getByRole("button", { name: "Save" });
-      await unassigned.click();
-      await userEvent.keyboard("{Control>}{Alt>}j{/Alt}{/Control}");
-      await expect.element(save).toBeVisible();
-      await userEvent.keyboard("{Escape}");
-      await expect.element(save).not.toBeInTheDocument();
-
-      await unassigned.click();
-      await userEvent.keyboard("{Control>}{Alt>}j{/Alt}{/Control}");
-      await save.click();
-      expect(mutate).toHaveBeenLastCalledWith({
-        environmentId: "env",
-        input: expect.objectContaining({
-          command: "composer.sendBackground",
-          when: "composerFocus && draftThreadRoute",
-          replace: { command: "composer.sendBackground", key: "mod+alt+enter", when: "false" },
-        }),
-      });
-    },
+  const mutate = vi.spyOn(
+    { mutate: async (..._args: Array<unknown>) => ({ _tag: "Success", value: [] }) },
+    "mutate",
   );
+  commands.current = mutate;
+  await using _commands = {
+    [Symbol.asyncDispose]: async () => {
+      commands.current = null;
+    },
+  };
+  await using screen = await render(<KeybindingsSettingsPanel />);
+
+  await screen.getByRole("button", { name: "Actions for Sidebar: Toggle" }).click();
+  await screen.getByRole("menuitem", { name: "Unassign" }).click();
+  expect(mutate).toHaveBeenLastCalledWith({
+    environmentId: "env",
+    input: {
+      command: "sidebar.toggle",
+      key: "mod+b",
+      when: "false",
+      replace: { command: "sidebar.toggle", key: "mod+b" },
+    },
+  });
+
+  const unassigned = screen.getByRole("button", {
+    name: "Edit shortcut for Composer: Start in Background: Unassigned",
+  });
+  const save = screen.getByRole("button", { name: "Save" });
+  await unassigned.click();
+  await userEvent.keyboard("{Control>}{Alt>}j{/Alt}{/Control}");
+  await expect.element(save).toBeVisible();
+  await userEvent.keyboard("{Escape}");
+  await expect.element(save).not.toBeInTheDocument();
+
+  await unassigned.click();
+  await userEvent.keyboard("{Control>}{Alt>}j{/Alt}{/Control}");
+  await save.click();
+  expect(mutate).toHaveBeenLastCalledWith({
+    environmentId: "env",
+    input: expect.objectContaining({
+      command: "composer.sendBackground",
+      when: "composerFocus && draftThreadRoute",
+      replace: { command: "composer.sendBackground", key: "mod+alt+enter", when: "false" },
+    }),
+  });
 });
 
 it("Esc in the keybindings search clears the query without closing Settings", async () => {

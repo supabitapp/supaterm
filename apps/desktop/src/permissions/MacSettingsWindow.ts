@@ -65,17 +65,30 @@ export function settingsHelperBounds(settings: NonNullable<SettingsWindow>) {
   };
 }
 
+export type SettingsWatcherProcess = {
+  readonly stdout: {
+    setEncoding(encoding: "utf8"): unknown;
+    on(event: "data", listener: (chunk: string) => void): unknown;
+    removeAllListeners(event: "data"): unknown;
+  };
+  on(event: "error" | "exit", listener: () => void): unknown;
+  kill(): unknown;
+};
+
+export type SpawnSettingsWatcher = (
+  command: string,
+  args: ReadonlyArray<string>,
+) => SettingsWatcherProcess;
+
+const spawnSettingsWatcher: SpawnSettingsWatcher = (command, args) =>
+  NodeChildProcess.spawn(command, args, { stdio: ["ignore", "pipe", "ignore"] });
+
 export function watchMacSettingsWindow(
   onChange: (window: SettingsWindow) => void,
   onUnavailable: () => void,
+  spawn: SpawnSettingsWatcher = spawnSettingsWatcher,
 ) {
-  const child = NodeChildProcess.spawn(
-    "/usr/bin/osascript",
-    ["-l", "JavaScript", "-e", SETTINGS_WINDOW_SCRIPT],
-    {
-      stdio: ["ignore", "pipe", "ignore"],
-    },
-  );
+  const child = spawn("/usr/bin/osascript", ["-l", "JavaScript", "-e", SETTINGS_WINDOW_SCRIPT]);
   let pending = "";
   let closed = false;
   child.stdout.setEncoding("utf8");

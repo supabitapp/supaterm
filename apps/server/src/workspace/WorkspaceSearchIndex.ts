@@ -515,13 +515,19 @@ function isIgnoredPath(
   return false;
 }
 
+export const CreateFileFinder = Context.Reference<typeof FileFinder.create>(
+  "supaterm/workspace/CreateFileFinder",
+  { defaultValue: () => (options) => FileFinder.create(options) },
+);
+
 const createFinder = Effect.fn("WorkspaceSearchIndex.createFinder")(function* (
   cwd: string,
   variant: WorkspaceSearchIndexVariant,
 ) {
+  const create = yield* CreateFileFinder;
   const result = yield* Effect.try({
     try: () =>
-      FileFinder.create({
+      create({
         basePath: cwd,
         disableMmapCache: true,
         disableContentIndexing: variant !== "content",

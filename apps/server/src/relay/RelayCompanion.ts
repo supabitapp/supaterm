@@ -40,14 +40,14 @@ export class RelayCompanion extends Context.Service<
   }
 >()("supaterm/relay/RelayCompanion") {}
 
-export function layer(defaultRelayUrl = DEFAULT_PUBLIC_RELAY_URL) {
+export function layer(defaultRelayUrl = DEFAULT_PUBLIC_RELAY_URL, openRelay = openLoopbackRelay) {
   return Layer.effect(
     RelayCompanion,
     Effect.gen(function* () {
       const pool = createLoopbackRelayPool({
         limit: 64,
         open: (address, relayUrl, directUrls) =>
-          openLoopbackRelay(address, {
+          openRelay(address, {
             relayUrl,
             directUrls,
             randomBytes: NodeCrypto.randomBytes,

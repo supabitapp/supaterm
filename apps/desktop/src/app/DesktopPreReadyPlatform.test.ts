@@ -7,77 +7,95 @@ import { beforeEach, vi } from "vite-plus/test";
 
 const {
   appendSwitchMock,
-  getSwitchValueMock,
-  hasSwitchMock,
-  registerSchemesMock,
-  setDesktopNameMock,
-  mkdirSyncMock,
-  writeFileSyncMock,
+  behavior,
   copyFileSyncMock,
-  execFileSyncMock,
-  readFileSyncMock,
+  registerSchemesMock,
+  resetBehavior,
+  setDesktopNameMock,
   symlinkSyncMock,
-} = vi.hoisted(() => ({
-  appendSwitchMock: vi.fn(),
-  getSwitchValueMock: vi.fn(),
-  hasSwitchMock: vi.fn(),
-  registerSchemesMock: vi.fn(),
-  setDesktopNameMock: vi.fn(),
-  mkdirSyncMock: vi.fn(),
-  writeFileSyncMock: vi.fn(),
-  copyFileSyncMock: vi.fn(),
-  execFileSyncMock: vi.fn(),
-  readFileSyncMock: vi.fn(),
-  symlinkSyncMock: vi.fn(),
-}));
+  writeFileSyncMock,
+} = vi.hoisted(() => {
+  type Behavior = {
+    readFileSync: (path: string) => string | Buffer;
+    writeFileSync: (path: string, contents: string | Buffer) => void;
+    hasSwitch: (name: string) => boolean;
+    getSwitchValue: (name: string) => string | undefined;
+    appendSwitch: (name: string, value: string) => void;
+    setDesktopName: (name: string) => void;
+    registerSchemes: () => void;
+  };
+  const defaults: Behavior = {
+    readFileSync: () => "{}",
+    writeFileSync: () => undefined,
+    hasSwitch: () => false,
+    getSwitchValue: () => undefined,
+    appendSwitch: () => undefined,
+    setDesktopName: () => undefined,
+    registerSchemes: () => undefined,
+  };
+  const behavior: Behavior = { ...defaults };
+  return {
+    behavior,
+    resetBehavior: () => Object.assign(behavior, defaults),
+    appendSwitchMock: vi.fn(),
+    registerSchemesMock: vi.fn(),
+    setDesktopNameMock: vi.fn(),
+    writeFileSyncMock: vi.fn(),
+    copyFileSyncMock: vi.fn(),
+    symlinkSyncMock: vi.fn(),
+  };
+});
 
 vi.mock("electron", () => ({
   app: {
-    setDesktopName: setDesktopNameMock,
+    setDesktopName: (name: string) => {
+      setDesktopNameMock(name);
+      behavior.setDesktopName(name);
+    },
     getVersion: () => "0.0.37",
     isPackaged: true,
     getAppPath: () => "/tmp/.mount_Supaterm/resources/app.asar",
-    on: vi.fn(),
-    removeListener: vi.fn(),
+    on: () => undefined,
+    removeListener: () => undefined,
     commandLine: {
-      appendSwitch: appendSwitchMock,
-      getSwitchValue: getSwitchValueMock,
-      hasSwitch: hasSwitchMock,
+      appendSwitch: (name: string, value: string) => {
+        appendSwitchMock(name, value);
+        behavior.appendSwitch(name, value);
+      },
+      getSwitchValue: (name: string) => behavior.getSwitchValue(name),
+      hasSwitch: (name: string) => behavior.hasSwitch(name),
     },
   },
   protocol: {
-    registerSchemesAsPrivileged: registerSchemesMock,
+    registerSchemesAsPrivileged: (...args: ReadonlyArray<unknown>) => {
+      registerSchemesMock(...args);
+      behavior.registerSchemes();
+    },
   },
 }));
 
 vi.mock("node:fs", () => ({
   existsSync: () => false,
-  readFileSync: readFileSyncMock,
-  mkdirSync: mkdirSyncMock,
-  writeFileSync: writeFileSyncMock,
+  readFileSync: (path: string) => behavior.readFileSync(path),
+  mkdirSync: () => undefined,
+  writeFileSync: (path: string, contents: string | Buffer) => {
+    writeFileSyncMock(path, contents);
+    behavior.writeFileSync(path, contents);
+  },
   copyFileSync: copyFileSyncMock,
   symlinkSync: symlinkSyncMock,
 }));
 
 vi.mock("node:child_process", () => ({
-  execFileSync: execFileSyncMock,
+  execFileSync: () => undefined,
 }));
 
 import * as DesktopPreReadyPlatform from "./DesktopPreReadyPlatform.ts";
 
 describe("DesktopPreReadyPlatform", () => {
   beforeEach(() => {
-    appendSwitchMock.mockReset();
-    getSwitchValueMock.mockReset();
-    hasSwitchMock.mockReset();
-    registerSchemesMock.mockReset();
-    setDesktopNameMock.mockReset();
-    mkdirSyncMock.mockReset();
-    writeFileSyncMock.mockReset();
-    copyFileSyncMock.mockReset();
-    execFileSyncMock.mockReset();
-    readFileSyncMock.mockReset().mockReturnValue("{}");
-    symlinkSyncMock.mockReset();
+    vi.clearAllMocks();
+    resetBehavior();
   });
 
   it.effect("persists Linux scaling synchronously across relaunches and settings rewrites", () => {
@@ -86,19 +104,19 @@ describe("DesktopPreReadyPlatform", () => {
     const settingsPath = "/isolated/userdata/desktop-settings.json";
     const files = new Map([[settingsPath, "{}"]]);
     const commandLine = new Map<string, string>();
-    readFileSyncMock.mockImplementation((path: string) => {
+    behavior.readFileSync = (path) => {
       const contents = files.get(path);
       if (contents === undefined) throw new Error("ENOENT");
       return contents;
-    });
-    writeFileSyncMock.mockImplementation((path: string, contents: string) => {
-      files.set(path, contents);
-    });
-    hasSwitchMock.mockImplementation((name: string) => commandLine.has(name));
-    getSwitchValueMock.mockImplementation((name: string) => commandLine.get(name) ?? "");
-    appendSwitchMock.mockImplementation((name: string, value: string) => {
+    };
+    behavior.writeFileSync = (path, contents) => {
+      files.set(path, String(contents));
+    };
+    behavior.hasSwitch = (name) => commandLine.has(name);
+    behavior.getSwitchValue = (name) => commandLine.get(name) ?? "";
+    behavior.appendSwitch = (name, value) => {
       commandLine.set(name, value);
-    });
+    };
     const launch = Effect.gen(function* () {
       const startup = Promise.resolve().then(() => commandLine.get("force-device-scale-factor"));
       yield* DesktopPreReadyPlatform.make;
@@ -132,7 +150,7 @@ describe("DesktopPreReadyPlatform", () => {
     vi.stubEnv("VITE_DEV_SERVER_URL", "");
     vi.stubEnv("XDG_DATA_HOME", "/xdg");
     vi.stubEnv("APPIMAGE", "/Applications/current.AppImage");
-    getSwitchValueMock.mockReturnValue("");
+    behavior.getSwitchValue = () => "";
     let desktopName = "supaterm.desktop";
     let desktopEntry = previousEntry;
     let iconInstalled = false;
@@ -140,18 +158,18 @@ describe("DesktopPreReadyPlatform", () => {
       "/tmp/.mount_Supaterm/resources/app.asar/apps/desktop/prod-resources/icon.png";
     const iconPath = "/xdg/icons/com.supaterm.desktop.desktop.png";
     const iconBytes = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-    readFileSyncMock.mockImplementation((path: string) => {
+    behavior.readFileSync = (path) => {
       if (path === iconSource) return iconBytes;
       return "{}";
-    });
-    setDesktopNameMock.mockImplementation((name: string) => {
+    };
+    behavior.setDesktopName = (name) => {
       desktopName = name;
-    });
-    writeFileSyncMock.mockImplementation((path: string, contents: string | Buffer) => {
+    };
+    behavior.writeFileSync = (path, contents) => {
       if (path === "/xdg/applications/com.supaterm.desktop.desktop")
         desktopEntry = String(contents);
       if (path === iconPath) iconInstalled = Buffer.compare(Buffer.from(contents), iconBytes) === 0;
-    });
+    };
 
     return Effect.scoped(
       Effect.gen(function* () {
@@ -194,15 +212,15 @@ describe("DesktopPreReadyPlatform", () => {
       vi.stubEnv("XDG_DATA_HOME", "/xdg");
       vi.stubEnv("APPIMAGE", "/Applications/supaterm-x86_64.AppImage");
       vi.stubEnv("APPIMAGE_SILENT_INSTALL", relaunchedByUpdater);
-      getSwitchValueMock.mockReturnValue("");
+      behavior.getSwitchValue = () => "";
       const entryPath = "/xdg/applications/com.supaterm.desktop.desktop";
       const files = new Map([
         [entryPath, "Exec=/Applications/supaterm-0.1.8-x86_64.AppImage %U\n"],
       ]);
-      readFileSyncMock.mockImplementation((path: string) => files.get(path) ?? "{}");
-      writeFileSyncMock.mockImplementation((path: string, contents: string | Buffer) => {
+      behavior.readFileSync = (path) => files.get(path) ?? "{}";
+      behavior.writeFileSync = (path, contents) => {
         files.set(path, String(contents));
-      });
+      };
 
       return Effect.scoped(
         Effect.gen(function* () {
@@ -228,7 +246,7 @@ describe("DesktopPreReadyPlatform", () => {
     vi.stubEnv("XDG_DATA_HOME", "/xdg");
     vi.stubEnv("APPIMAGE", "/Applications/current.AppImage");
     vi.stubEnv("SUPATERM_DESKTOP_LAUNCHER_PATH", " /opt/Supaterm/supaterm ");
-    getSwitchValueMock.mockReturnValue("");
+    behavior.getSwitchValue = () => "";
 
     return Effect.scoped(
       Effect.gen(function* () {
@@ -254,9 +272,9 @@ describe("DesktopPreReadyPlatform", () => {
         ) {}
 
         const events: Array<string> = [];
-        registerSchemesMock.mockImplementation(() => {
+        behavior.registerSchemes = () => {
           events.push("pre-ready");
-        });
+        };
 
         const layerPreReady = DesktopPreReadyPlatform.layer.pipe(
           Layer.provide(Layer.succeed(HostProcess.Platform, "darwin")),

@@ -3,9 +3,11 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import { vi } from "vite-plus/test";
 
-const openDatabaseAsync = vi.hoisted(() => vi.fn());
+const sqliteFiles = vi.hoisted(() => ({ next: [] as Array<unknown> }));
 
-vi.mock("expo-sqlite", () => ({ openDatabaseAsync }));
+vi.mock("expo-sqlite", () => ({
+  openDatabaseAsync: async () => sqliteFiles.next.shift(),
+}));
 
 import * as MobileDatabase from "./mobile-database";
 
@@ -65,7 +67,7 @@ describe("offline pull request cache", () => {
     if (options?.schemaVersion !== undefined) {
       sqlite.exec(`PRAGMA user_version = ${options.schemaVersion}`);
     }
-    openDatabaseAsync.mockResolvedValueOnce(database);
+    sqliteFiles.next.push(database);
     return sqlite;
   }
 

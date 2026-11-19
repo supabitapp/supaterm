@@ -11,6 +11,7 @@ import { expect, it, vi } from "vite-plus/test";
 const mocks = vi.hoisted(() => ({
   enabled: true,
   generate: vi.fn(),
+  generation: Promise.resolve<unknown>(undefined),
   query: {
     data: null as { run: { _tag: "Running" | "Completed" | "Failed" } | null } | null,
     isPending: false,
@@ -51,7 +52,13 @@ vi.mock("../../../state/pull-requests", () => ({
 vi.mock("../../../state/query", () => ({
   useEnvironmentQuery: (number: number) => ({ ...(number === 1 ? mocks.query : mocks.otherQuery) }),
 }));
-vi.mock("../../../state/use-atom-command", () => ({ useAtomCommand: () => mocks.generate }));
+vi.mock("../../../state/use-atom-command", () => {
+  const generate = (...args: ReadonlyArray<unknown>) => {
+    mocks.generate(...args);
+    return mocks.generation;
+  };
+  return { useAtomCommand: () => generate };
+});
 vi.mock("../usePullRequestConnected", () => ({ usePullRequestConnected: () => true }));
 vi.mock("../usePullRequestDiff", () => ({
   pullRequestTarget: (params: unknown) => params,
@@ -82,7 +89,8 @@ function createNavigation() {
 function setup() {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   mocks.enabled = true;
-  mocks.generate = vi.fn().mockResolvedValue(AsyncResult.success(undefined));
+  mocks.generate = vi.fn();
+  mocks.generation = Promise.resolve(AsyncResult.success(undefined));
   mocks.query = { data: null, isPending: false, refresh: vi.fn() };
   mocks.otherQuery = { data: null, isPending: false, refresh: vi.fn() };
   const root = createRoot(document.createElement("div"));
@@ -276,7 +284,7 @@ it("leaves generation running when hidden and accepts its completion without a r
   using _timers = { [Symbol.dispose]: () => vi.useRealTimers() };
   using screen = setup();
   const generated = Promise.withResolvers<ReturnType<typeof AsyncResult.success<void>>>();
-  mocks.generate.mockReturnValue(generated.promise);
+  mocks.generation = generated.promise;
   screen.render();
   let writing: Promise<void>;
   act(() => {

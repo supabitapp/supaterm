@@ -1,17 +1,18 @@
-import { afterEach, assert, expect, it, vi } from "@effect/vitest";
+import { afterEach, assert, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 
 import * as BitbucketApi from "./BitbucketApi.ts";
 import * as BitbucketPullRequestApi from "./BitbucketPullRequestApi.ts";
+import { scriptedFunction } from "@supaterm/source-control-testing/scriptedFunction";
 
-const mockedRequest = vi.fn<BitbucketApi.BitbucketApi["Service"]["request"]>();
+const fakeRequest = scriptedFunction<BitbucketApi.BitbucketApi["Service"]["request"]>();
 
 const layer = it.layer(
   BitbucketPullRequestApi.layer.pipe(
     Layer.provide(
       Layer.mock(BitbucketApi.BitbucketApi)({
-        request: mockedRequest,
+        request: fakeRequest,
       }),
     ),
   ),
@@ -63,7 +64,7 @@ function pullRequestJson(overrides: Record<string, unknown>) {
 }
 
 function callAt(index: number) {
-  const call = mockedRequest.mock.calls[index];
+  const call = fakeRequest.calls[index];
   assert.isDefined(call);
   return call[0];
 }
@@ -74,16 +75,16 @@ function filterOfCall(index: number) {
 }
 
 afterEach(() => {
-  mockedRequest.mockReset();
+  fakeRequest.reset();
 });
 
 layer("BitbucketPullRequestApi.layer", (it) => {
   it.effect("follows the cursor Bitbucket sends rather than counting offsets", () =>
     Effect.gen(function* () {
       const next = "https://api.bitbucket.org/2.0/repositories/acme/web/pullrequests?page=2";
-      mockedRequest
-        .mockReturnValueOnce(Effect.succeed(response(page(50, 1, next))))
-        .mockReturnValueOnce(Effect.succeed(response(page(50, 51))));
+      fakeRequest
+        .returnsOnce(Effect.succeed(response(page(50, 1, next))))
+        .returnsOnce(Effect.succeed(response(page(50, 51))));
       const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
       const batch = yield* api.listPullRequests({
@@ -101,9 +102,9 @@ layer("BitbucketPullRequestApi.layer", (it) => {
   it.effect("counts the rows it walked past as more to come", () =>
     Effect.gen(function* () {
       const next = "https://api.bitbucket.org/2.0/repositories/acme/web/pullrequests?page=2";
-      mockedRequest
-        .mockReturnValueOnce(Effect.succeed(response(page(50, 1, next))))
-        .mockReturnValueOnce(Effect.succeed(response(page(50, 51))));
+      fakeRequest
+        .returnsOnce(Effect.succeed(response(page(50, 1, next))))
+        .returnsOnce(Effect.succeed(response(page(50, 51))));
       const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
       const batch = yield* api.listPullRequests({
@@ -119,7 +120,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("escapes a quote and a backslash, so a search cannot reshape the filter", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValueOnce(Effect.succeed(response(page(0, 1))));
+      fakeRequest.returnsOnce(Effect.succeed(response(page(0, 1))));
       const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
       yield* api.listPullRequests({
@@ -136,7 +137,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("narrows by the reader's words and by where it left off at once", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValueOnce(Effect.succeed(response(page(0, 1))));
+      fakeRequest.returnsOnce(Effect.succeed(response(page(0, 1))));
       const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
       yield* api.listPullRequests({
@@ -155,7 +156,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("narrows by author and draft state in the same query", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValueOnce(Effect.succeed(response(page(0, 1))));
+      fakeRequest.returnsOnce(Effect.succeed(response(page(0, 1))));
       const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
       yield* api.listPullRequests({
@@ -181,7 +182,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
       );
 
       assert.strictEqual(error._tag, "BitbucketRepositoryUnsupportedError");
-      assert.strictEqual(mockedRequest.mock.calls.length, 0);
+      assert.strictEqual(fakeRequest.calls.length, 0);
     }),
   );
 
@@ -198,13 +199,13 @@ layer("BitbucketPullRequestApi.layer", (it) => {
       );
 
       assert.strictEqual(error._tag, "BitbucketDiffCommitError");
-      assert.strictEqual(mockedRequest.mock.calls.length, 0);
+      assert.strictEqual(fakeRequest.calls.length, 0);
     }),
   );
 
   it.effect("reads every file version the patch states, not only the paths asked about", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValueOnce(
+      fakeRequest.returnsOnce(
         Effect.succeed(
           response(
             [
@@ -250,7 +251,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("says nothing about the files past the end of a patch it could not read whole", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValueOnce(
+      fakeRequest.returnsOnce(
         Effect.succeed({
           body: "diff --git a/a.ts b/a.ts\nindex 1111111..2222222 100644\n@@ -1 +1 @@\n",
           truncated: true,
@@ -272,8 +273,8 @@ layer("BitbucketPullRequestApi.layer", (it) => {
   it.effect("returns the complete commit timeline oldest first across pages", () =>
     Effect.gen(function* () {
       const next = "https://api.bitbucket.org/2.0/commits?page=2";
-      mockedRequest
-        .mockReturnValueOnce(
+      fakeRequest
+        .returnsOnce(
           Effect.succeed(
             response(
               valuePage(
@@ -286,7 +287,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
             ),
           ),
         )
-        .mockReturnValueOnce(
+        .returnsOnce(
           Effect.succeed(
             response(
               valuePage([
@@ -307,7 +308,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("posts a comment as a JSON document, so the body stays text", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValue(Effect.succeed(response("{}")));
+      fakeRequest.returns(Effect.succeed(response("{}")));
       const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
       yield* api.comment({ repository: "acme/web", number: 7, body: "true" });
@@ -322,7 +323,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("asks for the time a pull request closed, which Bitbucket leaves out by default", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValueOnce(
+      fakeRequest.returnsOnce(
         Effect.succeed(
           response(
             pullRequestJson({ state: "MERGED", closed_on: "2025-06-16T23:40:46.222238+00:00" }),
@@ -340,7 +341,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("stops the comment walk at its bound and says the conversation was cut short", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValue(
+      fakeRequest.returns(
         Effect.succeed(
           response(
             JSON.stringify({
@@ -360,14 +361,14 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
       const { truncated } = yield* api.listComments({ repository: "acme/web", number: 7 });
 
-      assert.strictEqual(mockedRequest.mock.calls.length, 10);
+      assert.strictEqual(fakeRequest.calls.length, 10);
       assert.isTrue(truncated);
     }),
   );
 
   it.effect("reassembles a thread from the flat comment list, replies included", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValueOnce(
+      fakeRequest.returnsOnce(
         Effect.succeed(
           response(
             JSON.stringify({
@@ -423,7 +424,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("asks for the credentials' permission on this repository, and nobody else's", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValue(
+      fakeRequest.returns(
         Effect.succeed(
           response(
             JSON.stringify({ values: [{ type: "repository_permission", permission: "read" }] }),
@@ -443,7 +444,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("escapes a repository name before it goes inside a filter literal", () =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValue(Effect.succeed(response(JSON.stringify({ values: [] }))));
+      fakeRequest.returns(Effect.succeed(response(JSON.stringify({ values: [] }))));
       const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
       yield* api.getRepositoryPermission({ repository: 'acme/we"b' });
@@ -465,7 +466,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
     "reads HTTP %s from the permissions endpoint as an unknown permission",
     (status) =>
       Effect.gen(function* () {
-        mockedRequest.mockReturnValue(permissionFailure(status));
+        fakeRequest.returns(permissionFailure(status));
         const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
         assert.isTrue(yield* api.getRepositoryPermission({ repository: "acme/web" }));
@@ -474,7 +475,7 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect.each([401, 500])("still fails the permission read on HTTP %s", (status) =>
     Effect.gen(function* () {
-      mockedRequest.mockReturnValue(permissionFailure(status));
+      fakeRequest.returns(permissionFailure(status));
       const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
       const error = yield* Effect.flip(api.getRepositoryPermission({ repository: "acme/web" }));
@@ -487,9 +488,9 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("reads the workspace's people and marks whoever is already a reviewer", () =>
     Effect.gen(function* () {
-      mockedRequest
-        .mockReturnValueOnce(Effect.succeed(response(pullRequestJson({ reviewers: [octocat] }))))
-        .mockReturnValueOnce(
+      fakeRequest
+        .returnsOnce(Effect.succeed(response(pullRequestJson({ reviewers: [octocat] }))))
+        .returnsOnce(
           Effect.succeed(
             response(
               JSON.stringify({ values: [{ user: bilal }, { user: octocat }, { user: hubot }] }),
@@ -511,9 +512,9 @@ layer("BitbucketPullRequestApi.layer", (it) => {
 
   it.effect("writes the reviewer set back with the one being asked added to it", () =>
     Effect.gen(function* () {
-      mockedRequest
-        .mockReturnValueOnce(Effect.succeed(response(pullRequestJson({ reviewers: [octocat] }))))
-        .mockReturnValueOnce(Effect.succeed(response("{}")));
+      fakeRequest
+        .returnsOnce(Effect.succeed(response(pullRequestJson({ reviewers: [octocat] }))))
+        .returnsOnce(Effect.succeed(response("{}")));
       const api = yield* BitbucketPullRequestApi.BitbucketPullRequestApi;
 
       yield* api.setReviewerRequest({

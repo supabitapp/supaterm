@@ -1,5 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off
-import type { AgentOptions, SDKModel } from "@cursor/sdk";
+import type { AgentOptions, SDKModel, SdkLoginOptions } from "@cursor/sdk";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
@@ -20,7 +20,6 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
-import { vi } from "vite-plus/test";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Deferred from "effect/Deferred";
@@ -31,15 +30,13 @@ import {
 } from "@supaterm/provider-core/server/handoffBudget";
 import * as ProviderEventLoggers from "@supaterm/provider-core/server/ProviderEventLoggers";
 import * as TestProviderHost from "@supaterm/provider-testing/TestProviderHost";
+import { CursorLogin } from "./auth.ts";
 import { CursorDriver } from "./driver.ts";
 import * as CursorAgentSdk from "./CursorAgentSdk.ts";
 import * as CursorSdk from "./CursorSdk.ts";
 import * as IdAllocator from "@supaterm/provider-core/server/IdAllocator";
 import * as McpProviderSessions from "@supaterm/provider-core/server/McpProviderSessions";
 import * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
-import { loadCursorSdk } from "./sdk.ts";
-
-const { Cursor } = loadCursorSdk();
 
 const layerTest = TestProviderHost.layer({ runBackgroundWork: false }).pipe(
   Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
@@ -70,7 +67,7 @@ it.layer(layerTest)("CursorDriver", (it) => {
     "persists browser credentials, uses them for chat, and closes the SDK session on logout",
     () =>
       Effect.gen(function* () {
-        const login = vi.spyOn(Cursor.auth, "login").mockImplementation(async (options) => {
+        const login = async (options: SdkLoginOptions) => {
           options?.onLoginUrl?.("https://cursor.com/loginDeepControl?challenge=test-only");
           await options?.store?.save({
             version: 1,
@@ -81,7 +78,7 @@ it.layer(layerTest)("CursorDriver", (it) => {
             email: "cursor@example.com",
           });
           return { apiKey: "instance-browser-key", apiKeyExpiresAtMs: 4_000_000_000_000 };
-        });
+        };
         const requests: Array<{ url: string; authorization: string | undefined }> = [];
         const client = HttpClient.make((request) => {
           requests.push({ url: request.url, authorization: request.headers.authorization });
@@ -100,11 +97,6 @@ it.layer(layerTest)("CursorDriver", (it) => {
             ),
           );
         });
-        yield* Effect.addFinalizer(() =>
-          Effect.sync(() => {
-            login.mockRestore();
-          }),
-        );
         const input = {
           instanceId: ProviderInstanceId.make("cursor-browser-persisted"),
           displayName: "Personal Cursor",
@@ -115,6 +107,7 @@ it.layer(layerTest)("CursorDriver", (it) => {
         const openedKeys: Array<string | undefined> = [];
         let closed = 0;
         const instance = yield* CursorDriver.create(input).pipe(
+          Effect.provideService(CursorLogin, login),
           Effect.provideService(HttpClient.HttpClient, client),
           Effect.provideService(CursorAgentSdk.CursorAgentSdkRunner, {
             assertComplete: Effect.void,

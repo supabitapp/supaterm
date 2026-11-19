@@ -1,22 +1,19 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 import type { KeybindingCommand } from "@supaterm/contracts";
 import { compileResolvedKeybindingsConfig } from "@supaterm/shared/keybindings";
 import { resolveShortcutCommand } from "./keybindings";
-import * as editableFocus from "./lib/editableFocus";
 
 function setupFocus() {
-  const editor = new EventTarget();
-  const other = new EventTarget();
-  vi.stubGlobal("document", { activeElement: editor });
-  const focus = vi
-    .spyOn(editableFocus, "isEditableFocused")
-    .mockImplementation((target) => target === editor);
+  const editor = document.createElement("input");
+  const other = document.createElement("div");
+  document.body.append(editor, other);
+  editor.focus();
   return {
     editor,
     other,
     [Symbol.dispose]() {
-      focus.mockRestore();
-      vi.unstubAllGlobals();
+      editor.remove();
+      other.remove();
     },
   };
 }

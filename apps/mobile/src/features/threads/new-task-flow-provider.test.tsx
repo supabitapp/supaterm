@@ -36,7 +36,29 @@ import {
 } from "./new-task-flow-provider";
 import { draftFlowRoute, pruneNewTaskFlowStates } from "./new-task-flow-state";
 
+type Behavior = { run(...args: ReadonlyArray<unknown>): unknown }["run"];
+type BehaviorName =
+  | "openScratch"
+  | "prepareTriage"
+  | "navigationState"
+  | "editorWrite"
+  | "removePendingTask";
+
 const transport = vi.hoisted(() => ({
+  next: {
+    openScratch: [] as Array<Behavior>,
+    prepareTriage: [] as Array<Behavior>,
+    navigationState: [] as Array<Behavior>,
+    editorWrite: [] as Array<Behavior>,
+    removePendingTask: [] as Array<Behavior>,
+  },
+  fallback: {} as Record<BehaviorName, Behavior>,
+  respond(name: BehaviorName, observe: (...args: ReadonlyArray<unknown>) => unknown) {
+    return (...args: ReadonlyArray<unknown>) => {
+      observe(...args);
+      return (transport.next[name].shift() ?? transport.fallback[name])(...args);
+    };
+  },
   openScratch: vi.fn(),
   prepareTriage: vi.fn(),
   navigate: vi.fn(),
@@ -58,7 +80,7 @@ vi.mock("@react-navigation/native", () => ({
   useNavigation: () => ({
     navigate: transport.navigate,
     dispatch: transport.dispatch,
-    getState: transport.navigationState,
+    getState: transport.respond("navigationState", transport.navigationState),
     goBack: transport.goBack,
     canGoBack: () => true,
   }),
@@ -81,10 +103,14 @@ vi.mock("../../state/entities", () => ({
 vi.mock("../../state/projects", () => ({
   projectEnvironment: { openScratch: transport.openScratchCommand, readFile: () => null },
 }));
-vi.mock("../../state/use-atom-command", () => ({
-  useAtomCommand: () => transport.openScratch,
-}));
-vi.mock("../triage/usePrepareTriage", () => ({ usePrepareTriage: () => transport.prepareTriage }));
+vi.mock("../../state/use-atom-command", () => {
+  const openScratch = transport.respond("openScratch", transport.openScratch);
+  return { useAtomCommand: () => openScratch };
+});
+vi.mock("../triage/usePrepareTriage", () => {
+  const prepareTriage = transport.respond("prepareTriage", transport.prepareTriage);
+  return { usePrepareTriage: () => prepareTriage };
+});
 vi.mock("../../state/presentation", () => ({
   useEnvironmentPresentation: () => ({
     isReady: true,
@@ -139,11 +165,11 @@ vi.mock("../../state/use-model-option-memory", () => ({
 }));
 vi.mock("../../state/pending-task-editor-writes", () => ({
   capturePendingTaskEditorWriteBaseline: () => Promise.resolve(0),
-  flushPendingTaskEditorWrite: transport.editorWrite,
+  flushPendingTaskEditorWrite: transport.respond("editorWrite", transport.editorWrite),
 }));
 vi.mock("../../state/thread-outbox-removal", () => ({
-  removeThreadOutboxMessage: transport.removePendingTask,
-  removePendingThreadCreation: transport.removePendingTask,
+  removeThreadOutboxMessage: transport.respond("removePendingTask", transport.removePendingTask),
+  removePendingThreadCreation: transport.respond("removePendingTask", transport.removePendingTask),
 }));
 vi.mock("../../state/thread-outbox", async () => ({
   get threadOutboxManager() {
@@ -367,12 +393,20 @@ beforeEach(async () => {
   transport.dispatch.mockReset();
   transport.goBack.mockReset();
   transport.navigationState.mockReset();
-  transport.editorWrite.mockReset().mockResolvedValue(true);
-  transport.removePendingTask.mockReset().mockImplementation(async () => {
-    appAtomRegistry.set(queueAtom, {});
-    appAtomRegistry.set(draftsAtom, {});
-    return true;
-  });
+  transport.editorWrite.mockReset();
+  transport.removePendingTask.mockReset();
+  for (const queue of Object.values(transport.next)) queue.length = 0;
+  transport.fallback = {
+    openScratch: () => undefined,
+    prepareTriage: () => undefined,
+    navigationState: () => undefined,
+    editorWrite: async () => true,
+    removePendingTask: async () => {
+      appAtomRegistry.set(queueAtom, {});
+      appAtomRegistry.set(draftsAtom, {});
+      return true;
+    },
+  };
   vi.mocked(Alert.alert).mockClear();
   nextDraft = 0;
   appAtomRegistry.set(projectsAtom, [firstProject, secondProject, thirdProject, repositoryProject]);
@@ -397,7 +431,7 @@ afterEach(async () => {
 
 function beginSwitch(environmentId = secondEnvironment!) {
   const completion = Promise.withResolvers<AsyncResult.Success<EnvironmentProject>>();
-  transport.openScratch.mockImplementationOnce(() => completion.promise);
+  transport.next.openScratch.push(() => completion.promise);
   const switched = flow.switchEnvironment(environmentId);
   return {
     switched,
@@ -435,7 +469,7 @@ describe("pending task editor dismissal", () => {
 
   it("leaves the local thread after cancelling its pending creation", async () => {
     await act(() => pushDraftRoute());
-    transport.navigationState.mockReturnValue({
+    transport.fallback.navigationState = () => ({
       routes: [
         {
           name: "Thread",
@@ -494,7 +528,7 @@ describe("pending task editor dismissal", () => {
   });
 
   it("reopens retained edits after a failed save", async () => {
-    transport.editorWrite.mockResolvedValueOnce(false);
+    transport.next.editorWrite.push(async () => false);
     await act(() => flow.setPrompt("Changed prompt"));
     await act(() => pushDraftRoute());
     expect(appAtomRegistry.get(editingQueuedMessageIdsAtom)[pendingTask.messageId]).toBe("paused");
@@ -509,7 +543,7 @@ describe("pending task editor dismissal", () => {
 
   it("does not let a dismissed editor's save release a deletion in progress", async () => {
     const save = Promise.withResolvers<boolean>();
-    transport.editorWrite.mockReturnValueOnce(save.promise);
+    transport.next.editorWrite.push(() => save.promise);
     await act(() => pushDraftRoute());
     expect(holdDeletingQueuedMessage(pendingTask.messageId)).toBe(true);
     await act(() => popDraftRoute());
@@ -525,7 +559,9 @@ describe("pending task editor dismissal", () => {
   });
 
   it("restores the stale-send hold when deleting retained edits fails", async () => {
-    transport.removePendingTask.mockRejectedValueOnce(new Error("Outbox storage unavailable"));
+    transport.next.removePendingTask.push(() =>
+      Promise.reject(new Error("Outbox storage unavailable")),
+    );
     await act(() => flow.setPrompt(""));
     await act(() => pushDraftRoute());
     await act(async () => deletePendingTask());
@@ -702,10 +738,10 @@ describe("new-task environment switching", () => {
 
   it("takes a triage draft's session along when its machine changes", async () => {
     await act(() => flow.setPrompt(`${playbookPrompt("first")}It is slow.`));
-    transport.prepareTriage.mockResolvedValueOnce(
+    transport.next.prepareTriage.push(async () =>
       AsyncResult.success({ prompt: playbookPrompt("second") }),
     );
-    transport.openScratch.mockResolvedValueOnce(AsyncResult.success(secondProject));
+    transport.next.openScratch.push(async () => AsyncResult.success(secondProject));
     await act(async () => {
       expect(await flow.switchEnvironment(secondEnvironment!)).toBe(true);
     });
@@ -721,8 +757,8 @@ describe("new-task environment switching", () => {
       await act(() => flow.setPrompt(prompt));
       const draftKey = flow.draftKey!;
       const preparing = Promise.withResolvers<AsyncResult.Success<{ prompt: string }>>();
-      transport.prepareTriage.mockReturnValueOnce(preparing.promise);
-      transport.openScratch.mockResolvedValueOnce(AsyncResult.success(secondProject));
+      transport.next.prepareTriage.push(() => preparing.promise);
+      transport.next.openScratch.push(async () => AsyncResult.success(secondProject));
       let switched!: Promise<boolean>;
       await act(() => {
         switched = flow.switchEnvironment(secondEnvironment!);

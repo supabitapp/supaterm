@@ -11,7 +11,25 @@ import {
   formatComposerContextReference,
 } from "@supaterm/shared/composerContextReferences";
 
+type Behavior = { run(...args: ReadonlyArray<unknown>): unknown }["run"];
+type BehaviorName = "execute" | "download" | "persist" | "remove" | "local" | "dispose";
+
 const mocks = vi.hoisted(() => ({
+  next: {
+    execute: [] as Array<Behavior>,
+    download: [] as Array<Behavior>,
+    persist: [] as Array<Behavior>,
+    remove: [] as Array<Behavior>,
+    local: [] as Array<Behavior>,
+    dispose: [] as Array<Behavior>,
+  },
+  fallback: {} as Record<BehaviorName, Behavior>,
+  respond(name: BehaviorName, observe: (...args: ReadonlyArray<unknown>) => unknown) {
+    return (...args: ReadonlyArray<unknown>) => {
+      observe(...args);
+      return (mocks.next[name].shift() ?? mocks.fallback[name])(...args);
+    };
+  },
   execute: vi.fn(),
   download: vi.fn(),
   persist: vi.fn(),
@@ -44,17 +62,19 @@ vi.mock("../state/session", () => ({
 vi.mock("../state/assets", () => ({ assetEnvironment: { createUrl: (value: unknown) => value } }));
 vi.mock("../state/use-composer-drafts", () => ({
   waitForComposerDraftsLoaded: async () => {},
-  findLocalComposerClipboardAttachment: mocks.local,
+  findLocalComposerClipboardAttachment: mocks.respond("local", mocks.local),
 }));
 vi.mock("@supaterm/client-runtime/state/runtime", () => ({
-  executeAtomQuery: mocks.execute,
+  executeAtomQuery: mocks.respond("execute", mocks.execute),
   squashAtomCommandFailure: () => new Error("offline"),
 }));
-vi.mock("./attachmentDownload", () => ({ downloadAttachmentForPreview: mocks.download }));
+vi.mock("./attachmentDownload", () => ({
+  downloadAttachmentForPreview: mocks.respond("download", mocks.download),
+}));
 vi.mock("./localAttachmentPreview", () => ({ loadLocalAttachmentPreview: mocks.preview }));
 vi.mock("./composerImages", () => ({
-  persistComposerAttachmentFile: mocks.persist,
-  removePersistedComposerAttachmentFile: mocks.remove,
+  persistComposerAttachmentFile: mocks.respond("persist", mocks.persist),
+  removePersistedComposerAttachmentFile: mocks.respond("remove", mocks.remove),
 }));
 vi.mock("./uuid", () => ({ uuidv4: () => `import-${++mocks.sequence}` }));
 
@@ -138,11 +158,16 @@ const mixedClipboard = {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.sequence = 0;
-  mocks.local.mockReturnValue(undefined);
-  mocks.execute.mockResolvedValue({ _tag: "Success", value: { relativeUrl: "/assets/source" } });
-  mocks.download.mockResolvedValue({ uri: "file:///download.png", dispose: mocks.dispose });
-  mocks.persist.mockResolvedValue("file:///owned.png");
-  mocks.remove.mockResolvedValue(undefined);
+  for (const queue of Object.values(mocks.next)) queue.length = 0;
+  const dispose = mocks.respond("dispose", mocks.dispose);
+  mocks.fallback = {
+    local: () => undefined,
+    execute: async () => ({ _tag: "Success", value: { relativeUrl: "/assets/source" } }),
+    download: async () => ({ uri: "file:///download.png", dispose }),
+    persist: async () => "file:///owned.png",
+    remove: async () => undefined,
+    dispose: () => undefined,
+  };
 });
 
 describe("mobile context clipboard imports", () => {
@@ -165,7 +190,7 @@ describe("mobile context clipboard imports", () => {
   });
 
   it("keeps failed attachment references visibly unavailable without dropping text context", async () => {
-    mocks.download.mockRejectedValue(new Error("source disconnected"));
+    mocks.fallback.download = () => Promise.reject(new Error("source disconnected"));
     const result = await importComposerContextClipboard(clipboard, 0, new AbortController().signal);
     expect(result?.attachments).toEqual([]);
     expect(result?.failures).toEqual(["checkout.png"]);
@@ -175,7 +200,7 @@ describe("mobile context clipboard imports", () => {
 
   it("releases a newly owned file if the destination closes during its copy", async () => {
     const controller = new AbortController();
-    mocks.persist.mockImplementationOnce(async () => {
+    mocks.next.persist.push(async () => {
       controller.abort();
       return "file:///owned.png";
     });
@@ -188,7 +213,7 @@ describe("mobile context clipboard imports", () => {
 
   it("releases its files if cancelled after the last copy finishes", async () => {
     const controller = new AbortController();
-    mocks.dispose.mockImplementationOnce(() => controller.abort());
+    mocks.next.dispose.push(() => controller.abort());
     const imageOnly = {
       text: "![Checkout](supaterm-context://v1/image/image-source)",
       fragment: encodeComposerContextFragment({
@@ -205,7 +230,7 @@ describe("mobile context clipboard imports", () => {
   });
 
   it("can copy an image before its source upload completes", async () => {
-    mocks.local.mockReturnValue({
+    mocks.fallback.local = () => ({
       id: "source-file",
       type: "image",
       dataUrl: "data:image/png;base64,YWJj",
@@ -280,7 +305,7 @@ describe("mobile context clipboard imports", () => {
   });
 
   it("reports foreign threads and failed files together while keeping the rest of a paste", async () => {
-    mocks.download.mockRejectedValueOnce(new Error("source disconnected"));
+    mocks.next.download.push(() => Promise.reject(new Error("source disconnected")));
     const result = await importComposerContextClipboard(
       mixedClipboard,
       0,

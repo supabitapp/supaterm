@@ -3,7 +3,38 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { render } from "../../test/render";
 import { HistorySwipeNavigation } from "./HistorySwipeNavigation";
 
-const navigateHistory = vi.hoisted(() => vi.fn());
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
+const navigateHistory = vi.hoisted(() => fake());
 vi.mock("../navigationHistory", () => ({ canNavigateHistory: () => true, navigateHistory }));
 
 function swipe(target: Element, deltaX: number) {
@@ -45,9 +76,8 @@ describe("HistorySwipeNavigation", () => {
     ["swiping inside a confirmation keeps the thread", "role=alertdialog", 0, -130, false],
     ["swiping on a modal's backdrop keeps the thread", "data-slot=dialog-backdrop", 0, -130, false],
   ] as const)("%s", async (_name, scroller, scrollLeft, deltaX, navigates) => {
-    navigateHistory.mockReset();
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
-    await using screen = await render(<HistorySwipeNavigation />);
+    navigateHistory.reset();
+    await using screen = await render(<HistorySwipeNavigation platform="MacIntel" />);
     const panel = screen.container.appendChild(document.createElement("div"));
     const root = scroller.startsWith("shadow") ? panel.attachShadow({ mode: "open" }) : panel;
     const viewport = root.appendChild(document.createElement("div"));
@@ -80,9 +110,8 @@ describe("HistorySwipeNavigation", () => {
   });
 
   it("a horizontal mouse wheel tick off macOS keeps the thread", async () => {
-    navigateHistory.mockReset();
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("Win32");
-    await using screen = await render(<HistorySwipeNavigation />);
+    navigateHistory.reset();
+    await using screen = await render(<HistorySwipeNavigation platform="Win32" />);
     const content = screen.container.appendChild(document.createElement("div"));
     content.style.cssText = "height: 20px; width: 100px";
 
@@ -109,9 +138,8 @@ describe("HistorySwipeNavigation", () => {
     ],
     ["a single diagonal event past the trigger keeps the thread", [[-130, 100]], false],
   ] as const)("%s", async (_name, events, navigates) => {
-    navigateHistory.mockReset();
-    using _platform = vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
-    await using screen = await render(<HistorySwipeNavigation />);
+    navigateHistory.reset();
+    await using screen = await render(<HistorySwipeNavigation platform="MacIntel" />);
     const panel = screen.container.appendChild(document.createElement("div"));
     for (const [deltaX, deltaY] of [...events, [0, 0] as const]) {
       panel.dispatchEvent(

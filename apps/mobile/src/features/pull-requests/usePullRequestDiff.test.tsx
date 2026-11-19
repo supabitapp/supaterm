@@ -7,8 +7,18 @@ import { act, useLayoutEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { expect, it, vi } from "vite-plus/test";
 
-const mocks = vi.hoisted(() => ({ diff: vi.fn() }));
-vi.mock("../../state/pull-requests", () => ({ composerPullRequests: { diff: mocks.diff } }));
+const mocks = vi.hoisted(() => ({
+  diff: vi.fn(),
+  diffQuery: (_cursor: string | null) => undefined as unknown,
+}));
+vi.mock("../../state/pull-requests", () => ({
+  composerPullRequests: {
+    diff: (target: { input: { cursor?: string } }) => {
+      mocks.diff(target);
+      return mocks.diffQuery(target.input.cursor ?? null);
+    },
+  },
+}));
 
 import { usePullRequestDiff, usePullRequestDiffEntry } from "./usePullRequestDiff";
 import * as reviewModel from "../review/reviewModel";
@@ -40,9 +50,7 @@ function setup() {
       ),
     ).pipe(Atom.keepAlive),
   );
-  mocks.diff.mockImplementation((target: { input: { cursor?: string } }) =>
-    queries(target.input.cursor ?? null),
-  );
+  mocks.diffQuery = queries;
   const root = createRoot(document.createElement("div"));
   let current: ReturnType<typeof usePullRequestDiff>;
   function Probe() {
@@ -115,15 +123,15 @@ function setupEntry() {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   const frames = new Map<number, FrameRequestCallback>();
   let frameId = 0;
-  const requestFrame = vi
-    .spyOn(globalThis, "requestAnimationFrame")
-    .mockImplementation((callback) => {
+  const scheduler = {
+    request: (callback: FrameRequestCallback) => {
       frames.set(++frameId, callback);
       return frameId;
-    });
-  const cancelFrame = vi.spyOn(globalThis, "cancelAnimationFrame").mockImplementation((id) => {
-    if (id != null) frames.delete(id);
-  });
+    },
+    cancel: (id: number) => {
+      frames.delete(id);
+    },
+  };
   const listeners = new Map<string, (event: { data: { closing: boolean } }) => void>();
   const navigation = {
     addListener(
@@ -151,7 +159,7 @@ function setupEntry() {
     return <div>{data.files.map((file) => file.path).join(",")}</div>;
   }
   function Entry() {
-    const ready = usePullRequestDiffEntry(navigation);
+    const ready = usePullRequestDiffEntry(navigation, scheduler);
     useLayoutEffect(() => {
       events.push(ready ? "body-commit" : "shell-commit");
     }, [ready]);
@@ -179,8 +187,6 @@ function setupEntry() {
     },
     [Symbol.dispose]() {
       act(() => root.unmount());
-      requestFrame.mockRestore();
-      cancelFrame.mockRestore();
       vi.useRealTimers();
     },
   };

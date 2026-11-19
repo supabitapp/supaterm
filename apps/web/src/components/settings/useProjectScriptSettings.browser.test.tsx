@@ -11,10 +11,41 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { NewProjectScriptInput } from "../projectScriptEditor";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const commands = vi.hoisted(() => ({
-  updateSettings: vi.fn(),
-  upsertKeybinding: vi.fn(),
-  removeKeybinding: vi.fn(),
+  updateSettings: fake(),
+  upsertKeybinding: fake(),
+  removeKeybinding: fake(),
 }));
 
 vi.mock(import("../../state/session"), async (original) => ({
@@ -130,7 +161,7 @@ async function submitInAct(
 function setup() {
   vi.clearAllMocks();
   for (const command of Object.values(commands))
-    command.mockResolvedValue(AsyncResult.success(undefined));
+    command.implement(async () => AsyncResult.success(undefined));
 }
 
 describe("useProjectScriptSettings", () => {

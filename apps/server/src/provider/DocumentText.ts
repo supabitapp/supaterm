@@ -43,8 +43,22 @@ export class DocumentText extends Context.Service<
   }
 >()("supaterm/provider/DocumentText") {}
 
+export const DocumentTextExecFile = Context.Reference<
+  (
+    file: string,
+    args: ReadonlyArray<string>,
+    options: NodeChildProcess.ExecFileOptionsWithStringEncoding,
+    callback: (error: NodeChildProcess.ExecFileException | null, stdout: string) => void,
+  ) => void
+>("supaterm/provider/DocumentText/ExecFile", {
+  defaultValue: () => (file, args, options, callback) => {
+    NodeChildProcess.execFile(file, args, options, callback);
+  },
+});
+
 const make = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
+  const execFile = yield* DocumentTextExecFile;
   const executable = yield* HostProcess.ExecutablePath;
   const isExecutable = yield* HostProcess.IsExecutable;
   const environment = yield* HostProcess.Environment;
@@ -65,7 +79,7 @@ const make = Effect.gen(function* () {
     const content = yield* Effect.tryPromise({
       try: (signal) =>
         new Promise<string>((resolve, reject) => {
-          NodeChildProcess.execFile(
+          execFile(
             executable,
             [...(isExecutable ? [] : [entry]), "__document-text", path, `.${extension}`],
             {

@@ -737,6 +737,8 @@ export class Launcher {
   readonly #serviceUnit: ServiceUnit | undefined;
   readonly #environment: Readonly<NodeJS.ProcessEnv>;
   readonly #stateDirOwnerPollMs: number;
+  readonly #readStartFreeBytes: (directory: string) => Promise<number>;
+  readonly #writeLog: (line: string) => void;
   #stateDirFreeProbes = 0;
   #servingLock: { readonly close: () => void } | undefined;
 
@@ -748,9 +750,18 @@ export class Launcher {
       readonly serviceUnit?: ServiceUnit;
       readonly environment?: Readonly<NodeJS.ProcessEnv>;
       readonly stateDirOwnerPollMs?: number;
+      readonly readStartFreeBytes?: (directory: string) => Promise<number>;
+      readonly writeLog?: (line: string) => void;
     } = {},
   ) {
     this.#baseDir = baseDir;
+    this.#readStartFreeBytes =
+      options.readStartFreeBytes ?? filesystemBackupSpaceProbe.readFreeBytes;
+    this.#writeLog =
+      options.writeLog ??
+      ((line) => {
+        process.stderr.write(line);
+      });
     this.#stateDirOwnerPollMs = options.stateDirOwnerPollMs ?? STATE_DIR_OWNER_POLL_MS;
     this.#backupSpaceProbe = options.backupSpaceProbe;
     this.#serviceUnit = options.serviceUnit;
@@ -837,7 +848,7 @@ export class Launcher {
     const resolvedDatabasePath = await restoreTarget(databasePath).catch(() => databasePath);
     const freeBytes = async (directory: string) => {
       try {
-        return await filesystemBackupSpaceProbe.readFreeBytes(directory);
+        return await this.#readStartFreeBytes(directory);
       } catch (cause) {
         const parent = NodePath.dirname(directory);
         if ((cause as NodeJS.ErrnoException).code === "ENOENT" && parent !== directory) {
@@ -863,9 +874,7 @@ export class Launcher {
     this.#clearTimer();
     this.#releaseServing();
     try {
-      process.stderr.write(
-        `[service-launcher] ${reason} Waiting for free space before retrying.\n`,
-      );
+      this.#writeLog(`[service-launcher] ${reason} Waiting for free space before retrying.\n`);
     } catch {}
     this.#timer = setInterval(
       () =>
@@ -924,7 +933,7 @@ export class Launcher {
         release();
       }
     } catch (error) {
-      process.stderr.write(
+      this.#writeLog(
         `[service-launcher] Could not clear ${restartPending}: ${error instanceof Error ? error.message : String(error)}\n`,
       );
     }
@@ -1181,7 +1190,7 @@ export class Launcher {
         release();
       }
     } catch (error) {
-      process.stderr.write(
+      this.#writeLog(
         `[service-launcher] Could not point ${unit.path} at supaterm@${version}: ${error instanceof Error ? error.message : String(error)}\n`,
       );
     }
@@ -1251,7 +1260,7 @@ export class Launcher {
       }
     }
     this.#releaseServing();
-    process.stderr.write(
+    this.#writeLog(
       "[service-launcher] Another Supaterm server owns this Supaterm home. This service starts again once it stops.\n",
     );
     this.#stateDirFreeProbes = 0;
@@ -1273,9 +1282,7 @@ export class Launcher {
     if (this.#stateDirFreeProbes < 2) return;
     this.#clearTimer();
     await this.#claimServing();
-    process.stderr.write(
-      "[service-launcher] The Supaterm home is free again. Starting the server.\n",
-    );
+    this.#writeLog("[service-launcher] The Supaterm home is free again. Starting the server.\n");
     const update = this.#state.update;
     if (update?.status === "pending") await this.#startTrial(update);
     else await this.#startChild(this.#state.activeVersion, "active", update);

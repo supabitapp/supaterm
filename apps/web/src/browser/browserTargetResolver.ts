@@ -22,11 +22,33 @@ export class RelayHostBrowserUnavailableError extends Error {
   }
 }
 
-const readEnvironmentUrl = (environmentId: EnvironmentId) => {
-  const connection = readPreparedConnection(environmentId);
+type PreparedConnection = NonNullable<ReturnType<typeof readPreparedConnection>>;
+
+export interface BrowserTargetEnvironment {
+  readonly isElectron: boolean;
+  readonly readPreparedConnection: (
+    environmentId: EnvironmentId,
+  ) =>
+    | (Pick<PreparedConnection, "httpBaseUrl"> &
+        Partial<Pick<PreparedConnection, "connectionMethod" | "target">>)
+    | null;
+  readonly readEnvironmentSupportsServerBrowser: (environmentId: EnvironmentId) => boolean;
+}
+
+const appBrowserTargetEnvironment: BrowserTargetEnvironment = {
+  isElectron,
+  readPreparedConnection,
+  readEnvironmentSupportsServerBrowser,
+};
+
+const readEnvironmentUrl = (
+  environment: BrowserTargetEnvironment,
+  environmentId: EnvironmentId,
+) => {
+  const connection = environment.readPreparedConnection(environmentId);
   if (!connection) throw new Error(`Environment ${environmentId} is not connected.`);
   if (connection.connectionMethod === "relay") {
-    if (!readEnvironmentSupportsServerBrowser(environmentId))
+    if (!environment.readEnvironmentSupportsServerBrowser(environmentId))
       throw new RelayHostBrowserUnavailableError();
     return new URL("http://127.0.0.1");
   }
@@ -70,21 +92,28 @@ const resolveEnvironmentPortTarget = (
   } satisfies PreviewUrlResolution;
 };
 
-const reachesEnvironmentLoopback = (target: ConnectionTarget) =>
-  isElectron &&
+const reachesEnvironmentLoopback = (
+  environment: BrowserTargetEnvironment,
+  target: ConnectionTarget,
+) =>
+  environment.isElectron &&
   (target._tag === "PrimaryConnectionTarget" || isDesktopLocalConnectionTarget(target));
 
 export function resolveDiscoveredServerUrl(
   environmentId: EnvironmentId,
   rawUrl: string,
-  options?: { readonly requireReachable: boolean },
+  options?: {
+    readonly requireReachable?: boolean;
+    readonly environment?: BrowserTargetEnvironment;
+  },
 ) {
+  const environment = options?.environment ?? appBrowserTargetEnvironment;
   try {
     const normalizedUrl = normalizePreviewUrl(rawUrl);
     const parsed = new URL(normalizedUrl);
     if (!isLoopbackHost(parsed.hostname)) return normalizedUrl;
-    const target = readPreparedConnection(environmentId)?.target;
-    if (target && reachesEnvironmentLoopback(target)) return normalizedUrl;
+    const target = environment.readPreparedConnection(environmentId)?.target;
+    if (target && reachesEnvironmentLoopback(environment, target)) return normalizedUrl;
     return resolveEnvironmentPortTarget(
       environmentId,
       {
@@ -93,7 +122,7 @@ export function resolveDiscoveredServerUrl(
         protocol: parsed.protocol === "https:" ? "https" : "http",
         path: `${parsed.pathname}${parsed.search}${parsed.hash}`,
       },
-      readEnvironmentUrl(environmentId),
+      readEnvironmentUrl(environment, environmentId),
       rawUrl,
       parsed,
     ).resolvedUrl;

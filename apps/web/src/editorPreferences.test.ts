@@ -7,23 +7,46 @@ import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import { assert, beforeEach, expect, it, vi } from "vite-plus/test";
 
-const state = vi.hoisted(() => ({
-  allowed: new Set<string>(),
-  run: vi.fn(),
-  getPreference: vi.fn(),
-  setPreference: vi.fn(),
-}));
+const state = vi.hoisted(() => {
+  const state = {
+    allowed: new Set<string>(),
+    preferenceFailure: null as "read" | "write" | null,
+    run: vi.fn<(input: unknown) => void>(),
+    getPreference: vi.fn<(...args: ReadonlyArray<unknown>) => void>(),
+    setPreference: vi.fn<(...args: ReadonlyArray<unknown>) => void>(),
+    runCommand: async (input: unknown) => {
+      state.run(input);
+      return AsyncResult.success(undefined);
+    },
+    readPreference: (...args: ReadonlyArray<unknown>) => {
+      state.getPreference(...args);
+      if (state.preferenceFailure === "read") {
+        state.preferenceFailure = null;
+        throw new Error("Preference storage unavailable");
+      }
+      return null;
+    },
+    writePreference: (...args: ReadonlyArray<unknown>) => {
+      state.setPreference(...args);
+      if (state.preferenceFailure === "write") {
+        state.preferenceFailure = null;
+        throw new Error("Preference storage unavailable");
+      }
+    },
+  };
+  return state;
+});
 
 vi.mock("react", () => ({ useCallback: (callback: unknown) => callback }));
 vi.mock("./state/shell", () => ({ shellEnvironment: { openInEditor: "openInEditor" } }));
-vi.mock("./state/use-atom-command", () => ({ useAtomCommand: () => state.run }));
+vi.mock("./state/use-atom-command", () => ({ useAtomCommand: () => state.runCommand }));
 vi.mock("./state/session", () => ({
   readEnvironmentScope: (environmentId: string, scope: string) =>
     scope === AuthOrchestrationOperateScope && state.allowed.has(environmentId),
 }));
 vi.mock("./hooks/useLocalStorage", () => ({
-  getLocalStorageItem: state.getPreference,
-  setLocalStorageItem: state.setPreference,
+  getLocalStorageItem: state.readPreference,
+  setLocalStorageItem: state.writePreference,
   useLocalStorage: vi.fn(),
 }));
 
@@ -34,8 +57,9 @@ const secondary = EnvironmentId.make("secondary");
 
 beforeEach(() => {
   state.allowed.clear();
-  state.run.mockReset().mockResolvedValue(AsyncResult.success(undefined));
-  state.getPreference.mockReset().mockReturnValue(null);
+  state.preferenceFailure = null;
+  state.run.mockReset();
+  state.getPreference.mockReset();
   state.setPreference.mockReset();
 });
 
@@ -72,11 +96,7 @@ it.each(["read", "write"] as const)(
   "opens an available editor when its preference %s fails",
   async (operation) => {
     state.allowed.add(secondary);
-    const preference = operation === "read" ? state.getPreference : state.setPreference;
-    preference.mockImplementationOnce(() => {
-      throw new Error("Preference storage unavailable");
-    });
-    using _warnings = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    state.preferenceFailure = operation;
     const open = useOpenInPreferredEditor(secondary, ["vscode"]);
     await expect(open("/work/readme.md:5")).resolves.toMatchObject({
       _tag: "Success",

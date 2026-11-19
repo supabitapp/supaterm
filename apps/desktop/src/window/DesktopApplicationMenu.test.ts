@@ -6,12 +6,8 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 
 import type { DesktopUpdateCheckResult, DesktopUpdateState } from "@supaterm/contracts";
-import * as Electron from "electron";
+import type * as Electron from "electron";
 import { vi } from "vite-plus/test";
-
-vi.mock("electron", () => ({
-  webContents: { getAllWebContents: vi.fn(() => []) },
-}));
 
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
@@ -60,6 +56,7 @@ const layerElectronApp = Layer.succeed(ElectronApp.ElectronApp, {
 } satisfies ElectronApp.ElectronApp["Service"]);
 
 interface MenuServices {
+  readonly allWebContents?: () => ReadonlyArray<DesktopApplicationMenu.DevToolsContents>;
   readonly checkResult?: DesktopUpdateCheckResult;
   readonly shownMessageBox?: Deferred.Deferred<Electron.MessageBoxOptions>;
 }
@@ -133,7 +130,7 @@ const configureMenu = (
     yield* menu.configure;
   }).pipe(
     Effect.provide(
-      DesktopApplicationMenu.layer.pipe(
+      DesktopApplicationMenu.layerWith(services.allWebContents ?? (() => [])).pipe(
         Layer.provideMerge(layerElectronMenu(applicationMenuTemplate)),
         Layer.provideMerge(layerDesktopWindow(selectedAction)),
         Layer.provideMerge(layerDesktopUpdates(services)),
@@ -271,9 +268,13 @@ describe("DesktopApplicationMenu", () => {
       for (const platform of ["darwin", "linux", "win32"] as const) {
         const applicationMenuTemplate =
           yield* Deferred.make<readonly Electron.MenuItemConstructorOptions[]>();
-        yield* configureMenu(yield* Deferred.make<string>(), applicationMenuTemplate, {
-          platform,
-        });
+        let allWebContents: ReadonlyArray<DesktopApplicationMenu.DevToolsContents> = [];
+        yield* configureMenu(
+          yield* Deferred.make<string>(),
+          applicationMenuTemplate,
+          { platform },
+          { allWebContents: () => allWebContents },
+        );
 
         const items: Electron.MenuItemConstructorOptions[] = [];
         const collect = (template: readonly Electron.MenuItemConstructorOptions[]) => {
@@ -305,17 +306,12 @@ describe("DesktopApplicationMenu", () => {
           isDevToolsFocused: () => true,
           closeDevTools: vi.fn(),
         };
-        using allContents = vi
-          .spyOn(Electron.webContents, "getAllWebContents")
-          .mockReturnValue([
-            appContents as unknown as Electron.WebContents,
-            inspectedContents as unknown as Electron.WebContents,
-          ]);
+        allWebContents = [appContents, inspectedContents];
         closeTools?.click?.({} as Electron.MenuItem, undefined, {} as KeyboardEvent);
         assert.equal(inspectedContents.closeDevTools.mock.calls.length, 1);
         assert.equal(appContents.closeDevTools.mock.calls.length, 0);
 
-        allContents.mockReturnValue([appContents as unknown as Electron.WebContents]);
+        allWebContents = [appContents];
         closeTools?.click?.({} as Electron.MenuItem, undefined, {} as KeyboardEvent);
         assert.equal(appContents.closeDevTools.mock.calls.length, 0);
         assert.strictEqual(

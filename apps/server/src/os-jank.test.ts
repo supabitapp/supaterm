@@ -3,14 +3,10 @@ import { it as effectIt } from "@effect/vitest";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import { CommandAvailability, WindowsShellEnvironment } from "@supaterm/shared/shell";
 import * as Effect from "effect/Effect";
-// @effect-diagnostics-next-line nodeBuiltinImport:off -- Observe the existing synchronous shell probe without launching the user's login shell.
-import * as NodeChildProcess from "node:child_process";
 import * as NodeOS from "node:os";
-import { assert, it, vi } from "vite-plus/test";
+import { assert, it } from "vite-plus/test";
 
 import { fixPath, hydratePosixHome, refreshWindowsPath } from "./os-jank.ts";
-
-vi.mock("node:child_process", { spy: true });
 
 it("hydrates HOME independently of a blank process HOME", () => {
   const originalHome = process.env.HOME;
@@ -40,122 +36,111 @@ it("preserves an explicitly configured HOME", () => {
   assert.equal(env.HOME, "/custom/home");
 });
 
+type ExecFileSync = NonNullable<NonNullable<Parameters<typeof fixPath>[0]>["execFileSync"]>;
+
+const recordingShell = (respond: ExecFileSync) => {
+  const timeouts: Array<number> = [];
+  const execFileSync: ExecFileSync = (file, args, options) => {
+    timeouts.push(options.timeout);
+    return respond(file, args, options);
+  };
+  return { execFileSync, timeouts };
+};
+
 effectIt.effect("hydrates PATH when the desktop handoff is absent", () =>
-  Effect.acquireUseRelease(
-    Effect.sync(() =>
-      vi
-        .spyOn(NodeChildProcess, "execFileSync")
-        .mockReturnValue(
-          "__SUPATERM_ENV_PATH_START__\n/opt/tools/bin\n__SUPATERM_ENV_PATH_END__\n",
-        ),
-    ),
-    (probe) =>
-      Effect.gen(function* () {
-        const env: NodeJS.ProcessEnv = { SHELL: "/bin/bash", PATH: "/usr/bin" };
+  Effect.gen(function* () {
+    const shell = recordingShell(
+      () => "__SUPATERM_ENV_PATH_START__\n/opt/tools/bin\n__SUPATERM_ENV_PATH_END__\n",
+    );
+    const env: NodeJS.ProcessEnv = { SHELL: "/bin/bash", PATH: "/usr/bin" };
 
-        yield* fixPath().pipe(
-          Effect.provideService(HostProcess.Platform, "linux"),
-          Effect.provideService(HostProcess.Environment, env),
-          Effect.provide(NodeServices.layer),
-        );
+    yield* fixPath({ execFileSync: shell.execFileSync }).pipe(
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Environment, env),
+      Effect.provide(NodeServices.layer),
+    );
 
-        assert.equal(probe.mock.calls.length, 1);
-        assert.equal(env.PATH, "/opt/tools/bin:/usr/bin");
-      }),
-    (probe) => Effect.sync(() => probe.mockRestore()),
-  ),
+    assert.equal(shell.timeouts.length, 1);
+    assert.equal(env.PATH, "/opt/tools/bin:/usr/bin");
+  }),
 );
 
 const timedOut = (file: string) =>
   Object.assign(new Error(`spawnSync ${file} ETIMEDOUT`), { code: "ETIMEDOUT" });
 
 effectIt.effect("waits longer for a login shell that times out at startup", () =>
-  Effect.acquireUseRelease(
-    Effect.sync(() =>
-      vi.spyOn(NodeChildProcess, "execFileSync").mockImplementation((file, _args, options) => {
-        if ((options?.timeout ?? 0) < 8_000) throw timedOut(String(file));
+  Effect.gen(function* () {
+    const env: NodeJS.ProcessEnv = { SHELL: "/bin/zsh", PATH: "/usr/bin" };
+
+    yield* fixPath({
+      execFileSync: (file, _args, options) => {
+        if (options.timeout < 8_000) throw timedOut(file);
         return "__SUPATERM_ENV_PATH_START__\n/opt/tools/bin\n__SUPATERM_ENV_PATH_END__\n";
-      }),
-    ),
-    () =>
-      Effect.gen(function* () {
-        const env: NodeJS.ProcessEnv = { SHELL: "/bin/zsh", PATH: "/usr/bin" };
+      },
+    }).pipe(
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Environment, env),
+      Effect.provide(NodeServices.layer),
+    );
 
-        yield* fixPath().pipe(
-          Effect.provideService(HostProcess.Platform, "linux"),
-          Effect.provideService(HostProcess.Environment, env),
-          Effect.provide(NodeServices.layer),
-        );
-
-        assert.equal(env.PATH, "/opt/tools/bin:/usr/bin");
-      }),
-    (probe) => Effect.sync(() => probe.mockRestore()),
-  ),
+    assert.equal(env.PATH, "/opt/tools/bin:/usr/bin");
+  }),
 );
 
 effectIt.effect("waits longer for only one hung login shell", () =>
-  Effect.acquireUseRelease(
-    Effect.sync(() =>
-      vi.spyOn(NodeChildProcess, "execFileSync").mockImplementation((file) => {
-        throw timedOut(String(file));
-      }),
-    ),
-    (probe) =>
-      Effect.gen(function* () {
-        const env: NodeJS.ProcessEnv = { SHELL: "/bin/zsh", PATH: "/usr/bin" };
+  Effect.gen(function* () {
+    const shell = recordingShell((file) => {
+      throw timedOut(file);
+    });
+    const env: NodeJS.ProcessEnv = { SHELL: "/bin/zsh", PATH: "/usr/bin" };
 
-        yield* fixPath().pipe(
-          Effect.provideService(HostProcess.Platform, "linux"),
-          Effect.provideService(HostProcess.Environment, env),
-          Effect.provide(NodeServices.layer),
-        );
+    yield* fixPath({ execFileSync: shell.execFileSync }).pipe(
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Environment, env),
+      Effect.provide(NodeServices.layer),
+    );
 
-        const timeouts = probe.mock.calls.map(([, , options]) => options?.timeout);
-        assert.equal(timeouts.filter((timeout) => (timeout ?? 0) > 5_000).length, 1);
-        assert.equal(env.PATH, "/usr/bin");
-      }),
-    (probe) => Effect.sync(() => probe.mockRestore()),
-  ),
+    assert.equal(shell.timeouts.filter((timeout) => timeout > 5_000).length, 1);
+    assert.equal(env.PATH, "/usr/bin");
+  }),
 );
 
 effectIt.effect("keeps mise's PATH record with the login shell PATH", () =>
-  Effect.acquireUseRelease(
-    Effect.sync(() =>
-      vi
-        .spyOn(NodeChildProcess, "execFileSync")
-        .mockReturnValue(
-          [
-            "__SUPATERM_ENV_PATH_START__",
-            "/home/me/.local/bin:/mise/installs/claude/latest:/mise/shims",
-            "__SUPATERM_ENV_PATH_END__",
-            "__SUPATERM_ENV___MISE_DIFF_START__",
-            "mise-diff",
-            "__SUPATERM_ENV___MISE_DIFF_END__",
-          ].join("\n"),
-        ),
-    ),
-    () =>
-      Effect.gen(function* () {
-        const env: NodeJS.ProcessEnv = { SHELL: "/bin/bash", PATH: "/usr/bin" };
+  Effect.gen(function* () {
+    const env: NodeJS.ProcessEnv = { SHELL: "/bin/bash", PATH: "/usr/bin" };
 
-        yield* fixPath().pipe(
-          Effect.provideService(HostProcess.Platform, "linux"),
-          Effect.provideService(HostProcess.Environment, env),
-          Effect.provide(NodeServices.layer),
-        );
+    yield* fixPath({
+      execFileSync: () =>
+        [
+          "__SUPATERM_ENV_PATH_START__",
+          "/home/me/.local/bin:/mise/installs/claude/latest:/mise/shims",
+          "__SUPATERM_ENV_PATH_END__",
+          "__SUPATERM_ENV___MISE_DIFF_START__",
+          "mise-diff",
+          "__SUPATERM_ENV___MISE_DIFF_END__",
+        ].join("\n"),
+    }).pipe(
+      Effect.provideService(HostProcess.Platform, "linux"),
+      Effect.provideService(HostProcess.Environment, env),
+      Effect.provide(NodeServices.layer),
+    );
 
-        assert.equal(env.__MISE_DIFF, "mise-diff");
-      }),
-    (probe) => Effect.sync(() => probe.mockRestore()),
-  ),
+    assert.equal(env.__MISE_DIFF, "mise-diff");
+  }),
 );
 
 effectIt.effect("hydrates a missing JAVA_HOME from the login shell and keeps an explicit one", () =>
-  Effect.acquireUseRelease(
-    Effect.sync(() =>
-      vi
-        .spyOn(NodeChildProcess, "execFileSync")
-        .mockReturnValue(
+  Effect.gen(function* () {
+    const missing: NodeJS.ProcessEnv = { SHELL: "/bin/zsh", PATH: "/usr/bin" };
+    const explicit: NodeJS.ProcessEnv = {
+      SHELL: "/bin/zsh",
+      PATH: "/usr/bin",
+      JAVA_HOME: "/custom/jdk",
+    };
+
+    for (const env of [missing, explicit]) {
+      yield* fixPath({
+        execFileSync: () =>
           [
             "__SUPATERM_ENV_PATH_START__",
             "/opt/homebrew/bin",
@@ -164,30 +149,16 @@ effectIt.effect("hydrates a missing JAVA_HOME from the login shell and keeps an 
             "/opt/homebrew/opt/openjdk@17",
             "__SUPATERM_ENV_JAVA_HOME_END__",
           ].join("\n"),
-        ),
-    ),
-    () =>
-      Effect.gen(function* () {
-        const missing: NodeJS.ProcessEnv = { SHELL: "/bin/zsh", PATH: "/usr/bin" };
-        const explicit: NodeJS.ProcessEnv = {
-          SHELL: "/bin/zsh",
-          PATH: "/usr/bin",
-          JAVA_HOME: "/custom/jdk",
-        };
+      }).pipe(
+        Effect.provideService(HostProcess.Platform, "darwin"),
+        Effect.provideService(HostProcess.Environment, env),
+        Effect.provide(NodeServices.layer),
+      );
+    }
 
-        for (const env of [missing, explicit]) {
-          yield* fixPath().pipe(
-            Effect.provideService(HostProcess.Platform, "darwin"),
-            Effect.provideService(HostProcess.Environment, env),
-            Effect.provide(NodeServices.layer),
-          );
-        }
-
-        assert.equal(missing.JAVA_HOME, "/opt/homebrew/opt/openjdk@17");
-        assert.equal(explicit.JAVA_HOME, "/custom/jdk");
-      }),
-    (probe) => Effect.sync(() => probe.mockRestore()),
-  ),
+    assert.equal(missing.JAVA_HOME, "/opt/homebrew/opt/openjdk@17");
+    assert.equal(explicit.JAVA_HOME, "/custom/jdk");
+  }),
 );
 
 effectIt.effect("replaces a Path-spelled Windows PATH instead of adding a second key", () =>

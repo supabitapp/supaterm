@@ -16,7 +16,10 @@ import { markAsClipboardEdit } from "../composer-undo-grouping";
 const INSERTION_ORDER_META = "composerAttachmentInsertionOrder";
 let nextInsertionOrder = 0;
 
-export function captureComposerAttachmentInsertion(editor: Editor) {
+export function captureComposerAttachmentInsertion(
+  editor: Editor,
+  isAttached = () => !editor.isDestroyed,
+) {
   const order = nextInsertionOrder++;
   let { from, to } = editor.state.selection;
   let lost = false;
@@ -43,7 +46,7 @@ export function captureComposerAttachmentInsertion(editor: Editor) {
   return {
     insert: (references: ReadonlyArray<ComposerContextReference>) => {
       dispose();
-      if (lost || editor.isDestroyed || references.length === 0) return false;
+      if (lost || !isAttached() || references.length === 0) return false;
       const nodeType = editor.schema.nodes["composer-context-reference"];
       if (!nodeType) return false;
       const map = serializeEditorDoc(editor.state.doc);

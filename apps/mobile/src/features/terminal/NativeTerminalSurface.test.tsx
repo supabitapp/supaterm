@@ -68,7 +68,6 @@ function setup(revision: number | null) {
   mocks.revision = revision;
   mocks.initialBuffers = [];
   mocks.write.mockReset();
-  mocks.write.mockResolvedValue(undefined);
   mocks.mounts.mockClear();
   mocks.unmounts.mockClear();
   mocks.paste = () => {};

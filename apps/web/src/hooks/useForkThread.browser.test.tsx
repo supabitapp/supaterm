@@ -3,13 +3,17 @@ import { useEffect } from "react";
 import { act, render as renderUi, type Screen } from "../../test/render";
 import { expect, it, vi } from "vite-plus/test";
 
-const state = vi.hoisted(() => ({
-  connected: true,
-  permitted: true,
-  fork: vi.fn(async (_input: unknown) => ({ _tag: "Success" })),
-  ready: vi.fn(async (_ref: unknown) => true),
-  navigate: vi.fn(async (_input: unknown) => undefined),
-}));
+const state = vi.hoisted(() => {
+  const readyResults: Array<Promise<boolean>> = [];
+  return {
+    connected: true,
+    permitted: true,
+    fork: vi.fn(async (_input: unknown) => ({ _tag: "Success" })),
+    readyResults,
+    ready: (_ref: unknown) => readyResults.shift() ?? Promise.resolve(true),
+    navigate: vi.fn(async (_input: unknown) => undefined),
+  };
+});
 
 vi.mock(import("@tanstack/react-router"), async (original) => ({
   ...(await original()),
@@ -63,7 +67,7 @@ async function setupTest() {
   state.connected = true;
   state.permitted = true;
   state.fork.mockClear();
-  state.ready.mockReset().mockResolvedValue(true);
+  state.readyResults.length = 0;
   state.navigate.mockClear();
 
   screen = resources.use(await renderUi(null, { router: false }));
@@ -78,7 +82,7 @@ it("forks inherited history in the viewed environment and waits before navigatio
   const ready = new Promise<boolean>((resolve) => {
     resolveReady = resolve;
   });
-  state.ready.mockReturnValueOnce(ready);
+  state.readyResults.push(ready);
   await act(async () => {
     const pending = action.onForkFromRun(source);
     await action.onForkFromRun(source);
@@ -119,7 +123,7 @@ it("does not submit when rewinding, disconnected, or without permission", async 
 it("reports a missing thread shell and lets the user retry after failure", async () => {
   await using _test = await setupTest();
   await render();
-  state.ready.mockResolvedValueOnce(false);
+  state.readyResults.push(Promise.resolve(false));
   await act(async () => {
     await expect(action.onForkFromRun(source)).rejects.toThrow("The fork was created");
   });

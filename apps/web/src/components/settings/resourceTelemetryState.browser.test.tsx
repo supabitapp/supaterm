@@ -15,21 +15,52 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../../test/render";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const monitor = vi.hoisted(() => ({
   telemetry:
-    vi.fn<
+    fake<
       (args: {
         environmentId: EnvironmentId;
       }) => Atom.Atom<AsyncResult.AsyncResult<ResourceTelemetrySnapshot, MonitorError>>
     >(),
   history:
-    vi.fn<
+    fake<
       (args: {
         environmentId: EnvironmentId;
         input: { windowMs: number; bucketMs: number };
       }) => Atom.Atom<AsyncResult.AsyncResult<ResourceTelemetryHistory, MonitorError>>
     >(),
-  retry: vi.fn(),
+  retry: fake(),
 }));
 
 vi.mock("./settingsLayout", () => ({
@@ -139,8 +170,8 @@ function setup({ retryFails = false, holdRetry = false } = {}) {
       ),
     ).pipe(Atom.keepAlive),
   );
-  monitor.telemetry.mockReset();
-  monitor.telemetry.mockImplementation(({ environmentId }) => telemetryQueries(environmentId));
+  monitor.telemetry.reset();
+  monitor.telemetry.implement(({ environmentId }) => telemetryQueries(environmentId));
   const historyReads = vi.fn<(key: string) => void>();
   const historyQueries = Atom.family((key: string) =>
     Atom.make(
@@ -152,16 +183,16 @@ function setup({ retryFails = false, holdRetry = false } = {}) {
       }),
     ).pipe(Atom.keepAlive),
   );
-  monitor.history.mockReset();
-  monitor.history.mockImplementation(({ environmentId, input }) =>
+  monitor.history.reset();
+  monitor.history.implement(({ environmentId, input }) =>
     historyQueries(`${environmentId}:${input.windowMs}`),
   );
   let releaseRetry = () => {};
   const retryRelease = new Promise<void>((resolve) => {
     releaseRetry = resolve;
   });
-  monitor.retry.mockReset();
-  monitor.retry.mockImplementation(async () => {
+  monitor.retry.reset();
+  monitor.retry.implement(async () => {
     if (holdRetry) await retryRelease;
     if (retryFails)
       return AsyncResult.failure(Cause.fail(new MonitorError({ message: "Restart failed." })));

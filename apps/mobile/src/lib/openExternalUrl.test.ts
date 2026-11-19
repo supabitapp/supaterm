@@ -1,16 +1,26 @@
-import { Linking } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { tryOpenExternalUrl } from "./openExternalUrl";
 
-vi.mock("react-native", () => ({
-  Linking: { openURL: vi.fn() },
+const linking = vi.hoisted(() => ({
+  openURL: vi.fn<(url: string) => void>(),
+  failure: null as Error | null,
 }));
 
-const openURL = vi.mocked(Linking.openURL);
+vi.mock("react-native", () => ({
+  Linking: {
+    openURL: async (url: string) => {
+      linking.openURL(url);
+      if (linking.failure) throw linking.failure;
+    },
+  },
+}));
+
+const openURL = linking.openURL;
 
 beforeEach(() => {
   vi.clearAllMocks();
+  linking.failure = null;
 });
 
 afterEach(() => {
@@ -21,8 +31,8 @@ describe("tryOpenExternalUrl", () => {
   it("keeps provider sign-in URLs unchanged and out of failure logs", async () => {
     const url =
       "https://accounts.google.com/o/oauth2/v2/auth?state=private-state&code_challenge=private-challenge&redirect_uri=http%3A%2F%2F127.0.0.1%3A43123%2F";
-    openURL.mockRejectedValue(new Error(`Cannot open ${url}`));
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    linking.failure = new Error(`Cannot open ${url}`);
+    const consoleError = vi.spyOn(console, "error");
 
     await expect(tryOpenExternalUrl(url, "provider-auth")).resolves.toBe(false);
 

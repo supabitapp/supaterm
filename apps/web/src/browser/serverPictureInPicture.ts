@@ -70,12 +70,14 @@ export function openServerPictureInPicture(input: {
   readonly threadId: ThreadId;
   readonly tabId: string;
   readonly seed: HTMLCanvasElement | null;
+  readonly play?: (video: HTMLVideoElement) => Promise<void>;
 }): Promise<void>;
 export async function openServerPictureInPicture(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly tabId: string;
   readonly seed: HTMLCanvasElement | null;
+  readonly play?: (video: HTMLVideoElement) => Promise<void>;
 }) {
   closeServerPictureInPicture();
   const canvas = document.createElement("canvas");
@@ -166,7 +168,7 @@ export async function openServerPictureInPicture(input: {
   emit();
 
   try {
-    await video.play();
+    await (input.play ?? ((element) => element.play()))(video);
     if (video.readyState < HTMLMediaElement.HAVE_METADATA) {
       await new Promise((resolve) =>
         video.addEventListener("loadedmetadata", resolve, { once: true }),

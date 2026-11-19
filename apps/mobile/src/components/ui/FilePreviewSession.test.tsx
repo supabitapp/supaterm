@@ -9,15 +9,21 @@ import {
 } from "@supaterm/contracts";
 
 const harness = vi.hoisted(() => ({
-  refreshAssetUrl:
-    vi.fn<(environmentId: string, resource: { url: string }) => Promise<string | null>>(),
+  refreshAssetUrl: vi.fn<(environmentId: string, resource: { url: string }) => void>(),
+  signAsset: (_environmentId: string, _resource: { url: string }) =>
+    Promise.resolve<string | null>(null),
   alert: vi.fn(),
   previews: [] as unknown[],
   mounts: 0,
   presentationFinished: false,
 }));
 
-vi.mock("../../state/assets", () => ({ refreshAssetUrl: harness.refreshAssetUrl }));
+vi.mock("../../state/assets", () => ({
+  refreshAssetUrl: (environmentId: string, resource: { url: string }) => {
+    harness.refreshAssetUrl(environmentId, resource);
+    return harness.signAsset(environmentId, resource);
+  },
+}));
 vi.mock("../../lib/localAttachmentPreview", () => ({ loadLocalAttachmentPreview: vi.fn() }));
 vi.mock("../../lib/attachmentDownload", () => ({
   downloadAndShareAttachment: vi.fn(),
@@ -74,9 +80,8 @@ it.each([true, false])(
   "keeps the gallery stable while a sibling is still resolving (progressive: %s)",
   async (progressiveGallery) => {
     const slow = Promise.withResolvers<string>();
-    harness.refreshAssetUrl.mockImplementation(async (_environmentId, resource) =>
-      resource.url.endsWith("slow.png") ? slow.promise : "https://signed.test/a.png",
-    );
+    harness.signAsset = async (_environmentId, resource) =>
+      resource.url.endsWith("slow.png") ? slow.promise : "https://signed.test/a.png";
     const selected = image("https://github.com/a.png");
     await using _preview = await openGallery(
       selected,
@@ -108,10 +113,10 @@ it.each([true, false])(
 it.each([true, false])(
   "handles a failed sibling without leaving a pending page (progressive: %s)",
   async (progressiveGallery) => {
-    harness.refreshAssetUrl.mockImplementation(async (_environmentId, resource) => {
+    harness.signAsset = async (_environmentId, resource) => {
       if (resource.url.endsWith("missing.png")) throw new Error("not found");
       return `https://signed.test/${resource.url.split("/").pop()}`;
-    });
+    };
     const selected = image("https://github.com/a.png");
     await using preview = await openGallery(
       selected,
@@ -139,10 +144,10 @@ it.each([true, false])(
 );
 
 it("closes the preview when the selected image cannot be resolved", async () => {
-  harness.refreshAssetUrl.mockImplementation(async (_environmentId, resource) => {
+  harness.signAsset = async (_environmentId, resource) => {
     if (resource.url.endsWith("missing.png")) throw new Error("not found");
     return `https://signed.test/${resource.url.split("/").pop()}`;
-  });
+  };
   const selected = image("https://github.com/missing.png");
   await using preview = await openGallery(
     selected,
@@ -161,9 +166,8 @@ it("names the checked path when the server cannot find the file", async () => {
     path: "v2/extended/duo-color-3-extended-FINAL.png",
   };
   const checkedPath = "/repo/v2/extended/duo-color-3-extended-FINAL.png";
-  harness.refreshAssetUrl.mockRejectedValue(
-    new AssetWorkspaceAssetNotFoundError({ resource, checkedPath }),
-  );
+  harness.signAsset = () =>
+    Promise.reject(new AssetWorkspaceAssetNotFoundError({ resource, checkedPath }));
   const selected: FilePreviewItem = { kind: "image", environmentId, resource };
   await using preview = await openGallery(selected, [selected], false);
 
@@ -186,8 +190,8 @@ it.each([
     harness.presentationFinished = finished;
     harness.mounts = 0;
     harness.refreshAssetUrl.mockReset();
-    if (kind === "image") harness.refreshAssetUrl.mockResolvedValue("https://signed.test/a.png");
-    else harness.refreshAssetUrl.mockReturnValue(new Promise(() => {}));
+    if (kind === "image") harness.signAsset = async () => "https://signed.test/a.png";
+    else harness.signAsset = () => new Promise(() => {});
     const selected: FilePreviewItem = { ...image("https://github.com/a.png"), kind };
     const root = createRoot(document.createElement("div"));
     await using _root = { [Symbol.asyncDispose]: () => act(async () => root.unmount()) };
@@ -212,11 +216,10 @@ it("does not carry a presented viewer over to a different item that is still res
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   harness.presentationFinished = true;
   harness.refreshAssetUrl.mockReset();
-  harness.refreshAssetUrl.mockImplementation((_environmentId, resource) =>
+  harness.signAsset = (_environmentId, resource) =>
     resource.url.endsWith("a.png")
       ? Promise.resolve("https://signed.test/a.png")
-      : new Promise(() => {}),
-  );
+      : new Promise(() => {});
   const shown = image("https://github.com/a.png");
   const resolving: FilePreviewItem = { ...image("https://github.com/b.pdf"), kind: "pdf" };
   const root = createRoot(document.createElement("div"));

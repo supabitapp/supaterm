@@ -1,4 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - Runs before the Effect runtime starts, on raw file descriptors.
+import * as NodeEvents from "node:events";
 import * as NodeFS from "node:fs";
 import * as NodeTty from "node:tty";
 
@@ -18,35 +19,58 @@ function needsConsoleStdin(input: {
   );
 }
 
-const isMissingInput = (fd: number) => {
+interface ConsoleIo {
+  readonly platform: NodeJS.Platform;
+  readonly env: NodeJS.ProcessEnv;
+  readonly fstat: (fd: number) => { isCharacterDevice(): boolean };
+  readonly isatty: (fd: number) => boolean;
+  readonly open: (path: string) => number;
+  readonly close: (fd: number) => void;
+  readonly openReadStream: (fd: number) => NodeEvents.EventEmitter;
+  readonly replaceStdin: (stdin: NodeEvents.EventEmitter) => void;
+}
+
+const nodeConsoleIo: () => ConsoleIo = () => ({
+  platform: HostProcess.Platform.defaultValue(),
+  env: process.env,
+  fstat: NodeFS.fstatSync,
+  isatty: NodeTty.isatty,
+  open: (path) => NodeFS.openSync(path, "r+"),
+  close: NodeFS.closeSync,
+  openReadStream: (fd) => new NodeTty.ReadStream(fd),
+  replaceStdin: (stdin) =>
+    Object.defineProperty(process, "stdin", { value: stdin, configurable: true, enumerable: true }),
+});
+
+const isMissingInput = (io: ConsoleIo, fd: number) => {
   try {
-    return NodeFS.fstatSync(fd).isCharacterDevice() && !NodeTty.isatty(fd);
+    return io.fstat(fd).isCharacterDevice() && !io.isatty(fd);
   } catch {
     return true;
   }
 };
 
 /** Call before reading process.stdin. Returns the reopened fd for children, or undefined without changing stdin. */
-export function attachConsoleStdin() {
+export function attachConsoleStdin(io = nodeConsoleIo()) {
   const needed = needsConsoleStdin({
-    platform: HostProcess.Platform.defaultValue(),
-    env: process.env,
-    stdinMissing: isMissingInput(0),
-    stdoutIsConsole: NodeTty.isatty(1),
+    platform: io.platform,
+    env: io.env,
+    stdinMissing: isMissingInput(io, 0),
+    stdoutIsConsole: io.isatty(1),
   });
-  delete process.env.SUPATERM_DESKTOP_CLI_LAUNCHER;
+  delete io.env.SUPATERM_DESKTOP_CLI_LAUNCHER;
   if (!needed) return undefined;
   let fd: number;
   try {
-    fd = NodeFS.openSync("\\\\.\\CONIN$", "r+");
+    fd = io.open("\\\\.\\CONIN$");
   } catch {
     return undefined;
   }
-  if (!NodeTty.isatty(fd)) {
-    NodeFS.closeSync(fd);
+  if (!io.isatty(fd)) {
+    io.close(fd);
     return undefined;
   }
-  const stdin = new NodeTty.ReadStream(fd);
+  const stdin = io.openReadStream(fd);
   stdin.on("pause", () => {
     const internal = stdin as unknown as {
       _handle?: { reading: boolean; readStop(): void };
@@ -58,7 +82,7 @@ export function attachConsoleStdin() {
     handle.reading = false;
     handle.readStop();
   });
-  Object.defineProperty(process, "stdin", { value: stdin, configurable: true, enumerable: true });
+  io.replaceStdin(stdin);
   consoleStdinFd = fd;
   return fd;
 }

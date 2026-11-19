@@ -4,7 +4,7 @@ import * as NodeFS from "node:fs";
 import * as NodeModule from "node:module";
 import * as NodePath from "node:path";
 
-import { describe, expect, it, vi } from "@effect/vitest";
+import { describe, expect, it } from "@effect/vitest";
 import * as HostProcess from "@supaterm/shared/HostProcess";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -232,7 +232,6 @@ describe("terminatePosixOwnedProcessTree", () => {
       populated: () => false,
       remove: () => undefined,
     };
-    const packagedExecPath = vi.spyOn(process, "execPath", "get").mockReturnValue("/bin/sh");
     try {
       const wrapped = AcpSessionRuntime.wrapCommandForLinuxCgroup(lease, "/bin/sh", [
         "-c",
@@ -293,7 +292,6 @@ describe("terminatePosixOwnedProcessTree", () => {
         expect(missingTargetBash.stderr).toContain("/nonexistent-supaterm-probe");
       }
     } finally {
-      packagedExecPath.mockRestore();
       NodeFS.rmSync(scratch, { recursive: true, force: true });
     }
   });

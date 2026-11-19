@@ -1,4 +1,3 @@
-import { vi } from "vite-plus/test";
 import { assert, it } from "@effect/vitest";
 import {
   CommandId,
@@ -26,6 +25,7 @@ import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAd
 const instanceId = ProviderInstanceId.make("codex");
 const modelSelection = { instanceId, model: "gpt-5.1-codex" };
 let capabilityGate: Effect.Effect<void> | undefined;
+let threadRecordsGate: Effect.Effect<void> | undefined;
 const adapter = {
   instanceId,
   driver: ProviderDriverKind.make("codex"),
@@ -41,7 +41,15 @@ const layerTest = Layer.mergeAll(
   ProviderReplayHarness.layerWithRegistry(
     { name: "receipt-race" },
     ProviderAdapterRegistry.layerFromAdapters([adapter]),
-    { databaseLayer: layerDatabase, runEffectWorker: false },
+    {
+      databaseLayer: layerDatabase,
+      runEffectWorker: false,
+      wrapProjectionStore: (store) => ({
+        ...store,
+        getThreadRecords: (...args) =>
+          (threadRecordsGate ?? Effect.void).pipe(Effect.andThen(store.getThreadRecords(...args))),
+      }),
+    },
   ),
 );
 
@@ -113,16 +121,12 @@ it.effect("a command id reused concurrently for two threads succeeds for only on
 
     const noOpArrived = yield* Ref.make(0);
     const bothNoOpsArrived = yield* Deferred.make<void>();
-    const getThreadRecords = projections.getThreadRecords;
-    using _records = vi.spyOn(projections, "getThreadRecords").mockImplementation((...args) =>
-      Effect.gen(function* () {
-        if ((yield* Ref.updateAndGet(noOpArrived, (count) => count + 1)) === 2) {
-          yield* Deferred.succeed(bothNoOpsArrived, undefined);
-        }
-        yield* Deferred.await(bothNoOpsArrived);
-        return yield* getThreadRecords(...args);
-      }),
-    );
+    threadRecordsGate = Effect.gen(function* () {
+      if ((yield* Ref.updateAndGet(noOpArrived, (count) => count + 1)) === 2) {
+        yield* Deferred.succeed(bothNoOpsArrived, undefined);
+      }
+      yield* Deferred.await(bothNoOpsArrived);
+    });
     const markUnresponsive = (threadId: ThreadId) =>
       orchestrator.dispatch({
         type: "thread.interrupt.unresponsive",
@@ -137,7 +141,7 @@ it.effect("a command id reused concurrently for two threads succeeds for only on
       {
         concurrency: "unbounded",
       },
-    );
+    ).pipe(Effect.ensuring(Effect.sync(() => (threadRecordsGate = undefined))));
     const noOpWinner = noOpExits.findIndex(Exit.isSuccess);
     const noOpLoser = noOpExits.findIndex(Exit.isFailure);
     assert.isAtLeast(noOpWinner, 0);

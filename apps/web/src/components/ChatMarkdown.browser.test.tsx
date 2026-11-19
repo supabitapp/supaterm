@@ -13,13 +13,49 @@ import { useRightPanelStore } from "../rightPanelStore";
 import { remarkEnableOrderedListNumbers } from "@supaterm/shared/markdownPipeline";
 import { setMarkdownTaskChecked } from "@supaterm/shared/markdownTaskList";
 import { getSyntaxHighlighterPromise } from "../lib/syntaxHighlighting";
+import { resolveDiffThemeName } from "../lib/diffRendering";
 import { MarkdownFindContext } from "./chat/markdownFindContext";
+import { SyntaxHighlighterSource } from "./chat/MarkdownCodeBlock";
 import { useThreadFindHighlights } from "./chat/threadFindHighlights";
 
-const { workspaceSearch, filesystemMetadata } = vi.hoisted(() => ({
-  workspaceSearch: vi.fn(),
-  filesystemMetadata: vi.fn(),
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
 }));
+const { workspaceSearch, filesystemMetadata, renderMermaidDiagram, peekMermaidDiagram } =
+  vi.hoisted(() => ({
+    workspaceSearch: fake(),
+    filesystemMetadata: fake(),
+    renderMermaidDiagram: fake(),
+    peekMermaidDiagram: fake(),
+  }));
 const parsedSources = vi.hoisted(() => [] as string[]);
 vi.mock(import("mdast-util-from-markdown"), async (original) => {
   const actual = await original();
@@ -75,10 +111,9 @@ vi.mock(import("../remoteOpen"), async (original) => ({
 }));
 vi.mock(import("../diagrams/mermaidRenderer"), async (original) => ({
   ...(await original()),
-  renderMermaidDiagram: vi.fn(),
-  peekMermaidDiagram: vi.fn(),
+  renderMermaidDiagram: renderMermaidDiagram as never,
+  peekMermaidDiagram: peekMermaidDiagram as never,
 }));
-import { peekMermaidDiagram, renderMermaidDiagram } from "../diagrams/mermaidRenderer";
 import { stubDiagramGeometry } from "../../test/diagramGeometry";
 
 const appearance = vi.hoisted(() => ({
@@ -134,7 +169,6 @@ it("keeps compact audio playback loaded across signed URL renewals", async () =>
   expect(screen.container.querySelector("audio")?.getAttribute("src")).toBe(renewed);
 });
 
-const renderDiagram = vi.mocked(renderMermaidDiagram);
 const diagramResult = (label: string) => ({
   svg: `<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${label}"><text>${label}</text></svg>`,
   width: 100,
@@ -146,10 +180,10 @@ function setup() {
   appearance.value = "light";
   parsedSources.length = 0;
   settingsOverrides.mathRenderingEnabled = false;
-  renderDiagram.mockReset().mockResolvedValue(diagramResult("Diagram"));
-  vi.mocked(peekMermaidDiagram).mockReset();
-  workspaceSearch.mockReset().mockResolvedValue(AsyncResult.success({ entries: [] }));
-  filesystemMetadata.mockReset().mockResolvedValue(AsyncResult.success({ entries: [null] }));
+  renderMermaidDiagram.reset(async () => diagramResult("Diagram"));
+  peekMermaidDiagram.reset();
+  workspaceSearch.reset(async () => AsyncResult.success({ entries: [] }));
+  filesystemMetadata.reset(async () => AsyncResult.success({ entries: [null] }));
 }
 
 function renderText(text: string, props: Partial<Parameters<typeof ChatMarkdown>[0]> = {}) {
@@ -450,19 +484,38 @@ describe("ChatMarkdown streaming", () => {
     });
   });
 
-  function spyOnStreamChunks(highlighter: Awaited<ReturnType<typeof getSyntaxHighlighterPromise>>) {
-    const create = highlighter.createStreamTokenizer.bind(highlighter);
-    const chunks = vi.fn<(chunk: string) => void>();
-    const factory = vi.spyOn(highlighter, "createStreamTokenizer").mockImplementation((options) => {
-      const stream = create(options);
-      const enqueue = stream.enqueue.bind(stream);
-      vi.spyOn(stream, "enqueue").mockImplementation((chunk) => {
-        chunks(chunk);
-        return enqueue(chunk);
-      });
-      return stream;
+  type Highlighter = Awaited<ReturnType<typeof getSyntaxHighlighterPromise>>;
+
+  function spyOnStreamChunks(highlighter: Highlighter) {
+    const sample = highlighter.createStreamTokenizer({
+      lang: "text",
+      theme: resolveDiffThemeName("light"),
     });
-    return Object.assign(factory, { chunks });
+    sample.dispose();
+    const chunks = vi.spyOn(Object.getPrototypeOf(sample) as typeof sample, "enqueue");
+    const factory = vi.spyOn(highlighter, "createStreamTokenizer");
+    return Object.assign(factory, {
+      chunks,
+      [Symbol.dispose]: () => {
+        chunks.mockRestore();
+        factory.mockRestore();
+      },
+    });
+  }
+
+  function highlighterWith(
+    highlighter: Highlighter,
+    overrides: Partial<Pick<Highlighter, "createStreamTokenizer" | "codeToTokens">>,
+  ) {
+    const source = Promise.resolve(
+      Object.assign(Object.create(highlighter) as Highlighter, overrides),
+    );
+    const read = () => source;
+    return {
+      provide: (ui: ReactElement) => (
+        <SyntaxHighlighterSource value={read}>{ui}</SyntaxHighlighterSource>
+      ),
+    };
   }
 
   it("does not retokenize completed lines when streaming finishes", async () => {
@@ -507,12 +560,10 @@ describe("ChatMarkdown streaming", () => {
   it("recovers without duplicating code after a tokenizer fails during an append", async () => {
     setup();
     const highlighter = await getSyntaxHighlighterPromise("typescript");
-    const create = highlighter.createStreamTokenizer.bind(highlighter);
     let fail = true;
-    using _factory = vi
-      .spyOn(highlighter, "createStreamTokenizer")
-      .mockImplementation((options) => {
-        const tokenizer = create(options);
+    const failing = highlighterWith(highlighter, {
+      createStreamTokenizer: (options) => {
+        const tokenizer = highlighter.createStreamTokenizer(options);
         const enqueue = tokenizer.enqueue.bind(tokenizer);
         tokenizer.enqueue = (chunk) => {
           const result = enqueue(chunk);
@@ -523,11 +574,12 @@ describe("ChatMarkdown streaming", () => {
           return result;
         };
         return tokenizer;
-      });
-    using _warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const message = (code: string) => (
-      <ChatMarkdown cwd="/tmp/project" text={`\`\`\`typescript\n${code}`} isStreaming />
-    );
+      },
+    });
+    const message = (code: string) =>
+      failing.provide(
+        <ChatMarkdown cwd="/tmp/project" text={`\`\`\`typescript\n${code}`} isStreaming />,
+      );
     await using screen = await render(message("const first = 1;"));
     await vi.waitFor(() => expect(fail).toBe(false));
     const code = "const first = 1;\nconst second = 2;";
@@ -542,24 +594,20 @@ describe("ChatMarkdown streaming", () => {
   it("recovers highlighting after a failed fence changes without resetting its controls", async () => {
     setup();
     const highlighter = await getSyntaxHighlighterPromise("text");
-    const createStreamTokenizer = highlighter.createStreamTokenizer.bind(highlighter);
-    const codeToTokens = highlighter.codeToTokens.bind(highlighter);
     let fail = true;
-    using _createStreamTokenizer = vi
-      .spyOn(highlighter, "createStreamTokenizer")
-      .mockImplementation((...args) => {
+    const flaky = highlighterWith(highlighter, {
+      createStreamTokenizer: (...args) => {
         if (fail) throw new Error("Temporary highlighter failure");
-        return createStreamTokenizer(...args);
-      });
-    using _codeToTokens = vi.spyOn(highlighter, "codeToTokens").mockImplementation((...args) => {
-      if (fail) throw new Error("Temporary highlighter failure");
-      return codeToTokens(...args);
+        return highlighter.createStreamTokenizer(...args);
+      },
+      codeToTokens: (...args) => {
+        if (fail) throw new Error("Temporary highlighter failure");
+        return highlighter.codeToTokens(...args);
+      },
     });
-    using _consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    using _consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await using screen = await render(
-      <ChatMarkdown cwd="/tmp/project" text={"```text\ninitial\n```"} isStreaming />,
+      flaky.provide(<ChatMarkdown cwd="/tmp/project" text={"```text\ninitial\n```"} isStreaming />),
     );
     const { container, rerender } = screen;
     const codeBlock = container.querySelector<HTMLElement>('[data-language="text"]')!;
@@ -571,7 +619,9 @@ describe("ChatMarkdown streaming", () => {
 
     fail = false;
     await rerender(
-      <ChatMarkdown cwd="/tmp/project" text={"```text\nrecovered\n```"} isStreaming />,
+      flaky.provide(
+        <ChatMarkdown cwd="/tmp/project" text={"```text\nrecovered\n```"} isStreaming />,
+      ),
     );
     await vi.waitFor(() =>
       expect(container.querySelectorAll(".chat-markdown-shiki")).toHaveLength(1),
@@ -584,9 +634,7 @@ describe("ChatMarkdown streaming", () => {
     setup();
     const highlighter = await getSyntaxHighlighterPromise("text");
     using highlight = spyOnStreamChunks(highlighter);
-    using writeText = vi
-      .spyOn(navigator.clipboard, "writeText")
-      .mockImplementation(async () => undefined);
+    using writeText = vi.spyOn(navigator.clipboard, "writeText");
     const text = [
       "```text",
       "First code block",
@@ -741,12 +789,12 @@ describe("ChatMarkdown diagrams", () => {
     "renders completed fences while retaining unfinished source: $text",
     async ({ text, streaming, expected }) => {
       using _geometry = stubDiagramGeometry();
-      vi.mocked(renderMermaidDiagram).mockReset().mockResolvedValue({
+      renderMermaidDiagram.reset(async () => ({
         svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>diagram</text></svg>',
         width: 100,
         height: 100,
         type: "flowchart",
-      });
+      }));
       await using screen = await renderText(text, { cwd: undefined, isStreaming: streaming });
       const { container } = screen;
       await vi.waitFor(() =>
@@ -775,10 +823,8 @@ describe("ChatMarkdown workspace file opens", () => {
     const pending = new Promise<typeof result>((resolve) => {
       resolvePending = resolve;
     });
-    workspaceSearch.mockReturnValueOnce(pending);
-    using openFile = vi
-      .spyOn(useRightPanelStore.getState(), "openFile")
-      .mockImplementation(() => {});
+    workspaceSearch.implementOnce(() => pending);
+    using openFile = vi.spyOn(useRightPanelStore.getState(), "openFile");
     await using screen = await renderText(
       "[Notes](physics/notes/a.md) and [Other](/elsewhere/b.md:9)",
       {
@@ -819,9 +865,7 @@ describe("ChatMarkdown skill chips", () => {
         },
       ],
     });
-    using openFile = vi
-      .spyOn(useRightPanelStore.getState(), "openFile")
-      .mockImplementation(() => {});
+    using openFile = vi.spyOn(useRightPanelStore.getState(), "openFile");
 
     await userEvent.click(screen.getByRole("button", { name: "Skill Review. Show details" }));
     await expect.element(page.getByText("Reviews the current branch.")).toBeVisible();
@@ -1114,12 +1158,12 @@ describe("ChatMarkdown thread find", () => {
         <ChatMarkdown cwd={undefined} text={`Needle first.\n\n${diagram}\n\n${diagram}`} />
       </FindProbe>
     );
-    vi.mocked(renderMermaidDiagram).mockResolvedValue({
+    renderMermaidDiagram.implement(async () => ({
       svg: '<svg xmlns="http://www.w3.org/2000/svg"><text>Rendered diagram</text></svg>',
       width: 100,
       height: 100,
       type: "flowchart",
-    });
+    }));
     const diagrams = () => (container.textContent?.match(/Rendered diagram/g) ?? []).length;
 
     await using screen = await render(probe("Needle"), { container });

@@ -74,7 +74,6 @@ it.each([
   const promptRef = { current: "" };
   const downloaded = deferred<Response>();
   const requested = deferred<void>();
-  const settled = deferred<void>();
   const input = {
     environmentId: EnvironmentId.make("clipboard-target"),
     activeThread: undefined,
@@ -102,11 +101,6 @@ it.each([
       }}
     />,
   );
-  const end = pendingDraftWork.end.bind(pendingDraftWork);
-  using _settled = vi.spyOn(pendingDraftWork, "end").mockImplementation((key) => {
-    end(key);
-    settled.resolve();
-  });
   using _fetch = stubGlobal("fetch", () => {
     requested.resolve();
     return downloaded.promise;
@@ -185,8 +179,9 @@ it.each([
     if (edit === "switch") input.attachmentTargetKeyRef.current = DraftId.make("other-draft");
   });
   await act(async () => {
+    const settled = pendingDraftWork.whenSettled(target);
     downloaded.resolve(new Response("notes", { headers: { "Content-Type": attachment.mimeType } }));
-    await settled.promise;
+    await settled;
   });
   expect(pendingDraftWork.has(target)).toBe(false);
   const draft = store.getComposerDraft(target)!;

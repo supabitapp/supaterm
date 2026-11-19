@@ -3,14 +3,16 @@ import type { EnvironmentId } from "@supaterm/contracts";
 
 import { clearBrowserProfileData, importFailureReason } from "./IntegrationsSettings";
 
+const settles = () => vi.spyOn({ clear: async (..._args: Array<unknown>) => {} }, "clear");
+
 const environmentId = "environment-a" as EnvironmentId;
 const secondEnvironmentId = "environment-b" as EnvironmentId;
 
 describe("clearBrowserProfileData", () => {
   it("does not report success without an environment or bridge", async () => {
     const bridge = {
-      clearCookies: vi.fn().mockResolvedValue(undefined),
-      clearCache: vi.fn().mockResolvedValue(undefined),
+      clearCookies: settles(),
+      clearCache: settles(),
     };
 
     await expect(clearBrowserProfileData(bridge, [], "profile-a")).rejects.toThrow();
@@ -22,7 +24,7 @@ describe("clearBrowserProfileData", () => {
 
 describe("clearBrowserProfileData with server browsers", () => {
   it("clears server-hosted profiles without a desktop bridge", async () => {
-    const clear = vi.fn().mockResolvedValue(undefined);
+    const clear = settles();
     await clearBrowserProfileData(null, [environmentId, secondEnvironmentId], "profile-a", {
       environmentIds: [secondEnvironmentId],
       clear,
@@ -32,14 +34,17 @@ describe("clearBrowserProfileData with server browsers", () => {
 
   it("clears both copies and fails when the server copy fails", async () => {
     const bridge = {
-      clearCookies: vi.fn().mockResolvedValue(undefined),
-      clearCache: vi.fn().mockResolvedValue(undefined),
+      clearCookies: settles(),
+      clearCache: settles(),
     };
     const failure = new Error("server failed");
     await expect(
       clearBrowserProfileData(bridge, [environmentId], "profile-a", {
         environmentIds: [environmentId],
-        clear: vi.fn().mockRejectedValue(failure),
+        clear: vi.spyOn(
+          { clear: async (..._args: Array<unknown>) => Promise.reject(failure) },
+          "clear",
+        ),
       }),
     ).rejects.toBe(failure);
     expect(bridge.clearCookies).toHaveBeenCalledWith(environmentId, "profile-a");

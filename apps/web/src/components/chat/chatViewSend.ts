@@ -76,13 +76,15 @@ export async function rewindToMessage(input: {
       scopeId?: string;
     };
   }) => Promise<AtomCommandResult<unknown, unknown>>;
+  readonly readConnection?: typeof readPreparedConnection;
+  readonly threadStateAtom?: Parameters<typeof waitForRevertedMessage>[5];
 }) {
   const { message, environmentId, draftTarget } = input;
   try {
     if (input.composerHasPendingAttachments) {
       throw new Error("Wait for attachments to finish preparing before rewinding.");
     }
-    const connection = readPreparedConnection(environmentId);
+    const connection = (input.readConnection ?? readPreparedConnection)(environmentId);
     if (!connection) throw new Error("The environment is not connected.");
     const files = await prepareRevertedMessageAttachments({
       message,
@@ -99,21 +101,28 @@ export async function rewindToMessage(input: {
       throw new Error("Make room for this message's attachments in the composer before rewinding.");
     }
     const commandId = CommandId.make(randomUUID());
-    await waitForRevertedMessage(input.routeThreadRef, input.turnCount, commandId, async () => {
-      const result = await input.revertThreadCheckpoint({
-        environmentId,
-        input: {
-          commandId,
-          threadId: input.threadId,
-          turnCount: input.turnCount,
-          restoreFiles: input.restoreFiles,
-          ...(input.checkpoint === undefined
-            ? {}
-            : { checkpointId: input.checkpoint.id, scopeId: input.checkpoint.scopeId }),
-        },
-      });
-      if (result._tag === "Failure") throw squashAtomCommandFailure(result);
-    });
+    await waitForRevertedMessage(
+      input.routeThreadRef,
+      input.turnCount,
+      commandId,
+      async () => {
+        const result = await input.revertThreadCheckpoint({
+          environmentId,
+          input: {
+            commandId,
+            threadId: input.threadId,
+            turnCount: input.turnCount,
+            restoreFiles: input.restoreFiles,
+            ...(input.checkpoint === undefined
+              ? {}
+              : { checkpointId: input.checkpoint.id, scopeId: input.checkpoint.scopeId }),
+          },
+        });
+        if (result._tag === "Failure") throw squashAtomCommandFailure(result);
+      },
+      undefined,
+      input.threadStateAtom,
+    );
     const currentPrompt = store.getComposerDraft(draftTarget)?.prompt ?? "";
     const { prompt: restoredPrompt, mentions } = recallComposerMessage(message);
     const nextPrompt =

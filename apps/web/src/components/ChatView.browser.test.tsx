@@ -45,6 +45,15 @@ vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
   trackRpcRequestSent: () => {},
 }));
 
+async function emulateTouchScreen() {
+  await cdp().send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 5 });
+  return {
+    [Symbol.asyncDispose]: async () => {
+      await cdp().send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    },
+  };
+}
+
 it("a new draft does not load its reserved thread before the server lists it", async () => {
   using _environment = installFakeEnvironment([]);
   using fetchSpy = vi.spyOn(globalThis, "fetch");
@@ -252,10 +261,7 @@ it("Enter on an empty prompt resumes an interrupted thread", async () => {
 });
 
 it("opening a thread or returning to the window on a touch tablet does not focus the composer", async () => {
-  const realMatchMedia = window.matchMedia.bind(window);
-  using _touch = vi
-    .spyOn(window, "matchMedia")
-    .mockImplementation((query) => realMatchMedia(query === "(pointer: coarse)" ? "all" : query));
+  await using _touch = await emulateTouchScreen();
   const first = threadWithHistory("thread-29469-a", 1);
   const second = threadWithHistory("thread-29469-b", 1);
   using _environment = installFakeEnvironment([first, second]);

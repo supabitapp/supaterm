@@ -2,13 +2,18 @@ import { EnvironmentId, type ProjectReadFileResult } from "@supaterm/contracts";
 import { AsyncResult } from "effect/reactivity";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-const fixture = vi.hoisted(() => ({ connected: false, read: vi.fn(), query: vi.fn() }));
+const fixture = vi.hoisted(() => ({
+  connected: false,
+  cached: null as unknown,
+  queried: null as unknown,
+  query: vi.fn<(...args: ReadonlyArray<unknown>) => void>(),
+}));
 vi.mock("~/rpc/atomRegistry", () => ({
   appAtomRegistry: {
     get: (atom: string) =>
       atom === "presentation"
         ? { connection: { phase: fixture.connected ? "connected" : "reconnecting" } }
-        : fixture.read(),
+        : fixture.cached,
   },
 }));
 vi.mock("~/state/presentation", () => ({
@@ -23,7 +28,12 @@ vi.mock("~/components/files/projectFilesQueryState", () => ({
     data: unknown,
   ) => data,
 }));
-vi.mock("@supaterm/client-runtime/state/runtime", () => ({ executeAtomQuery: fixture.query }));
+vi.mock("@supaterm/client-runtime/state/runtime", () => ({
+  executeAtomQuery: async (...args: ReadonlyArray<unknown>) => {
+    fixture.query(...args);
+    return fixture.queried;
+  },
+}));
 
 import { readSupatermProjectFile } from "./supatermProjectFileDefaults";
 
@@ -37,8 +47,9 @@ const file: ProjectReadFileResult = {
 
 beforeEach(() => {
   fixture.connected = false;
-  fixture.read.mockReset().mockReturnValue(AsyncResult.initial());
-  fixture.query.mockReset().mockResolvedValue(AsyncResult.success(file));
+  fixture.cached = AsyncResult.initial();
+  fixture.queried = AsyncResult.success(file);
+  fixture.query.mockReset();
 });
 
 describe("new-thread project defaults", () => {
@@ -48,7 +59,7 @@ describe("new-thread project defaults", () => {
   });
 
   it("uses cached project defaults while disconnected", async () => {
-    fixture.read.mockReturnValue(AsyncResult.success(file));
+    fixture.cached = AsyncResult.success(file);
     expect(await readSupatermProjectFile(environmentId, "/repo")).toEqual({
       defaultThreadEnvMode: "worktree",
     });

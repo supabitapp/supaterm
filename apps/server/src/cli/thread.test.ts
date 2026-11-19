@@ -24,13 +24,17 @@ import * as TestConsole from "effect/testing/TestConsole";
 import { vi } from "vite-plus/test";
 
 import { cli } from "../binCli.ts";
-import * as McpBridge from "../mcp/AcpMcpStdioBridge.ts";
 import {
   makePersistedServerRuntimeState,
   persistServerRuntimeState,
 } from "../serverRuntimeState.ts";
 import { CliServerVersionMismatchError } from "./config.ts";
-import { CliServerNotRunningError, resolveProject, type ServerTools } from "./serverTools.ts";
+import {
+  CliMcpToolSession,
+  CliServerNotRunningError,
+  resolveProject,
+  type ServerTools,
+} from "./serverTools.ts";
 import {
   launchModelSelection,
   readLatestMessages,
@@ -88,9 +92,9 @@ it.effect(
           port: 3_773,
         }),
       });
-      using _session = vi.spyOn(McpBridge, "mcpToolSession").mockReturnValue(
+      const openSession = () =>
         Effect.succeed({
-          call: (tool, args) => {
+          call: (tool: string, args: Readonly<Record<string, unknown>>) => {
             switch (tool) {
               case "supaterm_project_list":
                 return Effect.succeed({ structuredContent: { projects, nextCursor: null } });
@@ -102,8 +106,7 @@ it.effect(
                 return Effect.die(`unexpected ${tool} call`);
             }
           },
-        }),
-      );
+        });
 
       for (const [identifier, expectedProjectId] of [
         ["intended-project", "intended-project"],
@@ -126,6 +129,7 @@ it.effect(
         ]).pipe(
           Effect.provideService(HostProcess.HomeDirectory, home),
           Effect.provideService(HostProcess.WorkingDirectory, cwd),
+          Effect.provideService(CliMcpToolSession, openSession),
         );
         assert.strictEqual(
           (yield* TestConsole.logLines).at(-1),
@@ -159,18 +163,20 @@ it.effect("does not sign in to whatever took over a dead server's port", () =>
       path: path.join(baseDir, "userdata", "server-runtime.json"),
       state: { ...state, pid: 4_194_305 },
     });
-    using session = vi
-      .spyOn(McpBridge, "mcpToolSession")
-      .mockReturnValue(Effect.die("no session should open"));
+    const sessionsOpened: Array<unknown> = [];
+    const openSession = (options: unknown) => {
+      sessionsOpened.push(options);
+      return Effect.die("no session should open");
+    };
 
     const error = yield* Command.runWith(threadCommand, { version: "0.0.0" })([
       "list",
       "--base-dir",
       baseDir,
-    ]).pipe(Effect.flip);
+    ]).pipe(Effect.provideService(CliMcpToolSession, openSession), Effect.flip);
 
     assert.strictEqual(error._tag, "CliServerNotRunningError");
-    assert.strictEqual(session.mock.calls.length, 0);
+    assert.deepStrictEqual(sessionsOpened, []);
   }).pipe(
     Effect.scoped,
     Effect.provide(

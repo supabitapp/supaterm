@@ -4,9 +4,40 @@ import { AsyncResult } from "effect/reactivity";
 import { StrictMode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
+const { fake } = vi.hoisted(() => ({
+  fake: <
+    F extends (...args: never[]) => unknown = { call(...args: Array<unknown>): unknown }["call"],
+  >(
+    initial?: F,
+  ) => {
+    const script = { queue: [] as Array<F>, fallback: initial };
+    const target = {
+      call: (...args: Parameters<F>) =>
+        (script.queue.shift() ?? script.fallback)?.(...args) as ReturnType<F>,
+    };
+    const spy = vi.spyOn(target, "call");
+    const scripted = Object.assign(spy, {
+      implement: (next: F) => {
+        script.fallback = next;
+        return scripted;
+      },
+      implementOnce: (next: F) => {
+        script.queue.push(next);
+        return scripted;
+      },
+      reset: (next?: F) => {
+        script.queue = [];
+        script.fallback = next ?? initial;
+        spy.mockClear();
+        return scripted;
+      },
+    });
+    return scripted;
+  },
+}));
 const { runAtomCommand, getUnsavedFile } = vi.hoisted(() => ({
-  runAtomCommand: vi.fn(),
-  getUnsavedFile: vi.fn(),
+  runAtomCommand: fake(),
+  getUnsavedFile: fake(),
 }));
 vi.mock(import("@supaterm/client-runtime/state/runtime"), async (original) => ({
   ...(await original()),
@@ -24,8 +55,8 @@ vi.mock(import("~/state/session"), async (original) => {
 });
 vi.mock(import("./projectFilesQueryState"), async (original) => ({
   ...(await original()),
-  confirmProjectFileQueryData: () => true,
-  getUnsavedProjectFileQueryData: getUnsavedFile,
+  confirmProjectFileQueryData: (() => true) as never,
+  getUnsavedProjectFileQueryData: getUnsavedFile as never,
 }));
 
 import { changeFileSaveSession, useFileSaveSession } from "./fileSaveSessions";
@@ -49,13 +80,13 @@ function MarkdownSurface() {
 describe("file save sessions in React", () => {
   it("writes a pending draft once when the file switches surfaces under StrictMode", async () => {
     let finishWrite = () => {};
-    runAtomCommand.mockReset().mockImplementation(
+    runAtomCommand.reset(
       () =>
         new Promise((resolve) => {
           finishWrite = () => resolve(AsyncResult.success(undefined));
         }),
     );
-    getUnsavedFile.mockReset().mockReturnValue(null);
+    getUnsavedFile.reset(() => null);
     await using screen = await render(
       <StrictMode>
         <EditorSurface />
@@ -63,7 +94,7 @@ describe("file save sessions in React", () => {
       { router: false },
     );
     using _timers = fakeTimers();
-    getUnsavedFile.mockReturnValue({ contents: "draft" });
+    getUnsavedFile.implement(() => ({ contents: "draft" }));
     changeFileSaveSession(target, "draft");
 
     await screen.rerender(
@@ -72,7 +103,7 @@ describe("file save sessions in React", () => {
       </StrictMode>,
     );
     finishWrite();
-    getUnsavedFile.mockReturnValue(null);
+    getUnsavedFile.implement(() => null);
     await vi.runAllTimersAsync();
 
     expect(runAtomCommand.mock.calls.map(([, , request]) => request)).toEqual([

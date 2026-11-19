@@ -60,6 +60,7 @@ function waitForSource(promise: Promise<NativeReviewDiffSource | null>, signal?:
 
 export function createNativeReviewDiffSourceLoader<FileId>(
   fetchSource: (fileId: FileId) => Promise<NativeReviewDiffSource>,
+  trace: typeof traceDiffHighlight = traceDiffHighlight,
 ) {
   const cached = new Map<FileId, NativeReviewDiffSource>();
   let cachedCharacters = 0;
@@ -82,7 +83,7 @@ export function createNativeReviewDiffSourceLoader<FileId>(
       ? objectFailures.get(fileId)
       : primitiveFailures.get(fileId)) ?? { attempts: 0, unavailable: false };
     if (signal?.aborted || failure.unavailable) {
-      traceDiffHighlight("source-skip", {
+      trace("source-skip", {
         loader,
         file,
         aborted: signal?.aborted ?? false,
@@ -91,7 +92,7 @@ export function createNativeReviewDiffSourceLoader<FileId>(
       return null;
     }
     if (cached.has(fileId)) {
-      traceDiffHighlight("source-cache", { loader, file });
+      trace("source-cache", { loader, file });
       const source = cached.get(fileId)!;
       cached.delete(fileId);
       cached.set(fileId, source);
@@ -99,22 +100,22 @@ export function createNativeReviewDiffSourceLoader<FileId>(
     }
     let request = pending.get(fileId);
     if (!request) {
-      traceDiffHighlight("source-queued", { loader, file, pending: pending.size });
+      trace("source-queued", { loader, file, pending: pending.size });
       const subscribers = new Set<AbortSignal | undefined>();
       const promise = tail
         .then(async () => {
           if ([...subscribers].every((subscriber) => subscriber?.aborted)) {
             pending.delete(fileId);
-            traceDiffHighlight("source-dropped", { loader, file });
+            trace("source-dropped", { loader, file });
             return null;
           }
           const attempt = ++failure.attempts;
           if (isWeakKey(fileId)) objectFailures.set(fileId, failure);
           else primitiveFailures.set(fileId, failure);
-          traceDiffHighlight("source-start", { loader, file, attempt });
+          trace("source-start", { loader, file, attempt });
           try {
             const contents = await fetchSource(fileId);
-            traceDiffHighlight("source-result", {
+            trace("source-result", {
               loader,
               file,
               oldCharacters: contents.oldContents.length,
@@ -140,7 +141,7 @@ export function createNativeReviewDiffSourceLoader<FileId>(
           } catch (error) {
             const reason = permanentSourceFailureReason(error);
             const permanent = reason !== undefined;
-            traceDiffHighlight("source-error", {
+            trace("source-error", {
               loader,
               file,
               attempt,
@@ -149,7 +150,7 @@ export function createNativeReviewDiffSourceLoader<FileId>(
             });
             if (permanent) {
               failure.unavailable = true;
-              traceDiffHighlight("source-unavailable", {
+              trace("source-unavailable", {
                 loader,
                 file,
                 reason: "permanent-error",
@@ -168,12 +169,12 @@ export function createNativeReviewDiffSourceLoader<FileId>(
       );
       request = { promise, subscribers };
       pending.set(fileId, request);
-    } else traceDiffHighlight("source-shared", { loader, file });
+    } else trace("source-shared", { loader, file });
     request.subscribers.add(signal);
     try {
       return await waitForSource(request.promise, signal);
     } finally {
-      if (signal?.aborted) traceDiffHighlight("source-wait-aborted", { loader, file });
+      if (signal?.aborted) trace("source-wait-aborted", { loader, file });
       request.subscribers.delete(signal);
     }
   };

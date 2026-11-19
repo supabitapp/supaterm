@@ -115,14 +115,28 @@ const MENU_ICON_SYMBOLS: Readonly<Record<string, string>> = {
   trash: "trash",
 };
 
-/** @public */
-export const make = Effect.gen(function* () {
+export type ElectronMenuNative = {
+  readonly createFromNamedImage: (name: string) => Pick<Electron.NativeImage, "resize">;
+  readonly buildFromTemplate: (
+    template: Array<Electron.MenuItemConstructorOptions>,
+  ) => Pick<Electron.Menu, "popup">;
+  readonly setApplicationMenu: (template: Array<Electron.MenuItemConstructorOptions>) => void;
+};
+
+const electronMenuNative: ElectronMenuNative = {
+  createFromNamedImage: (name) => Electron.nativeImage.createFromNamedImage(name),
+  buildFromTemplate: (template) => Electron.Menu.buildFromTemplate(template),
+  setApplicationMenu: (template) =>
+    Electron.Menu.setApplicationMenu(Electron.Menu.buildFromTemplate(template)),
+};
+
+export const makeWith = Effect.fn("ElectronMenu.make")(function* (native: ElectronMenuNative) {
   const platform = yield* HostProcess.Platform;
   const menuIconCache = new Map<string, Option.Option<Electron.NativeImage>>();
 
   const loadMenuIcon = (symbol: string) => {
     try {
-      const image = Electron.nativeImage.createFromNamedImage(symbol).resize({ height: 12 });
+      const image = native.createFromNamedImage(symbol).resize({ height: 12 });
       image.setTemplateImage(true);
       return image.isEmpty() ? Option.none() : Option.some(image);
     } catch {
@@ -198,7 +212,7 @@ export const make = Effect.gen(function* () {
     setApplicationMenu: Effect.fn("ElectronMenu.setApplicationMenu")(function (template) {
       return Effect.try({
         try: () => {
-          Electron.Menu.setApplicationMenu(Electron.Menu.buildFromTemplate([...template]));
+          native.setApplicationMenu([...template]);
         },
         catch: (cause) =>
           new ElectronMenuOperationError({
@@ -215,7 +229,7 @@ export const make = Effect.gen(function* () {
         ? Effect.void
         : Effect.try({
             try: () =>
-              Electron.Menu.buildFromTemplate([...input.template]).popup({
+              native.buildFromTemplate([...input.template]).popup({
                 window: input.window,
                 ...(input.frame ? { frame: input.frame } : {}),
               }),
@@ -247,7 +261,7 @@ export const make = Effect.gen(function* () {
         };
 
         try {
-          const menu = Electron.Menu.buildFromTemplate(buildTemplate(normalizedItems, complete));
+          const menu = native.buildFromTemplate(buildTemplate(normalizedItems, complete));
           const popupPosition = normalizePosition(
             input.position,
             input.window.webContents.getZoomFactor(),
@@ -290,5 +304,8 @@ export const make = Effect.gen(function* () {
     }),
   });
 });
+
+/** @public */
+export const make = makeWith(electronMenuNative);
 
 export const layer = Layer.effect(ElectronMenu, make);

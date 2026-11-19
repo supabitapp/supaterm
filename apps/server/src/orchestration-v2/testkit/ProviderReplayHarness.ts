@@ -326,6 +326,7 @@ export function layerWithRegistry<Error>(
     readonly wrapProjectionStore?: (
       store: ProjectionStore.ProjectionStoreV2Shape,
     ) => ProjectionStore.ProjectionStoreV2Shape;
+    readonly wrapEventSink?: (sink: EventSink.EventSinkV2Shape) => EventSink.EventSinkV2Shape;
   },
 ): Layer.Layer<
   | Orchestrator.OrchestratorV2
@@ -357,6 +358,7 @@ export function layerWithRegistry<Error>(
     readonly wrapProjectionStore?: (
       store: ProjectionStore.ProjectionStoreV2Shape,
     ) => ProjectionStore.ProjectionStoreV2Shape;
+    readonly wrapEventSink?: (sink: EventSink.EventSinkV2Shape) => EventSink.EventSinkV2Shape;
   } = {},
 ) {
   const layerServerConfig = Layer.effect(
@@ -400,9 +402,17 @@ export function layerWithRegistry<Error>(
     layerEffectOutboxProvided,
     TurnItemPositionStore.layer,
   ).pipe(Layer.provide(layerDatabase));
-  const layerEventSinkProvided = EventSink.layerFromStores.pipe(
-    Layer.provide(Layer.mergeAll(layerStores, layerDatabase)),
-  );
+  const wrapEventSink = options.wrapEventSink;
+  const layerEventSinkProvided = (
+    wrapEventSink === undefined
+      ? EventSink.layerFromStores
+      : Layer.effect(
+          EventSink.EventSinkV2,
+          Effect.gen(function* () {
+            return wrapEventSink(yield* EventSink.EventSinkV2);
+          }),
+        ).pipe(Layer.provide(EventSink.layerFromStores))
+  ).pipe(Layer.provide(Layer.mergeAll(layerStores, layerDatabase)));
   const layerCommandReceiptStoreProvided = CommandReceiptStore.layer.pipe(
     Layer.provide(layerDatabase),
   );

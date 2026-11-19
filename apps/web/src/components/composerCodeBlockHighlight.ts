@@ -35,7 +35,11 @@ function collectCodeBlocks(state: EditorState) {
   return blocks;
 }
 
-export function composerCodeBlockHighlight(options: { resolveTheme: () => DiffThemeName }) {
+export function composerCodeBlockHighlight(options: {
+  resolveTheme: () => DiffThemeName;
+  loadHighlighter?: (language: string) => Promise<Highlighter>;
+}) {
+  const loadHighlighter = options.loadHighlighter ?? getSyntaxHighlighterPromise;
   return Extension.create({
     name: "composerCodeBlockHighlight",
 
@@ -115,7 +119,7 @@ export function composerCodeBlockHighlight(options: { resolveTheme: () => DiffTh
                     languageOfInfoString(String(node.attrs.language ?? "")) || "text",
                   );
                   const signature = blockSignature(node, theme);
-                  const highlighter = await getSyntaxHighlighterPromise(language).catch(() => null);
+                  const highlighter = await loadHighlighter(language).catch(() => null);
                   if (disposed || live !== signatures || cache.has(signature)) return;
                   cache.set(signature, {
                     signature,

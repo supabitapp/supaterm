@@ -17,7 +17,9 @@ import {
   type ProjectScriptEditorRequest,
 } from "./projectScriptEditor";
 
-const onSubmit = vi.fn<Parameters<typeof ProjectScriptEditorDialog>[0]["onSubmit"]>();
+type Submit = Parameters<typeof ProjectScriptEditorDialog>[0]["onSubmit"];
+const submissions: Array<ReturnType<Submit>> = [];
+const onSubmit = vi.spyOn({ submit: ((..._args) => submissions.shift()!) as Submit }, "submit");
 const onClose = vi.fn();
 const onDelete = vi.fn();
 
@@ -57,7 +59,8 @@ function deferredSave() {
 }
 
 function setup() {
-  onSubmit.mockReset();
+  submissions.length = 0;
+  onSubmit.mockClear();
   onClose.mockReset();
   onDelete.mockReset();
 }
@@ -68,7 +71,7 @@ describe("project action editor save lifecycle", () => {
     await using screen = await render(null);
     const first = deferredSave();
     const second = deferredSave();
-    onSubmit.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
+    submissions.push(first.promise, second.promise);
     await open(screen, request("build"));
     await act(async () => submit());
 

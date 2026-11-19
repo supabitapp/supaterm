@@ -1,90 +1,114 @@
+import {
+  BearerConnectionTarget,
+  PrimaryConnectionTarget,
+} from "@supaterm/client-runtime/connection";
 import { EnvironmentId } from "@supaterm/contracts";
 import { isPrivateNetworkHost, isPublicFaviconHost } from "@supaterm/shared/hostClassification";
-import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 
-const readPreparedConnection = vi.fn();
-const env = vi.hoisted(() => ({ isElectron: false }));
-const readEnvironmentSupportsServerBrowser = vi.fn();
+import { resolveDiscoveredServerUrl, type BrowserTargetEnvironment } from "./browserTargetResolver";
 
-vi.mock("~/state/session", () => ({ readPreparedConnection }));
-vi.mock("~/env", () => env);
-vi.mock("~/state/entities", () => ({ readEnvironmentSupportsServerBrowser }));
+type PreparedConnection = ReturnType<BrowserTargetEnvironment["readPreparedConnection"]>;
+
+function hostEnvironment(
+  connection: PreparedConnection,
+  options: { readonly isElectron?: boolean; readonly serverBrowser?: boolean } = {},
+) {
+  return {
+    isElectron: options.isElectron ?? false,
+    readPreparedConnection: () => connection,
+    readEnvironmentSupportsServerBrowser: () => options.serverBrowser ?? false,
+  } satisfies BrowserTargetEnvironment;
+}
 
 describe("browser target resolver", () => {
-  beforeEach(() => {
-    readPreparedConnection.mockReset();
-    readEnvironmentSupportsServerBrowser.mockReset();
-  });
-
-  it("resolves relay ports on the host browser and refuses a host without browser support", async () => {
-    readPreparedConnection.mockReturnValue({
-      httpBaseUrl: "http://127.0.0.1:5774",
-      connectionMethod: "relay",
-    });
-    const { resolveDiscoveredServerUrl } = await import("./browserTargetResolver");
+  it("resolves relay ports on the host browser and refuses a host without browser support", () => {
+    const relay = { httpBaseUrl: "http://127.0.0.1:5774", connectionMethod: "relay" } as const;
     const environmentId = EnvironmentId.make("relay-host");
     expect(() =>
-      resolveDiscoveredServerUrl(environmentId, "localhost:5173/app", { requireReachable: true }),
+      resolveDiscoveredServerUrl(environmentId, "localhost:5173/app", {
+        requireReachable: true,
+        environment: hostEnvironment(relay),
+      }),
     ).toThrow("browser support on the host");
-    expect(resolveDiscoveredServerUrl(environmentId, "localhost:5173/app")).toBe(
-      "localhost:5173/app",
-    );
-    readEnvironmentSupportsServerBrowser.mockReturnValue(true);
     expect(
-      resolveDiscoveredServerUrl(environmentId, "localhost:5173/app", { requireReachable: true }),
+      resolveDiscoveredServerUrl(environmentId, "localhost:5173/app", {
+        environment: hostEnvironment(relay),
+      }),
+    ).toBe("localhost:5173/app");
+    expect(
+      resolveDiscoveredServerUrl(environmentId, "localhost:5173/app", {
+        requireReachable: true,
+        environment: hostEnvironment(relay, { serverBrowser: true }),
+      }),
     ).toBe("http://localhost:5173/app");
   });
 
-  it("refuses Encrypted Relay hosts until the authenticated gateway exists", async () => {
-    readPreparedConnection.mockReturnValue({ httpBaseUrl: "https://relay.example.com" });
-    const { resolveDiscoveredServerUrl } = await import("./browserTargetResolver");
+  it("refuses Encrypted Relay hosts until the authenticated gateway exists", () => {
     expect(
-      resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "http://localhost:5173"),
+      resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "http://localhost:5173", {
+        environment: hostEnvironment({ httpBaseUrl: "https://relay.example.com" }),
+      }),
     ).toBe("http://localhost:5173");
   });
 
-  it("normalizes schemeless localhost server-picker values", async () => {
-    readPreparedConnection.mockReturnValue({ httpBaseUrl: "http://localhost:3773" });
-    const { resolveDiscoveredServerUrl } = await import("./browserTargetResolver");
-    expect(resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "localhost:5173")).toBe(
-      "http://localhost:5173/",
-    );
+  it("normalizes schemeless localhost server-picker values", () => {
+    const environment = hostEnvironment({ httpBaseUrl: "http://localhost:3773" });
     expect(
-      resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "0.0.0.0:3000/app"),
+      resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "localhost:5173", {
+        environment,
+      }),
+    ).toBe("http://localhost:5173/");
+    expect(
+      resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "0.0.0.0:3000/app", {
+        environment,
+      }),
     ).toBe("http://localhost:3000/app");
   });
 
-  it("maps discovered loopback servers onto a remote environment host", async () => {
-    readPreparedConnection.mockReturnValue({ httpBaseUrl: "http://192.168.1.25:3773" });
-    const { resolveDiscoveredServerUrl } = await import("./browserTargetResolver");
+  it("maps discovered loopback servers onto a remote environment host", () => {
     expect(
-      resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "localhost:3000/app"),
+      resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "localhost:3000/app", {
+        environment: hostEnvironment({ httpBaseUrl: "http://192.168.1.25:3773" }),
+      }),
     ).toBe("http://192.168.1.25:3000/app");
   });
 
-  it("keeps localhost for servers on the desktop's own WSL or primary backend", async () => {
-    const { resolveDiscoveredServerUrl } = await import("./browserTargetResolver");
-    env.isElectron = true;
-    try {
-      for (const target of [
-        { _tag: "BearerConnectionTarget", connectionId: "local:wsl:Ubuntu" },
-        { _tag: "PrimaryConnectionTarget" },
-      ]) {
-        readPreparedConnection.mockReturnValue({ httpBaseUrl: "http://172.24.66.27:3773", target });
-        expect(
-          resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "localhost:3001/"),
-        ).toBe("http://localhost:3001/");
-      }
-      readPreparedConnection.mockReturnValue({
-        httpBaseUrl: "http://192.168.1.25:3773",
-        target: { _tag: "BearerConnectionTarget", connectionId: "saved:remote" },
-      });
+  it("keeps localhost for servers on the desktop's own WSL or primary backend", () => {
+    const environmentId = EnvironmentId.make("environment-1");
+    for (const target of [
+      new BearerConnectionTarget({ environmentId, label: "WSL", connectionId: "local:wsl:Ubuntu" }),
+      new PrimaryConnectionTarget({
+        environmentId,
+        label: "Primary",
+        httpBaseUrl: "http://172.24.66.27:3773",
+        wsBaseUrl: "ws://172.24.66.27:3773",
+      }),
+    ]) {
       expect(
-        resolveDiscoveredServerUrl(EnvironmentId.make("environment-1"), "localhost:3001/"),
-      ).toBe("http://192.168.1.25:3001/");
-    } finally {
-      env.isElectron = false;
+        resolveDiscoveredServerUrl(environmentId, "localhost:3001/", {
+          environment: hostEnvironment(
+            { httpBaseUrl: "http://172.24.66.27:3773", target },
+            { isElectron: true },
+          ),
+        }),
+      ).toBe("http://localhost:3001/");
     }
+    expect(
+      resolveDiscoveredServerUrl(environmentId, "localhost:3001/", {
+        environment: hostEnvironment(
+          {
+            httpBaseUrl: "http://192.168.1.25:3773",
+            target: new BearerConnectionTarget({
+              environmentId,
+              label: "Remote",
+              connectionId: "saved:remote",
+            }),
+          },
+          { isElectron: true },
+        ),
+      }),
+    ).toBe("http://192.168.1.25:3001/");
   });
 
   it("classifies exact private IPv4 and IPv6 boundaries", async () => {

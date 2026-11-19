@@ -95,15 +95,11 @@ describe("notice exits", () => {
   const a = notice("a");
   const b = notice("b");
   const c = notice("c");
-  let finishExits = () => {};
+  const finishExits = () => {
+    for (const animation of container.getAnimations({ subtree: true })) animation.finish();
+  };
 
   async function mountStack(items: Items) {
-    const finished = new Promise<void>((resolve) => {
-      finishExits = resolve;
-    });
-    vi.spyOn(Element.prototype, "getAnimations").mockReturnValue([
-      { effect: null, finished } as unknown as Animation,
-    ]);
     await act(async () => fixtureScreen.rerender(<ComposerBannerStack items={items} />));
   }
   const update = (items: Items) =>

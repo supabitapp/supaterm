@@ -17,17 +17,14 @@ it.each(plugins)("%s limits drive-path checks to the word containing each escape
   const identifiers = Array.from({ length: 200 }, (_, index) => `metric_name_${index}`);
   const markdown = `Supported metrics: ${identifiers.map((name) => name.replaceAll("_", "\\_")).join(", ")}.`;
   const pattern = /(?:^|\W)[A-Za-z]:(?:[\\/]\S*)?$/.source;
-  const test = RegExp.prototype.test;
-  let inspectedCharacters = 0;
-  using _test = vi.spyOn(RegExp.prototype, "test").mockImplementation(function (
-    this: RegExp,
-    value: string,
-  ) {
-    if (this.source === pattern) inspectedCharacters += value.length;
-    return test.call(this, value);
-  });
+  using test = vi.spyOn(RegExp.prototype, "test");
 
-  expect(processor.parse(markdown)).toMatchObject({
+  const tree = processor.parse(markdown);
+  const inspectedCharacters = test.mock.calls.reduce((total, [value], index) => {
+    const context = test.mock.contexts[index];
+    return context instanceof RegExp && context.source === pattern ? total + value.length : total;
+  }, 0);
+  expect(tree).toMatchObject({
     children: [
       {
         type: "paragraph",

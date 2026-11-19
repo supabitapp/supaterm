@@ -3,7 +3,31 @@ import * as Option from "effect/Option";
 import { describe, expect, it } from "@effect/vitest";
 import { beforeEach, vi } from "vite-plus/test";
 
+type Behavior = { run(...args: ReadonlyArray<unknown>): unknown }["run"];
+type BehaviorName =
+  | "createAssetUrl"
+  | "executeAtomQuery"
+  | "runAtomCommand"
+  | "readAtom"
+  | "upload"
+  | "readBase64";
+
 const mocks = vi.hoisted(() => ({
+  next: {
+    createAssetUrl: [] as Array<Behavior>,
+    executeAtomQuery: [] as Array<Behavior>,
+    runAtomCommand: [] as Array<Behavior>,
+    readAtom: [] as Array<Behavior>,
+    upload: [] as Array<Behavior>,
+    readBase64: [] as Array<Behavior>,
+  },
+  fallback: {} as Record<BehaviorName, Behavior>,
+  respond(name: BehaviorName, observe: (...args: ReadonlyArray<unknown>) => unknown) {
+    return (...args: ReadonlyArray<unknown>) => {
+      observe(...args);
+      return (mocks.next[name].shift() ?? mocks.fallback[name])(...args);
+    };
+  },
   canOperate: true,
   documentUri: "file:///documents",
   createAssetUrl: vi.fn(),
@@ -21,13 +45,13 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@supaterm/client-runtime/state/runtime", () => ({
   createEnvironmentRpcCommand: () => Symbol("rpc-command"),
-  executeAtomQuery: mocks.executeAtomQuery,
-  runAtomCommand: mocks.runAtomCommand,
+  executeAtomQuery: mocks.respond("executeAtomQuery", mocks.executeAtomQuery),
+  runAtomCommand: mocks.respond("runAtomCommand", mocks.runAtomCommand),
   squashAtomCommandFailure: (result: { readonly error: unknown }) => result.error,
 }));
 
 vi.mock("../state/atom-registry", () => ({
-  appAtomRegistry: { get: mocks.readAtom },
+  appAtomRegistry: { get: mocks.respond("readAtom", mocks.readAtom) },
 }));
 
 vi.mock("./composerAttachmentPreviewRetention", () => ({
@@ -35,7 +59,7 @@ vi.mock("./composerAttachmentPreviewRetention", () => ({
 }));
 
 vi.mock("../state/assets", () => ({
-  assetEnvironment: { createUrl: mocks.createAssetUrl },
+  assetEnvironment: { createUrl: mocks.respond("createAssetUrl", mocks.createAssetUrl) },
 }));
 
 vi.mock("../state/attachments", () => ({
@@ -73,11 +97,11 @@ vi.mock("expo-file-system", () => ({
     }
 
     async base64() {
-      return mocks.readBase64(this.uri);
+      return mocks.respond("readBase64", mocks.readBase64)(this.uri);
     }
 
     upload(url: string, options: unknown) {
-      return mocks.upload(this.uri, url, options);
+      return mocks.respond("upload", mocks.upload)(this.uri, url, options);
     }
   },
   Paths: {
@@ -171,19 +195,28 @@ describe("prepareTurnAttachments", () => {
   beforeEach(() => {
     mocks.canOperate = true;
     mocks.documentUri = "file:///documents";
+    for (const queue of Object.values(mocks.next)) queue.length = 0;
+    mocks.fallback = {
+      createAssetUrl: () => undefined,
+      executeAtomQuery: async () => undefined,
+      runAtomCommand: async () => undefined,
+      readAtom: () => undefined,
+      upload: async () => undefined,
+      readBase64: async () => undefined,
+    };
     mocks.createAssetUrl.mockReset();
-    mocks.createAssetUrl.mockImplementation((target: unknown) => target);
+    mocks.fallback.createAssetUrl = (target: unknown) => target;
     mocks.executeAtomQuery.mockReset();
-    mocks.executeAtomQuery.mockResolvedValue({ _tag: "Success", value: {} });
+    mocks.fallback.executeAtomQuery = async () => ({ _tag: "Success", value: {} });
     mocks.runAtomCommand.mockReset();
     mocks.readAtom.mockReset();
     mocks.upload.mockReset();
     mocks.writeFile.mockReset();
     mocks.deleteFile.mockReset();
     mocks.readBase64.mockReset();
-    mocks.readBase64.mockResolvedValue("YWJj");
-    mocks.readAtom.mockReturnValue(Option.some({ httpBaseUrl: "https://environment.example/" }));
-    mocks.runAtomCommand.mockImplementation(async (_registry: unknown, command: unknown) =>
+    mocks.fallback.readBase64 = async () => "YWJj";
+    mocks.fallback.readAtom = () => Option.some({ httpBaseUrl: "https://environment.example/" });
+    mocks.fallback.runAtomCommand = async (_registry: unknown, command: unknown) =>
       command === mocks.createUploadUrl
         ? {
             _tag: "Success",
@@ -193,9 +226,8 @@ describe("prepareTurnAttachments", () => {
               expiresAt: 1,
             },
           }
-        : { _tag: "Success", value: undefined },
-    );
-    mocks.upload.mockResolvedValue({ status: 204, body: "", headers: {} });
+        : { _tag: "Success", value: undefined };
+    mocks.fallback.upload = async () => ({ status: 204, body: "", headers: {} });
   });
 
   it.effect("does not mint or transfer attachments without task operation access", () =>
@@ -216,7 +248,7 @@ describe("prepareTurnAttachments", () => {
 
   it.effect("rechecks access after a signed URL is minted before sending any bytes", () =>
     Effect.gen(function* () {
-      mocks.runAtomCommand.mockImplementationOnce(async () => {
+      mocks.next.runAtomCommand.push(async () => {
         mocks.canOperate = false;
         return {
           _tag: "Success",
@@ -227,7 +259,7 @@ describe("prepareTurnAttachments", () => {
           },
         };
       });
-      const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warning = vi.spyOn(console, "warn");
       try {
         expect(
           (yield* Effect.flip(
@@ -247,7 +279,7 @@ describe("prepareTurnAttachments", () => {
 
   it.effect("does not replace an expired upload when access was revoked during verification", () =>
     Effect.gen(function* () {
-      mocks.executeAtomQuery.mockImplementationOnce(async () => {
+      mocks.next.executeAtomQuery.push(async () => {
         mocks.canOperate = false;
         return { _tag: "Failure", error: { _tag: "AssetAttachmentNotFoundError" } };
       });
@@ -271,7 +303,7 @@ describe("prepareTurnAttachments", () => {
   );
 
   it("rechecks deletion permission before retrying a failed cleanup", async () => {
-    mocks.runAtomCommand.mockImplementationOnce(async () => {
+    mocks.next.runAtomCommand.push(async () => {
       mocks.canOperate = false;
       return { _tag: "Failure", error: new Error("Retry cleanup") };
     });
@@ -283,16 +315,14 @@ describe("prepareTurnAttachments", () => {
 
   it.effect("uploads a file-backed image from its owned copy without staging base64", () =>
     Effect.gen(function* () {
-      mocks.upload.mockImplementation(
-        async (
-          _uri: string,
-          _url: string,
-          options: { onProgress?: (event: { bytesSent: unknown; totalBytes: unknown }) => void },
-        ) => {
-          options.onProgress?.({ bytesSent: BigInt(1), totalBytes: BigInt(4) });
-          return { status: 204, body: "", headers: {} };
-        },
-      );
+      mocks.fallback.upload = async (
+        _uri: string,
+        _url: string,
+        options: { onProgress?: (event: { bytesSent: unknown; totalBytes: unknown }) => void },
+      ) => {
+        options.onProgress?.({ bytesSent: BigInt(1), totalBytes: BigInt(4) });
+        return { status: 204, body: "", headers: {} };
+      };
       const progress: Array<number> = [];
       const prepared = yield* prepare({
         environmentId,
@@ -427,9 +457,10 @@ describe("prepareTurnAttachments", () => {
 
   it.effect("uses the current connection when an environment reconnects during URL creation", () =>
     Effect.gen(function* () {
-      mocks.readAtom
-        .mockReturnValueOnce(Option.some({ httpBaseUrl: "https://old-environment.example/" }))
-        .mockReturnValueOnce(Option.some({ httpBaseUrl: "https://new-environment.example/" }));
+      mocks.next.readAtom.push(
+        () => Option.some({ httpBaseUrl: "https://old-environment.example/" }),
+        () => Option.some({ httpBaseUrl: "https://new-environment.example/" }),
+      );
 
       yield* prepare({ environmentId, attachments: [file] });
 
@@ -451,12 +482,12 @@ describe("prepareTurnAttachments", () => {
       mocks.documentUri =
         "file:///var/mobile/Containers/Data/Application/22222222-2222-4222-8222-222222222222/Documents";
       const currentUri = `${mocks.documentUri}/supaterm-composer-attachments/${fileName}`;
-      mocks.upload.mockImplementation(async (uri: string) => {
+      mocks.fallback.upload = async (uri: string) => {
         if (uri !== currentUri) {
           throw new Error("File does not exist in the previous application container.");
         }
         return { status: 204, body: "", headers: {} };
-      });
+      };
 
       const prepared = yield* prepare({
         environmentId,
@@ -536,10 +567,10 @@ describe("prepareTurnAttachments", () => {
 
   it.effect("uploads a file again when its saved pending upload has expired", () =>
     Effect.gen(function* () {
-      mocks.executeAtomQuery.mockResolvedValueOnce({
+      mocks.next.executeAtomQuery.push(async () => ({
         _tag: "Failure",
         error: { _tag: "AssetAttachmentNotFoundError" },
-      });
+      }));
       const previouslyUploaded = {
         ...file,
         uploadedAttachmentId: "pending-expired-pdf",
@@ -614,10 +645,10 @@ describe("prepareTurnAttachments", () => {
         sizeBytes: image.sizeBytes,
       });
       expect(mocks.upload).not.toHaveBeenCalled();
-      mocks.executeAtomQuery.mockResolvedValueOnce({
+      mocks.next.executeAtomQuery.push(async () => ({
         _tag: "Failure",
         error: { _tag: "AssetAttachmentNotFoundError" },
-      });
+      }));
       const restored = yield* prepare({
         environmentId,
         attachments: [saved],
@@ -658,15 +689,13 @@ describe("prepareTurnAttachments", () => {
       Effect.gen(function* () {
         const started = Promise.withResolvers<void>();
         const persist = vi.fn(() => Effect.succeed("persisted" as const));
-        mocks.upload.mockImplementation(
-          (_uri: string, _url: string, options: { signal: AbortSignal }) =>
-            new Promise((_, reject) => {
-              options.signal.addEventListener("abort", () => reject(new Error("cancelled")), {
-                once: true,
-              });
-              started.resolve();
-            }),
-        );
+        mocks.fallback.upload = (_uri: string, _url: string, options: { signal: AbortSignal }) =>
+          new Promise((_, reject) => {
+            options.signal.addEventListener("abort", () => reject(new Error("cancelled")), {
+              once: true,
+            });
+            started.resolve();
+          });
         const preparing = yield* Effect.forkChild(
           prepare({ environmentId, attachments: [file], persistUploadedReferences: persist }),
         );
@@ -681,7 +710,7 @@ describe("prepareTurnAttachments", () => {
 
   it.effect("removes pending uploads when the native HTTP request fails", () =>
     Effect.gen(function* () {
-      mocks.upload.mockResolvedValue({ status: 500, body: "failed", headers: {} });
+      mocks.fallback.upload = async () => ({ status: 500, body: "failed", headers: {} });
 
       expect(
         (yield* Effect.flip(prepare({ environmentId, attachments: [file] }))).message,
@@ -698,7 +727,7 @@ describe("prepareTurnAttachments", () => {
         uploadedAttachmentId: "pending-existing-pdf",
         uploadEnvironmentId: environmentId,
       };
-      mocks.upload.mockResolvedValue({ status: 500, body: "failed", headers: {} });
+      mocks.fallback.upload = async () => ({ status: 500, body: "failed", headers: {} });
 
       expect(
         (yield* Effect.flip(prepare({ environmentId, attachments: [previouslyUploaded, file] })))
@@ -713,10 +742,11 @@ describe("prepareTurnAttachments", () => {
 describe("releasePendingAttachmentUploads", () => {
   beforeEach(() => {
     mocks.runAtomCommand.mockReset();
+    mocks.next.runAtomCommand.length = 0;
   });
 
   it("throws when a delete keeps failing so the caller sees the leak", async () => {
-    mocks.runAtomCommand.mockResolvedValue({ _tag: "Failure", error: new Error("offline") });
+    mocks.fallback.runAtomCommand = async () => ({ _tag: "Failure", error: new Error("offline") });
 
     await expect(releasePendingAttachmentUploads(environmentId, ["pending-a"])).rejects.toThrow(
       "pending-a",
@@ -724,7 +754,7 @@ describe("releasePendingAttachmentUploads", () => {
   });
 
   it("treats an already-deleted pending upload as released", async () => {
-    mocks.runAtomCommand.mockResolvedValue({
+    mocks.fallback.runAtomCommand = async () => ({
       _tag: "Failure",
       error: { _tag: "AssetAttachmentNotFoundError" },
     });
