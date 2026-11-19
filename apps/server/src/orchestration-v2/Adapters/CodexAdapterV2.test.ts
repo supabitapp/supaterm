@@ -8647,7 +8647,12 @@ describe("CodexAdapterV2 post-settle continuation", () => {
           ],
         });
 
-        const harness = yield* makeCodexReplayHarness(transcript);
+        const resumeParams: Array<unknown> = [];
+        const harness = yield* makeCodexReplayHarness(transcript, undefined, (method, params) =>
+          Effect.sync(() => {
+            if (method === "thread/resume") resumeParams.push(params);
+          }),
+        );
         const mcpApps = harness.runtime.mcpApps;
         assert.ok(mcpApps, "Codex runtime should expose MCP apps");
 
@@ -8658,6 +8663,12 @@ describe("CodexAdapterV2 post-settle continuation", () => {
         });
 
         assert.deepEqual(result, resourceResult);
+        // The shared app-server session's cwd and model belong to whichever thread opened it.
+        // Codex must resume this thread with its own saved cwd, or it loads another
+        // project's MCP servers and drops this project's.
+        assert.equal(resumeParams.length, 1);
+        assert.ok(!Predicate.hasProperty(resumeParams[0], "cwd"), "resume must not send a cwd");
+        assert.ok(!Predicate.hasProperty(resumeParams[0], "model"), "resume must not send a model");
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
