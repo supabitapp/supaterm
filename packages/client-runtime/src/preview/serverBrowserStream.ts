@@ -143,14 +143,12 @@ export async function resolvePreviewStreamDownload(
   );
 }
 
-/** Sends files to a page's open picker with credentials fetched immediately before upload. */
+/** Sends a multipart `file` body to a page's open picker with credentials fetched immediately before upload. */
 export async function uploadPreviewStreamFiles(
   chooser: PreviewStreamFileChooser,
-  files: ReadonlyArray<Blob & { readonly name?: string }>,
+  body: FormData,
   target: PreviewStreamTransferTarget,
 ): Promise<void> {
-  const body = new FormData();
-  for (const file of files) body.append("file", file, file.name ?? "file");
   const access = await target.resolveAccess();
   if (!access) throw new Error("The browser stream is no longer available.");
   const response = await fetch(previewStreamUploadUrl(access, target, chooser.id), {

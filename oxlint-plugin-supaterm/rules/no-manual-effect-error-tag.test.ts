@@ -27,6 +27,45 @@ describe("supaterm/no-manual-effect-error-tag", () => {
     `,
   );
 
+  rule.valid(
+    "ignores a local named Effect that is not the Effect module",
+    `
+      const Effect = { catch: (handler: (error: { readonly _tag: string }) => boolean) => handler };
+
+      export const recovered = Effect.catch((error) => error._tag === "A");
+    `,
+  );
+
+  rule.valid(
+    "ignores tags of values other than the caught error",
+    `
+      import * as Effect from "effect/Effect";
+
+      declare const event: { readonly _tag: string };
+      declare const program: Effect.Effect<void, Error>;
+
+      export const recovered = program.pipe(
+        Effect.catch(() => (event._tag === "Stop" ? Effect.void : Effect.die("unexpected"))),
+      );
+    `,
+  );
+
+  rule.invalid(
+    "reports through an aliased Effect namespace and a nested callback",
+    `
+      import * as Eff from "effect/Effect";
+
+      declare const program: Eff.Effect<void, { readonly _tag: "A" } | { readonly _tag: "B" }>;
+
+      export const recovered = program.pipe(
+        Eff.catch((error) => [error].some(() => error._tag === "A") ? Eff.void : Eff.fail(error)),
+      );
+    `,
+    (output) => {
+      assert.match(output, /Effect\.catchTags/);
+    },
+  );
+
   rule.invalid(
     "reports a tag comparison in Effect.catchIf",
     `

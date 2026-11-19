@@ -3,7 +3,7 @@ import {
   type DeviceScreenSize,
 } from "@supaterm/client-runtime/device/stream";
 
-import type { DeviceStreamConfiguration } from "./device-stream-document";
+import type { DeviceStreamConfiguration, DeviceStreamMessage } from "./device-stream-document";
 
 declare global {
   interface Window {
@@ -25,7 +25,7 @@ export function command(button: "home" | "back" | "appSwitcher" | "rotate") {
 
 export function start(configuration: DeviceStreamConfiguration) {
   stop();
-  const post = <Message>(message: Message) =>
+  const post = (message: DeviceStreamMessage) =>
     // oxlint-disable-next-line unicorn/require-post-message-target-origin -- The native WebView bridge takes one string.
     window.ReactNativeWebView.postMessage(JSON.stringify(message));
   const { colors, platform } = configuration;

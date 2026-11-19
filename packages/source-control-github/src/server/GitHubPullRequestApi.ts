@@ -340,9 +340,6 @@ const isGitHubServerError = (error: unknown): boolean =>
 const isMissingPullRef = ({ path, type }: GraphQLClientError.GraphQLError): boolean =>
   type === "NOT_FOUND" && path?.join(".") === "repository.pullRequest.baseRef.compare";
 
-const isUndecodableReply = (error: unknown): boolean =>
-  isGraphQlClientError(error) && error.reason._tag === "DecodeError";
-
 const isRefusedRequestedReviewersOnly = (error: unknown): boolean =>
   isGraphQlClientError(error) &&
   error.reason._tag === "ResponseError" &&
@@ -1815,12 +1812,16 @@ export const make = Effect.gen(function* () {
   } satisfies Partial<Record<PullRequestAction, unknown>>;
 
   /** The mutation already landed, so a reply that does not decode only loses the summary. */
-  const actionSummary = <E, R>(
-    effect: Effect.Effect<PullRequestActionSummary | null | undefined, E, R>,
+  const actionSummary = <R>(
+    effect: Effect.Effect<
+      PullRequestActionSummary | null | undefined,
+      Effect.Error<ReturnType<typeof simpleActionMutations.close>>,
+      R
+    >,
   ) =>
     effect.pipe(
       Effect.map(toPullRequestActionSummary),
-      Effect.catchIf(isUndecodableReply, () => Effect.void),
+      Effect.catchReason("GraphQLClientError", "DecodeError", () => Effect.void),
     );
 
   /**

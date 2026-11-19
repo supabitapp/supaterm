@@ -1,6 +1,5 @@
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
-import * as Predicate from "effect/Predicate";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Result from "effect/Result";
@@ -501,7 +500,7 @@ export const make = Effect.gen(function* () {
             : Effect.succeed(decoded.success);
         }),
         // `az account show` cannot identify PAT logins; the extension resolves `--creator me`.
-        Effect.catchIf(Predicate.not(Predicate.isTagged("AzureDevOpsCliUnavailableError")), () =>
+        Effect.catchTags({ AzureDevOpsCliUnavailableError: (error) => Effect.fail(error) }, () =>
           executeJson({
             cwd: input.cwd,
             args: [

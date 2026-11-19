@@ -90,7 +90,7 @@ export function takeNewTaskPromptLink(
   pendingLink = search;
   return updateLinkedRoute(state, NEW_TASK_ROUTES, (linked) => ({
     ...linked,
-    params: withoutPromptLinkParams(linked.params),
+    params: withoutPromptLinkParams(linked.params as Readonly<Record<string, unknown>> | undefined),
   }));
 }
 

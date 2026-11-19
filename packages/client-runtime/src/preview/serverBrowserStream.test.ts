@@ -197,11 +197,13 @@ describe("preview stream transfers", () => {
     const fetchMock = vi.fn(async (_input: string | URL, _init?: RequestInit) => ({ ok: true }));
     vi.stubGlobal("fetch", fetchMock);
 
-    await uploadPreviewStreamFiles(
-      { id: "chooser-1", multiple: true, accept: ".csv" },
-      [new Blob(["file contents"], { type: "text/csv" })],
-      { threadId: "thread", tabId: "tab", resolveAccess },
-    );
+    const body = new FormData();
+    body.append("file", new Blob(["file contents"], { type: "text/csv" }), "data.csv");
+    await uploadPreviewStreamFiles({ id: "chooser-1", multiple: true, accept: ".csv" }, body, {
+      threadId: "thread",
+      tabId: "tab",
+      resolveAccess,
+    });
 
     expect(resolveAccess).toHaveBeenCalledOnce();
     expect(fetchMock).toHaveBeenCalledOnce();

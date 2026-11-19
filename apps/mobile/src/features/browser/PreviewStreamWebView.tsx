@@ -65,7 +65,7 @@ async function sendFilesToPage(
     readonly tabId: string;
   },
 ) {
-  const files: Array<Blob & { readonly name?: string }> = [];
+  const body = new FormData();
   if (pick) {
     const { getDocumentAsync } = await import("expo-document-picker");
     const endHandoff = beginForegroundHandoff();
@@ -81,11 +81,11 @@ async function sendFilesToPage(
         name: asset.name,
         type: asset.mimeType ?? "application/octet-stream",
       };
-      // React Native's FormData uploads a file part from its URI.
-      files.push(part as typeof part & Blob);
+      // React Native's FormData uploads a file part from its URI; lib.dom types only Blob values.
+      body.append("file", part as typeof part & Blob, asset.name);
     }
   }
-  await uploadPreviewStreamFiles(chooser, files, {
+  await uploadPreviewStreamFiles(chooser, body, {
     threadId: target.threadId,
     tabId: target.tabId,
     resolveAccess: () => readFreshPreviewStreamAccess(target.environmentId),

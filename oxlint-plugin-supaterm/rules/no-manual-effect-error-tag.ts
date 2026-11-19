@@ -1,5 +1,7 @@
 import { defineRule, type ESTree } from "@oxlint/plugins";
 
+import { isEffectNamespace, resolveVariable } from "../effect-bindings.ts";
+
 const EQUALITY_OPERATORS = new Set(["==", "===", "!=", "!=="]);
 const BROAD_CATCH_METHODS = new Set(["catch", "catchAll", "catchIf"]);
 
@@ -11,9 +13,11 @@ const isNamed = (computed: boolean, property: ESTree.Node, name: string) =>
 const isTagMember = (node: ESTree.Node | null | undefined): node is ESTree.MemberExpression =>
   node?.type === "MemberExpression" && isNamed(node.computed, node.property, "_tag");
 
-const isReasonTagMember = (node: ESTree.MemberExpression) =>
+const reasonOwner = (node: ESTree.MemberExpression) =>
   node.object.type === "MemberExpression" &&
-  isNamed(node.object.computed, node.object.property, "reason");
+  isNamed(node.object.computed, node.object.property, "reason")
+    ? node.object.object
+    : undefined;
 
 const isStringLiteral = (node: ESTree.Node) =>
   node.type === "Literal" && typeof node.value === "string";
@@ -23,29 +27,6 @@ const tagMemberFromComparison = (node: ESTree.BinaryExpression) => {
   if (isTagMember(node.left) && isStringLiteral(node.right)) return node.left;
   if (isTagMember(node.right) && isStringLiteral(node.left)) return node.right;
   return undefined;
-};
-
-const isBroadEffectCatchCall = (
-  node: ESTree.Node | null | undefined,
-): node is ESTree.CallExpression =>
-  node?.type === "CallExpression" &&
-  node.callee.type === "MemberExpression" &&
-  node.callee.object.type === "Identifier" &&
-  node.callee.object.name === "Effect" &&
-  !node.callee.computed &&
-  node.callee.property.type === "Identifier" &&
-  BROAD_CATCH_METHODS.has(node.callee.property.name);
-
-const isInsideBroadEffectHandler = (node: ESTree.Node) => {
-  let current = node.parent;
-  while (current !== null && current !== undefined) {
-    if (current.type === "ArrowFunctionExpression" || current.type === "FunctionExpression") {
-      const call = current.parent;
-      return isBroadEffectCatchCall(call) && call.arguments.includes(current);
-    }
-    current = current.parent;
-  }
-  return false;
 };
 
 export default defineRule({
@@ -62,10 +43,38 @@ export default defineRule({
     },
   },
   create(context) {
-    const report = (node: ESTree.Node, member: ESTree.MemberExpression) => {
-      if (!isInsideBroadEffectHandler(node)) return;
-      context.report({ node, messageId: isReasonTagMember(member) ? "reason" : "tag" });
+    const isBroadEffectCatchCall = (node: ESTree.Node | null): node is ESTree.CallExpression =>
+      node?.type === "CallExpression" &&
+      node.callee.type === "MemberExpression" &&
+      !node.callee.computed &&
+      node.callee.object.type === "Identifier" &&
+      node.callee.property.type === "Identifier" &&
+      BROAD_CATCH_METHODS.has(node.callee.property.name) &&
+      isEffectNamespace(context, node.callee.object);
+
+    const isCaughtError = (node: ESTree.Node) => {
+      if (node.type !== "Identifier") return false;
+      return (
+        resolveVariable(context, node)?.defs.some((def) => {
+          if (def.type !== "Parameter") return false;
+          const handler = def.node;
+          return (
+            (handler.type === "ArrowFunctionExpression" || handler.type === "FunctionExpression") &&
+            handler.params[0] === def.name &&
+            isBroadEffectCatchCall(handler.parent) &&
+            handler.parent.arguments.includes(handler)
+          );
+        }) ?? false
+      );
     };
+
+    const report = (node: ESTree.Node, member: ESTree.MemberExpression) => {
+      const owner = reasonOwner(member);
+      if (isCaughtError(owner ?? member.object)) {
+        context.report({ node, messageId: owner === undefined ? "tag" : "reason" });
+      }
+    };
+
     return {
       BinaryExpression(node) {
         const member = tagMemberFromComparison(node);

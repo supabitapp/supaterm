@@ -34,6 +34,8 @@ export function deviceStreamDocument(configuration: string, script: string) {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"></head><body><script>window.addEventListener("error",function(){${failure}});window.addEventListener("unhandledrejection",function(){${failure}});\n${safeScript}\ntry{SupatermDeviceStream.start(${safeConfiguration});}catch{${failure}}</script></body></html>`;
 }
 
+export type DeviceStreamMessage = NonNullable<ReturnType<typeof deviceStreamMessage>>;
+
 export function deviceStreamMessage(data: string) {
   try {
     const message: unknown = JSON.parse(data);

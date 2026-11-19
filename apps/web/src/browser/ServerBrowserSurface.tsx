@@ -211,7 +211,9 @@ export function ServerBrowserSurface(props: {
     const chooser = fileChooser;
     if (!chooser) return;
     setFileChooser(null);
-    void uploadPreviewStreamFiles(chooser, files, {
+    const body = new FormData();
+    for (const file of files) body.append("file", file, file.name);
+    void uploadPreviewStreamFiles(chooser, body, {
       threadId,
       tabId,
       resolveAccess: () => readFreshPreviewStreamAccess(environmentId),
