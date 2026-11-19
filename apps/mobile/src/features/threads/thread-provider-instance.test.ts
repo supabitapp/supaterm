@@ -10,7 +10,7 @@ import { describe, expect, it } from "vite-plus/test";
 import { Atom, AtomRegistry } from "effect/reactivity";
 
 import { createThreadMovePlanner } from "./threadOrder";
-import { makeThreadShellFixture } from "../../test-fixtures";
+import { makeThreadShellFixture } from "../../thread.fixture";
 import { createThreadListEnvironmentsAtom } from "../../state/thread-list-environments";
 
 import {

@@ -3,8 +3,8 @@ import { userEvent } from "vite-plus/test/browser";
 
 import { resolvePastedPath } from "@supaterm/shared/path";
 
-import { render } from "../../test/render";
-import { DraftInput } from "../components/ui/draft-input";
+import { render } from "../../../test/render";
+import { DraftInput } from "./draft-input";
 
 describe("settings draft commits", () => {
   it("preserves an external update when an untouched field loses focus", async () => {

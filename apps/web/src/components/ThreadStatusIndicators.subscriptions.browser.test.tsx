@@ -6,7 +6,7 @@ import "../index.css";
 
 import { render } from "../../test/render";
 import { AppAtomRegistryProvider } from "../rpc/atomRegistry";
-import { makeThreadFixture } from "../test-fixtures";
+import { makeThreadFixture } from "../thread.fixture";
 import { InlineButton } from "./ui/button";
 
 const state = vi.hoisted(() => ({

@@ -12,7 +12,7 @@ import {
   RunId,
   ThreadId,
 } from "@supaterm/contracts";
-import { makeThreadProjectionFixture } from "../test-fixtures";
+import { makeThreadProjectionFixture } from "../thread.fixture";
 import {
   deriveLatestContextWindowSnapshot,
   formatContextWindowPercentage,

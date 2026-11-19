@@ -36,7 +36,7 @@ import { sortPinnedThreadsByOrderKey } from "@supaterm/client-runtime/state/thre
 import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@supaterm/contracts";
 
 import { DEFAULT_RUNTIME_MODE, type Project, type Thread } from "../types";
-import { makeThreadFixture, type ThreadFixtureOverrides } from "../test-fixtures";
+import { makeThreadFixture, type ThreadFixtureOverrides } from "../thread.fixture";
 import {
   completeSidebarRouteReveal,
   pendingSidebarRouteReveal,

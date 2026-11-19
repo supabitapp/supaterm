@@ -16,7 +16,7 @@ import { act, render as renderUi, type Screen } from "../../../test/render";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DraftId } from "../../composerDraftStore";
-import { makeThreadProjectionFixture } from "../../test-fixtures";
+import { makeThreadProjectionFixture } from "../../thread.fixture";
 import { usePendingUserInputDraft } from "./usePendingThreadRequests";
 import { usePendingThreadRequestsWithTimerPause } from "./usePendingThreadRequestsWithTimerPause";
 

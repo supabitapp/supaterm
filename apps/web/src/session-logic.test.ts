@@ -46,7 +46,7 @@ import {
   makeStreamingWorkTimelineFixture,
   makeThreadProjectionFixture,
   withStreamedText,
-} from "./test-fixtures";
+} from "./thread.fixture";
 import type { ChatMessage } from "./types";
 
 function streamingPlanArtifact(

@@ -51,7 +51,7 @@ import { environmentThreadDetails } from "../state/threads";
 import type { Thread } from "../types";
 import { DraftId, hydrateImagesFromPersisted, useComposerDraftStore } from "../composerDraftStore";
 import { derivePhase } from "../session-logic";
-import { makeThreadFixture, makeThreadProjectionFixture } from "../test-fixtures";
+import { makeThreadFixture, makeThreadProjectionFixture } from "../thread.fixture";
 import {
   getAntigravitySendBlockReason,
   resolveComposerProviderSelection,

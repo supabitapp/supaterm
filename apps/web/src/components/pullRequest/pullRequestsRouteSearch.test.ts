@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-router";
 import { describe, expect, it } from "vite-plus/test";
 
-import { Route as PullRequestsRoute } from "../../routes/_chat.pull-requests";
+import { validatePullRequestsSearch } from "./pullRequestsRouteSearch";
 
 function matchedSearch(url: string) {
   const root = createRootRoute();
@@ -14,7 +14,7 @@ function matchedSearch(url: string) {
   const pullRequests = createRoute({
     getParentRoute: () => chat,
     path: "pull-requests",
-    validateSearch: PullRequestsRoute.options.validateSearch,
+    validateSearch: validatePullRequestsSearch,
   });
   const router = createRouter({
     routeTree: root.addChildren([chat.addChildren([pullRequests])]),

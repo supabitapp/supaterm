@@ -10,7 +10,7 @@ import { EMPTY_ENVIRONMENT_THREAD_STATE } from "@supaterm/client-runtime/state/t
 import { ThreadId } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
-import { makeThreadProjectionFixture } from "./test-fixtures";
+import { makeThreadProjectionFixture } from "./thread.fixture";
 
 import {
   isThreadRoutePathname,

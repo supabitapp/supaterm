@@ -22,7 +22,7 @@ import {
   makeStreamingTimelineFixture,
   makeStreamingWorkTimelineFixture,
   withStreamedText,
-} from "../../test-fixtures";
+} from "../../thread.fixture";
 import type { TurnDiffSummary } from "../../types";
 import { describe, expect, it } from "vite-plus/test";
 import { MessageId, RunId } from "@supaterm/contracts";

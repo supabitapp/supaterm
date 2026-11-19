@@ -11,7 +11,7 @@ import { TestClock } from "effect/testing";
 
 import * as ProviderHost from "@supaterm/provider-core/server/ProviderHost";
 import * as TestProviderHost from "@supaterm/provider-testing/TestProviderHost";
-import * as OpenCode2AdapterV2Testkit from "../orchestration-v2/Adapters/OpenCode2AdapterV2.testkit.ts";
+import * as OpenCode2AdapterV2Testkit from "./OpenCode2AdapterV2.testkit.ts";
 import * as OpenCode2Server from "@supaterm/provider-opencode/server/v2/OpenCode2Server";
 import * as OpenCode2TextGeneration from "@supaterm/provider-opencode/server/v2/textGeneration";
 import { OPENCODE2_TITLE_GENERATION } from "./OpenCode2TextGeneration.fixture.ts";

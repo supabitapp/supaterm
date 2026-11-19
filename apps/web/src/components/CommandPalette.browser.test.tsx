@@ -7,7 +7,7 @@ import { openCommandPalette } from "../commandPaletteBus";
 import { useCommandPaletteStore } from "../commandPaletteStore";
 import { LAST_USED_PROJECT_STORAGE_KEY } from "../hooks/useHandleNewThread";
 import { removeLocalStorageItem } from "../hooks/useLocalStorage";
-import { makeThreadFixture } from "../test-fixtures";
+import { makeThreadFixture } from "../thread.fixture";
 import type { Project, Thread } from "../types";
 import { CommandPalette } from "./CommandPalette";
 

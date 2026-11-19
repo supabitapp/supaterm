@@ -1,6 +1,6 @@
 import { EnvironmentId, ProjectId, SourceControlProviderKind } from "@supaterm/contracts";
 import { describe, expect, it } from "vite-plus/test";
-import { nativePullRequestDestination as destination } from "../../lib/pullRequestNavigation";
+import { nativePullRequestDestination as destination } from "./pullRequestNavigation";
 
 const context = { environmentId: "remote", projectId: "project" };
 const project = (id: string, canonicalKey: string, provider: string, remoteUrl: string) => ({

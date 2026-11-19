@@ -37,7 +37,7 @@ import { MessagesTimeline } from "./MessagesTimeline";
 import { shouldRefocusComposerOnWindowFocus } from "../ChatView.logic";
 import { createWorkspaceFocusController, workspaceAreaProps } from "../../lib/workspaceFocus";
 import { resolveTimelineIsAtEnd } from "./MessagesTimeline.logic";
-import { makeStreamingTimelineFixture } from "../../test-fixtures";
+import { makeStreamingTimelineFixture } from "../../thread.fixture";
 import { deriveTimelineEntriesFromVisibleTurnItems } from "../../session-logic";
 import type { Root } from "mdast";
 import { ViewedImagesTimelineRow } from "./TimelineWorkEntryRow";

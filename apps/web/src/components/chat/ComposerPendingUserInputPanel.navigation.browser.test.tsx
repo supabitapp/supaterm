@@ -17,7 +17,7 @@ vi.mock(import("../ChatMarkdown"), () => ({
 
 import { act, fakeTimers, render } from "../../../test/render";
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
-import { makeThreadProjectionFixture } from "../../test-fixtures";
+import { makeThreadProjectionFixture } from "../../thread.fixture";
 import { toastManager } from "../ui/toast";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { usePendingThreadRequests, usePendingUserInputDraft } from "./usePendingThreadRequests";

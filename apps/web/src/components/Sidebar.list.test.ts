@@ -6,7 +6,7 @@ import {
   sidebarListLayoutKey,
   previewDraggedInbox,
 } from "./Sidebar.list";
-import { makeThreadFixture } from "../test-fixtures";
+import { makeThreadFixture } from "../thread.fixture";
 import { resolveSidebarDropTarget, sidebarListItemId } from "./Sidebar.logic";
 
 it("keeps state on grouped rows and one shared Done shelf", () => {

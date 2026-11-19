@@ -1,4 +1,4 @@
-import { makeThreadShellFixture } from "../../test-fixtures";
+import { makeThreadShellFixture } from "../../thread.fixture";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/shell";
 import {
   AuthOrchestrationOperateScope,

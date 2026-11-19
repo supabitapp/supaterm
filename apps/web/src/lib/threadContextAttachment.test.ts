@@ -2,7 +2,7 @@ import { EnvironmentId, ThreadId, TurnItemId } from "@supaterm/contracts";
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 
-import { makeThreadProjectionFixture } from "../test-fixtures";
+import { makeThreadProjectionFixture } from "../thread.fixture";
 import { threadContextAttachment } from "./threadContextAttachment";
 
 describe("threadContextAttachment", () => {

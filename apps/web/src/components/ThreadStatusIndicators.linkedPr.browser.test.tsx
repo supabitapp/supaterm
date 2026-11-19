@@ -3,7 +3,7 @@ import { expect, it, vi } from "vite-plus/test";
 
 import { render } from "../../test/render";
 import { AppAtomRegistryProvider } from "../rpc/atomRegistry";
-import { makeThreadFixture } from "../test-fixtures";
+import { makeThreadFixture } from "../thread.fixture";
 import { ThreadRowLeadingStatus } from "./ThreadStatusIndicators";
 
 const environmentId = EnvironmentId.make("environment-test");

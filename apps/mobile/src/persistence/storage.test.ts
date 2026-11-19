@@ -103,7 +103,7 @@ vi.mock("react-native", () => ({
   },
 }));
 
-import { loadPreferences, savePreferencesPatch } from "../persistence/imperative";
+import { loadPreferences, savePreferencesPatch } from "./imperative";
 
 describe("mobile storage", () => {
   beforeEach(() => {

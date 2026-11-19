@@ -8,7 +8,7 @@ import {
 import { formatHourShort, formatRelativeHourShort } from "@supaterm/shared/usageFormat";
 import { describe, test } from "vite-plus/test";
 
-import { makeThreadProjectionFixture } from "./test-fixtures";
+import { makeThreadProjectionFixture } from "./thread.fixture";
 import { deriveActivePlanState } from "./session-logic";
 
 const projectId = ProjectId.make("benchmark-project");

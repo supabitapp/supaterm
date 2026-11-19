@@ -5,7 +5,7 @@ import { Atom, AtomRegistry } from "effect/reactivity";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createThreadDetailReadiness } from "./threadDetailReadiness";
-import { makeThreadFixture } from "../test-fixtures";
+import { makeThreadFixture } from "../thread.fixture";
 
 const stores = vi.hoisted(() => ({
   loaded: false,

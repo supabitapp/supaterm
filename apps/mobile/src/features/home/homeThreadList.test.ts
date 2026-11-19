@@ -6,7 +6,7 @@ import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@supater
 import { describe, expect, it } from "vite-plus/test";
 
 import { buildHomeProjectScopes, findHomeProjectScope } from "./homeThreadList";
-import { makeThreadShellFixture } from "../../test-fixtures";
+import { makeThreadShellFixture } from "../../thread.fixture";
 import { buildThreadListV2Items } from "../threads/threadListV2";
 
 function makeProject(

@@ -90,6 +90,14 @@ const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
     "Pick a glyph by meaning from PullRequestGlyph in apps/web/src/components/pullRequest/pullRequestIcons.tsx so every surface draws the same pull request the same way.",
 };
 
+const PROJECT_TIMEOUT_CEILINGS = {
+  "apps/web/src/reactCompilerCoverage.test.ts": 1,
+  "apps/web/vite.config.ts": 6,
+  "apps/server/vite.config.ts": 2,
+  "apps/mobile/vite.config.ts": 2,
+  "apps/desktop/vite.config.ts": 1,
+};
+
 const LEGACY_UNSIGNALED_POLLS = {
   "apps/mobile/src/features/threads/NewTaskDraftRouteScreen.test.tsx": 1,
   "apps/mobile/src/features/threads/new-task-branch-checkout.test.ts": 7,
@@ -146,7 +154,6 @@ export default defineConfig({
     hookTimeout: 60_000,
     testTimeout: 60_000,
     allowOnly: !process.env.CI,
-    retry: 0,
     fakeTimers: {
       toFake: [
         "setTimeout",
@@ -278,7 +285,7 @@ export default defineConfig({
       "landmines-structure/test-file-names": "error",
       "landmines-style/no-comments": "error",
       "landmines-testing/no-fixed-sleep": "error",
-      "landmines-testing/no-flake-masking": "error",
+      "landmines-testing/no-flake-masking": ["error", { allow: PROJECT_TIMEOUT_CEILINGS }],
       "landmines-testing/no-test-doubles": "error",
       "landmines-testing/no-unsignaled-poll": ["error", { allow: LEGACY_UNSIGNALED_POLLS }],
       "landmines-testing/strict-msw": "error",
@@ -392,6 +399,13 @@ export default defineConfig({
         rules: {
           "landmines-style/no-comments": "off",
           "landmines-types/no-explicit-return-types": "off",
+        },
+      },
+      {
+        files: ["vite.config.ts"],
+        excludeFiles: ["apps/**", "packages/**"],
+        rules: {
+          "landmines-testing/no-flake-masking": ["error", { allow: { "vite.config.ts": 2 } }],
         },
       },
       {

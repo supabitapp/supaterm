@@ -13,7 +13,7 @@ import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { act, render } from "../../test/render";
+import { act, render } from "../../../test/render";
 
 const monitor = vi.hoisted(() => ({
   telemetry:
@@ -32,7 +32,7 @@ const monitor = vi.hoisted(() => ({
   retry: vi.fn(),
 }));
 
-vi.mock("../components/settings/settingsLayout", () => ({
+vi.mock("./settingsLayout", () => ({
   SettingsSection: ({
     title,
     headerAction,
@@ -49,20 +49,20 @@ vi.mock("../components/settings/settingsLayout", () => ({
   ),
 }));
 
-vi.mock("../state/environments", () => ({ usePrimaryEnvironment: () => null }));
-vi.mock("../state/session", () => ({
+vi.mock("../../state/environments", () => ({ usePrimaryEnvironment: () => null }));
+vi.mock("../../state/session", () => ({
   readEnvironmentScope: () => true,
   useEnvironmentScope: () => true,
 }));
-vi.mock("../state/server", () => ({
+vi.mock("../../state/server", () => ({
   serverEnvironment: {
     resourceTelemetry: monitor.telemetry,
     resourceTelemetryHistory: monitor.history,
   },
 }));
-vi.mock("../state/use-atom-command", () => ({ useAtomCommand: () => monitor.retry }));
+vi.mock("../../state/use-atom-command", () => ({ useAtomCommand: () => monitor.retry }));
 
-import { ResourceTelemetryDiagnostics } from "../components/settings/ResourceTelemetryDiagnostics";
+import { ResourceTelemetryDiagnostics } from "./ResourceTelemetryDiagnostics";
 
 class MonitorError extends Data.TaggedError("MonitorError")<{ readonly message: string }> {}
 

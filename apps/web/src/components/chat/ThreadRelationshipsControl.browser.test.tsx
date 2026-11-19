@@ -53,7 +53,7 @@ vi.mock(import("../../state/use-atom-command"), () => ({
 }));
 
 import { render } from "../../../test/render";
-import { makeThreadProjectionFixture } from "../../test-fixtures";
+import { makeThreadProjectionFixture } from "../../thread.fixture";
 import { ScrollArea } from "../ui/scroll-area";
 import { ToastProvider } from "../ui/toast";
 import { ThreadRelationshipsPanel } from "./ThreadRelationshipsControl";

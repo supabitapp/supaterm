@@ -79,8 +79,8 @@ it.layer(NodeServices.layer)("native orchestration skill installation", (it) => 
     "does not install on status reads and reports shared and unsupported destinations",
     () =>
       Effect.gen(function* () {
-        const test = yield* fixture;
-        const status = yield* test.service.status;
+        const harness = yield* fixture;
+        const status = yield* harness.service.status;
         assert.lengthOf(status.targets, 2);
         assert.deepEqual(status.targets[1]?.providers, ["codex", "codex-work"]);
         assert.deepEqual(status.unsupportedProviders, ["remote"]);
@@ -89,9 +89,9 @@ it.layer(NodeServices.layer)("native orchestration skill installation", (it) => 
             target.skills.every((skill) => skill.state === "not-installed"),
           ),
         );
-        assert.isFalse(yield* test.fs.exists(test.claude));
-        assert.isFalse(yield* test.fs.exists(test.codex));
-        assert.equal(test.refreshes(), 0);
+        assert.isFalse(yield* harness.fs.exists(harness.claude));
+        assert.isFalse(yield* harness.fs.exists(harness.codex));
+        assert.equal(harness.refreshes(), 0);
       }),
   );
 
@@ -99,34 +99,37 @@ it.layer(NodeServices.layer)("native orchestration skill installation", (it) => 
     "explicit installation produces natively discoverable skills and complete references",
     () =>
       Effect.gen(function* () {
-        const test = yield* fixture;
-        const status = yield* test.service.install;
+        const harness = yield* fixture;
+        const status = yield* harness.service.install;
         assert.isTrue(
           status.targets.every((target) =>
             target.skills.every((skill) => skill.state === "installed" && skill.managed),
           ),
         );
-        const discovered = yield* discoverClaudeSkills({ homePath: test.claudeHome }, test.home);
+        const discovered = yield* discoverClaudeSkills(
+          { homePath: harness.claudeHome },
+          harness.home,
+        );
         assert.deepEqual(
           discovered.map((skill) => skill.name),
           ["supaterm-advisor", "supaterm-commitee"],
         );
-        for (const root of [test.claude, test.codex]) {
+        for (const root of [harness.claude, harness.codex]) {
           for (const skill of ORCHESTRATION_SKILLS) {
             assert.equal(
-              yield* test.fs.readFileString(test.path.join(root, skill.name, "SKILL.md")),
+              yield* harness.fs.readFileString(harness.path.join(root, skill.name, "SKILL.md")),
               skill.content,
             );
             assert.equal(
-              yield* test.fs.readFileString(
-                test.path.join(root, skill.name, "references", "orchestration.md"),
+              yield* harness.fs.readFileString(
+                harness.path.join(root, skill.name, "references", "orchestration.md"),
               ),
               ORCHESTRATION_SKILL_REFERENCE,
             );
           }
         }
-        yield* test.service.install;
-        assert.equal(test.refreshes(), 3);
+        yield* harness.service.install;
+        assert.equal(harness.refreshes(), 3);
       }),
   );
 
@@ -134,52 +137,63 @@ it.layer(NodeServices.layer)("native orchestration skill installation", (it) => 
     "uninstalls only links, leaves the bundle intact, and stays uninstalled after restart",
     () =>
       Effect.gen(function* () {
-        const test = yield* fixture;
-        yield* test.service.install;
-        const link = test.path.join(test.claude, "supaterm-advisor");
-        const target = yield* test.fs.readLink(link);
-        const status = yield* test.service.uninstall;
+        const harness = yield* fixture;
+        yield* harness.service.install;
+        const link = harness.path.join(harness.claude, "supaterm-advisor");
+        const target = yield* harness.fs.readLink(link);
+        const status = yield* harness.service.uninstall;
         assert.isTrue(
           status.targets.every((target) =>
             target.skills.every((skill) => skill.state === "not-installed"),
           ),
         );
-        assert.isFalse(yield* test.fs.exists(link));
-        assert.isTrue(yield* test.fs.exists(test.path.join(target, "SKILL.md")));
-        assert.deepEqual(yield* discoverClaudeSkills({ homePath: test.claudeHome }, test.home), []);
-        const restarted = yield* test.reload;
+        assert.isFalse(yield* harness.fs.exists(link));
+        assert.isTrue(yield* harness.fs.exists(harness.path.join(target, "SKILL.md")));
+        assert.deepEqual(
+          yield* discoverClaudeSkills({ homePath: harness.claudeHome }, harness.home),
+          [],
+        );
+        const restarted = yield* harness.reload;
         assert.isTrue(
           (yield* restarted.status).targets.every((target) =>
             target.skills.every((skill) => skill.state === "not-installed"),
           ),
         );
         yield* restarted.install;
-        assert.lengthOf(yield* discoverClaudeSkills({ homePath: test.claudeHome }, test.home), 2);
+        assert.lengthOf(
+          yield* discoverClaudeSkills({ homePath: harness.claudeHome }, harness.home),
+          2,
+        );
       }),
   );
 
   it.effect("refreshes linked skill contents on app startup without reinstalling", () =>
     Effect.gen(function* () {
-      const test = yield* fixture;
-      yield* test.service.install;
+      const harness = yield* fixture;
+      yield* harness.service.install;
       const skill = ORCHESTRATION_SKILLS[0];
-      const claudeLink = test.path.join(test.claude, skill.name);
-      const codexLink = test.path.join(test.codex, skill.name);
-      const source = yield* test.fs.readLink(claudeLink);
-      assert.equal(yield* test.fs.readLink(codexLink), source);
-      yield* test.fs.writeFileString(test.path.join(source, "SKILL.md"), "previous app version");
-      yield* test.fs.writeFileString(
-        test.path.join(source, "references", "orchestration.md"),
+      const claudeLink = harness.path.join(harness.claude, skill.name);
+      const codexLink = harness.path.join(harness.codex, skill.name);
+      const source = yield* harness.fs.readLink(claudeLink);
+      assert.equal(yield* harness.fs.readLink(codexLink), source);
+      yield* harness.fs.writeFileString(
+        harness.path.join(source, "SKILL.md"),
+        "previous app version",
+      );
+      yield* harness.fs.writeFileString(
+        harness.path.join(source, "references", "orchestration.md"),
         "previous reference",
       );
-      const restarted = yield* test.reload;
-      assert.equal(yield* test.fs.readLink(claudeLink), source);
+      const restarted = yield* harness.reload;
+      assert.equal(yield* harness.fs.readLink(claudeLink), source);
       assert.equal(
-        yield* test.fs.readFileString(test.path.join(claudeLink, "SKILL.md")),
+        yield* harness.fs.readFileString(harness.path.join(claudeLink, "SKILL.md")),
         skill.content,
       );
       assert.equal(
-        yield* test.fs.readFileString(test.path.join(codexLink, "references", "orchestration.md")),
+        yield* harness.fs.readFileString(
+          harness.path.join(codexLink, "references", "orchestration.md"),
+        ),
         ORCHESTRATION_SKILL_REFERENCE,
       );
       assert.isTrue(
@@ -192,12 +206,12 @@ it.layer(NodeServices.layer)("native orchestration skill installation", (it) => 
 
   it.effect("repairs and removes owned dangling links", () =>
     Effect.gen(function* () {
-      const test = yield* fixture;
-      yield* test.service.install;
-      const link = test.path.join(test.claude, "supaterm-advisor");
-      const source = yield* test.fs.readLink(link);
-      yield* test.fs.remove(source, { recursive: true });
-      const broken = (yield* test.service.status).targets[0]?.skills.find(
+      const harness = yield* fixture;
+      yield* harness.service.install;
+      const link = harness.path.join(harness.claude, "supaterm-advisor");
+      const source = yield* harness.fs.readLink(link);
+      yield* harness.fs.remove(source, { recursive: true });
+      const broken = (yield* harness.service.status).targets[0]?.skills.find(
         (skill) => skill.name === "supaterm-advisor",
       );
       assert.deepEqual(broken, {
@@ -205,12 +219,12 @@ it.layer(NodeServices.layer)("native orchestration skill installation", (it) => 
         state: "update-available",
         managed: true,
       });
-      yield* test.service.install;
-      assert.isTrue(yield* test.fs.exists(test.path.join(link, "SKILL.md")));
-      yield* test.fs.remove(source, { recursive: true });
-      yield* test.service.uninstall;
+      yield* harness.service.install;
+      assert.isTrue(yield* harness.fs.exists(harness.path.join(link, "SKILL.md")));
+      yield* harness.fs.remove(source, { recursive: true });
+      yield* harness.service.uninstall;
       assert.isTrue(
-        (yield* test.service.status).targets.every((target) =>
+        (yield* harness.service.status).targets.every((target) =>
           target.skills.every((skill) => skill.state === "not-installed"),
         ),
       );
@@ -219,19 +233,19 @@ it.layer(NodeServices.layer)("native orchestration skill installation", (it) => 
 
   it.effect("replaces an existing folder that holds a skill name", () =>
     Effect.gen(function* () {
-      const test = yield* fixture;
+      const harness = yield* fixture;
       const skill = ORCHESTRATION_SKILLS[0];
-      const directory = test.path.join(test.claude, skill.name);
-      yield* test.fs.makeDirectory(directory, { recursive: true });
-      yield* test.fs.writeFileString(test.path.join(directory, "SKILL.md"), "stale copy");
-      const status = yield* test.service.install;
+      const directory = harness.path.join(harness.claude, skill.name);
+      yield* harness.fs.makeDirectory(directory, { recursive: true });
+      yield* harness.fs.writeFileString(harness.path.join(directory, "SKILL.md"), "stale copy");
+      const status = yield* harness.service.install;
       assert.deepEqual(status.targets[0]?.skills[0], {
         name: skill.name,
         state: "installed",
         managed: true,
       });
       assert.equal(
-        yield* test.fs.readFileString(test.path.join(directory, "SKILL.md")),
+        yield* harness.fs.readFileString(harness.path.join(directory, "SKILL.md")),
         skill.content,
       );
     }),
@@ -241,21 +255,21 @@ it.layer(NodeServices.layer)("native orchestration skill installation", (it) => 
     "replaces a foreign skill link without touching its target",
     () =>
       Effect.gen(function* () {
-        const test = yield* fixture;
-        const outside = test.path.join(test.home, "personal");
-        yield* test.fs.makeDirectory(outside);
-        yield* test.fs.writeFileString(test.path.join(outside, "SKILL.md"), "personal");
-        yield* test.fs.makeDirectory(test.claude, { recursive: true });
-        const link = test.path.join(test.claude, "supaterm-advisor");
-        yield* test.fs.symlink(outside, link);
-        const status = yield* test.service.install;
+        const harness = yield* fixture;
+        const outside = harness.path.join(harness.home, "personal");
+        yield* harness.fs.makeDirectory(outside);
+        yield* harness.fs.writeFileString(harness.path.join(outside, "SKILL.md"), "personal");
+        yield* harness.fs.makeDirectory(harness.claude, { recursive: true });
+        const link = harness.path.join(harness.claude, "supaterm-advisor");
+        yield* harness.fs.symlink(outside, link);
+        const status = yield* harness.service.install;
         assert.equal(
           status.targets[0]?.skills.find((skill) => skill.name === "supaterm-advisor")?.state,
           "installed",
         );
-        assert.notEqual(yield* test.fs.readLink(link), outside);
+        assert.notEqual(yield* harness.fs.readLink(link), outside);
         assert.equal(
-          yield* test.fs.readFileString(test.path.join(outside, "SKILL.md")),
+          yield* harness.fs.readFileString(harness.path.join(outside, "SKILL.md")),
           "personal",
         );
       }),

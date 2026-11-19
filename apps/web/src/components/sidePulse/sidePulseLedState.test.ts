@@ -3,7 +3,7 @@ import { scopedThreadKey } from "@supaterm/client-runtime/environment";
 import type { EnvironmentThreadShell } from "@supaterm/client-runtime/state/models";
 import { describe, expect, it } from "vite-plus/test";
 
-import { makeThreadFixture, type ThreadFixtureOverrides } from "../../test-fixtures";
+import { makeThreadFixture, type ThreadFixtureOverrides } from "../../thread.fixture";
 import { selectSidePulseLedState } from "./sidePulseLedState";
 
 const NOW = "2026-03-10T12:00:00.000Z";

@@ -28,23 +28,23 @@ vi.mock("react-native", () => ({ Alert: { alert: vi.fn() } }));
 vi.mock("@react-navigation/native", () => ({
   useNavigation: () => ({ navigate: state.navigate }),
 }));
-vi.mock("./markdownLinks", () => ({
+vi.mock("../lib/markdownLinks", () => ({
   normalizeNativeMarkdownUrl: (uri: string) => uri,
 }));
-vi.mock("../state/assets", () => ({
+vi.mock("./assets", () => ({
   useRefreshAssetUrl: (environmentId: string, resource: unknown) => () =>
     state.refresh(environmentId, resource),
 }));
-vi.mock("../state/session", () => ({
+vi.mock("./session", () => ({
   environmentSession: { sessionStateAtom: (environmentId: string) => environmentId },
 }));
-vi.mock("../state/query", () => ({
+vi.mock("./query", () => ({
   useEnvironmentQuery: (environmentId: string) => ({
     data: state.sessions.get(environmentId) ?? null,
     error: null,
   }),
 }));
-vi.mock("../state/atom-registry", () => ({
+vi.mock("./atom-registry", () => ({
   appAtomRegistry: {
     get: (environmentId: string) => {
       const session = state.sessions.get(environmentId);
@@ -52,12 +52,12 @@ vi.mock("../state/atom-registry", () => ({
     },
   },
 }));
-vi.mock("./attachmentDownload", () => ({
+vi.mock("../lib/attachmentDownload", () => ({
   downloadAndShareAttachment: state.download,
   downloadAttachmentForPreview: state.downloadPreview,
   shareLocalAttachment: state.shareLocal,
 }));
-vi.mock("./saveImageToLibrary", () => ({
+vi.mock("../lib/saveImageToLibrary", () => ({
   canSaveImageToLibrary: (mimeType: string) => mimeType === "image/png",
   saveImageToLibrary: state.saveImage,
 }));
@@ -65,13 +65,13 @@ vi.mock("expo-haptics", () => ({
   notificationAsync: async () => {},
   NotificationFeedbackType: { Success: "success" },
 }));
-vi.mock("./copyTextWithHaptic", () => ({ copyTextWithHaptic: state.copy }));
-vi.mock("./localAttachmentPreview", () => ({
+vi.mock("../lib/copyTextWithHaptic", () => ({ copyTextWithHaptic: state.copy }));
+vi.mock("../lib/localAttachmentPreview", () => ({
   loadLocalAttachmentPreview: async () => ({ share: state.shareDraft, dispose: vi.fn() }),
 }));
 
-import { useMediaActions } from "../state/mediaActions";
-import type { MediaActionsSource } from "./mediaActionsSource";
+import { useMediaActions } from "./mediaActions";
+import type { MediaActionsSource } from "../lib/mediaActionsSource";
 
 const environmentId = EnvironmentId.make("media-environment");
 const otherEnvironmentId = EnvironmentId.make("other-environment");

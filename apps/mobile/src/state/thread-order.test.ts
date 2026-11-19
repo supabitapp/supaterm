@@ -4,7 +4,7 @@ import type { Atom } from "effect/reactivity";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createPendingThreadOrder } from "../features/threads/threadOrder";
-import { makeThreadShellFixture } from "../test-fixtures";
+import { makeThreadShellFixture } from "../thread.fixture";
 import { appAtomRegistry } from "./atom-registry";
 import {
   beginPendingThreadOrder,

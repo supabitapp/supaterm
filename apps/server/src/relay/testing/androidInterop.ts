@@ -5,7 +5,7 @@ import * as NodeReadline from "node:readline";
 import * as NodePath from "node:path";
 import * as NodeHttp from "node:http";
 import WebSocket from "ws";
-import { startNativeFixture } from "./fixture.ts";
+import { startNativeFixture } from "./relay.fixture.ts";
 
 const fixture = await startNativeFixture();
 const child = NodeChildProcess.spawn(

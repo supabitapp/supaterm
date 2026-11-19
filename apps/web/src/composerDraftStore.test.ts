@@ -7,7 +7,7 @@ import {
   type EnvironmentShellState,
   type EnvironmentShellStatus,
 } from "@supaterm/client-runtime/state/shell";
-import { makeThreadProjectionFixture } from "./test-fixtures";
+import { makeThreadProjectionFixture } from "./thread.fixture";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import {

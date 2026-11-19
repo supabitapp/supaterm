@@ -6,8 +6,8 @@ import {
   customThemeNames,
   renderDefaultThemeVariablesJSON,
   renderUniwindThemesCSS,
-} from "./generate-uniwind-themes.mts";
-import { readDefaultMobileThemeVariables } from "../src/lib/mobileTheme.test-support";
+} from "../../scripts/generate-uniwind-themes.mts";
+import { readDefaultMobileThemeVariables } from "./mobileTheme.test-support";
 
 describe("generate mobile Uniwind themes", () => {
   it("registers only supported built-in appearances", () => {
@@ -37,7 +37,7 @@ describe("generate mobile Uniwind themes", () => {
 
   it("gives every theme the same variables", () => {
     const css =
-      NodeFS.readFileSync(NodePath.resolve(import.meta.dirname, "../global.css"), "utf8") +
+      NodeFS.readFileSync(NodePath.resolve(import.meta.dirname, "../../global.css"), "utf8") +
       renderUniwindThemesCSS();
     const themes = new Map<string, Map<string, string>>(
       ["light", "dark", ...customThemeNames].map((name) => [name, new Map()]),

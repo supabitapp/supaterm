@@ -9,7 +9,7 @@ import { Atom, AtomRegistry } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
 import { olderDoneThreads } from "../../state/threads";
-import { makeRawThreadShell } from "../../test-fixtures";
+import { makeRawThreadShell } from "../../thread.fixture";
 import { useThreadListV2 } from "./useThreadListV2";
 
 vi.mock("../../state/threads", () => ({

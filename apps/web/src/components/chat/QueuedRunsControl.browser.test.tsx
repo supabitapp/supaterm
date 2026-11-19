@@ -49,7 +49,7 @@ vi.mock(import("../../state/threads"), async (importOriginal) => {
     await import("@supaterm/client-runtime/state/threads");
   const { AsyncResult, Atom } = await import("effect/reactivity");
   const Option = await import("effect/Option");
-  const { makeThreadProjectionFixture } = await import("../../test-fixtures");
+  const { makeThreadProjectionFixture } = await import("../../thread.fixture");
   state.threadState = Atom.make<AsyncResult.AsyncResult<EnvironmentThreadState>>(
     AsyncResult.success({
       ...EMPTY_ENVIRONMENT_THREAD_STATE,
@@ -81,7 +81,7 @@ import { EMPTY_ENVIRONMENT_THREAD_STATE } from "@supaterm/client-runtime/state/t
 
 import { act, render as renderUi } from "../../../test/render";
 import { threadEnvironment } from "../../state/threads";
-import { makeStreamingTimelineFixture, makeThreadProjectionFixture } from "../../test-fixtures";
+import { makeStreamingTimelineFixture, makeThreadProjectionFixture } from "../../thread.fixture";
 import { ToastProvider } from "../ui/toast";
 import { ExpandedImageDialog } from "./ExpandedImageDialog";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";

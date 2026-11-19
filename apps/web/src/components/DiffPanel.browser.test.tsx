@@ -22,7 +22,7 @@ import { page, userEvent } from "vite-plus/test/browser";
 
 import "~/index.css";
 import { act, render } from "../../test/render";
-import { makeThreadFixture } from "~/test-fixtures";
+import { makeThreadFixture } from "~/thread.fixture";
 
 type ResultAtom<A> = Atom.Atom<AsyncResult.AsyncResult<A, Error>>;
 

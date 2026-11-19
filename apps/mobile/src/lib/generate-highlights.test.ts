@@ -2,8 +2,8 @@ import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 import { describe, expect, it } from "vite-plus/test";
 
-import { HIGHLIGHTS_LANGUAGE_IDS, HIGHLIGHTS_THEME_STYLES } from "../src/lib/highlights.generated";
-import { computeHighlightsData } from "./generate-highlights.mts";
+import { HIGHLIGHTS_LANGUAGE_IDS, HIGHLIGHTS_THEME_STYLES } from "./highlights.generated";
+import { computeHighlightsData } from "../../scripts/generate-highlights.mts";
 
 describe("generate highlights", () => {
   it("matches the installed @pierre/highlights", async () => {
@@ -11,7 +11,7 @@ describe("generate highlights", () => {
     const nativeSource = NodeFS.readFileSync(
       NodePath.resolve(
         import.meta.dirname,
-        "../modules/supaterm-highlights/Vendor/highlights/highlights.c",
+        "../../modules/supaterm-highlights/Vendor/highlights/highlights.c",
       ),
       "utf8",
     );

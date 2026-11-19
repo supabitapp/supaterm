@@ -1,6 +1,6 @@
 // @effect-diagnostics nodeBuiltinImport:off globalConsole:off - test process protocol for native endpoints.
 import * as NodeReadline from "node:readline";
-import { startNativeFixture } from "./fixture.ts";
+import { startNativeFixture } from "./relay.fixture.ts";
 const fixture = await startNativeFixture();
 try {
   console.log(JSON.stringify(fixture.config));
