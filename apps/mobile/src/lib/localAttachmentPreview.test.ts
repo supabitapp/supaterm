@@ -26,7 +26,7 @@ vi.mock("./attachmentDownload", () => ({
 vi.mock("expo-file-system", () => ({
   File: class {
     constructor(readonly uri: string) {}
-    get exists() {
+    get exists(): boolean {
       return mocks.fileExists;
     }
   },

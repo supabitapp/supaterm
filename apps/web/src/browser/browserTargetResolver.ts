@@ -44,7 +44,7 @@ const appBrowserTargetEnvironment: BrowserTargetEnvironment = {
 const readEnvironmentUrl = (
   environment: BrowserTargetEnvironment,
   environmentId: EnvironmentId,
-) => {
+): URL => {
   const connection = environment.readPreparedConnection(environmentId);
   if (!connection) throw new Error(`Environment ${environmentId} is not connected.`);
   if (connection.connectionMethod === "relay") {
@@ -95,7 +95,7 @@ const resolveEnvironmentPortTarget = (
 const reachesEnvironmentLoopback = (
   environment: BrowserTargetEnvironment,
   target: ConnectionTarget,
-) =>
+): boolean =>
   environment.isElectron &&
   (target._tag === "PrimaryConnectionTarget" || isDesktopLocalConnectionTarget(target));
 
@@ -106,7 +106,7 @@ export function resolveDiscoveredServerUrl(
     readonly requireReachable?: boolean;
     readonly environment?: BrowserTargetEnvironment;
   },
-) {
+): string {
   const environment = options?.environment ?? appBrowserTargetEnvironment;
   try {
     const normalizedUrl = normalizePreviewUrl(rawUrl);

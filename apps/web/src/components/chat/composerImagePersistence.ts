@@ -8,7 +8,7 @@ export async function serializeComposerImages(
   images: ReadonlyArray<ComposerImageAttachment>,
   persistedAttachments: ReadonlyArray<PersistedComposerImageAttachment>,
   read = readFileAsDataUrl,
-) {
+): Promise<PersistedComposerImageAttachment[]> {
   const existingPersistedById = new Map(
     persistedAttachments.map((attachment) => [attachment.id, attachment]),
   );

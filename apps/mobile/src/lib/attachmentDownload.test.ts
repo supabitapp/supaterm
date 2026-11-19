@@ -82,7 +82,7 @@ vi.mock("expo-file-system", () => {
       this.uri = typeof source === "string" ? source : `${source.uri}/${encodeURIComponent(name!)}`;
     }
 
-    async copy(destination: File) {
+    async copy(destination: File): Promise<void> {
       await mocks.respond("copy", mocks.copy)(this.uri, destination.uri);
     }
   }

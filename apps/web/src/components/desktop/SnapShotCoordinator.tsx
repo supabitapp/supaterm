@@ -161,7 +161,7 @@ export async function deliverSnapShot(
   item: DesktopPendingSnapShot,
   resolveTarget: () => CaptureTarget,
   compressImage?: typeof import("../../lib/imageCompression").compressImageToByteLimit,
-) {
+): Promise<void> {
   const store = useComposerDraftStore.getState();
   updateSnapShotAnimationSource(item.id, item.source);
   const capture = await bridge.readSnapShot(item.id);

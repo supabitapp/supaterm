@@ -50,7 +50,7 @@ export async function tryCopyTextWithHaptic(
   value: string,
   options: CopyTextWithHapticOptions = {},
   platform: CopyTextPlatform = expoCopyTextPlatform,
-) {
+): Promise<boolean> {
   const target = options.target ?? "text";
   const feedback = options.feedback ?? "light-impact";
 
@@ -90,6 +90,6 @@ export function copyTextWithHaptic(
   value: string,
   options: CopyTextWithHapticOptions = {},
   platform: CopyTextPlatform = expoCopyTextPlatform,
-) {
+): void {
   void tryCopyTextWithHaptic(value, options, platform);
 }

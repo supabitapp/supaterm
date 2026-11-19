@@ -119,7 +119,7 @@ function setSession(session: SessionResult) {
   appAtomRegistry.set(sessionAtom, session);
 }
 
-function setup() {
+function setup(): Disposable {
   testState.updateServer.reset();
   testState.toast.reset();
   testState.clipboard.reset();

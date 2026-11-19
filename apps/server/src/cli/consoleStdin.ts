@@ -30,7 +30,7 @@ interface ConsoleIo {
   readonly replaceStdin: (stdin: NodeEvents.EventEmitter) => void;
 }
 
-const nodeConsoleIo: () => ConsoleIo = () => ({
+const nodeConsoleIo = (): ConsoleIo => ({
   platform: HostProcess.Platform.defaultValue(),
   env: process.env,
   fstat: NodeFS.fstatSync,
@@ -51,7 +51,7 @@ const isMissingInput = (io: ConsoleIo, fd: number) => {
 };
 
 /** Call before reading process.stdin. Returns the reopened fd for children, or undefined without changing stdin. */
-export function attachConsoleStdin(io = nodeConsoleIo()) {
+export function attachConsoleStdin(io = nodeConsoleIo()): number | undefined {
   const needed = needsConsoleStdin({
     platform: io.platform,
     env: io.env,

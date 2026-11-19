@@ -322,7 +322,7 @@ function persistOutboxMessage(message: QueuedThreadMessage) {
   );
 }
 
-function contextDraft(start: number, count: number) {
+function contextDraft(start: number, count: number): ComposerDraft {
   const records = Array.from({ length: count }, (_, index) => ({
     version: 1 as const,
     contextId: ComposerContextId.make(`skill-${start + index}`),

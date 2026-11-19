@@ -20,7 +20,7 @@ export async function copySnapshot(
   text: string,
   fragment: string,
   clipboard = browserClipboard(),
-) {
+): Promise<void> {
   if (!clipboard) {
     throw new Error("Snapshot copying requires a secure browser connection.");
   }

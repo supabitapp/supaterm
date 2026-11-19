@@ -116,8 +116,8 @@ function makeSession(
     emitAsync: (name: string, ...args: unknown[]) =>
       Promise.all(events.listeners(name).map((listener) => listener(...args))),
     detach: scriptedFake(async () => {}),
-    send: scriptedFake<(method: string, input?: unknown) => Promise<Record<string, unknown>>>(
-      async (method, input) => {
+    send: scriptedFake(
+      async (method: string, input?: unknown): Promise<Record<string, unknown>> => {
         if (method === "Page.getNavigationHistory") return { currentIndex: 0, entries: [{}] };
         if (method === "Page.getLayoutMetrics")
           return { cssVisualViewport: { pageX: 0, pageY: 0 } };
@@ -242,7 +242,7 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
       interactiveElements: [],
     })),
     ariaSnapshot: scriptedFake(async () => '- button "delete" [ref=e1]'),
-    locator: scriptedFake<() => unknown>(() => {
+    locator: scriptedFake((): unknown => {
       throw new Error("Unexpected locator action");
     }),
     isClosed: () => closed,

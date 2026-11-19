@@ -87,7 +87,7 @@ export function createNotificationAudio(options: {
   const buffers = new Map<string, Promise<AudioBuffer>>();
   const playingUntil = new Map<string, number>();
 
-  function loadNotificationBuffer(context: AudioContext, url: string) {
+  function loadNotificationBuffer(context: AudioContext, url: string): Promise<AudioBuffer> {
     let buffer = buffers.get(url);
     if (!buffer) {
       buffer = options

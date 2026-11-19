@@ -444,142 +444,160 @@ const installWindowsEnvironment = Effect.fn("desktop.shellEnvironment.installWin
   },
 );
 
-const listUserShells: (
+const listUserShells = (
   env: NodeJS.ProcessEnv,
   userShell: string | undefined,
-) => ReadonlyArray<string> = (env, userShell) =>
+): ReadonlyArray<string> =>
   [env.SHELL?.trim(), userShell].filter((shell): shell is string => Boolean(shell));
 
-const installPosixEnvironment: (
-  config: ShellEnvironmentConfig,
-) => Effect.Effect<
-  ShellDiscovery,
-  never,
-  ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem
-> = Effect.fn("desktop.shellEnvironment.installPosixEnvironment")(function* (
-  config: ShellEnvironmentConfig,
-) {
-  const fileSystem = yield* FileSystem.FileSystem;
-  const shellEnvironment: EnvironmentPatch = {};
-  const userShells = listUserShells(config.env, config.userShell);
+const installPosixEnvironment = Effect.fn("desktop.shellEnvironment.installPosixEnvironment")(
+  function* (
+    config: ShellEnvironmentConfig,
+  ): Effect.fn.Return<
+    ShellDiscovery,
+    never,
+    ChildProcessSpawner.ChildProcessSpawner | FileSystem.FileSystem
+  > {
+    const fileSystem = yield* FileSystem.FileSystem;
+    const shellEnvironment: EnvironmentPatch = {};
+    const userShells = listUserShells(config.env, config.userShell);
 
-  let answeredBy: string | undefined;
-  let waitedForSlowShell = false;
-  for (const shell of listLoginShellCandidates(
-    config.platform,
-    config.env.SHELL,
-    config.userShell ?? "",
-  )) {
-    const read = (timeout: Duration.Duration) =>
-      readLoginShellEnvironment(
-        shell,
-        LOGIN_SHELL_ENV_NAMES,
-        config.env,
-        timeout,
-        config.budget.terminateGrace,
+    let answeredBy: string | undefined;
+    let waitedForSlowShell = false;
+    for (const shell of listLoginShellCandidates(
+      config.platform,
+      config.env.SHELL,
+      config.userShell ?? "",
+    )) {
+      const read = (timeout: Duration.Duration) =>
+        readLoginShellEnvironment(
+          shell,
+          LOGIN_SHELL_ENV_NAMES,
+          config.env,
+          timeout,
+          config.budget.terminateGrace,
+        );
+      Object.assign(
+        shellEnvironment,
+        yield* read(config.budget.timeout).pipe(
+          Effect.catchTags({
+            DesktopShellEnvironmentCommandTimeoutError: (error) => {
+              const slowTimeout = waitedForSlowShell ? undefined : config.budget.slowTimeout;
+              waitedForSlowShell = true;
+              return logShellEnvironmentCommandError(error).pipe(
+                Effect.andThen(slowTimeout ? read(slowTimeout) : Effect.succeed({})),
+              );
+            },
+          }),
+          Effect.catchTags({
+            DesktopShellEnvironmentCommandTimeoutError: (error) =>
+              logShellEnvironmentCommandError(error).pipe(Effect.as({})),
+          }),
+        ),
       );
-    if (shellEnvironment.PATH) {
-      answeredBy = shell;
-      break;
-    }
-  }
-
-  const launchctlPath =
-    config.platform === "darwin" && !shellEnvironment.PATH
-      ? yield* readLaunchctlPath(config.env)
-      : Option.none<string>();
-  const mergedPath = mergePaths(config.platform, [
-    nonEmptyPath(shellEnvironment.PATH).pipe(Option.orElse(() => launchctlPath)),
-    readEnvPath(config.env),
-  ]);
-
-  if (Option.isSome(mergedPath)) {
-    config.env.PATH = mergedPath.value;
-  }
-  if (!config.env.SSH_AUTH_SOCK && shellEnvironment.SSH_AUTH_SOCK) {
-    config.env.SSH_AUTH_SOCK = shellEnvironment.SSH_AUTH_SOCK;
-  }
-
-  const shellPreferredEnvNames = [
-    "DBUS_SESSION_BUS_ADDRESS",
-    "XDG_CURRENT_DESKTOP",
-    "XDG_SESSION_DESKTOP",
-    "XDG_SESSION_TYPE",
-    "__MISE_DIFF",
-  ] as const;
-  for (const name of shellPreferredEnvNames) {
-    if (shellEnvironment[name]) {
-      config.env[name] = shellEnvironment[name];
-    }
-  }
-
-  for (const name of [
-    "DISPLAY",
-    "HOMEBREW_PREFIX",
-    "HOMEBREW_CELLAR",
-    "HOMEBREW_REPOSITORY",
-    "XDG_CONFIG_HOME",
-    "XDG_DATA_HOME",
-    "XDG_RUNTIME_DIR",
-    "WAYLAND_DISPLAY",
-    "SSL_CERT_FILE",
-    "SSL_CERT_DIR",
-    "NODE_EXTRA_CA_CERTS",
-    "JAVA_HOME",
-    "SUPATERM_RELEASE_BASE_URL",
-  ] as const) {
-    if (!config.env[name] && shellEnvironment[name]) {
-      config.env[name] = shellEnvironment[name];
-    }
-  }
-
-  if (ANDROID_SDK_ENV_NAMES.every((name) => Option.isNone(trimNonEmpty(config.env[name])))) {
-    for (const name of ANDROID_SDK_ENV_NAMES) {
-      const value = trimNonEmpty(shellEnvironment[name]);
-      if (Option.isSome(value)) {
-        config.env[name] = value.value;
-      }
-    }
-  }
-
-  if (
-    config.platform === "darwin" &&
-    LOCALE_ENV_NAMES.every((name) => Option.isNone(trimNonEmpty(config.env[name])))
-  ) {
-    for (const name of LOCALE_ENV_NAMES) {
-      const value = trimNonEmpty(shellEnvironment[name]);
-      if (Option.isSome(value)) {
-        config.env[name] = value.value;
-      }
-    }
-
-    if (LOCALE_ENV_NAMES.every((name) => Option.isNone(trimNonEmpty(config.env[name])))) {
-      config.env.LC_CTYPE = FALLBACK_LC_CTYPE;
-    }
-  }
-
-  if (
-    config.platform === "linux" &&
-    Option.isNone(trimNonEmpty(config.env.DBUS_SESSION_BUS_ADDRESS))
-  ) {
-    for (const runtimeDir of linuxRuntimeDirCandidates(config.env, process.getuid?.())) {
-      const dbusSessionBusPath = `${runtimeDir}/bus`;
-      const busExists = yield* fileSystem
-        .exists(dbusSessionBusPath)
-        .pipe(Effect.orElseSucceed(() => false));
-      if (busExists) {
-        config.env.DBUS_SESSION_BUS_ADDRESS = `unix:path=${dbusSessionBusPath}`;
+      if (shellEnvironment.PATH) {
+        answeredBy = shell;
         break;
       }
     }
-  }
 
-  const prepared = Option.isSome(trimNonEmpty(shellEnvironment.PATH));
-  return {
-    prepared,
-    fromUserShell: prepared && answeredBy !== undefined && userShells.includes(answeredBy),
-  };
-});
+    const launchctlPath =
+      config.platform === "darwin" && !shellEnvironment.PATH
+        ? yield* readLaunchctlPath(config.env)
+        : Option.none<string>();
+    const mergedPath = mergePaths(config.platform, [
+      nonEmptyPath(shellEnvironment.PATH).pipe(Option.orElse(() => launchctlPath)),
+      readEnvPath(config.env),
+    ]);
+
+    if (Option.isSome(mergedPath)) {
+      config.env.PATH = mergedPath.value;
+    }
+    if (!config.env.SSH_AUTH_SOCK && shellEnvironment.SSH_AUTH_SOCK) {
+      config.env.SSH_AUTH_SOCK = shellEnvironment.SSH_AUTH_SOCK;
+    }
+
+    const shellPreferredEnvNames = [
+      "DBUS_SESSION_BUS_ADDRESS",
+      "XDG_CURRENT_DESKTOP",
+      "XDG_SESSION_DESKTOP",
+      "XDG_SESSION_TYPE",
+      "__MISE_DIFF",
+    ] as const;
+    for (const name of shellPreferredEnvNames) {
+      if (shellEnvironment[name]) {
+        config.env[name] = shellEnvironment[name];
+      }
+    }
+
+    for (const name of [
+      "DISPLAY",
+      "HOMEBREW_PREFIX",
+      "HOMEBREW_CELLAR",
+      "HOMEBREW_REPOSITORY",
+      "XDG_CONFIG_HOME",
+      "XDG_DATA_HOME",
+      "XDG_RUNTIME_DIR",
+      "WAYLAND_DISPLAY",
+      "SSL_CERT_FILE",
+      "SSL_CERT_DIR",
+      "NODE_EXTRA_CA_CERTS",
+      "JAVA_HOME",
+      "SUPATERM_RELEASE_BASE_URL",
+    ] as const) {
+      if (!config.env[name] && shellEnvironment[name]) {
+        config.env[name] = shellEnvironment[name];
+      }
+    }
+
+    if (ANDROID_SDK_ENV_NAMES.every((name) => Option.isNone(trimNonEmpty(config.env[name])))) {
+      for (const name of ANDROID_SDK_ENV_NAMES) {
+        const value = trimNonEmpty(shellEnvironment[name]);
+        if (Option.isSome(value)) {
+          config.env[name] = value.value;
+        }
+      }
+    }
+
+    if (
+      config.platform === "darwin" &&
+      LOCALE_ENV_NAMES.every((name) => Option.isNone(trimNonEmpty(config.env[name])))
+    ) {
+      for (const name of LOCALE_ENV_NAMES) {
+        const value = trimNonEmpty(shellEnvironment[name]);
+        if (Option.isSome(value)) {
+          config.env[name] = value.value;
+        }
+      }
+
+      if (LOCALE_ENV_NAMES.every((name) => Option.isNone(trimNonEmpty(config.env[name])))) {
+        config.env.LC_CTYPE = FALLBACK_LC_CTYPE;
+      }
+    }
+
+    if (
+      config.platform === "linux" &&
+      Option.isNone(trimNonEmpty(config.env.DBUS_SESSION_BUS_ADDRESS))
+    ) {
+      for (const runtimeDir of linuxRuntimeDirCandidates(config.env, process.getuid?.())) {
+        const dbusSessionBusPath = `${runtimeDir}/bus`;
+        const busExists = yield* fileSystem
+          .exists(dbusSessionBusPath)
+          .pipe(Effect.orElseSucceed(() => false));
+        if (busExists) {
+          config.env.DBUS_SESSION_BUS_ADDRESS = `unix:path=${dbusSessionBusPath}`;
+          break;
+        }
+      }
+    }
+
+    const prepared = Option.isSome(trimNonEmpty(shellEnvironment.PATH));
+    return {
+      prepared,
+      fromUserShell: prepared && answeredBy !== undefined && userShells.includes(answeredBy),
+    };
+  },
+);
 
 interface ShellDiscovery {
   readonly prepared: boolean;

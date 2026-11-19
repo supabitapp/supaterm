@@ -65,20 +65,13 @@ export function closeServerPictureInPicture(): void {
 }
 
 /** Open during user activation, seeding the video with the currently visible frame. */
-export function openServerPictureInPicture(input: {
-  readonly environmentId: EnvironmentId;
-  readonly threadId: ThreadId;
-  readonly tabId: string;
-  readonly seed: HTMLCanvasElement | null;
-  readonly play?: (video: HTMLVideoElement) => Promise<void>;
-}): Promise<void>;
 export async function openServerPictureInPicture(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly tabId: string;
   readonly seed: HTMLCanvasElement | null;
   readonly play?: (video: HTMLVideoElement) => Promise<void>;
-}) {
+}): Promise<void> {
   closeServerPictureInPicture();
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");

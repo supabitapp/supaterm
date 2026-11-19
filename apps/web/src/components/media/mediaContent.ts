@@ -43,7 +43,7 @@ const browserMediaSources = {
 
 export type MediaSources = typeof browserMediaSources;
 
-async function fetchMediaBlob(src: string, sources: MediaSources) {
+async function fetchMediaBlob(src: string, sources: MediaSources): Promise<Blob> {
   const response = await sources.fetch(src).catch(() => null);
   if (response?.ok) return response.blob();
   const desktop = sources.desktopBridge();
@@ -61,7 +61,7 @@ async function fetchMediaBlob(src: string, sources: MediaSources) {
   );
 }
 
-async function readMediaBlob(src: string, sources: MediaSources) {
+async function readMediaBlob(src: string, sources: MediaSources): Promise<Blob> {
   if (/^data:/i.test(src)) return readDataUrlBlob(src);
   const blob = await fetchMediaBlob(src, sources);
   if (blob.type.split(";", 1)[0] === "text/html") {
@@ -70,7 +70,7 @@ async function readMediaBlob(src: string, sources: MediaSources) {
   return blob;
 }
 
-export async function downloadMedia(src: string, name: string) {
+export async function downloadMedia(src: string, name: string): Promise<void> {
   const url = URL.createObjectURL(await readMediaBlob(src, browserMediaSources));
   try {
     const anchor = document.createElement("a");
@@ -82,7 +82,10 @@ export async function downloadMedia(src: string, name: string) {
   }
 }
 
-export async function readMediaPng(src: string, sources: MediaSources = browserMediaSources) {
+export async function readMediaPng(
+  src: string,
+  sources: MediaSources = browserMediaSources,
+): Promise<Blob> {
   const blob = await readMediaBlob(src, sources);
   if (blob.type.split(";", 1)[0] === "image/png") return blob;
 

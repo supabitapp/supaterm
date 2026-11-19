@@ -36,7 +36,7 @@ import {
 
 let transcriber: { prepare: () => Promise<PreparedVoiceTranscription> };
 
-const engine = () => ({
+const engine = (): VoiceInputEngine => ({
   transcriber,
   language: "en-US",
 });

@@ -281,7 +281,7 @@ export function layerWithRegistry<Error>(
       store: ProjectionStore.ProjectionStoreV2Shape,
     ) => ProjectionStore.ProjectionStoreV2Shape;
     readonly wrapEventSink?: (sink: EventSink.EventSinkV2Shape) => EventSink.EventSinkV2Shape;
-  },
+  } = {},
 ): Layer.Layer<
   | Orchestrator.OrchestratorV2
   | EffectOutbox.EffectOutboxV2
@@ -291,30 +291,7 @@ export function layerWithRegistry<Error>(
   | CommandOutputRecorder.CommandOutputRecorder
   | ThreadCommandExecutor.ThreadCommandExecutor,
   Error | MigrationError | PlatformError.PlatformError | SqlError
->;
-export function layerWithRegistry<Error>(
-  scenario: Pick<OrchestratorV2ProviderReplayScenario, "name" | "runtimePolicyOverride">,
-  registryLayer: Layer.Layer<
-    ProviderAdapterRegistry.ProviderAdapterRegistryV2,
-    Error,
-    McpProviderSessions.McpProviderSessions
-  >,
-  options: {
-    readonly databaseLayer?: Layer.Layer<
-      SqlClient.SqlClient,
-      MigrationError | PlatformError.PlatformError | SqlError
-    >;
-    readonly runEffectWorker?: boolean;
-    readonly runContinuationWorker?: boolean;
-    readonly recoverOnStartup?: boolean;
-    readonly continueThreadsAfterServerUpdate?: boolean;
-    /** Lets a test hold a projection read open to order concurrent dispatches. */
-    readonly wrapProjectionStore?: (
-      store: ProjectionStore.ProjectionStoreV2Shape,
-    ) => ProjectionStore.ProjectionStoreV2Shape;
-    readonly wrapEventSink?: (sink: EventSink.EventSinkV2Shape) => EventSink.EventSinkV2Shape;
-  } = {},
-) {
+> {
   const layerServerConfig = Layer.effect(
     ServerConfig.ServerConfig,
     makeReplayServerConfig(scenario.name).pipe(Effect.orDie),

@@ -422,7 +422,9 @@ export const make = Effect.gen(function* () {
                 }
                 return folders;
               })());
-            const resolveSymlinkKind = async (name: string) => {
+            const resolveSymlinkKind = async (
+              name: string,
+            ): Promise<ProjectEntry["kind"] | undefined> => {
               const resolved = await realpath(path.join(directory, name)).catch(() => undefined);
               if (
                 resolved === undefined ||

@@ -68,7 +68,7 @@ vi.mock("expo-file-system", () => {
       return true;
     }
 
-    get size() {
+    get size(): number | null {
       return mocks.sizeOf(this.uri) ?? null;
     }
 

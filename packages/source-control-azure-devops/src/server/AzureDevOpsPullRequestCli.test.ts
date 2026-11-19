@@ -133,7 +133,7 @@ function streamedZip(
   return Buffer.concat([...parts, centralDirectory, end]);
 }
 
-function argsOfCall(index: number) {
+function argsOfCall(index: number): ReadonlyArray<string> {
   const call = fakeExecute.calls[index];
   assert.isDefined(call);
   return call[0].args;

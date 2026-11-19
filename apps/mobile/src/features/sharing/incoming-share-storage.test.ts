@@ -72,7 +72,7 @@ const fileSystemMocks = vi.hoisted(() => {
       record();
     }
 
-    delete() {
+    delete(): void {
       if (failNextDelete) {
         failNextDelete = false;
         throw new Error("backup cleanup failed");

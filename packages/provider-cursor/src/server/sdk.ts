@@ -10,7 +10,7 @@ export function makeCursorSdkLoaders(
   let sdk: CursorSdkModule | undefined;
   let sqlite: CursorSqliteModule | undefined;
 
-  const loadCursorSdk = () => {
+  const loadCursorSdk = (): CursorSdkModule => {
     if (sdk !== undefined) return sdk;
     const start = performance.now();
     sdk = requireCursorSdk("@cursor/sdk") as CursorSdkModule;
@@ -20,7 +20,7 @@ export function makeCursorSdkLoaders(
     return sdk;
   };
 
-  const loadCursorSqlite = () => {
+  const loadCursorSqlite = (): CursorSqliteModule => {
     if (sqlite !== undefined) return sqlite;
     const start = performance.now();
     sqlite = requireCursorSdk("@cursor/sdk/sqlite") as CursorSqliteModule;

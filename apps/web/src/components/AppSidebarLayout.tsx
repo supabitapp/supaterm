@@ -109,7 +109,7 @@ function readRoutePanelsOpen(router: AnyRouter) {
 export function registerNavigationHistoryCommands(
   router: AnyRouter,
   navigate: typeof navigateHistory = navigateHistory,
-) {
+): () => void {
   return registerCommands(
     {
       "navigation.back": () => navigate("back"),

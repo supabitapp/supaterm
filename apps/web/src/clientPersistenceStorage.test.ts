@@ -1,8 +1,7 @@
 import { DEFAULT_CLIENT_SETTINGS } from "@supaterm/contracts";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-function createLocalStorageStub(readFailures: Array<Error>): Storage;
-function createLocalStorageStub(readFailures: Array<Error>) {
+function createLocalStorageStub(readFailures: Array<Error>): Storage {
   const store = new Map<string, string>();
   return {
     getItem: (key) => {
@@ -26,7 +25,7 @@ function createLocalStorageStub(readFailures: Array<Error>) {
   };
 }
 
-function getTestWindow(readFailures: Array<Error> = []) {
+function getTestWindow(readFailures: Array<Error> = []): Window & typeof globalThis {
   const localStorage = createLocalStorageStub(readFailures);
   const testWindow = {
     localStorage,

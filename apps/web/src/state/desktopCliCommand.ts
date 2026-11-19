@@ -1,4 +1,4 @@
-import type { DesktopCliCommandState } from "@supaterm/contracts";
+import type { DesktopBridge, DesktopCliCommandState } from "@supaterm/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { Atom } from "effect/reactivity";

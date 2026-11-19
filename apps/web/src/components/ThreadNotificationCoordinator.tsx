@@ -75,13 +75,8 @@ export type NotificationWindow = typeof browserWindow;
 export function startThreadNotifications(
   registry: AtomRegistry.AtomRegistry,
   router: AnyRouter,
-  appWindow?: NotificationWindow,
-): () => void;
-export function startThreadNotifications(
-  registry: AtomRegistry.AtomRegistry,
-  router: AnyRouter,
   appWindow = browserWindow,
-) {
+): () => void {
   const pending = new Map<string, { environmentId: EnvironmentId; notification: Notification }>();
   const watched = new Map<EnvironmentId, WatchedEnvironment>();
 

@@ -47,17 +47,13 @@ export type WindowsForegroundFocusWorker = {
   readonly once: (event: "error" | "exit", listener: () => void) => unknown;
 };
 
-const createNodeWorker: (workerPath: string) => WindowsForegroundFocusWorker = (workerPath) =>
+const createNodeWorker = (workerPath: string): WindowsForegroundFocusWorker =>
   new NodeWorkerThreads.Worker(workerPath);
 
 export function startWindowsForegroundFocusThread(
   workerPath: string,
-  createWorker?: (workerPath: string) => WindowsForegroundFocusWorker,
-): WindowsForegroundFocusThread;
-export function startWindowsForegroundFocusThread(
-  workerPath: string,
   createWorker = createNodeWorker,
-) {
+): WindowsForegroundFocusThread {
   let worker: WindowsForegroundFocusWorker | undefined;
   let ready = false;
   let closed = false;

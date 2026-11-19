@@ -15,7 +15,10 @@ it("blocks installation behind another supaterm without blocking removal of our 
     launcherPath: "/home/test/.supaterm/bin/supaterm",
   };
   let current: DesktopCliCommandState = { ...state, shadowedBy: "/usr/local/bin/supaterm" };
-  const getState = vi.spyOn({ getState: async () => current }, "getState");
+  const getState = vi.spyOn(
+    { getState: async (): Promise<DesktopCliCommandState> => current },
+    "getState",
+  );
   const uninstall = vi.fn(async () => state);
   using _bridge = stubGlobal("desktopBridge", {
     cliCommand: { getState, install: vi.fn(async () => state), uninstall },

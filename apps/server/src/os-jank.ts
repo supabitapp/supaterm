@@ -36,7 +36,10 @@ const SLOW_LOGIN_SHELL_TIMEOUT_MS = 20_000;
 
 type ExecFileSync = NonNullable<Parameters<typeof readPathFromLaunchctl>[0]>;
 
-function readSlowLoginShellEnvironment(shell: string, execFileSync: ExecFileSync) {
+function readSlowLoginShellEnvironment(
+  shell: string,
+  execFileSync: ExecFileSync,
+): Partial<Record<string, string>> {
   return readEnvironmentFromLoginShell(shell, LOGIN_SHELL_ENV_NAMES, (file, args, options) =>
     execFileSync(file, args, {
       ...options,
@@ -68,7 +71,7 @@ function hydratePosixPath(
   env: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
   execFileSync: ExecFileSync,
-) {
+): void {
   let shellEnvironment: Partial<Record<string, string>> = {};
   let waitedForSlowShell = false;
   for (const shell of listLoginShellCandidates(platform, env.SHELL)) {
@@ -114,7 +117,7 @@ export function hydratePosixHome(
 export const fixPath = Effect.fn("fixPath")(function* (options?: {
   readonly shellEnvironmentPrepared?: boolean | undefined;
   readonly execFileSync?: ExecFileSync;
-}) {
+}): Effect.fn.Return<void, never, FileSystem.FileSystem | Path.Path> {
   const platform = yield* HostProcess.Platform;
   const env = yield* HostProcess.Environment;
 

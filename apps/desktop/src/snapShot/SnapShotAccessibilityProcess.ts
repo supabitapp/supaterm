@@ -67,12 +67,8 @@ const forkAccessibilityWorker: ForkAccessibilityWorker = (workerPath) =>
 
 export function startSnapShotAccessibilityProcess(
   workerPath: string,
-  fork?: ForkAccessibilityWorker,
-): AccessibilityProcess;
-export function startSnapShotAccessibilityProcess(
-  workerPath: string,
   fork = forkAccessibilityWorker,
-) {
+): AccessibilityProcess {
   let worker: AccessibilityWorker;
   try {
     worker = fork(workerPath);
@@ -152,12 +148,8 @@ export function startSnapShotAccessibilityProcess(
 
 export function makeSnapShotAccessibilityProcessPool(
   workerPath: string,
-  fork?: ForkAccessibilityWorker,
-): AccessibilityProcessPool;
-export function makeSnapShotAccessibilityProcessPool(
-  workerPath: string,
   fork = forkAccessibilityWorker,
-) {
+): AccessibilityProcessPool {
   let standby: AccessibilityProcess | undefined;
   const active = new Set<AccessibilityProcess>();
   let closed = false;

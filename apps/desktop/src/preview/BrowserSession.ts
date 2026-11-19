@@ -237,7 +237,10 @@ const electronBrowserSessionNative: BrowserSessionNative = {
   fromWebContents: (contents) => BrowserWindow.fromWebContents(contents),
 };
 
-const previewHostWindow = (native: BrowserSessionNative, guest: WebContents | null) => {
+const previewHostWindow = (
+  native: BrowserSessionNative,
+  guest: WebContents | null,
+): BrowserWindow | undefined => {
   if (guest === null || guest.isDestroyed()) return undefined;
   const host = guest.hostWebContents ?? guest;
   if (host.isDestroyed()) return undefined;

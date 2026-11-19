@@ -188,7 +188,7 @@ export async function openLoopbackRelay(
     address: string,
     options: TunnelConnectorOptions,
   ) => Pick<ReturnType<typeof createTunnelConnector>, "open" | "close"> = createTunnelConnector,
-) {
+): Promise<LoopbackRelay> {
   const connector = connect(address, options);
   try {
     const listener = await listenLoopbackTunnel(() => connector.open());

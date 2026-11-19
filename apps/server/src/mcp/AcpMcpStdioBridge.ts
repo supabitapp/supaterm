@@ -327,23 +327,18 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
   });
 }
 
-/** Avoid heavy imports on the ACP first-message path. */
 interface AcpMcpCliIo {
   readonly environment?: NodeJS.ProcessEnv;
   readonly fetchImplementation?: (url: string, init?: RequestInit) => Promise<Response>;
   readonly writeOutput?: (chunk: string) => void;
 }
 
-export function runAcpMcpCliFastPath(
-  command: "acp-mcp-bridge" | "acp-mcp-call",
-  args: ReadonlyArray<string>,
-  io?: AcpMcpCliIo,
-): Promise<void>;
+/** Avoid heavy imports on the ACP first-message path. */
 export async function runAcpMcpCliFastPath(
   command: "acp-mcp-bridge" | "acp-mcp-call",
   args: ReadonlyArray<string>,
   io: AcpMcpCliIo = {},
-) {
+): Promise<void> {
   const environment = io.environment ?? process.env;
   const endpoint = environment.SUPATERM_ACP_MCP_ENDPOINT;
   const authorization = environment.SUPATERM_ACP_MCP_AUTHORIZATION;

@@ -124,20 +124,6 @@ export const CursorDriver: ProviderDriver<
           }),
       ),
     );
-    const onChanged: (signedIn: boolean) => Effect.Effect<void, ProviderSetupError> = (signedIn) =>
-      snapshot.refresh.pipe(
-        Effect.flatMap((provider) =>
-          !signedIn || provider.auth.status === "authenticated"
-            ? Effect.void
-            : Effect.fail(
-                new ProviderSetupError({
-                  instanceId,
-                  operation: "start",
-                  detail: provider.message ?? "Could not verify the Cursor sign-in. Try again.",
-                }),
-              ),
-        ),
-      );
     const login = yield* CursorLogin;
     const auth = yield* makeCursorAuth({
       ...(login ? { login } : {}),
@@ -147,7 +133,20 @@ export const CursorDriver: ProviderDriver<
       ...(processEnv.CURSOR_API_KEY ? { apiKey: processEnv.CURSOR_API_KEY } : {}),
       store: credentials.store,
       credentialBinding: credentials.binding,
-      onChanged,
+      onChanged: (signedIn): Effect.Effect<void, ProviderSetupError> =>
+        snapshot.refresh.pipe(
+          Effect.flatMap((provider) =>
+            !signedIn || provider.auth.status === "authenticated"
+              ? Effect.void
+              : Effect.fail(
+                  new ProviderSetupError({
+                    instanceId,
+                    operation: "start",
+                    detail: provider.message ?? "Could not verify the Cursor sign-in. Try again.",
+                  }),
+                ),
+          ),
+        ),
     });
     const stampSnapshot: typeof stampIdentity = (draft) =>
       stampIdentity({

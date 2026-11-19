@@ -48,7 +48,7 @@ export async function confirmClose(
   }
 }
 
-async function terminalCloseConfirmationEnabled(host: CloseConfirmationHost) {
+async function terminalCloseConfirmationEnabled(host: CloseConfirmationHost): Promise<boolean> {
   pendingConfirmations += 1;
   try {
     await host.hydrateSettings();
@@ -69,7 +69,7 @@ async function terminalCloseConfirmationEnabled(host: CloseConfirmationHost) {
 export async function confirmTerminalClose(
   targets: readonly TerminalCloseTarget[],
   host: CloseConfirmationHost = appCloseConfirmationHost,
-) {
+): Promise<boolean> {
   const runningTargets = targets.filter((target) => target.hasRunningSubprocess);
   if (runningTargets.length === 0) return true;
   if (!(await terminalCloseConfirmationEnabled(host))) return true;

@@ -39,7 +39,7 @@ const command: AtomCommand<Target, string, Error> = {
     return AsyncResult.success("receipt");
   },
 };
-const target = (environmentId: EnvironmentId) => ({
+const target = (environmentId: EnvironmentId): Target => ({
   environmentId,
   input: { threadId: "thread-1" },
 });

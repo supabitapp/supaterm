@@ -26,7 +26,7 @@ export const OpenCodeServiceControl = Context.Reference<OpenCodeServiceControlSh
   },
 );
 
-function isRegisteredService(registeredUrl: string, serverUrl: string) {
+function isRegisteredService(registeredUrl: string, serverUrl: string): boolean {
   const registered = URL.parse(registeredUrl);
   const configured = URL.parse(serverUrl);
   if (

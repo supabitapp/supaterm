@@ -595,7 +595,7 @@ export async function prepareRevertedMessageAttachments(input: {
   httpBaseUrl: string;
   createAssetUrl: Parameters<typeof resolveFileAttachmentUrl>[0]["createAssetUrl"];
   fetchAsset?: (url: string) => Promise<Response>;
-}) {
+}): Promise<File[]> {
   return Promise.all(
     (input.message.attachments ?? []).map(async (attachment) => {
       if (attachment.type !== "image" && attachment.type !== "file") {
@@ -843,7 +843,7 @@ export async function waitForRevertedMessage(
   revert: () => Promise<void>,
   timeoutMs = 120_000,
   threadAtom = environmentThreadDetails.stateAtom(threadRef),
-) {
+): Promise<void> {
   const readProjection = () => Option.getOrNull(appAtomRegistry.get(threadAtom).data);
   const initial = readProjection();
   const providerThreadId = initial?.thread.activeProviderThreadId;

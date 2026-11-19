@@ -41,7 +41,7 @@ function leavePullRequestsPage(router: AnyRouter) {
 export function installChatRouteCommands(
   router: AnyRouter,
   options: Pick<CommandScopeOptions, "platform"> = {},
-) {
+): () => void {
   const handleNewThread = createNewThreadHandler(router);
   const primaryEnvironmentId = () => appAtomRegistry.get(primaryEnvironmentIdAtom);
   const scratch = createScratchProjectActions({

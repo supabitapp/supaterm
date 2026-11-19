@@ -106,7 +106,7 @@ const nodeMacLookupExecFile: MacLookupExecFile = (file, args, options, callback)
   NodeChildProcess.execFile(file, [...args], options, callback);
 };
 
-function runMacLookup(execFile: MacLookupExecFile) {
+function runMacLookup(execFile: MacLookupExecFile): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(
       "/usr/bin/osascript",
@@ -120,9 +120,9 @@ function runMacLookup(execFile: MacLookupExecFile) {
   });
 }
 
-async function macActiveWindow(execFile: MacLookupExecFile) {
+async function macActiveWindow(execFile: MacLookupExecFile): Promise<ActiveWindow | undefined> {
   const output = (await runMacLookup(execFile)).trim();
-  if (!output) return undefined satisfies ActiveWindow | undefined;
+  if (!output) return undefined;
   const lookup = decodeMacActiveWindowLookup(output);
   const visible = lookup.windows.filter(
     (window) => window.alpha > 0 && window.bounds.width > 0 && window.bounds.height > 0,
@@ -185,15 +185,9 @@ async function windowsActiveWindow(): Promise<ActiveWindow | undefined> {
 
 export function activeWindow(
   platform: NodeJS.Platform,
-  execFile?: MacLookupExecFile,
-): Promise<ActiveWindow | undefined>;
-export function activeWindow(
-  platform: NodeJS.Platform,
   execFile: MacLookupExecFile = nodeMacLookupExecFile,
-) {
-  if (platform === "darwin")
-    return macActiveWindow(execFile) satisfies Promise<ActiveWindow | undefined>;
-  if (platform === "win32")
-    return windowsActiveWindow() satisfies Promise<ActiveWindow | undefined>;
-  return Promise.resolve(undefined) satisfies Promise<ActiveWindow | undefined>;
+): Promise<ActiveWindow | undefined> {
+  if (platform === "darwin") return macActiveWindow(execFile);
+  if (platform === "win32") return windowsActiveWindow();
+  return Promise.resolve(undefined);
 }

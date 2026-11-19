@@ -60,7 +60,7 @@ export function subscribeDocumentReturn(
     readonly window: EventTarget;
     readonly document: EventTarget & Pick<Document, "visibilityState">;
   },
-) {
+): () => void {
   if (source === undefined && typeof document === "undefined") return () => {};
   const { window: view, document: page } = source ?? { window, document };
   const handleVisibilityChange = () => {

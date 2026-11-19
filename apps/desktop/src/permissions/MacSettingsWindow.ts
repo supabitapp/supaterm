@@ -88,7 +88,7 @@ export function watchMacSettingsWindow(
   onChange: (window: SettingsWindow) => void,
   onUnavailable: () => void,
   spawn: SpawnSettingsWatcher = spawnSettingsWatcher,
-) {
+): () => void {
   const child = spawn("/usr/bin/osascript", ["-l", "JavaScript", "-e", SETTINGS_WINDOW_SCRIPT]);
   let pending = "";
   let closed = false;

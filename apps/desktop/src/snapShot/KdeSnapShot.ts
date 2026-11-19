@@ -46,13 +46,7 @@ function run(
   executable: string,
   args: string[],
   signal?: AbortSignal,
-): Promise<string>;
-function run(
-  native: CaptureHelperNative,
-  executable: string,
-  args: string[],
-  signal?: AbortSignal,
-) {
+): Promise<string> {
   return new Promise((resolve, reject) => {
     native.execFile(
       executable,
@@ -132,7 +126,7 @@ export class KdeCaptureSetup {
         return {
           status: "update-required",
           message: "Update the bundled capture helper to continue.",
-        } satisfies DesktopCaptureHelperState;
+        };
       const capabilities = decodeCapabilities(await run(this.native, executable, ["check"]));
       return {
         status: "ready",
@@ -219,16 +213,11 @@ const decodeCapture = Schema.decodeUnknownSync(
   Schema.fromJsonString(Schema.Struct({ window: Schema.NullOr(Window) })),
 );
 
-export function captureKdeWindow(
-  paths: KdeCapturePaths,
-  options?: { readonly flash: boolean; readonly animate: boolean },
-  native?: CaptureHelperNative,
-): Promise<LinuxWindowSnapshot>;
 export async function captureKdeWindow(
   paths: KdeCapturePaths,
   options?: { readonly flash: boolean; readonly animate: boolean },
   native: CaptureHelperNative = nodeCaptureHelperNative,
-) {
+): Promise<LinuxWindowSnapshot> {
   const state = await new KdeCaptureSetup(paths, native).state();
   if (state.status !== "ready") throw new CaptureSetupRequiredError(state.message);
   const { executable } = kdeCapturePaths(paths);

@@ -143,7 +143,7 @@ export const WorkspaceNodeFileSystem = Context.Reference<{
   defaultValue: () => ({ open: NodeFSP.open, realpath: (path) => NodeFSP.realpath(path) }),
 });
 
-async function startsWithUtf8Bom(open: typeof NodeFSP.open, filePath: string) {
+async function startsWithUtf8Bom(open: typeof NodeFSP.open, filePath: string): Promise<boolean> {
   const handle = await open(
     filePath,
     NodeFS.constants.O_RDONLY |

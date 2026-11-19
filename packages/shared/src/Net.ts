@@ -50,10 +50,7 @@ export const make = ({
     server.listen(options);
   },
 } = {}) => {
-  const canListenOnHost: (port: number, host: string) => Effect.Effect<boolean> = (
-    port: number,
-    host: string,
-  ) =>
+  const canListenOnHost = (port: number, host: string): Effect.Effect<boolean> =>
     Effect.callback<boolean>((resume) => {
       const server = NodeNet.createServer();
       let settled = false;

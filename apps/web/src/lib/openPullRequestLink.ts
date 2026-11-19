@@ -88,12 +88,7 @@ export function useOpenChangeRequestLink(
   targetThreadRef?: ScopedThreadRef,
   targetEnvironmentId?: EnvironmentId,
   onCommitUnavailable?: () => void,
-) => boolean;
-export function useOpenChangeRequestLink(
-  threadRef?: ScopedThreadRef,
-  panelRef?: ScopedThreadRef,
-  options?: OpenChangeRequestLinkOptions,
-) {
+) => boolean {
   const navigate = useNavigate();
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const openInApp = useClientSettings((settings) => settings.pullRequestLinksOpenInApp);

@@ -51,13 +51,7 @@ function run(
   executable: string,
   args: string[],
   signal?: AbortSignal,
-): Promise<string>;
-function run(
-  native: CaptureHelperNative,
-  executable: string,
-  args: string[],
-  signal?: AbortSignal,
-) {
+): Promise<string> {
   return new Promise((resolve, reject) => {
     native.execFile(
       executable,
@@ -122,7 +116,7 @@ export class HyprlandCaptureSetup {
         ...decodeCapabilities(
           await run(this.native, hyprlandCaptureExecutable(this.paths), ["check"]),
         ),
-      } satisfies DesktopCaptureHelperState;
+      };
     } catch (error) {
       return {
         status: "error",
@@ -177,16 +171,11 @@ const decodeCapture = Schema.decodeUnknownSync(
   ),
 );
 
-export function captureHyprlandWindow(
-  paths: HyprlandCapturePaths,
-  options?: { readonly flash: boolean; readonly animate: boolean },
-  native?: CaptureHelperNative,
-): Promise<LinuxWindowSnapshot>;
 export async function captureHyprlandWindow(
   paths: HyprlandCapturePaths,
   options?: { readonly flash: boolean; readonly animate: boolean },
   native: CaptureHelperNative = nodeCaptureHelperNative,
-) {
+): Promise<LinuxWindowSnapshot> {
   const setup = new HyprlandCaptureSetup(paths, native);
   let state = await setup.state();
   if (state.status === "update-required") {

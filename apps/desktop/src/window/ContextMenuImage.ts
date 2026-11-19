@@ -15,16 +15,11 @@ const electronContextMenuImageNative: ContextMenuImageNative = {
   writeClipboard: (items) => Electron.clipboard.write([new Electron.ClipboardItem(items)]),
 };
 
-export function copyContextMenuImage(
-  contents: Electron.WebContents,
-  params: Electron.ContextMenuParams,
-  native?: ContextMenuImageNative,
-): Promise<void>;
 export async function copyContextMenuImage(
   contents: Electron.WebContents,
   params: Electron.ContextMenuParams,
   native: ContextMenuImageNative = electronContextMenuImageNative,
-) {
+): Promise<void> {
   const frame = params.frame;
   if (contents.isDestroyed() || !frame || frame.isDestroyed()) return;
   if (frame === contents.mainFrame) {

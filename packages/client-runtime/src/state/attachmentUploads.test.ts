@@ -197,7 +197,7 @@ describe("attachment upload registry", () => {
     let states: Readonly<Record<string, AttachmentUploadStatus>> = {};
     const progress: number[] = [];
     const { upload, calls } = scriptedUpload(
-      async (_request, _signal, report) => {
+      async (_request, _signal, report): Promise<string> => {
         report(0.12);
         report(0.13);
         report(1.1);

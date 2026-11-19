@@ -38,7 +38,7 @@ function collectCodeBlocks(state: EditorState): Array<{ node: ProseMirrorNode; p
 export function composerCodeBlockHighlight(options: {
   resolveTheme: () => DiffThemeName;
   loadHighlighter?: (language: string) => Promise<Highlighter>;
-}) {
+}): Extension {
   const loadHighlighter = options.loadHighlighter ?? getSyntaxHighlighterPromise;
   return Extension.create({
     name: "composerCodeBlockHighlight",

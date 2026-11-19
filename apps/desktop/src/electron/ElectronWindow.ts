@@ -66,7 +66,7 @@ function windowsForegroundFocusTarget(
 async function isWindowsBrowserWindowForeground(
   native: ElectronWindowNative,
   window: Electron.BrowserWindow,
-) {
+): Promise<boolean> {
   const foreground = await native
     .loadWindowsForegroundApi()
     .then((api) => api.getForegroundWindow())

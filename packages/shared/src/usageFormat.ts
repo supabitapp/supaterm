@@ -318,7 +318,7 @@ export function makeWindow(
   now = new Date(),
   resolution: UsageResolution = "day",
   resolvedTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
-) {
+): UsageSummaryInput {
   let timeZone = resolvedTimeZone || "UTC";
   let format: Intl.DateTimeFormat;
   try {

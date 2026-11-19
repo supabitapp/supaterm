@@ -41,7 +41,7 @@ export const updateRunEnvironment = {
     environmentCatalog.retryNow.run(appAtomRegistry, environmentId),
 };
 
-export function useUpdateEverythingRun() {
+export function useUpdateEverythingRun(): UpdateEverythingRun | null {
   return useAtomValue(updateEverythingRunAtom);
 }
 
@@ -91,7 +91,7 @@ export function retryFailedUpdateRunServers(
     options: { readonly quiet: boolean },
   ) => Promise<ServerUpdateOutcome>,
   environment = updateRunEnvironment,
-) {
+): void {
   const failed = (appAtomRegistry.get(updateEverythingRunAtom)?.machines ?? []).flatMap(
     (machine) =>
       machine.result === "failed" && machine.server !== null
@@ -285,7 +285,7 @@ export function showUpdateEverythingResult(result: UpdateEverythingResult): void
 function followHandedOffServers(
   servers: ReadonlyArray<HandedOffServer>,
   environment: typeof updateRunEnvironment,
-) {
+): void {
   if (servers.length === 0) return;
   setUpdateEverythingRun(() => ({
     localVersion: null,
@@ -368,7 +368,7 @@ function followHandedOffServers(
 }
 
 /** Reports, once per launch, how the update run that restarted the app ended. */
-export function startDesktopUpdateLaunchNotice(environment = updateRunEnvironment) {
+export function startDesktopUpdateLaunchNotice(environment = updateRunEnvironment): () => void {
   const saved = takeSavedUpdateEverythingResult();
   if (saved) {
     showUpdateEverythingResult({

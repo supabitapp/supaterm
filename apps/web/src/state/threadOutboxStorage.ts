@@ -28,7 +28,9 @@ const Lease = Schema.Struct({
 const decodeLease = Schema.decodeUnknownSync(Lease);
 
 /** IndexedDB also works on HTTP LAN origins where Web Locks are unavailable. */
-export function createBrowserThreadOutboxStorage(access: IndexedDbAccess = {}) {
+export function createBrowserThreadOutboxStorage(
+  access: IndexedDbAccess = {},
+): BrowserThreadOutboxStorage<OutboxTurn> {
   const beginTransaction = createIndexedDbTransaction({
     name: DATABASE_NAME,
     version: 1,
@@ -44,7 +46,7 @@ export function createBrowserThreadOutboxStorage(access: IndexedDbAccess = {}) {
     storeName: string,
     mode: IDBTransactionMode,
     operation: (store: IDBObjectStore, complete: (result: A) => void) => void,
-  ) {
+  ): Promise<A> {
     const tx = await beginTransaction(storeName, mode);
     return new Promise<A>((resolve, reject) => {
       let result: A;
@@ -59,7 +61,7 @@ export function createBrowserThreadOutboxStorage(access: IndexedDbAccess = {}) {
     });
   }
 
-  const storage: BrowserThreadOutboxStorage<OutboxTurn> = {
+  return {
     load: async () => {
       const values = await transaction<unknown[]>("messages", "readonly", (store, complete) => {
         const request = store.getAll();
@@ -142,7 +144,6 @@ export function createBrowserThreadOutboxStorage(access: IndexedDbAccess = {}) {
       }
     },
   };
-  return storage;
 }
 
 export const browserThreadOutboxStorage = createBrowserThreadOutboxStorage();

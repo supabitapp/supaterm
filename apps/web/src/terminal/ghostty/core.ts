@@ -565,7 +565,7 @@ export class GhosttyTerminalCore {
     event: KeyboardEvent,
     action: "press" | "release" = "press",
     platform = navigator.platform,
-  ) {
+  ): string {
     this.ensureActive();
     this.runtime.call("ghostty_key_encoder_setopt_from_terminal", this.keyEncoder, this.terminal);
     this.runtime.call(

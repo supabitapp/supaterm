@@ -206,9 +206,8 @@ export const NativeReviewDiffFrameSchedulerContext = createContext<NativeReviewD
   cancel: (frame) => cancelAnimationFrame(frame),
 });
 
-export function isPendingNativeViewRegistration(error: unknown): boolean;
-export function isPendingNativeViewRegistration(error: unknown) {
-  if (!(error instanceof Error)) return false satisfies boolean;
+export function isPendingNativeViewRegistration(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
   return (
     error.message.includes(`Unable to find the '${NATIVE_REVIEW_DIFF_MODULE_NAME}' view`) ||
     (error.message.includes("Unable to find the class") &&

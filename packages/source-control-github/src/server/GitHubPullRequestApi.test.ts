@@ -409,7 +409,7 @@ const diffRefused = new GitHubRequestPolicy.GitHubApiResponseError({
   status: 406,
 });
 
-function callAt(index: number) {
+function callAt(index: number): ApiCall {
   const call = fakeExecute.calls[index];
   assert.isDefined(call);
   return call[0];
@@ -479,7 +479,7 @@ function matches(call: ApiCall, needle: string): boolean {
     : call.path.includes(needle);
 }
 
-function route(...routes: ReadonlyArray<readonly [needle: string, body: unknown]>) {
+function route(...routes: ReadonlyArray<readonly [needle: string, body: unknown]>): void {
   fakeExecute.implement((call) => {
     const match = routes.find(([needle]) => matches(call, needle));
     return Effect.succeed(
@@ -499,13 +499,13 @@ function mutationAnswer(query: string) {
   return { data: root === undefined ? {} : { [root]: null } };
 }
 
-function variablesOf(needle: string) {
+function variablesOf(needle: string): ReadonlyArray<Readonly<Record<string, unknown>>> {
   return fakeExecute.calls.flatMap(([call]) =>
     call.kind === "graphql" && matches(call, needle) ? [call.variables ?? {}] : [],
   );
 }
 
-function restCallsTo(needle: string) {
+function restCallsTo(needle: string): ReadonlyArray<GitHubRest.GitHubRestInput> {
   return fakeExecute.calls.flatMap(([call]) =>
     call.kind === "rest" && call.path.includes(needle) ? [call] : [],
   );
@@ -592,7 +592,11 @@ const workflowRuns = (ids: ReadonlyArray<number>) => ({
   })),
 });
 
-function workflowApprovalRoutes(detail: () => unknown, headsAnswer: unknown, runsAnswer: unknown) {
+function workflowApprovalRoutes(
+  detail: () => unknown,
+  headsAnswer: unknown,
+  runsAnswer: unknown,
+): void {
   fakeExecute.implement((call) =>
     Effect.sync(() =>
       output(
