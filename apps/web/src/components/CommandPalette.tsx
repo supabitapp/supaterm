@@ -152,6 +152,7 @@ import {
   useProjects,
   useServerConfigs,
   useThreadProjection,
+  useDelegatedUnderParent,
   useThreadShells,
   waitForProject,
 } from "../state/entities";
@@ -549,7 +550,10 @@ function OpenCommandPaletteDialog(props: {
     await copyThreadReference(activeThreadReferenceCopyTarget);
   };
   // Side chats and subagents open inside their parent, so opening a project never lands on one.
-  const threads = useThreadShells().filter((thread) => !isSidebarHiddenThread(thread));
+  const delegatedUnderParent = useDelegatedUnderParent();
+  const threads = useThreadShells().filter(
+    (thread) => !isSidebarHiddenThread(thread, delegatedUnderParent),
+  );
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const providersByEnvironment = useEnvironmentProviders();
   const { changeThemeItem, changeAppearanceItem, themeEditorItem } = useCommandPaletteThemeItems();

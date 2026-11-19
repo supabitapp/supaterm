@@ -7,7 +7,10 @@ import {
   matchComposerModelItems,
   type ComposerModelCandidate,
 } from "@supaterm/client-runtime/composerModelMentions";
-import { matchComposerThreadItems } from "@supaterm/client-runtime/composerThreadItems";
+import {
+  matchComposerEnvironmentItems,
+  matchComposerThreadItems,
+} from "@supaterm/client-runtime/composerThreadItems";
 import { useState } from "react";
 import type {
   EnvironmentId,
@@ -33,7 +36,10 @@ import {
   getProviderSlashCommandsForSlashMenu,
 } from "@supaterm/client-runtime/providerSkills";
 import { searchProviderSkills } from "../../providerSkillSearch";
+import { useAtomValue } from "@effect/atom-react";
 import { useThreadShells } from "~/state/entities";
+import { useEnvironmentIdentities, useEnvironmentMachines } from "~/state/environments";
+import { offersLinkedEnvironmentsAtom } from "~/state/peerLinks";
 import {
   pullRequestEnvironment,
   usePullRequestList,
@@ -81,6 +87,7 @@ function composerModelCandidates(
 export function useComposerMenuItems({
   composerTrigger,
   environmentId,
+  linkedEnvironments,
   gitCwd,
   activeThreadId,
   pullRequestProjectId,
@@ -99,6 +106,7 @@ export function useComposerMenuItems({
 }: {
   readonly composerTrigger: ComposerTrigger | null;
   readonly environmentId: EnvironmentId;
+  readonly linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
   readonly gitCwd: string | null;
   readonly activeThreadId: ThreadId | null;
   readonly pullRequestProjectId: ProjectId | null;
@@ -132,8 +140,17 @@ export function useComposerMenuItems({
     pullRequestTextQuery === debouncedPullRequestTextQuery ? pullRequestTextQuery : null;
   const isPathTrigger = composerTriggerKind === "path";
   const environmentThreadShells = useThreadShells(isPathTrigger);
-  // Mounts older done threads matching the mention, which shells may leave out.
-  useThreadSearch(isPathTrigger ? [environmentId] : [], pathTriggerQuery, { titlesOnly: true });
+  // Mounts older done threads matching the mention, here and on linked machines, which shells
+  // may leave out.
+  useThreadSearch(
+    isPathTrigger ? [environmentId, ...linkedEnvironments.keys()] : [],
+    pathTriggerQuery,
+    { titlesOnly: true },
+  );
+  // The user's machines feed `@` machine matches; the catalog summary is cheap and stable.
+  const environmentIdentities = useEnvironmentIdentities();
+  const environmentMachines = useEnvironmentMachines();
+  const offersMachines = useAtomValue(offersLinkedEnvironmentsAtom(environmentId));
   const workspaceEntries = useComposerPathSearch({
     environmentId,
     cwd: isPathTrigger ? gitCwd : null,
@@ -205,10 +222,21 @@ export function useComposerMenuItems({
         ...matchComposerThreadItems({
           shells: environmentThreadShells,
           environmentId,
+          linkedEnvironments,
           excludeThreadId: activeThreadId,
           query: composerTrigger.query,
           now,
         }),
+        ...(offersMachines
+          ? matchComposerEnvironmentItems({
+              environments: environmentIdentities.map((identity) => ({
+                ...identity,
+                machine: environmentMachines.get(identity.environmentId) ?? ("server" as const),
+              })),
+              environmentId,
+              query: composerTrigger.query,
+            })
+          : []),
         ...matchComposerModelItems(
           composerModelCandidates(providerInstanceEntries, modelOptionsByInstance),
           composerTrigger.query,

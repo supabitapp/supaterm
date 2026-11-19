@@ -13,6 +13,8 @@ const SETTINGS_SEARCH_TERMS = {
     "tailscale",
     "relay",
     "routes",
+    "linked environments",
+    "link machine",
   ],
   SettingsAppearance: [
     "theme",

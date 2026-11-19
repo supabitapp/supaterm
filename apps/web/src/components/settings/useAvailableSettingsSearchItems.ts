@@ -4,6 +4,7 @@ import { isElectron } from "~/env";
 import { isLocalEnvironmentDisabled } from "~/localEnvironment";
 import { desktopWslStateAtom } from "~/state/desktopWslState";
 import { useEnvironments, usePrimaryEnvironmentId } from "~/state/environments";
+import { usePeerLinkHosts } from "~/state/peerLinks";
 import { useEnvironmentQuery } from "~/state/query";
 import { useEnvironmentScope } from "~/state/session";
 import { isWslSettingsRowVisible } from "./ConnectionsSettings.logic";
@@ -32,6 +33,7 @@ export function useAvailableSettingsSearchItems() {
         environment.connection.phase === "connected" &&
         environment.serverConfig?.environment.capabilities.fastWorktreeCheckout === true,
     ) === true;
+  const hasPeerLinkHost = usePeerLinkHosts().length > 0;
   const hasThreadAutoMarkDone =
     getThreadAutoMarkDoneSearchAvailability(environments).eligibleEnvironmentIds.length > 0;
   const primaryEnvironmentId = usePrimaryEnvironmentId();
@@ -51,5 +53,6 @@ export function useAvailableSettingsSearchItems() {
     isWslSettingsRowVisible: wslSettingsRowVisible,
     hasThreadAutoMarkDone,
     hasFastWorktreeCheckoutEnvironment,
+    hasPeerLinkHost,
   });
 }

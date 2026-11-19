@@ -13,6 +13,8 @@ Ordinary coding tasks need no Supaterm tools.
 - As a subagent or child, do the work yourself. Start no subagents unless your task says to.`,
   `- \`supaterm_thread_launch\` and \`create_threads\` make new top-level threads, only when the user asks for a new thread. "Subagent", "delegate", and "parallel" never mean one. Worktree thread: set \`workspaceStrategy\`. Honor a requested base. Otherwise independent work uses the default branch as \`remote/branch\` with \`startFromOrigin:true\`; with no remote, use the local default. Required unpublished commits and dependent work use their local base. Shell worktrees don't bind it, and no checkout setup in its prompt. No \`workspaceStrategy\`: project root, not your worktree.
 - Given a thread id, \`supaterm_thread_read\` it before you answer about it. Asked to mark a thread done, this one too: \`supaterm_thread_organize\`.
+- Another machine: \`supaterm_environment_links\` lists linked ones. Pass its \`environmentId\` and that machine's \`threadId\` to Supaterm tools.
+- Unlinked ("delegate this to my vps"): \`supaterm_environment_link\` with a \`hint\` from the user's words, never a pairing code in chat. No link tools: say to enable Settings → Environments → Linked environments.
 - In your reply, mention a thread by its \`link\`, verbatim, never a plain title or bare id.
 - A secret: call \`request_secret\` yourself and read its file inside a shell command. Never ask in chat, print it, or invent one. Sudo: if \`sudo -n <cmd>\` needs a password, run \`sudo -S -p '' <cmd> < "$file"\`; the password takes stdin, so give other input as a file argument. Asked only to schedule: \`schedule_task\` without running its prompt.
 - Supaterm tools may load late. Try the name once before you call it absent.`,

@@ -250,6 +250,7 @@ export const AuthPairingCredentialResult = Schema.Struct({
   subject: Schema.optionalKey(TrimmedNonEmptyString),
   label: Schema.optionalKey(TrimmedNonEmptyString),
   expiresAt: Schema.DateTimeUtc,
+  purpose: Schema.optionalKey(Schema.Literal("peer-link")),
   /** Set when the code approves one agent sign-in at this level. Older servers omit it. */
   access: Schema.optionalKey(AuthMcpClientAccess),
 });
@@ -375,12 +376,24 @@ export const AuthRevokeClientSessionInput = Schema.Struct({
 });
 export type AuthRevokeClientSessionInput = typeof AuthRevokeClientSessionInput.Type;
 
-export const AuthCreatePairingCredentialInput = Schema.Struct({
+const pairingCredentialFields = {
   label: Schema.optionalKey(TrimmedNonEmptyString),
   scopes: Schema.optionalKey(AuthGrantScopes),
-  /** Binds the code to one agent sign-in at this level. The server derives the scopes from it. */
-  access: Schema.optionalKey(AuthMcpClientAccess),
-});
+};
+
+export const AuthCreatePairingCredentialInput = Schema.Union([
+  Schema.Struct({
+    ...pairingCredentialFields,
+    /** Binds the code to one agent sign-in at this level. The server derives the scopes from it. */
+    access: Schema.optionalKey(AuthMcpClientAccess),
+    purpose: Schema.optionalKey(Schema.Undefined),
+  }),
+  Schema.Struct({
+    ...pairingCredentialFields,
+    access: AuthMcpClientAccess,
+    purpose: Schema.Literal("peer-link"),
+  }),
+]);
 export type AuthCreatePairingCredentialInput = typeof AuthCreatePairingCredentialInput.Type;
 
 export const AuthSessionState = Schema.Struct({
@@ -415,8 +428,16 @@ export const AuthMcpAuthorizationServerMetadata = Schema.Struct({
 });
 export type AuthMcpAuthorizationServerMetadata = typeof AuthMcpAuthorizationServerMetadata.Type;
 
+/**
+ * The `software_id` another Supaterm environment registers with when it links
+ * to this one. Its session is then a peer link: the work it starts here stays
+ * within that link. Claiming it only ever adds limits.
+ */
+export const MCP_PEER_LINK_SOFTWARE_ID = "supaterm-peer-link";
+
 export const AuthMcpClientRegistration = Schema.Struct({
   client_name: Schema.optionalKey(Schema.String),
+  software_id: Schema.optionalKey(Schema.String),
   redirect_uris: Schema.optionalKey(Schema.Array(Schema.String)),
   token_endpoint_auth_method: Schema.optionalKey(Schema.String),
 });

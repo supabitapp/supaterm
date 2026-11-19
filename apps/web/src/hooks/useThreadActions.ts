@@ -47,6 +47,7 @@ import {
   readEnvironmentThreadRefs,
   readProject,
   readThreadShell,
+  readDelegatedUnderParent,
   readThreadShells,
 } from "../state/entities";
 import { useDiffPanelStore } from "../diffPanelStore";
@@ -553,6 +554,7 @@ export function useThreadActions() {
       deletedThreadIds,
       sortOrder: sidebarThreadSortOrder,
       now: new Date().toISOString(),
+      delegatedUnderParent: readDelegatedUnderParent(),
     });
     let navigatedDuringDelete = false;
     // The missing-thread redirect and the index draft replace this entry; any other history

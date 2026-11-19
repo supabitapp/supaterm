@@ -182,6 +182,7 @@ const layerTest = Layer.mergeAll(
           repositoryIdentityResolved: false,
         }),
       request: () => Effect.void,
+      readRepositoryIdentity: () => Effect.succeed(null),
       getAvailable: () =>
         Effect.succeed({
           repositoryIdentity: null,
@@ -3472,7 +3473,7 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
                 threadId: child.childThreadId,
                 stopDelegatedTasks: false,
               },
-              stopDescendants: Effect.void,
+              stopDescendants: () => Effect.void,
             });
             yield* eventSink.write({
               commandId: reconcileCommandId(`followup-command-stopped-${ending}`),
@@ -4260,7 +4261,7 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
                 threadId: child.childThreadId,
                 stopDelegatedTasks: false,
               },
-              stopDescendants: Effect.void,
+              stopDescendants: () => Effect.void,
             });
           }
           yield* eventSink.write({
@@ -5432,7 +5433,7 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
           threadId: child.childThreadId,
           stopDelegatedTasks: false,
         },
-        stopDescendants: Effect.void,
+        stopDescendants: () => Effect.void,
       });
       const task = (yield* orchestrator.getThreadProjection(threadId)).subagents.find(
         (row) => row.id === child.taskId,

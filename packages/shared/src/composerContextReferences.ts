@@ -5,6 +5,7 @@ import {
   type ComposerContextRecord,
   type ElementContextDetails,
   type EnvironmentId,
+  type EnvironmentContextRecord,
   type KnownComposerContextRecord,
   type ModelContextRecord,
   type ProviderDriverKind,
@@ -95,6 +96,20 @@ export function threadContextRecord(ref: ScopedThreadRef, title: string): Thread
     environmentId: ref.environmentId,
     threadId: ref.threadId,
     title: label,
+  };
+}
+
+/** One record per machine, so naming it again reuses its chip. */
+export function environmentContextRecord(input: {
+  environmentId: EnvironmentId;
+  label: string;
+}): EnvironmentContextRecord {
+  return {
+    version: 1,
+    kind: "environment",
+    contextId: toKindScopedComposerContextId("environment", input.environmentId),
+    label: sanitizeComposerContextLabel(input.label, "environment"),
+    environmentId: input.environmentId,
   };
 }
 
@@ -350,6 +365,12 @@ function formatComposerContextProviderPayload(record: KnownComposerContextRecord
         `model: ${record.model}`,
         `The user named this model. To hand it work, call delegate_task with target ${modelDelegateTarget(record)}. Naming it does not change this thread's model.`,
       ].join("\n");
+    case "environment":
+      return [
+        `label: ${record.label}`,
+        `environmentId: ${record.environmentId}`,
+        "The user means this machine. Not linked here yet: call supaterm_environment_link with this environmentId. Linked: pass it as environmentId, or target.environmentId for delegate_task.",
+      ].join("\n");
   }
 }
 
@@ -430,11 +451,13 @@ export function composerContextProviderTextForDisplay(text: string): string {
   return result + text.slice(cursor);
 }
 
-// Thread reads are environment-local even when a draft moves between machines.
+// An agent reads threads on its own machine and on those it links to, even when a draft
+// moves between machines.
 export function threadContextsOutsideEnvironment(input: {
   text: string;
   records: ReadonlyArray<ComposerContextRecord>;
   environmentId: EnvironmentId;
+  linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
 }): ThreadContextRecord[] {
   const referenced = new Set(
     collectComposerContextReferences(input.text).map((occurrence) => occurrence.contextId),
@@ -444,7 +467,8 @@ export function threadContextsOutsideEnvironment(input: {
       record.kind === "thread" &&
       "threadId" in record &&
       referenced.has(record.contextId) &&
-      record.environmentId !== input.environmentId,
+      record.environmentId !== input.environmentId &&
+      !input.linkedEnvironments.has(record.environmentId),
   );
 }
 

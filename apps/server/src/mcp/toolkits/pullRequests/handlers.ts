@@ -28,7 +28,7 @@ import {
 } from "../../../sourceControl/threadPullRequests.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
-import { threadNotFound } from "../../OrchestratorMcpService.ts";
+import { threadNotFound } from "../../threadAccess.ts";
 import {
   CHILD_PULL_REQUEST_REPORT_NEXT,
   type ListThreadPullRequestsResult,
@@ -148,7 +148,7 @@ const make = Effect.gen(function* () {
       Effect.mapError((cause) => new Failure({ cause })),
     );
     if (Option.isNone(thread) || thread.value.deletedAt !== null) {
-      return yield* threadNotFound(engine, threadId, `Thread ${threadId} was not found.`);
+      return yield* threadNotFound(engine, scope, threadId, `Thread ${threadId} was not found.`);
     }
     return thread.value;
   });
@@ -184,7 +184,7 @@ const make = Effect.gen(function* () {
     return yield* watches.setWatching({ threadId, target: input, watching }).pipe(
       Effect.catchTags({
         PullRequestWatchThreadNotFoundError: (error) =>
-          threadNotFound(engine, error.threadId, error.message),
+          threadNotFound(engine, scope, error.threadId, error.message),
       }),
     );
   });

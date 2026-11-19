@@ -443,18 +443,25 @@ the repository by text. Choose a result to insert it as a chip. You can also dra
 from the thread's linked pull requests panel onto the composer.
 
 Another thread can be context too. Type `@` followed by part of its title to pick one from
-the same server, or on web and desktop drag a thread out of the sidebar and drop it on the
+the same server, or from a machine it links to while the Linked environments beta is on; those
+say which machine they are on. On web and desktop you can also drag a thread out of the sidebar and drop it on the
 composer; a multi-selection drops together. On any client, **Copy thread** puts a thread on the
 clipboard that pastes into a composer as its chip. The chip shows the thread's current title and
 opens it when selected. Your prompt only carries a reference: the agent reads the thread's
 history on demand, so attaching a long thread costs nothing until the agent looks. Attaching a
 thread does not change it, and the agent cannot send messages to it unless you ask.
 
-Dropping a thread from another environment attaches a saved transcript file. The source
+Dropping a thread from another environment that this one is not linked to attaches a saved
+transcript file. The source
 environment must be connected and up to date. The transcript includes the visible history and
 saved text context at the time of the drop; later messages and the contents of attached files
 are not copied. The agent can read the saved transcript after the source disconnects. Normal
 file attachment limits apply.
+
+To name one of your other machines, type `@` followed by part of its name while the
+[Linked environments](./remote-access.md#link-another-environment) beta is on. The chip tells the
+agent which machine you mean, so a prompt like "run the suite on @vps" works there once the
+machine is linked, and asks you to link it when it is not.
 
 To name a model for the agent, type `@` followed by part of the model or provider name, such as
 `@opus` or `@gpt`, and pick it from the list. A mention ends at a space, so join words with `:`,

@@ -95,7 +95,7 @@ export interface QueuedRunEditContent {
 }
 
 const isDraftOwnedRecord = (record: ComposerContextRecord): record is ReferenceContextRecord =>
-  record.kind === "thread" || record.kind === "model";
+  record.kind === "thread" || record.kind === "model" || record.kind === "environment";
 
 async function submitQueuedRunEdit(input: {
   readonly environmentId: EnvironmentId;

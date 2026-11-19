@@ -223,6 +223,7 @@ import { usePaneInputOwner } from "../../chatPanes/paneScope";
 import { useThreadContextDrop, threadContextDropTargetProps } from "./threadContextDrag";
 import { droppedThreadContextRecord } from "./threadContextDrop.logic";
 import { readThreadShell } from "~/state/entities";
+import { useLinkedEnvironments } from "~/state/peerLinks";
 import { encodeComposerContextFragment } from "@supaterm/shared/composerContextClipboard";
 import type {
   ComposerContextRecord,
@@ -1214,6 +1215,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerTerminalContexts.length === 0 &&
     composerPreviewAnnotations.length === 0 &&
     composerReviewComments.length === 0;
+  const linkedEnvironments = useLinkedEnvironments(environmentId);
   const {
     items: composerMenuItems,
     isLoading: isComposerMenuLoading,
@@ -1221,6 +1223,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   } = useComposerMenuItems({
     composerTrigger,
     environmentId,
+    linkedEnvironments,
     gitCwd,
     activeThreadId,
     pullRequestProjectId,
@@ -1523,6 +1526,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     importContextFragmentStable,
   } = useComposerContextImport({
     environmentId,
+    linkedEnvironments,
     activeThread,
     activeThreadId,
     composerDraftTarget,
@@ -2189,7 +2193,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       }
       return;
     }
-    if (item.type === "thread" || item.type === "model") {
+    if (item.type === "thread" || item.type === "model" || item.type === "environment") {
       if (trigger.kind !== "path") return;
       const { record } = item;
       const replacement = `${formatInlineContextReference(referenceContextReference(record))} `;
@@ -3202,7 +3206,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   useThreadContextDrop(composerFormRef, environmentId, attachmentTargetKey, (refs, isActive) => {
     const records = refs.flatMap((ref) => {
-      if (ref.environmentId !== environmentId) {
+      // The agent reads a linked machine's thread itself, like the `@` picker's; any other
+      // machine's comes in as its transcript.
+      if (ref.environmentId !== environmentId && !linkedEnvironments.has(ref.environmentId)) {
         void importDroppedThread(
           ref,
           () => isActive() && attachmentTargetKeyRef.current === attachmentTargetKey,

@@ -292,6 +292,11 @@ interface MessagesTimelineProps {
     readonly threadId: ThreadId;
     readonly title: string;
     readonly sideChat?: boolean;
+    /** Set when the parent is in another environment; `open` is null while this client cannot reach it. */
+    readonly remote?: {
+      readonly environmentLabel: string;
+      readonly open: (() => void) | null;
+    };
   } | null;
   /** Set on a workflow coordinator's thread: its script message renders as this opening. */
   workflowOpening?: WorkflowOpening | null;
@@ -1321,6 +1326,12 @@ const ConversationTimeline = memo(function ConversationTimeline({
       workspaceRoot={workspaceRoot}
     />
   );
+  const openParentThread =
+    parentThreadLink === null
+      ? null
+      : parentThreadLink.remote === undefined
+        ? () => onOpenThread(parentThreadLink.threadId)
+        : parentThreadLink.remote.open;
   const listHeaderLeadingContent =
     parentThreadLink === null ? (
       topFadeEnabled ? (
@@ -1333,10 +1344,16 @@ const ConversationTimeline = memo(function ConversationTimeline({
         <div className="chat-content-lane pt-1 sm:pt-2">
           <TimelineSystemDivider
             label={parentThreadLink.sideChat ? "Context from" : "Subagent of"}
-            detail={parentThreadLink.title}
+            detail={
+              parentThreadLink.remote === undefined ||
+              parentThreadLink.remote.environmentLabel === ""
+                ? parentThreadLink.title
+                : `${parentThreadLink.title} on ${parentThreadLink.remote.environmentLabel}`
+            }
             icon={parentThreadLink.sideChat ? MessagesSquareIcon : BotIcon}
-            actionLabel="Open parent thread"
-            onAction={() => onOpenThread(parentThreadLink.threadId)}
+            {...(openParentThread === null
+              ? {}
+              : { actionLabel: "Open parent thread", onAction: openParentThread })}
           />
         </div>
       </div>

@@ -4,8 +4,8 @@ import { backgroundWorkHoldsCompletion } from "@supaterm/shared/orchestrationV2P
 import { threadPullRequestSearchTerms } from "@supaterm/shared/threadPullRequests";
 import * as React from "react";
 import { defaultAnimateLayoutChanges, type AnimateLayoutChanges } from "@dnd-kit/sortable";
+import { isShownUnderParent } from "@supaterm/client-runtime/state/threads";
 import {
-  isListedThreadLineage,
   type ContextMenuItem,
   isOrchestrationV2RunNotYetRunning,
   type ResolvedKeybindingsConfig,
@@ -537,20 +537,34 @@ type LogicalSidebarProject = SidebarProject & {
 
 type ThreadTraversalDirection = "previous" | "next";
 
-export function isSidebarHiddenThread(thread: Pick<SidebarThreadSummary, "lineage">): boolean {
-  return !isListedThreadLineage(thread.lineage);
+/**
+ * Whether lists leave a thread out because it shows under its parent. `delegatedUnderParent`
+ * holds the tasks linked environments run for a listed thread, by thread key.
+ */
+export function isSidebarHiddenThread(
+  thread: Pick<SidebarThreadSummary, "environmentId" | "id" | "lineage">,
+  delegatedUnderParent: ReadonlySet<string>,
+): boolean {
+  return isShownUnderParent(
+    { environmentId: thread.environmentId, threadId: thread.id },
+    thread.lineage,
+    delegatedUnderParent,
+  );
 }
 
 export function filterSidebarV2VisibleThreads<
-  T extends Pick<SidebarThreadSummary, "archivedAt" | "lineage"> & {
-    environmentId: string;
+  T extends Pick<SidebarThreadSummary, "archivedAt" | "environmentId" | "id" | "lineage"> & {
     projectId: string;
   },
->(threads: readonly T[], scopedProjectKeys: ReadonlySet<string> | null): T[] {
+>(
+  threads: readonly T[],
+  scopedProjectKeys: ReadonlySet<string> | null,
+  delegatedUnderParent: ReadonlySet<string>,
+): T[] {
   return threads.filter(
     (thread) =>
       thread.archivedAt === null &&
-      !isSidebarHiddenThread(thread) &&
+      !isSidebarHiddenThread(thread, delegatedUnderParent) &&
       (scopedProjectKeys === null ||
         scopedProjectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
   );
@@ -1021,15 +1035,18 @@ export function getFallbackThreadIdAfterDelete<
     "id" | "projectId" | "createdAt" | "updatedAt" | "doneOverride" | "lineage"
   > &
     ThreadSortInput &
-    ThreadSnoozeShell,
+    ThreadSnoozeShell &
+    Pick<Thread, "environmentId">,
 >(input: {
   threads: readonly T[];
   deletedThreadId: T["id"];
   sortOrder: SidebarThreadSortOrder;
   now: string;
   deletedThreadIds?: ReadonlySet<T["id"]>;
+  delegatedUnderParent: ReadonlySet<string>;
 }): T["id"] | null {
-  const { deletedThreadId, deletedThreadIds, sortOrder, now, threads } = input;
+  const { deletedThreadId, deletedThreadIds, sortOrder, now, threads, delegatedUnderParent } =
+    input;
   const deletedThread = threads.find((thread) => thread.id === deletedThreadId);
   if (!deletedThread) {
     return null;
@@ -1044,7 +1061,7 @@ export function getFallbackThreadIdAfterDelete<
           !deletedThreadIds?.has(thread.id) &&
           thread.doneOverride !== "done" &&
           !effectiveSnoozed(thread, { now }) &&
-          !isSidebarHiddenThread(thread),
+          !isSidebarHiddenThread(thread, delegatedUnderParent),
       ),
       sortOrder,
     )[0]?.id ?? null
@@ -1133,15 +1150,17 @@ export function sortLogicalProjectsForSidebar<
 
 export function sortSidebarV2ProjectGroups<
   TProject extends LogicalSidebarProject,
-  TThread extends ScopedSidebarThread & Pick<SidebarThreadSummary, "lineage">,
+  TThread extends ScopedSidebarThread &
+    Pick<SidebarThreadSummary, "environmentId" | "id" | "lineage">,
 >(
   projects: readonly TProject[],
   threads: readonly TThread[],
   sortOrder: SidebarProjectSortOrder,
+  delegatedUnderParent: ReadonlySet<string>,
 ): TProject[] {
   return sortLogicalProjectsForSidebar(
     projects,
-    filterSidebarV2VisibleThreads(threads, null),
+    filterSidebarV2VisibleThreads(threads, null, delegatedUnderParent),
     sortOrder,
   );
 }

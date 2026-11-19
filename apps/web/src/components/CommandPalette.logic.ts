@@ -424,6 +424,8 @@ export type BuildThreadActionItemsThread = Pick<
     updatedAt: string;
   };
 
+const NO_THREAD_KEYS: ReadonlySet<string> = new Set();
+
 export function buildThreadActionItems<TThread extends BuildThreadActionItemsThread>(input: {
   threads: ReadonlyArray<TThread>;
   activeThread?: Pick<Thread, "environmentId" | "id">;
@@ -435,10 +437,13 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
   runThread: (thread: TThread) => Promise<void>;
   /** Makes the environment searchable; pass it only with two or more environments. */
   environmentLabelOf?: (thread: TThread) => string | null;
+  /** Tasks linked environments run for a listed thread, by thread key; they show under it. */
+  delegatedUnderParent?: ReadonlySet<string>;
 }): CommandPaletteActionItem[] {
+  const delegatedUnderParent = input.delegatedUnderParent ?? NO_THREAD_KEYS;
   // Callers order these: recents by last use, search results by rank.
   const visibleThreads = input.threads.filter(
-    (thread) => thread.archivedAt === null && !isSidebarHiddenThread(thread),
+    (thread) => thread.archivedAt === null && !isSidebarHiddenThread(thread, delegatedUnderParent),
   );
 
   return visibleThreads.map((thread) => {

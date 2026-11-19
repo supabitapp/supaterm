@@ -329,6 +329,9 @@ export function ComposerContextSheet(props: {
                 <ContextField label="Model" value={record.model} code />
               </>
             ) : null}
+            {record.kind === "environment" ? (
+              <ContextField label="Machine" value={record.label} />
+            ) : null}
             {record.kind === "skill" ? (
               <View className="gap-3">
                 <ContextField label="Skill" value={record.name} />

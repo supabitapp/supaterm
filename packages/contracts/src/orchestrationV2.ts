@@ -14,6 +14,7 @@ import {
   CommandId,
   ContextHandoffId,
   ContextTransferId,
+  EnvironmentId,
   EventId,
   IsoDateTime,
   MessageId,
@@ -38,6 +39,7 @@ import {
   TrimmedNonEmptyString,
   TurnItemId,
 } from "./baseSchemas.ts";
+import { AuthMcpClientAccess } from "./auth.ts";
 import { ChatAttachment } from "./chatAttachment.ts";
 import { ThreadTitleRegenerationOutcome } from "./threadTitle.ts";
 import {
@@ -93,6 +95,51 @@ const OrchestrationV2CreationFields = {
   createdBy: OrchestrationV2Actor,
   creationSource: OrchestrationV2CreationSource,
 } as const;
+
+/**
+ * The linked environment whose agent started this work here: the MCP client
+ * session it signed in with, that session's label, and the access it was
+ * paired with. Set when the thread is created and never changed; work derived
+ * from it carries the same origin.
+ */
+export const OrchestrationV2LinkOrigin = Schema.Struct({
+  sessionId: TrimmedNonEmptyString,
+  label: Schema.String,
+  access: Schema.optional(AuthMcpClientAccess),
+});
+export type OrchestrationV2LinkOrigin = typeof OrchestrationV2LinkOrigin.Type;
+
+/**
+ * Work from a link paired below full access may change only work from the same
+ * link. A full-access link's agents already run as this environment's user,
+ * so fencing Supaterm's own tools would stop nothing they could not do anyway. An
+ * origin stamped before access was recorded stays fenced.
+ */
+export const linkOriginIsFenced = (origin: OrchestrationV2LinkOrigin) =>
+  origin.access !== "full-access";
+
+/**
+ * The thread in a linked environment that delegated this one, when it did:
+ * this thread is that parent's subagent, run here instead of there.
+ */
+export const OrchestrationV2DelegatedFrom = Schema.Struct({
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+  title: Schema.String,
+});
+export type OrchestrationV2DelegatedFrom = typeof OrchestrationV2DelegatedFrom.Type;
+
+/**
+ * The thread in a linked environment whose agent sent this message here, and its title
+ * then, for a client that cannot reach that environment. `senderThreadId` names only a
+ * thread in this environment.
+ */
+export const OrchestrationV2LinkedSender = Schema.Struct({
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+  title: Schema.String,
+});
+export type OrchestrationV2LinkedSender = typeof OrchestrationV2LinkedSender.Type;
 
 export const OrchestrationV2NativeRefStrength = Schema.Literals(["strong", "weak", "none"]);
 export type OrchestrationV2NativeRefStrength = typeof OrchestrationV2NativeRefStrength.Type;
@@ -444,6 +491,8 @@ export const OrchestrationV2AppThread = Schema.Struct({
   branchPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
   historyOrigin: Schema.optional(OrchestrationV2ThreadHistoryOrigin),
+  linkOrigin: Schema.optional(OrchestrationV2LinkOrigin),
+  delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
   lineage: OrchestrationV2AppThreadLineage,
   forkedFrom: Schema.NullOr(
     Schema.Union([
@@ -518,6 +567,13 @@ export function applyOrchestrationV2ThreadVisit<Thread extends OrchestrationV2Ap
     ...(visit.opens === undefined ? {} : { opens: visit.opens }),
   };
 }
+
+/** A thread another agent drives: a local subagent or a task delegated from a linked environment. */
+export const isDelegatedAppThread = (
+  thread: Pick<OrchestrationV2AppThread, "lineage" | "delegatedFrom">,
+): boolean =>
+  // MCP-launched threads store `delegatedFrom: null` at runtime, so check both absent shapes.
+  thread.lineage.relationshipToParent === "subagent" || thread.delegatedFrom != null;
 
 /**
  * The provider owns its conversation, so it cannot take messages; Supaterm delegate_task children
@@ -916,6 +972,68 @@ export type OrchestrationV2SubagentWorkflow = typeof OrchestrationV2SubagentWork
  */
 const DedupedBodyMarker = Schema.optionalKey(Schema.Literal(true));
 
+/**
+ * Where an app-owned task runs when it runs in a linked environment instead
+ * of in a child thread here: that environment and the ordinary thread it runs
+ * as there. Such a task has no `childThreadId`.
+ */
+export const OrchestrationV2RemoteTaskChild = Schema.Struct({
+  environmentId: EnvironmentId,
+  threadId: ThreadId,
+  label: Schema.String,
+  /** The title it launched with there; absent on tasks recorded before it was kept. */
+  title: Schema.optional(Schema.String),
+  /** The run there that carries the task; absent on tasks recorded before it was kept. */
+  runId: Schema.optional(RunId),
+  /**
+   * Nothing is left to stop there: a stop reached it, was refused for good, or the thread
+   * or link is gone. A run ending there by itself sets it too, unless the task here was
+   * cancelled or stopped and still owes a stop, which its follower keeps sending across
+   * restarts. `false`: a Stop here owes one to a task that already had its result.
+   */
+  stoppedThere: Schema.optional(Schema.Boolean),
+  /**
+   * Stops asked for here once the task had its result. The count names the
+   * one owed, so each reaches the thread there once however often it is sent.
+   */
+  stopCount: Schema.optional(NonNegativeInt),
+  /**
+   * The parent's Mark Done or Reopen still to be passed on to the thread there. One task per
+   * thread there carries it, so each reaches that thread once and in order.
+   */
+  doneOwed: Schema.optional(Schema.Literals(["mark_done", "reopen"])),
+});
+export type OrchestrationV2RemoteTaskChild = typeof OrchestrationV2RemoteTaskChild.Type;
+
+/**
+ * How a task was launched in a linked environment, recorded before anything was sent: a
+ * launch whose answer was lost is sent again unchanged and finds the thread it already
+ * started. Until `remoteChild` names that thread, the task is still being launched.
+ */
+export const OrchestrationV2RemoteTaskLaunch = Schema.Struct({
+  environmentId: EnvironmentId,
+  label: Schema.String,
+  /** When the link was made. A link made again has another session there, which would start a second thread. */
+  linkedAt: IsoDateTime,
+  /** The caller's namespace and key, which name the launch there. */
+  requestNamespace: Schema.String,
+  key: Schema.String,
+  projectId: ProjectId,
+  title: Schema.String,
+  runtimeMode: Schema.optional(RuntimeMode),
+  interactionMode: Schema.optional(ProviderInteractionMode),
+  /** The wake the task takes once its thread there is known. */
+  completionWake: Schema.Literals(["always", "settled_only"]),
+  /** Nothing runs there for it: the launch was refused, or its link was replaced before it answered. */
+  abandoned: Schema.optional(Schema.Literal(true)),
+});
+export type OrchestrationV2RemoteTaskLaunch = typeof OrchestrationV2RemoteTaskLaunch.Type;
+
+/** Whether a task runs in a linked environment, attached there or still being launched. */
+export const isRemoteTask = (
+  task: Pick<OrchestrationV2Subagent, "remoteChild" | "remoteLaunch">,
+): boolean => task.remoteChild !== undefined || task.remoteLaunch !== undefined;
+
 export const OrchestrationV2Subagent = Schema.Struct({
   id: NodeId,
   threadId: ThreadId,
@@ -927,11 +1045,14 @@ export const OrchestrationV2Subagent = Schema.Struct({
   providerInstanceId: ProviderInstanceId,
   providerThreadId: Schema.NullOr(ProviderThreadId),
   childThreadId: Schema.NullOr(ThreadId),
+  remoteChild: Schema.optional(OrchestrationV2RemoteTaskChild),
+  remoteLaunch: Schema.optional(OrchestrationV2RemoteTaskLaunch),
   nativeTaskRef: Schema.NullOr(OrchestrationV2ProviderRef),
   prompt: Schema.String,
   title: Schema.NullOr(Schema.String),
   model: Schema.NullOr(Schema.String),
   modelSelection: Schema.optional(ModelSelection),
+  executedModel: Schema.optional(Schema.String),
   completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
   completionDelivery: Schema.optional(OrchestrationV2DelegatedCompletionTaskDelivery),
   // The run whose unfinished task was cancelled, committed with its Stop.
@@ -1394,6 +1515,7 @@ export const OrchestrationV2ConversationMessage = Schema.Struct({
   /** A scheduled delivery that named no model; it runs on the thread's selection at start. */
   followsThreadSelection: Schema.optional(Schema.Literal(true)),
   senderThreadId: Schema.optional(ThreadId),
+  linkedSender: Schema.optional(OrchestrationV2LinkedSender),
   /**
    * The message is the script a provider-native workflow run executes, not prose. Clients show
    * the workflow's opening instead and keep the script behind a disclosure.
@@ -1680,6 +1802,47 @@ const OrchestrationV2SecretRequestFields = {
   ...OrchestrationV2SecretRequestDetailFields,
 } as const;
 
+export const OrchestrationV2LinkRequestStatus = Schema.Literals([
+  "pending",
+  "linked",
+  "declined",
+  "cancelled",
+  "failed",
+]);
+export type OrchestrationV2LinkRequestStatus = typeof OrchestrationV2LinkRequestStatus.Type;
+
+const OrchestrationV2LinkRequestDetailFields = {
+  /** The address the agent named, if it named one. */
+  url: Schema.optional(TrimmedNonEmptyString),
+  reason: Schema.String,
+  /**
+   * The environment the agent named. Without it or `url` the user picks the
+   * machine in the card. Beside a `url`, this and `label` are what answered
+   * there on an older server: unauthenticated, so clients ignore both.
+   */
+  environmentId: Schema.optional(EnvironmentId),
+  label: Schema.optional(Schema.String),
+  /** A phrase from the user's words, such as "vps", that preselects a machine. */
+  hint: Schema.optional(Schema.String),
+  /** The access the agent suggested; the user's choice is final. */
+  requestedAccess: Schema.optional(AuthMcpClientAccess),
+  linkStatus: OrchestrationV2LinkRequestStatus,
+  linkedEnvironmentId: Schema.optional(EnvironmentId),
+  linkedLabel: Schema.optional(Schema.String),
+  linkedAccess: Schema.optional(AuthMcpClientAccess),
+  failure: Schema.optional(Schema.String),
+} as const;
+
+/**
+ * An agent asked the user to link another environment. The user picks the
+ * access; the pairing code never passes through orchestration, so the item
+ * carries only what was asked and how it ended.
+ */
+const OrchestrationV2LinkRequestFields = {
+  type: Schema.Literal("link_request"),
+  ...OrchestrationV2LinkRequestDetailFields,
+} as const;
+
 export const OrchestrationV2TurnItem = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
@@ -1693,6 +1856,7 @@ export const OrchestrationV2TurnItem = Schema.Union([
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
+    linkedSender: Schema.optional(OrchestrationV2LinkedSender),
     workflowScript: OrchestrationV2ConversationMessage.fields.workflowScript,
     freshContext: OrchestrationV2Run.fields.freshContext,
     inputIntent: OrchestrationV2UserMessageInputIntent,
@@ -1878,12 +2042,17 @@ export const OrchestrationV2TurnItem = Schema.Union([
   }),
   Schema.Struct({
     ...OrchestrationV2TurnItemBaseFields,
+    ...OrchestrationV2LinkRequestFields,
+  }),
+  Schema.Struct({
+    ...OrchestrationV2TurnItemBaseFields,
     type: Schema.Literal("subagent"),
     subagentId: NodeId,
     origin: Schema.Literals(["provider_native", "app_owned"]),
     driver: ProviderDriverKind,
     providerInstanceId: ProviderInstanceId,
     childThreadId: Schema.NullOr(ThreadId),
+    remoteChild: Schema.optional(OrchestrationV2RemoteTaskChild),
     prompt: Schema.String,
     progress: Schema.optional(Schema.String),
     result: Schema.NullOr(Schema.String),
@@ -2184,6 +2353,8 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   forkedFrom: Schema.NullOr(OrchestrationV2AppThread.fields.forkedFrom),
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
   historyOrigin: Schema.optional(OrchestrationV2ThreadHistoryOrigin),
+  linkOrigin: Schema.optional(OrchestrationV2LinkOrigin),
+  delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
   latestRunId: Schema.NullOr(RunId),
   latestRunRequestedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   latestRunStartedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
@@ -2606,6 +2777,7 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
     messageId: MessageId,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
+    linkedSender: Schema.optional(OrchestrationV2LinkedSender),
     workflowScript: OrchestrationV2ConversationMessage.fields.workflowScript,
     freshContext: OrchestrationV2Run.fields.freshContext,
     inputIntent: OrchestrationV2UserMessageInputIntent,
@@ -2784,12 +2956,17 @@ export const OrchestrationV2TurnItemJson = Schema.Union([
   }),
   Schema.Struct({
     ...OrchestrationV2TurnItemJsonBaseFields,
+    ...OrchestrationV2LinkRequestFields,
+  }),
+  Schema.Struct({
+    ...OrchestrationV2TurnItemJsonBaseFields,
     type: Schema.Literal("subagent"),
     subagentId: NodeId,
     origin: Schema.Literals(["provider_native", "app_owned"]),
     driver: ProviderDriverKind,
     providerInstanceId: ProviderInstanceId,
     childThreadId: Schema.NullOr(ThreadId),
+    remoteChild: Schema.optional(OrchestrationV2RemoteTaskChild),
     prompt: Schema.String,
     progress: Schema.optional(Schema.String),
     result: Schema.NullOr(Schema.String),
@@ -3095,6 +3272,10 @@ export const OrchestrationV2Command = Schema.Union([
     interactionMode: ProviderInteractionMode,
     branch: Schema.NullOr(TrimmedNonEmptyString),
     worktreePath: Schema.NullOr(TrimmedNonEmptyString),
+    /** Only the server sets this; a client's thread.create never carries one. */
+    linkOrigin: Schema.optional(OrchestrationV2LinkOrigin),
+    /** Only the server sets this, with `linkOrigin`, for a linked environment's delegated task. */
+    delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
     importedNativeThread: Schema.optional(
       Schema.Struct({
         ref: Schema.Struct({
@@ -3349,6 +3530,7 @@ export const OrchestrationV2Command = Schema.Union([
     ...OrchestrationV2CreationFields,
     scheduledTaskId: Schema.optional(ScheduledTaskId),
     senderThreadId: Schema.optional(ThreadId),
+    linkedSender: Schema.optional(OrchestrationV2LinkedSender),
     /** Start a new provider session without the thread's earlier context. Never steers. */
     freshContext: Schema.optional(Schema.Boolean),
     commandId: CommandId,
@@ -3652,6 +3834,87 @@ const OrchestrationV2InternalCommand = Schema.Union([
       }),
     ),
   }),
+  /**
+   * Records a delegated task that runs in a linked environment, as `delegated_task.request`
+   * does, without a child thread here. `remoteLaunch` records a launch before it is sent;
+   * `remoteChild` a thread already there. Ids derive from `commandId`, so a retry records nothing.
+   */
+  Schema.Struct({
+    type: Schema.Literal("delegated_task.remote.request"),
+    commandId: CommandId,
+    parentThreadId: ThreadId,
+    parentRunId: RunId,
+    parentNodeId: NodeId,
+    task: TrimmedNonEmptyString,
+    title: Schema.optional(TrimmedNonEmptyString),
+    driver: ProviderDriverKind,
+    modelSelection: ModelSelection,
+    remote: Schema.Union([
+      Schema.Struct({ remoteChild: OrchestrationV2RemoteTaskChild }),
+      Schema.Struct({ remoteLaunch: OrchestrationV2RemoteTaskLaunch }),
+    ]),
+    completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
+  }),
+  /**
+   * Names the thread a recorded launch started there, with the model it was accepted on.
+   * A task that ended here meanwhile keeps its result and now has a thread to stop.
+   */
+  Schema.Struct({
+    type: Schema.Literal("delegated_task.remote.attach"),
+    commandId: CommandId,
+    parentThreadId: ThreadId,
+    taskId: NodeId,
+    remoteChild: OrchestrationV2RemoteTaskChild,
+    modelSelection: ModelSelection,
+  }),
+  /**
+   * Completes a delegated task that ran in a linked environment, with what its
+   * thread there ended as. The parent wakes exactly as for a child here. A
+   * task that already has a result keeps it; `stoppedThere` is still recorded,
+   * and without it (a Stop or cancel here) the task owes a stop there instead.
+   */
+  Schema.Struct({
+    type: Schema.Literal("delegated_task.remote.complete"),
+    commandId: CommandId,
+    parentThreadId: ThreadId,
+    taskId: NodeId,
+    status: Schema.Literals(["completed", "failed", "cancelled", "interrupted"]),
+    result: Schema.String,
+    executedModel: Schema.optional(Schema.String),
+    /**
+     * `ran-out`: the run there ended by itself; `stopped`: a stop from here reached it. Either
+     * sets `remoteChild.stoppedThere` on a task this report completes. On a task already
+     * cancelled or stopped here only `stopped` does, since a run that ended by itself leaves
+     * the stop owed for whatever follows it.
+     */
+    stoppedThere: Schema.optional(Schema.Literals(["ran-out", "stopped"])),
+    /** The stop generation this report acknowledges; absent for the original unnumbered stop. */
+    stopCount: Schema.optional(NonNegativeInt),
+    /** A launch that started nothing there: the task ends with no thread to follow or stop. */
+    launchAbandoned: Schema.optional(Schema.Literal(true)),
+  }),
+  /**
+   * Owes a stop to the thread there of a remote task that already has its result, as Stop on
+   * a parent stops a finished child here. The task keeps its status, result and completion
+   * delivery; its follower sends the stop and reports it with `delegated_task.remote.complete`.
+   */
+  Schema.Struct({
+    type: Schema.Literal("delegated_task.remote.stop"),
+    commandId: CommandId,
+    parentThreadId: ThreadId,
+    taskId: NodeId,
+  }),
+  /**
+   * The parent's Mark Done or Reopen reached the task's thread there, or never will. A newer
+   * one owed since stays owed.
+   */
+  Schema.Struct({
+    type: Schema.Literal("delegated_task.remote.done"),
+    commandId: CommandId,
+    parentThreadId: ThreadId,
+    taskId: NodeId,
+    passedOn: Schema.Literals(["mark_done", "reopen"]),
+  }),
   Schema.Struct({
     type: Schema.Literal("checkpoint.rollback.fail"),
     commandId: CommandId,
@@ -3718,6 +3981,32 @@ const OrchestrationV2InternalCommand = Schema.Union([
     nodeId: NodeId,
     turnItemId: TurnItemId,
     ...OrchestrationV2SecretRequestDetailFields,
+  }),
+  /**
+   * Records or updates a link an agent asked the user to make. Internal so no
+   * client can mark a request linked without the link being made.
+   */
+  Schema.Struct({
+    type: Schema.Literal("link_request.record"),
+    commandId: CommandId,
+    threadId: ThreadId,
+    runId: RunId,
+    nodeId: NodeId,
+    turnItemId: TurnItemId,
+    ...OrchestrationV2LinkRequestDetailFields,
+    /**
+     * Cards still being answered when this one linked. Their own answers end
+     * them, so the link leaves them open; never stored on a card.
+     */
+    answeringTurnItemIds: Schema.optional(Schema.Array(TurnItemId)),
+    /** Tells the agent how the card ended, in the same commit that closes it. */
+    wake: Schema.optional(
+      Schema.Struct({
+        messageId: MessageId,
+        text: Schema.String,
+        notification: OrchestrationV2Notification,
+      }),
+    ),
   }),
 ]);
 export type OrchestrationV2InternalCommand = typeof OrchestrationV2InternalCommand.Type;

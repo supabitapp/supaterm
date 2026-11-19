@@ -158,6 +158,7 @@ import {
   useAllEnvironmentProjectSnapshotsReady,
   useProjects,
   useServerConfigs,
+  useDelegatedUnderParent,
   useQuietSidebarThreadShells,
   useThreadRefs,
 } from "../state/entities";
@@ -353,6 +354,8 @@ type SidebarOptimisticDrop = {
 interface SidebarThreadPartitionInput {
   readonly threads: readonly EnvironmentThreadShell[];
   readonly scopedProjectKeys: ReadonlySet<string> | null;
+  /** Tasks linked environments run for a listed thread; they show under it. */
+  readonly delegatedUnderParent: ReadonlySet<string>;
   readonly serverThreadKeys: ReadonlySet<string>;
   readonly serverConfigs: ReadonlyMap<EnvironmentId, EnvironmentServerConfig>;
   readonly connectedEnvironmentIds: readonly EnvironmentId[];
@@ -429,6 +432,7 @@ function useSidebarThreads(input: {
     routeRowThreadKey,
   } = input;
   const serverThreadRefs = useThreadRefs();
+  const delegatedUnderParent = useDelegatedUnderParent();
   const inboxReturnsVersion = useSyncExternalStore(
     inboxReturns.subscribe,
     inboxReturns.getSnapshot,
@@ -484,6 +488,7 @@ function useSidebarThreads(input: {
   const partition = partitionSidebarThreads({
     threads,
     scopedProjectKeys,
+    delegatedUnderParent,
     serverThreadKeys,
     serverConfigs,
     connectedEnvironmentIds,
@@ -639,7 +644,11 @@ function partitionSidebarThreads(input: SidebarThreadPartitionInput) {
   const preciseNow = new Date(
     Math.max(Date.now(), Date.parse(`${input.nowMinute}:00.000Z`), input.snoozeWakeTickAt),
   ).toISOString();
-  const listed = filterSidebarV2VisibleThreads(threads, scopedProjectKeys);
+  const listed = filterSidebarV2VisibleThreads(
+    threads,
+    scopedProjectKeys,
+    input.delegatedUnderParent,
+  );
   const visible = withoutOfflineEnvironmentThreads(
     listed,
     input.hiddenEnvironmentIds,
@@ -1104,6 +1113,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // The open draft's first send names its thread in place; a finalized draft reached by
   // navigation resolves through its redirect instead, and still reveals.
   const routeKeyInPlace = routeDraftThread?.promotedTo != null;
+  const delegatedUnderParent = useDelegatedUnderParent();
   // History, the palette and links can open a thread the scope hides or the list
   // scrolled away; a remount starts at the top, so each mount scrolls to the open
   // thread once. Render decides the widening, so the first frame of the new route
@@ -1113,6 +1123,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     routeKey: routeRowThreadKey,
     routeKeyInPlace,
     scopedProjectKeys: chosenProjectScope.memberKeys,
+    delegatedUnderParent,
     findThread: (key) => threads.find((candidate) => threadShellKey(candidate) === key),
   });
   const {

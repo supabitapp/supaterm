@@ -24,6 +24,7 @@ import * as Arr from "effect/Array";
 import { pipe } from "effect/Function";
 
 import { useProjects, useServerConfigs, useThreadShells } from "../../state/entities";
+import { useLinkedEnvironments } from "../../state/peerLinks";
 import type { TurnCommandMetadata } from "../../lib/commandMetadata";
 import type { DraftComposerAttachment } from "../../lib/composerImages";
 import type { ModelOption, ProviderGroup } from "../../lib/modelOptions";
@@ -197,6 +198,7 @@ type NewTaskFlowContextValue = {
     readonly environmentLabel: string;
   }>;
   readonly selectedProject: EnvironmentProject | null;
+  readonly linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
   readonly isScratchDraft: boolean;
   readonly selectedModel: ModelSelection | null;
   readonly selectedModelOption: ModelOption | null;
@@ -461,6 +463,7 @@ function useNewTaskFlowValue(
           ? editingPendingProject
           : (projectsForEnvironment[0] ?? null)));
 
+  const linkedEnvironments = useLinkedEnvironments(selectedProject?.environmentId ?? null);
   const storedStickyModelSelection = useStickyComposerModelSelection();
   const modelSelectionNow = useNowMinuteMs();
   const projectDefaults = useNewTaskProjectDefaults(selectedProject);
@@ -917,6 +920,7 @@ function useNewTaskFlowValue(
         text: draft.text,
         records: draft.context?.records ?? [],
         environmentId: selectedProject.environmentId,
+        linkedEnvironments,
       }).length > 0
     ) {
       return null;
@@ -1161,6 +1165,7 @@ function useNewTaskFlowValue(
     runtimeMode,
     environments,
     selectedProject,
+    linkedEnvironments,
     isScratchDraft,
     selectedModel,
     selectedModelOption,

@@ -69,3 +69,4 @@ export * from "./orchestrationSkills.ts";
 export * from "./clientRpcPermissions.ts";
 export * from "./relay.ts";
 export * from "./secretRequest.ts";
+export * from "./peerLink.ts";

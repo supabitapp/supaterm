@@ -129,8 +129,9 @@ function QueuedRunSender(props: {
 }) {
   const { attribution, scheduledTaskId } = resolveUserMessagePresentation(props.message);
   const senderThreadId = attribution === "agent" ? props.message.senderThreadId : undefined;
+  const linkedSender = attribution === "agent" ? props.message.linkedSender : undefined;
   const senderShell = useQuietThreadShell(
-    senderThreadId ? scopeThreadRef(props.environmentId, senderThreadId) : null,
+    linkedSender ?? (senderThreadId ? scopeThreadRef(props.environmentId, senderThreadId) : null),
   );
   const tasks = useEnvironmentQuery(
     scheduledTaskId
@@ -147,7 +148,7 @@ function QueuedRunSender(props: {
       : attribution === "agent"
         ? {
             icon: "bubble.left.and.bubble.right" as const,
-            label: senderShell?.title.trim() || "Agent",
+            label: senderShell?.title.trim() || linkedSender?.title.trim() || "Agent",
           }
         : attribution === "supaterm"
           ? { icon: null, label: "Sent by Supaterm" }

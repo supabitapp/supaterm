@@ -25,8 +25,11 @@ import {
   ThreadId,
 } from "@supaterm/contracts";
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import { useQuietThreadShell } from "../../state/entities";
+import { useEnvironment } from "../../state/environments";
+import { buildThreadRouteParams } from "../../threadRoutes";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import {
@@ -423,7 +426,14 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
   const ctx = use(TimelineRowCtx);
   const { onImageExpand, onFileOpen } = ctx;
   const coarsePointer = useMediaQuery({ pointer: "coarse" });
-  const senderThreadId = row.message.senderThreadId;
+  const navigate = useNavigate();
+  // A linked environment's agent sent it from a thread there.
+  const linkedSender = row.message.linkedSender;
+  const senderRef =
+    linkedSender ??
+    (row.message.senderThreadId === undefined
+      ? null
+      : scopeThreadRef(ctx.activeThreadEnvironmentId, row.message.senderThreadId));
   const resources = selectMessageImageResources(row.message.attachments);
   const previewUrls = useAssetUrls(ctx.activeThreadEnvironmentId, resources);
   const [projectPreviews] = useState(createMessageAttachmentPreviewProjector);
@@ -453,12 +463,23 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
   const folded = userMessage.attribution === "agent";
   const [expanded, toggleExpanded, setExpanded] = useTimelineDisclosure();
   const revealFoldRef = findRevealRef(() => setExpanded(true));
-  const senderShell = useQuietThreadShell(
-    folded && senderThreadId
-      ? { environmentId: ctx.activeThreadEnvironmentId, threadId: senderThreadId }
-      : null,
-  );
-  const senderLabel = senderShell?.title.trim() || "Agent";
+  const senderShell = useQuietThreadShell(folded ? senderRef : null);
+  const senderLabel = senderShell?.title.trim() || linkedSender?.title.trim() || "Agent";
+  // Only an environment this client is connected to can open the sender's thread there.
+  const linkedSenderEnvironment = useEnvironment(linkedSender?.environmentId ?? null);
+  const openSender =
+    senderRef === null
+      ? null
+      : linkedSender === undefined
+        ? () => ctx.onOpenThread(senderRef.threadId)
+        : linkedSenderEnvironment === null
+          ? null
+          : () => {
+              void navigate({
+                to: "/$environmentId/$threadId",
+                params: buildThreadRouteParams(senderRef),
+              });
+            };
   const resolvedContext = resolveUserMessageContext({ ...row.message, text: userMessage.text });
   const previewImages = userImages.filter((image) => image.name.startsWith("preview-annotation-"));
   const revertTurnCount = row.revertTurnCount;
@@ -802,8 +823,8 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
         floatActions ? "flex-wrap" : "shrink-0",
       )}
     >
-      {folded && senderThreadId ? (
-        <InlineButton onClick={() => ctx.onOpenThread(senderThreadId)} tone="muted">
+      {folded && openSender !== null ? (
+        <InlineButton onClick={openSender} tone="muted">
           Open thread
         </InlineButton>
       ) : null}

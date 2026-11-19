@@ -4,6 +4,7 @@ import {
   projectedSubagentsToRuntime,
 } from "@supaterm/client-runtime/state/subagentRuntime";
 import {
+  EnvironmentId,
   NodeId,
   ProviderDriverKind,
   RunId,
@@ -16,6 +17,7 @@ import {
   nextWorkflowSelection,
   resolveSubagentRowPresentation,
   resolveSubagentStopTarget,
+  subagentThreadTarget,
   workflowMemberDetail,
   workflowMemberMetadata,
   workflowRail,
@@ -76,6 +78,34 @@ describe("resolveSubagentRowPresentation", () => {
     expect(resolveSubagentRowPresentation({ ...base, childThreadId: null }).canOpenThread).toBe(
       false,
     );
+  });
+
+  it("opens a task in a linked environment there, once this app is connected to it", () => {
+    const here = EnvironmentId.make("here");
+    const remote = {
+      ...base,
+      childThreadId: null,
+      remoteChild: {
+        environmentId: EnvironmentId.make("box"),
+        threadId: ThreadId.make("thread-there"),
+        label: "Box",
+      },
+    };
+
+    expect(resolveSubagentRowPresentation(remote)).toMatchObject({
+      canOpenThread: false,
+      runsOn: "Box",
+    });
+    expect(resolveSubagentRowPresentation(remote, true).canOpenThread).toBe(true);
+    expect(subagentThreadTarget(remote, here, () => false)).toBeNull();
+    expect(subagentThreadTarget(remote, here, () => true)).toEqual({
+      environmentId: "box",
+      threadId: "thread-there",
+    });
+    expect(subagentThreadTarget(base, here, () => false)).toEqual({
+      environmentId: "here",
+      threadId: "thread-child",
+    });
   });
 
   it("uses the status label when there is nothing to report yet", () => {

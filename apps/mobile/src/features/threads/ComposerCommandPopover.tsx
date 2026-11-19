@@ -1,4 +1,5 @@
 import type { ComposerModelItem } from "@supaterm/client-runtime/composerModelMentions";
+import type { ComposerEnvironmentItem } from "@supaterm/client-runtime/composerThreadItems";
 import {
   resolveProviderSkillSourceKind,
   type ProviderSkillSourceKind,
@@ -15,6 +16,7 @@ import { Pressable, ScrollView, StyleSheet, View, type ViewStyle } from "react-n
 
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
+import { ENVIRONMENT_MACHINE_SYMBOLS } from "../../components/EnvironmentMachineSymbol";
 import { GlassSurface } from "../../components/ui/GlassSurface";
 import { PierreEntryIcon } from "../../components/PierreEntryIcon";
 import { pullRequestStatus } from "../pull-requests/pullRequestStatus";
@@ -62,6 +64,7 @@ export type ComposerCommandItem =
       readonly label: string;
       readonly description: string;
     }
+  | ComposerEnvironmentItem
   | ComposerModelItem;
 
 interface ComposerCommandPopoverProps {
@@ -112,12 +115,17 @@ function itemIcon(item: ComposerCommandItem): AppSymbolName | null {
       return null;
     case "thread":
       return "text.bubble";
+    case "environment":
+      return ENVIRONMENT_MACHINE_SYMBOLS[item.machine];
     case "model":
       return "cpu";
   }
 }
 
-function groupLabel(triggerKind: ComposerTriggerKind | null): string | null {
+function groupLabel(
+  triggerKind: ComposerTriggerKind | null,
+  items: ReadonlyArray<ComposerCommandItem>,
+): string | null {
   switch (triggerKind) {
     case "pull-request":
       return "Pull requests";
@@ -127,7 +135,7 @@ function groupLabel(triggerKind: ComposerTriggerKind | null): string | null {
     case "slash-skill":
       return "Skills";
     case "path":
-      return "Files";
+      return items.every((item) => item.type === "path") ? "Files" : "Mentions";
     default:
       return null;
   }
@@ -210,7 +218,7 @@ const CommandRow = memo(function CommandRow(props: {
 export const ComposerCommandPopover = memo(function ComposerCommandPopover(
   props: ComposerCommandPopoverProps,
 ) {
-  const label = groupLabel(props.triggerKind);
+  const label = groupLabel(props.triggerKind, props.items);
 
   return (
     <PopoverSurface>

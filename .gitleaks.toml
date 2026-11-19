@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Self-signed localhost key that a test server presents so linking can refuse its certificate"
+paths = ['''apps/server/src/peer/fixtures/localhost-key\.pem''']

@@ -1,5 +1,6 @@
 import { resolveUserMessagePresentation } from "@supaterm/client-runtime/user-message";
 import {
+  EnvironmentContextRecord,
   ModelContextRecord,
   type OrchestrationMessageContext,
   ThreadContextRecord,
@@ -17,7 +18,9 @@ const REVIEW_COMMENT_BLOCK_PATTERN = /<review_comment\b[^>]*>[\s\S]*?<\/review_c
 const TRAILING_LEGACY_CONTEXT =
   /\n*<(terminal_context|element_context|preview_annotation)>\n([\s\S]*?)\n<\/\1>\s*$/;
 
-const isReferenceContextRecord = Schema.is(Schema.Union([ThreadContextRecord, ModelContextRecord]));
+const isReferenceContextRecord = Schema.is(
+  Schema.Union([ThreadContextRecord, ModelContextRecord, EnvironmentContextRecord]),
+);
 
 type ComposerPromptHistoryMessage = Parameters<typeof resolveUserMessagePresentation>[0] & {
   readonly id: string;

@@ -194,6 +194,9 @@ vi.mock("../state/entities", () => ({
 vi.mock("../state/use-thread-selection", () => ({
   useThreadSelection: () => ({ selectedThread: null }),
 }));
+vi.mock("../state/presentation", () => ({
+  useEnvironmentPresentation: () => ({ isReady: true, presentation: null }),
+}));
 vi.mock("../state/use-atom-query-runner", () => ({ useAtomQueryRunner: () => vi.fn() }));
 vi.mock("../state/use-atom-command", () => ({}));
 vi.mock("../state/v2-item-support", () => ({}));
@@ -314,6 +317,7 @@ vi.mock("../features/threads/thread-context-divider", () => ({}));
 vi.mock("../features/threads/thread-handoff-row", () => ({ ThreadModelSwitchDivider: () => null }));
 vi.mock("../features/threads/thread-feed-loading", () => ({ ThreadFeedLoading: () => null }));
 vi.mock("../features/threads/ThreadGuestShareBar", () => ({ useThreadGuestShare: () => null }));
+vi.mock("../features/threads/LinkRequestCard", () => ({}));
 vi.mock("../features/threads/SecretRequestCard", () => ({}));
 vi.mock("../features/threads/worktree-setup-card", () => ({}));
 vi.mock("../features/threads/CopyTextButton", () => ({ CopyTextButton: () => null }));

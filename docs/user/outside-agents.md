@@ -63,6 +63,10 @@ do (**Read only** is selected) and choose **Get code**. Enter the code on the
 sign-in page the app opens. It approves that one sign-in at the level you
 picked, once, and expires soon.
 
+To reach your other machines through the same connection, turn on **Linked
+environments** and [link them](./remote-access.md#link-another-environment).
+A call the app sends on keeps the lower of its own level and the link's.
+
 ## What outside agents can call
 
 Some tools only work for an agent running inside a Supaterm thread, because they act

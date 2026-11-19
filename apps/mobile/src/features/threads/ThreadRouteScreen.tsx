@@ -36,6 +36,7 @@ import {
   type ProjectScript,
   type ThreadPinnedMessage,
 } from "@supaterm/contracts";
+import { scopeThreadRef } from "@supaterm/client-runtime/environment";
 import type { MessageJump, MessageJumpHandlers } from "@supaterm/client-runtime/message-jump";
 import {
   projectScriptCwd,
@@ -104,7 +105,7 @@ import { resolveMergeBackTargetThreadId } from "@supaterm/client-runtime/state/t
 import { resolveLatestMergeBackRun } from "@supaterm/client-runtime/state/thread-workflows";
 import { threadEnvironment } from "../../state/threads";
 import { EMPTY_ENVIRONMENT_THREAD_STATE } from "@supaterm/client-runtime/state/threads";
-import { useProjects } from "../../state/entities";
+import { useProjects, useThreadShell } from "../../state/entities";
 import {
   projectThreadContentPresentation,
   threadSyncStatusLabel,
@@ -644,9 +645,22 @@ function ThreadRouteContent(
     : null;
 
   const usesNativeHeaderGlass = NATIVE_LIQUID_GLASS_SUPPORTED;
+  const delegatedFrom = selectedThread?.delegatedFrom ?? null;
+  // The title it had at delegation, until this client sees the parent itself.
+  const delegatedFromThread = useThreadShell(
+    delegatedFrom === null
+      ? null
+      : scopeThreadRef(delegatedFrom.environmentId, delegatedFrom.threadId),
+  );
   const headerSubtitle = [
     selectedThreadProject?.title ?? null,
     selectedEnvironmentConnection?.environmentLabel ?? null,
+    // A linked environment's delegated task names its parent; other linked work its origin.
+    delegatedFrom !== null
+      ? `Subagent of ${delegatedFromThread?.title ?? delegatedFrom.title}`
+      : selectedThread?.linkOrigin
+        ? `From ${selectedThread.linkOrigin.label}`
+        : null,
   ]
     .filter(Boolean)
     .join(" · ");
