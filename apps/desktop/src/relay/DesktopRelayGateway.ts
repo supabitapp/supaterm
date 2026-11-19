@@ -36,7 +36,7 @@ export class DesktopRelayGateway extends Context.Service<
 
 const OWNER = "desktop";
 
-export const makeWith = Effect.fn("DesktopRelayGateway.make")(function* (
+const makeWith = Effect.fn("DesktopRelayGateway.make")(function* (
   openRelay: typeof openLoopbackRelay,
 ) {
   const runFork = Effect.runForkWith(yield* Effect.context<never>());

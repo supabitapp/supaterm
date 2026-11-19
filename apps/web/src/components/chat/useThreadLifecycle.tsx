@@ -131,6 +131,9 @@ interface ThreadLifecycleInput {
  * their status line, the local checkout's branch, background work, child-thread and goal
  * banners, opening related threads, and standalone slash commands.
  */
+const requestWindowFrame = (callback: FrameRequestCallback) =>
+  window.requestAnimationFrame(callback);
+
 export function useThreadLifecycle(input: ThreadLifecycleInput) {
   const {
     environmentId,
@@ -164,7 +167,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     clearUsageLimitsFor,
     focusComposer,
     scrollToEnd,
-    requestFrame = (callback) => window.requestAnimationFrame(callback),
+    requestFrame = requestWindowFrame,
   } = input;
   const navigate = useNavigate();
   const router = useRouter();

@@ -247,7 +247,7 @@ const previewHostWindow = (
   return native.fromWebContents(host) ?? undefined;
 };
 
-export const makeWith = Effect.fn("BrowserSession.make")(function* (native: BrowserSessionNative) {
+const makeWith = Effect.fn("BrowserSession.make")(function* (native: BrowserSessionNative) {
   const crypto = yield* Digest.Digest;
   const electronApp = yield* ElectronApp.ElectronApp;
   const electronDialog = yield* ElectronDialog.ElectronDialog;

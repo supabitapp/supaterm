@@ -148,7 +148,7 @@ export type DevToolsContents = Pick<
   "isDestroyed" | "isDevToolsFocused" | "closeDevTools"
 >;
 
-export const makeWith = Effect.fn("DesktopApplicationMenu.make")(function* (
+const makeWith = Effect.fn("DesktopApplicationMenu.make")(function* (
   getAllWebContents: () => ReadonlyArray<DevToolsContents>,
 ) {
   const electronMenu = yield* ElectronMenu.ElectronMenu;

@@ -37,8 +37,9 @@ export interface BrowserTargetEnvironment {
 
 const appBrowserTargetEnvironment: BrowserTargetEnvironment = {
   isElectron,
-  readPreparedConnection,
-  readEnvironmentSupportsServerBrowser,
+  readPreparedConnection: (environmentId) => readPreparedConnection(environmentId),
+  readEnvironmentSupportsServerBrowser: (environmentId) =>
+    readEnvironmentSupportsServerBrowser(environmentId),
 };
 
 const readEnvironmentUrl = (
