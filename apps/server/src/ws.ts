@@ -35,6 +35,7 @@ import {
   authScopeResponse,
   AuthAccessStreamError,
   type AuthAccessStreamEvent,
+  AuthProvidersManageScope,
   type AuthEnvironmentScope,
   AuthSessionId,
   type DiscoveredLocalServerList,
@@ -1850,12 +1851,17 @@ export const layerWsRpc = (
                           creationSource:
                             "creationSource" in command ? command.creationSource : "web",
                         }),
+                        {
+                          managesProviders:
+                            currentSession.scopes.includes(AuthProvidersManageScope),
+                        },
                       )
                   ).pipe(Effect.provide(intakeContext)),
                 )
                 .pipe(
                   Effect.map((result) => ({ sequence: result.sequence })),
                   Effect.mapError((cause) => {
+                    if (cause._tag === "EnvironmentAuthorizationError") return cause;
                     const detail = userFacingDispatchErrorMessage(cause);
                     return new OrchestrationV2DispatchCommandError({
                       commandId: command.commandId,

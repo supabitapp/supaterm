@@ -15,6 +15,9 @@ import {
   AuthSourceControlWriteScope,
   AuthTerminalReadScope,
   AuthTerminalOperateScope,
+  MessageId,
+  ORCHESTRATION_V2_WS_METHODS,
+  RunId,
   WS_METHODS,
   WsRpcGroup,
 } from "@supaterm/contracts";
@@ -590,4 +593,78 @@ it.effect("requires settings permission before a project mutation that carries s
     ).toMatchObject({ _tag: "ProjectMutationError" });
     expect(handled).toEqual(["project.update", "project.delete"]);
   }),
+);
+
+it.effect("requires provider management to send /logout through chat", () =>
+  Effect.gen(function* () {
+    const group = WsRpcGroup.omit(
+      ...[...WsRpcGroup.requests.keys()].filter(
+        (
+          tag,
+        ): tag is Exclude<
+          keyof typeof RPC_REQUIRED_SCOPES,
+          typeof ORCHESTRATION_V2_WS_METHODS.dispatchCommand
+        > => tag !== ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      ),
+    );
+    const handled: string[] = [];
+    const handler = group.toLayerHandler(ORCHESTRATION_V2_WS_METHODS.dispatchCommand, (command) =>
+      Effect.sync(() => {
+        handled.push(command.commandId);
+        return { sequence: 1 };
+      }),
+    );
+    const message = (commandId: string, text: string) => ({
+      type: "message.dispatch" as const,
+      createdBy: "user" as const,
+      creationSource: "web" as const,
+      commandId: CommandId.make(commandId),
+      threadId: ThreadId.make("thread"),
+      messageId: MessageId.make(commandId),
+      text,
+      attachments: [],
+      dispatchMode: { type: "start_immediately" as const },
+    });
+    const edit = (commandId: string) => ({
+      type: "queued-run.edit" as const,
+      commandId: CommandId.make(commandId),
+      threadId: ThreadId.make("thread"),
+      runId: RunId.make("run"),
+      text: "/logout",
+    });
+    // With an attachment, `/logout` reaches the provider as a prompt, not a sign-out.
+    const attachments = [
+      { type: "image" as const, id: "shot", name: "shot.png", mimeType: "image/png", sizeBytes: 1 },
+    ];
+    const operator = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(Layer.merge(handler, RpcAuthorization.layer([AuthOrchestrationOperateScope]))),
+    );
+    const dispatch = operator[ORCHESTRATION_V2_WS_METHODS.dispatchCommand];
+    yield* dispatch(message("hello", "hello"));
+    yield* dispatch({ ...message("attached", "/logout"), attachments });
+    yield* dispatch({ ...edit("attached-edit"), attachments });
+    // This edit keeps the queued attachments; message intake decides it.
+    yield* dispatch(edit("kept-attachments-edit"));
+    for (const command of [message("logout", " /LOGOUT "), { ...edit("edit"), attachments: [] }]) {
+      expect(yield* dispatch(command).pipe(Effect.flip)).toMatchObject({
+        requiredScope: AuthProvidersManageScope,
+      });
+    }
+    const manager = yield* RpcTest.makeClient(group).pipe(
+      Effect.provide(
+        Layer.merge(
+          handler,
+          RpcAuthorization.layer([AuthOrchestrationOperateScope, AuthProvidersManageScope]),
+        ),
+      ),
+    );
+    yield* manager[ORCHESTRATION_V2_WS_METHODS.dispatchCommand](message("manager", "/logout"));
+    expect(handled).toEqual([
+      "hello",
+      "attached",
+      "attached-edit",
+      "kept-attachments-edit",
+      "manager",
+    ]);
+  }).pipe(Effect.scoped),
 );
