@@ -184,7 +184,10 @@ function runIdsFor(threadId: string, ordinal: number) {
   return { runId, nodeId: `node:run:${encodeURIComponent(runId)}:root` };
 }
 
-function encodePayload(schema: Schema.Codec<unknown, unknown>, payload: object): string {
+function encodePayload(
+  schema: Schema.Codec<unknown, unknown>,
+  payload: Readonly<Record<string, unknown>>,
+): string {
   try {
     Schema.decodeSync(schema)(payload);
   } catch (error) {

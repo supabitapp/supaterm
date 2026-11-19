@@ -102,6 +102,15 @@ export type DevShareError =
   | DevServeFailedError
   | DevServePortTakenError;
 
+const notCleared = (error: TailscaleCommandError) => {
+  const explanation = explainCommandFailure(error);
+  return Effect.succeed({
+    cleared: false,
+    ...(explanation !== undefined ? { explanation } : {}),
+    cause: error,
+  } as const);
+};
+
 /** Finalizer cleanup must be uninterruptible or cancellation can leave stale mappings. */
 export const unshareDevServer = (
   webPort: number,
@@ -116,19 +125,14 @@ export const unshareDevServer = (
 > =>
   disableTailscaleServe({ servePort: webPort }).pipe(
     Effect.as({ cleared: true } as const),
-    Effect.catch((error: TailscaleCommandError) =>
-      Effect.succeed(
-        error._tag === "TailscaleCommandExitError" &&
+    Effect.catchTags(
+      {
+        TailscaleCommandExitError: (error) =>
           error.stderrDiagnostic === "no-existing-handler"
-          ? ({ cleared: true } as const)
-          : ({
-              cleared: false,
-              ...(explainCommandFailure(error) !== undefined
-                ? { explanation: explainCommandFailure(error) }
-                : {}),
-              cause: error,
-            } as const),
-      ),
+            ? Effect.succeed({ cleared: true } as const)
+            : notCleared(error),
+      },
+      notCleared,
     ),
     Effect.uninterruptible,
   );

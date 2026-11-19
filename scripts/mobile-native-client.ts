@@ -760,10 +760,7 @@ const main = Command.make(
       readRecord: fs.readFileString(recordPath).pipe(
         Effect.flatMap(decodeRecord),
         Effect.catchTags({ SchemaError: () => Effect.succeed(null) }),
-        Effect.catchIf(
-          (error) => error.reason._tag === "NotFound",
-          () => Effect.succeed(null),
-        ),
+        Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(null)),
       ),
       install: Effect.fn(function* (fingerprint: string) {
         const deviceAbi = yield* abi;
