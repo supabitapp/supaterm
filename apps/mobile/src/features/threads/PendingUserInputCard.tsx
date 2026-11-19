@@ -95,6 +95,7 @@ export interface PendingUserInputCardProps {
     questionId: string,
     customAnswer: string,
   ) => void;
+  readonly onPauseTimer: (requestId: RuntimeRequestId) => void;
   readonly onSubmit: () => Promise<unknown>;
   readonly onDismiss: () => Promise<unknown>;
   readonly supportsQuestionAutoDismiss?: boolean;
@@ -305,6 +306,8 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
     advanceRef.current = advance;
   });
   const selectOption = (selectedQuestion: ThreadUserInputQuestion, optionValue: string) => {
+    // A transcript landing after the tap would replace the option and could ride its auto-submit.
+    if (attachmentsPreparing) return;
     props.onSelectOption(requestId, selectedQuestion, optionValue);
     if (selectedQuestion.multiSelect) {
       return;
@@ -571,6 +574,7 @@ export function PendingUserInputCard(props: PendingUserInputCardProps) {
                     props.onChangeCustomAnswer(requestId, question.id, value)
                   }
                   onInputFocusChange={props.onInputFocusChange}
+                  onStartDictation={() => props.onPauseTimer(requestId)}
                 />
               ) : null}
             </>

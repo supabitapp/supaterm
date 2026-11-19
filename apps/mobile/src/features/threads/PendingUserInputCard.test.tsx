@@ -75,10 +75,14 @@ vi.mock("@react-navigation/native", () => ({
 
 import { PendingUserInputCard } from "./PendingUserInputCard";
 
-function setup(questionMarkdown: string) {
+function setup(
+  questionMarkdown: string,
+  options: { readonly attachmentsPreparing?: boolean } = {},
+) {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   harness.navigate = [];
   harness.openedUrls = [];
+  const selectedOptions: string[] = [];
 
   const pendingUserInput = {
     requestId: "request-1" as RuntimeRequestId,
@@ -88,7 +92,7 @@ function setup(questionMarkdown: string) {
         id: "question-1",
         header: "Review",
         question: questionMarkdown,
-        options: [],
+        options: [{ label: "Red", description: "" }],
         allowCustomAnswer: false,
       },
     ],
@@ -108,17 +112,30 @@ function setup(questionMarkdown: string) {
         cardCoverage={{ value: 0, set: () => {} } as never}
         collapsed={false}
         onToggleCollapsed={() => {}}
-        drafts={{}}
+        drafts={
+          options.attachmentsPreparing
+            ? { "question-1": { attachmentsPreparing: true } as never }
+            : {}
+        }
         answers={null}
         respondingUserInputId={null}
-        onSelectOption={() => {}}
+        onSelectOption={(_requestId, _question, value) => selectedOptions.push(value)}
         onChangeCustomAnswer={() => {}}
+        onPauseTimer={() => {}}
         onSubmit={async () => {}}
         onDismiss={async () => {}}
       />,
     ),
   );
   return {
+    selectedOptions,
+    pressOption(label: string) {
+      const option = [...container.querySelectorAll("div")].findLast(
+        (element) => element.onclick !== null && element.textContent?.startsWith(label),
+      );
+      if (!option) throw new Error(`No option labelled ${label}`);
+      act(() => option.click());
+    },
     async pressLink(label: string) {
       const link = [...container.querySelectorAll("button")].find(
         (button) => button.textContent === label,
@@ -144,4 +161,14 @@ it("opens a workspace file link in a question in the thread's file viewer", asyn
       { environmentId: "env-1", threadId: "thread-1", path: ["docs", "probe.md"], line: "12" },
     ],
   ]);
+});
+
+it("ignores an option while the answer field is still preparing", () => {
+  using ready = setup("Which color?");
+  ready.pressOption("Red");
+  expect(ready.selectedOptions).toEqual(["Red"]);
+
+  using preparing = setup("Which color?", { attachmentsPreparing: true });
+  preparing.pressOption("Red");
+  expect(preparing.selectedOptions).toEqual([]);
 });

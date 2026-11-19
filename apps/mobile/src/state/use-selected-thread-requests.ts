@@ -508,6 +508,7 @@ export function useSelectedThreadRequests() {
     onRespondToApproval,
     onSelectUserInputOption,
     onChangeUserInputCustomAnswer,
+    onPauseUserInputTimer: pauseQuestionTimer,
     onSubmitUserInput,
     onDismissUserInput,
   };

@@ -46,6 +46,7 @@ export function QuestionAttachments(props: {
   value: string;
   onChangeText: (value: string) => void;
   onInputFocusChange?: ((focused: boolean) => void) | undefined;
+  onStartDictation: () => void;
 }) {
   const { selectedThread } = useThreadSelection();
   const navigation = useNavigation();
@@ -283,7 +284,10 @@ export function QuestionAttachments(props: {
             state={voice.state}
             isAvailable={voice.isAvailable}
             disabled={props.disabled}
-            onStart={voice.start}
+            onStart={() => {
+              props.onStartDictation();
+              voice.start();
+            }}
             onCancel={voice.cancel}
           />
         )}
