@@ -569,6 +569,13 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             cwd,
             env: launch.env,
           });
+          // Its tools carry SUPATERM_THREAD_ID, so port discovery must scan while Pi runs.
+          const trackAgent = host.trackAgent;
+          if (trackAgent !== undefined) {
+            yield* Effect.acquireRelease(Effect.sync(trackAgent), (release) =>
+              Effect.sync(release),
+            );
+          }
           return { connection, scope: connectionScope };
         }).pipe(
           Effect.provideService(Scope.Scope, connectionScope),
