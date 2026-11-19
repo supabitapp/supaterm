@@ -221,6 +221,22 @@ export function projectedSubagentsToRuntime(
     readonly completedAt: DateTime.Utc | null;
     readonly updatedAt: DateTime.Utc;
   }>,
+): ReadonlyArray<RuntimeSubagent>;
+export function projectedSubagentsToRuntime(
+  subagents: ReadonlyArray<{
+    readonly id: string;
+    readonly title: string | null;
+    readonly prompt: string;
+    readonly model: string | null;
+    readonly status: OrchestrationV2Subagent["status"];
+    readonly progress?: string | undefined;
+    readonly childThreadId?: string | null | undefined;
+    readonly workflow?: OrchestrationV2SubagentWorkflow | undefined;
+    readonly result: string | null;
+    readonly startedAt: DateTime.Utc | null;
+    readonly completedAt: DateTime.Utc | null;
+    readonly updatedAt: DateTime.Utc;
+  }>,
 ) {
   return subagents.flatMap((subagent) => {
     const updatedAt = DateTime.formatIso(subagent.updatedAt);

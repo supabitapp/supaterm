@@ -226,7 +226,7 @@ export const make = Effect.gen(function* () {
 
         let lastFrameAt: number | undefined;
         let throttle = COMMAND_OUTPUT_FRAME_INTERVAL_MS;
-        const nextFrame: () => Effect.Effect<
+        const nextFrame: Effect.Effect<
           OrchestrationV2CommandOutputFrame,
           OrchestrationV2CommandOutputError
         > = Effect.gen(function* () {

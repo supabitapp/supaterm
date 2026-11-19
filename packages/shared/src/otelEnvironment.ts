@@ -52,12 +52,12 @@ const TrimmedLowercase = Schema.String.pipe(
   ),
 );
 
-const flag = (
+const flag: (
   name: string,
   truthy: ReadonlyArray<string>,
   falsy: ReadonlyArray<string>,
   invalid: (value: string) => string,
-) =>
+) => Config.Config<Flag> = (name, truthy, falsy, invalid) =>
   Config.schema(
     TrimmedLowercase.pipe(Schema.decodeTo(Schema.Literals([...truthy, ...falsy]))),
     name,
@@ -86,7 +86,7 @@ interface ResourceAttributes {
   readonly warning?: string;
 }
 
-const resourceAttributes = Config.Record(
+const resourceAttributes: Config.Config<ResourceAttributes> = Config.Record(
   Schema.StringFromUriComponent,
   Schema.StringFromUriComponent,
   RESOURCE_ATTRIBUTES,

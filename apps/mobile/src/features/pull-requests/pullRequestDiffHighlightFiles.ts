@@ -14,7 +14,7 @@ import {
   traceDiffHighlight,
 } from "../diffs/nativeReviewDiffTrace";
 import type { NativeReviewDiffFile, NativeReviewDiffSource } from "../diffs/nativeReviewDiffTypes";
-import type { ReviewParsedDiff } from "../review/reviewModel";
+import type { ReviewParsedDiff, ReviewRenderableFile } from "../review/reviewModel";
 import type { pullRequestTarget } from "./usePullRequestDiff";
 
 type FetchContents<E> = (request: {
@@ -24,6 +24,17 @@ type FetchContents<E> = (request: {
 
 type SourceRequest = () => Promise<NativeReviewDiffSource>;
 
+interface SourceSnapshot {
+  readonly firstFile: ReviewRenderableFile;
+  readonly scope: string;
+  readonly load: ReturnType<typeof createNativeReviewDiffSourceLoader<SourceRequest>>;
+  readonly requests: WeakMap<
+    ReviewRenderableFile,
+    { readonly completePatch: boolean; readonly request: SourceRequest }
+  >;
+}
+
+export function createPullRequestDiffHighlightCache(): { snapshot?: SourceSnapshot };
 export function createPullRequestDiffHighlightCache() {
   return {};
 }

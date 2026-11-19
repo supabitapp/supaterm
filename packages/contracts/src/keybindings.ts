@@ -241,9 +241,8 @@ export const PreviewForwardedShortcut = Schema.Struct({
 });
 export type PreviewForwardedShortcut = typeof PreviewForwardedShortcut.Type;
 
-const KeybindingWhenNodeRef = Schema.suspend(
-  () =>
-    KeybindingWhenNode satisfies Schema.Codec<KeybindingWhenNode> as Schema.Codec<KeybindingWhenNode>,
+const KeybindingWhenNodeRef: Schema.suspend<Schema.Codec<KeybindingWhenNode>> = Schema.suspend(
+  () => KeybindingWhenNode,
 );
 export const KeybindingWhenNode = Schema.Union([
   Schema.Struct({

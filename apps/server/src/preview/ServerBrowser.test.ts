@@ -113,75 +113,51 @@ function makeSession(
     emitAsync: (name: string, ...args: unknown[]) =>
       Promise.all(events.listeners(name).map((listener) => listener(...args))),
     detach: vi.fn(async () => {}),
-    send: vi.fn(async (method: string, input?: unknown) => {
-      if (method === "Page.getNavigationHistory")
-        return { currentIndex: 0, entries: [{}] } satisfies Record<string, unknown> as Record<
-          string,
-          unknown
-        >;
-      if (method === "Page.getLayoutMetrics")
-        return { cssVisualViewport: { pageX: 0, pageY: 0 } } satisfies Record<
-          string,
-          unknown
-        > as Record<string, unknown>;
-      if (method === "Page.captureScreenshot") {
-        if ((input as { format: string }).format === "jpeg" && heldStill) await heldStill();
-        return {
-          data: (input as { format: string }).format === "png" ? PNG_HEADER : "ZnJhbWU=",
-        } satisfies Record<string, unknown> as Record<string, unknown>;
-      }
-      if (method === "Runtime.callFunctionOn")
-        return { result: { value: PNG_HEADER } } satisfies Record<string, unknown> as Record<
-          string,
-          unknown
-        >;
-      if (method === "Page.getFrameTree")
-        return { frameTree: { frame: { id: "main" } } } satisfies Record<string, unknown> as Record<
-          string,
-          unknown
-        >;
-      if (method === "Page.createIsolatedWorld") {
-        const worldContexts: Record<string, number> = {
-          "supaterm-preview-viewport": 9,
-          "supaterm-preview-title": 11,
-          "supaterm-preview": 1,
-        };
-        return {
-          executionContextId: worldContexts[(input as { worldName: string }).worldName] ?? 7,
-        } satisfies Record<string, unknown> as Record<string, unknown>;
-      }
-      if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 11)
-        return new Promise(() => {}) satisfies Record<string, unknown> as Record<string, unknown>;
-      if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 1) {
-        return { result: { value: [] } } satisfies Record<string, unknown> as Record<
-          string,
-          unknown
-        >;
-      }
-      if (method === "Page.addScriptToEvaluateOnNewDocument") frame?.recording.resolve();
-      if (
-        method === "Input.dispatchKeyEvent" &&
-        ["copy", "cut"].includes((input as { commands?: Array<string> }).commands?.[0] ?? "")
-      ) {
-        if (focusedFrame) focusedFrame.copy = keyCopy;
-        else pageCopy = keyCopy;
-      }
-      if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 7) {
-        const value = frame ? frame.copy : pageCopy;
-        if (frame) frame.copy = "";
-        else pageCopy = "";
-        return { result: { value } } satisfies Record<string, unknown> as Record<string, unknown>;
-      }
-      if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 9)
-        return (desktopSizeAnswer?.() ?? { result: { value: { ...viewport } } }) satisfies Record<
-          string,
-          unknown
-        > as Record<string, unknown>;
-      return { result: { value: "evaluated" } } satisfies Record<string, unknown> as Record<
-        string,
-        unknown
-      >;
-    }),
+    send: vi.fn<(method: string, input?: unknown) => Promise<Record<string, unknown>>>(
+      async (method, input) => {
+        if (method === "Page.getNavigationHistory") return { currentIndex: 0, entries: [{}] };
+        if (method === "Page.getLayoutMetrics")
+          return { cssVisualViewport: { pageX: 0, pageY: 0 } };
+        if (method === "Page.captureScreenshot") {
+          if ((input as { format: string }).format === "jpeg" && heldStill) await heldStill();
+          return { data: (input as { format: string }).format === "png" ? PNG_HEADER : "ZnJhbWU=" };
+        }
+        if (method === "Runtime.callFunctionOn") return { result: { value: PNG_HEADER } };
+        if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "main" } } };
+        if (method === "Page.createIsolatedWorld") {
+          const worldContexts: Record<string, number> = {
+            "supaterm-preview-viewport": 9,
+            "supaterm-preview-title": 11,
+            "supaterm-preview": 1,
+          };
+          return {
+            executionContextId: worldContexts[(input as { worldName: string }).worldName] ?? 7,
+          };
+        }
+        if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 11)
+          return new Promise(() => {});
+        if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 1) {
+          return { result: { value: [] } };
+        }
+        if (method === "Page.addScriptToEvaluateOnNewDocument") frame?.recording.resolve();
+        if (
+          method === "Input.dispatchKeyEvent" &&
+          ["copy", "cut"].includes((input as { commands?: Array<string> }).commands?.[0] ?? "")
+        ) {
+          if (focusedFrame) focusedFrame.copy = keyCopy;
+          else pageCopy = keyCopy;
+        }
+        if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 7) {
+          const value = frame ? frame.copy : pageCopy;
+          if (frame) frame.copy = "";
+          else pageCopy = "";
+          return { result: { value } };
+        }
+        if (method === "Runtime.evaluate" && (input as { contextId?: number }).contextId === 9)
+          return desktopSizeAnswer?.() ?? { result: { value: { ...viewport } } };
+        return { result: { value: "evaluated" } };
+      },
+    ),
   };
 }
 
@@ -261,7 +237,7 @@ function makeContext(onClose?: (context: BrowserContext) => void, initialUrl = "
       interactiveElements: [],
     })),
     ariaSnapshot: vi.fn(async () => '- button "delete" [ref=e1]'),
-    locator: vi.fn(() => {
+    locator: vi.fn<() => unknown>(() => {
       throw new Error("Unexpected locator action");
     }),
     isClosed: () => closed,

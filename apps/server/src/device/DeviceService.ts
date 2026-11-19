@@ -1008,11 +1008,16 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
       Effect.map(({ state }) => state.sessions.filter((session) => session.threadId === threadId)),
     );
 
-  const locate = <T extends { readonly hostId: DeviceHostId }>(
+  function locate<T extends { readonly hostId: DeviceHostId }>(
     state: DeviceServiceState,
     input: { readonly hostId?: DeviceHostId | undefined; readonly deviceId: DeviceId },
     matches: ReadonlyArray<T>,
-  ) => {
+  ): Effect.Effect<Option.Option<T>, DeviceHostAmbiguousError | DeviceOnOtherHostError>;
+  function locate<T extends { readonly hostId: DeviceHostId }>(
+    state: DeviceServiceState,
+    input: { readonly hostId?: DeviceHostId | undefined; readonly deviceId: DeviceId },
+    matches: ReadonlyArray<T>,
+  ) {
     const named = (id: DeviceHostId) => ({
       id,
       label: state.hosts.find((host) => host.id === id)?.label,
@@ -1037,7 +1042,7 @@ export const makeWithHosts = Effect.fn("DeviceService.makeWithHosts")(function* 
           }),
         )
       : Effect.succeedNone;
-  };
+  }
 
   const locateDevice: DeviceService["Service"]["locateDevice"] = Effect.fn(
     "DeviceService.locateDevice",

@@ -6,7 +6,6 @@ import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { textDirection, type TextDirection } from "~/textDirection";
 
 interface ComposerTextDirections {
-  /** One entry per top-level block. */
   readonly blocks: ReadonlyArray<TextDirection | null>;
   readonly decorations: DecorationSet;
 }

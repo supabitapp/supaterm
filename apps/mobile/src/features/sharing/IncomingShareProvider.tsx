@@ -87,7 +87,7 @@ async function incomingShareIdForPayloads(payloads: ReadonlyArray<SharePayload>)
 function readBase64(uri: string): Promise<string>;
 async function readBase64(uri: string) {
   const { File } = await loadExpoFileSystem();
-  return new File(uri).base64() satisfies string;
+  return new File(uri).base64();
 }
 
 function readFileSize(uri: string): Promise<number | null>;

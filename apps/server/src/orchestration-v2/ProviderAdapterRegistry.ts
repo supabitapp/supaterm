@@ -154,7 +154,7 @@ export const layerFromProviderInstanceRegistry: Layer.Layer<
 );
 
 function makeRegistry(adapters: ReadonlyArray<ProviderAdapter.ProviderAdapterV2["Service"]>) {
-  return {
+  const registry: ProviderAdapterRegistryV2Shape = {
     get: Effect.fn("ProviderAdapterRegistry.get")(function* (instanceId) {
       const adapter = adapters.find((candidate) => candidate.instanceId === instanceId);
       if (!adapter) {
@@ -164,6 +164,7 @@ function makeRegistry(adapters: ReadonlyArray<ProviderAdapter.ProviderAdapterV2[
     }),
     list: () => Effect.succeed(adapters.map((adapter) => adapter.instanceId)),
   };
+  return registry;
 }
 
 export function layerFromAdapters(

@@ -785,7 +785,6 @@ export function useThreadListActions() {
     readonly reopenThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
     readonly pinThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
     readonly unpinThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
-    /** Sets per-thread automatic completion on or off. */
     readonly setThreadAutoMarkDone: (
       thread: EnvironmentThreadShell,
       enabled: boolean,

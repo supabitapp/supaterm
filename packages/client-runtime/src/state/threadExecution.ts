@@ -161,6 +161,7 @@ function presentedLatestRun(projection: ThreadStructure) {
   return presentedUsageLimitRun(projection) ?? latestUnheldRun(projection.runs);
 }
 
+export function deriveLatestThreadRun(projection: ThreadStructure): ThreadRunSummary | null;
 export function deriveLatestThreadRun(projection: ThreadStructure) {
   const run = presentedLatestRun(projection);
   return run === null ? null : summarizeThreadRun(projection, run);
@@ -336,6 +337,9 @@ export function deriveThreadRuntime(
 }
 
 /** The runtime summary a thread's structure determines: all of it but `updatedAt`. */
+export function deriveThreadStructureRuntime(
+  projection: ThreadStructure,
+): ThreadStructureRuntime | null;
 export function deriveThreadStructureRuntime(projection: ThreadStructure) {
   const latestRun = deriveLatestThreadRun(projection);
   const providerSession = projection.providerSessions.findLast(

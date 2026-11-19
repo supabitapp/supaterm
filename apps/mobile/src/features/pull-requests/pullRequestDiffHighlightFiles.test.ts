@@ -30,6 +30,7 @@ const target = {
   },
 };
 
+function file(id: string, path: string, previousPath: string | null): ReviewRenderableFile;
 function file(id: string, path: string, previousPath: string | null) {
   return {
     id,

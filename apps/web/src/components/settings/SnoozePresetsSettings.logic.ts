@@ -6,6 +6,10 @@ import * as Equal from "effect/Equal";
  * Reads a server value against the editor's writes still in flight. Matching one acknowledges
  * it and every earlier write; anything else came from elsewhere and replaces the draft.
  */
+export function reconcileSnoozeDraft<T>(
+  pending: ReadonlyArray<T>,
+  saved: T,
+): { readonly adopt: true } | { readonly adopt: false; readonly pending: ReadonlyArray<T> };
 export function reconcileSnoozeDraft<T>(pending: ReadonlyArray<T>, saved: T) {
   const acknowledged = pending.findIndex((snapshot) => Equal.equals(snapshot, saved));
   return (
@@ -21,6 +25,11 @@ export function reconcileSnoozeDraft<T>(pending: ReadonlyArray<T>, saved: T) {
  * Orders editor rows the way the menu lists them: soonest wake first, with options that
  * have no wake right now (a passed "Today") last. Ties keep their current order.
  */
+export function sortSnoozeRows<K>(
+  presets: ReadonlyArray<SnoozePresetSetting>,
+  keys: ReadonlyArray<K>,
+  now: Date,
+): { readonly presets: ReadonlyArray<SnoozePresetSetting>; readonly keys: ReadonlyArray<K> };
 export function sortSnoozeRows<K>(
   presets: ReadonlyArray<SnoozePresetSetting>,
   keys: ReadonlyArray<K>,

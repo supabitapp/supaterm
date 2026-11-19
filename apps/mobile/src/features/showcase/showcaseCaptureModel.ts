@@ -17,6 +17,7 @@ export function showcaseScreenScene(captureScene: ShowcaseScene, splitView: bool
   ) satisfies ShowcaseScene;
 }
 
+export function showcaseSceneOnScreen(pathname: string): ShowcaseScene | null;
 export function showcaseSceneOnScreen(pathname: string) {
   const routePath = pathname.split(/[?#]/u, 1)[0] ?? pathname;
   if (routePath === "/settings" || routePath.endsWith("/settings/environments")) {

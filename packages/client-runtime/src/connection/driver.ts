@@ -360,7 +360,7 @@ export const make = Effect.gen(function* () {
         duration: timeoutMs,
         orElse: () => Effect.succeed<RouteCheck>("silent"),
       }),
-      Effect.orElseSucceed(() => "silent" satisfies RouteCheck),
+      Effect.orElseSucceed(() => "silent" satisfies RouteCheck as RouteCheck),
       Effect.provideService(FetchHttpClient.RequestInit, { cache: "no-store" }),
       Effect.provideService(HttpClient.HttpClient, httpClient),
     );

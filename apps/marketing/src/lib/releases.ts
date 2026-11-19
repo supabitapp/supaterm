@@ -25,15 +25,15 @@ function cacheKey(channel: ReleaseChannel) {
 }
 
 function fetchJson<T>(url: string): Promise<T>;
-async function fetchJson<T>(url: string) {
+async function fetchJson(url: string) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`GitHub API responded ${response.status}`);
-  return response.json() satisfies T;
+  return response.json();
 }
 
 function fetchStable(): Promise<Release>;
 async function fetchStable() {
-  return fetchJson(LATEST_API_URL) satisfies Release;
+  return fetchJson<Release>(LATEST_API_URL);
 }
 
 function fetchNightly(): Promise<Release>;

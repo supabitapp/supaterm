@@ -160,6 +160,10 @@ export interface RowsDraft<V, R> {
   readonly lastPublished: V | undefined;
 }
 
+export function seedRowsDraft<V, R>(
+  value: V,
+  toRows: (value: V) => ReadonlyArray<R>,
+): RowsDraft<V, R>;
 export function seedRowsDraft<V, R>(value: V, toRows: (value: V) => ReadonlyArray<R>) {
   return { rows: toRows(value), seen: value, lastPublished: undefined };
 }

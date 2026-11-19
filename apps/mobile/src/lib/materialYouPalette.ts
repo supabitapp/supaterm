@@ -31,6 +31,7 @@ export interface MaterialYouPalettes {
 
 export const isSystemColorsAvailable = false;
 
+export function readSystemColorPalettes(): MaterialYouPalettes | null;
 export function readSystemColorPalettes() {
   return null;
 }

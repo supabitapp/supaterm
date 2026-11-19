@@ -27,6 +27,19 @@ export function mcpToolPresentation(input: {
   readonly iconUrl?: unknown;
   readonly iconUrlDark?: unknown;
   readonly source?: unknown;
+}): {
+  readonly title?: string;
+  readonly toolIcon?: ToolActivityIcon;
+  readonly toolSource?: ToolActivitySource;
+};
+export function mcpToolPresentation(input: {
+  readonly toolName?: unknown;
+  readonly serverName?: unknown;
+  readonly title?: unknown;
+  readonly serverDisplayName?: unknown;
+  readonly iconUrl?: unknown;
+  readonly iconUrlDark?: unknown;
+  readonly source?: unknown;
 }) {
   const source =
     typeof input.source === "object" && input.source !== null ? input.source : undefined;

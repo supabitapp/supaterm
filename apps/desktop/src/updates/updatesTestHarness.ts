@@ -332,6 +332,8 @@ export function makeHarness(options: UpdatesHarnessOptions = {}) {
     Layer.provideMerge(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer)),
   );
 
+  const readFeedUrls: () => ElectronUpdater.ElectronUpdaterFeedUrl[] = () => feedUrls;
+
   return {
     layer,
     checkCount: () => checkCount,
@@ -342,7 +344,7 @@ export function makeHarness(options: UpdatesHarnessOptions = {}) {
     installRecords,
     previousInstallRecord: () => previousInstallRecord,
     downloadCount: () => downloadCount,
-    feedUrls: () => feedUrls,
+    feedUrls: readFeedUrls,
     fullChangelog: () => fullChangelog,
     checkAllowedDowngrade,
     allowDowngrade: () => allowDowngrade,

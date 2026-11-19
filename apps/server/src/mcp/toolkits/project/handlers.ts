@@ -78,7 +78,7 @@ const assertProjectWorktree = Effect.fn("mcp.assertProjectWorktree")(function* (
   const real = (path: string) => fileSystem.realPath(path).pipe(Effect.orElseSucceed(() => path));
   const worktrees = yield* git.listWorktreePaths(workspaceRoot).pipe(
     Effect.flatMap((paths) => Effect.forEach(paths, real)),
-    Effect.orElseSucceed(() => []),
+    Effect.orElseSucceed(() => [] as ReadonlyArray<string>),
   );
   if (!worktrees.includes(yield* real(worktreePath)))
     return yield* new OrchestratorMcpFailure({

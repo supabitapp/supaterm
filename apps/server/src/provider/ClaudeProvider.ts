@@ -59,6 +59,7 @@ import {
   discoverClaudeSkills,
   readClaudeSettingsEnv,
 } from "./Drivers/ClaudeSkills.ts";
+import type { ProviderWorkspaceSnapshot } from "@supaterm/provider-core/server/driver";
 import { makeUnavailableUsageLimits } from "@supaterm/provider-core/server/usageLimits";
 import {
   type ClaudeScopedLimitNames,
@@ -699,7 +700,14 @@ const runClaudeCommand = Effect.fn("runClaudeCommand")(function* (
   return yield* spawnAndCollect(claudeSettings.binaryPath, command);
 });
 
-export const probeClaudeWorkspaceSnapshot = Effect.fn("probeClaudeWorkspaceSnapshot")(function* (
+export const probeClaudeWorkspaceSnapshot: (
+  claudeSettings: ClaudeSettings,
+  machineSnapshot: ServerProvider,
+  cwd: string,
+  environment?: NodeJS.ProcessEnv,
+) => Effect.Effect<ProviderWorkspaceSnapshot, never, FileSystem.FileSystem | Path.Path> = Effect.fn(
+  "probeClaudeWorkspaceSnapshot",
+)(function* (
   claudeSettings: ClaudeSettings,
   machineSnapshot: ServerProvider,
   cwd: string,

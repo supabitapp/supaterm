@@ -22,24 +22,25 @@ interface CollectState {
   readonly truncated: boolean;
 }
 
-export const collectUint8StreamText = <E>(input: {
+export const collectUint8StreamText: <E>(input: {
   readonly stream: Stream.Stream<Uint8Array, E>;
   readonly maxBytes?: number | undefined;
   readonly truncatedMarker?: string | null | undefined;
-}) => {
+}) => Effect.Effect<CollectedUint8StreamText, E> = (input) => {
   const maxBytes = input.maxBytes ?? Number.POSITIVE_INFINITY;
   const truncatedMarker = input.truncatedMarker ?? "";
 
   return input.stream.pipe(
     Stream.runFold(
-      () => ({
-        chunks: [],
-        bytes: 0,
-        truncated: false,
-      }),
+      () =>
+        ({
+          chunks: [],
+          bytes: 0,
+          truncated: false,
+        }) satisfies CollectState as CollectState,
       (state, chunk) => {
         if (state.truncated) {
-          return state satisfies CollectState as CollectState;
+          return state;
         }
 
         const remainingBytes = maxBytes - state.bytes;
@@ -47,7 +48,7 @@ export const collectUint8StreamText = <E>(input: {
           return {
             ...state,
             truncated: true,
-          } satisfies CollectState as CollectState;
+          };
         }
 
         const nextChunk =
@@ -60,7 +61,7 @@ export const collectUint8StreamText = <E>(input: {
           chunks: state.chunks,
           bytes,
           truncated,
-        } satisfies CollectState as CollectState;
+        };
       },
     ),
     Effect.map((state) => {

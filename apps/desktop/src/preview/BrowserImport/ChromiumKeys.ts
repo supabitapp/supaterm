@@ -230,36 +230,37 @@ export interface ChromiumKeyRequest {
   readonly linuxSecretApplication: string | undefined;
 }
 
-export const resolveChromiumKeys = Effect.fn("ChromiumKeys.resolveChromiumKeys")(function* (
+export const resolveChromiumKeys: (
   request: ChromiumKeyRequest,
-) {
-  if (request.platform === "darwin") {
-    if (!request.keychainService || !request.keychainAccount) {
-      return yield* new ChromiumKeyError({ reason: "unsupportedPlatform" });
+) => Effect.Effect<ChromiumKeyMaterial, ChromiumKeyError, ChildProcessSpawner.ChildProcessSpawner> =
+  Effect.fn("ChromiumKeys.resolveChromiumKeys")(function* (request: ChromiumKeyRequest) {
+    if (request.platform === "darwin") {
+      if (!request.keychainService || !request.keychainAccount) {
+        return yield* new ChromiumKeyError({ reason: "unsupportedPlatform" });
+      }
+      const secret = yield* readKeychainSecret(request.keychainService, request.keychainAccount);
+      return { cbcV10: derive(secret, MAC_KEY_ITERATIONS) };
     }
-    const secret = yield* readKeychainSecret(request.keychainService, request.keychainAccount);
-    return { cbcV10: derive(secret, MAC_KEY_ITERATIONS) };
-  }
 
-  if (request.platform === "linux") {
-    const keyringSecret = request.linuxSecretApplication
-      ? yield* readLinuxSecret(request.linuxSecretApplication).pipe(
-          Effect.catchIf(
-            (error) => error.reason !== "needsKeychainApproval",
-            (error) => Effect.succeed(error),
-          ),
-        )
-      : undefined;
-    return {
-      cbcV10: derive(LINUX_FALLBACK_PASSPHRASE, LINUX_KEY_ITERATIONS),
-      ...(typeof keyringSecret === "string"
-        ? { cbcV11: derive(keyringSecret, LINUX_KEY_ITERATIONS) }
-        : keyringSecret
-          ? { cbcV11Error: keyringSecret }
-          : {}),
-      cbcEmpty: derive("", LINUX_KEY_ITERATIONS),
-    };
-  }
+    if (request.platform === "linux") {
+      const keyringSecret = request.linuxSecretApplication
+        ? yield* readLinuxSecret(request.linuxSecretApplication).pipe(
+            Effect.catchIf(
+              (error) => error.reason !== "needsKeychainApproval",
+              (error) => Effect.succeed(error),
+            ),
+          )
+        : undefined;
+      return {
+        cbcV10: derive(LINUX_FALLBACK_PASSPHRASE, LINUX_KEY_ITERATIONS),
+        ...(typeof keyringSecret === "string"
+          ? { cbcV11: derive(keyringSecret, LINUX_KEY_ITERATIONS) }
+          : keyringSecret
+            ? { cbcV11Error: keyringSecret }
+            : {}),
+        cbcEmpty: derive("", LINUX_KEY_ITERATIONS),
+      };
+    }
 
-  return yield* new ChromiumKeyError({ reason: "unsupportedPlatform" });
-});
+    return yield* new ChromiumKeyError({ reason: "unsupportedPlatform" });
+  });

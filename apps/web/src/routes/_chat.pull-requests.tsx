@@ -8,6 +8,7 @@ import { PullRequestsPage } from "../components/pullRequest/PullRequestsPage";
 
 const MAX_SEARCH_LABEL_CANDIDATES = 100;
 
+function pullRequestSearchLabels(raw: unknown): PullRequestsSearch["labels"];
 function pullRequestSearchLabels(raw: unknown) {
   const values = (Array.isArray(raw) ? raw : typeof raw === "string" ? [raw] : []).slice(
     0,
@@ -78,6 +79,6 @@ export const Route = createFileRoute("/_chat/pull-requests")({
           ? raw.author.trim().slice(0, 200)
           : undefined,
       labels: pullRequestSearchLabels(raw.labels),
-    }) satisfies PullRequestsSearch,
+    }) satisfies PullRequestsSearch as PullRequestsSearch,
   component: PullRequestsPage,
 });

@@ -347,9 +347,18 @@ function selectBootServiceManager(input: {
   readonly uid: number | undefined;
   readonly path: Path.Path;
   readonly environmentPath: string;
+}): BootServiceManager | undefined;
+function selectBootServiceManager(input: {
+  readonly platform: NodeJS.Platform;
+  readonly homeDir: string;
+  readonly xdgConfigHome: string;
+  readonly systemdUnitDir: string | undefined;
+  readonly uid: number | undefined;
+  readonly path: Path.Path;
+  readonly environmentPath: string;
 }) {
   if (input.homeDir === "") {
-    return undefined satisfies BootServiceManager | undefined;
+    return undefined;
   }
   if (input.platform === "linux") {
     return systemdManager({
@@ -357,7 +366,7 @@ function selectBootServiceManager(input: {
       unitDir:
         input.systemdUnitDir ??
         defaultSystemdUnitDir(input.path, input.homeDir, input.xdgConfigHome),
-    }) satisfies BootServiceManager | undefined;
+    });
   }
   if (input.platform === "darwin" && input.uid !== undefined) {
     return launchdManager({
@@ -365,9 +374,9 @@ function selectBootServiceManager(input: {
       homeDir: input.homeDir,
       uid: input.uid,
       environmentPath: input.environmentPath,
-    }) satisfies BootServiceManager | undefined;
+    });
   }
-  return undefined satisfies BootServiceManager | undefined;
+  return undefined;
 }
 
 const decodeSystemdUnitPaths = Schema.decodeUnknownEffect(

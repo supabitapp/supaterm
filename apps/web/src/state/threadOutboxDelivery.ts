@@ -237,9 +237,7 @@ export function createBrowserThreadOutbox<Payload>(options: {
         await mutate(entry.id, (live) => ({ ...live, scope, payload: retarget(live.payload) }));
       return true;
     });
-    return (
-      moved === "moved" ? editWithFollowing(id, payload, scope, retarget) : (moved ?? false)
-    ) satisfies boolean;
+    return moved === "moved" ? editWithFollowing(id, payload, scope, retarget) : (moved ?? false);
   }
 
   function cancelWithFollowing(id: string) {

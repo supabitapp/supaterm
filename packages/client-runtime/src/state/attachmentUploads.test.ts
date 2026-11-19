@@ -180,14 +180,18 @@ describe("attachment upload registry", () => {
   it("keeps failures stable until retry and reports bounded progress", async () => {
     let states: Readonly<Record<string, AttachmentUploadStatus>> = {};
     const progress: number[] = [];
-    const upload = vi.fn(
-      async (_request: UploadRequest, _signal: AbortSignal, report: (value: number) => void) => {
-        report(0.12);
-        report(0.13);
-        report(1.1);
-        throw new Error("Server unavailable");
-      },
-    );
+    const upload = vi.fn<
+      (
+        request: UploadRequest,
+        signal: AbortSignal,
+        report: (value: number) => void,
+      ) => Promise<string>
+    >(async (_request, _signal, report) => {
+      report(0.12);
+      report(0.13);
+      report(1.1);
+      throw new Error("Server unavailable");
+    });
     const queue = createQueue({
       upload,
       onChange: (next) => {

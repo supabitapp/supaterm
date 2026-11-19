@@ -267,6 +267,7 @@ export interface AutoMarkDoneDaysField {
   readonly revision: number;
 }
 
+export function autoMarkDoneDaysField(saved: number): AutoMarkDoneDaysField;
 export function autoMarkDoneDaysField(saved: number) {
   return { saved, draft: String(saved), dirty: false, pending: null, revision: 0 };
 }

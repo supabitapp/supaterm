@@ -64,7 +64,7 @@ async function resolvePreviewUri(item: FilePreviewItem, signal: AbortSignal) {
   if ("attachment" in item) {
     return loadLocalAttachmentPreview(item.attachment, signal).catch((error: unknown) => {
       throw new PreviewResolutionError(error, "Attach the file again and retry.");
-    }) satisfies ResolvedPreviewUri | null;
+    });
   }
   const url = await refreshAssetUrl(item.environmentId, item.resource, signal)
     .then((value) => {

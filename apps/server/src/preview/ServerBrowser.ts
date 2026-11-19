@@ -1607,11 +1607,13 @@ const make = Effect.gen(function* () {
   const takeSessionCopies = async (cdp: CDPSession, since: number, until: number) => {
     const tree = await cdp.send("Page.getFrameTree").catch(() => null);
     if (!tree) return [];
-    const frameIds: (node: typeof tree.frameTree) => Array<string> = (
-      node: typeof tree.frameTree,
-    ) => [node.frame.id, ...(node.childFrames ?? []).flatMap(frameIds)];
+    const root = tree.frameTree;
+    const frameIds: (node: typeof root) => Array<string> = (node) => [
+      node.frame.id,
+      ...(node.childFrames ?? []).flatMap(frameIds),
+    ];
     return Promise.all(
-      frameIds(tree.frameTree).map((frameId) =>
+      frameIds(root).map((frameId) =>
         cdp
           .send("Page.createIsolatedWorld", { frameId, worldName: CLIPBOARD_WORLD })
           .then(({ executionContextId }) =>

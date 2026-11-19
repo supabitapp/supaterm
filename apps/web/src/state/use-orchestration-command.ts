@@ -21,7 +21,9 @@ export function useOrchestrationCommand<W extends { readonly environmentId: Envi
   options?: string | AtomCommandOptions,
 ) {
   const run = useAtomCommand(command, options);
-  return (async (value: W) => {
+  const execute: (
+    value: W,
+  ) => Promise<AtomCommandResult<A, E | EnvironmentAuthorizationError>> = async (value) => {
     if (!readEnvironmentScope(value.environmentId, AuthOrchestrationOperateScope)) {
       return AsyncResult.failure(
         Cause.fail(
@@ -30,14 +32,9 @@ export function useOrchestrationCommand<W extends { readonly environmentId: Envi
             message: ORCHESTRATION_OPERATE_DENIED_MESSAGE,
           }),
         ),
-      ) satisfies AtomCommandResult<A, E | EnvironmentAuthorizationError> as AtomCommandResult<
-        A,
-        E | EnvironmentAuthorizationError
-      >;
+      );
     }
-    return run(value) satisfies AtomCommandResult<
-      A,
-      E | EnvironmentAuthorizationError
-    > as AtomCommandResult<A, E | EnvironmentAuthorizationError>;
-  }) satisfies (value: W) => Promise<AtomCommandResult<A, E | EnvironmentAuthorizationError>>;
+    return run(value);
+  };
+  return execute;
 }

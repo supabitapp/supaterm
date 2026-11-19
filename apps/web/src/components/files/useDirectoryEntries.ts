@@ -117,10 +117,10 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
     return request;
   };
 
-  const load: (directoryPath: string, refresh?: boolean) => Promise<void> = function loadDirectory(
-    directoryPath: string,
+  const load: (directoryPath: string, refresh?: boolean) => Promise<void> = (
+    directoryPath,
     refresh = false,
-  ) {
+  ) => {
     const existing = requests.current.get(directoryPath);
     if (existing) {
       if (!refresh) return existing;
@@ -130,7 +130,7 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
           if (followUpRefreshes.current.get(directoryPath) !== followUp) return;
           followUpRefreshes.current.delete(directoryPath);
           if (active.current && requested.current.has(directoryPath))
-            return loadDirectory(directoryPath, true);
+            return load(directoryPath, true);
         });
         followUpRefreshes.current.set(directoryPath, followUp);
       }

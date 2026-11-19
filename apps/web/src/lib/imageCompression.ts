@@ -257,8 +257,7 @@ function renderComposerImageThumbnail(
   mode: ComposerImageThumbnailMode,
 ): Promise<string | null>;
 async function renderComposerImageThumbnail(file: File, mode: ComposerImageThumbnailMode) {
-  if (isHeicImageFile(file) && mode === "square")
-    return prepareHeicImage(file).thumbnail satisfies string | null;
+  if (isHeicImageFile(file) && mode === "square") return prepareHeicImage(file).thumbnail;
   if (!canRecompress() || file.size > MAX_COMPRESSIBLE_SOURCE_BYTES)
     return null satisfies string | null;
   let bitmap: ImageBitmap | undefined;
@@ -577,8 +576,7 @@ export function prepareImageForAttachment(
   maxBytes: number,
 ): Promise<CompressImageFileResult>;
 export async function prepareImageForAttachment(file: File, maxBytes: number) {
-  if (!isHeicImageFile(file))
-    return compressImageToByteLimit(file, maxBytes) satisfies CompressImageFileResult;
+  if (!isHeicImageFile(file)) return compressImageToByteLimit(file, maxBytes);
   const prepared = await prepareHeicImage(file).image;
   if (!prepared.ok || prepared.file.size <= maxBytes)
     return prepared satisfies CompressImageFileResult;

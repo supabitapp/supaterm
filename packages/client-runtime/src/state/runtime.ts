@@ -422,7 +422,7 @@ export async function executeAtomQuery<A, E>(
     () => Effect.runPromiseExit(query, { signal: options.signal }),
     options,
     reporter,
-  ) satisfies AtomCommandResult<A, E>;
+  );
 }
 
 export function createRuntimeCommand<R, ER, W, A, E>(

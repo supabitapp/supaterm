@@ -26,6 +26,11 @@ export function getCachedPullRequestDiffPages(
   pages: readonly PullRequestDiffPage[],
   scope: string,
   terminology: ChangeRequestTerminology,
+): ReviewParsedDiff;
+export function getCachedPullRequestDiffPages(
+  pages: readonly PullRequestDiffPage[],
+  scope: string,
+  terminology: ChangeRequestTerminology,
 ) {
   const first = pages[0];
   if (!first) return { kind: "empty" } satisfies ReviewParsedDiff;
@@ -72,6 +77,12 @@ export function retainPullRequestDiffPage(
   return [...pages.slice(0, index), { cursor, result }];
 }
 
+export function combinePullRequestDiffPages(
+  pages: readonly PullRequestDiffPage[],
+  cache: WeakMap<PullRequestDiffResult, ReviewParsedDiff>,
+  scope: string,
+  terminology: ChangeRequestTerminology,
+): ReviewParsedDiff;
 export function combinePullRequestDiffPages(
   pages: readonly PullRequestDiffPage[],
   cache: WeakMap<PullRequestDiffResult, ReviewParsedDiff>,
@@ -152,6 +163,12 @@ function withheldFileNotice(load: WithheldFileLoad | undefined, canLoad: boolean
  * Puts each loaded withheld file in place of its empty one, under the same id so folds and
  * targets hold, and gives the rest a notice saying what a tap does.
  */
+export function withWithheldFiles(
+  parsed: ReviewParsedDiff,
+  loads: ReadonlyMap<string, WithheldFileLoad>,
+  canLoad: boolean,
+  scope: string,
+): ReviewParsedDiff;
 export function withWithheldFiles(
   parsed: ReviewParsedDiff,
   loads: ReadonlyMap<string, WithheldFileLoad>,

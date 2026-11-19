@@ -1665,6 +1665,9 @@ function normalizePersistedDraftsByThreadKey(rawDraftMap: unknown) {
   return nextDraftsByThreadKey;
 }
 
+export function partializeComposerDraftStoreState(
+  state: ComposerDraftStoreState,
+): PersistedComposerDraftStoreState;
 export function partializeComposerDraftStoreState(state: ComposerDraftStoreState) {
   const mappedDraftKeys = new Set(
     Object.values(state.logicalProjectDraftThreadKeyByLogicalProjectKey),

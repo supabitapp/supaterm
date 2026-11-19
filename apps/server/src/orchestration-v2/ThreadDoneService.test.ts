@@ -1417,8 +1417,8 @@ describe("ThreadDoneServiceV2 worker", () => {
                 return candidates;
               }),
           },
-          onDispatch: (command) =>
-            Effect.gen(function* () {
+          onDispatch: (command) => {
+            const dispatched: Effect.Effect<void> = Effect.gen(function* () {
               const thread = yield* store.getThread(command.threadId);
               const event = doneEvent({
                 ...thread,
@@ -1428,7 +1428,9 @@ describe("ThreadDoneServiceV2 worker", () => {
               yield* store.apply(event);
               yield* fixture.publishEvent(event);
               yield* Deferred.succeed(childMarkedDone, undefined);
-            }).pipe(Effect.orDie) satisfies Effect.Effect<void> as Effect.Effect<void>,
+            }).pipe(Effect.orDie);
+            return dispatched;
+          },
         });
         yield* Effect.gen(function* () {
           const service = yield* ThreadDoneService.ThreadDoneServiceV2;

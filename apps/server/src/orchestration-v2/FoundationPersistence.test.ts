@@ -72,7 +72,9 @@ import * as ProjectStore from "./ProjectStore.ts";
 import * as ProviderRuntimeRecovery from "./ProviderRuntimeRecoveryService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 
-const workerStatements = vi.hoisted(() => []);
+const workerStatements = vi.hoisted<Array<{ readonly readOnly: boolean; readonly sql: string }>>(
+  () => [],
+);
 
 vi.mock("node:worker_threads", async (importOriginal) => {
   const actual = await importOriginal<typeof NodeWorkerThreads>();

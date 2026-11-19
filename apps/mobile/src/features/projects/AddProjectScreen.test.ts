@@ -32,7 +32,7 @@ const state = vi.hoisted(() => ({
   createNewResult: null as Promise<unknown> | null,
   connectionStates: {} as Record<string, EnvironmentConnectionPhase>,
   newProjectsRoot: null as string | null,
-  waitForProject: vi.fn(async () => null),
+  waitForProject: vi.fn<() => Promise<unknown>>(async () => null),
   dispatch: vi.fn(),
   alert: vi.fn(),
   navigationState: undefined as NavigationState | undefined,

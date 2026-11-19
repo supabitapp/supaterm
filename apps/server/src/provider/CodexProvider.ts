@@ -416,7 +416,7 @@ function applyConfiguredCodexCyberAccess(
   >,
 ) {
   const offered = mapCodexOptionDescriptors(models, (descriptors, model) =>
-    descriptors.flatMap((descriptor) => {
+    descriptors.flatMap<ProviderOptionDescriptor>((descriptor) => {
       if (descriptor.id !== "cyberAccessProgram" || descriptor.type !== "select") {
         return [descriptor];
       }

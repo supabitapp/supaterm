@@ -42,6 +42,13 @@ function makeProjection(input: {
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly providerTurnId: ProviderTurnId;
   readonly attemptId: RunAttemptId;
+}): OrchestrationV2ThreadProjection;
+function makeProjection(input: {
+  readonly now: DateTime.Utc;
+  readonly threadId: ThreadId;
+  readonly providerThread: OrchestrationV2ProviderThread;
+  readonly providerTurnId: ProviderTurnId;
+  readonly attemptId: RunAttemptId;
 }) {
   const runId = RunId.make("run:restart-session");
   const nodeId = NodeId.make("node:restart-session");

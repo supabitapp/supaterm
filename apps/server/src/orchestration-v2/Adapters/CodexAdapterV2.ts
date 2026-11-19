@@ -410,6 +410,9 @@ function codexUserMessageText(
     .trim();
 }
 
+function mapCodexTurnStatus(
+  status: CodexSchema.V2TurnCompletedNotification__TurnStatus,
+): OrchestrationV2ProviderTurn["status"];
 function mapCodexTurnStatus(status: CodexSchema.V2TurnCompletedNotification__TurnStatus) {
   switch (status) {
     case "completed":
@@ -423,6 +426,9 @@ function mapCodexTurnStatus(status: CodexSchema.V2TurnCompletedNotification__Tur
   }
 }
 
+function providerTurnStatusToTerminal(
+  status: OrchestrationV2ProviderTurn["status"],
+): Extract<ProviderAdapter.ProviderAdapterV2Event, { type: "turn.terminal" }>["status"];
 function providerTurnStatusToTerminal(status: OrchestrationV2ProviderTurn["status"]) {
   switch (status) {
     case "completed":
@@ -3382,15 +3388,17 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               .request("thread/read", { threadId: input.nativeThreadId, includeTurns: false })
               .pipe(
                 Effect.flatMap(decodeCodexChildThread),
-                Effect.map((response) =>
-                  response.thread.id === input.nativeThreadId && response.thread.model?.trim()
-                    ? {
-                        thread: response.thread,
-                        model: response.thread.model,
-                        reasoningEffort: response.thread.reasoningEffort,
-                      }
-                    : null,
-                ),
+                Effect.map((response) => {
+                  const selection: typeof CodexChildSelection.Type | null =
+                    response.thread.id === input.nativeThreadId && response.thread.model?.trim()
+                      ? {
+                          thread: response.thread,
+                          model: response.thread.model,
+                          reasoningEffort: response.thread.reasoningEffort,
+                        }
+                      : null;
+                  return selection;
+                }),
                 Effect.orElseSucceed(() => null),
                 Effect.filterOrElse(
                   (response) => !(response === null),

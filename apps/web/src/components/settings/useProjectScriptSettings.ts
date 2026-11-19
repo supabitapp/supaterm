@@ -110,7 +110,7 @@ export function useProjectScriptSettings(
     return writeTargets(transform, scriptId, keybinding).finally(() => {
       savingRef.current = false;
       setSaving(false);
-    }) satisfies AtomCommandResult<void, unknown>;
+    });
   }
 
   function writeTargets(

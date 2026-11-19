@@ -893,6 +893,14 @@ export function terminatePosixOwnedProcessTree(input: {
   readonly ledger?: Map<string, AcpOwnedPosixProcess>;
   readonly root?: AcpPosixOwnershipRoot;
   readonly rootPid: number;
+}): Effect.Effect<void, AcpProcessGroupTerminationError>;
+export function terminatePosixOwnedProcessTree(input: {
+  readonly controller: AcpPosixProcessTreeController;
+  readonly discoveryPasses?: number;
+  readonly grace?: Duration.Input;
+  readonly ledger?: Map<string, AcpOwnedPosixProcess>;
+  readonly root?: AcpPosixOwnershipRoot;
+  readonly rootPid: number;
 }) {
   const ledger = input.ledger ?? new Map<string, AcpOwnedPosixProcess>();
 

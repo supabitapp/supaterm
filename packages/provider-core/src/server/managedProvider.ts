@@ -29,6 +29,10 @@ interface ProviderSnapshotState {
   readonly checked: boolean;
 }
 
+function withUsageLimits(
+  snapshot: ServerProvider,
+  usageLimits: ServerProvider["usageLimits"],
+): ServerProvider;
 function withUsageLimits(snapshot: ServerProvider, usageLimits: ServerProvider["usageLimits"]) {
   if (snapshot.usageLimits === usageLimits) {
     return snapshot;

@@ -17,6 +17,11 @@ function highlightedDocument(
   highlighter: DiffsHighlighter,
   themeName: DiffsThemeNames,
   children: ReturnType<typeof renderTokenLines>,
+): HighlightedDocument;
+function highlightedDocument(
+  highlighter: DiffsHighlighter,
+  themeName: DiffsThemeNames,
+  children: ReturnType<typeof renderTokenLines>,
 ) {
   const theme = highlighter.getTheme(themeName);
   return {

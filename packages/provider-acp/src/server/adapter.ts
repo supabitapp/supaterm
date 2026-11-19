@@ -1229,7 +1229,7 @@ export function acpToolCallDiffPatch(content: unknown) {
     const diff = unknownRecord(entry);
     return diff?.type === "diff" ? [diff] : [];
   });
-  const patches = diffs.flatMap((diff) => {
+  const patches: ReadonlyArray<{ text: string; path?: string }> = diffs.flatMap((diff) => {
     const patch = unknownRecord(diff.patch);
     if (typeof patch?.text === "string") {
       const change =

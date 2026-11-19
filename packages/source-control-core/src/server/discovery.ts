@@ -132,6 +132,12 @@ export function providerAuth(input: {
   readonly account?: string | undefined;
   readonly host?: string | undefined;
   readonly detail?: string | undefined;
+}): SourceControlProviderAuth;
+export function providerAuth(input: {
+  readonly status: SourceControlProviderAuth["status"];
+  readonly account?: string | undefined;
+  readonly host?: string | undefined;
+  readonly detail?: string | undefined;
 }) {
   return {
     status: input.status,
@@ -141,6 +147,7 @@ export function providerAuth(input: {
   };
 }
 
+function unknownAuth(detail?: string): SourceControlProviderAuth;
 function unknownAuth(detail?: string) {
   return providerAuth({ status: "unknown", detail });
 }
@@ -240,6 +247,11 @@ function probeCli(input: {
     );
 }
 
+export function probeSourceControlProvider(input: {
+  readonly spec: SourceControlProviderDiscoverySpec;
+  readonly process: SourceControlHost.SourceControlHost["Service"]["process"];
+  readonly cwd: string;
+}): Effect.Effect<SourceControlProviderDiscoveryItem>;
 export function probeSourceControlProvider(input: {
   readonly spec: SourceControlProviderDiscoverySpec;
   readonly process: SourceControlHost.SourceControlHost["Service"]["process"];

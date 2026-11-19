@@ -63,20 +63,25 @@ class SelectionNode {
     return this.data.length;
   }
   get firstChild() {
-    return (this.childNodes[0] ?? null) satisfies SelectionNode | null as SelectionNode | null;
+    return this.childAt(0);
   }
   get lastChild() {
-    return (this.childNodes.at(-1) ?? null) satisfies SelectionNode | null as SelectionNode | null;
+    return this.childAt(-1);
   }
   get previousSibling() {
-    const siblings = this.parentElement?.childNodes;
-    return (siblings?.[siblings.indexOf(this) - 1] ??
-      null) satisfies SelectionNode | null as SelectionNode | null;
+    return this.siblingAt(-1);
   }
   get nextSibling() {
+    return this.siblingAt(1);
+  }
+  private childAt(index: number): SelectionNode | null;
+  private childAt(index: number) {
+    return this.childNodes.at(index) ?? null;
+  }
+  private siblingAt(offset: number): SelectionNode | null;
+  private siblingAt(offset: number) {
     const siblings = this.parentElement?.childNodes;
-    return (siblings?.[siblings.indexOf(this) + 1] ??
-      null) satisfies SelectionNode | null as SelectionNode | null;
+    return siblings?.[siblings.indexOf(this) + offset] ?? null;
   }
   append(...children: SelectionNode[]) {
     for (const child of children) child.parentElement = this;

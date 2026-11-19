@@ -190,7 +190,8 @@ const screenshot = await getImage({
 
   type Platform = { os: "mac" | "win" | "linux"; label: string };
 
-  function detectPlatform(): Platform | null {
+  function detectPlatform(): Platform | null;
+  function detectPlatform() {
     const ua = navigator.userAgent;
     if (/Win/i.test(ua)) return { os: "win", label: "Download for Windows" };
     if (/Mac/i.test(ua)) return { os: "mac", label: "Download for macOS" };
@@ -198,7 +199,7 @@ const screenshot = await getImage({
     return null;
   }
 
-  function pickAsset(assets: ReleaseAsset[], platform: Platform): string | null {
+  function pickAsset(assets: ReleaseAsset[], platform: Platform) {
     if (platform.os === "win") {
       return assets.find((a) => a.name.endsWith("-x64.exe"))?.browser_download_url ?? null;
     }

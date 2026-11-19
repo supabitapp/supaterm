@@ -25,7 +25,7 @@ export interface QueryPersistence<A> {
 
 export function persistQuery<A, I>(schema: Schema.Codec<A, I>) {
   const codec = Schema.fromJsonString(Schema.toCodecJson(schema));
-  return {
+  const persistence: QueryPersistence<A> = {
     load: Effect.fn("queryPersistence.load")(function* (environmentId, key) {
       const store = yield* EnvironmentQueryStore;
       if (store === null) return Option.none<A>();
@@ -46,4 +46,5 @@ export function persistQuery<A, I>(schema: Schema.Codec<A, I>) {
       Effect.catch(() => Effect.logWarning("Offline query cache save failed")),
     ),
   };
+  return persistence;
 }

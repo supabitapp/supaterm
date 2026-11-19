@@ -1894,8 +1894,11 @@ export const make = Effect.gen(function* () {
       const seenAt = new Set(input.cursor?.seenAt ?? []);
       const isSeen = (item: GitHubPullRequestListItem) =>
         item.updatedAt === input.cursor?.updatedBefore && seenAt.has(item.number);
-      const read = (
+      const read: (
         continues: boolean,
+        requestedRows?: number,
+      ) => Effect.Effect<GitHubPullRequestListBatch, GitHubPullRequestApiError> = (
+        continues,
         requestedRows = input.limit + 1 + (continues ? seenAt.size : 0),
       ) =>
         collect(requestedRows, (after, rows) =>
@@ -1949,10 +1952,7 @@ export const make = Effect.gen(function* () {
               continues,
             });
           }),
-        ) satisfies Effect.Effect<
-          GitHubPullRequestListBatch,
-          GitHubPullRequestApiError
-        > as Effect.Effect<GitHubPullRequestListBatch, GitHubPullRequestApiError>;
+        );
       const listingServes = input.cursor === undefined && (input.query?.trim().length ?? 0) === 0;
       const listed = read(true).pipe(
         Effect.matchEffect({
@@ -2312,10 +2312,13 @@ export const make = Effect.gen(function* () {
       }
       const readableFirstPage = () =>
         filesPage(1).pipe(
-          Effect.map((slice) => ({
-            ...slice,
-            withheldFilesReadable: true,
-          })),
+          Effect.map(
+            (slice) =>
+              ({
+                ...slice,
+                withheldFilesReadable: true,
+              }) satisfies GitHubPullRequestDiffSlice as GitHubPullRequestDiffSlice,
+          ),
         );
       if (input.commit !== undefined) {
         return readableFirstPage();
