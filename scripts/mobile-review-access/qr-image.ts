@@ -6,7 +6,7 @@ import { QrCode } from "@supaterm/shared/qrCode";
 const MODULE_PIXELS = 16;
 const QUIET_ZONE_MODULES = 4;
 
-export function reviewQrPng(value: string) {
+function reviewQrPng(value: string) {
   const qr = QrCode.encodeText(value, QrCode.Ecc.MEDIUM);
   const modules = qr.size + QUIET_ZONE_MODULES * 2;
   const size = modules * MODULE_PIXELS;

@@ -25,6 +25,8 @@ interface ReviewAccessConfig {
   reviewCodeSha256?: string | undefined;
 }
 
+const SHA256_HEX = /^[a-f0-9]{64}$/;
+
 const sha256 = (value: string) => NodeCrypto.createHash("sha256").update(value).digest();
 
 function matchesDigest(value: string, digest: Buffer) {
@@ -95,10 +97,10 @@ function qrImage(value: string) {
 
 export async function createReviewAccessServer(config: ReviewAccessConfig) {
   const origin = new URL(config.publicUrl).origin;
-  if (!/^[a-f0-9]{64}$/.test(config.invitationSha256) || !config.adminToken.trim()) {
+  if (!SHA256_HEX.test(config.invitationSha256) || !config.adminToken.trim()) {
     throw new Error("Review access requires an invitation digest and an administrative token.");
   }
-  if (config.reviewCodeSha256 !== undefined && !/^[a-f0-9]{64}$/.test(config.reviewCodeSha256)) {
+  if (config.reviewCodeSha256 !== undefined && !SHA256_HEX.test(config.reviewCodeSha256)) {
     throw new Error("The review code digest must be a SHA-256 hex digest.");
   }
   const digest = Buffer.from(config.invitationSha256, "hex");
