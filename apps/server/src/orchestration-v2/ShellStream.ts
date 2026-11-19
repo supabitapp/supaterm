@@ -163,7 +163,7 @@ function buildActiveShellSnapshot(input: {
 type ShellTrimRow = Pick<
   OrchestrationV2ThreadShell,
   "id" | "projectId" | "lineage" | "doneOverride" | "doneAt"
->;
+> & { readonly hasRemoteTasks?: boolean };
 
 /**
  * What a subscriber's trims read across every active row. Computed from full shells or from the
@@ -172,6 +172,8 @@ type ShellTrimRow = Pick<
 interface ShellTrimFacts {
   readonly subagentParentIds: ReadonlySet<string>;
   readonly subagentThreadIds: Set<string>;
+  /** Only the store's index knows these; shells alone leave it empty. */
+  readonly remoteTaskParentIds: ReadonlySet<string>;
   /** Undefined when no thread is done, so none is older. */
   readonly olderDoneBeforeMs: number | undefined;
   readonly olderDoneCounts: ReadonlyArray<OrchestrationV2OlderDoneCount>;
@@ -182,8 +184,10 @@ const NEWEST_DONE_KEPT = 25;
 function shellTrimFacts(rows: ReadonlyArray<ShellTrimRow>): ShellTrimFacts {
   const subagentParentIds = new Set<string>();
   const subagentThreadIds = new Set<string>();
+  const remoteTaskParentIds = new Set<string>();
   const doneTimes: Array<number> = [];
   for (const row of rows) {
+    if (row.hasRemoteTasks === true) remoteTaskParentIds.add(row.id);
     if (row.lineage.relationshipToParent === "subagent") {
       subagentThreadIds.add(row.id);
       if (row.lineage.parentThreadId) subagentParentIds.add(row.lineage.parentThreadId);
@@ -209,6 +213,7 @@ function shellTrimFacts(rows: ReadonlyArray<ShellTrimRow>): ShellTrimFacts {
   return {
     subagentParentIds,
     subagentThreadIds,
+    remoteTaskParentIds,
     olderDoneBeforeMs,
     olderDoneCounts: Array.from(counts, ([projectId, count]) => ({ projectId, count })),
   };
@@ -228,13 +233,14 @@ function hiddenChildAncestorIds(
 
 function omitIdleSubagentShellsWith(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
-  facts: Pick<ShellTrimFacts, "subagentParentIds">,
+  facts: Pick<ShellTrimFacts, "subagentParentIds" | "remoteTaskParentIds">,
 ): ReadonlyArray<OrchestrationV2ThreadShell> {
   return threads.filter(
     (thread) =>
       thread.lineage.relationshipToParent !== "subagent" ||
       isLiveSubagentShell(thread) ||
-      facts.subagentParentIds.has(thread.id),
+      facts.subagentParentIds.has(thread.id) ||
+      facts.remoteTaskParentIds.has(thread.id),
   );
 }
 
@@ -244,7 +250,7 @@ function omitOlderDoneShellsWith(
     readonly snapshotSequence: number;
     readonly now: DateTime.Utc;
   },
-  facts: Pick<ShellTrimFacts, "olderDoneBeforeMs" | "olderDoneCounts">,
+  facts: Pick<ShellTrimFacts, "olderDoneBeforeMs" | "olderDoneCounts" | "remoteTaskParentIds">,
 ): {
   readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
   readonly olderDone: OrchestrationV2OlderDoneThreads;
@@ -258,7 +264,8 @@ function omitOlderDoneShellsWith(
       thread.pinnedAt != null ||
       (thread.snoozedUntil != null && DateTime.toEpochMillis(thread.snoozedUntil) > nowMs) ||
       isLiveSubagentShell(thread) ||
-      ancestorIds.has(thread.id),
+      ancestorIds.has(thread.id) ||
+      facts.remoteTaskParentIds.has(thread.id),
   );
   return {
     threads,
@@ -349,7 +356,10 @@ function shellSubscriberThreadIds(
   const subagents = index.filter(
     (entry) =>
       entry.lineage.relationshipToParent === "subagent" &&
-      (!options.omitIdleSubagents || entry.mayBeLive || facts.subagentParentIds.has(entry.id)),
+      (!options.omitIdleSubagents ||
+        entry.mayBeLive ||
+        entry.hasRemoteTasks ||
+        facts.subagentParentIds.has(entry.id)),
   );
   const ancestorIds = hiddenChildAncestorIds([
     ...subagents,
@@ -368,6 +378,7 @@ function shellSubscriberThreadIds(
           entry.pinnedAt != null ||
           entry.snoozedUntil != null ||
           entry.mayBeLive ||
+          entry.hasRemoteTasks ||
           ancestorIds.has(entry.id)
         ? [entry.id]
         : [],

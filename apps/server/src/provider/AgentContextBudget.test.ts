@@ -45,6 +45,7 @@ import { DocumentText } from "./DocumentText.ts";
 import { ProviderRegistry } from "./ProviderRegistry.ts";
 import budget from "./agentContextBudget.json" with { type: "json" };
 import { SecretRequests } from "../secrets/SecretRequests.ts";
+import { RemoteDelegation } from "../peer/RemoteDelegation.ts";
 
 // Registration only stores tool definitions, so the handlers' services are never called.
 const toolHandlerServices = Layer.mergeAll(
@@ -70,6 +71,7 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(RepositoryIdentityResolver)({}),
   Layer.mock(ScheduledTaskService)({}),
   Layer.mock(SecretRequests)({}),
+  Layer.mock(RemoteDelegation)({}),
   ServerConfig.layerTest(process.cwd(), { prefix: "supaterm-agent-context-budget-" }),
   Layer.mock(ServerEnvironment)({}),
   Layer.mock(ServerSecretStore)({}),

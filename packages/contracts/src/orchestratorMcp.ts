@@ -33,6 +33,7 @@ import { LastThreadTitleRegeneration, ThreadTitleRegeneration } from "./threadTi
 import {
   OrchestrationV2Actor,
   OrchestrationV2CreationSource,
+  OrchestrationV2DelegatedFrom,
   OrchestrationV2RunStatus,
   OrchestrationV2SecretRequestField,
   OrchestrationV2TurnItemStatus,
@@ -111,6 +112,18 @@ export const OrchestratorMcpTarget = Schema.Struct({
     OrchestratorMcpTargetOptions.annotate({
       description:
         "Options from `orchestrator_capabilities`, such as {effort:'max'}. Given values override inherited. [] or {} clears.",
+    }),
+  ),
+  environmentId: Schema.optional(
+    EnvironmentId.annotate({
+      description:
+        "Linked environment to run in. Provider and model default to yours; others come from `orchestrator_capabilities` with this `environmentId`.",
+    }),
+  ),
+  projectId: Schema.optional(
+    ProjectId.annotate({
+      description:
+        "With `environmentId`: its project to run in. Default: the one with this project's repository.",
     }),
   ),
 });
@@ -200,7 +213,12 @@ const OrchestratorMcpExecutedModel = Schema.NullOr(Schema.String).annotate({
 
 export const OrchestratorMcpDelegateTaskResult = Schema.Struct({
   taskId: NodeId,
-  childThreadId: ThreadId,
+  /** Null for a task that runs in a linked environment; see `remoteChild`. */
+  childThreadId: Schema.NullOr(ThreadId),
+  /** The linked environment and thread a remote task runs as. */
+  remoteChild: Schema.optional(
+    Schema.Struct({ environmentId: EnvironmentId, threadId: ThreadId, label: Schema.String }),
+  ),
   link: Schema.optional(Schema.String),
   childRunId: Schema.NullOr(RunId),
   childNodeId: NodeId,
@@ -404,6 +422,8 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
   pendingBackgroundTasks: Schema.optional(Schema.Array(OrchestratorMcpThreadBackgroundTask)),
   parentThreadId: Schema.NullOr(ThreadId),
   relationshipToParent: Schema.NullOr(Schema.Literals(["fork", "subagent"])),
+  /** The linked environment's thread that delegated this one; absent otherwise. */
+  delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
   itemCount: NonNegativeInt,
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
@@ -461,6 +481,8 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   worktreePath: Schema.NullOr(Schema.String),
   parentThreadId: Schema.NullOr(ThreadId),
   relationshipToParent: Schema.NullOr(Schema.Literals(["fork", "subagent"])),
+  /** The linked environment's thread that delegated this one; absent otherwise. */
+  delegatedFrom: Schema.optional(OrchestrationV2DelegatedFrom),
   runCount: NonNegativeInt,
   itemCount: NonNegativeInt,
   pendingRequestCount: NonNegativeInt,

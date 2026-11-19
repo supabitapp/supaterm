@@ -12,6 +12,7 @@ import type {
 import {
   type ChatAttachment,
   CommandId,
+  isDelegatedAppThread,
   isListedThreadLineage,
   MessageId,
   OrchestrationV2StopWorkflowError,
@@ -477,6 +478,7 @@ export interface ThreadManagementServiceShape {
     ThreadManagementBackgroundWaitError
   >;
   readonly stopDelegatedTasks: (input: {
+    readonly remoteDispatch?: Orchestrator.OrchestratorV2["Service"]["dispatch"];
     readonly threadId: ThreadId;
     readonly commandId: CommandId;
     readonly reason?: string | undefined;
@@ -731,7 +733,7 @@ const make = Effect.gen(function* () {
           .filter((thread) =>
             input.includeSubagents
               ? thread.lineage.sideChat !== true
-              : isListedThreadLineage(thread.lineage),
+              : isListedThreadLineage(thread.lineage) && !isDelegatedAppThread(thread),
           )
           .toSorted(
             (left, right) =>
@@ -1493,7 +1495,42 @@ const make = Effect.gen(function* () {
     > = [];
     const stoppedChildThreadIds = new Set<ThreadId>();
     for (const task of subagents) {
-      if (task.origin !== "app_owned" || task.childThreadId === null) continue;
+      if (task.origin !== "app_owned") continue;
+      if (task.childThreadId === null) {
+        // A task in a linked environment ends here; its follower then stops it there.
+        // One with its result keeps it, but its thread there may run follow-up work.
+        if (task.remoteChild === undefined) continue;
+        const commandId = CommandId.make(`${input.commandId}:stop:${task.id}`);
+        yield* (input.remoteDispatch ?? dispatch)(
+          task.result === null
+            ? {
+                type: "delegated_task.remote.complete",
+                commandId,
+                parentThreadId: input.threadId,
+                taskId: task.id,
+                status: "interrupted",
+                result:
+                  input.reason === undefined
+                    ? "Stopped with its parent."
+                    : `Stopped with its parent: ${input.reason}`,
+              }
+            : {
+                type: "delegated_task.remote.stop",
+                commandId,
+                parentThreadId: input.threadId,
+                taskId: task.id,
+              },
+        ).pipe(
+          Effect.catch((error) =>
+            Effect.logWarning("Unable to stop a delegated task", {
+              parentThreadId: input.threadId,
+              taskId: task.id,
+              error,
+            }).pipe(Effect.andThen(Effect.sync(() => failures.push(error)))),
+          ),
+        );
+        continue;
+      }
       const threadId = task.childThreadId;
       // Follow-up tasks reuse a child thread; walk its subtree only once.
       if (stoppedChildThreadIds.has(threadId)) continue;

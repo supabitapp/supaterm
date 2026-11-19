@@ -327,11 +327,10 @@ export const layer = McpToolAccess.toLayer(ProjectToolkit, {
   supaterm_project_list: McpToolAccess.reads((input) =>
     Effect.gen(function* () {
       const projects = yield* access;
-      const snapshot = yield* projects.snapshot.pipe(Effect.mapError(unavailable));
-      const rows = snapshot.projects.filter((project) => project.deletedAt === null);
-      const start = input.cursor ?? 0,
-        end = start + (input.limit ?? 20);
-      return { projects: rows.slice(start, end), nextCursor: end < rows.length ? end : null };
+      // Identities are resolved: linked environments find this side's project by repository.
+      return yield* projects
+        .listPage({ cursor: input.cursor ?? 0, limit: input.limit ?? 20 })
+        .pipe(Effect.mapError(unavailable));
     }),
   ),
   supaterm_project_read: McpToolAccess.reads((input) =>

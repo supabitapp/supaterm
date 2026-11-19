@@ -47,6 +47,7 @@ import type {
   RunAttemptId,
 } from "@supaterm/contracts";
 import {
+  EnvironmentId,
   isQueuedProviderThreadPlaceholder,
   OrchestrationV2AppThreadJson as OrchestrationV2AppThreadJsonSchema,
   OrchestrationV2CheckpointJson as OrchestrationV2CheckpointJsonSchema,
@@ -483,6 +484,8 @@ export interface ActiveShellIndexEntry extends Pick<
 > {
   /** False only when no run, request, work item, or watch can make the shell live. */
   readonly mayBeLive: boolean;
+  /** Whether it delegated a task to a linked environment, whose clients nest that task under it. */
+  readonly hasRemoteTasks: boolean;
 }
 
 /** What thread listings filter and order an active thread by, without building its shell. */
@@ -492,6 +495,7 @@ export type ActiveThreadListEntry = Pick<
   | "projectId"
   | "title"
   | "lineage"
+  | "delegatedFrom"
   | "doneOverride"
   | "doneAt"
   | "snoozedUntil"
@@ -647,6 +651,15 @@ export interface ProjectionStoreV2Shape {
     readonly includeArchived?: boolean;
   }) => Effect.Effect<
     ReadonlyArray<{ readonly threadId: ThreadId; readonly worktreePath: string }>,
+    ProjectionStoreV2Error
+  >;
+  /**
+   * Delegated tasks in a linked environment with work left for this one: no
+   * result yet, or cancelled or stopped here without that stop reaching there,
+   * including a Stop after the task had its result.
+   */
+  readonly getOpenRemoteDelegatedTasks: Effect.Effect<
+    ReadonlyArray<{ readonly parentThreadId: ThreadId; readonly taskId: NodeId }>,
     ProjectionStoreV2Error
   >;
   readonly getTurnStartContext: (
@@ -2222,6 +2235,10 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
     // nodes through one of them and fetches every node of the thread to check its status. The
     // query must filter on the same status list as the index of migration 001.
     const LIVE_NODES_INDEX = sql.literal("INDEXED BY orchestration_v2_projection_nodes_live_idx");
+    // Its predicate is the one every remote task read here repeats, so each uses the index.
+    const REMOTE_TASKS_INDEX = sql.literal(
+      "INDEXED BY orchestration_v2_projection_subagents_remote_idx",
+    );
 
     // An ended task whose completion was acknowledged, delivered or disposed, outside an active run.
     const settledSubagent = (row: Statement.Fragment) => sql`(
@@ -8456,6 +8473,33 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         )
         .pipe(Effect.mapError((cause) => new ProjectionStoreSetupError({ cause })));
 
+    const getOpenRemoteDelegatedTasks: ProjectionStoreV2Shape["getOpenRemoteDelegatedTasks"] = sql<{
+      readonly thread_id: string;
+      readonly subagent_id: string;
+    }>`
+      SELECT thread_id, subagent_id
+      FROM orchestration_v2_projection_subagents ${REMOTE_TASKS_INDEX}
+      WHERE origin = 'app_owned'
+        AND child_thread_id IS NULL
+        AND json_type(payload_json, '$.remoteChild') = 'object'
+        AND (
+          json_type(payload_json, '$.result') = 'null'
+          OR (
+            json_extract(payload_json, '$.status') IN ('cancelled', 'interrupted')
+            AND json_type(payload_json, '$.remoteChild.stoppedThere') IS NOT 'true'
+          )
+          OR json_type(payload_json, '$.remoteChild.stoppedThere') = 'false'
+        )
+    `.pipe(
+      Effect.map((rows) =>
+        rows.map((row) => ({
+          parentThreadId: ThreadId.make(row.thread_id),
+          taskId: NodeId.make(row.subagent_id),
+        })),
+      ),
+      Effect.mapError((cause) => new ProjectionStoreSetupError({ cause })),
+    );
+
     const getThreadsWithPullRequests: ProjectionStoreV2Shape["getThreadsWithPullRequests"] =
       Effect.fn("ProjectionStore.getThreadsWithPullRequests")(
         function* (threadId) {
@@ -8884,6 +8928,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         readonly pin_order_key: string | null;
         readonly snoozed_until: string | null;
         readonly may_be_live: number;
+        readonly has_remote_tasks: number;
       }>`
         SELECT
           t.thread_id,
@@ -8925,7 +8970,16 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               SELECT 1 FROM json_each(t.payload_json, '$.pullRequests') link
               WHERE json_type(link.value, '$.watch') IS NOT NULL
             )
-          ) AS may_be_live
+          ) AS may_be_live,
+          -- One list for the whole read, found through the remote task index. A lookup per
+          -- thread would parse the payload of every subagent row.
+          t.thread_id IN (
+            SELECT subagent.thread_id
+            FROM orchestration_v2_projection_subagents subagent ${REMOTE_TASKS_INDEX}
+            WHERE subagent.origin = 'app_owned'
+              AND subagent.child_thread_id IS NULL
+              AND json_type(subagent.payload_json, '$.remoteChild') = 'object'
+          ) AS has_remote_tasks
         FROM orchestration_v2_projection_threads t
         WHERE t.deleted_at IS NULL
           AND t.archived_at IS NULL
@@ -8942,6 +8996,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         pinOrderKey: row.pin_order_key,
         snoozedUntil: row.snoozed_until === null ? null : DateTime.makeUnsafe(row.snoozed_until),
         mayBeLive: row.may_be_live === 1,
+        hasRemoteTasks: row.has_remote_tasks === 1,
       }));
     }, Effect.mapError(shellSnapshotReadError));
 
@@ -8957,6 +9012,9 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         readonly parent_thread_id: string | null;
         readonly root_thread_id: string;
         readonly side_chat: number | null;
+        readonly delegated_from_environment_id: string | null;
+        readonly delegated_from_thread_id: string | null;
+        readonly delegated_from_title: string | null;
         readonly done_override: string | null;
         readonly done_at: string | null;
         readonly snoozed_until: string | null;
@@ -8970,6 +9028,9 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           json_extract(t.payload_json, '$.lineage.parentThreadId') AS parent_thread_id,
           json_extract(t.payload_json, '$.lineage.rootThreadId') AS root_thread_id,
           json_extract(t.payload_json, '$.lineage.sideChat') AS side_chat,
+          json_extract(t.payload_json, '$.delegatedFrom.environmentId') AS delegated_from_environment_id,
+          json_extract(t.payload_json, '$.delegatedFrom.threadId') AS delegated_from_thread_id,
+          json_extract(t.payload_json, '$.delegatedFrom.title') AS delegated_from_title,
           json_extract(t.payload_json, '$.doneOverride') AS done_override,
           json_extract(t.payload_json, '$.doneAt') AS done_at,
           json_extract(t.payload_json, '$.snoozedUntil') AS snoozed_until
@@ -8982,6 +9043,15 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
         projectId: ProjectId.make(row.project_id),
         title: row.title,
         lineage: shellIndexLineage(row),
+        ...(row.delegated_from_environment_id === null || row.delegated_from_thread_id === null
+          ? {}
+          : {
+              delegatedFrom: {
+                environmentId: EnvironmentId.make(row.delegated_from_environment_id),
+                threadId: ThreadId.make(row.delegated_from_thread_id),
+                title: row.delegated_from_title ?? "",
+              },
+            }),
         doneOverride:
           row.done_override === "done" || row.done_override === "active" ? row.done_override : null,
         doneAt: row.done_at === null ? null : DateTime.makeUnsafe(row.done_at),
@@ -9179,6 +9249,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       findThread: readOnReader(findThread),
       getAutoMarkDoneCandidates: readOnReader(getAutoMarkDoneCandidates),
       getThreadsWithPullRequests: readOnReader(getThreadsWithPullRequests),
+      getOpenRemoteDelegatedTasks: getOpenRemoteDelegatedTasks.pipe(NodeSqliteClient.readOnly),
       getThreadTitles: readOnReader(getThreadTitles),
       getThreadLinkMetadata: readOnReader(getThreadLinkMetadata),
       getThreadWorktreePaths: readOnReader(getThreadWorktreePaths),

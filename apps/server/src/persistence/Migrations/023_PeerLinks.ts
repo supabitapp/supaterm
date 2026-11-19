@@ -22,4 +22,13 @@ export default Effect.gen(function* () {
       relay_url TEXT
     )
   `;
+
+  // Keep this predicate aligned with ProjectionStore's remote task reads.
+  yield* sql`
+    CREATE INDEX IF NOT EXISTS orchestration_v2_projection_subagents_remote_idx
+    ON orchestration_v2_projection_subagents(thread_id, subagent_id)
+    WHERE origin = 'app_owned'
+      AND child_thread_id IS NULL
+      AND json_type(payload_json, '$.remoteChild') = 'object'
+  `;
 });
