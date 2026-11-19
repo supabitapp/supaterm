@@ -24,7 +24,7 @@ export function runtimeModeRank(mode: RuntimeMode): number {
 }
 
 /** How much an interaction mode allows: plan, then default. */
-export function interactionModeRank(mode: ProviderInteractionMode): number {
+function interactionModeRank(mode: ProviderInteractionMode): number {
   return mode === "plan" ? 0 : 1;
 }
 

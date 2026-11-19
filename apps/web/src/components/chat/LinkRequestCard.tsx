@@ -1,4 +1,3 @@
-import { pipe } from "effect/Function";
 import { useAtomValue } from "@effect/atom-react";
 import {
   ANOTHER_ADDRESS,
@@ -110,11 +109,7 @@ function PendingLinkRequest(props: {
       setDeclining(false),
     );
     if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      pipe(
-        squashAtomCommandFailure(result),
-        (failure) => linkRequestFailureMessage(failure),
-        setError,
-      );
+      setError(linkRequestFailureMessage(squashAtomCommandFailure(result)));
     }
   };
 
@@ -124,11 +119,7 @@ function PendingLinkRequest(props: {
       className="flex min-w-0 flex-col gap-3 rounded-xl border border-border/60 bg-card p-4"
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <p className="text-sm font-medium text-foreground">
-          {item.url === undefined
-            ? "Link a machine to this environment"
-            : `Link ${target} to this environment`}
-        </p>
+        <p className="text-sm font-medium text-foreground">Link {target} to this environment</p>
         {item.reason.trim() ? <p className="text-sm text-muted-foreground">{item.reason}</p> : null}
       </div>
       {error !== null ? (
@@ -201,13 +192,6 @@ function LinkRequestDialog(props: {
   const selected = choice ?? linkRequestInitialMachine(item, machines);
   const target = linkRequestTarget(item, machines, selected);
   const targetName = target.kind === "machine" ? target.label : linkRequestTargetName(item);
-  // Without a catalog entry or an address, the name is the generic "a machine".
-  const unnamed =
-    item.url === undefined &&
-    !(
-      target.kind === "machine" &&
-      machines.some((machine) => machine.environmentId === target.environmentId)
-    );
   const targetId = target.kind === "machine" ? target.environmentId : null;
   const connected = usePreparedConnection(targetId);
   const mayMint = useEnvironmentScope(targetId, AuthAccessWriteScope);
@@ -290,11 +274,7 @@ function LinkRequestDialog(props: {
       // The card switches to its answered row once the item updates.
       close();
     } else if (!isAtomCommandInterrupted(result)) {
-      pipe(
-        squashAtomCommandFailure(result),
-        (failure) => linkRequestFailureMessage(failure),
-        setError,
-      );
+      setError(linkRequestFailureMessage(squashAtomCommandFailure(result)));
     }
   };
 
@@ -313,10 +293,8 @@ function LinkRequestDialog(props: {
     >
       <WizardPopup>
         <WizardHeader
-          title={pickMachine || unnamed ? "Link a machine" : `Link ${targetName}`}
-          description={
-            "Agents here can then launch, message and wait on threads there. Revoke it in that machine's Sharing & access."
-          }
+          title={pickMachine ? "Link a machine" : `Link ${targetName}`}
+          description="Agents here can then launch, message and wait on threads there. Revoke it in that machine's Sharing & access."
         >
           {steps.length > 1 && !useExisting ? (
             <WizardSteps
@@ -369,17 +347,8 @@ function LinkRequestDialog(props: {
                     />
                     {target.kind === "machine" ? (
                       <span className="block text-xs text-muted-foreground">
-                        {unnamed ? (
-                          <>
-                            This app has no address for a machine that another machine can reach.
-                            Enter its https or Tailscale address.
-                          </>
-                        ) : (
-                          <>
-                            This app has no address for {target.label} that another machine can
-                            reach. Enter its https or Tailscale address.
-                          </>
-                        )}
+                        This app has no address for {target.label} that another machine can reach.
+                        Enter its https or Tailscale address.
                       </span>
                     ) : null}
                   </label>
@@ -401,24 +370,15 @@ function LinkRequestDialog(props: {
                         <Input
                           value={pairingCode}
                           onChange={(event) => setPairingCode(event.target.value)}
-                          placeholder={"Paste the code"}
+                          placeholder="Paste the code"
                           disabled={busy}
                           autoComplete="one-time-code"
                           nativeInput
                           spellCheck={false}
                         />
                         <span className="block text-xs text-muted-foreground">
-                          {unnamed ? (
-                            <>
-                              Create a link on a machine: Settings → Sharing & access → Authorized
-                              clients → Create link, then paste its code here.
-                            </>
-                          ) : (
-                            <>
-                              Create a link on {targetName}: Settings → Sharing & access →
-                              Authorized clients → Create link, then paste its code here.
-                            </>
-                          )}
+                          Create a link on {targetName}: Settings → Sharing & access → Authorized
+                          clients → Create link, then paste its code here.
                         </span>
                       </label>
                     )}
@@ -482,7 +442,7 @@ function MachinePicker(props: {
   return (
     <div className="space-y-2">
       <span id={labelId} className="block text-xs font-medium">
-        {"Machine"}
+        Machine
       </span>
       <RadioGroup
         aria-labelledby={labelId}

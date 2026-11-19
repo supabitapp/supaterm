@@ -2262,10 +2262,18 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
     // nodes through one of them and fetches every node of the thread to check its status. The
     // query must filter on the same status list as the index of migration 001.
     const LIVE_NODES_INDEX = sql.literal("INDEXED BY orchestration_v2_projection_nodes_live_idx");
-    // Its predicate is the one every remote task read here repeats, so each uses the index.
     const REMOTE_TASKS_INDEX = sql.literal(
       "INDEXED BY orchestration_v2_projection_subagents_remote_idx",
     );
+    // The predicate of that index in migration 023; every remote task read filters on it.
+    const remoteTask = (row: Statement.Fragment) => sql`(
+      ${row}.origin = 'app_owned'
+      AND ${row}.child_thread_id IS NULL
+      AND (
+        json_type(${row}.payload_json, '$.remoteChild') = 'object'
+        OR json_type(${row}.payload_json, '$.remoteLaunch') = 'object'
+      )
+    )`;
 
     // An ended task whose completion was acknowledged, delivered or disposed, outside an active run.
     const settledSubagent = (row: Statement.Fragment) => sql`(
@@ -8529,13 +8537,8 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       readonly subagent_id: string;
     }>`
       SELECT thread_id, subagent_id
-      FROM orchestration_v2_projection_subagents ${REMOTE_TASKS_INDEX}
-      WHERE origin = 'app_owned'
-        AND child_thread_id IS NULL
-        AND (
-          json_type(payload_json, '$.remoteChild') = 'object'
-          OR json_type(payload_json, '$.remoteLaunch') = 'object'
-        )
+      FROM orchestration_v2_projection_subagents subagent ${REMOTE_TASKS_INDEX}
+      WHERE ${remoteTask(sql`subagent`)}
         AND CASE WHEN json_type(payload_json, '$.remoteChild') = 'object'
           THEN (
             json_type(payload_json, '$.result') = 'null'
@@ -8562,14 +8565,9 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
     const getRemoteDelegatedTasks: ProjectionStoreV2Shape["getRemoteDelegatedTasks"] = (threadId) =>
       sql<PayloadRow>`
         SELECT payload_json
-        FROM orchestration_v2_projection_subagents ${REMOTE_TASKS_INDEX}
+        FROM orchestration_v2_projection_subagents subagent ${REMOTE_TASKS_INDEX}
         WHERE thread_id = ${threadId}
-          AND origin = 'app_owned'
-          AND child_thread_id IS NULL
-          AND (
-            json_type(payload_json, '$.remoteChild') = 'object'
-            OR json_type(payload_json, '$.remoteLaunch') = 'object'
-          )
+          AND ${remoteTask(sql`subagent`)}
         ORDER BY rowid ASC
       `.pipe(
         Effect.flatMap(decodeRows(decodeSubagentPayload, threadId)),
@@ -9079,12 +9077,7 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
           t.thread_id IN (
             SELECT subagent.thread_id
             FROM orchestration_v2_projection_subagents subagent ${REMOTE_TASKS_INDEX}
-            WHERE subagent.origin = 'app_owned'
-              AND subagent.child_thread_id IS NULL
-              AND (
-                json_type(subagent.payload_json, '$.remoteChild') = 'object'
-                OR json_type(subagent.payload_json, '$.remoteLaunch') = 'object'
-              )
+            WHERE ${remoteTask(sql`subagent`)}
           ) AS has_remote_tasks
         FROM orchestration_v2_projection_threads t
         WHERE t.deleted_at IS NULL

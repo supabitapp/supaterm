@@ -3,6 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { offersLinkedEnvironments } from "@supaterm/client-runtime/link-request";
 import { peerLinkHealth, type PeerLinkHealth } from "@supaterm/client-runtime/state/peerLinks";
 import {
+  type AtomCommandResult,
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@supaterm/client-runtime/state/runtime";
@@ -31,9 +32,10 @@ import { SettingsSection } from "../settings/components/SettingsSection";
 import { SettingsSwitchRow } from "../settings/components/SettingsSwitchRow";
 import { linkAccessLabel } from "../threads/thread-settings-options";
 
-const failureText = (result: Parameters<typeof squashAtomCommandFailure>[0]) => {
+const alertFailure = (title: string, result: AtomCommandResult<unknown, unknown>) => {
+  if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return;
   const failure = squashAtomCommandFailure(result);
-  return failure instanceof Error ? failure.message : String(failure);
+  Dialog.alert(title, failure instanceof Error ? failure.message : String(failure));
 };
 
 export function LinkedEnvironmentsSections() {
@@ -69,9 +71,7 @@ export function LinkedEnvironmentsSection(props: {
       environmentId,
       input: { patch: { linkedEnvironmentsEnabled: value } },
     });
-    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      Dialog.alert("Could not save settings", failureText(result));
-    }
+    alertFailure("Could not save settings", result);
   };
   return (
     <View className="mt-5 gap-3">
@@ -170,9 +170,7 @@ function LinkedEnvironmentRow(props: {
     setBusy(true);
     const result = await unlink({ environmentId, input: { environmentId: link.environmentId } });
     setBusy(false);
-    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      Dialog.alert("Could not forget the link", failureText(result));
-    }
+    alertFailure("Could not forget the link", result);
   };
   return (
     <View className="flex-row items-center gap-3 border-t border-border-subtle p-4">

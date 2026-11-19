@@ -47,7 +47,6 @@ export function useLinkedEnvironments(
   });
 }
 
-/** The connected environments that can link, this app's own first, each with whether Linked environments is on there. */
 export function usePeerLinkHosts() {
   const { environments } = useEnvironments();
   const primaryEnvironmentId = usePrimaryEnvironmentId();

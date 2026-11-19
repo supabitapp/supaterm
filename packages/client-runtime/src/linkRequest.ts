@@ -286,13 +286,11 @@ export function linkRequestDisplay(
       const target =
         item.linkedLabel ?? (item.url === undefined ? undefined : linkDestination(item.url));
       const access = item.linkedAccess === undefined ? undefined : accessLabel(item.linkedAccess);
+      const linked = `Linked ${target ?? "a machine"}`;
       return {
         kind: "answered",
         outcome: "linked",
-        label:
-          access === undefined
-            ? `Linked ${target ?? "a machine"}`
-            : `Linked ${target ?? "a machine"} · ${access}`,
+        label: access === undefined ? linked : `${linked} · ${access}`,
       };
     }
     case "declined":
@@ -301,10 +299,7 @@ export function linkRequestDisplay(
       return {
         kind: "answered",
         outcome: "failed",
-        label:
-          item.failure === undefined
-            ? "Could not link: the other environment refused"
-            : `Could not link: ${item.failure}`,
+        label: `Could not link: ${item.failure ?? "the other environment refused"}`,
       };
     case "cancelled":
       return { kind: "answered", outcome: "ended", label: "Request ended" };

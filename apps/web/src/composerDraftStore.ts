@@ -103,7 +103,6 @@ const isProviderDriverKind = Schema.is(ProviderDriverKind);
 const isReviewCommentContext = Schema.is(ReviewCommentContextSchema);
 const ReferenceContextRecordSchema = Schema.Union([
   ThreadContextRecord,
-  EnvironmentContextRecord,
   ModelContextRecord,
   EnvironmentContextRecord,
 ]);

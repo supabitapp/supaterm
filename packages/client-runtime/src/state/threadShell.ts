@@ -142,7 +142,7 @@ function sideChatRequest(thread: OrchestrationV2ThreadShell): PendingSubagentReq
  * environment's threads delegated to linked environments, with what each one, or its
  * own subagents, asks.
  */
-function rolledUpRequestsByThread(
+function pendingSubagentRequestsByThread(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
   delegated: ReadonlyArray<{
     readonly parentThreadId: ThreadId;
@@ -310,7 +310,7 @@ export function createEnvironmentThreadShellAtoms(input: {
   const localSubagentRequestsAtom = Atom.family((environmentId: EnvironmentId) => {
     let previous: ReadonlyMap<ThreadId, RolledUpRequest> = EMPTY_SUBAGENT_REQUESTS;
     return Atom.make((get) => {
-      const next = rolledUpRequestsByThread(get(environmentThreadsAtom(environmentId)));
+      const next = pendingSubagentRequestsByThread(get(environmentThreadsAtom(environmentId)));
       if (sameRequests(previous, next)) return previous;
       previous = next;
       return next;
@@ -353,7 +353,7 @@ export function createEnvironmentThreadShellAtoms(input: {
           return request === null ? [] : [{ parentThreadId, request }];
         });
         if (delegated.length === 0) continue;
-        const requests = rolledUpRequestsByThread(
+        const requests = pendingSubagentRequestsByThread(
           get(environmentThreadsAtom(environmentId)),
           delegated,
         );

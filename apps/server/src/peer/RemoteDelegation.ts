@@ -305,7 +305,7 @@ const make = Effect.gen(function* () {
         delegatedFrom: { environmentId: hereId, threadId: parent.id, title: parent.title },
       },
     );
-    yield* threads
+    const attached = yield* threads
       .dispatch({
         type: "delegated_task.remote.attach",
         commandId: CommandId.make(`command:remote-task-attach:${task.id}`),
@@ -320,32 +320,22 @@ const make = Effect.gen(function* () {
         },
         modelSelection: launched.modelSelection,
       })
-      .pipe(
-        // A launch attached before is done; anything else leaves the task for its follower.
-        Effect.catch((cause) =>
-          readTask(parent.id, task.id).pipe(
-            Effect.orElseSucceed(() => ({ task: undefined })),
-            Effect.flatMap(({ task: current }) =>
-              current?.remoteChild?.threadId === launched.threadId
-                ? Effect.void
-                : Effect.logWarning("remote-delegation.attach-failed", {
-                    parentThreadId: parent.id,
-                    taskId: task.id,
-                    cause,
-                  }).pipe(
-                    Effect.andThen(
-                      Effect.fail(
-                        new OrchestratorMcpFailure({
-                          code: "orchestration_error",
-                          message: "Unable to record where the delegated task runs.",
-                        }),
-                      ),
-                    ),
-                  ),
-            ),
-          ),
-        ),
-      );
+      .pipe(Effect.result);
+    if (Result.isSuccess(attached)) return;
+    // A launch attached before is done; anything else leaves the task for its follower.
+    const { task: current } = yield* readTask(parent.id, task.id).pipe(
+      Effect.orElseSucceed(() => ({ task: undefined })),
+    );
+    if (current?.remoteChild?.threadId === launched.threadId) return;
+    yield* Effect.logWarning("remote-delegation.attach-failed", {
+      parentThreadId: parent.id,
+      taskId: task.id,
+      cause: attached.failure,
+    });
+    return yield* new OrchestratorMcpFailure({
+      code: "orchestration_error",
+      message: "Unable to record where the delegated task runs.",
+    });
   });
 
   /** Ends a task whose launch started nothing there, so nothing is followed or stopped for it. */
@@ -1193,14 +1183,7 @@ const make = Effect.gen(function* () {
         yield* followOne(task.threadId, task.id).pipe(Effect.forkIn(followers));
         return {
           taskId: task.id,
-          status:
-            task.result === null
-              ? "cancel_requested"
-              : task.status === "completed" ||
-                  task.status === "failed" ||
-                  task.status === "interrupted"
-                ? task.status
-                : "cancelled",
+          status: task.result === null ? "cancel_requested" : terminalStatus(task.status),
         } satisfies OrchestratorMcpTaskCancelResult;
       }
       const there = followScope(scope.thread, remote);
@@ -1288,14 +1271,7 @@ const make = Effect.gen(function* () {
         // thread there a stop starts it again. Started before the scan below;
         // a Stop that slips between the two stays owed for the next start.
         yield* Stream.runForEach(threads.streamDomainEvents, (event) =>
-          event.type === "subagent.updated" &&
-          (event.payload.remoteChild?.stoppedThere === false ||
-            event.payload.remoteChild?.doneOwed !== undefined ||
-            // Ended here before its launch was answered: the thread there is still to stop.
-            (event.payload.remoteChild === undefined &&
-              event.payload.remoteLaunch !== undefined &&
-              event.payload.remoteLaunch.abandoned !== true &&
-              event.payload.result !== null))
+          event.type === "subagent.updated" && owesThere(event.payload)
             ? followOne(event.threadId, event.payload.id).pipe(Effect.forkIn(followers))
             : Effect.void,
         ).pipe(
@@ -1324,6 +1300,15 @@ const failOnDefect = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
       Effect.andThen(Effect.fail(new Cause.UnknownError(defect, "A follower hit a defect."))),
     ),
   );
+
+/** A finished task that still owes its thread there a stop, a Done or a Reopen. */
+const owesThere = ({ remoteChild, remoteLaunch, result }: OrchestrationV2Subagent) => {
+  if (remoteChild !== undefined) {
+    return remoteChild.stoppedThere === false || remoteChild.doneOwed !== undefined;
+  }
+  // Ended here before its launch was answered: the thread there is still to stop.
+  return remoteLaunch !== undefined && remoteLaunch.abandoned !== true && result !== null;
+};
 
 const isTerminal = (status: string) =>
   status === "completed" ||

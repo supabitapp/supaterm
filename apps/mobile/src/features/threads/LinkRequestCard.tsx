@@ -10,6 +10,7 @@ import {
   linkRequestInitialMachine,
   type LinkRequestItem,
   linkRequestTarget,
+  linkRequestTargetName,
   rankMachinesByHint,
 } from "@supaterm/client-runtime/link-request";
 import {
@@ -113,9 +114,7 @@ function PendingLinkRequest(props: {
     <View className="mb-3 gap-3 rounded-[20px] border border-border bg-card-alt p-4">
       <View className="gap-1">
         <Text className="font-supaterm-bold text-base text-foreground">
-          {item.url === undefined
-            ? "Link a machine to this environment"
-            : `Link ${linkDestination(item.url)} to this environment`}
+          {`Link ${linkRequestTargetName(item)} to this environment`}
         </Text>
         {item.reason.trim() ? (
           <Text className="font-sans text-sm leading-5 text-foreground-muted">{item.reason}</Text>

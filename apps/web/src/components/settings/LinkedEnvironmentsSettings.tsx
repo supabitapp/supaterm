@@ -64,7 +64,6 @@ const failureToast = (title: string, failure: unknown) =>
     }),
   );
 
-/** A section for each connected environment that can link to others. */
 export function LinkedEnvironmentsSections() {
   const hosts = usePeerLinkHosts();
   return hosts.map(({ environment, enabled }, index) => (
@@ -78,7 +77,6 @@ export function LinkedEnvironmentsSections() {
   ));
 }
 
-/** One environment's Linked environments switch and, while it is on, the machines it links to. */
 function LinkedEnvironmentsSettings({
   environmentId,
   environmentLabel,
@@ -123,7 +121,6 @@ function LinkedEnvironmentsSettings({
   );
 }
 
-/** The machines one environment links to, asked again each time the panel shows. */
 export function LinkedEnvironmentsList({
   environmentId,
 }: {
@@ -342,7 +339,7 @@ function LinkEnvironmentAction({ environmentId }: { readonly environmentId: Envi
         render={
           <Button size="xs" variant="default">
             <PlusIcon className="size-3" />
-            {"Link"}
+            Link
           </Button>
         }
       />
