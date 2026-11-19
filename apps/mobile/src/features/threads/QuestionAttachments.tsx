@@ -112,6 +112,11 @@ export function QuestionAttachments(props: {
     changeQuestionAttachmentPreparation(key, 1);
     return () => changeQuestionAttachmentPreparation(key, -1);
   }, [voiceBusy, key]);
+  const cancelOwnDictation = useEffectEvent(() => {
+    if (voice.isBusy) voice.cancel();
+  });
+  // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- ends this answer's dictation when the question leaves, so its transcript never lands in a resolved draft
+  useEffect(() => () => cancelOwnDictation(), []);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes an option selection's cleared draft into the uncontrolled native input
   useEffect(() => {
     if (props.value !== "" || nativeText.current === "") return;
