@@ -257,8 +257,16 @@ const mergeProviderModels = (
   const shouldRetainMissingModels = shouldRetainMissingProviderModels(provider);
 
   const updateRequiredSlugs = new Set(provider.updateRequiredModels?.map((model) => model.slug));
+  const unavailableSubProviders = new Set(
+    provider.subProviders?.flatMap((subProvider) =>
+      subProvider.unavailableReason === undefined ? [] : [subProvider.name],
+    ),
+  );
   const retainablePreviousModels = previousModels.filter(
-    (model) => !model.isCustom && !updateRequiredSlugs.has(model.slug),
+    (model) =>
+      !model.isCustom &&
+      !updateRequiredSlugs.has(model.slug) &&
+      !unavailableSubProviders.has(model.subProvider ?? ""),
   );
 
   if (shouldRetainMissingModels && nextModels.length === 0 && retainablePreviousModels.length > 0) {
