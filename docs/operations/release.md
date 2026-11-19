@@ -162,7 +162,7 @@ label to stop previews on future pushes; a build already running continues.
 ## Required release credentials
 
 Store `OP_SERVICE_ACCOUNT_TOKEN` in the GitHub `release` environment. Its read-only 1Password service
-account needs access to the `Supacode Next CI` vault. The environment must allow `main` for manual and
+account needs access to the `Supaterm` vault. The environment must allow `main` for manual and
 scheduled releases, plus release tags for tag-triggered runs. Preview branches need explicit access
 before dispatch. The fnox profiles in [`.github/fnox.toml`](../../.github/fnox.toml) resolve the Apple
 signing fields from `Supacode Next Apple Desktop Signing` and these fields from `Supacode Next GitHub Release App`:
@@ -182,7 +182,7 @@ The release workflow builds static assets while desktop jobs run and uploads the
 
 `app.supaterm.com` routes requests to the selected channel. Visiting `/__supaterm/channel?channel=latest` or `/__supaterm/channel?channel=nightly` saves the `supaterm_web_channel` cookie and redirects to the app root. Builds receive the release version through `APP_VERSION` and the channel through `VITE_HOSTED_APP_CHANNEL`.
 
-The `cloudflare` fnox profile reads `CLOUDFLARE_API_TOKEN` from the `Supacode Next Cloudflare Hosting` item in the `Supacode Next CI` vault. The token needs Workers Scripts edit access in the configured account, plus Workers Routes edit and Zone read access for `supaterm.com`. Deployment jobs use the `release` GitHub environment. Wrangler manages the custom domains and their certificates.
+The `cloudflare` fnox profile reads `CLOUDFLARE_API_TOKEN` from the `Supacode Next Cloudflare Hosting` item in the `Supaterm` vault. The token needs Workers Scripts edit access in the configured account, plus Workers Routes edit and Zone read access for `supaterm.com`. Deployment jobs use the `release` GitHub environment. Wrangler manages the custom domains and their certificates.
 
 Web previews deploy automatically for trusted authors when a PR opens, reopens, or receives new
 commits, including fork PRs. The trust policy is the same as for macOS previews: bots,
@@ -394,7 +394,7 @@ Windows artifacts; they do not prevent publication.
 
 ## 2) Apple signing + notarization setup (macOS)
 
-Required fields in the `Supacode Next Apple Desktop Signing` item in the `Supacode Next CI` vault:
+Required fields in the `Supacode Next Apple Desktop Signing` item in the `Supaterm` vault:
 
 - `CSC_LINK`
 - `CSC_KEY_PASSWORD`
@@ -467,7 +467,7 @@ Checklist:
 ## 5) Troubleshooting
 
 - macOS build unsigned when expected signed:
-  - Check the service account can read all Apple fields in `Supacode Next CI`.
+  - Check the service account can read all Apple fields in `Supaterm`.
 - Windows build unsigned when expected signed:
   - Check all Azure ATS and auth secrets are populated and non-empty.
 - Build fails with signing error:
