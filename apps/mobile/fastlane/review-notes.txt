@@ -1,0 +1,18 @@
+Supaterm is a free, open-source mobile companion for coding agents running on a Supaterm server. No account, username, or password is required, and the app has no in-app purchases.
+
+We host a review environment with three example projects (Tidepool, Pantry, and Ledger). They already contain agent conversations, code changes, test runs, and terminals.
+
+Connect with the attached QR code
+1. Open Supaterm and tap Add environment.
+2. Tap Scan QR code and scan the attached QR code from another screen. It works any number of times, on any device.
+
+Or connect with a link
+1. Open {{REVIEW_INVITE_URL}} in a browser. The page shows a connection link and a QR code.
+2. In Supaterm, tap Add environment and scan that QR code, or paste the connection link into the Address field. Each link from the page works once and expires after five minutes.
+
+Things to try
+- Open Tidepool, then "Add a °C / °F toggle" to see a finished code change, its diff, and its test run.
+- In Tidepool, create a thread and send: "Draw the tide curve on the forecast card using tidePath, then run the tests." Watch the live response, changed files, and terminal output.
+- Pantry and Ledger have more finished conversations.
+
+The environment stays available throughout review. Normal users connect the app to their own Supaterm server.

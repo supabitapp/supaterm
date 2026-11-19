@@ -116,6 +116,30 @@ To retry after fixing a store-side issue, dispatch the review workflow again wit
 The workflow selects the newest build attempt per platform from that source and skips a
 build that has already reached the review or production stage. It does not withdraw an active review.
 
+### App review environment
+
+Apple reviews the app against a hosted example environment on `supacode-app-review.exe.xyz`, an exe.dev
+VM. Both iOS lanes write the reviewer instructions from
+[`review-notes.txt`](../../apps/mobile/fastlane/review-notes.txt): the beta lane into TestFlight's beta
+review notes, the store lane into App Review Information together with a QR code attachment. Deliver
+deletes review attachments it is not given, so an attachment added by hand in App Store Connect does not
+survive the next submission. Two repository secrets fill them in: `MOBILE_REVIEW_INVITE_URL` opens the
+[access page](../../scripts/mobile-review-access/server.ts), and `MOBILE_REVIEW_PAIRING_URL` is the URL the QR
+code encodes. The store lane fails before submitting if the environment does not respond.
+
+Normal pairing codes work once and expire after five minutes, which a reviewer scanning a fixed image
+cannot use. Nginx sends `/oauth/token` to the access service, which swaps the fixed review code in
+`MOBILE_REVIEW_PAIRING_URL` for a fresh pairing code and forwards every other exchange unchanged. The
+VM stores only SHA-256 digests of the review code and invitation (`/etc/supacode-review-access.env`). To
+rotate either, update the digest there, restart `supacode-review-access`, and update the matching secret.
+
+`supacode-review-update.timer` runs [`update-environment.sh`](../../scripts/mobile-review-access/update-environment.sh)
+daily. It installs the latest stable release after verifying `SHA256SUMS` and rolls back if the server
+fails its health check. When a release cannot open the existing database, it archives the state under
+`/srv/supacode-review/old-*` and rebuilds the example projects and conversations with the seed scripts
+beside it. Deploy changes to these files by copying them to `/opt/supacode-review/bin` and
+`/opt/supacode-review/access` (the bundled `server.mjs`).
+
 ## Pull request macOS previews
 
 PRs from trusted authors automatically publish a signed, notarized Apple Silicon DMG to the

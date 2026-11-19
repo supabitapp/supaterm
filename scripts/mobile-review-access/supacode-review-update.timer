@@ -1,0 +1,10 @@
+[Unit]
+Description=Update the Supaterm app review environment daily
+
+[Timer]
+OnCalendar=*-*-* 10:00:00 UTC
+RandomizedDelaySec=30m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

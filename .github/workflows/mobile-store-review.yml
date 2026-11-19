@@ -163,10 +163,21 @@ jobs:
           persist-credentials: false
           sparse-checkout: .github/scripts
           path: .automation
+      - name: Check the review environment and prepare its QR code
+        if: matrix.platform == 'ios'
+        env:
+          MOBILE_REVIEW_PAIRING_URL: ${{ secrets.MOBILE_REVIEW_PAIRING_URL }}
+        run: |
+          origin=$(node -e 'console.log(new URL(process.argv[1]).origin)' "$MOBILE_REVIEW_PAIRING_URL")
+          curl -fsS --retry 3 -o /dev/null "$origin/review"
+          curl -fsS --retry 3 -o /dev/null "$origin/"
+          node scripts/mobile-review-access/qr-image.ts "$MOBILE_REVIEW_PAIRING_URL" "$RUNNER_TEMP/review-qr.png"
+          echo "MOBILE_REVIEW_QR_PATH=$RUNNER_TEMP/review-qr.png" >> "$GITHUB_ENV"
       - name: Upload screenshots and submit the exact build for review
         working-directory: apps/mobile
         env:
           MOBILE_PLATFORM: ${{ matrix.platform }}
+          MOBILE_REVIEW_INVITE_URL: ${{ secrets.MOBILE_REVIEW_INVITE_URL }}
         run: bundle exec fastlane "$MOBILE_PLATFORM" review
       - name: Record the version sent for App Store review
         if: matrix.platform == 'ios'
