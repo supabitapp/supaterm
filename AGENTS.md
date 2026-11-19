@@ -102,10 +102,10 @@ An empty database is a bad test. Seed your worktree's `.supaterm` with a copy of
   - No `yieldNow` or `sleep` polling loops. Await the `Deferred`, take from the `Queue`, or drain the worker.
   - No per-test timeout argument or `retry`. The project timeout is the ceiling, and flaky tests are fixed, not retried.
   - No `performance.now()` or `Date.now()` deltas. Assert on events and counts, not elapsed time.
-  - Browser tests assert through `expect.element` or `vi.waitFor`, never `requestAnimationFrame` or `transitionend`.
+  - Browser tests assert through `expect.element` or `vi.waitFor`, never `requestAnimationFrame` or `transitionend`. To wait for a spy or recorder, resolve a `Promise.withResolvers()` deferred from its implementation and await that; do not `vi.waitFor` its call count.
   - `vi.mock` factories must not spread a real module that pulls in the syntax highlighter or the diff workers.
   - No skips. `.skip`, `.only` and `.todo` fail lint; gate platform-specific tests with `skipIf` or `runIf`.
-  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
+  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `landmines-testing/no-unsignaled-poll`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
 - Web browser tests are `*.browser.test.tsx` or `*.browser.test.ts` and render with `await using screen = await render(...)` from `apps/web/test/render.tsx`. `supaterm/require-disposable-render` errors on the old patterns.
   - Acquire what the test drives after mounting (fake timers it advances, spies it sets up after mounting) after the render, so it disposes before the unmount. Anything the first render reads comes before it.
   - A helper that renders and then waits or clicks puts the screen in an `AsyncDisposableStack` and `move()`s it out only on success, so a failed wait still unmounts.

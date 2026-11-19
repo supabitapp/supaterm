@@ -19,10 +19,10 @@ Rules for writing tests, and for asking for them in review. AGENTS.md carries th
   - No `yieldNow` or `sleep` polling loops. Await the `Deferred`, take from the `Queue`, or drain the worker.
   - No per-test timeout argument or `retry`. The project timeout is the ceiling, and flaky tests are fixed, not retried.
   - No `performance.now()` or `Date.now()` deltas. Assert on events and counts, not elapsed time.
-  - Browser tests assert through `expect.element` or `vi.waitFor`, never `requestAnimationFrame` or `transitionend`.
+  - Browser tests assert through `expect.element` or `vi.waitFor`, never `requestAnimationFrame` or `transitionend`. To wait for a spy or recorder, resolve a `Promise.withResolvers()` deferred from its implementation and await that; do not `vi.waitFor` its call count.
   - `vi.mock` factories must not spread a real module that pulls in the syntax highlighter or the diff workers.
   - No skips. `.skip`, `.only` and `.todo` fail lint; gate platform-specific tests with `skipIf` or `runIf`.
-  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
+  - Lint enforces this: `supaterm/no-test-timeout-or-retry`, `supaterm/no-frame-waits-in-browser-tests`, `supaterm/no-wall-clock-in-tests`, `supaterm/no-real-time-wait-in-tests`, `supaterm/no-polling-loop-in-tests`, `landmines-testing/no-unsignaled-poll`, `vitest/no-disabled-tests`, `vitest/no-focused-tests`.
 
 ## Web browser tests
 

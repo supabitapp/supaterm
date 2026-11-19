@@ -114,6 +114,7 @@ minimumReleaseAgeExclude:
   - "@pierre/diffs@1.6.1"
   - "@pierre/highlights@0.2.0"
   - "@pierre/theming@1.0.2"
+  - "@interfere/landmines@0.1.1"
 
 overrides:
   # Pin every patched package, including transitive dependencies, so lockfile-free

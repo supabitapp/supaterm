@@ -55,6 +55,7 @@
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules apps/*/dist apps/*/dist-electron packages/*/dist .vite-plus apps/*/.vite-plus packages/*/.vite-plus"
   },
   "devDependencies": {
+    "@interfere/landmines": "0.1.1",
     "@shadcn/lint": "0.1.5",
     "@types/node": "catalog:",
     "effect": "catalog:",
