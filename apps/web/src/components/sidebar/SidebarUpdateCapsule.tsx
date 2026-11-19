@@ -45,10 +45,15 @@ function useUpdateRunMachineViews(run: UpdateEverythingRun): ReadonlyArray<Updat
   }));
 }
 
+function restartSecondsLeft(run: UpdateEverythingRun, now: number): number | null {
+  return run.phase === "countdown" && run.restartAt !== null
+    ? Math.max(0, Math.ceil((run.restartAt - now) / 1000))
+    : null;
+}
+
 function localStatusLabel(run: UpdateEverythingRun, local: UpdateRunLocalState, now: number) {
-  if (run.phase === "countdown" && run.restartAt !== null) {
-    return `restarts in ${Math.max(0, Math.ceil((run.restartAt - now) / 1000))}s`;
-  }
+  const seconds = restartSecondsLeft(run, now);
+  if (seconds !== null) return `restarts in ${seconds}s`;
   if (run.phase === "installing") return "restarting";
   if (local?.status === "downloading") {
     return `downloading${local.percent === null ? "" : ` ${Math.floor(local.percent)}%`}`;
@@ -76,10 +81,7 @@ export function SidebarUpdateCapsule({
   const updateServer = useServerUpdate();
   const failed = machines.some(({ status }) => status === "failed");
   const settled = !hasActiveMachine && run.localVersion === null;
-  const restartSeconds =
-    run.phase === "countdown" && run.restartAt !== null
-      ? Math.max(0, Math.ceil((run.restartAt - now) / 1000))
-      : null;
+  const restartSeconds = restartSecondsLeft(run, now);
 
   const actionLabel =
     view.action === "later" ? "Later" : view.action === "retry" ? "Retry" : "Dismiss";
