@@ -82,7 +82,7 @@ export function QuestionAttachments(props: {
     start: props.value.length,
     end: props.value.length,
   });
-  const draftKey = selectedThread
+  const key = selectedThread
     ? questionAttachmentDraftKey(
         selectedThread.environmentId,
         selectedThread.id,
@@ -91,7 +91,7 @@ export function QuestionAttachments(props: {
       )
     : null;
   const voice = useVoiceInputController({
-    ownerKey: draftKey,
+    ownerKey: key,
     label: props.question.header,
     selection,
     readDraftMessage: () => nativeText.current,
@@ -108,10 +108,10 @@ export function QuestionAttachments(props: {
   const voiceBusy = voice.isBusy;
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- holds submit and paging, like a converting paste, while dictation records or transcribes into this answer
   useEffect(() => {
-    if (!voiceBusy || draftKey === null) return;
-    changeQuestionAttachmentPreparation(draftKey, 1);
-    return () => changeQuestionAttachmentPreparation(draftKey, -1);
-  }, [voiceBusy, draftKey]);
+    if (!voiceBusy || key === null) return;
+    changeQuestionAttachmentPreparation(key, 1);
+    return () => changeQuestionAttachmentPreparation(key, -1);
+  }, [voiceBusy, key]);
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- pushes an option selection's cleared draft into the uncontrolled native input
   useEffect(() => {
     if (props.value !== "" || nativeText.current === "") return;
@@ -142,12 +142,7 @@ export function QuestionAttachments(props: {
   const paste = useNativePaste((uris) => {
     const scope = pickerScope.current;
     if (!selectedThread || props.disabled || !configs.has(selectedThread.environmentId)) return;
-    const key = questionAttachmentDraftKey(
-      selectedThread.environmentId,
-      selectedThread.id,
-      props.requestId,
-      props.question.id,
-    );
+    if (key === null) return;
     changeQuestionAttachmentPreparation(key, 1);
     void convertPastedImagesToAttachments({ uris })
       .then(async (result) => {
@@ -170,12 +165,10 @@ export function QuestionAttachments(props: {
       )
       .finally(() => changeQuestionAttachmentPreparation(key, -1));
   });
-  if (!selectedThread || draftKey === null || props.question.allowCustomAnswer === false)
-    return null;
+  if (!selectedThread || key === null || props.question.allowCustomAnswer === false) return null;
   const { environmentId, id: threadId } = selectedThread;
   const capabilities = configs.get(environmentId)?.environment.capabilities;
   const canAttach = capabilities !== undefined;
-  const key = draftKey;
   const presentation = resolveVoiceComposerPresentation(voice.state, voice.elapsedSeconds);
   const showsDictation = presentation.statusLabel !== null;
   const attachments = drafts[key]?.attachments ?? [];
