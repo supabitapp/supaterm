@@ -21,13 +21,11 @@ import {
   type OrchestratorMcpCreatedThread,
   type OrchestratorMcpDelegateTaskInput,
   type OrchestratorMcpDelegateTaskResult,
-  type OrchestratorMcpInteractionMode,
   type OrchestratorMcpDeleteScheduledTaskInput,
   type OrchestratorMcpRequestSecretInput,
   type OrchestratorMcpRequestSecretResult,
   type OrchestratorMcpDeleteScheduledTaskResult,
   type OrchestratorMcpListScheduledTasksResult,
-  type OrchestratorMcpRuntimeMode,
   type OrchestratorMcpScheduledTask,
   type OrchestratorMcpScheduleTaskInput,
   type OrchestratorMcpScheduleTaskResult,
@@ -53,7 +51,6 @@ import {
   type OrchestratorMcpThreadWaitResult,
   type ProviderInteractionMode,
   type ProviderDriverKind,
-  type ProviderInstanceId,
   type ProviderOptionDescriptor,
   type ProviderOptionSelection,
   ProviderRequestKind,
@@ -134,6 +131,8 @@ import {
   requireThreadScope,
   threadLinkFor,
 } from "./McpInvocationContext.ts";
+import { resolveInteractionMode, resolveRuntimeMode, taskPrompt } from "./delegatedTaskModes.ts";
+import { assertTargetWithinLimits, isLiveCallerShell, threadNotFound } from "./threadAccess.ts";
 import * as Metrics from "../observability/Metrics.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 
@@ -241,60 +240,6 @@ const isThreadManagementError = Schema.is(ThreadManagementService.ThreadManageme
 function failure(code: OrchestratorMcpFailure["code"], message: string): OrchestratorMcpFailure {
   return new OrchestratorMcpFailure({ code, message });
 }
-
-/**
- * A background subagent outlives its run and calls tools with its thread's credential, which is
- * revoked when the provider process goes away, so it keeps its thread live.
- */
-export const isLiveCallerShell = (
-  shell: Pick<
-    OrchestrationV2ThreadShell,
-    "archivedAt" | "activeRunId" | "providerInstanceId" | "pendingBackgroundTasks"
-  > | null,
-  providerInstanceId: ProviderInstanceId | undefined,
-) =>
-  shell !== null &&
-  shell.archivedAt === null &&
-  shell.providerInstanceId === providerInstanceId &&
-  (shell.activeRunId !== null ||
-    (shell.pendingBackgroundTasks?.some(
-      (task) => task.kind === "subagent" && task.providerInstanceId === providerInstanceId,
-    ) ??
-      false));
-
-const delegatedTaskPrefix = "thread:delegated-task:";
-
-const suggestedThreadId = (threadId: ThreadId) => {
-  if (!threadId.startsWith(delegatedTaskPrefix)) return ThreadId.make(`mcp:${threadId}`);
-  const rest = threadId.slice(delegatedTaskPrefix.length);
-  // encodeURIComponent throws on lone surrogates, which a JSON string can carry.
-  if (!rest.isWellFormed()) return null;
-  const encoded = encodeURIComponent(rest);
-  return encoded === rest ? null : ThreadId.make(`${delegatedTaskPrefix}${encoded}`);
-};
-
-/**
- * Agents paste bare uuids for `mcp:<uuid>` threads and unencoded delegated-task ids.
- * The id is never rewritten, so permission checks keyed on it still hold; the miss
- * only names a live thread the caller could read by its full id.
- */
-export const threadNotFound = Effect.fn("OrchestratorMcpService.threadNotFound")(function* (
-  threads: Pick<ThreadManagementService.ThreadManagementService["Service"], "getThreadShell">,
-  threadId: ThreadId,
-  message: string,
-) {
-  const suggested = suggestedThreadId(threadId);
-  const shell =
-    suggested === null
-      ? null
-      : yield* threads.getThreadShell(suggested).pipe(Effect.orElseSucceed(() => null));
-  return yield* failure(
-    "thread_not_found",
-    shell === null || shell.deletedAt !== null
-      ? message
-      : `${message} Did you mean \`${suggested}\`?`,
-  );
-});
 
 function threadManagementFailure(error: unknown): OrchestratorMcpFailure {
   if (!isThreadManagementError(error)) return failure("orchestration_error", errorMessage(error));
@@ -809,88 +754,6 @@ function canExposeTaskRunResult(run: OrchestrationV2Run | undefined): run is Orc
   );
 }
 
-function runtimeModeRank(mode: RuntimeMode): number {
-  switch (mode) {
-    case "approval-required":
-      return 0;
-    case "auto-accept-edits":
-      return 1;
-    case "auto":
-      return 2;
-    case "full-access":
-      return 3;
-  }
-}
-
-function interactionModeRank(mode: ProviderInteractionMode): number {
-  return mode === "plan" ? 0 : 1;
-}
-
-export function resolveRuntimeMode(
-  parentMode: RuntimeMode,
-  requested: OrchestratorMcpRuntimeMode | undefined,
-  target?: Pick<ResolvedTarget, "modelSelection" | "supportedRuntimeModes">,
-): Effect.Effect<RuntimeMode, OrchestratorMcpFailure> {
-  const inherited = requested === undefined || requested === "inherit";
-  const resolved = inherited ? parentMode : requested;
-  if (runtimeModeRank(resolved) > runtimeModeRank(parentMode)) {
-    return Effect.fail(
-      failure(
-        "runtime_mode_escalation_denied",
-        `Child runtime mode ${resolved} is broader than parent mode ${parentMode}.`,
-      ),
-    );
-  }
-  const supported = target?.supportedRuntimeModes;
-  if (supported === undefined || supported.length === 0 || supported.includes(resolved)) {
-    return Effect.succeed(resolved);
-  }
-  if (!inherited) {
-    return Effect.fail(
-      failure(
-        "invalid_request",
-        `Provider ${target?.modelSelection.instanceId} does not offer runtime mode ${resolved}, so it would run as approval-required. Use one of: ${supported.join(", ")}.`,
-      ),
-    );
-  }
-  return Effect.succeed(
-    supported
-      .filter((mode) => runtimeModeRank(mode) <= runtimeModeRank(resolved))
-      .toSorted((left, right) => runtimeModeRank(right) - runtimeModeRank(left))[0] ??
-      "approval-required",
-  );
-}
-
-export function resolveInteractionMode(
-  parentMode: ProviderInteractionMode,
-  requested: OrchestratorMcpInteractionMode | undefined,
-): Effect.Effect<ProviderInteractionMode, OrchestratorMcpFailure> {
-  const resolved = requested === undefined || requested === "inherit" ? parentMode : requested;
-  return interactionModeRank(resolved) > interactionModeRank(parentMode)
-    ? Effect.fail(
-        failure(
-          "interaction_mode_escalation_denied",
-          `Child interaction mode ${resolved} is broader than parent mode ${parentMode}.`,
-        ),
-      )
-    : Effect.succeed(resolved);
-}
-
-export const assertTargetWithinLimits = (
-  limits: { readonly runtimeMode: RuntimeMode; readonly interactionMode: ProviderInteractionMode },
-  target: Pick<OrchestrationV2ThreadShell, "id" | "runtimeMode" | "interactionMode">,
-) =>
-  resolveRuntimeMode(limits.runtimeMode, target.runtimeMode).pipe(
-    Effect.andThen(resolveInteractionMode(limits.interactionMode, target.interactionMode)),
-    Effect.asVoid,
-    Effect.mapError((error) =>
-      failure(
-        error.code,
-        `Thread "${target.id}" runs in ${target.runtimeMode}/${target.interactionMode}, above this caller's ${limits.runtimeMode}/${limits.interactionMode} limit. This call does not create an approval request. Have the user act directly in the target thread through an authorized client.`,
-      ),
-    ),
-  );
-
 function stablePart(value: string): string {
   return encodeURIComponent(value);
 }
@@ -977,12 +840,6 @@ function threadTitle(input: {
     end -= 1;
   }
   return `${detail.slice(0, end)}...`;
-}
-
-function taskPrompt(input: OrchestratorMcpDelegateTaskInput): string {
-  return input.role === undefined || input.role === "general"
-    ? input.task
-    : `Act as the ${input.role} sub-agent for this task.\n\n${input.task}`;
 }
 
 function threadDone(

@@ -24,7 +24,7 @@ import * as ProviderRegistry from "../../../provider/ProviderRegistry.ts";
 import * as DateTime from "effect/DateTime";
 import { resolveNewThreadModelSelection } from "@supaterm/shared/usageLimits";
 import { resolveProjectSettings } from "@supaterm/shared/projectSettings";
-import { resolveRuntimeMode } from "../../OrchestratorMcpService.ts";
+import { resolveRuntimeMode } from "../../delegatedTaskModes.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
 import * as OrchestrationMcp from "../../OrchestratorMcpService.ts";

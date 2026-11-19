@@ -71,6 +71,7 @@ import * as ServerSettings from "../serverSettings.ts";
 import type { McpInvocationScope } from "./McpInvocationContext.ts";
 import { idleThreadProjection, liveThreadShell } from "./McpToolAccess.testkit.ts";
 import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
+import { resolveRuntimeMode } from "./delegatedTaskModes.ts";
 import type { ProjectionRecordFilter } from "../orchestration-v2/ProjectionStore.ts";
 import type * as ProviderAdapter from "@supaterm/provider-core/server/ProviderAdapter";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
@@ -4593,11 +4594,9 @@ describe("OrchestratorMcpService provider resolution", () => {
 
     it.effect("refuses an explicit mode the target provider does not offer", () =>
       Effect.gen(function* () {
-        const error = yield* OrchestratorMcpService.resolveRuntimeMode(
-          "full-access",
-          "auto-accept-edits",
-          muse,
-        ).pipe(Effect.flip);
+        const error = yield* resolveRuntimeMode("full-access", "auto-accept-edits", muse).pipe(
+          Effect.flip,
+        );
         assert.equal(error.code, "invalid_request");
         assert.include(error.message, "approval-required, full-access");
       }),
@@ -4605,14 +4604,8 @@ describe("OrchestratorMcpService provider resolution", () => {
 
     it.effect("steps an inherited mode down to the broadest one the provider offers", () =>
       Effect.gen(function* () {
-        assert.equal(
-          yield* OrchestratorMcpService.resolveRuntimeMode("full-access", "inherit", muse),
-          "full-access",
-        );
-        assert.equal(
-          yield* OrchestratorMcpService.resolveRuntimeMode("auto", undefined, muse),
-          "approval-required",
-        );
+        assert.equal(yield* resolveRuntimeMode("full-access", "inherit", muse), "full-access");
+        assert.equal(yield* resolveRuntimeMode("auto", undefined, muse), "approval-required");
       }),
     );
   });
