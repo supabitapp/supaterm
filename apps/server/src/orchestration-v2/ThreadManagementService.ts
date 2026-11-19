@@ -524,6 +524,16 @@ export const ACTIVE_RUN_STATUSES = OrchestrationV2RunStatus.literals.filter(
   isOrchestrationV2RunInProgress,
 );
 
+export function isTerminalRunStatus(status: OrchestrationV2Run["status"]): boolean {
+  return (
+    status === "completed" ||
+    status === "failed" ||
+    status === "cancelled" ||
+    status === "interrupted" ||
+    status === "rolled_back"
+  );
+}
+
 export function latestActiveRun(
   projection: Pick<OrchestrationV2ThreadProjection, "runs">,
 ): OrchestrationV2Run | undefined {
