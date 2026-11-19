@@ -981,6 +981,7 @@ export function PreviewView({
     <div
       className="flex min-h-0 flex-1 flex-col bg-background"
       data-thread-key={scopedThreadKey(threadRef)}
+      data-preview-view
     >
       <PreviewChromeRow
         url={url}
