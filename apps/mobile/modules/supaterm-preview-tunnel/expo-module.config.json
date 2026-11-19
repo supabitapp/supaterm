@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["SupatermPreviewTunnelModule"] },
+  "android": { "modules": ["expo.modules.supatermpreviewtunnel.SupatermPreviewTunnelModule"] }
+}

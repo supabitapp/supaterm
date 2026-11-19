@@ -295,6 +295,10 @@
       "types": "./src/state/deviceHubAccess.ts",
       "default": "./src/state/deviceHubAccess.ts"
     },
+    "./state/previewTunnel": {
+      "types": "./src/state/previewTunnel.ts",
+      "default": "./src/state/previewTunnel.ts"
+    },
     "./state/environmentHttpAuth": {
       "types": "./src/state/environmentHttpAuth.ts",
       "default": "./src/state/environmentHttpAuth.ts"
