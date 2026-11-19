@@ -8481,15 +8481,22 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       FROM orchestration_v2_projection_subagents ${REMOTE_TASKS_INDEX}
       WHERE origin = 'app_owned'
         AND child_thread_id IS NULL
-        AND json_type(payload_json, '$.remoteChild') = 'object'
         AND (
-          json_type(payload_json, '$.result') = 'null'
-          OR (
-            json_extract(payload_json, '$.status') IN ('cancelled', 'interrupted')
-            AND json_type(payload_json, '$.remoteChild.stoppedThere') IS NOT 'true'
-          )
-          OR json_type(payload_json, '$.remoteChild.stoppedThere') = 'false'
+          json_type(payload_json, '$.remoteChild') = 'object'
+          OR json_type(payload_json, '$.remoteLaunch') = 'object'
         )
+        AND CASE WHEN json_type(payload_json, '$.remoteChild') = 'object'
+          THEN (
+            json_type(payload_json, '$.result') = 'null'
+            OR (
+              json_extract(payload_json, '$.status') IN ('cancelled', 'interrupted')
+              AND json_type(payload_json, '$.remoteChild.stoppedThere') IS NOT 'true'
+            )
+            OR json_type(payload_json, '$.remoteChild.stoppedThere') = 'false'
+          )
+          -- A launch with no thread named yet is sent again, unless nothing was started.
+          ELSE json_type(payload_json, '$.remoteLaunch.abandoned') IS NOT 'true'
+          END
     `.pipe(
       Effect.map((rows) =>
         rows.map((row) => ({
@@ -8978,7 +8985,10 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             FROM orchestration_v2_projection_subagents subagent ${REMOTE_TASKS_INDEX}
             WHERE subagent.origin = 'app_owned'
               AND subagent.child_thread_id IS NULL
-              AND json_type(subagent.payload_json, '$.remoteChild') = 'object'
+              AND (
+                json_type(subagent.payload_json, '$.remoteChild') = 'object'
+                OR json_type(subagent.payload_json, '$.remoteLaunch') = 'object'
+              )
           ) AS has_remote_tasks
         FROM orchestration_v2_projection_threads t
         WHERE t.deleted_at IS NULL

@@ -1000,6 +1000,35 @@ export const OrchestrationV2RemoteTaskChild = Schema.Struct({
 });
 export type OrchestrationV2RemoteTaskChild = typeof OrchestrationV2RemoteTaskChild.Type;
 
+/**
+ * How a task was launched in a linked environment, recorded before anything was sent: a
+ * launch whose answer was lost is sent again unchanged and finds the thread it already
+ * started. Until `remoteChild` names that thread, the task is still being launched.
+ */
+export const OrchestrationV2RemoteTaskLaunch = Schema.Struct({
+  environmentId: EnvironmentId,
+  label: Schema.String,
+  /** When the link was made. A link made again has another session there, which would start a second thread. */
+  linkedAt: IsoDateTime,
+  /** The caller's namespace and key, which name the launch there. */
+  requestNamespace: Schema.String,
+  key: Schema.String,
+  projectId: ProjectId,
+  title: Schema.String,
+  runtimeMode: Schema.optional(RuntimeMode),
+  interactionMode: Schema.optional(ProviderInteractionMode),
+  /** The wake the task takes once its thread there is known. */
+  completionWake: Schema.Literals(["always", "settled_only"]),
+  /** Nothing runs there for it: the launch was refused, or its link was replaced before it answered. */
+  abandoned: Schema.optional(Schema.Literal(true)),
+});
+export type OrchestrationV2RemoteTaskLaunch = typeof OrchestrationV2RemoteTaskLaunch.Type;
+
+/** Whether a task runs in a linked environment, attached there or still being launched. */
+export const isRemoteTask = (
+  task: Pick<OrchestrationV2Subagent, "remoteChild" | "remoteLaunch">,
+): boolean => task.remoteChild !== undefined || task.remoteLaunch !== undefined;
+
 export const OrchestrationV2Subagent = Schema.Struct({
   id: NodeId,
   threadId: ThreadId,
@@ -1012,6 +1041,7 @@ export const OrchestrationV2Subagent = Schema.Struct({
   providerThreadId: Schema.NullOr(ProviderThreadId),
   childThreadId: Schema.NullOr(ThreadId),
   remoteChild: Schema.optional(OrchestrationV2RemoteTaskChild),
+  remoteLaunch: Schema.optional(OrchestrationV2RemoteTaskLaunch),
   nativeTaskRef: Schema.NullOr(OrchestrationV2ProviderRef),
   prompt: Schema.String,
   title: Schema.NullOr(Schema.String),
@@ -3751,10 +3781,9 @@ const OrchestrationV2InternalCommand = Schema.Union([
     ),
   }),
   /**
-   * Records a delegated task that runs in a linked environment: the task, its
-   * node and its turn item on the parent, as `delegated_task.request` does,
-   * without a child thread here. `remoteChild` is the thread already launched
-   * there. The ids derive from `commandId`, so a retry records nothing new.
+   * Records a delegated task that runs in a linked environment, as `delegated_task.request`
+   * does, without a child thread here. `remoteLaunch` records a launch before it is sent;
+   * `remoteChild` a thread already there. Ids derive from `commandId`, so a retry records nothing.
    */
   Schema.Struct({
     type: Schema.Literal("delegated_task.remote.request"),
@@ -3766,8 +3795,23 @@ const OrchestrationV2InternalCommand = Schema.Union([
     title: Schema.optional(TrimmedNonEmptyString),
     driver: ProviderDriverKind,
     modelSelection: ModelSelection,
-    remoteChild: OrchestrationV2RemoteTaskChild,
+    remote: Schema.Union([
+      Schema.Struct({ remoteChild: OrchestrationV2RemoteTaskChild }),
+      Schema.Struct({ remoteLaunch: OrchestrationV2RemoteTaskLaunch }),
+    ]),
     completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
+  }),
+  /**
+   * Names the thread a recorded launch started there, with the model it was accepted on.
+   * A task that ended here meanwhile keeps its result and now has a thread to stop.
+   */
+  Schema.Struct({
+    type: Schema.Literal("delegated_task.remote.attach"),
+    commandId: CommandId,
+    parentThreadId: ThreadId,
+    taskId: NodeId,
+    remoteChild: OrchestrationV2RemoteTaskChild,
+    modelSelection: ModelSelection,
   }),
   /**
    * Completes a delegated task that ran in a linked environment, with what its
@@ -3792,6 +3836,8 @@ const OrchestrationV2InternalCommand = Schema.Union([
     stoppedThere: Schema.optional(Schema.Literals(["ran-out", "stopped"])),
     /** The stop generation this report acknowledges; absent for the original unnumbered stop. */
     stopCount: Schema.optional(NonNegativeInt),
+    /** A launch that started nothing there: the task ends with no thread to follow or stop. */
+    launchAbandoned: Schema.optional(Schema.Literal(true)),
   }),
   /**
    * Owes a stop to the thread there of a remote task that already has its result, as Stop on

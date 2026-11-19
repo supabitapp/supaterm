@@ -12,6 +12,7 @@ import {
   type OrchestratorMcpThreadSendResult,
   type OrchestratorMcpThreadTimelineItem,
   type OrchestrationV2RemoteTaskChild,
+  type OrchestrationV2RemoteTaskLaunch,
   type OrchestrationV2Subagent,
   type ProjectId,
   type ProviderInstanceId,
@@ -27,6 +28,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
@@ -152,6 +154,12 @@ const isFinal = (error: OrchestratorMcpFailure) =>
   error.code === "thread_not_found" ||
   error.code === "run_not_found";
 
+/**
+ * An answer the other side gave about a call, as against a route that failed and left the
+ * call's fate unknown: only the first says a launch started nothing there.
+ */
+const isRefusal = (error: OrchestratorMcpFailure) => error.code !== "orchestration_error";
+
 const make = Effect.gen(function* () {
   const followRetry = yield* FollowRetrySchedule;
   const forwarding = yield* PeerForwarding.PeerForwarding;
@@ -262,6 +270,99 @@ const make = Effect.gen(function* () {
     return chosen.providerInstanceId;
   });
 
+  /**
+   * Sends a recorded launch and names its thread on the task. Every send of one launch is the
+   * same call under the same key, so the other side starts one thread however often it is sent.
+   */
+  const launchThere = Effect.fn("RemoteDelegation.launchThere")(function* (
+    parent: {
+      readonly id: ThreadId;
+      readonly title: string;
+      readonly providerInstanceId: ProviderInstanceId;
+    },
+    task: OrchestrationV2Subagent,
+    launch: OrchestrationV2RemoteTaskLaunch,
+  ) {
+    const launched = yield* forwarding.call(
+      launchScope(parent, task.id, launch),
+      ProjectToolkit.tools.supaterm_thread_launch,
+      launch.environmentId,
+      {
+        projectId: launch.projectId,
+        title: launch.title,
+        modelSelection: task.modelSelection ?? {
+          instanceId: task.providerInstanceId,
+          model: task.model ?? "",
+        },
+        ...(launch.runtimeMode === undefined ? {} : { runtimeMode: launch.runtimeMode }),
+        ...(launch.interactionMode === undefined
+          ? {}
+          : { interactionMode: launch.interactionMode }),
+        message: task.prompt,
+        clientRequestId: `delegate:${parent.id}:${launch.key}`,
+        // The thread there shows it is this thread's subagent, with a way back.
+        delegatedFrom: { environmentId: hereId, threadId: parent.id, title: parent.title },
+      },
+    );
+    yield* threads
+      .dispatch({
+        type: "delegated_task.remote.attach",
+        commandId: CommandId.make(`command:remote-task-attach:${task.id}`),
+        parentThreadId: parent.id,
+        taskId: task.id,
+        remoteChild: {
+          environmentId: launch.environmentId,
+          threadId: launched.threadId,
+          label: launch.label,
+          title: launch.title,
+          ...(launched.runId === null ? {} : { runId: launched.runId }),
+        },
+        modelSelection: launched.modelSelection,
+      })
+      .pipe(
+        // A launch attached before is done; anything else leaves the task for its follower.
+        Effect.catch((cause) =>
+          readTask(parent.id, task.id).pipe(
+            Effect.orElseSucceed(() => ({ task: undefined })),
+            Effect.flatMap(({ task: current }) =>
+              current?.remoteChild?.threadId === launched.threadId
+                ? Effect.void
+                : Effect.logWarning("remote-delegation.attach-failed", {
+                    parentThreadId: parent.id,
+                    taskId: task.id,
+                    cause,
+                  }).pipe(
+                    Effect.andThen(
+                      Effect.fail(
+                        new OrchestratorMcpFailure({
+                          code: "orchestration_error",
+                          message: "Unable to record where the delegated task runs.",
+                        }),
+                      ),
+                    ),
+                  ),
+            ),
+          ),
+        ),
+      );
+  });
+
+  /** Ends a task whose launch started nothing there, so nothing is followed or stopped for it. */
+  const abandon = (parentThreadId: ThreadId, taskId: NodeId, result: string) =>
+    random.uuidV4().pipe(
+      Effect.flatMap((attempt) =>
+        threads.dispatch({
+          type: "delegated_task.remote.complete",
+          commandId: CommandId.make(`command:remote-task-abandon:${taskId}:${attempt}`),
+          parentThreadId,
+          taskId,
+          status: "failed",
+          result,
+          launchAbandoned: true,
+        }),
+      ),
+    );
+
   const delegate: RemoteDelegation["Service"]["delegate"] = Effect.fn("RemoteDelegation.delegate")(
     function* (scope, input) {
       const parent = yield* threads.getThreadRecords(scope.thread.threadId, ["runs"]).pipe(
@@ -338,46 +439,25 @@ const make = Effect.gen(function* () {
         parent.thread.projectId,
         target.projectId,
       );
-      // One key for the launch there and the record here, so a retry finds both.
+      // One key for the record here and the launch there, so a retry finds both.
       // Both are scoped to the provider session, as every key a caller passes is:
-      // the forwarder scopes the launch's, and the record's names it.
+      // the record's names it, and the forwarder scopes the launch's.
       const key = input.clientRequestId ?? (yield* random.uuidV4());
-      const task = taskPrompt(input);
-      const title = input.title ?? parent.thread.title;
-      const launched = yield* forwarding.call(
-        scope,
-        ProjectToolkit.tools.supaterm_thread_launch,
-        target.environmentId,
-        {
-          projectId,
-          title,
-          modelSelection: { instanceId, model, ...(options === undefined ? {} : { options }) },
-          ...(runtimeMode === undefined ? {} : { runtimeMode }),
-          ...(interactionMode === undefined ? {} : { interactionMode }),
-          message: task,
-          clientRequestId: `delegate:${scope.thread.threadId}:${key}`,
-          // The thread there shows it is this thread's subagent, with a way back.
-          delegatedFrom: {
-            environmentId: hereId,
-            threadId: parent.thread.id,
-            title: parent.thread.title,
-          },
-        },
-      );
-      const link = yield* links.get(target.environmentId).pipe(
-        Effect.map(Option.getOrUndefined),
-        Effect.orElseSucceed(() => undefined),
+      // A machine that does not answer now is refused before anything is recorded for it.
+      const { link } = yield* links.resolve(target.environmentId).pipe(
+        Effect.mapError(
+          (error) =>
+            new OrchestratorMcpFailure({
+              code: error.reason === "unknown_link" ? "invalid_request" : "orchestration_error",
+              message: error.message,
+            }),
+        ),
       );
       const commandId = CommandId.make(
         `command:mcp:${encodeURIComponent(scope.requestNamespace)}:remote-delegate:${encodeURIComponent(key)}`,
       );
-      const remoteChild: OrchestrationV2RemoteTaskChild = {
-        environmentId: target.environmentId,
-        threadId: launched.threadId,
-        label: link?.label ?? target.environmentId,
-        title,
-        ...(launched.runId === null ? {} : { runId: launched.runId }),
-      };
+      // The task is recorded before its launch is sent, so a launch whose answer is lost,
+      // or that a restart here cuts short, is sent again and finds the thread it started.
       const recorded = yield* threads
         .dispatch({
           type: "delegated_task.remote.request",
@@ -385,13 +465,25 @@ const make = Effect.gen(function* () {
           parentThreadId: scope.thread.threadId,
           parentRunId: parentRun.id,
           parentNodeId,
-          task,
+          task: taskPrompt(input),
           ...(input.title === undefined ? {} : { title: input.title }),
           // The driver runs there; this side only labels the task with it.
           driver: ProviderDriverKind.make("remote"),
-          modelSelection: launched.modelSelection,
-          remoteChild,
-          completionWake: input.mode === "wait" ? "settled_only" : "always",
+          modelSelection: { instanceId, model, ...(options === undefined ? {} : { options }) },
+          remote: {
+            remoteLaunch: {
+              environmentId: target.environmentId,
+              label: link.label,
+              linkedAt: DateTime.formatIso(link.linkedAt),
+              requestNamespace: scope.requestNamespace,
+              key,
+              projectId,
+              title: input.title ?? parent.thread.title,
+              ...(runtimeMode === undefined ? {} : { runtimeMode }),
+              ...(interactionMode === undefined ? {} : { interactionMode }),
+              completionWake: input.mode === "wait" ? "settled_only" : "always",
+            },
+          },
         })
         .pipe(
           // The cause goes to the log; the caller learns only that recording failed.
@@ -408,37 +500,59 @@ const make = Effect.gen(function* () {
                 message: "Unable to record the delegated task.",
               }),
           ),
-          // Nothing here follows a thread the task was never recorded for, so stop it there.
-          // A crash between the launch and this record still leaves it running there
-          // until a retry with the same clientRequestId records it.
-          Effect.tapError(() =>
-            stopThere(followScope(scope.thread, remoteChild), remoteChild, "stop").pipe(
-              Effect.ignoreCause({ log: true }),
-            ),
-          ),
         );
       const taskEvent = recorded.storedEvents.find(
         (stored) => stored.event.type === "subagent.updated",
       );
-      const taskId =
+      const task =
         taskEvent?.event.type === "subagent.updated"
-          ? taskEvent.event.payload.id
+          ? taskEvent.event.payload
           : // A replayed request recorded the task the first time.
             yield* threads.getThreadRecords(scope.thread.threadId, ["subagents"]).pipe(
-              Effect.map(
-                ({ subagents }) =>
-                  subagents.find((task) => task.remoteChild?.threadId === launched.threadId)?.id,
+              Effect.map(({ subagents }) =>
+                subagents.find(
+                  (task) =>
+                    task.remoteLaunch?.key === key &&
+                    task.remoteLaunch.requestNamespace === scope.requestNamespace,
+                ),
               ),
               Effect.orElseSucceed(() => undefined),
             );
-      if (taskId === undefined) {
+      if (task?.remoteLaunch === undefined) {
         return yield* new OrchestratorMcpFailure({
           code: "orchestration_error",
           message: "The delegated task was not recorded.",
         });
       }
-      yield* followOne(scope.thread.threadId, taskId).pipe(Effect.forkIn(followers));
-      return { taskId };
+      if (task.remoteChild === undefined) {
+        // A retry of a launch the other side refused hears that refusal again.
+        if (task.remoteLaunch.abandoned === true) {
+          return yield* new OrchestratorMcpFailure({
+            code: "invalid_request",
+            message: task.result ?? "The task was not started in the linked environment.",
+          });
+        }
+        const launched = yield* launchThere(parent.thread, task, task.remoteLaunch).pipe(
+          Effect.result,
+        );
+        if (Result.isFailure(launched)) {
+          // Refused there: nothing runs, and the caller hears why from this call.
+          if (isRefusal(launched.failure)) {
+            yield* abandon(scope.thread.threadId, task.id, launched.failure.message).pipe(
+              Effect.ignoreCause({ log: true }),
+            );
+            return yield* launched.failure;
+          }
+          // No answer about the launch: its follower sends it again until one comes.
+          yield* Effect.logWarning("remote-delegation.launch-unanswered", {
+            parentThreadId: scope.thread.threadId,
+            taskId: task.id,
+            reason: launched.failure.message,
+          });
+        }
+      }
+      yield* followOne(scope.thread.threadId, task.id).pipe(Effect.forkIn(followers));
+      return { taskId: task.id };
     },
   );
 
@@ -479,11 +593,13 @@ const make = Effect.gen(function* () {
           ...(finished.title === null ? {} : { title: finished.title }),
           driver: finished.driver,
           modelSelection: { instanceId: finished.providerInstanceId, model: finished.model },
-          remoteChild: {
-            environmentId,
-            threadId: sent.threadId,
-            label: finished.remoteChild.label,
-            runId: sent.runId,
+          remote: {
+            remoteChild: {
+              environmentId,
+              threadId: sent.threadId,
+              label: finished.remoteChild.label,
+              runId: sent.runId,
+            },
           },
           completionWake: "always",
         })
@@ -577,6 +693,27 @@ const make = Effect.gen(function* () {
     thread: {
       threadId: parent.threadId,
       providerSessionId: `remote-task:${remote.threadId}`,
+      providerInstanceId: parent.providerInstanceId,
+    },
+    client: undefined,
+    capabilities: new Set(["orchestration"]),
+    issuedAt: 0,
+  });
+
+  /**
+   * How a launch is sent: under the namespace its caller had when it was recorded, so sending
+   * it again after a restart names the same launch there.
+   */
+  const launchScope = (
+    parent: { readonly id: ThreadId; readonly providerInstanceId: ProviderInstanceId },
+    taskId: NodeId,
+    launch: OrchestrationV2RemoteTaskLaunch,
+  ): ThreadScope => ({
+    environmentId: hereId,
+    requestNamespace: launch.requestNamespace,
+    thread: {
+      threadId: parent.id,
+      providerSessionId: `remote-task-launch:${taskId}`,
       providerInstanceId: parent.providerInstanceId,
     },
     client: undefined,
@@ -750,7 +887,36 @@ const make = Effect.gen(function* () {
   ) {
     const sequence = yield* threads.getThreadEventSequence(parentThreadId);
     const { thread, task } = yield* readTask(parentThreadId, taskId);
-    if (task?.remoteChild === undefined) return true;
+    if (task === undefined) return true;
+    if (task.remoteChild === undefined) {
+      const launch = task.remoteLaunch;
+      if (launch === undefined || launch.abandoned === true) return true;
+      // Its launch has no answer yet: send it again, then follow the thread it names.
+      const link = yield* links
+        .get(launch.environmentId)
+        .pipe(
+          Effect.mapError(
+            (error) =>
+              new OrchestratorMcpFailure({ code: "orchestration_error", message: error.message }),
+          ),
+        );
+      // A link made again has another session there, which would not know this launch's key
+      // and would start a second thread beside one the first session may have started.
+      if (Option.isNone(link) || DateTime.formatIso(link.value.linkedAt) !== launch.linkedAt) {
+        yield* abandon(
+          parentThreadId,
+          taskId,
+          `The link to ${launch.label} was ${Option.isNone(link) ? "forgotten" : "made again"} before this task's launch there was answered, so the task is not followed. If it started there, stop it in ${launch.label}.`,
+        );
+        return true;
+      }
+      return yield* launchThere(thread, task, launch).pipe(
+        Effect.as(false),
+        Effect.catchIf(isRefusal, (error) =>
+          abandon(parentThreadId, taskId, error.message).pipe(Effect.as(true)),
+        ),
+      );
+    }
     const remote = task.remoteChild;
     const scope = followScope(
       { threadId: parentThreadId, providerInstanceId: thread.providerInstanceId },
@@ -923,14 +1089,53 @@ const make = Effect.gen(function* () {
 
   const cancel: RemoteDelegation["Service"]["cancel"] = Effect.fn("RemoteDelegation.cancel")(
     function* (scope, task, input) {
+      const { reason } = input;
       const remote = task.remoteChild;
       if (remote === undefined) {
-        return yield* new OrchestratorMcpFailure({
-          code: "task_not_found",
-          message: `Delegated task ${task.id} is not remote.`,
-        });
+        if (task.remoteLaunch === undefined) {
+          return yield* new OrchestratorMcpFailure({
+            code: "task_not_found",
+            message: `Delegated task ${task.id} is not remote.`,
+          });
+        }
+        // Its launch has no answer yet: the task ends here now, and its follower stops the
+        // thread there once the launch names it.
+        if (task.result === null) {
+          yield* complete(
+            task.threadId,
+            task.id,
+            "cancelled",
+            reason === undefined ? "Cancelled." : `Cancelled: ${reason}`,
+            undefined,
+          ).pipe(
+            Effect.tapError((cause) =>
+              Effect.logWarning("remote-delegation.cancel-record-failed", {
+                taskId: task.id,
+                cause,
+              }),
+            ),
+            Effect.mapError(
+              () =>
+                new OrchestratorMcpFailure({
+                  code: "orchestration_error",
+                  message: "Unable to record the cancellation.",
+                }),
+            ),
+          );
+        }
+        yield* followOne(task.threadId, task.id).pipe(Effect.forkIn(followers));
+        return {
+          taskId: task.id,
+          status:
+            task.result === null
+              ? "cancel_requested"
+              : task.status === "completed" ||
+                  task.status === "failed" ||
+                  task.status === "interrupted"
+                ? task.status
+                : "cancelled",
+        } satisfies OrchestratorMcpTaskCancelResult;
       }
-      const { reason } = input;
       const there = followScope(scope.thread, remote);
       // A later cancel stops what started there since; a retry of this one, nothing new.
       const key = `cancel:${encodeURIComponent(scope.requestNamespace)}:${
@@ -997,6 +1202,7 @@ const make = Effect.gen(function* () {
   const runStatus = Effect.fn("RemoteDelegation.runStatus")(
     function* (scope: ThreadScope, task: OrchestrationV2Subagent) {
       const remote = task.remoteChild;
+      if (remote === undefined && task.remoteLaunch !== undefined) return "starting";
       if (remote?.runId === undefined) return null;
       const read = yield* forwarding.readThread(
         followScope(scope.thread, remote),
@@ -1015,7 +1221,13 @@ const make = Effect.gen(function* () {
         // thread there a stop starts it again. Started before the scan below;
         // a Stop that slips between the two stays owed for the next start.
         yield* Stream.runForEach(threads.streamDomainEvents, (event) =>
-          event.type === "subagent.updated" && event.payload.remoteChild?.stoppedThere === false
+          event.type === "subagent.updated" &&
+          (event.payload.remoteChild?.stoppedThere === false ||
+            // Ended here before its launch was answered: the thread there is still to stop.
+            (event.payload.remoteChild === undefined &&
+              event.payload.remoteLaunch !== undefined &&
+              event.payload.remoteLaunch.abandoned !== true &&
+              event.payload.result !== null))
             ? followOne(event.threadId, event.payload.id).pipe(Effect.forkIn(followers))
             : Effect.void,
         ).pipe(

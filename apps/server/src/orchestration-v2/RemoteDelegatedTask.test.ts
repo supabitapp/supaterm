@@ -207,7 +207,7 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
         task: "Run the suite there.",
         driver: ProviderDriverKind.make("remote"),
         modelSelection,
-        remoteChild,
+        remote: { remoteChild },
         completionWake: "always" as const,
       };
       yield* orchestrator.dispatch(request);
@@ -251,7 +251,7 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
         task: "Run a check.",
         driver: ProviderDriverKind.make("remote"),
         modelSelection,
-        remoteChild,
+        remote: { remoteChild },
       });
       const task = (yield* orchestrator.getThreadProjection(parent.threadId)).subagents[0]!;
       const openFor = projections.getOpenRemoteDelegatedTasks.pipe(
@@ -318,7 +318,7 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
         task: "Run a check.",
         driver: ProviderDriverKind.make("remote"),
         modelSelection,
-        remoteChild,
+        remote: { remoteChild },
       });
       const task = (yield* orchestrator.getThreadProjection(parent.threadId)).subagents[0]!;
       const complete = {
@@ -367,7 +367,7 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
         task: "Run the suite there.",
         driver: ProviderDriverKind.make("remote"),
         modelSelection,
-        remoteChild,
+        remote: { remoteChild },
         completionWake: "always",
       });
       const taskEvent = recorded.storedEvents.find(
@@ -418,6 +418,162 @@ it.layer(layerTest)("a delegated task in a linked environment", (it) => {
       const offered = yield* Ref.get(offers);
       assert.equal(offered.length, 1);
       assert.equal(offered[0]?.threadId, parent.threadId);
+    }),
+  );
+  const launchOf = (name: string) => ({
+    environmentId: remoteChild.environmentId,
+    label: "Box",
+    linkedAt: "2026-11-01T00:00:00.000Z",
+    requestNamespace: `provider-session:${name}`,
+    key: `key:${name}`,
+    projectId: ProjectId.make("project:on-the-box"),
+    title: "Run the suite there.",
+    completionWake: "always" as const,
+  });
+
+  const recordLaunch = (name: string) =>
+    Effect.gen(function* () {
+      const orchestrator = yield* Orchestrator.OrchestratorV2;
+      const parent = yield* seedLiveParent(name);
+      yield* orchestrator.dispatch({
+        type: "delegated_task.remote.request",
+        commandId: CommandId.make(`command:remote-delegate:${name}`),
+        parentThreadId: parent.threadId,
+        parentRunId: parent.runId,
+        parentNodeId: parent.rootNodeId,
+        task: "Run the suite there.",
+        driver: ProviderDriverKind.make("remote"),
+        modelSelection,
+        remote: { remoteLaunch: launchOf(name) },
+      });
+      const taskOf = orchestrator
+        .getThreadProjection(parent.threadId)
+        .pipe(Effect.map((projection) => projection.subagents[0]!));
+      return { orchestrator, parent, taskOf, taskId: (yield* taskOf).id };
+    });
+
+  it.effect("is recorded before its launch is answered, then names the thread it started", () =>
+    Effect.gen(function* () {
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const { orchestrator, parent, taskOf, taskId } = yield* recordLaunch("launch-attach");
+      const launching = yield* taskOf;
+      assert.isUndefined(launching.remoteChild);
+      assert.equal(launching.remoteLaunch?.key, "key:launch-attach");
+      // Its caller hears a refusal from the call itself, so the launch takes no wake yet.
+      assert.equal(launching.completionWake, "settled_only");
+      const openFor = projections.getOpenRemoteDelegatedTasks.pipe(
+        Effect.map((open) => open.filter((entry) => entry.parentThreadId === parent.threadId)),
+      );
+      assert.deepEqual(yield* openFor, [{ parentThreadId: parent.threadId, taskId }]);
+      const index = yield* projections.listActiveShellIndex();
+      assert.isTrue(index.find((entry) => entry.id === parent.threadId)?.hasRemoteTasks);
+
+      const attach = {
+        type: "delegated_task.remote.attach" as const,
+        commandId: CommandId.make("command:remote-task-attach:launch-attach"),
+        parentThreadId: parent.threadId,
+        taskId,
+        remoteChild,
+        modelSelection: { ...modelSelection, model: "the-model-there" },
+      };
+      yield* orchestrator.dispatch(attach);
+      const attached = yield* taskOf;
+      assert.deepEqual(attached.remoteChild, remoteChild);
+      assert.equal(attached.model, "the-model-there");
+      assert.equal(attached.completionWake, "always");
+      assert.equal(attached.status, "running");
+      const projection = yield* orchestrator.getThreadProjection(parent.threadId);
+      const item = projection.turnItems.find((candidate) => candidate.type === "subagent");
+      assert.deepEqual(item?.type === "subagent" ? item.remoteChild : undefined, remoteChild);
+      // A launch sent twice names its thread once; another thread for it is refused.
+      yield* orchestrator
+        .dispatch({ ...attach, commandId: CommandId.make("command:attach-again") })
+        .pipe(Effect.ignore);
+      const other = yield* orchestrator
+        .dispatch({
+          ...attach,
+          commandId: CommandId.make("command:attach-other"),
+          remoteChild: { ...remoteChild, threadId: ThreadId.make("thread:a-second-one") },
+        })
+        .pipe(Effect.flip);
+      assert.equal(other._tag, "OrchestratorDispatchError");
+      assert.deepEqual((yield* taskOf).remoteChild, remoteChild);
+      assert.deepEqual(yield* openFor, [{ parentThreadId: parent.threadId, taskId }]);
+    }),
+  );
+
+  it.effect(
+    "ended here before its launch is answered keeps the launch until a thread is named",
+    () =>
+      Effect.gen(function* () {
+        const projections = yield* ProjectionStore.ProjectionStoreV2;
+        const { orchestrator, parent, taskOf, taskId } = yield* recordLaunch("launch-cancelled");
+        yield* orchestrator.dispatch({
+          type: "delegated_task.remote.complete",
+          commandId: CommandId.make("command:remote-task-complete:launch-cancelled"),
+          parentThreadId: parent.threadId,
+          taskId,
+          status: "cancelled",
+          result: "Cancelled.",
+        });
+        const cancelled = yield* taskOf;
+        assert.equal(cancelled.status, "cancelled");
+        assert.isUndefined(cancelled.remoteChild);
+        const openFor = projections.getOpenRemoteDelegatedTasks.pipe(
+          Effect.map((open) => open.filter((entry) => entry.parentThreadId === parent.threadId)),
+        );
+        // Still open: the launch may have started a thread there that is yet to stop.
+        assert.deepEqual(yield* openFor, [{ parentThreadId: parent.threadId, taskId }]);
+        yield* orchestrator.dispatch({
+          type: "delegated_task.remote.attach",
+          commandId: CommandId.make("command:remote-task-attach:launch-cancelled"),
+          parentThreadId: parent.threadId,
+          taskId,
+          remoteChild,
+          modelSelection,
+        });
+        const attached = yield* taskOf;
+        assert.equal(attached.status, "cancelled");
+        assert.equal(attached.result, "Cancelled.");
+        assert.deepEqual(attached.remoteChild, remoteChild);
+        // Now it owes that thread a stop, as any task cancelled here does.
+        assert.deepEqual(yield* openFor, [{ parentThreadId: parent.threadId, taskId }]);
+      }),
+  );
+
+  it.effect("whose launch started nothing there ends with nothing left to follow", () =>
+    Effect.gen(function* () {
+      const projections = yield* ProjectionStore.ProjectionStoreV2;
+      const { orchestrator, parent, taskOf, taskId } = yield* recordLaunch("launch-refused");
+      yield* orchestrator.dispatch({
+        type: "delegated_task.remote.complete",
+        commandId: CommandId.make("command:remote-task-abandon:launch-refused"),
+        parentThreadId: parent.threadId,
+        taskId,
+        status: "failed",
+        result: "No project there has this repository.",
+        launchAbandoned: true,
+      });
+      const refused = yield* taskOf;
+      assert.equal(refused.status, "failed");
+      assert.equal(refused.result, "No project there has this repository.");
+      assert.isTrue(refused.remoteLaunch?.abandoned);
+      const open = yield* projections.getOpenRemoteDelegatedTasks;
+      assert.deepEqual(
+        open.filter((entry) => entry.parentThreadId === parent.threadId),
+        [],
+      );
+      const attach = yield* orchestrator
+        .dispatch({
+          type: "delegated_task.remote.attach",
+          commandId: CommandId.make("command:remote-task-attach:launch-refused"),
+          parentThreadId: parent.threadId,
+          taskId,
+          remoteChild,
+          modelSelection,
+        })
+        .pipe(Effect.flip);
+      assert.equal(attach._tag, "OrchestratorDispatchError");
     }),
   );
 });

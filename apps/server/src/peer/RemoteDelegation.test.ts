@@ -24,6 +24,7 @@ import { expect, it } from "@effect/vitest";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
@@ -1304,6 +1305,209 @@ it.effect("refuses worktree isolation for a task there before launching anything
       expect(result.isError).toBe(true);
       expect(JSON.stringify(result.content)).toContain("isolation");
       expect(yield* Ref.get(thread.launched)).toBeNull();
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+/** Records each thread the box starts and loses the answer to the first launch. */
+const loseFirstLaunchReply = (thread: BoxThread, b: Effect.Success<ReturnType<typeof serveBox>>) =>
+  Effect.gen(function* () {
+    const started = yield* Ref.make<ReadonlyArray<ThreadId | null>>([]);
+    yield* Ref.set(
+      thread.afterLaunch,
+      Ref.get(thread.launched).pipe(
+        Effect.flatMap((threadId) =>
+          Ref.modify(started, (seen) => [seen.length === 0, [...seen, threadId]] as const),
+        ),
+        Effect.flatMap((first) => (first ? Ref.set(b.loseReply, true) : Effect.void)),
+      ),
+    );
+    return started;
+  });
+
+const openTasks = (laptopEnv: Effect.Success<ReturnType<typeof makeLaptop>>) =>
+  laptopEnv.projections.getOpenRemoteDelegatedTasks;
+
+it.effect("a launch whose answer is lost is sent again and follows the one thread it started", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const a = yield* makeLaptop(database, offers);
+      yield* linkTo(a.links, b, "full-access");
+      yield* seedParent(a);
+      const started = yield* loseFirstLaunchReply(thread, b);
+
+      // The caller still gets its task: the record was made before the launch was sent.
+      const delegated = yield* delegateToBox(a);
+      yield* Ref.set(thread.reply, "Done on the box.");
+      yield* Ref.set(thread.status, "completed");
+      yield* Deferred.succeed(thread.finished, undefined);
+      const task = yield* taskResult(a, delegated.taskId);
+      expect(task).toMatchObject({ status: "completed", result: "Done on the box." });
+
+      const threadIds = yield* Ref.get(started);
+      expect(threadIds).toHaveLength(2);
+      expect(new Set(threadIds).size).toBe(1);
+      expect(task?.remoteChild?.threadId).toBe(threadIds[0]);
+      const { subagents } = yield* a.orchestrator.getThreadProjection(parentThreadId);
+      expect(subagents).toHaveLength(1);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("a launch cut short by a restart is sent again after it, as the same thread", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      // The link and its session there outlive the restart.
+      const linking = yield* layerLinkingEnvironment(laptop).pipe(Layer.build);
+      const started = yield* loseFirstLaunchReply(thread, b);
+      // The laptop goes away after the box starts the thread and before it hears so.
+      const delegated = yield* Effect.scoped(
+        Effect.gen(function* () {
+          const before = yield* makeLaptop(database, offers, linking, Effect.never);
+          yield* linkTo(before.links, b, "full-access");
+          yield* seedParent(before);
+          const delegated = yield* delegateToBox(before);
+          expect(delegated.status).toBe("starting");
+          expect(delegated).not.toHaveProperty("remoteChild");
+          return delegated;
+        }),
+      );
+      expect(yield* Ref.get(started)).toHaveLength(1);
+
+      const after = yield* makeLaptop(database, offers, linking);
+      expect(yield* openTasks(after)).toEqual([{ parentThreadId, taskId: delegated.taskId }]);
+      yield* after.remote.start();
+      yield* Ref.set(thread.reply, "Finished after the restart.");
+      yield* Ref.set(thread.status, "completed");
+      yield* Deferred.succeed(thread.finished, undefined);
+      const task = yield* taskResult(after, delegated.taskId);
+      expect(task).toMatchObject({ status: "completed", result: "Finished after the restart." });
+      const threadIds = yield* Ref.get(started);
+      expect(threadIds).toHaveLength(2);
+      expect(new Set(threadIds).size).toBe(1);
+      const { subagents } = yield* after.orchestrator.getThreadProjection(parentThreadId);
+      expect(subagents).toHaveLength(1);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("a launch the box refuses ends the task, and the caller hears why from the call", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const a = yield* makeLaptop(database, offers);
+      // A supervised link cannot start full-access work.
+      yield* linkTo(a.links, b, "approval-required");
+      yield* seedParent(a);
+
+      const refused = yield* a.call("delegate_task", {
+        task: "Run the full suite on the box.",
+        target: { environmentId: box.environmentId, providerInstanceId: instanceId },
+        runtimeMode: "full-access",
+        mode: "async",
+        clientRequestId: "suite-refused",
+      });
+      expect(refused.isError).toBe(true);
+      expect(JSON.stringify(refused.content)).toContain("runtime_mode_escalation_denied");
+      expect(yield* Ref.get(thread.launched)).toBeNull();
+
+      const { subagents } = yield* a.orchestrator.getThreadProjection(parentThreadId);
+      expect(subagents).toHaveLength(1);
+      expect(subagents[0]).toMatchObject({ status: "failed", remoteLaunch: { abandoned: true } });
+      expect(yield* openTasks(a)).toEqual([]);
+      // Nothing wakes the parent for a refusal its own call already returned.
+      expect(yield* SubscriptionRef.get(offers)).toEqual([]);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("a launch unanswered when its link is made again is not sent under the new link", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const beforeFollow = yield* Ref.make<Effect.Effect<void>>(Effect.void);
+      const a = yield* makeLaptop(
+        database,
+        offers,
+        undefined,
+        Effect.flatten(Ref.get(beforeFollow)),
+      );
+      yield* linkTo(a.links, b, "full-access");
+      yield* seedParent(a);
+      const started = yield* loseFirstLaunchReply(thread, b);
+      // The user links the box again before the launch is sent a second time.
+      yield* Ref.set(
+        beforeFollow,
+        Ref.set(beforeFollow, Effect.void).pipe(
+          Effect.andThen(TestClock.adjust(Duration.seconds(1))),
+          Effect.andThen(linkTo(a.links, b, "full-access")),
+          Effect.orDie,
+        ),
+      );
+
+      const delegated = yield* delegateToBox(a);
+      const task = yield* taskResult(a, delegated.taskId);
+      expect(task?.status).toBe("failed");
+      expect(task?.result).toContain("made again");
+      expect(task?.remoteLaunch?.abandoned).toBe(true);
+      // The new link's session would not know the launch, so it is never sent again.
+      expect(yield* Ref.get(started)).toHaveLength(1);
+      expect(yield* openTasks(a)).toEqual([]);
+    }),
+  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
+);
+
+it.effect("a task cancelled before its launch is answered is stopped there once it is", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const thread = yield* makeBoxThread;
+      const b = yield* serveBox(thread);
+      const offers = yield* SubscriptionRef.make<
+        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
+      >([]);
+      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
+      const resend = yield* Deferred.make<void>();
+      const a = yield* makeLaptop(database, offers, undefined, Deferred.await(resend));
+      yield* linkTo(a.links, b, "full-access");
+      yield* seedParent(a);
+      const started = yield* loseFirstLaunchReply(thread, b);
+
+      const delegated = yield* delegateToBox(a);
+      const cancel = yield* a.call("task_cancel", { taskId: delegated.taskId });
+      expect(cancel.structuredContent).toEqual({
+        taskId: delegated.taskId,
+        status: "cancel_requested",
+      });
+      expect((yield* taskResult(a, delegated.taskId))?.status).toBe("cancelled");
+      expect(yield* Ref.get(thread.interrupted)).toBe(0);
+
+      // The launch is sent again only to learn which thread to stop.
+      yield* Deferred.succeed(resend, undefined);
+      yield* Deferred.await(thread.interruptedOnce);
+      expect(yield* Ref.get(thread.interrupted)).toBe(1);
+      expect(new Set(yield* Ref.get(started)).size).toBe(1);
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );

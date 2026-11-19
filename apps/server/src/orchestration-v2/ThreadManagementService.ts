@@ -13,6 +13,7 @@ import {
   type ChatAttachment,
   CommandId,
   isDelegatedAppThread,
+  isRemoteTask,
   isListedThreadLineage,
   MessageId,
   OrchestrationV2StopWorkflowError,
@@ -1499,7 +1500,9 @@ const make = Effect.gen(function* () {
       if (task.childThreadId === null) {
         // A task in a linked environment ends here; its follower then stops it there.
         // One with its result keeps it, but its thread there may run follow-up work.
-        if (task.remoteChild === undefined) continue;
+        if (!isRemoteTask(task)) continue;
+        // One still being launched ends here too; with a result already, it has no thread to owe a stop.
+        if (task.remoteChild === undefined && task.result !== null) continue;
         const commandId = CommandId.make(`${input.commandId}:stop:${task.id}`);
         yield* (input.remoteDispatch ?? dispatch)(
           task.result === null

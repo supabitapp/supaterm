@@ -18,6 +18,7 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServer from "effect/http/HttpServer";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApi from "effect/http-api/HttpApi";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 
@@ -80,6 +81,7 @@ export const servePeer = <E, R>(
     const bearers = yield* Ref.make<ReadonlyArray<string>>([]);
     const probes = yield* Ref.make(0);
     const asleep = yield* Ref.make(false);
+    const loseReply = yield* Ref.make(false);
     const unanswered = yield* Queue.unbounded<void>();
     const wake = yield* Deferred.make<void>();
     const layerEnvironment = Layer.succeed(ServerEnvironment.ServerEnvironment, {
@@ -114,7 +116,11 @@ export const servePeer = <E, R>(
           if (authorization !== undefined) {
             yield* Ref.update(bearers, (seen) => [...seen, authorization]);
           }
-          return yield* httpEffect;
+          const response = yield* httpEffect;
+          // The call ran here, but its answer never arrives: the caller sees a failed route.
+          return request.url.startsWith("/mcp") && (yield* Ref.getAndSet(loseReply, false))
+            ? HttpServerResponse.empty({ status: 502 })
+            : response;
         }),
       { global: true },
     );
@@ -181,6 +187,8 @@ export const servePeer = <E, R>(
       asleep,
       /** One entry per descriptor request it left unanswered while asleep. */
       unanswered,
+      /** While set, its next `/mcp` call runs but answers as a failed route, once. */
+      loseReply,
       /** The sessions linking created there, which its Connections lists. */
       linkedSessions: auth
         .listSessions()

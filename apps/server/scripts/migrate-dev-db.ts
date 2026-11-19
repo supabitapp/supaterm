@@ -290,8 +290,13 @@ const pruneSnapshot = Effect.fn("pruneDevDbSnapshot")(function* (input: RunMigra
   const recoveryThreadIds = yield* Effect.forEach(RECOVERY_KINDS, (kind) =>
     projections.getRecoveryThreadIds(kind),
   );
+  // A task still open in a linked environment would be followed from this copy too.
+  const remoteTasks = yield* projections.getOpenRemoteDelegatedTasks;
   yield* sql`CREATE TEMP TABLE live_threads (thread_id TEXT PRIMARY KEY)`;
-  for (const threadId of new Set(recoveryThreadIds.flat())) {
+  for (const threadId of new Set([
+    ...recoveryThreadIds.flat(),
+    ...remoteTasks.map((task) => task.parentThreadId),
+  ])) {
     yield* sql`INSERT INTO live_threads (thread_id) VALUES (${threadId})`;
   }
   yield* sql`INSERT OR IGNORE INTO live_threads (thread_id)

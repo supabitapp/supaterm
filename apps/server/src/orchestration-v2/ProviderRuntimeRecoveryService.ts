@@ -7,6 +7,7 @@ import {
   type ProviderThreadId,
   type RunAttemptId,
   type OrchestrationV2RestartCancelledBackgroundWork,
+  isRemoteTask,
   type OrchestrationV2Subagent,
   type OrchestrationV2ThreadProjection,
   isOrchestrationV2WorkActive,
@@ -110,10 +111,9 @@ function isAppOwnedDelegation(task: {
   readonly origin: OrchestrationV2Subagent["origin"];
   readonly childThreadId: ThreadId | null;
   readonly remoteChild?: OrchestrationV2Subagent["remoteChild"];
+  readonly remoteLaunch?: OrchestrationV2Subagent["remoteLaunch"];
 }): boolean {
-  return (
-    task.origin === "app_owned" && (task.childThreadId !== null || task.remoteChild !== undefined)
-  );
+  return task.origin === "app_owned" && (task.childThreadId !== null || isRemoteTask(task));
 }
 
 function isAppOwnedDelegationItem(

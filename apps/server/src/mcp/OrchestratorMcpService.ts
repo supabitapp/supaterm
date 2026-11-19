@@ -64,6 +64,7 @@ import {
   isOrchestrationV2WorkActive,
   TurnItemId,
   isOrchestrationV2RunInProgress,
+  isRemoteTask,
   isOrchestrationV2RunSettled,
   latestProviderTurnForAttempt,
   resolveProjectProviderInstanceEnabled,
@@ -1711,7 +1712,7 @@ const make = Effect.gen(function* () {
         candidate.origin === "app_owned" &&
         candidate.threadId === scope.thread.threadId,
     );
-    if (task === undefined || (task.childThreadId === null && task.remoteChild === undefined)) {
+    if (task === undefined || (task.childThreadId === null && !isRemoteTask(task))) {
       return yield* failure(
         "task_not_found",
         `Delegated task ${taskId} does not belong to thread ${scope.thread.threadId}.`,
@@ -2816,10 +2817,7 @@ const make = Effect.gen(function* () {
         // The task runs in a linked environment: its thread there is stopped through the link.
         const subagents = yield* loadTasks(scope.thread.threadId, [input.taskId]);
         const remoteTask = subagents.find(
-          (task) =>
-            task.id === input.taskId &&
-            task.origin === "app_owned" &&
-            task.remoteChild !== undefined,
+          (task) => task.id === input.taskId && task.origin === "app_owned" && isRemoteTask(task),
         );
         if (remoteTask === undefined) {
           return yield* failure(
