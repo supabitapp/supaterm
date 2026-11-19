@@ -477,6 +477,14 @@ export const restoreRejectedQueuedMessage = Effect.fn("ThreadOutbox.restoreRejec
         return "deferred" as const;
       }
       const revision = threadOutboxRevision(queuedMessage.messageId);
+      if (queuedMessage.restoreToDraft === false) {
+        const removed = yield* storage("remove-unsendable", queuedMessage.messageId, () =>
+          removeThreadOutboxMessage(queuedMessage, revision, () => !editing()),
+        );
+        if (!removed) return "deferred" as const;
+        setThreadComposerError(threadKey, message, queuedMessage.messageId);
+        return "restored" as const;
+      }
       yield* storage("load-drafts", queuedMessage.messageId, () => waitForComposerDraftsLoaded());
       if (editing()) return "deferred" as const;
       const existingAttachmentIds = new Set(

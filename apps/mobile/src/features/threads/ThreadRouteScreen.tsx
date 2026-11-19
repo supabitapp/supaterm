@@ -1228,6 +1228,7 @@ function ThreadRouteContent(
           onResumeQueue={composer.canResume && canOperateThread ? handleResumeQueue : null}
           onSendMessage={composer.onSendMessage}
           onSendVoiceMessage={composer.onSendVoiceMessage}
+          onSendCommand={composer.onSendCommand}
           onReconnectEnvironment={handleReconnectEnvironment}
           canSwitchThreadProvider={composer.canSwitchThreadProvider}
           onUpdateThreadModelSelection={composer.onUpdateModelSelection}
