@@ -12,6 +12,7 @@ import * as SourceControlHost from "@supaterm/source-control-core/server/SourceC
 import * as GitHubClient from "../shared/definition.ts";
 import * as GitHubRest from "./GitHubRest.ts";
 import * as GitHubCredentials from "./GitHubCredentials.ts";
+import { makeGhProcess } from "./gitHubCliProcess.ts";
 import { gitHubApiHostForRemote } from "./gitHubRepositoryResolution.ts";
 import {
   effectiveGitHubAccount,
@@ -206,7 +207,7 @@ export const make = Effect.gen(function* () {
   const api = yield* GitHubRest.GitHubRest;
   const credentials = yield* GitHubCredentials.GitHubCredentials;
   const sourceControlHost = yield* SourceControlHost.SourceControlHost;
-  const process = sourceControlHost.process;
+  const process = yield* makeGhProcess;
   const environment = yield* HostProcess.Environment;
 
   return {

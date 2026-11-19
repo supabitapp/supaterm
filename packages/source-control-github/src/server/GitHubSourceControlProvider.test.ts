@@ -1342,6 +1342,7 @@ function probeGitHubDiscovery(input: {
         host,
         Layer.mock(GitHubRest.GitHubRest)({ rest: ({ host }) => input.rest(host) }),
         Layer.mock(GitHubCredentials.GitHubCredentials)({ invalidateAll: Effect.void }),
+        FileSystem.layerNoop({}),
       ),
     ),
     Effect.provideService(HostProcess.Environment, input.environment ?? {}),
