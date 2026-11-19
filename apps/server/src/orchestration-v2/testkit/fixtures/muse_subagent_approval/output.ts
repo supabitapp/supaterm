@@ -26,10 +26,7 @@ export function assertMuseSubagentApprovalOutput(
     entry.type === "expect_outbound" ? [entry.frame] : [],
   );
   assert.isTrue(
-    outbound.some(
-      (frame) =>
-        typeof frame === "object" && frame !== null && field(frame, "method") === "approval/decide",
-    ),
+    outbound.some((frame) => field(frame, "method") === "approval/decide"),
     "the answer reaches Muse",
   );
 

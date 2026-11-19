@@ -25,10 +25,7 @@ export function assertMuseTurnInterruptOutput(
     entry.type === "expect_outbound" ? [entry.frame] : [],
   );
   assert.isTrue(
-    outbound.some(
-      (frame) =>
-        typeof frame === "object" && frame !== null && field(frame, "method") === "turn/interrupt",
-    ),
+    outbound.some((frame) => field(frame, "method") === "turn/interrupt"),
     "Stop must reach Muse as turn/interrupt",
   );
   assert.isFalse(projection.turnItems.some((item) => item.status === "running"));

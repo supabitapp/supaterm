@@ -1438,12 +1438,9 @@ function isSystemInitFrame(message: SDKMessage | undefined): boolean {
 }
 
 function isTaskNotificationOriginResultFrame(frame: unknown): boolean {
-  if (typeof frame !== "object" || frame === null || field(frame, "type") !== "result") {
-    return false;
-  }
-  const origin: unknown = field(frame, "origin");
   return (
-    typeof origin === "object" && origin !== null && field(origin, "kind") === "task-notification"
+    field(frame, "type") === "result" &&
+    field(field(frame, "origin"), "kind") === "task-notification"
   );
 }
 
