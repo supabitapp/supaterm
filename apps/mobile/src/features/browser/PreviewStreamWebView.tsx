@@ -42,12 +42,6 @@ import {
 export interface PreviewStreamRef {
   readonly command: (input: PreviewStreamInput) => void;
   readonly paste: () => void;
-  readonly togglePictureInPicture: () => void;
-}
-
-export interface PreviewPictureInPictureState {
-  readonly supported: boolean;
-  readonly active: boolean;
 }
 
 type NativeStreamBridge = {
@@ -56,7 +50,6 @@ type NativeStreamBridge = {
   readonly onGone?: () => void;
   readonly onViewport?: (viewport: { readonly width: number; readonly height: number }) => void;
   readonly onControl?: (control: PreviewStreamControl | null) => void;
-  readonly onPictureInPicture?: (state: PreviewPictureInPictureState, detail?: string) => void;
   /** True while frames show, so commands reach the page. Pass a stable function. */
   readonly onStreamingChange?: (streaming: boolean) => void;
   readonly compact?: boolean;
@@ -258,7 +251,6 @@ function PreviewStreamDocumentView({
   onGone,
   onViewport,
   onControl,
-  onPictureInPicture,
   onStreamingChange,
   onRetry,
   onStreaming,
@@ -341,8 +333,6 @@ function PreviewStreamDocumentView({
   useImperativeHandle(ref, () => ({
     command,
     paste,
-    togglePictureInPicture: () =>
-      webView.current?.injectJavaScript("window.SupatermPreviewStream?.pictureInPicture(); true;"),
   }));
   // oxlint-disable-next-line supaterm/no-unreasoned-state-sync -- marks the view live and stops the WebView stream when this view unmounts
   useLayoutEffect(() => {
@@ -392,7 +382,6 @@ function PreviewStreamDocumentView({
           contentInsetAdjustmentBehavior="never"
           setSupportMultipleWindows={false}
           allowsInlineMediaPlayback
-          allowsPictureInPictureMediaPlayback
           mediaPlaybackRequiresUserAction={false}
           style={{ flex: 1, backgroundColor: background }}
           onError={() => fail("Browser viewer could not load. Reconnect to try again.")}
@@ -440,9 +429,6 @@ function PreviewStreamDocumentView({
                 return;
               case "fileChooser":
                 setFileChooser(message.chooser);
-                return;
-              case "pictureInPicture":
-                onPictureInPicture?.(message, message.detail);
                 return;
               case "status":
                 if (message.status !== "connecting") setStarted(true);
