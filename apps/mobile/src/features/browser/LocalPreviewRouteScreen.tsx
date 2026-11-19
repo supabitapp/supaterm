@@ -50,6 +50,7 @@ export function LocalPreviewScreen(props: {
   const [page, setPage] = useState<TunnelNavigation | null>(null);
   const [failed, setFailed] = useState(false);
   const [disconnected, setDisconnected] = useState(false);
+  const [outdated, setOutdated] = useState(false);
   const [debug, setDebug] = useState<string | undefined>(undefined);
   const [unsupported, setUnsupported] = useState<string | null>(null);
   // After a failed load the webview reports no URL, so the address stays on the one asked for.
@@ -116,8 +117,9 @@ export function LocalPreviewScreen(props: {
                 // A link to another port fails with that port's address, not the one typed earlier.
                 if (failure.url) setRequested(failure.url);
                 setDebug(failure.debug);
-                // Android reports no cause, so a refused tunnel request stands in for it there.
+                // Without a cause, a refused tunnel request reported through onAccess stands in.
                 if (failure.cause) setDisconnected(failure.cause === "environment");
+                setOutdated(failure.cause === "outdated");
                 setFailed(true);
               }}
             />
@@ -144,14 +146,18 @@ export function LocalPreviewScreen(props: {
                   <EmptyState
                     variant="plain"
                     title={
-                      disconnected
-                        ? `Not connected to ${environmentLabel}`
-                        : `Can't reach ${hostOf(current)}`
+                      outdated
+                        ? `Update Supaterm on ${environmentLabel}`
+                        : disconnected
+                          ? `Not connected to ${environmentLabel}`
+                          : `Can't reach ${hostOf(current)}`
                     }
                     detail={
-                      disconnected
-                        ? `Pages on ${environmentLabel}’s localhost load through its connection. Try again once it reconnects.`
-                        : `Nothing is listening on port ${portOf(current)} on ${environmentLabel}. Start the server there, then try again.`
+                      outdated
+                        ? `${environmentLabel} runs a version of Supaterm that can't open its localhost pages on this device. Update it there, then try again.`
+                        : disconnected
+                          ? `Pages on ${environmentLabel}’s localhost load through its connection. Try again once it reconnects.`
+                          : `Nothing is listening on port ${portOf(current)} on ${environmentLabel}. Start the server there, then try again.`
                     }
                     actionLabel="Try again"
                     onAction={retry}
